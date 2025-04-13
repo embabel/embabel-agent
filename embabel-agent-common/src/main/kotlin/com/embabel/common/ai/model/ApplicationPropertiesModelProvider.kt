@@ -30,7 +30,6 @@ data class ModelProperties(
 /**
  * Take LLM definitions from application properties file
  */
-@Component
 class ApplicationPropertiesModelProvider(
     private val llms: List<Llm>,
     private val embeddingServices: List<EmbeddingService>,
