@@ -13,7 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-package com.embabel.common.ai.model.configuration
+package com.embabel.common.ai.model.config
 
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.Llm
@@ -28,6 +28,7 @@ import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.ai.openai.api.OpenAiApi
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.*
 import org.springframework.core.type.AnnotatedTypeMetadata
 import org.springframework.validation.annotation.Validated
@@ -58,12 +59,11 @@ class OpenAiAvailable : Condition {
  */
 @ExcludeFromJacocoGeneratedReport(reason = "Open AI configuration can't be unit tested")
 @Configuration
+@EnableConfigurationProperties(OpenAiProperties::class)
 @Conditional(OpenAiAvailable::class)
-@Profile("!test")
-internal class OpenAiConfiguration(
+class OpenAiConfiguration(
     private val properties: OpenAiProperties,
 ) {
-
     init {
         loggerFor<OpenAiConfiguration>().info("OpenAI AI models are available")
     }
