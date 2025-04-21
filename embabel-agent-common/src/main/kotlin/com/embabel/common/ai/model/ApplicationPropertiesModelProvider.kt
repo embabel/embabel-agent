@@ -17,7 +17,6 @@ package com.embabel.common.ai.model
 
 import com.embabel.common.util.kotlin.loggerFor
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.stereotype.Component
 import org.springframework.validation.annotation.Validated
 
 @ConfigurationProperties("embabel.model")
@@ -79,6 +78,10 @@ class ApplicationPropertiesModelProvider(
 
             is ByNameModelSelectionCriteria -> {
                 llms.firstOrNull { it.name == criteria.name } ?: throw NoSuitableModelException(criteria, llms)
+            }
+
+            is AutoModelSelectionCriteria -> {
+                TODO("Auto model selection criteria not implemented")
             }
         }
 

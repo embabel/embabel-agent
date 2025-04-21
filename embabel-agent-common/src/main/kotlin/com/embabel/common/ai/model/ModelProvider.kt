@@ -15,11 +15,15 @@
 */
 package com.embabel.common.ai.model
 
+import com.embabel.common.ai.prompt.KnowledgeCutoffDate
+import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.model.Model
+import java.time.LocalDate
 
 /**
  * Wraps a Spring AI model and allows metadata to be attached to a model
@@ -31,11 +35,26 @@ interface AiModel<M : Model<*, *>> {
 
 /**
  * Wraps a Spring AI ChatModel exposing an LLM.
+ * @param name name of the LLM
+ * @param model the Spring AI ChatModel to call
+ * @param promptContributors list of prompt contributors to be used with this model.
+ * Knowledge cutoff is most important.
  */
 data class Llm(
     override val name: String,
     override val model: ChatModel,
-) : AiModel<ChatModel>
+    override val promptContributors: List<PromptContributor> = emptyList(),
+) : AiModel<ChatModel>, PromptContributorConsumer {
+
+    companion object {
+
+        fun withKnowledgeCutoff(
+            name: String,
+            model: ChatModel,
+            knowledgeCutoffDate: LocalDate,
+        ) = Llm(name, model, listOf(KnowledgeCutoffDate(knowledgeCutoffDate)))
+    }
+}
 
 /**
  * Wraps a Spring AI EmbeddingModel exposing an embedding service.
@@ -62,7 +81,15 @@ class NoSuitableModelException(criteria: ModelSelectionCriteria, models: List<Ai
     JsonSubTypes.Type(value = ByNameModelSelectionCriteria::class),
     JsonSubTypes.Type(value = ByRoleModelSelectionCriteria::class),
 )
-sealed interface ModelSelectionCriteria
+sealed interface ModelSelectionCriteria {
+
+    companion object {
+
+        fun byRole(role: String): ModelSelectionCriteria = ByRoleModelSelectionCriteria(role)
+
+        fun byName(name: String): ModelSelectionCriteria = ByNameModelSelectionCriteria(name)
+    }
+}
 
 /**
  * Select an LLM by role
@@ -74,6 +101,12 @@ data class ByRoleModelSelectionCriteria(
 data class ByNameModelSelectionCriteria(
     val name: String,
 ) : ModelSelectionCriteria
+
+/**
+ * Choose an LLM automatically: For example, in a platform, based
+ * on runtime analysis, or based on analysis of the prompt
+ */
+object AutoModelSelectionCriteria : ModelSelectionCriteria
 
 /**
  * Provide AI models for requested roles, and expose data about available models.
