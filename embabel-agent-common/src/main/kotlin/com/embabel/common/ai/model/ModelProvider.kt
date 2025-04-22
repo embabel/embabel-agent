@@ -37,24 +37,17 @@ interface AiModel<M : Model<*, *>> {
  * Wraps a Spring AI ChatModel exposing an LLM.
  * @param name name of the LLM
  * @param model the Spring AI ChatModel to call
+ * @param knowledgeCutoffDate model's knowledge cutoff date, if known
  * @param promptContributors list of prompt contributors to be used with this model.
- * Knowledge cutoff is most important.
+ * Knowledge cutoff is most important and will be included if knowledgeCutoffDate is not null.
  */
 data class Llm(
     override val name: String,
     override val model: ChatModel,
-    override val promptContributors: List<PromptContributor> = emptyList(),
-) : AiModel<ChatModel>, PromptContributorConsumer {
-
-    companion object {
-
-        fun withKnowledgeCutoff(
-            name: String,
-            model: ChatModel,
-            knowledgeCutoffDate: LocalDate,
-        ) = Llm(name, model, listOf(KnowledgeCutoffDate(knowledgeCutoffDate)))
-    }
-}
+    val knowledgeCutoffDate: LocalDate? = null,
+    override val promptContributors: List<PromptContributor> =
+        buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } }
+) : AiModel<ChatModel>, PromptContributorConsumer
 
 /**
  * Wraps a Spring AI EmbeddingModel exposing an embedding service.
