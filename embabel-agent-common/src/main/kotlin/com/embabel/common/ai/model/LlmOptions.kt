@@ -15,33 +15,74 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
+import com.embabel.common.core.types.HasInfoString
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.swagger.v3.oas.annotations.media.Schema
 
 @Schema(
-    description = "Options for the LLM to use to respond",
+    description = "Options for LLM use",
 )
-@JsonDeserialize(`as` = SimpleLlmOptions::class)
-interface LlmOptions {
+@JsonDeserialize(`as` = BuildableLlmOptions::class)
+interface LlmOptions : HasInfoString {
 
     @get:Schema(
-        description = "If provided, custom selection criteria for the LLM to use to answer the question. If not provided, the default LLM (best) will be used.",
+        description = "If provided, custom selection criteria for the LLM to use. If not provided, a default LLM will be used.",
         required = false,
     )
-    val llmSelectionCriteria: ModelSelectionCriteria?
+    val criteria: ModelSelectionCriteria?
 
     @get:Schema(
         description = "The temperature to use when generating responses",
         minimum = "0.0",
-        maximum = "1.5",
+        maximum = "1.0",
         defaultValue = "0.0",
         required = true,
     )
     val temperature: Double
 
+    override fun infoString(verbose: Boolean?): String {
+        return "LlmOptions(criteria='$criteria', temperature=$temperature)"
+    }
+
+    companion object {
+
+        /**
+         * Create an LlmOptions instance we can build.
+         */
+        operator fun invoke(
+            model: String = DEFAULT_MODEL,
+            temperature: Double = DEFAULT_TEMPERATURE,
+        ): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = byName(model),
+            temperature = temperature,
+        )
+
+        operator fun invoke(
+            criteria: ModelSelectionCriteria,
+            temperature: Double = DEFAULT_TEMPERATURE,
+        ): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = criteria,
+            temperature = temperature,
+        )
+
+        const val DEFAULT_MODEL = "gpt-4o-mini"
+
+        const val DEFAULT_TEMPERATURE = 0.5
+    }
+
 }
 
-data class SimpleLlmOptions(
-    override val llmSelectionCriteria: ModelSelectionCriteria? = null,
+data class BuildableLlmOptions(
+    override val criteria: ModelSelectionCriteria? = null,
     override val temperature: Double = 0.0,
-) : LlmOptions
+) : LlmOptions {
+
+    fun withTemperature(temperature: Double): BuildableLlmOptions {
+        return copy(temperature = temperature)
+    }
+
+    fun withModel(model: String): BuildableLlmOptions {
+        return copy(criteria = criteria)
+    }
+}
