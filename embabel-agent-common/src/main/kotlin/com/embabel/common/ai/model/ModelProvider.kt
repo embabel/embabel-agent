@@ -82,11 +82,11 @@ sealed interface ModelSelectionCriteria {
 
         fun byName(name: String): ModelSelectionCriteria = ByNameModelSelectionCriteria(name)
 
-        fun randomOf(names: List<String>): ModelSelectionCriteria =
-            RandomByNameModelSelectionCriteria(names)
+        fun randomOf(vararg names: String): ModelSelectionCriteria =
+            RandomByNameModelSelectionCriteria(names.toList())
 
-        fun firstOf(names: List<String>): ModelSelectionCriteria =
-            FallbackByNameModelSelectionCriteria(names)
+        fun firstOf(vararg names: String): ModelSelectionCriteria =
+            FallbackByNameModelSelectionCriteria(names.toList())
     }
 }
 

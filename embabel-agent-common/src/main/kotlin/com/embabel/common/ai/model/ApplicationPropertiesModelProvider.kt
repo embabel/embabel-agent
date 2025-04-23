@@ -91,8 +91,16 @@ class ApplicationPropertiesModelProvider(
             }
 
             is FallbackByNameModelSelectionCriteria -> {
-                criteria.names.map { requestedName -> llms.firstOrNull { llm -> requestedName == llm.name } }
-                    .firstOrNull()
+                var llm: Llm? = null
+                for (requestedName in criteria.names) {
+                    llm = llms.firstOrNull { requestedName == it.name }
+                    if (llm != null) {
+                        break
+                    } else {
+                        logger.info("Requested LLM '{}' not found", requestedName)
+                    }
+                }
+                llm
                     ?: throw NoSuitableModelException(criteria, llms)
             }
 
