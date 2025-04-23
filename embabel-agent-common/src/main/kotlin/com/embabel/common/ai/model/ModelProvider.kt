@@ -21,6 +21,7 @@ import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.model.Model
 import java.time.LocalDate
@@ -34,9 +35,29 @@ interface AiModel<M : Model<*, *>> {
 }
 
 /**
+ * Convert our LLM options to Spring AI ChatOptions
+ */
+typealias OptionsConverter = (LlmOptions) -> ChatOptions
+
+/**
+ * Save default. Some models may not support all options.
+ */
+val DefaultOptionsConverter = { options: LlmOptions ->
+    ChatOptions.builder()
+        .temperature(options.temperature)
+        .topP(options.topP)
+        .maxTokens(options.maxTokens)
+        .presencePenalty(options.presencePenalty)
+        .frequencyPenalty(options.frequencyPenalty)
+        .topP(options.topP)
+        .build()
+}
+
+/**
  * Wraps a Spring AI ChatModel exposing an LLM.
  * @param name name of the LLM
  * @param model the Spring AI ChatModel to call
+ * @param optionsConverter function to convert LLM options to Spring AI ChatOptions
  * @param knowledgeCutoffDate model's knowledge cutoff date, if known
  * @param promptContributors list of prompt contributors to be used with this model.
  * Knowledge cutoff is most important and will be included if knowledgeCutoffDate is not null.
@@ -44,6 +65,7 @@ interface AiModel<M : Model<*, *>> {
 data class Llm(
     override val name: String,
     override val model: ChatModel,
+    val optionsConverter: OptionsConverter = DefaultOptionsConverter,
     val knowledgeCutoffDate: LocalDate? = null,
     override val promptContributors: List<PromptContributor> =
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } }

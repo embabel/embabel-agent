@@ -41,8 +41,19 @@ interface LlmOptions : HasInfoString {
     )
     val temperature: Double
 
+    val frequencyPenalty: Double?
+
+    val maxTokens: Int?
+
+    val presencePenalty: Double?
+
+    val topK: Int?
+
+    val topP: Double?
+
+
     override fun infoString(verbose: Boolean?): String {
-        return "LlmOptions(criteria='$criteria', temperature=$temperature)"
+        return toString()
     }
 
     companion object {
@@ -76,6 +87,11 @@ interface LlmOptions : HasInfoString {
 data class BuildableLlmOptions(
     override val criteria: ModelSelectionCriteria? = null,
     override val temperature: Double = 0.0,
+    override val frequencyPenalty: Double? = null,
+    override val maxTokens: Int? = null,
+    override val presencePenalty: Double? = null,
+    override val topK: Int? = null,
+    override val topP: Double? = null,
 ) : LlmOptions {
 
     fun withTemperature(temperature: Double): BuildableLlmOptions {
@@ -85,4 +101,25 @@ data class BuildableLlmOptions(
     fun withModel(model: String): BuildableLlmOptions {
         return copy(criteria = criteria)
     }
+
+    fun withMaxTokens(maxTokens: Int): BuildableLlmOptions {
+        return copy(maxTokens = maxTokens)
+    }
+
+    fun withTopK(topK: Int): BuildableLlmOptions {
+        return copy(topK = topK)
+    }
+
+    fun withTopP(topP: Double): BuildableLlmOptions {
+        return copy(topP = topP)
+    }
+
+    fun withFrequencyPenalty(frequencyPenalty: Double): BuildableLlmOptions {
+        return copy(frequencyPenalty = frequencyPenalty)
+    }
+
+    fun withPresencePenalty(presencePenalty: Double): BuildableLlmOptions {
+        return copy(presencePenalty = presencePenalty)
+    }
+
 }
