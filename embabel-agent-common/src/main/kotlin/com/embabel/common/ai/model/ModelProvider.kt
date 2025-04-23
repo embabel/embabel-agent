@@ -81,6 +81,12 @@ sealed interface ModelSelectionCriteria {
         fun byRole(role: String): ModelSelectionCriteria = ByRoleModelSelectionCriteria(role)
 
         fun byName(name: String): ModelSelectionCriteria = ByNameModelSelectionCriteria(name)
+
+        fun randomOf(names: List<String>): ModelSelectionCriteria =
+            RandomByNameModelSelectionCriteria(names)
+
+        fun firstOf(names: List<String>): ModelSelectionCriteria =
+            FallbackByNameModelSelectionCriteria(names)
     }
 }
 
@@ -93,6 +99,14 @@ data class ByRoleModelSelectionCriteria(
 
 data class ByNameModelSelectionCriteria(
     val name: String,
+) : ModelSelectionCriteria
+
+data class RandomByNameModelSelectionCriteria(
+    val names: List<String>,
+) : ModelSelectionCriteria
+
+data class FallbackByNameModelSelectionCriteria(
+    val names: List<String>,
 ) : ModelSelectionCriteria
 
 /**
@@ -130,9 +144,6 @@ interface ModelProvider {
 
         const val CHEAPEST_ROLE = "cheapest"
 
-        const val SCHEMA_ROLE = "schema"
-
-        const val CHUNK_ROLE = "chunk"
     }
 
 }

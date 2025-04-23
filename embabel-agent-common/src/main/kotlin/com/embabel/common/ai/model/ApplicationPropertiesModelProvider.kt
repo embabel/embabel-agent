@@ -35,20 +35,22 @@ class ApplicationPropertiesModelProvider(
     private val properties: ModelProperties,
 ) : ModelProvider {
 
+    private val logger = loggerFor<ApplicationPropertiesModelProvider>()
+
     init {
-        loggerFor<ApplicationPropertiesModelProvider>().info("Available LLMs: ${llms.map { it.name }}")
+        logger.info("Available LLMs: ${llms.map { it.name }}")
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
                 error("LLM for role $role is not available")
             } else {
-                loggerFor<ApplicationPropertiesModelProvider>().info("LLM for role '$role' is $model")
+                logger.info("LLM for role '$role' is $model")
             }
         }
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
                 error("Embedding model for role $role is not available")
             } else {
-                loggerFor<ApplicationPropertiesModelProvider>().info("Embedding service for role '$role' is $model")
+                logger.info("Embedding service for role '$role' is $model")
             }
         }
     }
@@ -78,6 +80,20 @@ class ApplicationPropertiesModelProvider(
 
             is ByNameModelSelectionCriteria -> {
                 llms.firstOrNull { it.name == criteria.name } ?: throw NoSuitableModelException(criteria, llms)
+            }
+
+            is RandomByNameModelSelectionCriteria -> {
+                val models = llms.filter { criteria.names.contains(it.name) }
+                if (models.isEmpty()) {
+                    throw NoSuitableModelException(criteria, llms)
+                }
+                models.random()
+            }
+
+            is FallbackByNameModelSelectionCriteria -> {
+                criteria.names.map { requestedName -> llms.firstOrNull { llm -> requestedName == llm.name } }
+                    .firstOrNull()
+                    ?: throw NoSuitableModelException(criteria, llms)
             }
 
             is AutoModelSelectionCriteria -> {
