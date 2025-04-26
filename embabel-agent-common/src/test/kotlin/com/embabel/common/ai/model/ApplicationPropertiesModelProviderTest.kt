@@ -17,7 +17,7 @@ package com.embabel.common.ai.model
 
 
 import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
-import com.embabel.common.ai.model.ModelProvider.Companion.SCHEMA_ROLE
+import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -42,10 +42,10 @@ class ApplicationPropertiesModelProviderTest() {
         properties = ModelProperties(
             llms = mapOf(
                 BEST_ROLE to "gpt40",
-                SCHEMA_ROLE to "gpt40"
+                CHEAPEST_ROLE to "gpt40"
             ),
             embeddingServices = mapOf(
-                SCHEMA_ROLE to "embedding"
+                CHEAPEST_ROLE to "embedding"
             )
         )
     )
@@ -64,7 +64,7 @@ class ApplicationPropertiesModelProviderTest() {
         fun embeddingRoles() {
             val roles = mp.listRoles(EmbeddingService::class.java)
             assertFalse(roles.isEmpty())
-            assertContains(roles, SCHEMA_ROLE)
+            assertContains(roles, CHEAPEST_ROLE)
         }
 
         @Test
@@ -119,7 +119,7 @@ class ApplicationPropertiesModelProviderTest() {
 
         @Test
         fun `valid role`() {
-            val ember = mp.getEmbeddingService(ByRoleModelSelectionCriteria(SCHEMA_ROLE))
+            val ember = mp.getEmbeddingService(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
             assertNotNull(ember)
         }
     }
