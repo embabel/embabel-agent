@@ -20,8 +20,9 @@ import java.time.format.DateTimeFormatter
 
 /**
  * Where should the prompt go?
+ * Can be used to map into system messages or other locations.
  */
-enum class Location {
+enum class PromptContributionLocation {
     BEGINNING,
     END,
 }
@@ -30,54 +31,70 @@ enum class Location {
  * Contribution to a prompt
  * @param content The content of the contribution
  * @param location Where in the prompt this should go
- * @param role The role of the contribution.
+ * @param role The role of the contribution, if known.
  */
 data class PromptContribution(
     val content: String,
-    val location: Location,
-    val role: String,
+    val location: PromptContributionLocation,
+    val role: String?,
 ) {
 
     companion object {
 
         const val KNOWLEDGE_CUTOFF_ROLE = "knowledge_cutoff"
+        const val CURRENT_DATE_ROLE = "current_date"
+
     }
 }
 
 /**
  * Contributor to a prompt.
- * Contributors may be put in a system message.
+ * Contributors may be put in a system message or elsewhere
+ * depending on location.
+ * Only the contribution() method must be implemented,
+ * but implementations are free to provide location and role data
+ * via overriding those properties.
  */
 interface PromptContributor {
 
-    fun promptContribution(): PromptContribution
+    /**
+     * Role defaults to class simple name.
+     * Override for stereotyped roles.
+     */
+    val role: String?
+        get() = javaClass.simpleName
+
+    val promptContributionLocation: PromptContributionLocation
+        get()
+        = PromptContributionLocation.BEGINNING
+
+    fun promptContribution(): PromptContribution {
+        return PromptContribution(
+            content = contribution(),
+            location = promptContributionLocation,
+            role = role,
+        )
+    }
 
     /**
-     * Return just the string content of the contribution.
+     * Return the string content of the contribution.
      */
-    fun contribution(): String = promptContribution().content
+    fun contribution(): String
 }
 
 /**
  * Well known prompt contributor for knowledge cutoff date.
  */
 class KnowledgeCutoffDate(
-    date: LocalDate,
-    formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
+    val date: LocalDate,
+    private val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
 ) : PromptContributor {
 
-    private val value = PromptContribution(
-        content = "Knowledge cutoff: ${date.format(formatter)}\n",
-        location = Location.BEGINNING,
-        role = PromptContribution.KNOWLEDGE_CUTOFF_ROLE,
-    )
+    override fun contribution() = "Knowledge cutoff: ${date.format(formatter)}\n"
 
-    /**
-     * Based on ChatGPT default system prompt
-     */
-    override fun promptContribution(): PromptContribution = value
+    override val role = PromptContribution.KNOWLEDGE_CUTOFF_ROLE
 
-    override fun toString(): String = "KnowledgeCutoffDate: [$value]"
+    override fun toString(): String = "KnowledgeCutoffDate: [${contribution()}]"
 
 }
 
@@ -88,13 +105,9 @@ class CurrentDate(
     /**
      * Based on ChatGPT default system prompt
      */
-    override fun promptContribution(): PromptContribution {
-        return PromptContribution(
-            content = "Current date: ${LocalDate.now().format(formatter)}\n",
-            location = Location.BEGINNING,
-            role = PromptContribution.KNOWLEDGE_CUTOFF_ROLE,
-        )
-    }
+    override fun contribution() = "Current date: ${LocalDate.now().format(formatter)}\n"
+
+    override val role = PromptContribution.CURRENT_DATE_ROLE
 
     override fun toString(): String = "CurrentDate: [${contribution()}]"
 
