@@ -17,7 +17,11 @@ package com.embabel.common.ai.model
 
 
 import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
+<<<<<<< HEAD
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
+=======
+import com.embabel.common.ai.model.ModelProvider.Companion.SCHEMA_ROLE
+>>>>>>> 1a8133f (Merged with Modular Tests and polished module pom.xml)
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -42,10 +46,17 @@ class ApplicationPropertiesModelProviderTest() {
         properties = ModelProperties(
             llms = mapOf(
                 BEST_ROLE to "gpt40",
+<<<<<<< HEAD
                 CHEAPEST_ROLE to "gpt40"
             ),
             embeddingServices = mapOf(
                 CHEAPEST_ROLE to "embedding"
+=======
+                SCHEMA_ROLE to "gpt40"
+            ),
+            embeddingServices = mapOf(
+                SCHEMA_ROLE to "embedding"
+>>>>>>> 1a8133f (Merged with Modular Tests and polished module pom.xml)
             )
         )
     )
@@ -64,7 +75,11 @@ class ApplicationPropertiesModelProviderTest() {
         fun embeddingRoles() {
             val roles = mp.listRoles(EmbeddingService::class.java)
             assertFalse(roles.isEmpty())
+<<<<<<< HEAD
             assertContains(roles, CHEAPEST_ROLE)
+=======
+            assertContains(roles, SCHEMA_ROLE)
+>>>>>>> 1a8133f (Merged with Modular Tests and polished module pom.xml)
         }
 
         @Test
@@ -119,7 +134,11 @@ class ApplicationPropertiesModelProviderTest() {
 
         @Test
         fun `valid role`() {
+<<<<<<< HEAD
             val ember = mp.getEmbeddingService(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+=======
+            val ember = mp.getEmbeddingService(ByRoleModelSelectionCriteria(SCHEMA_ROLE))
+>>>>>>> 1a8133f (Merged with Modular Tests and polished module pom.xml)
             assertNotNull(ember)
         }
     }
