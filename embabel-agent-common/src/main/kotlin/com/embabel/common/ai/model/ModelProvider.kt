@@ -100,13 +100,17 @@ sealed interface ModelSelectionCriteria {
 
     companion object {
 
+        @JvmStatic
         fun byRole(role: String): ModelSelectionCriteria = ByRoleModelSelectionCriteria(role)
 
+        @JvmStatic
         fun byName(name: String): ModelSelectionCriteria = ByNameModelSelectionCriteria(name)
 
+        @JvmStatic
         fun randomOf(vararg names: String): ModelSelectionCriteria =
             RandomByNameModelSelectionCriteria(names.toList())
 
+        @JvmStatic
         fun firstOf(vararg names: String): ModelSelectionCriteria =
             FallbackByNameModelSelectionCriteria(names.toList())
     }

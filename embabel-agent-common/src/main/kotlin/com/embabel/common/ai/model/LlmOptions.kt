@@ -51,7 +51,6 @@ interface LlmOptions : HasInfoString {
 
     val topP: Double?
 
-
     override fun infoString(verbose: Boolean?): String {
         return toString()
     }
@@ -61,6 +60,7 @@ interface LlmOptions : HasInfoString {
         /**
          * Create an LlmOptions instance we can build.
          */
+        @JvmOverloads
         operator fun invoke(
             model: String = DEFAULT_MODEL,
             temperature: Double = DEFAULT_TEMPERATURE,
@@ -69,7 +69,34 @@ interface LlmOptions : HasInfoString {
             temperature = temperature,
         )
 
+        @JvmStatic
+        fun default(): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = byName(DEFAULT_MODEL),
+            temperature = DEFAULT_TEMPERATURE,
+        )
+
+        @JvmOverloads
+        @JvmStatic
+        fun fromModel(
+            model: String,
+            temperature: Double = DEFAULT_TEMPERATURE,
+        ): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = byName(model),
+            temperature = temperature,
+        )
+
+        @JvmOverloads
         operator fun invoke(
+            criteria: ModelSelectionCriteria,
+            temperature: Double = DEFAULT_TEMPERATURE,
+        ): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = criteria,
+            temperature = temperature,
+        )
+
+        @JvmOverloads
+        @JvmStatic
+        fun fromCriteria(
             criteria: ModelSelectionCriteria,
             temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
