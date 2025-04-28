@@ -80,6 +80,39 @@ interface PromptContributor {
      * Return the string content of the contribution.
      */
     fun contribution(): String
+
+    companion object {
+
+        /**
+         * Create a prompt contribution with fixed content
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun fixed(
+            content: String,
+            role: String? = null,
+            location: PromptContributionLocation = PromptContributionLocation.BEGINNING,
+        ): PromptContributor {
+            return FixedPromptContributor(
+                content = content,
+                role = role,
+                promptContributionLocation = location,
+            )
+        }
+
+    }
+}
+
+private data class FixedPromptContributor(
+    val content: String,
+    override val role: String?,
+    override val promptContributionLocation: PromptContributionLocation,
+) : PromptContributor {
+
+    override fun contribution() = content
+
+    override fun toString(): String = "FixedPromptContributor: [${contribution()}]"
+
 }
 
 /**
