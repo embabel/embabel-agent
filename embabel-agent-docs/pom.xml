@@ -17,7 +17,7 @@
         <asciidoctorj.pdf.version>1.6.0</asciidoctorj.pdf.version>
         <asciidoctorj.version>2.5.2</asciidoctorj.version>
         <asciidoctorj.diagram.version>2.2.0</asciidoctorj.diagram.version>
-        <jruby.version>9.2.17.0</jruby.version>
+        <jruby.version>10.0.0.0</jruby.version>
         <agent-api.version>${project.parent.version}</agent-api.version>      
     </properties>
 
