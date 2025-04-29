@@ -51,7 +51,7 @@ class ApplicationPropertiesModelProviderTest() {
     )
 
     @Nested
-    inner class List {
+    inner class ListTests {
 
         @Test
         fun llmRoles() {
