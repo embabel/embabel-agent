@@ -18,7 +18,7 @@ package com.embabel.common.ai.model.config
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
-import com.embabel.common.util.kotlin.loggerFor
+import com.embabel.common.util.loggerFor
 import jakarta.validation.constraints.NotBlank
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.document.MetadataMode
