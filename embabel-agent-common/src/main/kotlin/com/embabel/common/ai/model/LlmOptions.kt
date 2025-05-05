@@ -104,7 +104,7 @@ interface LlmOptions : HasInfoString {
             temperature = temperature,
         )
 
-        const val DEFAULT_MODEL = "gpt-4o-mini"
+        const val DEFAULT_MODEL = "gpt-4.1-mini"
 
         const val DEFAULT_TEMPERATURE = 0.5
     }

@@ -43,7 +43,7 @@ class NoSuitableModelException(criteria: ModelSelectionCriteria, models: List<Ai
     RuntimeException(
         """
         No suitable model found for $criteria.
-        ${models.size} models available: $models
+        ${models.size} models available: ${models.map { it.name }}
         """
     )
 
