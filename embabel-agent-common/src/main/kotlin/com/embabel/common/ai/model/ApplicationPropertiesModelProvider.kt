@@ -41,14 +41,14 @@ class ApplicationPropertiesModelProvider(
         logger.info("Available LLMs: ${llms.map { it.name }}")
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
-                error("LLM for role $role is not available")
+                error("LLM '$model' for role $role is not available: Choices are ${llms.map { it.name }}")
             } else {
                 logger.info("LLM for role '$role' is $model")
             }
         }
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
-                error("Embedding model for role $role is not available")
+                error("Embedding model '$model' for role $role is not available: Choices are ${embeddingServices.map { it.name }}")
             } else {
                 logger.info("Embedding service for role '$role' is $model")
             }
