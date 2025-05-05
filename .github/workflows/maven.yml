@@ -36,6 +36,7 @@ jobs:
           servers: ${{secrets.GITREPO_SERVER}}
       - name: Build and analyze
         env:
+          OPENAI_API_KEY="sk-tNr0jDSXiHMAmNgQicqBaUxLsc4OYxf5bQv4rLdsHmT3BlbkFJPNeLm3GFrKrwOWzF6ap6BWw7G91Qw2y9q9cPJDxUsA"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: mvn -U -B test verify
