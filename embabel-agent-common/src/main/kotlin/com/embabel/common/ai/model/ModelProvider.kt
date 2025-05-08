@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.core.types.HasInfoString
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -103,7 +104,7 @@ object AutoModelSelectionCriteria : ModelSelectionCriteria
 /**
  * Provide AI models for requested roles, and expose data about available models.
  */
-interface ModelProvider {
+interface ModelProvider : HasInfoString {
 
     @Throws(NoSuitableModelException::class)
     fun getLlm(criteria: ModelSelectionCriteria): Llm

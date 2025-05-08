@@ -38,24 +38,32 @@ class ConfigurableModelProvider(
     private val logger = loggerFor<ConfigurableModelProvider>()
 
     init {
-        fun showModel(model: AiModel<*>): String {
-            val roles = properties.llms.filter { it.value == model.name }.keys
-            val maybeRoles = if (roles.isNotEmpty()) " - roles: ${roles.joinToString(", ")}" else ""
-            return "${model.name}$maybeRoles"
-        }
-
-        logger.info("Available LLMs:\n\t${llms.joinToString("\n\t") { showModel(it) }}")
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
                 error("LLM '$model' for role $role is not available: Choices are ${llms.map { it.name }}")
             }
         }
-        logger.info("Available embedding models:\n\t${embeddingServices.joinToString("\n\t") { showModel(it) }}")
+        logger.info(infoString(verbose = true))
+
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
                 error("Embedding model '$model' for role $role is not available: Choices are ${embeddingServices.map { it.name }}")
             }
         }
+    }
+
+    private fun showModel(model: AiModel<*>): String {
+        val roles = properties.llms.filter { it.value == model.name }.keys
+        val maybeRoles = if (roles.isNotEmpty()) " - Roles: ${roles.joinToString(", ")}" else ""
+        return "${model.name}$maybeRoles"
+    }
+
+    override fun infoString(verbose: Boolean?): String {
+        val llms = "Available LLMs:\n\t${llms.joinToString("\n\t") { showModel(it) }}"
+        val embeddingServices =
+            "Available embedding services:\n\t${embeddingServices.joinToString("\n\t") { showModel(it) }}"
+        return "$llms\n$embeddingServices"
+
     }
 
     override fun listRoles(modelClass: Class<out AiModel<*>>): List<String> {
