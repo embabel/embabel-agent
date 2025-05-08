@@ -27,30 +27,33 @@ data class ModelProperties(
 )
 
 /**
- * Take LLM definitions from application properties file
+ * Take LLM definitions from configuration
  */
-class ApplicationPropertiesModelProvider(
+class ConfigurableModelProvider(
     private val llms: List<Llm>,
     private val embeddingServices: List<EmbeddingService>,
     private val properties: ModelProperties,
 ) : ModelProvider {
 
-    private val logger = loggerFor<ApplicationPropertiesModelProvider>()
+    private val logger = loggerFor<ConfigurableModelProvider>()
 
     init {
-        logger.info("Available LLMs: ${llms.map { it.name }}")
+        fun showModel(model: AiModel<*>): String {
+            val roles = properties.llms.filter { it.value == model.name }.keys
+            val maybeRoles = if (roles.isNotEmpty()) " - roles: ${roles.joinToString(", ")}" else ""
+            return "${model.name}$maybeRoles"
+        }
+
+        logger.info("Available LLMs:\n\t${llms.joinToString("\n\t") { showModel(it) }}")
         properties.llms.forEach { (role, model) ->
             if (llms.none { it.name == model }) {
                 error("LLM '$model' for role $role is not available: Choices are ${llms.map { it.name }}")
-            } else {
-                logger.info("LLM for role '$role' is $model")
             }
         }
+        logger.info("Available embedding models:\n\t${embeddingServices.joinToString("\n\t") { showModel(it) }}")
         properties.embeddingServices.forEach { (role, model) ->
             if (embeddingServices.none { it.name == model }) {
                 error("Embedding model '$model' for role $role is not available: Choices are ${embeddingServices.map { it.name }}")
-            } else {
-                logger.info("Embedding service for role '$role' is $model")
             }
         }
     }

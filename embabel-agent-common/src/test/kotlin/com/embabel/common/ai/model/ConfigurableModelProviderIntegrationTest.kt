@@ -17,29 +17,27 @@ package com.embabel.common.ai.model
 
 import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
+import io.mockk.mockk
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.test.context.TestPropertySource
-import io.mockk.mockk
 import kotlin.test.assertContains
 
 /**
  *  Spring boot integration tests that employs model properties from config properties file.
  */
-@SpringBootTest(classes = [ApplicationPropertiesModelProviderIntegrationTest.TestConfig::class])
+@SpringBootTest(classes = [ConfigurableModelProviderIntegrationTest.TestConfig::class])
 @TestPropertySource("classpath:application-test.properties")
-class ApplicationPropertiesModelProviderIntegrationTest {
+class ConfigurableModelProviderIntegrationTest {
 
     @Configuration
     @EnableConfigurationProperties(ModelProperties::class)
@@ -61,7 +59,7 @@ class ApplicationPropertiesModelProviderIntegrationTest {
             llms: List<Llm>,
             embeddingServices: List<EmbeddingService>,
             properties: ModelProperties
-        ): ModelProvider = ApplicationPropertiesModelProvider(llms, embeddingServices, properties)
+        ): ModelProvider = ConfigurableModelProvider(llms, embeddingServices, properties)
     }
 
     @Autowired

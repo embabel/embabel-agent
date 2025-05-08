@@ -30,7 +30,7 @@ import kotlin.test.assertContains
 
 class ApplicationPropertiesModelProviderTest() {
 
-    private val mp: ModelProvider = ApplicationPropertiesModelProvider(
+    private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(
             Llm("gpt40", mockk<ChatModel>()),
             Llm("gpt40-mini", mockk<ChatModel>()),
