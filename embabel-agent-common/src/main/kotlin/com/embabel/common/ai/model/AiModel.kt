@@ -18,6 +18,7 @@ package com.embabel.common.ai.model
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
+import com.embabel.common.core.types.HasInfoString
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.model.Model
@@ -26,14 +27,19 @@ import java.time.LocalDate
 /**
  * Wraps a Spring AI model and allows metadata to be attached to a model
  */
-interface AiModel<M : Model<*, *>> {
+interface AiModel<M : Model<*, *>> : HasInfoString {
     val name: String
+    val provider: String
     val model: M
+
+    override fun infoString(verbose: Boolean?): String =
+        "name: $name, provider: $provider"
 }
 
 /**
  * Wraps a Spring AI ChatModel exposing an LLM.
  * @param name name of the LLM
+ * @param provider name of the provider, such as OpenAI
  * @param model the Spring AI ChatModel to call
  * @param optionsConverter function to convert LLM options to Spring AI ChatOptions
  * @param knowledgeCutoffDate model's knowledge cutoff date, if known
@@ -43,6 +49,7 @@ interface AiModel<M : Model<*, *>> {
  */
 data class Llm(
     override val name: String,
+    override val provider: String,
     override val model: ChatModel,
     val optionsConverter: OptionsConverter = DefaultOptionsConverter,
     val knowledgeCutoffDate: LocalDate? = null,
@@ -56,5 +63,6 @@ data class Llm(
  */
 data class EmbeddingService(
     override val name: String,
+    override val provider: String,
     override val model: EmbeddingModel,
 ) : AiModel<EmbeddingModel>

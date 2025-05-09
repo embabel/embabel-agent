@@ -54,6 +54,8 @@ class OpenAiAvailable : Condition {
     }
 }
 
+const val PROVIDER = "OpenAI"
+
 /**
  * OpenAI resources. Load first, so tests can step in
  */
@@ -74,6 +76,7 @@ class OpenAiConfiguration(
     fun workhorse(): Llm {
         return Llm(
             name = properties.workhorseModel,
+            provider = PROVIDER,
             model = chatModelOf(properties.workhorseModel),
         )
     }
@@ -82,6 +85,7 @@ class OpenAiConfiguration(
     fun premium(): Llm {
         return Llm(
             name = properties.premiumModel,
+            provider = PROVIDER,
             model = chatModelOf(properties.premiumModel),
         )
     }
@@ -104,6 +108,7 @@ class OpenAiConfiguration(
         )
         return EmbeddingService(
             name = properties.embeddingModel,
+            provider = PROVIDER,
             model = model,
         )
     }

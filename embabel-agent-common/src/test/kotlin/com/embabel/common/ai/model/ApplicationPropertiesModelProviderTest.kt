@@ -32,12 +32,12 @@ class ApplicationPropertiesModelProviderTest() {
 
     private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(
-            Llm("gpt40", mockk<ChatModel>()),
-            Llm("gpt40-mini", mockk<ChatModel>()),
-            Llm("embedding", mockk<ChatModel>())
+            Llm("gpt40", "OpenAI", mockk<ChatModel>()),
+            Llm("gpt40-mini", "OpenAI", mockk<ChatModel>()),
+            Llm("embedding", "OpenAI", mockk<ChatModel>())
         ),
         embeddingServices = listOf(
-            EmbeddingService("embedding", mockk<EmbeddingModel>())
+            EmbeddingService("embedding", "OpenAI", mockk<EmbeddingModel>())
         ),
         properties = ModelProperties(
             llms = mapOf(

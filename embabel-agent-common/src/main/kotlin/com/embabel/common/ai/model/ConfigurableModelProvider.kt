@@ -55,7 +55,7 @@ class ConfigurableModelProvider(
     private fun showModel(model: AiModel<*>): String {
         val roles = properties.llms.filter { it.value == model.name }.keys
         val maybeRoles = if (roles.isNotEmpty()) " - Roles: ${roles.joinToString(", ")}" else ""
-        return "${model.name}$maybeRoles"
+        return "${model.infoString(verbose = false)}$maybeRoles"
     }
 
     override fun infoString(verbose: Boolean?): String {

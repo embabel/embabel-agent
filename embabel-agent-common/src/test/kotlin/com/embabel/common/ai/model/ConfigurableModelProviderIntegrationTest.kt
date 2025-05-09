@@ -45,13 +45,13 @@ class ConfigurableModelProviderIntegrationTest {
 
         @Bean
         fun llmList(): List<Llm> = listOf(
-            Llm("gpt-4o", mockk<ChatModel>()),
-            Llm("gpt-4o-mini", mockk<ChatModel>())
+            Llm("gpt-4o", "OpenAI", mockk<ChatModel>()),
+            Llm("gpt-4o-mini", "OpenAI", mockk<ChatModel>())
         )
 
         @Bean
         fun embeddingServices(): List<EmbeddingService> = listOf(
-            EmbeddingService("text-embedding-ada-002", mockk<EmbeddingModel>())
+            EmbeddingService("text-embedding-ada-002", "OpenAI", mockk<EmbeddingModel>())
         )
 
         @Bean
