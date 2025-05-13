@@ -19,11 +19,20 @@ import com.embabel.common.util.loggerFor
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.validation.annotation.Validated
 
-@ConfigurationProperties("embabel.model")
+/**
+ * Configuration properties for the model provider
+ * @param llms: Map of role to LLM name. Each entry will require an
+ * LLM to be registered with the same name.
+ * @param embeddingServices: As with LLMs: map of role to embedding service name
+ * @param defaultLlm: Default LLM name. Must be an LLM name. It's good practice to override this
+ * in configuration.
+ */
+@ConfigurationProperties("embabel.models")
 @Validated
-data class ModelProperties(
+data class ConfigurableModelProviderProperties(
     val llms: Map<String, String> = emptyMap(),
     val embeddingServices: Map<String, String> = emptyMap(),
+    val defaultLlm: String = "gpt-4.1-mini",
 )
 
 /**
@@ -32,10 +41,13 @@ data class ModelProperties(
 class ConfigurableModelProvider(
     private val llms: List<Llm>,
     private val embeddingServices: List<EmbeddingService>,
-    private val properties: ModelProperties,
+    private val properties: ConfigurableModelProviderProperties,
 ) : ModelProvider {
 
     private val logger = loggerFor<ConfigurableModelProvider>()
+
+    private val defaultLlm = llms.firstOrNull { it.name == properties.defaultLlm }
+        ?: throw IllegalArgumentException("Default LLM '${properties.defaultLlm}' not found in available models: ${llms.map { it.name }}")
 
     init {
         properties.llms.forEach { (role, model) ->
@@ -62,8 +74,7 @@ class ConfigurableModelProvider(
         val llms = "Available LLMs:\n\t${llms.joinToString("\n\t") { showModel(it) }}"
         val embeddingServices =
             "Available embedding services:\n\t${embeddingServices.joinToString("\n\t") { showModel(it) }}"
-        return "$llms\n$embeddingServices"
-
+        return "Default LLM: ${properties.defaultLlm}\n$llms\n$embeddingServices"
     }
 
     override fun listRoles(modelClass: Class<out AiModel<*>>): List<String> {
@@ -117,8 +128,13 @@ class ConfigurableModelProvider(
 
             is AutoModelSelectionCriteria -> {
                 // The infrastructure above this class should have resolved this
-                TODO("Auto model selection criteria should have been resolved upstream")
+                error("Auto model selection criteria should have been resolved upstream")
             }
+
+            is DefaultModelSelectionCriteria -> {
+                defaultLlm
+            }
+
         }
 
     override fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService =

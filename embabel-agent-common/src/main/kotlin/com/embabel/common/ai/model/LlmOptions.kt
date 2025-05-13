@@ -15,7 +15,7 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
+import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.PlatformDefault
 import com.embabel.common.core.types.HasInfoString
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.swagger.v3.oas.annotations.media.Schema
@@ -62,16 +62,27 @@ interface LlmOptions : HasInfoString {
          */
         @JvmOverloads
         operator fun invoke(
-            model: String = DEFAULT_MODEL,
             temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = byName(model),
+            criteria = PlatformDefault,
+            temperature = temperature,
+        )
+
+        /**
+         * Create an LlmOptions instance we can build.
+         */
+        @JvmOverloads
+        operator fun invoke(
+            model: String,
+            temperature: Double = DEFAULT_TEMPERATURE,
+        ): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = ByNameModelSelectionCriteria(model),
             temperature = temperature,
         )
 
         @JvmStatic
         fun default(): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = byName(DEFAULT_MODEL),
+            criteria = PlatformDefault,
             temperature = DEFAULT_TEMPERATURE,
         )
 
@@ -81,7 +92,7 @@ interface LlmOptions : HasInfoString {
             model: String,
             temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = byName(model),
+            criteria = PlatformDefault,
             temperature = temperature,
         )
 
@@ -104,15 +115,13 @@ interface LlmOptions : HasInfoString {
             temperature = temperature,
         )
 
-        const val DEFAULT_MODEL = "gpt-4.1-mini"
-
         const val DEFAULT_TEMPERATURE = 0.5
     }
 
 }
 
 data class BuildableLlmOptions(
-    override val criteria: ModelSelectionCriteria? = null,
+    override val criteria: ModelSelectionCriteria = PlatformDefault,
     override val temperature: Double = 0.0,
     override val frequencyPenalty: Double? = null,
     override val maxTokens: Int? = null,

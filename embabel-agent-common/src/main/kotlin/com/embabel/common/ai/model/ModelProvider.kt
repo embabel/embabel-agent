@@ -83,7 +83,10 @@ sealed interface ModelSelectionCriteria {
          * to do the right thing.
          */
         @JvmStatic
-        val auto: ModelSelectionCriteria = AutoModelSelectionCriteria
+        val Auto: ModelSelectionCriteria = AutoModelSelectionCriteria
+
+        @JvmStatic
+        val PlatformDefault: ModelSelectionCriteria = DefaultModelSelectionCriteria
     }
 }
 
@@ -111,6 +114,8 @@ data class FallbackByNameModelSelectionCriteria(
  * on runtime analysis, or based on analysis of the prompt
  */
 object AutoModelSelectionCriteria : ModelSelectionCriteria
+
+object DefaultModelSelectionCriteria : ModelSelectionCriteria
 
 /**
  * Provide AI models for requested roles, and expose data about available models.

@@ -40,7 +40,7 @@ import kotlin.test.assertContains
 class ConfigurableModelProviderIntegrationTest {
 
     @Configuration
-    @EnableConfigurationProperties(ModelProperties::class)
+    @EnableConfigurationProperties(ConfigurableModelProviderProperties::class)
     class TestConfig {
 
         @Bean
@@ -58,8 +58,10 @@ class ConfigurableModelProviderIntegrationTest {
         fun applicationPropertiesModelProvider(
             llms: List<Llm>,
             embeddingServices: List<EmbeddingService>,
-            properties: ModelProperties
-        ): ModelProvider = ConfigurableModelProvider(llms, embeddingServices, properties)
+            properties: ConfigurableModelProviderProperties
+        ): ModelProvider = ConfigurableModelProvider(
+            llms, embeddingServices, properties,
+        )
     }
 
     @Autowired

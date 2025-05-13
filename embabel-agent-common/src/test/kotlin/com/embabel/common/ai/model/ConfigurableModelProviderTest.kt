@@ -28,18 +28,18 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.embedding.EmbeddingModel
 import kotlin.test.assertContains
 
-class ApplicationPropertiesModelProviderTest() {
+class ConfigurableModelProviderTest() {
 
     private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(
             Llm("gpt40", "OpenAI", mockk<ChatModel>()),
-            Llm("gpt40-mini", "OpenAI", mockk<ChatModel>()),
+            Llm("gpt-4.1-mini", "OpenAI", mockk<ChatModel>()),
             Llm("embedding", "OpenAI", mockk<ChatModel>())
         ),
         embeddingServices = listOf(
             EmbeddingService("embedding", "OpenAI", mockk<EmbeddingModel>())
         ),
-        properties = ModelProperties(
+        properties = ConfigurableModelProviderProperties(
             llms = mapOf(
                 BEST_ROLE to "gpt40",
                 CHEAPEST_ROLE to "gpt40"
@@ -47,7 +47,7 @@ class ApplicationPropertiesModelProviderTest() {
             embeddingServices = mapOf(
                 CHEAPEST_ROLE to "embedding"
             )
-        )
+        ),
     )
 
     @Nested
@@ -104,7 +104,7 @@ class ApplicationPropertiesModelProviderTest() {
 
         @Test
         fun `valid name`() {
-            val llm = mp.getLlm(ByNameModelSelectionCriteria("gpt40-mini"))
+            val llm = mp.getLlm(ByNameModelSelectionCriteria("gpt-4.1-mini"))
             assertNotNull(llm)
         }
     }
