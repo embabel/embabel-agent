@@ -26,6 +26,8 @@ import org.springframework.validation.annotation.Validated
  * @param embeddingServices: As with LLMs: map of role to embedding service name
  * @param defaultLlm: Default LLM name. Must be an LLM name. It's good practice to override this
  * in configuration.
+ * @param defaultEmbeddingModel: Default embedding model name. Must be an embedding model name.
+ * Also set this
  */
 @ConfigurationProperties("embabel.models")
 @Validated
@@ -33,6 +35,7 @@ data class ConfigurableModelProviderProperties(
     val llms: Map<String, String> = emptyMap(),
     val embeddingServices: Map<String, String> = emptyMap(),
     val defaultLlm: String = "gpt-4.1-mini",
+    val defaultEmbeddingModel: String = "text-embedding-3-small",
 )
 
 /**
@@ -48,6 +51,9 @@ class ConfigurableModelProvider(
 
     private val defaultLlm = llms.firstOrNull { it.name == properties.defaultLlm }
         ?: throw IllegalArgumentException("Default LLM '${properties.defaultLlm}' not found in available models: ${llms.map { it.name }}")
+
+    private val defaultEmbeddingService = embeddingServices.firstOrNull { it.name == properties.defaultEmbeddingModel }
+        ?: throw IllegalArgumentException("Default embedding service '${properties.defaultEmbeddingModel}' not found in available models: ${embeddingServices.map { it.name }}")
 
     init {
         properties.llms.forEach { (role, model) ->
@@ -74,7 +80,7 @@ class ConfigurableModelProvider(
         val llms = "Available LLMs:\n\t${llms.joinToString("\n\t") { showModel(it) }}"
         val embeddingServices =
             "Available embedding services:\n\t${embeddingServices.joinToString("\n\t") { showModel(it) }}"
-        return "Default LLM: ${properties.defaultLlm}\n$llms\n$embeddingServices"
+        return "Default LLM: ${properties.defaultLlm}\n$llms\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServices"
     }
 
     override fun listRoles(modelClass: Class<out AiModel<*>>): List<String> {
@@ -151,6 +157,9 @@ class ConfigurableModelProvider(
                 )
             }
 
-            else -> throw IllegalArgumentException("Unsupported embedding model selection criteria: $criteria")
+            // TODO should handle other criteria
+            else -> {
+                defaultEmbeddingService
+            }
         }
 }

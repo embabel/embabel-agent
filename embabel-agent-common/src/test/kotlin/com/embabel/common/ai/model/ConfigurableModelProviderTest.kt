@@ -37,7 +37,7 @@ class ConfigurableModelProviderTest() {
             Llm("embedding", "OpenAI", mockk<ChatModel>())
         ),
         embeddingServices = listOf(
-            EmbeddingService("embedding", "OpenAI", mockk<EmbeddingModel>())
+            EmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
         ),
         properties = ConfigurableModelProviderProperties(
             llms = mapOf(
@@ -45,7 +45,7 @@ class ConfigurableModelProviderTest() {
                 CHEAPEST_ROLE to "gpt40"
             ),
             embeddingServices = mapOf(
-                CHEAPEST_ROLE to "embedding"
+                CHEAPEST_ROLE to "text-embedding-3-small"
             )
         ),
     )
@@ -78,7 +78,7 @@ class ConfigurableModelProviderTest() {
         fun embeddingNames() {
             val roles = mp.listModelNames(EmbeddingService::class.java)
             assertFalse(roles.isEmpty())
-            assertContains(roles, "embedding")
+            assertContains(roles, "text-embedding-3-small")
         }
 
     }

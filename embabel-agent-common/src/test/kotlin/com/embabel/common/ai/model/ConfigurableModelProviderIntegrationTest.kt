@@ -51,7 +51,7 @@ class ConfigurableModelProviderIntegrationTest {
 
         @Bean
         fun embeddingServices(): List<EmbeddingService> = listOf(
-            EmbeddingService("text-embedding-ada-002", "OpenAI", mockk<EmbeddingModel>())
+            EmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
         )
 
         @Bean
@@ -97,7 +97,7 @@ class ConfigurableModelProviderIntegrationTest {
         fun embeddingNames() {
             val names = modelProvider.listModelNames(EmbeddingService::class.java)
             assertFalse(names.isEmpty())
-            assertContains(names, "text-embedding-ada-002")
+            assertContains(names, "text-embedding-3-small")
         }
     }
 
@@ -154,7 +154,7 @@ class ConfigurableModelProviderIntegrationTest {
         fun `valid role`() {
             val embedding = modelProvider.getEmbeddingService(ByRoleModelSelectionCriteria("schema"))
             assertNotNull(embedding)
-            assertEquals("text-embedding-ada-002", embedding.name)
+            assertEquals("text-embedding-3-small", embedding.name)
         }
     }
 }
