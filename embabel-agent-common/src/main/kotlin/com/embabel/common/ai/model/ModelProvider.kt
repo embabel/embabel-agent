@@ -55,6 +55,10 @@ class NoSuitableModelException(criteria: ModelSelectionCriteria, models: List<Ai
 @JsonSubTypes(
     JsonSubTypes.Type(value = ByNameModelSelectionCriteria::class),
     JsonSubTypes.Type(value = ByRoleModelSelectionCriteria::class),
+    JsonSubTypes.Type(value = RandomByNameModelSelectionCriteria::class),
+    JsonSubTypes.Type(value = FallbackByNameModelSelectionCriteria::class),
+    JsonSubTypes.Type(value = AutoModelSelectionCriteria::class),
+    JsonSubTypes.Type(value = ByNameModelSelectionCriteria::class),
 )
 sealed interface ModelSelectionCriteria {
 
@@ -73,6 +77,13 @@ sealed interface ModelSelectionCriteria {
         @JvmStatic
         fun firstOf(vararg names: String): ModelSelectionCriteria =
             FallbackByNameModelSelectionCriteria(names.toList())
+
+        /**
+         * Choose an LLM automatically. Rely on platform
+         * to do the right thing.
+         */
+        @JvmStatic
+        val auto: ModelSelectionCriteria = AutoModelSelectionCriteria
     }
 }
 

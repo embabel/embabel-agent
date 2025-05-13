@@ -116,7 +116,8 @@ class ConfigurableModelProvider(
             }
 
             is AutoModelSelectionCriteria -> {
-                TODO("Auto model selection criteria not implemented")
+                // The infrastructure above this class should have resolved this
+                TODO("Auto model selection criteria should have been resolved upstream")
             }
         }
 
