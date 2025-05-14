@@ -36,11 +36,11 @@ internal class AgentScanningBeanPostProcessor(
     private val agentMetadataReader: AgentMetadataReader,
     private val agentPlatform: AgentPlatform,
     private val properties: AgentScanningProperties,
-) : BeanPostProcessor {
+) /*: BeanPostProcessor */{
 
     private val logger = LoggerFactory.getLogger(AgentScanningBeanPostProcessor::class.java)
 
-    override fun postProcessAfterInitialization(bean: Any, beanName: String): Any? {
+    /*override */fun postProcessAfterInitialization(bean: Any, beanName: String): Any? {
         if (properties.annotation) {
             val agentMetadata = agentMetadataReader.createAgentMetadata(bean)
             if (agentMetadata != null) {
