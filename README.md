@@ -19,7 +19,7 @@
 
 <img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180">
 
-&nbsp;&nbsp;&nbsp;&nbsp;T
+&nbsp;&nbsp;&nbsp;&nbsp;
 
 Framework for authoring agentic flows on the JVM that seamlessly mix LLM-prompted interactions
 with code and domain models. Supports
