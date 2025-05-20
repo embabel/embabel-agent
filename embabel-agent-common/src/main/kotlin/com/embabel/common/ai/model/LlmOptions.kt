@@ -16,6 +16,7 @@
 package com.embabel.common.ai.model
 
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.PlatformDefault
+import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.core.types.HasInfoString
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.swagger.v3.oas.annotations.media.Schema
@@ -92,7 +93,7 @@ interface LlmOptions : HasInfoString {
             model: String,
             temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = PlatformDefault,
+            criteria = byName(model),
             temperature = temperature,
         )
 
