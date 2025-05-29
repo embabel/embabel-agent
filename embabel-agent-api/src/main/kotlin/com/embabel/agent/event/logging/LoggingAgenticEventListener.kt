@@ -21,7 +21,7 @@ import com.embabel.agent.event.*
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.agent.event.logging.personality.DefaultColorPalette
 import com.embabel.agent.event.logging.personality.severance.LumonColorPalette
-import com.embabel.common.core.util.trim
+import com.embabel.common.util.trim
 import com.embabel.common.util.AnsiColor
 import com.embabel.common.util.color
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
