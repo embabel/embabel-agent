@@ -1,4 +1,4 @@
-package com.embabel.agent.a2a
+package com.embabel.agent.a2a.spec
 
 /**
  * Agent2Agent (A2A) Protocol Data Structures
