@@ -4,6 +4,8 @@ spring:
   threads:
     virtual:
       enabled: true
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration
   output:
     ansi:
       enabled: ALWAYS
