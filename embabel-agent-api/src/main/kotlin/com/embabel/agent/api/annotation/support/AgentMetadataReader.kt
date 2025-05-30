@@ -24,6 +24,7 @@ import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.validation.AgentValidationManager
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.NameUtils
@@ -76,10 +77,10 @@ data class AgenticInfo(
  */
 @Service
 class AgentMetadataReader(
-    private val actionMethodManager: ActionMethodManager = DefaultActionMethodManager(),
-    private val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
+    private val actionMethodManager: ActionMethodManager,
+    private val nameGenerator: MethodDefinedOperationNameGenerator,
+    private val agentValidationManager: AgentValidationManager
 ) {
-
     private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
 
     fun createAgentScopes(vararg instances: Any): List<AgentScope> =
@@ -102,6 +103,7 @@ class AgentMetadataReader(
             )
             return null
         }
+
         val agenticInfo = AgenticInfo(instance.javaClass)
         if (!agenticInfo.agentic()) {
             logger.debug(
@@ -112,6 +114,7 @@ class AgentMetadataReader(
             )
             return null
         }
+
         if (agenticInfo.validationErrors().isNotEmpty()) {
             logger.warn(
                 agenticInfo.validationErrors().joinToString("\n"),
@@ -121,6 +124,7 @@ class AgentMetadataReader(
             )
             return null
         }
+
         val getterGoals = findGoalGetters(agenticInfo.type).map { getGoal(it, instance) }
         val actionMethods = findActionMethods(agenticInfo.type)
         val conditionMethods = findConditionMethods(agenticInfo.type)
@@ -145,8 +149,8 @@ class AgentMetadataReader(
             return null
         }
 
-        if (agenticInfo.agentAnnotation != null) {
-            return CoreAgent(
+        val agent = if (agenticInfo.agentAnnotation != null) {
+            CoreAgent(
                 name = agenticInfo.agentAnnotation.name.ifBlank { agenticInfo.type.simpleName },
                 provider = agenticInfo.agentAnnotation.provider.ifBlank {
                     instance.javaClass.`package`.name
@@ -157,14 +161,22 @@ class AgentMetadataReader(
                 actions = actions,
                 goals = goals.toSet(),
             )
+        } else {
+            AgentScope(
+                name = agenticInfo.type.name,
+                conditions = conditions,
+                actions = actions,
+                goals = goals.toSet(),
+            )
         }
 
-        return AgentScope(
-            name = agenticInfo.type.name,
-            conditions = conditions,
-            actions = actions,
-            goals = goals.toSet(),
-        )
+        val validationResult = agentValidationManager.validate(agent)
+        if (!validationResult.isValid) {
+            logger.warn("Agent validation failed:\n${validationResult.errors.joinToString("\n")}")
+            return null
+        }
+
+        return agent
     }
 
     private fun findConditionMethods(type: Class<*>): List<Method> {
@@ -250,7 +262,6 @@ class AgentMetadataReader(
             )
         }
     }
-
 
     private fun invokeConditionMethod(
         method: Method,

@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.api.annotation.support
 
+import org.springframework.stereotype.Component
+
 /**
  * Define names for operations defined in methods.
  */
@@ -33,6 +35,7 @@ fun interface MethodDefinedOperationNameGenerator {
     }
 }
 
+@Component
 internal object FromClassAndMethodMethodDefinedOperationNameGenerator : MethodDefinedOperationNameGenerator {
     override fun generateName(instance: Any, name: String): String {
         // Strip the $ suffix from Kotlin internal methods

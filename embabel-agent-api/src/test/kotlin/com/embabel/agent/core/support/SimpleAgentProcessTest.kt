@@ -18,7 +18,7 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.confirm
-import com.embabel.agent.api.annotation.support.AgentMetadataReader
+import com.embabel.agent.api.annotation.support.TestAgentMetadataReader
 import com.embabel.agent.api.annotation.waitFor
 import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.StuckHandlerResult
@@ -129,12 +129,12 @@ class SimpleAgentProcessTest {
 
         @Test
         fun `wait on tick for annotation agent`() {
-            waitOnTick(AgentMetadataReader().createAgentMetadata(AnnotationWaitingAgent()) as Agent)
+            waitOnTick(TestAgentMetadataReader.create().createAgentMetadata(AnnotationWaitingAgent()) as Agent)
         }
 
         @Test
         fun `wait on run for annotation agent`() {
-            waitOnRun(AgentMetadataReader().createAgentMetadata(AnnotationWaitingAgent()) as Agent)
+            waitOnRun(TestAgentMetadataReader.create().createAgentMetadata(AnnotationWaitingAgent()) as Agent)
         }
 
         private fun waitOnTick(agent: Agent) {
@@ -193,7 +193,7 @@ class SimpleAgentProcessTest {
 
         @Test
         fun `expect stuck for annotation agent with no stuck handler`() {
-            val agentProcess = run(AgentMetadataReader().createAgentMetadata(AnnotationWaitingAgent()) as Agent)
+            val agentProcess = run(TestAgentMetadataReader.create().createAgentMetadata(AnnotationWaitingAgent()) as Agent)
             assertEquals(AgentProcessStatusCode.STUCK, agentProcess.status)
         }
 
@@ -204,7 +204,7 @@ class SimpleAgentProcessTest {
 
         @Test
         fun `expect unstuck for annotation agent with magic stuck handler`() {
-            unstick(AgentMetadataReader().createAgentMetadata(AnnotationWaitingAgent()) as Agent)
+            unstick(TestAgentMetadataReader.create().createAgentMetadata(AnnotationWaitingAgent()) as Agent)
         }
 
         private fun unstick(agent: Agent) {

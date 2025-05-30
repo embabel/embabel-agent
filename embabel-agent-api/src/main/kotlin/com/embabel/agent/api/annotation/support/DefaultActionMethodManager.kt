@@ -26,6 +26,7 @@ import com.embabel.agent.core.IoBinding
 import com.embabel.common.ai.model.LlmOptions
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
+import org.springframework.stereotype.Component
 import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
 
@@ -33,6 +34,7 @@ import java.lang.reflect.Method
  * Implementation that creates dummy instances of domain objects to discover tools,
  * before re-reading the tool callbacks from the actual domain object instances at invocation time.
  */
+@Component
 internal class DefaultActionMethodManager(
     val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator()
 ) : ActionMethodManager {

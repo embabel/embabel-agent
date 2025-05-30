@@ -41,15 +41,14 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `no actions`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(OneGoalOnly())
-        assertNotNull(metadata)
-        assertEquals(0, metadata!!.actions.size)
+        assertNull(metadata) // The metadata should be null! Due to the NoPathToCompletionValidator
     }
 
     @Test
     fun `one action only`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(OneTransformerActionOnly())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -66,7 +65,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `one action referencing condition by name`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(OneTransformerActionReferencingConditionByName())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -93,7 +92,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `one action with custom tool group`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(OneTransformerActionWithCustomToolGroupOnly())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -112,7 +111,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `one action with custom tool group taking interface`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(OneTransformerActionTakingInterfaceWithCustomToolGroupOnly())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -136,7 +135,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `custom tool group is available through operation context`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata =
             reader.createAgentMetadata(OneTransformerActionTakingInterfaceWithExpectationCustomToolGroupOnly())
         assertNotNull(metadata)
@@ -161,7 +160,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `one action with 2 args only`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(AgentWithOneTransformerActionWith2ArgsOnly())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -180,7 +179,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `transformer action invocation`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(OneTransformerActionOnly())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -219,7 +218,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `transformer action invocation with payload`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(OneTransformerActionTakingPayloadOnly())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -269,7 +268,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `action invocation with OperationPayload`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(OneTransformerActionTakingOperationPayload())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -319,7 +318,7 @@ class AgentMetadataReaderActionTest {
 
     @Test
     fun `transformer action with 2 args invocation`() {
-        val reader = AgentMetadataReader()
+        val reader = TestAgentMetadataReader.create()
         val metadata = reader.createAgentMetadata(AgentWithOneTransformerActionWith2ArgsOnly())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.actions.size)
@@ -381,7 +380,7 @@ class AgentMetadataReaderActionTest {
 
         @Test
         fun `custom input bindings`() {
-            val reader = AgentMetadataReader()
+            val reader = TestAgentMetadataReader.create()
             val metadata = reader.createAgentMetadata(OneTransformerActionWith2ArgsAndCustomInputBindings())
             assertNotNull(metadata)
             assertEquals(1, metadata!!.actions.size)
@@ -406,7 +405,7 @@ class AgentMetadataReaderActionTest {
 
         @Test
         fun `custom output binding`() {
-            val reader = AgentMetadataReader()
+            val reader = TestAgentMetadataReader.create()
             val metadata = reader.createAgentMetadata(OneTransformerActionWith2ArgsAndCustomOutputBinding())
             assertNotNull(metadata)
             assertEquals(1, metadata!!.actions.size)
@@ -428,7 +427,7 @@ class AgentMetadataReaderActionTest {
     inner class Prompts {
         @Test
         fun `prompt action invocation`() {
-            val reader = AgentMetadataReader()
+            val reader = TestAgentMetadataReader.create()
             val metadata = reader.createAgentMetadata(OnePromptActionOnly())
             assertNotNull(metadata)
             assertEquals(1, metadata!!.actions.size)
@@ -480,7 +479,7 @@ class AgentMetadataReaderActionTest {
 
         @Test
         fun `prompt action invocation with tools`() {
-            val reader = AgentMetadataReader()
+            val reader = TestAgentMetadataReader.create()
             val metadata = reader.createAgentMetadata(OnePromptActionWithToolOnly())
             assertNotNull(metadata)
             assertEquals(1, metadata!!.actions.size)
@@ -552,7 +551,7 @@ class AgentMetadataReaderActionTest {
         }
 
         private fun testToolsAreExposed(instance: Any, expectedToolCount: Int = 1) {
-            val reader = AgentMetadataReader()
+            val reader = TestAgentMetadataReader.create()
             val metadata = reader.createAgentMetadata(instance)
             assertNotNull(metadata)
             assertEquals(1, metadata!!.actions.size)
@@ -614,7 +613,7 @@ class AgentMetadataReaderActionTest {
 
         @Test
         fun `awaitable action invocation`() {
-            val reader = AgentMetadataReader()
+            val reader = TestAgentMetadataReader.create()
             val metadata = reader.createAgentMetadata(AwaitableOne())
             assertNotNull(metadata)
             assertEquals(1, metadata!!.actions.size)
