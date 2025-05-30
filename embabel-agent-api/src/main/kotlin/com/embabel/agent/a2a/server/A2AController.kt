@@ -25,7 +25,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 @RestController
 @RequestMapping("/a2a")
 class A2AController {
-    // Dummy agent card for demonstration
     @GetMapping("/.well-known/agent.json", produces = [MediaType.APPLICATION_JSON_VALUE])
     fun agentCard(): AgentCard =
         AgentCard(

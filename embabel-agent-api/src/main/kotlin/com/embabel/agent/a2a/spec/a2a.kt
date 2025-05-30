@@ -15,6 +15,9 @@
  */
 package com.embabel.agent.a2a.spec
 
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
+
 /**
  * Agent2Agent (A2A) Protocol Data Structures
  * Version: 0.2.1
@@ -283,6 +286,16 @@ interface PartBase {
 /**
  * Represents a distinct piece of content within a Message or Artifact.
  */
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.NAME,
+    include = JsonTypeInfo.As.PROPERTY,
+    property = "kind"
+)
+@JsonSubTypes(
+    JsonSubTypes.Type(value = TextPart::class, name = "text"),
+    JsonSubTypes.Type(value = FilePart::class, name = "file"),
+    JsonSubTypes.Type(value = DataPart::class, name = "data")
+)
 sealed class Part : PartBase
 
 /**
@@ -335,6 +348,15 @@ interface FileBase {
 /**
  * Union type for file data - either bytes or URI
  */
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.NAME,
+    include = JsonTypeInfo.As.PROPERTY,
+    property = "kind"
+)
+@JsonSubTypes(
+    JsonSubTypes.Type(value = FileWithBytes::class, name = "bytes"),
+    JsonSubTypes.Type(value = FileWithUri::class, name = "uri")
+)
 sealed class FileData : FileBase
 
 /**
@@ -348,7 +370,9 @@ data class FileWithBytes(
     override val name: String? = null,
 
     /** MIME type of the file */
-    override val mimeType: String? = null
+    override val mimeType: String? = null,
+
+    val kind: String = "bytes"
 ) : FileData()
 
 /**
@@ -362,7 +386,9 @@ data class FileWithUri(
     override val name: String? = null,
 
     /** MIME type of the file */
-    override val mimeType: String? = null
+    override val mimeType: String? = null,
+
+    val kind: String = "uri"
 ) : FileData()
 
 /**
