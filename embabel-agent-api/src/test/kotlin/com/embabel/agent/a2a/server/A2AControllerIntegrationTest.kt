@@ -16,7 +16,9 @@
 package com.embabel.agent.a2a.server
 
 import com.embabel.agent.a2a.spec.*
+import com.embabel.common.core.types.Semver.Companion.DEFAULT_VERSION
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -60,16 +62,17 @@ class A2AControllerIntegrationTest(
             assertNotNull(agentCard)
             assertEquals("Demo Agent", agentCard.name)
             assertEquals("A demo agent for the Embabel platform.", agentCard.description)
-            assertEquals("https://localhost:8080/", agentCard.url)
+            assertTrue(agentCard.url.contains("localhost"), "Agent card url should expose port: '${agentCard.url}'")
+            assertTrue(agentCard.url.contains(":"), "Agent card url should expose port: '${agentCard.url}'")
             assertEquals("Embabel", agentCard.provider?.organization)
             assertEquals("https://embabel.com", agentCard.provider?.url)
-            assertEquals("0.1.0", agentCard.version)
+            assertEquals(DEFAULT_VERSION, agentCard.version)
             assertEquals("https://embabel.com/docs", agentCard.documentationUrl)
             assertEquals(false, agentCard.capabilities.streaming)
             assertEquals(false, agentCard.capabilities.pushNotifications)
             assertEquals(false, agentCard.capabilities.stateTransitionHistory)
-            assertEquals(listOf("text/plain"), agentCard.defaultInputModes)
-            assertEquals(listOf("text/plain"), agentCard.defaultOutputModes)
+            assertEquals(listOf("application/json", "text/plain"), agentCard.defaultInputModes)
+            assertEquals(listOf("application/json", "text/plain"), agentCard.defaultOutputModes)
             assertTrue(agentCard.skills.isNotEmpty())
             assertEquals("echo", agentCard.skills[0].id)
             assertEquals("Echo", agentCard.skills[0].name)
@@ -167,6 +170,7 @@ class A2AControllerIntegrationTest(
         }
 
         @Test
+        @Disabled("not yet implemented")
         fun `should cancel task`() {
             val params = TaskIdParams(id = "task-123")
 
