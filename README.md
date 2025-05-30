@@ -567,6 +567,23 @@ accessible through Docker's infrastructure.
 - [Introducing Docker MCP Catalog and Toolkit](https://www.docker.com/blog/introducing-docker-mcp-catalog-and-toolkit/)
 - [MCP Introduction and Overview](https://www.philschmid.de/mcp-introduction)
 
+## A2A
+
+Embabel integrates with the [A2A](https://github.com/google-a2a/A2A) protocol, allowing you to connect to other
+A2A-enabled agents and
+services.
+
+Enable the `a2a` Spring profile to start the A2A server.
+
+You'll need the following environment variable:
+
+- `GOOGLE_STUDIO_API_KEY`: Your Google Studio API key, which is used for Gemini.
+
+Go to the web interface running within the container at `http://localhost:12000/`.
+
+Connect to your agent at `host.docker.internal:8080/a2a`. Note that `localhost:8080/a2a` won't work as the server
+cannot access it when running in a Docker container.
+
 ## Running Tests
 
 Run the tests via Maven.

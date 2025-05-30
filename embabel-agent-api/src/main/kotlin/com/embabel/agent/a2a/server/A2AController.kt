@@ -17,14 +17,27 @@ package com.embabel.agent.a2a.server
 
 import com.embabel.agent.a2a.spec.*
 import io.swagger.v3.oas.annotations.media.Schema
+import org.slf4j.LoggerFactory
+import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 
+/**
+ * Expose A2A endpoints for the agent-to-agent communication protocol.
+ */
 @RestController
+@Profile("a2a")
 @RequestMapping("/a2a")
 class A2AController {
+
+    private val logger = LoggerFactory.getLogger(A2AController::class.java)
+
+    init {
+        logger.info("'a2a' Spring profile set: Exposing A2A server")
+    }
+
     @GetMapping("/.well-known/agent.json", produces = [MediaType.APPLICATION_JSON_VALUE])
     fun agentCard(): AgentCard =
         AgentCard(

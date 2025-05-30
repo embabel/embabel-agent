@@ -1,0 +1,31 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN pip install uv
+
+# Set working directory
+WORKDIR /workspace
+
+# Clone the repository
+RUN git clone https://github.com/google-a2a/a2a-samples .
+
+# Create virtual environment and install dependencies
+RUN uv venv .venv
+RUN . .venv/bin/activate && cd demo/ui && uv sync
+
+# Set the working directory to demo/ui
+WORKDIR /workspace/demo/ui
+
+# Activate virtual environment in subsequent commands
+ENV PATH="/workspace/.venv/bin:$PATH"
+
+# Expose port
+EXPOSE 12000
+
+# Default command
+CMD ["uv", "run", "main.py"]

@@ -16,7 +16,6 @@
 package com.embabel.agent.a2a.server
 
 import com.embabel.agent.a2a.spec.*
-import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -35,7 +34,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles(value = ["test", "a2a"])
 @AutoConfigureMockMvc(addFilters = false)
 @EnableAutoConfiguration
 class A2AControllerIntegrationTest(

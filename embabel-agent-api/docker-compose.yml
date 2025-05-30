@@ -6,11 +6,12 @@ services:
     environment:
       - OLLAMA_MODELS=llama3.2
   qwen3:
-    image: ollama/ollama:latest  
+    image: ollama/ollama:latest
     ports:
       - "11435:11434"
     environment:
       - OLLAMA_MODELS=qwen2.5
+
   neo4j:
     image: neo4j:5.26
     ports:
@@ -20,17 +21,22 @@ services:
     environment:
       - NEO4J_AUTH=${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-brahmsian}
       - NEO4J_PLUGINS=["apoc"]
+
+  a2a-demo-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.a2a
+    ports:
+      - "12000:12000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_STUDIO_API_KEY}
+    restart: unless-stopped
+
   zipkin:
     image: 'openzipkin/zipkin:latest'
     ports:
       - "9411:9411"
+
   # the environment variables that will be automatically set in this process are
   # LLAMA3.2_URL - this is the http base url - add /chat/completions to this for doing completions
   # LLAMA3.2_MODEL - this is the name of the model that should be passed in the request
-  # MCP_GATEWAY_ENDPOINT - this is a listening socket - connect to it and use pass the out/in streams to
-  #                        an MCP STDIO client
-#  star-news-agent:
-#    image: springrod/embabel-agent-api:1.0.0-SNAPSHOT
-#    depends_on:
-#      - llama3.2
-#      - mcp-gateway
