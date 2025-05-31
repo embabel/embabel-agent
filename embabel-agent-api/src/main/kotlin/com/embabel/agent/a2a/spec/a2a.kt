@@ -17,6 +17,7 @@ package com.embabel.agent.a2a.spec
 
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import java.util.*
 
 /**
  * Agent2Agent (A2A) Protocol Data Structures
@@ -396,7 +397,7 @@ data class FileWithUri(
  */
 data class Artifact(
     /** Unique identifier for the artifact. */
-    val artifactId: String,
+    val artifactId: String = UUID.randomUUID().toString(),
 
     /** Optional name for the artifact. */
     val name: String? = null,
@@ -408,7 +409,7 @@ data class Artifact(
     val parts: List<Part>,
 
     /** Extension metadata. */
-    val metadata: Map<String, Any>? = null
+    val metadata: Map<String, Any>? = null,
 )
 
 /**
@@ -599,9 +600,19 @@ data class JSONRPCRequest(
     val method: String,
 
     /** A Structured value that holds the parameter values to be used during invocation. */
-    val params: Any? = null,
+    val params: Map<String, Any>? = null,
 
     /** An identifier established by the Client. */
+    val id: Any? = null,
+)
+
+data class MessageSendRequest(
+    val params: MessageSendParams,
+    val id: Any? = null
+)
+
+data class TaskQueryRequest(
+    val params: TaskQueryParams,
     val id: Any? = null
 )
 

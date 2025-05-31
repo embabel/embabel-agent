@@ -24,7 +24,6 @@ import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 
 /**
  * Expose A2A endpoints for the agent-to-agent communication protocol.
@@ -32,7 +31,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 @RestController
 @Profile("a2a")
 @RequestMapping("/a2a")
-class A2AController {
+class A2AController(
+    private val a2AMessageHandler: A2AMessageHandler,
+) {
 
     private val logger = LoggerFactory.getLogger(A2AController::class.java)
 
@@ -46,7 +47,7 @@ class A2AController {
         val serverName = request.serverName
         val serverPort = request.serverPort
 
-        val hostingUrl = "$scheme://$serverName:$serverPort"
+        val hostingUrl = "$scheme://$serverName:$serverPort/a2a"
 
         val agentCard = AgentCard(
             name = "Demo Agent",
@@ -80,112 +81,14 @@ class A2AController {
     }
 
     @PostMapping(
-        "/message/send",
         consumes = [MediaType.APPLICATION_JSON_VALUE],
         produces = [MediaType.APPLICATION_JSON_VALUE]
     )
-    fun sendMessage(@RequestBody @Schema(description = "A2A message send params") params: MessageSendParams): ResponseEntity<JSONRPCResponse> {
-        logger.info("Received message: {}", params)
-        val task = Task(
-            id = params.message.taskId ?: "task-1",
-            contextId = params.message.contextId ?: "ctx-1",
-            status = TaskStatus(TaskState.COMPLETED),
-            history = listOf(params.message),
-            artifacts = emptyList(),
-            metadata = null
-        )
-        val result = JSONRPCSuccessResponse(id = params.message.messageId, result = task)
-        return ResponseEntity.ok(result)
-    }
-
-    // --- message/stream ---
-    @PostMapping("/message/stream", consumes = [MediaType.APPLICATION_JSON_VALUE])
-    fun streamMessage(@RequestBody params: MessageSendParams): SseEmitter {
-        logger.info("Stream message: {}", params)
-
-        val emitter = SseEmitter()
-        // Dummy event stream: send a status update and complete
-        val statusEvent = TaskStatusUpdateEvent(
-            taskId = params.message.taskId ?: "task-1",
-            contextId = params.message.contextId ?: "ctx-1",
-            status = TaskStatus(TaskState.WORKING),
-        )
-        val completeEvent = TaskStatusUpdateEvent(
-            taskId = params.message.taskId ?: "task-1",
-            contextId = params.message.contextId ?: "ctx-1",
-            status = TaskStatus(TaskState.COMPLETED),
-            final = true
-        )
-        try {
-            emitter.send(statusEvent)
-            Thread.sleep(500)
-            emitter.send(completeEvent)
-            emitter.complete()
-        } catch (e: Exception) {
-            emitter.completeWithError(e)
-        }
-        return emitter
-    }
-
-    @PostMapping(
-        "/tasks/get",
-        consumes = [MediaType.APPLICATION_JSON_VALUE],
-        produces = [MediaType.APPLICATION_JSON_VALUE]
-    )
-    fun getTask(@RequestBody params: TaskQueryParams): ResponseEntity<JSONRPCResponse> {
-        logger.info("getTask: {}", params)
-
-        // Dummy implementation: returns a sample task
-        val task = Task(
-            id = params.id,
-            contextId = "ctx-1",
-            status = TaskStatus(TaskState.COMPLETED),
-            history = emptyList(),
-            artifacts = emptyList(),
-            metadata = null
-        )
-        val result = JSONRPCSuccessResponse(id = params.id, result = task)
-        return ResponseEntity.ok(result)
-    }
-
-    @PostMapping(
-        "/tasks/cancel",
-        consumes = [MediaType.APPLICATION_JSON_VALUE],
-        produces = [MediaType.APPLICATION_JSON_VALUE]
-    )
-    fun cancelTask(@RequestBody params: TaskIdParams): ResponseEntity<JSONRPCResponse> {
-        TODO("Implement task cancellation logic")
-    }
-
-    // --- tasks/pushNotificationConfig/set ---
-    @PostMapping(
-        "/tasks/pushNotificationConfig/set",
-        consumes = [MediaType.APPLICATION_JSON_VALUE],
-        produces = [MediaType.APPLICATION_JSON_VALUE]
-    )
-    fun setPushNotificationConfig(@RequestBody params: TaskPushNotificationConfig): ResponseEntity<JSONRPCResponse> {
-        // Dummy: echo back
-        val result = JSONRPCSuccessResponse(id = params.taskId, result = params)
-        return ResponseEntity.ok(result)
-    }
-
-    // --- tasks/pushNotificationConfig/get ---
-    @PostMapping(
-        "/tasks/pushNotificationConfig/get",
-        consumes = [MediaType.APPLICATION_JSON_VALUE],
-        produces = [MediaType.APPLICATION_JSON_VALUE]
-    )
-    fun getPushNotificationConfig(@RequestBody params: TaskIdParams): ResponseEntity<JSONRPCResponse> {
-        // Dummy: return a static config
-        val config = TaskPushNotificationConfig(
-            taskId = params.id,
-            pushNotificationConfig = PushNotificationConfig(
-                url = "https://client/notify",
-                token = "demo-token",
-                authentication = PushNotificationAuthenticationInfo(listOf("Bearer"), credentials = "secret")
-            )
-        )
-        val result = JSONRPCSuccessResponse(id = params.id, result = config)
-        return ResponseEntity.ok(result)
+    fun handleJsonRpc(
+        @RequestBody @Schema(description = "A2A message send params")
+        request: JSONRPCRequest,
+    ): ResponseEntity<JSONRPCResponse> {
+        return a2AMessageHandler.handleJsonRpc(request)
     }
 }
+
