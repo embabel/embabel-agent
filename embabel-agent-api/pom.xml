@@ -258,32 +258,43 @@
             <activation>
                 <activeByDefault>false</activeByDefault>
             </activation>
-            <properties>
-                <agent-examples-kotlin.version>1.0.0-SNAPSHOT</agent-examples-kotlin.version>
-            </properties>
             <dependencies>
                 <dependency>
                      <groupId>com.embabel.agent.example.kotlin</groupId>
                      <artifactId>dogfood</artifactId>
-                     <version>${agent-examples-kotlin.version}</version>
+                     <version>${project.version}</version>
                      <scope>runtime</scope>
                 </dependency>
                 <dependency>
                      <groupId>com.embabel.agent.example.kotlin</groupId>
                      <artifactId>horoscope</artifactId>
-                     <version>${agent-examples-kotlin.version}</version>
+                     <version>${project.version}</version>
                      <scope>runtime</scope>
                 </dependency>
                 <dependency>
                      <groupId>com.embabel.agent.example.kotlin</groupId>
                      <artifactId>movie</artifactId>
-                     <version>${agent-examples-kotlin.version}</version>
+                     <version>${project.version}</version>
                      <scope>runtime</scope>
                 </dependency>
                 <dependency>
                      <groupId>com.embabel.agent.example.kotlin</groupId>
                      <artifactId>travel</artifactId>
-                     <version>${agent-examples-kotlin.version}</version>
+                     <version>${project.version}</version>
+                     <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>agent-examples-java</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <dependencies>
+                <dependency>
+                     <groupId>com.embabel.agent.example.java</groupId>
+                     <artifactId>horoscope</artifactId>
+                     <version>${project.version}</version>
                      <scope>runtime</scope>
                 </dependency>
             </dependencies>
