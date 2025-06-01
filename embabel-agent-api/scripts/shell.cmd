@@ -12,6 +12,6 @@ cd ..
 
 set SPRING_PROFILES_ACTIVE=shell,severance
 
-cmd /c mvn spring-boot:run
+cmd /c mvn -P agent-examples-kotlin spring-boot:run
 
 endlocal
