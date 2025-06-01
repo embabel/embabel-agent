@@ -27,6 +27,12 @@
             <artifactId>embabel-agent-api</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.embabel.agent.example</groupId>
+            <artifactId>examples-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>com.embabel.agent</groupId>

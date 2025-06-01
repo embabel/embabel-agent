@@ -16,21 +16,8 @@
     <modules>
         <module>kotlin-examples</module>
         <module>java-examples</module>
+        <module>examples-common</module>
     </modules>
 
-    <dependencies>
-        <!-- Main Dependencies -->
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-api</artifactId>
-        </dependency>
-
-        <!-- Test Dependencies -->
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
 
 </project>

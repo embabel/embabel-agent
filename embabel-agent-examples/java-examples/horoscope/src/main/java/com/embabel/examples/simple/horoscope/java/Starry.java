@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.examples.horoscope;
+package com.embabel.examples.simple.horoscope.java;
 
 import com.embabel.ux.form.Text;
 import com.fasterxml.jackson.annotation.JsonClassDescription;

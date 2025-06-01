@@ -7,27 +7,15 @@
         <artifactId>embabel-agent-example-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <groupId>com.embabel.agent.example.java</groupId>
-    <artifactId>example-java-parent</artifactId>
-    <packaging>pom</packaging>
-    <name>Embabel Agent Java Examples Parent</name>
-    <description>Java Examples for Embabel Agentic Flows</description>
-
-    <modules>
-        <module>horoscope</module>
-    </modules>
+    <artifactId>examples-common</artifactId>
+    <name>Embabel Agent Common</name>
+    <description>Common Types for Embabel Sample Agents</description>
 
     <dependencies>
         <!-- Main Dependencies -->
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.embabel.agent.example</groupId>
-            <artifactId>examples-common</artifactId>
-            <version>${project.version}</version>
         </dependency>
 
         <!-- Test Dependencies -->
@@ -40,7 +28,11 @@
 
     <build>
         <plugins>
-      
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

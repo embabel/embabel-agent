@@ -13,31 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.examples.horoscope;
+package com.embabel.examples.simple.horoscope.java;
 
-import com.embabel.agent.domain.library.Person;
+import com.embabel.agent.domain.library.HasContent;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
-@JsonClassDescription("Person with astrology details")
-public record StarPerson(
-    String name,
-    @JsonPropertyDescription("Star sign") String sign
-) implements Person {
-    
+@JsonClassDescription("Writeup relating to a person's horoscope and relevant news")
+public record Writeup(String text) implements HasContent {
+
     @JsonCreator
-    public StarPerson(
-            @JsonProperty("name") String name,
-            @JsonProperty("sign") String sign
-    ) {
-        this.name = name;
-        this.sign = sign;
+    public Writeup(@JsonProperty("text") String text) {
+        this.text = text;
     }
-    
+
     @Override
-    public String getName() {
-        return name;
+    public String getContent() {
+        return text;
     }
 }
