@@ -3,13 +3,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.embabel.agent.example</groupId>
-        <artifactId>embabel-agent-example-parent</artifactId>
+        <groupId>com.embabel.agent.example.java</groupId>
+        <artifactId>example-java-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-horoscope-example</artifactId>
+    <artifactId>horoscope</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent Horoscope Example</name>
-    <description>Personal Horoscope usecase, modelled as Embabel Agentic Flow</description>
+    <name>Embabel Horoscope Agent</name>
+    <description>Personal Horoscope, modelled as Agentic Flow</description>
     
 </project>

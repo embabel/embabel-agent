@@ -3,14 +3,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.embabel.agent.example</groupId>
-        <artifactId>embabel-agent-example-parent</artifactId>
+        <groupId>com.embabel.agent.example.kotlin</groupId>
+        <artifactId>example-kotlin-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-movie-example</artifactId>
+    <artifactId>movie</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent Movie Example</name>
-    <description>Movie usecase, modelled as Embabel Agentic Flow</description>
+    <name>Embabel Movie Agent</name>
+    <description>Movie usecase, modelled as Agentic Flow</description>
     
     
 </project>
