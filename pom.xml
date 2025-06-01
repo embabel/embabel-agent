@@ -25,7 +25,6 @@
         <module>embabel-agent-shell</module>
         <module>embabel-agent-starter</module>
         <module>embabel-agent-autoconfigure</module>
-        <module>embabel-agent-examples</module>
         <module>embabel-agent-eval</module>
         <module>embabel-agent-dependencies</module>
         <module>embabel-agent-test</module>
