@@ -34,15 +34,46 @@ import com.embabel.agent.experimental.prompt.Persona
 import com.embabel.agent.shell.markdownToConsole
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
+import com.embabel.common.ai.prompt.PromptContributor
 import org.springframework.shell.standard.ShellComponent
 import org.springframework.shell.standard.ShellMethod
 
-data class TravelBrief(
+sealed interface TravelBrief : PromptContributor {
+    val brief: String
+    val dates: String
+
+}
+
+data class ExplorationTravelBrief(
     val areaToExplore: String,
     val stayingAt: String,
-    val brief: String,
-    val dates: String,
-)
+    override val brief: String,
+    override val dates: String,
+) : TravelBrief {
+
+    override fun contribution(): String =
+        """
+        Area to explore: $areaToExplore
+        Staying at: $stayingAt
+        Brief: $brief
+        Dates: $dates
+    """.trimIndent()
+}
+
+data class JourneyTravelBrief(
+    val from: String,
+    val to: String,
+    override val brief: String,
+    override val dates: String,
+) : TravelBrief {
+
+    override fun contribution(): String =
+        """
+        Journey from: $from to: $to
+        Dates: $dates
+        Brief: $brief
+    """.trimIndent()
+}
 
 data class PointOfInterest(
     val name: String,
@@ -93,9 +124,8 @@ class TravelPlanner(
             .create(
                 prompt = """
                 Consider the following travel brief.
-                ${travelBrief.brief}
-                The travelers want to explore ${travelBrief.areaToExplore} and are staying at ${travelBrief.stayingAt}.
-                Find points of interest in ${travelBrief.areaToExplore} that are relevant to the travel brief.
+                ${travelBrief.contribution()}
+                Find points of interest that are relevant to the travel brief.
             """.trimIndent(),
             )
     }
@@ -116,8 +146,6 @@ class TravelPlanner(
             pr.create<ResearchedPointOfInterest>(
                 prompt = """
                 Research the following point of interest.
-                Use the embabel_docker_mcp_brave_web_search and embabel_docker_mcp_search_wikipedia tools
-                to find relevant information.
                 Consider in particular interesting stories about art and culture and famous people.
                 Your audience: ${travelBrief.brief}
                 <point-of-interest-to-research>
@@ -148,10 +176,8 @@ class TravelPlanner(
             .withPromptContributor(persona)
             .create<TravelPlan>(
                 prompt = """
-                Given the following travel brief, create a detailed activity plan.
-                ${travelBrief.brief}
-                The travelers want to explore ${travelBrief.areaToExplore} and are staying at ${travelBrief.stayingAt}.
-                They need activities on ${travelBrief.dates}.
+                Given the following travel brief, create a detailed plan.
+                <brief> ${travelBrief.contribution()}</brief>
                 Consider the weather in your recommendations. Use mapping tools to consider distance of driving or walking.
                 Write up in $wordCount words or less.
                 Include links.
@@ -170,7 +196,7 @@ class TravelPlanner(
                     }
                 }
 
-                Create a markup plan.
+                Create a markdown plan.
             """.trimIndent(),
             )
     }
@@ -182,21 +208,21 @@ class TravelPlannerShell(
 ) {
     @ShellMethod
     fun planTravel() {
-        val travelBrief = TravelBrief(
-            areaToExplore = "Provence, France",
-            stayingAt = "Sourgues",
-            dates = "May 29-30 2025",
+        val travelBrief = JourneyTravelBrief(
+            from = "Nice",
+            to = "Paris",
+            dates = "June 1-5 2025 arriving in Paris on June 5",
             brief = """
                 The travelers are interested in history, art, food, wine
                 and classical music.
                 They love walking and cycling.
-                They are checking out in Sourgues morning of May 29 and need to
-                be in Nice by the evening of May 30.
+                They are driving in a car that has no power.
+                   They would like to take back roads and see nice countryside.
             """.trimIndent(),
         )
 
         val ap = agentPlatform.runAgentWithInput(
-            agent = agentPlatform.agents().single({ it.name == "TravelPlanner" }),
+            agent = agentPlatform.agents().single { it.name == "TravelPlanner" },
             input = travelBrief,
             processOptions = ProcessOptions(
                 verbosity = Verbosity(
