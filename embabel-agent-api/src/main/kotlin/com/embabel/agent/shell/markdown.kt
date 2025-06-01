@@ -16,7 +16,7 @@
 package com.embabel.agent.shell
 
 // Thanks to Guillaume Laforge: https://glaforge.dev/posts/2025/02/27/pretty-print-markdown-on-the-console/
-internal fun markdownToConsole(md: String): String {
+fun markdownToConsole(md: String): String {
     return md
         // Bold
         .replace(Regex("\\*\\*(.*?)\\*\\*"), "\u001B[1m$1\u001B[0m")
