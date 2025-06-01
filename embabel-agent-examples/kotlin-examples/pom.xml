@@ -3,19 +3,21 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.embabel.agent</groupId>
-        <artifactId>embabel-agent-parent</artifactId>
+        <groupId>com.embabel.agent.example</groupId>
+        <artifactId>embabel-agent-example-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <groupId>com.embabel.agent.example</groupId>
-    <artifactId>embabel-agent-example-parent</artifactId>
+    <groupId>com.embabel.agent.example.kotlin</groupId>
+    <artifactId>example-kotlin-parent</artifactId>
     <packaging>pom</packaging>
-    <name>Embabel Agent Examples Parent</name>
-    <description>Examples for Embabel Agentic Flows</description>
+    <name>Embabel Agent Kotlin Examples Parent</name>
+    <description>Kotlin Examples for Embabel Agentic Flows</description>
 
     <modules>
-        <module>kotlin-examples</module>
-        <module>java-examples</module>
+        <module>movie</module>
+        <module>horoscope</module>
+        <module>travel</module>
+        <module>dogfood</module>
     </modules>
 
     <dependencies>
@@ -32,5 +34,20 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+    </build>
 
 </project>
