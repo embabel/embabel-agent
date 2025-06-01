@@ -4,4 +4,4 @@
 
 cd ..
 export SPRING_PROFILES_ACTIVE=shell,starwars,docker-desktop
-mvn spring-boot:run
+mvn -P agent-examples-kotlin spring-boot:run
