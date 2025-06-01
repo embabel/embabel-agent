@@ -4,4 +4,4 @@
 
 cd ..
 export SPRING_PROFILES_ACTIVE=shell,starwars,docker-desktop
-mvn -P agent-examples-kotlin spring-boot:run
+mvn -P agent-examples-kotlin -Dmaven.test.skip=true spring-boot:run

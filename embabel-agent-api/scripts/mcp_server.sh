@@ -4,4 +4,4 @@
 
 cd ..
 export SPRING_PROFILES_ACTIVE=web,severance
-mvn spring-boot:run
+mvn -P agent-examples-kotlin -Dmaven.test.skip=true spring-boot:run

@@ -19,7 +19,7 @@ try {
     $env:SPRING_PROFILES_ACTIVE = "shell,starwars,docker-desktop"
     
     # Run Maven in subprocess
-    cmd /c "mvn spring-boot:run"
+    cmd /c "mvn -Dmaven.test.skip=true spring-boot:run"
 }
 finally {
     # Restore original environment and location

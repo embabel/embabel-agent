@@ -12,6 +12,6 @@ cd ..
 
 set SPRING_PROFILES_ACTIVE=shell,severance
 
-cmd /c mvn -P agent-examples-kotlin spring-boot:run
+cmd /c mvn -P agent-examples-kotlin -Dmaven.test.skip=true spring-boot:run
 
 endlocal

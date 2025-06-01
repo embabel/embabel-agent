@@ -19,7 +19,7 @@ try {
     $env:SPRING_PROFILES_ACTIVE = "shell,severance"
     
     # Run Maven in subprocess
-    cmd /c "mvn -P agent-examples-kotlin spring-boot:run"
+    cmd /c "mvn -P agent-examples-kotlin -Dmaven.test.skip=true spring-boot:run"
 }
 finally {
     # Restore original environment and location
