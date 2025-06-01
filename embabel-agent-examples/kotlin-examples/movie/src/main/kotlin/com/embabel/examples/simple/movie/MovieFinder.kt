@@ -177,13 +177,13 @@ class MovieFinder(
     fun findMovieBuff(userInput: UserInput, context: ActionContext): MovieBuff? {
         return movieBuffRepository.findAll().firstOrNull()
 
+        /*
         val fer = movieBuffRepository.naturalLanguageRepository(
             context,
             config.llm,
         ).find(
             FindEntitiesRequest(description = userInput.content),
         )
-        // TODO present a choices form
         return when {
             fer.matches.size == 1 -> {
                 waitFor(
@@ -199,6 +199,7 @@ class MovieFinder(
                 null
             }
         }
+        */
     }
 
     /**
