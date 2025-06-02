@@ -113,9 +113,13 @@ data class FallbackByNameModelSelectionCriteria(
  * Choose an LLM automatically: For example, in a platform, based
  * on runtime analysis, or based on analysis of the prompt
  */
-object AutoModelSelectionCriteria : ModelSelectionCriteria
+object AutoModelSelectionCriteria : ModelSelectionCriteria {
+    override fun toString(): String = "AutoModelSelectionCriteria"
+}
 
-object DefaultModelSelectionCriteria : ModelSelectionCriteria
+object DefaultModelSelectionCriteria : ModelSelectionCriteria {
+    override fun toString(): String = "DefaultModelSelectionCriteria"
+}
 
 /**
  * Provide AI models for requested roles, and expose data about available models.
@@ -136,8 +140,8 @@ interface ModelProvider : HasInfoString {
     fun listModelNames(klass: Class<out AiModel<*>>): List<String>
 
     /**
-     * Well known roles for models
-     * Useful but not exhaustive
+     * Well-known roles for models
+     * Useful but not exhaustive: users are free to define their own roles
      * @see ByRoleModelSelectionCriteria
      */
     companion object {
