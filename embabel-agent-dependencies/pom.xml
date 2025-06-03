@@ -61,8 +61,8 @@
             </dependency>
 
             <dependency>
-                <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-examples</artifactId>
+                <groupId>com.embabel.agent.example</groupId>
+                <artifactId>examples-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
