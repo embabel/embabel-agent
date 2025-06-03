@@ -15,6 +15,10 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.AutonomyProperties
+import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
+import com.embabel.agent.api.common.autonomy.NoGoalFound
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.domain.library.HasContent

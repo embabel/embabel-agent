@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.AutonomyProperties
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.testing.IntegrationTestUtils
@@ -52,7 +54,7 @@ import kotlin.test.assertTrue
  */
 class AutonomyActionLeakageTest {
 
-    data class DummyType (val x:Int) {}
+    data class DummyType(val x: Int) {}
 
     @BeforeEach
     fun setUp() {
@@ -90,7 +92,7 @@ class AutonomyActionLeakageTest {
     @DisplayName("test prune method correctly filters actions without leakage")
     fun testSingleAgentPruneMethodPreventsActionLeakage() {
         // Create test conditions
-        val condition1 =  ComputedBooleanCondition(
+        val condition1 = ComputedBooleanCondition(
             name = "Test Condition 1",
             cost = 0.25,
             evaluator = { _, _ -> true }
@@ -136,11 +138,12 @@ class AutonomyActionLeakageTest {
             override fun infoString(verbose: Boolean?): String {
                 return "ACTION 1"
             }
+
             override val description = "Action for goal 1"
-            override val inputs: Set<IoBinding> = setOf(IoBinding("goal1", type= UserInput::class.java))
+            override val inputs: Set<IoBinding> = setOf(IoBinding("goal1", type = UserInput::class.java))
             val output = String::class.java
             override val preconditions = mapOf(   // pushes towards achievable goal
-                inputCondition.name  to ConditionDetermination.FALSE
+                inputCondition.name to ConditionDetermination.FALSE
             )
             override val effects = mapOf(
                 condition1.name to ConditionDetermination.TRUE
@@ -153,6 +156,7 @@ class AutonomyActionLeakageTest {
             override fun referencedInputProperties(variable: String): Set<String> {
                 return emptySet()
             }
+
             override val domainTypes: Collection<Class<*>>
                 get() = listOf(DummyType::class.java)
             override val toolGroups: Set<String>
@@ -161,7 +165,7 @@ class AutonomyActionLeakageTest {
         }
 
         // Create action2 that satisfies goal2
-        val action2 =   object : Action {
+        val action2 = object : Action {
             override val outputs: Set<IoBinding> = setOf(IoBinding("goal1", type = UserInput::class.java))
             override val cost: ZeroToOne
                 get() = 0.9
@@ -174,11 +178,12 @@ class AutonomyActionLeakageTest {
             override fun infoString(verbose: Boolean?): String {
                 return "ACTION 2"
             }
+
             override val description = "Action for goal 2"
-            override val inputs: Set<IoBinding> = setOf(IoBinding("goal2", type= UserInput::class.java))
+            override val inputs: Set<IoBinding> = setOf(IoBinding("goal2", type = UserInput::class.java))
             val output = String::class.java
             override val preconditions = mapOf(
-                condition1.name  to ConditionDetermination.TRUE
+                condition1.name to ConditionDetermination.TRUE
             )
             override val effects = mapOf(
                 condition2.name to ConditionDetermination.TRUE
@@ -191,6 +196,7 @@ class AutonomyActionLeakageTest {
             override fun referencedInputProperties(variable: String): Set<String> {
                 return emptySet()
             }
+
             override val domainTypes: Collection<Class<*>>
                 get() = listOf(DummyType::class.java)
             override val toolGroups: Set<String>
@@ -200,13 +206,13 @@ class AutonomyActionLeakageTest {
 
         // Create an agent with both actions
         val agent = Agent(
-                name = "testAgent",
-                description = "Test agent",
-                actions = listOf(action1, action2),
-                goals = setOf(goal1, goal2),
-                conditions = setOf(condition1, condition2, inputCondition),
-                provider = "Test Provider"
-            )
+            name = "testAgent",
+            description = "Test agent",
+            actions = listOf(action1, action2),
+            goals = setOf(goal1, goal2),
+            conditions = setOf(condition1, condition2, inputCondition),
+            provider = "Test Provider"
+        )
 
         // Create dependencies
         val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
@@ -380,8 +386,10 @@ class AutonomyActionLeakageTest {
         // Verify no action leakage from Agent2 to Agent1
         assertEquals(1, prunedAgent1.actions.size, "Pruned agent should only have 1 action")
         assertEquals("action1", prunedAgent1.actions[0].name, "Pruned agent should contain only action1")
-        assertFalse(prunedAgent1.actions.any { it.name == "action3" || it.name == "action4" },
-            "Agent1 should not contain any actions from Agent2")
+        assertFalse(
+            prunedAgent1.actions.any { it.name == "action3" || it.name == "action4" },
+            "Agent1 should not contain any actions from Agent2"
+        )
 
         // Test pruning Agent2 with goal3
         val prunedAgent2 = pruneMethod.invoke(autonomy, agent2, userInput) as Agent
@@ -389,8 +397,10 @@ class AutonomyActionLeakageTest {
         // Verify no action leakage from Agent1 to Agent2
         assertEquals(1, prunedAgent2.actions.size, "Pruned agent should only have 1 action")
         assertEquals("action3", prunedAgent2.actions[0].name, "Pruned agent should contain only action3")
-        assertFalse(prunedAgent2.actions.any { it.name == "action1" || it.name == "action2" },
-            "Agent2 should not contain any actions from Agent1")
+        assertFalse(
+            prunedAgent2.actions.any { it.name == "action1" || it.name == "action2" },
+            "Agent2 should not contain any actions from Agent1"
+        )
     }
 
     // Helper method to create test actions
@@ -409,7 +419,7 @@ class AutonomyActionLeakageTest {
             override val value: ZeroToOne = 0.3
             override fun infoString(verbose: Boolean?): String = name
             override val description = description
-            override val inputs: Set<IoBinding> = setOf(IoBinding(name, type= UserInput::class.java))
+            override val inputs: Set<IoBinding> = setOf(IoBinding(name, type = UserInput::class.java))
             override val preconditions = preconditions
             override val effects = effects
             override val schemaTypes = emptyList<SchemaType>()

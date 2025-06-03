@@ -13,21 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.common
+package com.embabel.agent.api.common.autonomy
 
 import com.embabel.agent.common.Constants
 import com.embabel.agent.core.*
-import com.embabel.agent.core.hitl.Awaitable
-import com.embabel.agent.core.hitl.AwaitableResponse
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.event.AgentPlatformEvent
 import com.embabel.agent.event.DynamicAgentCreationEvent
 import com.embabel.agent.event.RankingChoiceRequestEvent
 import com.embabel.agent.spi.Ranker
 import com.embabel.agent.spi.Rankings
 import com.embabel.agent.testing.FakeRanker
 import com.embabel.agent.testing.RandomRanker
-import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
 import com.embabel.plan.goap.AStarGoapPlanner
@@ -35,139 +31,6 @@ import com.embabel.plan.goap.ConditionDetermination
 import com.embabel.plan.goap.WorldStateDeterminer
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.stereotype.Service
-import java.time.Instant
-
-/**
- * Successful result of directly trying to execute a goal
- * and forcing client to discriminate between possible goals.
- * Failure results in an exception being thrown.
- */
-class DynamicExecutionResult private constructor(
-
-    /**
-     * What triggered this result. Process input.
-     */
-    val basis: Any,
-
-    /**
-     * Output object
-     */
-    val output: Any,
-
-    /**
-     * Process that executed and is now complete
-     */
-    val agentProcess: AgentProcess,
-) : HasInfoString {
-
-    override fun infoString(verbose: Boolean?): String {
-        return "DynamicExecutionResult(basis=$basis, output=$output, agentProcess=${agentProcess.infoString(verbose)})"
-    }
-
-    companion object {
-
-        @Suppress("UNCHECKED_CAST")
-        fun fromProcessStatus(
-            basis: Any,
-            agentProcess: AgentProcess,
-        ): DynamicExecutionResult =
-            when (agentProcess.status) {
-                AgentProcessStatusCode.COMPLETED -> {
-                    DynamicExecutionResult(
-                        basis = basis,
-                        output = agentProcess.lastResult()!!,
-                        agentProcess = agentProcess,
-                    )
-                }
-
-                AgentProcessStatusCode.WAITING -> {
-                    throw ProcessWaitingException(
-                        agentProcess = agentProcess,
-                        // TODO this is dirty
-                        awaitable = agentProcess.lastResult() as Awaitable<*, AwaitableResponse>,
-                    )
-                }
-
-                AgentProcessStatusCode.FAILED -> {
-                    throw ProcessExecutionFailedException(
-                        agentProcess = agentProcess,
-                        detail = "Process ${agentProcess.id} failed: ${agentProcess.failureInfo}",
-                    )
-                }
-
-                AgentProcessStatusCode.STUCK -> {
-                    throw ProcessExecutionStuckException(
-                        agentProcess = agentProcess,
-                        detail = "Process ${agentProcess.id} stuck"
-                    )
-                }
-
-                AgentProcessStatusCode.TERMINATED -> {
-                    throw ProcessExecutionTerminatedException(
-                        agentProcess = agentProcess,
-                        detail = "Process ${agentProcess.id} was terminated: ${agentProcess.failureInfo}",
-                    )
-                }
-
-                else -> {
-                    error("Unexpected process status: ${agentProcess.status}")
-                }
-            }
-    }
-}
-
-/**
- * Used for control flow
- */
-sealed class ProcessExecutionException(
-    val agentProcess: AgentProcess?,
-    message: String,
-) : Exception(message)
-
-class NoGoalFound(
-    val basis: Any,
-    val goalRankings: Rankings<Goal>,
-) : ProcessExecutionException(null, "Goal not found: ${goalRankings.rankings.joinToString(",")}")
-
-/**
- * The Ranker chose a goal, but it was rejected by the GoalApprover
- */
-class GoalNotApproved(
-    val basis: Any,
-    val goalRankings: Rankings<Goal>,
-    val reason: String,
-    override val agentPlatform: AgentPlatform,
-) : AgentPlatformEvent,
-    ProcessExecutionException(null, "Goal not approved because $reason: ${goalRankings.rankings.joinToString(",")}") {
-
-    override val timestamp: Instant = Instant.now()
-
-}
-
-class NoAgentFound(
-    val basis: Any,
-    val agentRankings: Rankings<Agent>,
-) : ProcessExecutionException(null, "Agent not found: ${agentRankings.rankings.joinToString(",")}")
-
-class ProcessExecutionFailedException(
-    agentProcess: AgentProcess,
-    val detail: String,
-) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} failed: $detail")
-
-class ProcessExecutionTerminatedException(
-    agentProcess: AgentProcess,
-    val detail: String,
-) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} terminated: $detail")
-
-class ProcessExecutionStuckException(
-    agentProcess: AgentProcess,
-    val detail: String,
-) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} stuck: $detail")
-
-class ProcessWaitingException(
-    agentProcess: AgentProcess,
-    val awaitable: Awaitable<*, AwaitableResponse>,
-) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} is waiting for ${awaitable.infoString()}")
 
 
 /**
@@ -182,62 +45,6 @@ data class AutonomyProperties(
     val goalConfidenceCutOff: ZeroToOne = 0.6,
     val agentConfidenceCutOff: ZeroToOne = 0.6,
 )
-
-data class GoalChoiceApprovalRequest(
-    val goal: Goal,
-    val intent: String,
-    val rankings: Rankings<Goal>,
-)
-
-sealed interface GoalChoiceApprovalResponse {
-    val request: GoalChoiceApprovalRequest
-    val approved: Boolean
-}
-
-data class GoalChoiceApproved(
-    override val request: GoalChoiceApprovalRequest,
-) : GoalChoiceApprovalResponse {
-    override val approved: Boolean = true
-}
-
-data class GoalChoiceNotApproved(
-    override val request: GoalChoiceApprovalRequest,
-    val reason: String,
-) : GoalChoiceApprovalResponse {
-    override val approved: Boolean = false
-}
-
-/**
- * Implemented by objects that can veto goal choice
- */
-fun interface GoalChoiceApprover {
-
-    /**
-     * Respond to a goal choice.
-     */
-    fun approve(
-        goalChoiceApprovalRequest: GoalChoiceApprovalRequest
-    ): GoalChoiceApprovalResponse
-
-    companion object {
-        val APPROVE_ALL = GoalChoiceApprover { GoalChoiceApproved(it) }
-
-        /**
-         * Approve if the score is greater than this value
-         */
-        infix fun approveWithScoreOver(score: ZeroToOne) = GoalChoiceApprover { request ->
-            if ((request.rankings.rankings.firstOrNull()?.score ?: 0.0) > score) {
-                GoalChoiceApproved(request)
-            } else {
-                GoalChoiceNotApproved(
-                    request = request,
-                    reason = "Score ${request.rankings.rankings.firstOrNull()?.score} is not over $score",
-                )
-            }
-        }
-    }
-
-}
 
 /**
  * Adds autonomy to an AgentPlatform, with the ability to choose
@@ -269,7 +76,7 @@ class Autonomy(
         processOptions: ProcessOptions = ProcessOptions(),
         goalChoiceApprover: GoalChoiceApprover,
         agentScope: AgentScope,
-    ): DynamicExecutionResult {
+    ): AgentProcessExecution {
         val userInput = UserInput(intent)
         val goalRun = createGoalSeeker(
             userInput = userInput,
@@ -286,7 +93,7 @@ class Autonomy(
             )
         )
 
-        return DynamicExecutionResult.fromProcessStatus(
+        return AgentProcessExecution.fromProcessStatus(
             basis = userInput,
             agentProcess = agentProcess,
         )
@@ -310,7 +117,7 @@ class Autonomy(
     fun chooseAndRunAgent(
         intent: String,
         processOptions: ProcessOptions = ProcessOptions(),
-    ): DynamicExecutionResult {
+    ): AgentProcessExecution {
         val userInput = UserInput(intent)
 
         // Use a fake ranker if we are in test mode and don't already have a fake one
@@ -377,7 +184,7 @@ class Autonomy(
         userInput: UserInput,
         processOptions: ProcessOptions,
         agent: Agent
-    ): DynamicExecutionResult {
+    ): AgentProcessExecution {
         val agentProcess = agentPlatform.runAgentFrom(
             processOptions = processOptions,
             agent = agent,
@@ -385,7 +192,7 @@ class Autonomy(
                 IoBinding.DEFAULT_BINDING to userInput
             )
         )
-        return DynamicExecutionResult.fromProcessStatus(
+        return AgentProcessExecution.fromProcessStatus(
             basis = userInput,
             agentProcess = agentProcess,
         )

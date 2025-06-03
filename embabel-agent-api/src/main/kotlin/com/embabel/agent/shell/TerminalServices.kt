@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.shell
 
-import com.embabel.agent.api.common.*
+import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.hitl.*
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.chat.AgenticResultAssistantMessage
@@ -72,7 +72,7 @@ class TerminalServices(
                     is UserMessage -> error("User message should not be sent by the assistant")
                     is AgenticResultAssistantMessage -> {
                         val formatted = formatProcessOutput(
-                            result = it.dynamicExecutionResult,
+                            result = it.agentProcessExecution,
                             colorPalette = colorPalette,
                             objectMapper = objectMapper,
                         )

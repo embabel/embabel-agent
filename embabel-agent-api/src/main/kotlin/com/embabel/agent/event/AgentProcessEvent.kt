@@ -102,17 +102,19 @@ class ActionExecutionResultEvent internal constructor(
 /**
  * Call to a function from an LLM
  */
-class AgentProcessToolCallRequestEvent(
+class ToolCallRequestEvent(
     agentProcess: AgentProcess,
+    val action: Action?,
     val function: String,
     val toolGroupMetadata: ToolGroupMetadata?,
     val toolInput: String,
     val llmOptions: LlmOptions,
 ) : AbstractAgentProcessEvent(agentProcess) {
 
-    fun responseEvent(result: Result<String>, runningTime: Duration): AgentProcessToolCallResponseEvent {
-        return AgentProcessToolCallResponseEvent(
+    fun responseEvent(result: Result<String>, runningTime: Duration): ToolCallResponseEvent {
+        return ToolCallResponseEvent(
             agentProcess = agentProcess,
+            action = action,
             function = function,
             toolInput = toolInput,
             llmOptions = llmOptions,
@@ -122,8 +124,12 @@ class AgentProcessToolCallRequestEvent(
     }
 }
 
-class AgentProcessToolCallResponseEvent internal constructor(
+/**
+ * Response from a tool call, whether successful or not.
+ */
+class ToolCallResponseEvent internal constructor(
     agentProcess: AgentProcess,
+    val action: Action?,
     val function: String,
     val toolInput: String,
     val llmOptions: LlmOptions,

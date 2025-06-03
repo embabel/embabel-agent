@@ -19,6 +19,8 @@ management:
 
 embabel:
   agent-platform:
+    name: embabel-default
+    description: Embabel Default Agent Platform
     scanning:
       annotation: true
       bean: true

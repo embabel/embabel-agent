@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.shell
 
-import com.embabel.agent.api.common.*
+import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.*
 import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
@@ -419,7 +419,7 @@ class ShellCommands(
     private fun runProcess(
         verbosity: Verbosity,
         basis: Any,
-        run: () -> DynamicExecutionResult
+        run: () -> AgentProcessExecution
     ): String {
         try {
             val result = run()
@@ -481,7 +481,7 @@ class ShellCommands(
                 processContext = pwe.agentProcess!!.processContext
             )
             return runProcess(verbosity, basis) {
-                DynamicExecutionResult.fromProcessStatus(
+                AgentProcessExecution.fromProcessStatus(
                     basis = basis,
                     agentProcess = pwe.agentProcess.run()
                 )

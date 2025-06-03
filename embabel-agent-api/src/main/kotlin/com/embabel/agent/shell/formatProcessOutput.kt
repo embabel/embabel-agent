@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.shell
 
-import com.embabel.agent.api.common.DynamicExecutionResult
+import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.agent.domain.library.InternetResources
 import com.embabel.agent.event.logging.personality.ColorPalette
@@ -29,7 +29,7 @@ import org.apache.commons.text.WordUtils
  * Displays usage and cost information.
  */
 fun formatProcessOutput(
-    result: DynamicExecutionResult,
+    result: AgentProcessExecution,
     colorPalette: ColorPalette,
     objectMapper: ObjectMapper,
 ): String {

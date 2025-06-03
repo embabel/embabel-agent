@@ -15,7 +15,7 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.api.common.DynamicExecutionResult
+import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.StableIdentified
@@ -76,7 +76,7 @@ open class AssistantMessage(
  * Assistant message that result from an agentic execution
  */
 class AgenticResultAssistantMessage(
-    val dynamicExecutionResult: DynamicExecutionResult,
+    val agentProcessExecution: AgentProcessExecution,
     content: String,
     name: String? = null,
 ) : AssistantMessage(content = content, name = name)

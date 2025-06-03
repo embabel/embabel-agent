@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.api.common.SelfToolCallbackPublisher
+import com.embabel.agent.api.common.support.SelfToolCallbackPublisher
 import com.embabel.agent.rag.RagRequest
 import com.embabel.agent.rag.RagResponseFormatter
 import com.embabel.agent.rag.RagService

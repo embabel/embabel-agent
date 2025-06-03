@@ -51,6 +51,18 @@ class OneGoalOnly {
 }
 
 @AgentCapabilities
+class OneGoalOnlyWithRichMetadata {
+
+    val thing1 = Goal.createInstance(
+        name = "thing1",
+        description = "This is a goal with rich metadata",
+        type = PersonWithReverseTool::class.java,
+        tags = setOf("foo", "bar"),
+        examples = setOf("make me happy"),
+    ).withValue(30.0)
+}
+
+@AgentCapabilities
 class TwoGoalsOnly {
 
     val thing1 = Goal.createInstance(

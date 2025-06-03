@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Named
 import com.fasterxml.jackson.annotation.JsonIgnore
@@ -37,7 +38,7 @@ interface ActionSource {
 /**
  * Defines the scope of an agent: What goals, conditions and actions it knows about.
  */
-interface AgentScope : Named, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString {
+interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString {
 
     @get:JsonIgnore
     override val domainTypes: Collection<Class<*>>
@@ -84,12 +85,14 @@ interface AgentScope : Named, GoalSource, ConditionSource, ActionSource, DataDic
 
         operator fun invoke(
             name: String,
+            description: String = name,
             actions: List<Action> = emptyList(),
             goals: Set<Goal> = emptySet(),
             conditions: Set<Condition> = emptySet(),
         ): AgentScope {
             return AgentScopeImpl(
                 name = name,
+                description = description,
                 actions = actions,
                 goals = goals,
                 conditions = conditions,
@@ -101,6 +104,7 @@ interface AgentScope : Named, GoalSource, ConditionSource, ActionSource, DataDic
 
 private data class AgentScopeImpl(
     override val name: String,
+    override val description: String,
     override val actions: List<Action>,
     override val goals: Set<Goal>,
     override val conditions: Set<Condition>,

@@ -21,9 +21,9 @@ import com.embabel.agent.event.*
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.agent.event.logging.personality.DefaultColorPalette
 import com.embabel.agent.event.logging.personality.severance.LumonColorPalette
-import com.embabel.common.util.trim
 import com.embabel.common.util.AnsiColor
 import com.embabel.common.util.color
+import com.embabel.common.util.trim
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -84,9 +84,9 @@ open class LoggingAgenticEventListener(
     private val earlyTerminationMessage: String = "[{}] early termination by {} for {}",
     private val objectAddedMessage: String = "[{}] object added: {}",
     private val objectBoundMessage: String = "[{}] object bound {}:{}",
-    private val functionCallRequestEventMessage: String = "[{}] tool {}({})",
-    private val functionCallSuccessResponseEventMessage: String = "[{}] tool {} -> {} in {}ms with payload {}",
-    private val functionCallFailureResponseEventMessage: String = "[{}] failed tool {} -> {} in {}ms with payload {}",
+    private val toolCallRequestEventMessage: String = "[{}] ({}) calling tool {}({})",
+    private val toolCallSuccessResponseEventMessage: String = "[{}] ({}) tool {} returned {} in {}ms with payload {}",
+    private val toolCallFailureResponseEventMessage: String = "[{}] ({}) failed tool {} -> {} in {}ms with payload {}",
     private val llmRequestEventMessage: String = "[{}] requesting LLM {} to transform {} from {} -> {} using {}",
     private val llmResponseEventMessage: () -> String = { "[{}] received LLM response {} of type {} from {} in {} seconds" },
     private val actionExecutionStartMessage: String = "[{}] executing action {}",
@@ -195,16 +195,17 @@ open class LoggingAgenticEventListener(
                 )
             }
 
-            is AgentProcessToolCallRequestEvent -> {
+            is ToolCallRequestEvent -> {
                 logger.info(
-                    functionCallRequestEventMessage,
+                    toolCallRequestEventMessage,
                     event.processId,
+                    event.action?.shortName(),
                     event.function,
                     event.toolInput,
                 )
             }
 
-            is AgentProcessToolCallResponseEvent -> {
+            is ToolCallResponseEvent -> {
                 when (event.result.isSuccess) {
                     true -> {
                         val raw = event.result.getOrThrow()
@@ -215,8 +216,9 @@ open class LoggingAgenticEventListener(
                                 trim(s = raw, max = 80, keepRight = 5)
                             }
                         logger.info(
-                            functionCallSuccessResponseEventMessage,
+                            toolCallSuccessResponseEventMessage,
                             event.processId,
+                            event.action?.shortName(),
                             event.function,
                             resultToShow,
                             event.runningTime.toMillis(),
@@ -227,8 +229,9 @@ open class LoggingAgenticEventListener(
                     false -> {
                         val throwable = event.result.exceptionOrNull()
                         logger.info(
-                            functionCallFailureResponseEventMessage,
+                            toolCallFailureResponseEventMessage,
                             event.processId,
+                            event.action?.shortName(),
                             event.function,
                             throwable,
                             event.runningTime.toMillis(),

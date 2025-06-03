@@ -1,7 +1,7 @@
 # Embabel Agent Framework
 
 ![Build](https://github.com/embabel/embabel-agent/actions/workflows/maven.yml/badge.svg)
-[![Discord](https://img.shields.io/discord/1277751399261798401?logo=discord)](https://discord.gg/eGPV8V7W)
+[![Discord](https://img.shields.io/discord/1277751399261798401?logo=discord)](https://discord.gg/Sy3XSc6f)
 
 [//]: # ([![Quality Gate Status]&#40;https://sonarcloud.io/api/project_badges/measure?project=embabel_embabel-agent&metric=alert_status&token=d275d89d09961c114b8317a4796f84faf509691c&#41;]&#40;https://sonarcloud.io/summary/new_code?id=embabel_embabel-agent&#41;)
 
@@ -765,6 +765,10 @@ This file also informs coding agent behavior.
 - Milestone names are Australian animals. Mythical animals such as "bunyip" and "yowie" are used for futures that may or
   not be implemented.
 - README badges come from [here](https://github.com/Ileriayo/markdown-badges).
+
+## Star history
+[![Star History Chart](https://api.star-history.com/svg?repos=embabel/embabel-agent&type=Date)](https://star-history.com/#embabel/embabel-agent&Date)
+
 
 --------------------
 (c) Embabel Software Inc 2024-2025.

@@ -114,6 +114,8 @@ fun factCheckerAgent(
                         """
             Given the following content, identify any factual assertions.
             Phrase them as standalone assertions.
+            Do not duplicate assertions.
+            Use the minimum number of assertions possible, with no overlap.
 
             # Content
             ${context.input.content}

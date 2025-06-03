@@ -71,9 +71,10 @@ abstract class AbstractLlmOperations(
                 prompt = literalPrompt,
                 interaction = interaction.copy(toolCallbacks = allToolCallbacks.map {
                     toolDecorator.decorate(
-                        it,
-                        agentProcess,
-                        interaction.llm
+                        tool = it,
+                        agentProcess = agentProcess,
+                        action = action,
+                        llmOptions = interaction.llm,
                     )
                 }),
                 outputClass = outputClass,
@@ -109,9 +110,10 @@ abstract class AbstractLlmOperations(
                 prompt = prompt,
                 interaction = interaction.copy(toolCallbacks = allToolCallbacks.map {
                     toolDecorator.decorate(
-                        it,
-                        agentProcess,
-                        interaction.llm,
+                        tool = it,
+                        agentProcess = agentProcess,
+                        action = action,
+                        llmOptions = interaction.llm,
                     )
                 }),
                 outputClass = outputClass,

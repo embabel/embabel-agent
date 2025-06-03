@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.tools.math
 
-import com.embabel.agent.api.common.SelfToolGroup
+import com.embabel.agent.api.common.support.SelfToolGroup
 import com.embabel.agent.common.Constants
 import com.embabel.agent.core.CoreToolGroups.MATH_DESCRIPTION
 import com.embabel.agent.core.ToolGroupDescription

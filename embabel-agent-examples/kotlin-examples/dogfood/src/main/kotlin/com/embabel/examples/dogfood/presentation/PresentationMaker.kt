@@ -16,8 +16,8 @@
 package com.embabel.examples.dogfood.presentation
 
 import com.embabel.agent.api.annotation.*
-import com.embabel.agent.api.common.DynamicExecutionResult
 import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.api.common.create
 import com.embabel.agent.api.dsl.parallelMap
 import com.embabel.agent.config.models.AnthropicModels
@@ -362,7 +362,7 @@ class PresentationMakerShell(
         )
 
         return formatProcessOutput(
-            result = DynamicExecutionResult.fromProcessStatus(basis = presentationRequest, agentProcess = agentProcess),
+            result = AgentProcessExecution.fromProcessStatus(basis = presentationRequest, agentProcess = agentProcess),
             colorPalette = LumonColorPalette,
             objectMapper = objectMapper,
         ) + "\ndeck is at ${presentationRequest.outputDirectory}/${presentationRequest.outputFile}"

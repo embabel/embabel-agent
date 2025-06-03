@@ -56,10 +56,8 @@ class AgentBuilder(
     val provider: String = "embabel",
     val version: Semver = Semver(),
     val description: String,
-    toolGroups: List<String> = emptyList(),
-    toolCallbacks: Collection<ToolCallback>,
     promptContributors: List<PromptContributor> = emptyList(),
-) : PromptContributorConsumer, ToolCallbackPublisher, ToolGroupConsumer {
+) : PromptContributorConsumer {
 
     private val logger = LoggerFactory.getLogger(AgentBuilder::class.java)
 
@@ -70,33 +68,10 @@ class AgentBuilder(
 
     private val conditions = mutableSetOf<Condition>()
 
-    private var _toolGroups = toolGroups.toMutableSet()
-    private val _toolCallbacks = toolCallbacks.toMutableList()
     private val _promptContributors = promptContributors.toMutableList()
-
-    override val toolGroups: Set<String>
-        get() = _toolGroups
-
-    override val toolCallbacks: List<ToolCallback>
-        get() = _toolCallbacks
 
     override val promptContributors: List<PromptContributor>
         get() = _promptContributors
-
-
-    /**
-     * Require tool groups at agent level
-     */
-    fun requireToolGroups(vararg roles: String) {
-        _toolGroups += roles
-    }
-
-    /**
-     * Require tool callbacks at agent level
-     */
-    fun requireToolCallbacks(vararg toolCallbacks: ToolCallback) {
-        _toolCallbacks += toolCallbacks
-    }
 
     /**
      * Create an action
@@ -162,7 +137,7 @@ class AgentBuilder(
         outputVarName: String? = IoBinding.DEFAULT_BINDING,
         cost: ZeroToOne = 0.0,
         toolCallbacks: List<ToolCallback> = emptyList(),
-        toolGroups: Collection<String> = emptySet(),
+        toolGroups: Set<String> = emptySet(),
         qos: ActionQos = ActionQos(),
         referencedInputProperties: Set<String>? = null,
         block: Transformation<I, O>,
@@ -179,8 +154,8 @@ class AgentBuilder(
             inputClass = I::class.java,
             outputClass = O::class.java,
             referencedInputProperties = referencedInputProperties,
-            toolCallbacks = this.toolCallbacks + toolCallbacks,
-            toolGroups = this.toolGroups + toolGroups,
+            toolCallbacks = toolCallbacks,
+            toolGroups = toolGroups,
             block = block,
         )
         actions.add(action)
@@ -197,7 +172,7 @@ class AgentBuilder(
         inputVarName: String = IoBinding.DEFAULT_BINDING,
         outputVarName: String = IoBinding.DEFAULT_BINDING,
         cost: ZeroToOne = 0.0,
-        toolGroups: Collection<String> = emptyList(),
+        toolGroups: Set<String> = emptySet(),
         qos: ActionQos = ActionQos(),
         referencedInputProperties: Set<String>? = null,
         llm: LlmOptions = LlmOptions(),
@@ -214,12 +189,12 @@ class AgentBuilder(
             inputVarName = inputVarName,
             outputVarName = outputVarName,
             cost = cost,
-            toolGroups = this.toolGroups + toolGroups,
+            toolGroups = toolGroups,
             qos = qos,
             referencedInputProperties = referencedInputProperties,
             llm = llm,
             canRerun = canRerun,
-            toolCallbacks = this.toolCallbacks + toolCallbacks,
+            toolCallbacks = toolCallbacks,
             prompt = prompt,
             promptContributors = this.promptContributors + promptContributors,
             inputClass = I::class.java,

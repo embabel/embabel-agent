@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.tools.file
 
-import com.embabel.agent.api.common.SelfToolCallbackPublisher
+import com.embabel.agent.api.common.support.SelfToolCallbackPublisher
 import com.embabel.agent.tools.DirectoryBased
 import com.embabel.common.util.loggerFor
 import org.slf4j.LoggerFactory

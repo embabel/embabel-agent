@@ -16,8 +16,8 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.event.AgentProcessToolCallRequestEvent
-import com.embabel.agent.event.AgentProcessToolCallResponseEvent
+import com.embabel.agent.event.ToolCallRequestEvent
+import com.embabel.agent.event.ToolCallResponseEvent
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.PlatformServices
 import com.embabel.agent.testing.EventSavingAgenticEventListener
@@ -45,7 +45,7 @@ class ToolDecoratorsKtTest {
         val tool = ToolCallbacks.from(SimpleTools()).single()
         val agentProcess = mockk<AgentProcess>()
         val llm = LlmOptions()
-        val decorated = tool.withEventPublication(agentProcess, llm)
+        val decorated = tool.withEventPublication(agentProcess, null, llm)
         assertEquals(tool.toolDefinition.name(), decorated.toolDefinition.name())
         assertEquals(tool.toolDefinition.inputSchema(), decorated.toolDefinition.inputSchema())
     }
@@ -63,7 +63,7 @@ class ToolDecoratorsKtTest {
         every { agentProcess.processContext.platformServices } returns mockPlatformServices
         every { mockPlatformServices.operationScheduler } returns OperationScheduler.PRONTO
         val llm = LlmOptions()
-        val decorated = tool.withEventPublication(agentProcess, llm)
+        val decorated = tool.withEventPublication(agentProcess, null, llm)
         val rawResult = tool.call("{}")
         val decoratedRest = decorated.call("{}")
         assertEquals(rawResult, decoratedRest)
@@ -82,12 +82,12 @@ class ToolDecoratorsKtTest {
         every { agentProcess.processContext.platformServices } returns mockPlatformServices
         every { mockPlatformServices.operationScheduler } returns OperationScheduler.PRONTO
         val llm = LlmOptions()
-        val decorated = tool.withEventPublication(agentProcess, llm)
+        val decorated = tool.withEventPublication(agentProcess, null, llm)
         decorated.call("{}")
         assertEquals(2, ese.processEvents.size)
         assertEquals(0, ese.platformEvents.size)
-        val fce = ese.processEvents.filterIsInstance<AgentProcessToolCallRequestEvent>().single()
-        val fre = ese.processEvents.filterIsInstance<AgentProcessToolCallResponseEvent>().single()
+        val fce = ese.processEvents.filterIsInstance<ToolCallRequestEvent>().single()
+        val fre = ese.processEvents.filterIsInstance<ToolCallResponseEvent>().single()
         assertEquals(decorated.toolDefinition.name(), fce.function)
         assertEquals(decorated.toolDefinition.name(), fre.function, decorated.toolDefinition.name())
         assertEquals(llm, fce.llmOptions)

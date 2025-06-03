@@ -16,8 +16,8 @@
 package com.embabel.agent.spi
 
 import com.embabel.agent.event.AgentProcessEvent
-import com.embabel.agent.event.AgentProcessToolCallResponseEvent
 import com.embabel.agent.event.AgenticEventListener
+import com.embabel.agent.event.ToolCallResponseEvent
 
 data class ToolStats(
     val name: String,
@@ -32,7 +32,7 @@ class AgenticEventListenerToolStatsSource(
     override val toolsStats: ToolsStats = ToolsStats(),
 ) : AgenticEventListener, ToolStatsSource {
     override fun onProcessEvent(event: AgentProcessEvent) {
-        if (event is AgentProcessToolCallResponseEvent) {
+        if (event is ToolCallResponseEvent) {
             toolsStats.record(event)
         }
     }
@@ -45,7 +45,7 @@ data class ToolsStats(
     val stats: Map<String, ToolStats>
         get() = _stats.toSortedMap()
 
-    fun record(e: AgentProcessToolCallResponseEvent) {
+    fun record(e: ToolCallResponseEvent) {
         val existing = _stats[e.function]
         if (existing != null) {
             _stats[e.function] = existing.copy(calls = existing.calls + 1)

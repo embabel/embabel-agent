@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi
 
+import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.common.ai.model.LlmOptions
 import org.springframework.ai.tool.ToolCallback
@@ -28,12 +29,14 @@ fun interface ToolDecorator {
      * Decorate the tool with some extra information.
      * @param tool The tool to decorate.
      * @param agentProcess The agent process that is using the tool.
+     * @param action The action that resulted in the tool being called, if any.
      * @param llmOptions The LLM options that resulted in the tool being called.
      * @return The decorated tool.
      */
     fun decorate(
         tool: ToolCallback,
         agentProcess: AgentProcess,
+        action: Action?,
         llmOptions: LlmOptions,
     ): ToolCallback
 }

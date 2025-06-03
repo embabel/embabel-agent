@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.tools.osx
 
-import com.embabel.agent.api.common.SelfToolGroup
+import com.embabel.agent.api.common.support.SelfToolGroup
 import com.embabel.agent.common.Constants
 import com.embabel.agent.core.ToolGroupDescription
 import com.embabel.agent.core.ToolGroupPermission

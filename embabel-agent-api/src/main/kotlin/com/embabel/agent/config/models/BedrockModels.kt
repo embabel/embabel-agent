@@ -35,20 +35,14 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
-import org.springframework.context.annotation.Condition
-import org.springframework.context.annotation.ConditionContext
-import org.springframework.context.annotation.Conditional
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
-import org.springframework.context.annotation.Profile
 import org.springframework.core.env.Environment
-import org.springframework.core.type.AnnotatedTypeMetadata
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
 import software.amazon.awssdk.regions.providers.AwsRegionProvider
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
 import java.time.LocalDate
-import kotlin.text.isNotBlank
 
 @ConfigurationProperties(prefix = "embabel.models.bedrock")
 data class BedrockProperties(
@@ -62,22 +56,8 @@ data class BedrockModelProperties(
     val outputPrice: Double = 0.0
 )
 
-class BedrockAvailable : Condition {
-    override fun matches(context: ConditionContext, metadata: AnnotatedTypeMetadata): Boolean {
-        val environment = context.environment
-        val accessKeyId = environment.getProperty("AWS_ACCESS_KEY_ID")
-        val secretAccessKey = environment.getProperty("AWS_SECRET_ACCESS_KEY")
-        val region = environment.getProperty("AWS_REGION")
-        return accessKeyId != null && accessKeyId.isNotBlank()
-                && secretAccessKey != null && secretAccessKey.isNotBlank()
-                && region != null && region.isNotBlank()
-    }
-}
-
 @Configuration
-@Conditional(BedrockAvailable::class)
 @Import(BedrockAwsConnectionConfiguration::class)
-@Profile("!test")
 @ExcludeFromJacocoGeneratedReport(reason = "Bedrock configuration can't be unit tested")
 @EnableConfigurationProperties(BedrockProperties::class)
 class BedrockModels(
@@ -107,6 +87,11 @@ class BedrockModels(
             return
         }
 
+        if (!isBedrockConfigured(environment)) {
+            logger.warn("Bedrock misconfigured, no Bedrock models available.")
+            return
+        }
+
         if (bedrockProperties.models.isEmpty()) {
             logger.warn("No Bedrock models available.")
             return
@@ -131,6 +116,25 @@ class BedrockModels(
                     logger.error("Failed to register Bedrock model {}: {}", model.name, e.message)
                 }
             }
+    }
+
+    private fun isBedrockConfigured(environment: Environment): Boolean {
+        val accessKeyId = environment.getProperty("AWS_ACCESS_KEY_ID")
+        val secretAccessKey = environment.getProperty("AWS_SECRET_ACCESS_KEY")
+        val region = environment.getProperty("AWS_REGION")
+        if (accessKeyId == null || accessKeyId.isBlank()) {
+            logger.warn("Missing required AWS_ACCESS_KEY_ID")
+            return false
+        }
+        if (secretAccessKey == null || secretAccessKey.isBlank()) {
+            logger.warn("Missing required AWS_SECRET_ACCESS_KEY")
+            return false
+        }
+        if (region == null || region.isBlank()) {
+            logger.warn("Missing required AWS_REGION")
+            return false
+        }
+        return true
     }
 
     private fun llmOf(model: BedrockModelProperties): Llm = Llm(

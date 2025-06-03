@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.mcpserver
 
-import com.embabel.agent.api.common.Autonomy
+import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Verbosity

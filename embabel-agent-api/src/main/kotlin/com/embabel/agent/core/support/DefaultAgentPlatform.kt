@@ -27,18 +27,22 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.Resource
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import org.springframework.core.io.support.ResourcePatternResolver
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 
-
 @Service
 internal class DefaultAgentPlatform(
+    @Value("\${embabel.agent-platform.name:default-agent-platform}")
+    override val name: String,
+    @Value("\${embabel.agent-platform.description:Default Agent Platform}")
+    override val description: String,
     private val llmOperations: LlmOperations,
     override val toolGroupResolver: ToolGroupResolver,
-    eventListeners: List<AgenticEventListener>,
+    private val eventListener: AgenticEventListener,
     private val agentProcessIdGenerator: AgentProcessIdGenerator = AgentProcessIdGenerator.RANDOM,
     private val agentProcessRepository: AgentProcessRepository = InMemoryAgentProcessRepository(),
     private val operationScheduler: OperationScheduler = OperationScheduler.PRONTO,
@@ -50,12 +54,6 @@ internal class DefaultAgentPlatform(
     private val yamlObjectMapper = ObjectMapper(YAMLFactory()).registerKotlinModule()
 
     private val agents: MutableMap<String, Agent> = ConcurrentHashMap()
-
-    override val name: String = javaClass.name
-
-    private val eventListener: AgenticEventListener = AgenticEventListener.from(
-        eventListeners,
-    )
 
     override val platformServices = PlatformServices(
         llmOperations = llmOperations,

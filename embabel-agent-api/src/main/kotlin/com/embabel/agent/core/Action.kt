@@ -122,6 +122,10 @@ interface Action : AgentSystemStep, GoapAction, ActionRunner, DataDictionary, To
     override fun infoString(verbose: Boolean?): String =
         "$name - pre=${preconditions} post=${effects}"
 
+    fun shortName(): String {
+        return name.split('.').lastOrNull() ?: name
+    }
+
 }
 
 /**

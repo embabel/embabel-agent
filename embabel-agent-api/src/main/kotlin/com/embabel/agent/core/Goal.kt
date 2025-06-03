@@ -23,6 +23,16 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 
 /**
  * Agent platform goal. Exposes GOAP metadata.
+ * @param name name of the goal
+ * @param description description of the goal. This should be sufficiently detailed to enable goal choice by an LLM
+ * @param pre preconditions for the goal, as a set of strings. These are the conditions that must be true before the goal can be achieved.
+ * @param inputs inputs required for the goal, as a set of IoBinding objects. These are the inputs that must be provided to achieve the goal.
+ * @param value value of the goal, as a ZeroToOne. This is the value of achieving the goal.
+ * @param tags Set of tags describing classes or capabilities for this specific skill.
+ *    example: ["cooking", "customer support", "billing"]
+ * @param examples The set of example scenarios that the skill can perform.
+ * Will be used by the client as a hint to understand how the skill can be used.
+ *  example: ["I need a recipe for bread"]
  */
 data class Goal(
     override val name: String,
@@ -30,6 +40,8 @@ data class Goal(
     val pre: Set<String> = emptySet(),
     override val inputs: Set<IoBinding> = emptySet(),
     override val value: ZeroToOne = 0.0,
+    val tags: Set<String> = emptySet(),
+    val examples: Set<String> = emptySet(),
 ) : GoapGoal, AgentSystemStep {
 
     // These methods are for Java, to obviate the builder antipattern
@@ -58,18 +70,28 @@ data class Goal(
 
     companion object {
 
-        // Methods for Java
-
         /**
-         * Goal of creating an instance of this type
+         * Convenient method to create a goal requiring creating an instance of this type.
+         * @param description description of the goal
+         * @param type type of the instance to create. See [IoBinding].
+         * @param name name of the goal, defaults to "Create ${type.simpleName}"
          */
         @JvmStatic
+        @JvmOverloads
         fun createInstance(
             description: String,
             type: Class<*>,
             name: String = "Create ${type.simpleName}",
+            tags: Set<String> = emptySet(),
+            examples: Set<String> = emptySet(),
         ): Goal {
-            return invoke(name = name, description = description, satisfiedBy = type)
+            return invoke(
+                name = name,
+                description = description,
+                satisfiedBy = type,
+                tags = tags,
+                examples = examples,
+            )
         }
 
         operator fun invoke(
@@ -88,13 +110,17 @@ data class Goal(
             }.toSet(),
             pre: List<Condition> = emptyList(),
             value: Double = 0.0,
+            tags: Set<String> = emptySet(),
+            examples: Set<String> = emptySet(),
         ): Goal {
             return Goal(
                 name = name,
                 description = description,
                 inputs = inputs,
                 pre = pre.map { it.name }.toSet(),
-                value = value
+                value = value,
+                tags = tags,
+                examples = examples,
             )
         }
     }

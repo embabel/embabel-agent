@@ -75,6 +75,18 @@ class AgentMetadataReaderTest {
         }
 
         @Test
+        fun `metadata is preserved`() {
+            val reader = AgentMetadataReader()
+            val metadata = reader.createAgentMetadata(OneGoalOnlyWithRichMetadata())
+            assertNotNull(metadata)
+            assertEquals(1, metadata!!.goals.size)
+            val g = metadata.goals.single()
+            assertEquals("This is a goal with rich metadata", g.description)
+            assertEquals(setOf("foo", "bar"), g.tags)
+            assertEquals(setOf("make me happy"), g.examples)
+        }
+
+        @Test
         fun `two goals only`() {
             val reader = AgentMetadataReader()
             val metadata = reader.createAgentMetadata(TwoGoalsOnly())

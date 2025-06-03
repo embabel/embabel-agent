@@ -18,7 +18,6 @@ package com.embabel.agent.api.dsl
 import com.embabel.agent.core.Agent
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.Semver
-import org.springframework.ai.tool.ToolCallback
 
 /**
  * Surface area of DSL for creating an agent.
@@ -29,8 +28,6 @@ fun agent(
     provider: String = "embabel",
     version: Semver = Semver(),
     description: String,
-    toolGroups: List<String> = emptyList(),
-    toolCallbacks: Collection<ToolCallback> = emptyList(),
     promptContributors: List<PromptContributor> = emptyList(),
     block: AgentBuilder.() -> Unit,
 ): Agent {
@@ -38,8 +35,6 @@ fun agent(
         name = name,
         version = version,
         description = description,
-        toolGroups = toolGroups,
-        toolCallbacks = toolCallbacks,
         promptContributors = promptContributors,
     )
         .apply(block)

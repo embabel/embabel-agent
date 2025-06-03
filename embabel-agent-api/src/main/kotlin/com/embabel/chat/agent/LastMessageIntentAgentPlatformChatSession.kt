@@ -15,10 +15,10 @@
  */
 package com.embabel.chat.agent
 
-import com.embabel.agent.api.common.Autonomy
-import com.embabel.agent.api.common.GoalChoiceApprover
-import com.embabel.agent.api.common.GoalNotApproved
-import com.embabel.agent.api.common.NoGoalFound
+import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
+import com.embabel.agent.api.common.autonomy.GoalNotApproved
+import com.embabel.agent.api.common.autonomy.NoGoalFound
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.chat.*
 
@@ -50,7 +50,7 @@ class LastMessageIntentAgentPlatformChatSession(
             )
             val result = dynamicExecutionResult.output
             return AgenticResultAssistantMessage(
-                dynamicExecutionResult = dynamicExecutionResult,
+                agentProcessExecution = dynamicExecutionResult,
                 content = result.toString(),
             )
         } catch (_: NoGoalFound) {

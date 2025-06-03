@@ -15,9 +15,9 @@
  */
 package com.embabel.agent
 
-import com.embabel.agent.api.common.Autonomy
-import com.embabel.agent.api.common.DynamicExecutionResult
-import com.embabel.agent.api.common.GoalChoiceApprover
+import com.embabel.agent.api.common.autonomy.AgentProcessExecution
+import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
 import com.embabel.agent.core.support.LocalPerson
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.MessageSavingMessageListener
@@ -37,7 +37,7 @@ class LastMessageIntentAgentPlatformChatSessionTest {
         val mockAutonomy = mockk<Autonomy>()
         every { mockAutonomy.agentPlatform } returns mockk()
         val intent = slot<String>()
-        val der = mockk<DynamicExecutionResult>()
+        val der = mockk<AgentProcessExecution>()
         val output = LocalPerson("Gordon")
         every { der.output } returns output
 

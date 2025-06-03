@@ -40,9 +40,11 @@ object IntegrationTestUtils {
     ): AgentPlatform {
         return DefaultAgentPlatform(
             llmOperations = llmOperations ?: DummyObjectCreatingLlmOperations.Companion.LoremIpsum,
-            eventListeners = listOfNotNull(EventSavingAgenticEventListener(), listener),
+            eventListener = AgenticEventListener.from(listOfNotNull(EventSavingAgenticEventListener(), listener)),
             toolGroupResolver = toolGroupResolver ?: RegistryToolGroupResolver("empty", emptyList()),
             ragService = ragService ?: RagService.empty(),
+            name = "dummy-agent-platform",
+            description = "Dummy Agent Platform for Integration Testing",
         )
     }
 
