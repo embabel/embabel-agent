@@ -99,13 +99,22 @@ These examples cover prompt engineering, tool integration, and orchestration pat
 
 ## Maven Profiles
 
-Example agents are included as Maven profiles for flexible activation. For example:
+Example agents are provisioned as runtime dependencies to the Shell or MCP Server, and will be auto detected and deployed via component scan from the JVM classpath.
+In the embabel-agent-api/pom.xml we have two dedicated Maven Profiles desinged to bootstrap Kotlin and / or Java Agents.
 
-```bash
-mvn spring-boot:run -Pagent-examples-kotlin
+- **agent-examples-kotlin**
+- **agent-examples-java**
+
+Startup scripts are configured to bootstrap Kotlin Example Agents (we will add Java Agents shortly)
+   
+```
+cmd /c mvn -P agent-examples-kotlin -Dmaven.test.skip=true spring-boot:run
 ```
 
-Profiles can be combined with Spring profiles to control which agents and features are active.
+If you would like to launch Shell as SpringBootAppliction from your IDE such as IntelliJ, Maven profile must be selected prior to running Shell.
+This can be done via IntelliJ Maven Profile selection (View/Tools/Maven)
+
+<img width="353" alt="image" src="https://github.com/user-attachments/assets/8b3b9a98-c1df-490f-97aa-b12e20b974de" />
 
 ---
 
