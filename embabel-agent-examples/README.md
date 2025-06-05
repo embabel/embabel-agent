@@ -100,7 +100,7 @@ These examples cover prompt engineering, tool integration, and orchestration pat
 ## Maven Profiles
 
 Example agents are provisioned as runtime dependencies to the Shell or MCP Server, and will be auto detected and deployed via component scan from the JVM classpath.
-In the embabel-agent-api/pom.xml we have two dedicated Maven Profiles desinged to bootstrap Kotlin and / or Java Agents.
+In the embabel-agent-api/pom.xml we have two dedicated Maven Profiles designed to bootstrap Kotlin and / or Java Agents.
 
 - **agent-examples-kotlin**
 - **agent-examples-java**
