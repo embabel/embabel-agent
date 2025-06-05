@@ -114,7 +114,7 @@ cmd /c mvn -P agent-examples-kotlin -Dmaven.test.skip=true spring-boot:run
 If you would like to launch Shell as SpringBootAppliction from your IDE such as IntelliJ, Maven profile must be selected prior to running Shell.
 This can be done via IntelliJ Maven Profile selection (View/Tools/Maven)
 
-<img width="353" alt="image" src="https://github.com/user-attachments/assets/8b3b9a98-c1df-490f-97aa-b12e20b974de" />
+<img width="353" alt="IntelliJ Maven profile selection dialog" src="https://github.com/user-attachments/assets/8b3b9a98-c1df-490f-97aa-b12e20b974de" />
 
 ---
 
