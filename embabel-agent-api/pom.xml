@@ -108,19 +108,6 @@
             <artifactId>spring-shell-starter</artifactId>
         </dependency>
 
-        <!-- Spring AI -->
-        <!-- https://mvnrepository.com/artifact/org.springframework.ai/spring-ai-vector-store -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-vector-store</artifactId>
-        </dependency>
-
-        <!-- This should go as it's a concrete implementation -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-neo4j-store</artifactId>
-        </dependency>
-
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
