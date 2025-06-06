@@ -111,7 +111,7 @@ Startup scripts are configured to bootstrap Kotlin Example Agents as a default s
 cmd /c mvn -P agent-examples-kotlin -Dmaven.test.skip=true spring-boot:run
 ```
 
-**Java Examples:** To run Java version of Horoscope Agent, please modify shell startup script and specify **-P agent-examples-java** accordingly.
+**Java Examples:** To run Java version of Horoscope Agent, modify shell startup script and specify **-P agent-examples-java** accordingly.
    
 ```
 cmd /c mvn -P agent-examples-java -Dmaven.test.skip=true spring-boot:run
