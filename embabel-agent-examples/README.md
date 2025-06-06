@@ -105,10 +105,16 @@ In the embabel-agent-api/pom.xml we have two dedicated Maven Profiles designed t
 - **agent-examples-kotlin**
 - **agent-examples-java**
 
-Startup scripts are configured to bootstrap Kotlin Example Agents (we will add Java Agents shortly)
-   
+Startup scripts are configured to bootstrap Kotlin Example Agents as a default setup.
+
 ```
 cmd /c mvn -P agent-examples-kotlin -Dmaven.test.skip=true spring-boot:run
+```
+
+**Java Examples:** To run Java version of Horoscope Agent, please modify shell startup script and specify **-P agent-examples-java** accordingly.
+   
+```
+cmd /c mvn -P agent-examples-java -Dmaven.test.skip=true spring-boot:run
 ```
 
 If you would like to launch Shell as SpringBootApplication from your IDE such as IntelliJ, Maven profile must be selected prior to running Shell.
