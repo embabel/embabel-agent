@@ -82,7 +82,7 @@ interface LlmOptions : HasInfoString {
         )
 
         @JvmStatic
-        fun default(): BuildableLlmOptions = BuildableLlmOptions(
+        fun withDefaults(): BuildableLlmOptions = BuildableLlmOptions(
             criteria = PlatformDefault,
             temperature = DEFAULT_TEMPERATURE,
         )
