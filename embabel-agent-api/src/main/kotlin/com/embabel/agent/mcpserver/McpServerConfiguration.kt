@@ -48,8 +48,13 @@ class McpServerConfiguration(
     private val applicationContext: ConfigurableApplicationContext,
 ) {
 
+
     /**
-     * Used by Spring MCP server
+     * Configures and initializes MCP server tool callbacks when the agent scanning process completes.
+     *
+     * This event-driven approach ensures that all tool callbacks are properly registered only after
+     * the application context is fully initialized and all agent beans have been processed and deployed.
+     * Without this synchronization, the MCP server might start without access to all available tools.
      */
     @EventListener(AgentScanningBeanPostProcessorEvent::class)
     fun callbacks() {
