@@ -1,0 +1,27 @@
+[[reference.dsl]]
+=== Kotlin DSL
+
+==== DSL
+
+==== Registering `Agent` beans
+
+Whereas the `@Agent` annotation causes a class to be picked up immediately by Spring, with the DSL you'll need an extra step to register an agent with Spring.
+
+Any bean of `Agent` type results in auto registration.
+
+[source]
+----
+@Configuration
+class FactCheckerAgentConfiguration {
+    @Bean
+    fun factChecker(factCheckerProperties: FactCheckerProperties): Agent {
+        return factCheckerAgent(
+            llms = listOf(
+                LlmOptions(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(.3),
+                LlmOptions(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(.0),
+            ),
+            properties = factCheckerProperties,
+        )
+    }
+}
+----

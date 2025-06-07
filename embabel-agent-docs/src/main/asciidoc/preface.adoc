@@ -1,14 +1,4 @@
 [[preface]]
 == About the documentation
 
-This Guide is intended for Java and Kotlin Developers utlizing Embabel Agent API Frameworks(s)
-
-The information in this document will cover topics such as:
-
-* Topic 1
-
-* Topic 2
-
-* Topic 3
-
-* Etc
+This Guide is intended for Java and Kotlin Developers utilizing Embabel Agent Framework

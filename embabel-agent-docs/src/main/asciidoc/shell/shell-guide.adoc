@@ -1,9 +1,9 @@
 [[shell.guide]]
-== Agent Shell
+== Embabel Shell
 :sectids:
 :sectanchors:
 
-The following chapters are dedicated to _Agent API_ and _Embabel Agent Framework_.
+The easiest way to get started with Embabel is via Spring Shell.
 
-include::commands.adoc[]
 include::how-to.adoc[]
+include::commands.adoc[]

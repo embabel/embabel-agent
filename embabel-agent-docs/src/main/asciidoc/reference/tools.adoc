@@ -1,0 +1,19 @@
+[[reference.tools]]
+=== Tools
+
+Tools DEFINITION
+
+Two kinds in Embabel
+
+==== Tool Groups
+
+Embabel introduces the concept of a *tool group*.
+This is a level of indirection between user intent and tool selection.
+For example, we don't ask for Brave or Google web search: we ask for "web" tools, which may be resolved differently in different environments.
+
+> Tools are deliberately focused.
+Thus tool groups cannot be specified at agent level, but must be specified on individual actions.
+
+==== Tools on Domain Objects
+
+Important

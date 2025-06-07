@@ -1,0 +1,6 @@
+[[reference.integrations]]
+=== Integrations
+
+==== MCP
+
+==== A2A

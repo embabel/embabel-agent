@@ -1,2 +1,2 @@
 [[authors]]
-Rod Johnson, Alex Hein-Heifetz,
+Rod Johnson, Alex Hein-Heifetz, Igor Dayen

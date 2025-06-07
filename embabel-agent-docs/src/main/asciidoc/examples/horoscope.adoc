@@ -1,3 +1,4 @@
 [[example.horoscope]]
 === Horoscope Example
 
+The `StarNewsFinder` is a simple agent that finds a person's name and star sign from user input, retrieves their horoscope using an external API, retrieves relevant news stories using web tools, and writes up an amusing piece for them.

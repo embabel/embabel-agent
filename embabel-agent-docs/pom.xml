@@ -63,7 +63,6 @@
                         <imagesdir>images</imagesdir>
                         <stylesheet>embabel-agent-docs.css</stylesheet>
                         <stylesDir>${project.basedir}/src/main/resources/themes</stylesDir>
-                        <plantuml-config>graphviz_dot=none</plantuml-config>
                         <embabel-agent-version>${agent-api.version}</embabel-agent-version>
                     </attributes>
                 </configuration>

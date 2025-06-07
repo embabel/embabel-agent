@@ -1,0 +1,15 @@
+[[reference.types-runner]]
+=== Core types
+
+==== LlmOptions
+
+==== PromptContributor
+
+==== PromptRunner
+
+All LLM calls go via the `PromptRunner` interface.
+Once created, a `PromptRunner` can run multiple prompts with the same LLM, hyperparameters, tool groups and `PromptContributors`.
+
+===== Getting a `PromptRunner`
+
+===== `PromptRunner` methods

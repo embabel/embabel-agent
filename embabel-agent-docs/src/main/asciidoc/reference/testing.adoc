@@ -1,0 +1,6 @@
+[[reference.testing]]
+=== Testing
+
+==== Unit testing
+
+==== Integration testing

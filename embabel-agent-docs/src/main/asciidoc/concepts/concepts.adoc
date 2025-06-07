@@ -1,0 +1,7 @@
+[[agent.guide]]
+== Concepts
+:sectids:
+:sectanchors:
+
+include::agent-framework.adoc[]
+include::flow.adoc[]

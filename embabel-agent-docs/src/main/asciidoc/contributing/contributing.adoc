@@ -1,0 +1,8 @@
+[[contributing]]
+== Contributing
+:sectids:
+:sectanchors:
+
+How to contribute
+
+Join the Embabel community on Discord at https://discord.gg/Sy3XSc6f.

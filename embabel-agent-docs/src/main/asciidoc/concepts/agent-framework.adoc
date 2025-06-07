@@ -1,0 +1,10 @@
+[[concepts.agent-framework]]
+=== Why an Agent Framework?
+
+Agent frameworks break up
+
+=== Embabel Core Values
+
+Planning Type safety Domain model
+
+Extensibility

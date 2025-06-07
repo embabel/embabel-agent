@@ -1,9 +1,8 @@
 [[agent.guide]]
-== Agent API Guide
+== Getting Started
 :sectids:
 :sectanchors:
 
 The following chapters are dedicated to _Agent API_ and _Embabel Agent Framework_.
 
-include::getting-started.adoc[]
-include::flow.adoc[]
+include::installing.adoc[]

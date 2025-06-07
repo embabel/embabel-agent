@@ -1,0 +1,6 @@
+[[reference.profiles]]
+=== Spring profiles
+
+Embabel makes extensive use of Spring profiles.
+
+YML file

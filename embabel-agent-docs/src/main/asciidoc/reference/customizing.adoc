@@ -1,0 +1,12 @@
+[[reference.customizing]]
+=== Customizing Embabel
+
+==== Adding LLMs
+
+==== Adding embedding models
+
+==== Configuration via `application.yml`
+
+==== Customizing logging
+
+
