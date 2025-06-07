@@ -21,7 +21,6 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.deployment.AgentScanningProperties
 import org.slf4j.LoggerFactory
 import org.springframework.beans.BeansException
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.ApplicationContext
 import org.springframework.context.ApplicationEvent
