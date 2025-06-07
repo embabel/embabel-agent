@@ -58,7 +58,7 @@ class BannerTool {
     }
 
     companion object {
-        private const val BANNER_WIDTH = 50
+        private const val HELLO_BANNER_WIDTH = 50
     }
 }
 
