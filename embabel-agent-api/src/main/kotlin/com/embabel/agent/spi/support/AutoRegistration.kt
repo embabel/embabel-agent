@@ -84,7 +84,6 @@ internal class AgentScanningPostProcessorDelegate(
 internal class DelegatingAgentScanningBeanPostProcessor(
     private val applicationContext: ApplicationContext,
     private val applicationEventPublisher: ApplicationEventPublisher,
-
     ) : BeanPostProcessor,
     ApplicationListener<ContextRefreshedEvent?> {
 
