@@ -70,6 +70,7 @@ class McpServerConfiguration(
         (applicationContext.beanFactory as DefaultListableBeanFactory)
             .registerSingleton("callbacks", ToolCallbackProvider { allToolCallbacks.toTypedArray() })
 
+        //TODO, add support for MCP Async Server, find out if needed.
         refreshBean("mcpSyncServer", McpSyncServer::class.java)
     }
 
