@@ -16,16 +16,17 @@
 package com.embabel.agent.mcpserver
 
 import com.embabel.agent.core.ToolCallbackPublisher
-import com.embabel.agent.event.AgentPlatformEvent
 import com.embabel.agent.event.logging.LoggingPersonality.Companion.BANNER_WIDTH
 import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.loggerFor
 import io.modelcontextprotocol.server.McpSyncServer
+import org.apache.catalina.util.ServerInfo
+import org.springframework.ai.mcp.McpToolUtils
 import org.springframework.ai.tool.ToolCallbackProvider
-import org.springframework.beans.factory.support.DefaultListableBeanFactory
+import org.springframework.ai.tool.annotation.Tool
+import org.springframework.ai.tool.method.MethodToolCallbackProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
-import org.springframework.context.ApplicationEvent
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -39,6 +40,30 @@ import org.springframework.context.event.EventListener
 interface McpToolExportCallbackPublisher : ToolCallbackPublisher, HasInfoString
 
 /**
+ * Provides a hello banner for the MCP server.
+ */
+class BannerTool {
+
+    @Tool(
+        name = "Embabel Hello Banner",
+        description = "Display a welcome banner with server information"
+    )
+    fun getHelloBanner(): String {
+        val separator = "~".repeat(BANNER_WIDTH)
+        return "\n${separator}\n" +
+                "Embabel Agent MCP server\n" +
+                "Server info: ${ServerInfo.getServerInfo()}\n" +
+                "Java info: ${System.getProperty("java.runtime.version")}\n" +
+                "${separator}\n"
+    }
+
+    companion object {
+        private const val BANNER_WIDTH = 50
+    }
+}
+
+
+/**
  * Configures MCP server. Exposes a limited number of tools.
  */
 @Configuration
@@ -48,6 +73,17 @@ class McpServerConfiguration(
     private val applicationContext: ConfigurableApplicationContext,
 ) {
 
+    /**
+     * Currently MCP Server is configured by AutoConfiguration, which requires
+     * at least one ToolCallbackProvider bean to be present in the context in order
+     * to build it with Tools Capability.
+     *
+     * Provides a simple banner tool callback to display a welcome message.
+     */
+    @Bean
+    fun helloBannerCallback(): ToolCallbackProvider {
+        return MethodToolCallbackProvider.builder().toolObjects(BannerTool()).build()
+    }
 
     /**
      * Configures and initializes MCP server tool callbacks when the agent scanning process completes.
@@ -72,38 +108,14 @@ class McpServerConfiguration(
             ) { "${it.toolDefinition.name()}: ${it.toolDefinition.description()}" }
         )
 
-        (applicationContext.beanFactory as DefaultListableBeanFactory)
-            .registerSingleton("callbacks", ToolCallbackProvider { allToolCallbacks.toTypedArray() })
+        // add tool callbacks to MCP server
+        val agentTools = McpToolUtils
+            .toSyncToolSpecification(allToolCallbacks)
 
-        //TODO, add support for MCP Async Server, find out if needed.
-        refreshBean("mcpSyncServer", McpSyncServer::class.java)
-    }
-
-    internal fun refreshBean(beanName: String, beanClass: Class<*>) {
-        val beanFactory = applicationContext.beanFactory as? DefaultListableBeanFactory
-            ?: throw IllegalStateException("BeanFactory is not a DefaultListableBeanFactory")
-
-        try {
-            // Get current bean definition
-            if (!beanFactory.containsBeanDefinition(beanName)) {
-                loggerFor<McpServerConfiguration>().error("Bean definition for '$beanName' not found")
-                return
-            }
-            val beanDefinition = beanFactory.getBeanDefinition(beanName)
-
-            // Destroy current instance
-            if (beanFactory.containsSingleton(beanName)) {
-                beanFactory.destroySingleton(beanName)
-            }
-
-            val instance = beanFactory.getBean(beanName, beanClass)
-
-            loggerFor<McpServerConfiguration>().debug("Refreshing bean '$beanName' of type ${instance::class.java.name}")
-        } catch (ex: Exception) {
-            loggerFor<McpServerConfiguration>().error(
-                "Failed to refresh bean '$beanName'. Agent Server Tools will not be available: ${ex.message}",
-                ex
-            )
+        for (agentTool in agentTools) {
+            applicationContext.getBean(McpSyncServer::class.java).addTool(agentTool);
         }
+
     }
+
 }
