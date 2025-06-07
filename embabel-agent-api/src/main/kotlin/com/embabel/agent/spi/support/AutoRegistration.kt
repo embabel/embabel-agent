@@ -24,6 +24,8 @@ import org.springframework.beans.BeansException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.context.ApplicationContext
+import org.springframework.context.ApplicationEvent
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.ApplicationListener
 import org.springframework.context.annotation.Profile
 import org.springframework.core.Ordered
@@ -33,6 +35,10 @@ import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import org.springframework.context.event.ContextRefreshedEvent as ContextRefreshedEvent
 
+/**
+ * Event to signal that AgentScanningBeanPostProcessor has completed processing all beans.
+ */
+class AgentScanningBeanPostProcessorEvent(source: Any) : ApplicationEvent(source)
 
 /**
  * Autoregister beans with @Agent or @Agentic annotations
@@ -43,7 +49,7 @@ internal class AgentScanningPostProcessorDelegate(
     private val agentMetadataReader: AgentMetadataReader,
     private val agentPlatform: AgentPlatform,
     private val properties: AgentScanningProperties,
-)  {
+) {
 
     private val logger = LoggerFactory.getLogger(AgentScanningPostProcessorDelegate::class.java)
 
@@ -76,9 +82,10 @@ internal class AgentScanningPostProcessorDelegate(
 @Profile("!test")
 @Order(Ordered.LOWEST_PRECEDENCE)
 internal class DelegatingAgentScanningBeanPostProcessor(
-    @Autowired
-    val applicationContext: ApplicationContext,
-) : BeanPostProcessor,
+    private val applicationContext: ApplicationContext,
+    private val applicationEventPublisher: ApplicationEventPublisher,
+
+    ) : BeanPostProcessor,
     ApplicationListener<ContextRefreshedEvent?> {
 
     private val logger = LoggerFactory.getLogger(DelegatingAgentScanningBeanPostProcessor::class.java)
@@ -96,6 +103,11 @@ internal class DelegatingAgentScanningBeanPostProcessor(
 
         // Process all accumulated beans
         processPendingBeans()
+
+        // Notify that all beans have been processed
+        applicationEventPublisher.publishEvent(
+            AgentScanningBeanPostProcessorEvent("Post-processing completed")
+        )
 
         logger.info("All deferred beans got post-processed.")
 

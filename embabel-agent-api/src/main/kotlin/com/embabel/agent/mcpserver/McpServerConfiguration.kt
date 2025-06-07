@@ -16,14 +16,21 @@
 package com.embabel.agent.mcpserver
 
 import com.embabel.agent.core.ToolCallbackPublisher
+import com.embabel.agent.event.AgentPlatformEvent
 import com.embabel.agent.event.logging.LoggingPersonality.Companion.BANNER_WIDTH
+import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.loggerFor
+import io.modelcontextprotocol.server.McpSyncServer
 import org.springframework.ai.tool.ToolCallbackProvider
+import org.springframework.beans.factory.support.DefaultListableBeanFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
+import org.springframework.context.ApplicationEvent
+import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
+import org.springframework.context.event.EventListener
 
 /**
  * Tag interface extending Spring AI ToolCallbackProvider
@@ -38,14 +45,16 @@ interface McpToolExportCallbackPublisher : ToolCallbackPublisher, HasInfoString
 @Profile("!test")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.ANY)
 class McpServerConfiguration(
-    private val mcpToolExportCallbackPublishers: List<McpToolExportCallbackPublisher>,
+    private val applicationContext: ConfigurableApplicationContext,
 ) {
 
     /**
      * Used by Spring MCP server
      */
-    @Bean
-    fun callbacks(): ToolCallbackProvider {
+    @EventListener(AgentScanningBeanPostProcessorEvent::class)
+    fun callbacks() {
+        val mcpToolExportCallbackPublishers: List<McpToolExportCallbackPublisher> =
+            applicationContext.getBeansOfType(McpToolExportCallbackPublisher::class.java).values.toList()
         val allToolCallbacks = mcpToolExportCallbackPublishers.flatMap { it.toolCallbacks }
         val separator = "~".repeat(BANNER_WIDTH)
         loggerFor<McpServerConfiguration>().info(
@@ -57,6 +66,38 @@ class McpServerConfiguration(
                 "\n\t"
             ) { "${it.toolDefinition.name()}: ${it.toolDefinition.description()}" }
         )
-        return ToolCallbackProvider { allToolCallbacks.toTypedArray() }
+
+        (applicationContext.beanFactory as DefaultListableBeanFactory)
+            .registerSingleton("callbacks", ToolCallbackProvider { allToolCallbacks.toTypedArray() })
+
+        refreshBean("mcpSyncServer", McpSyncServer::class.java)
+    }
+
+    internal fun refreshBean(beanName: String, beanClass: Class<*>) {
+        val beanFactory = applicationContext.beanFactory as? DefaultListableBeanFactory
+            ?: throw IllegalStateException("BeanFactory is not a DefaultListableBeanFactory")
+
+        try {
+            // Get current bean definition
+            if (!beanFactory.containsBeanDefinition(beanName)) {
+                loggerFor<McpServerConfiguration>().error("Bean definition for '$beanName' not found")
+                return
+            }
+            val beanDefinition = beanFactory.getBeanDefinition(beanName)
+
+            // Destroy current instance
+            if (beanFactory.containsSingleton(beanName)) {
+                beanFactory.destroySingleton(beanName)
+            }
+
+            val instance = beanFactory.getBean(beanName, beanClass)
+
+            loggerFor<McpServerConfiguration>().debug("Refreshing bean '$beanName' of type ${instance::class.java.name}")
+        } catch (ex: Exception) {
+            loggerFor<McpServerConfiguration>().error(
+                "Failed to refresh bean '$beanName'. Agent Server Tools will not be available: ${ex.message}",
+                ex
+            )
+        }
     }
 }
