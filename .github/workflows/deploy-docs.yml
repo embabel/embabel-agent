@@ -3,13 +3,11 @@
 # They are provided by a third-party and are governed by
 # separate terms of service, privacy policy, and support
 # documentation.
-
 name: Publish Docs
 
 on:
   workflow_dispatch:  # Enables manual triggering
-  
-  inputs:
+    inputs:
       environment:
         description: 'Deploy Environment'
         required: true
@@ -29,7 +27,6 @@ on:
         required: true
         default: 'us-east1-b'
         type: string
-
 env:
   PROJECT_ID: embabel-dev
   SERVICE_ACCOUNT: embabel-ci-build@embabel-dev.iam.gserviceaccount.com
@@ -37,14 +34,11 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     # Set default working directory for all steps
     defaults:
       run:
         working-directory: ./embabel-agent-docs
-
     steps:
       - uses: actions/checkout@v4
       # Install Graphviz for PlantUML diagrams
@@ -58,6 +52,7 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven  
+      
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
