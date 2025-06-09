@@ -46,7 +46,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      # Install Graphviz for PlantUML diagrams
       - name: Install Graphviz
         run: |
           sudo apt-get update
@@ -102,7 +101,4 @@ jobs:
               sudo ls -la /var/www/html/embabel-agent/guide/ &&
               echo 'Testing web access:' &&
               curl -I http://localhost/embabel-agent/guide/index.html || echo 'Web server not responding'
-            "
-              
-            
             "
