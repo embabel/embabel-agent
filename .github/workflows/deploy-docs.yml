@@ -89,8 +89,8 @@ jobs:
             --zone=${{ github.event.inputs.vm_zone }} \
             --command="
               sudo mkdir -p /var/www/html/embabel-agent/guide &&
-              sudo mv ~/index.html /var/www/html/embabel-agent/guide/ &&
-              sudo mv ~/images /var/www/html/embabel-agent/guide/ &&
-              sudo chown -R www-data:www-data /var/www/html/embabel-agent/guide &&
-              sudo chmod -R 755 /var/www/html/embabel-agent/guide
+              sudo cp ~/index.html /var/www/html/embabel-agent/guide/ &&
+              sudo cp -r ~/images /var/www/html/embabel-agent/guide/ &&
+              
+            
             "
