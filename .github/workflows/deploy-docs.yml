@@ -73,14 +73,24 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy to VM
+      - name: Deploy to VM with sudo
         run: |
-          # Copy index.html and image folder
+          # Step 1: Copy to user's home directory first
           gcloud compute scp target/generated-docs/index.html \
-            ${{ github.event.inputs.vm_instance }}:/var/www/html/embabel-agent/guide \
+            ${{ github.event.inputs.vm_instance }}:~/index.html \
             --zone=${{ github.event.inputs.vm_zone }}
-          # Copy schema.ddl file
+          
           gcloud compute scp --recurse target/generated-docs/images \
-            ${{ github.event.inputs.vm_instance }}:/var/www/html/embabel-agent/guide \
+            ${{ github.event.inputs.vm_instance }}:~/images \
             --zone=${{ github.event.inputs.vm_zone }}
-
+          
+          # Step 2: Move files with sudo via SSH
+          gcloud compute ssh ${{ github.event.inputs.vm_instance }} \
+            --zone=${{ github.event.inputs.vm_zone }} \
+            --command="
+              sudo mkdir -p /var/www/html/embabel-agent/guide &&
+              sudo mv ~/index.html /var/www/html/embabel-agent/guide/ &&
+              sudo mv ~/images /var/www/html/embabel-agent/guide/ &&
+              sudo chown -R www-data:www-data /var/www/html/embabel-agent/guide &&
+              sudo chmod -R 755 /var/www/html/embabel-agent/guide
+            "
