@@ -91,6 +91,17 @@ jobs:
               sudo mkdir -p /var/www/html/embabel-agent/guide &&
               sudo cp ~/index.html /var/www/html/embabel-agent/guide/ &&
               sudo cp -r ~/images /var/www/html/embabel-agent/guide
+
+      - name: Verify deployment
+        run: |
+          gcloud compute ssh ${{ github.event.inputs.vm_instance }} \
+          --zone=${{ github.event.inputs.vm_zone }} \
+          --command="
+          echo 'Files in target directory:'
+          sudo ls -la /var/www/html/embabel-agent/guide/
+          echo 'Testing web access:'
+          curl -I http://localhost/embabel-agent/guide/index.html || echo 'Web server not responding'
+          "
               
             
             "
