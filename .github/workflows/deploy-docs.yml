@@ -90,7 +90,7 @@ jobs:
             --command="
               sudo mkdir -p /var/www/html/embabel-agent/guide &&
               sudo cp ~/index.html /var/www/html/embabel-agent/guide/ &&
-              sudo cp -r ~/images /var/www/html/embabel-agent/guide/ &&
+              sudo cp -r ~/images /var/www/html/embabel-agent/guide
               
             
             "
