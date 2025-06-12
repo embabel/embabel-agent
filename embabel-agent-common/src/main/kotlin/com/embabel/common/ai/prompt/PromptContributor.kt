@@ -15,9 +15,6 @@
  */
 package com.embabel.common.ai.prompt
 
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-
 /**
  * Where should the prompt go?
  * Can be used to map into system messages or other locations.
@@ -112,36 +109,5 @@ private data class FixedPromptContributor(
     override fun contribution() = content
 
     override fun toString(): String = "FixedPromptContributor: [${contribution()}]"
-
-}
-
-/**
- * Well known prompt contributor for knowledge cutoff date.
- */
-class KnowledgeCutoffDate(
-    val date: LocalDate,
-    private val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM")
-) : PromptContributor {
-
-    override fun contribution() = "Knowledge cutoff: ${date.format(formatter)}\n"
-
-    override val role = PromptContribution.KNOWLEDGE_CUTOFF_ROLE
-
-    override fun toString(): String = "KnowledgeCutoffDate: [${contribution()}]"
-
-}
-
-class CurrentDate(
-    private val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-) : PromptContributor {
-
-    /**
-     * Based on ChatGPT default system prompt
-     */
-    override fun contribution() = "Current date: ${LocalDate.now().format(formatter)}\n"
-
-    override val role = PromptContribution.CURRENT_DATE_ROLE
-
-    override fun toString(): String = "CurrentDate: [${contribution()}]"
 
 }
