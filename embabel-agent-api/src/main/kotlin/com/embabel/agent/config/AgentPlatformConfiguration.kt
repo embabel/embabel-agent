@@ -44,7 +44,7 @@ import org.springframework.web.client.RestTemplate
  */
 @Configuration
 @EnableConfigurationProperties(ConfigurableModelProviderProperties::class)
-internal class AgentPlatformConfiguration(
+/*internal*/ class AgentPlatformConfiguration(
 ) {
 
     /**

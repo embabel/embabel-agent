@@ -7,10 +7,13 @@
         <artifactId>embabel-agent-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-starter</artifactId>
+    <artifactId>embabel-agent-starters</artifactId>
     <packaging>pom</packaging>
-    <name>Embabel Agent Starter</name>
-    <description>Embabel Agent Starter</description>
-            
+    <name>Embabel Agent Starters</name>
+    <description>Embabel Agent Starters</description>
+    <modules>
+        <module>embabel-agent-starter</module>
+        <module>embabel-agent-starter-platform</module>
+    </modules>
 
 </project>
