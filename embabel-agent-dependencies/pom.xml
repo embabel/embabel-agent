@@ -50,7 +50,7 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-starter</artifactId>
+                <artifactId>embabel-agent-starters</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

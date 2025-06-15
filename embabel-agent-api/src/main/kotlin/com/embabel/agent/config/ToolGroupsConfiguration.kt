@@ -28,7 +28,7 @@ import org.springframework.context.annotation.Configuration
 
 
 @Configuration
-internal class ToolGroupsConfiguration(
+/*internal*/ class ToolGroupsConfiguration(
     private val mcpSyncClients: List<McpSyncClient>,
 ) {
 
