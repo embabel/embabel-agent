@@ -32,8 +32,8 @@ enum class PromptContributionLocation {
  */
 data class PromptContribution(
     val content: String,
-    val location: PromptContributionLocation,
-    val role: String?,
+    val location: PromptContributionLocation = PromptContributionLocation.BEGINNING,
+    val role: String? = null,
 ) {
 
     companion object {
@@ -46,13 +46,15 @@ data class PromptContribution(
 
 /**
  * Contributor to a prompt.
- * Contributors may be put in a system message or elsewhere
+ * Returns a PromptContribution: subtypes may differ
+ * in how they compute this--for example, some may
+ * use a fixed value, whereas others may compute
+ * based on data.
+ * PromptContributions may be put in a system message or elsewhere
  * depending on location.
- * Only the contribution() method must be implemented,
- * but implementations are free to provide location and role data
- * via overriding those properties.
+ *
  */
-interface PromptContributor {
+interface PromptElement {
 
     /**
      * Role defaults to class simple name.
@@ -64,6 +66,17 @@ interface PromptContributor {
     val promptContributionLocation: PromptContributionLocation
         get()
         = PromptContributionLocation.BEGINNING
+}
+
+/**
+ * Contributor to a prompt.
+ * Contributors may be put in a system message or elsewhere
+ * depending on location.
+ * Only the contribution() method must be implemented,
+ * but implementations are free to provide location and role data
+ * via overriding those properties.
+ */
+interface PromptContributor : PromptElement {
 
     fun promptContribution(): PromptContribution {
         return PromptContribution(
@@ -96,7 +109,6 @@ interface PromptContributor {
                 promptContributionLocation = location,
             )
         }
-
     }
 }
 
