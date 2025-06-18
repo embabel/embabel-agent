@@ -22,12 +22,27 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.swagger.v3.oas.annotations.media.Schema
 
 /**
- * Thinking config. Set on Anthropic models.
+ * Thinking config. Set on Anthropic models
+ * and some Ollama models.
  */
-data class Thinking(
+class Thinking private constructor(
     val enabled: Boolean = false,
-    val tokenBudget: Int = 0,
-)
+    val tokenBudget: Int? = null,
+) {
+
+    companion object {
+
+        @JvmStatic
+        fun withTokenBudget(withTokenBudget: Int): Thinking = Thinking(
+            enabled = true,
+            tokenBudget = withTokenBudget,
+        )
+
+        val NONE: Thinking = Thinking(
+            enabled = false,
+        )
+    }
+}
 
 /**
  * Portable LLM options.
@@ -175,6 +190,10 @@ data class BuildableLlmOptions(
 
     fun withThinking(thinking: Thinking): BuildableLlmOptions {
         return copy(thinking = thinking)
+    }
+
+    fun withoutThinking(): BuildableLlmOptions {
+        return copy(thinking = Thinking.NONE)
     }
 
 }
