@@ -17,6 +17,8 @@ package com.embabel.common.ai.model.config
 
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.Llm
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.embabel.common.util.loggerFor
 import jakarta.validation.constraints.NotBlank
@@ -57,6 +59,22 @@ class OpenAiAvailable : Condition {
 const val PROVIDER = "OpenAI"
 
 /**
+ * Save default. Some models may not support all options.
+ */
+object OpenAiChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
+
+    override fun convertOptions(options: LlmOptions): OpenAiChatOptions =
+        OpenAiChatOptions.builder()
+            .temperature(options.temperature)
+            .topP(options.topP)
+            .maxTokens(options.maxTokens)
+            .presencePenalty(options.presencePenalty)
+            .frequencyPenalty(options.frequencyPenalty)
+            .topP(options.topP)
+            .build()
+}
+
+/**
  * OpenAI resources. Load first, so tests can step in
  */
 @ExcludeFromJacocoGeneratedReport(reason = "Open AI configuration can't be unit tested")
@@ -78,6 +96,7 @@ class OpenAiConfiguration(
             name = properties.workhorseModel,
             provider = PROVIDER,
             model = chatModelOf(properties.workhorseModel),
+            optionsConverter = OpenAiChatOptionsConverter,
         )
     }
 
@@ -87,6 +106,7 @@ class OpenAiConfiguration(
             name = properties.premiumModel,
             provider = PROVIDER,
             model = chatModelOf(properties.premiumModel),
+            optionsConverter = OpenAiChatOptionsConverter,
         )
     }
 

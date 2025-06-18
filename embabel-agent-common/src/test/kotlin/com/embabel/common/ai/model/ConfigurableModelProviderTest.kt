@@ -32,9 +32,9 @@ class ConfigurableModelProviderTest() {
 
     private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(
-            Llm("gpt40", "OpenAI", mockk<ChatModel>()),
-            Llm("gpt-4.1-mini", "OpenAI", mockk<ChatModel>()),
-            Llm("embedding", "OpenAI", mockk<ChatModel>())
+            Llm("gpt40", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+            Llm("gpt-4.1-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+            Llm("embedding", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
         ),
         embeddingServices = listOf(
             EmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())

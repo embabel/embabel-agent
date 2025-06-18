@@ -18,26 +18,6 @@ package com.embabel.common.ai.model
 import com.embabel.common.core.types.HasInfoString
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import org.springframework.ai.chat.prompt.ChatOptions
-
-/**
- * Convert our LLM options to Spring AI ChatOptions
- */
-typealias OptionsConverter = (LlmOptions) -> ChatOptions
-
-/**
- * Save default. Some models may not support all options.
- */
-val DefaultOptionsConverter = { options: LlmOptions ->
-    ChatOptions.builder()
-        .temperature(options.temperature)
-        .topP(options.topP)
-        .maxTokens(options.maxTokens)
-        .presencePenalty(options.presencePenalty)
-        .frequencyPenalty(options.frequencyPenalty)
-        .topP(options.topP)
-        .build()
-}
 
 
 class NoSuitableModelException(criteria: ModelSelectionCriteria, models: List<AiModel<*>>) :

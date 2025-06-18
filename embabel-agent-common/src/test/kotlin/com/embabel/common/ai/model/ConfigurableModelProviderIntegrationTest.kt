@@ -45,8 +45,8 @@ class ConfigurableModelProviderIntegrationTest {
 
         @Bean
         fun llmList(): List<Llm> = listOf(
-            Llm("gpt-4o", "OpenAI", mockk<ChatModel>()),
-            Llm("gpt-4o-mini", "OpenAI", mockk<ChatModel>())
+            Llm("gpt-4o", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+            Llm("gpt-4o-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
         )
 
         @Bean

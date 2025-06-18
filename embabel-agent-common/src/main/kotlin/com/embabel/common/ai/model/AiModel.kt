@@ -15,14 +15,9 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.common.ai.prompt.KnowledgeCutoffDate
-import com.embabel.common.ai.prompt.PromptContributor
-import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.embabel.common.core.types.HasInfoString
-import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.model.Model
-import java.time.LocalDate
 
 /**
  * Wraps a Spring AI model and allows metadata to be attached to a model
@@ -35,28 +30,6 @@ interface AiModel<M : Model<*, *>> : HasInfoString {
     override fun infoString(verbose: Boolean?): String =
         "name: $name, provider: $provider"
 }
-
-/**
- * Wraps a Spring AI ChatModel exposing an LLM.
- * @param name name of the LLM
- * @param provider name of the provider, such as OpenAI
- * @param model the Spring AI ChatModel to call
- * @param optionsConverter function to convert LLM options to Spring AI ChatOptions
- * @param knowledgeCutoffDate model's knowledge cutoff date, if known
- * @param promptContributors list of prompt contributors to be used with this model.
- * Knowledge cutoff is most important and will be included if knowledgeCutoffDate is not null.
- * @param pricingModel if known for this LLM
- */
-data class Llm(
-    override val name: String,
-    override val provider: String,
-    override val model: ChatModel,
-    val optionsConverter: OptionsConverter = DefaultOptionsConverter,
-    val knowledgeCutoffDate: LocalDate? = null,
-    override val promptContributors: List<PromptContributor> =
-        buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
-    val pricingModel: PricingModel? = null,
-) : AiModel<ChatModel>, PromptContributorConsumer
 
 /**
  * Wraps a Spring AI EmbeddingModel exposing an embedding service.
