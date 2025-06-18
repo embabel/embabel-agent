@@ -21,6 +21,17 @@ import com.embabel.common.core.types.HasInfoString
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.swagger.v3.oas.annotations.media.Schema
 
+/**
+ * Thinking config. Set on Anthropic models.
+ */
+data class Thinking(
+    val enabled: Boolean = false,
+    val tokenBudget: Int = 0,
+)
+
+/**
+ * Portable LLM options.
+ */
 @Schema(
     description = "Options for LLM use",
 )
@@ -51,6 +62,8 @@ interface LlmOptions : HasInfoString {
     val topK: Int?
 
     val topP: Double?
+
+    val thinking: Thinking?
 
     override fun infoString(verbose: Boolean?): String {
         return toString()
@@ -129,6 +142,7 @@ data class BuildableLlmOptions(
     override val presencePenalty: Double? = null,
     override val topK: Int? = null,
     override val topP: Double? = null,
+    override val thinking: Thinking? = null,
 ) : LlmOptions {
 
     fun withTemperature(temperature: Double): BuildableLlmOptions {
@@ -157,6 +171,10 @@ data class BuildableLlmOptions(
 
     fun withPresencePenalty(presencePenalty: Double): BuildableLlmOptions {
         return copy(presencePenalty = presencePenalty)
+    }
+
+    fun withThinking(thinking: Thinking): BuildableLlmOptions {
+        return copy(thinking = thinking)
     }
 
 }
