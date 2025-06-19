@@ -8,7 +8,7 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-starter-platform</artifactId>
-    <packaging>pom</packaging>
+    <packaging>jar</packaging>
     <name>Embabel Agent API Starter</name>
     <description>Embabel Agent API Starter</description>
 
