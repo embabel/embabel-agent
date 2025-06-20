@@ -15,5 +15,16 @@
  */
 package com.embabel.agent.config.annotation;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Enable Embabel Shell Agent application
+ */
+@Retention(RetentionPolicy.RUNTIME) // Keep the annotation at runtime for reflection
+@Target(ElementType.TYPE)
+@EnableAgents("shell")
 public @interface EnableAgentShell {
 }

@@ -15,5 +15,73 @@
  */
 package com.embabel.agent.config.annotation.spi;
 
-public class EmbabelEnvironmentProcessor {
+import com.embabel.agent.config.annotation.EnableAgents;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.core.annotation.AnnotationAttributes;
+import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.core.env.ConfigurableEnvironment;
+
+
+/**
+ * Sets Spring Active Profile from [EnableAgents] annotation.
+ */
+public class EmbabelEnvironmentProcessor implements EnvironmentPostProcessor, Ordered {
+
+    private Logger logger = LoggerFactory.getLogger(EmbabelEnvironmentProcessor.class);
+
+    private final static String SPRING_PROFILES_ACTIVE = "spring.profiles.active";
+
+    @Override
+    public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        String[] profiles = findProfilesFromAnnotation(application);
+        if (profiles.length > 0) {
+            // Set system property (mimics export SPRING_PROFILES_ACTIVE)
+            String existingProfiles = System.getProperty(SPRING_PROFILES_ACTIVE);
+            String newProfiles = String.join(",", profiles);
+
+            if (existingProfiles != null && !existingProfiles.isEmpty()) {
+                System.setProperty(SPRING_PROFILES_ACTIVE, existingProfiles + "," + newProfiles);
+            } else {
+                System.setProperty("spring.profiles.active", newProfiles);
+            }
+            logger.info("Set Active Profile as {}", System.getProperty(SPRING_PROFILES_ACTIVE));
+        }
+    }
+
+    private String[] findProfilesFromAnnotation(SpringApplication application) {
+        for (Object source : application.getAllSources()) {
+            if (source instanceof Class) {
+
+                /*
+                 * Generic EmbabelAgents annotation
+                 */
+                EnableAgents enableProfile = AnnotationUtils.findAnnotation((Class<?>) source, EnableAgents.class);
+                /*
+                 * Get "value" attribute of child annotation  by hierarchy, such as EnableAgentShell, etc.
+                 */
+                AnnotationAttributes mergedAnnotationAttributes = AnnotatedElementUtils.getMergedAnnotationAttributes(
+                        (Class) source, EnableAgents.class);
+
+                if (mergedAnnotationAttributes != null && !mergedAnnotationAttributes.isEmpty()) {
+                    return mergedAnnotationAttributes.getStringArray("value");
+                } else if (enableProfile != null) {
+                    return enableProfile.value();
+                }
+
+            }
+        }
+        return new String[0];
+    }
+
+
+    @Override
+    public int getOrder() {
+        return Ordered.HIGHEST_PRECEDENCE;
+    }
 }
+

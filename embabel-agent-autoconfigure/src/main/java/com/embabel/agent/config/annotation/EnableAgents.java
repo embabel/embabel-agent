@@ -15,5 +15,33 @@
  */
 package com.embabel.agent.config.annotation;
 
+import com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.context.annotation.ComponentScan;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+
+/**
+ * Annotation for  Enabling Agent AutoConfiguration and setting AgentApplication Active spring profile.
+ */
+@Retention(RetentionPolicy.RUNTIME) // Keep the annotation at runtime for reflection
+@Target(ElementType.TYPE)           // Apply the annotation to classes/types
+@ConfigurationPropertiesScan(
+        basePackages = {
+                "com.embabel.agent"
+        }
+)
+@ComponentScan(
+        basePackages = {
+                "com.embabel.agent.autoconfigure"
+        }
+)
+@ImportAutoConfiguration(classes={AgentPlatformAutoConfiguration.class})
 public @interface EnableAgents {
+    String[] value() default {"default"};
 }

@@ -1,1 +1,1 @@
-org.springframework.boot.env.EnvironmentPostProcessor=com.embabel.agent.config.annotation.spi.EmbabelProfileProcessor
+org.springframework.boot.env.EnvironmentPostProcessor=com.embabel.agent.config.annotation.spi.EmbabelEnvironmentProcessor

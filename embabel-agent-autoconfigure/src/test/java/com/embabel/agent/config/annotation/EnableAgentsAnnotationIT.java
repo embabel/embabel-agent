@@ -15,5 +15,55 @@
  */
 package com.embabel.agent.config.annotation;
 
+import com.embabel.agent.event.AgenticEventListener;
+import com.embabel.agent.rag.RagService;
+import com.embabel.agent.spi.Ranker;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
+
+/**
+ * Java INTEGRATION test for AgentPlatformAutoConfiguration via @EnableAgents annotation and Spring profile setup.
+ * Test employs OPEN API KEY.
+ *
+ */
+@SpringBootTest(classes=EnableAgentsAnnotationIT.class)
+@EnableAgents("starwars")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+
 public class EnableAgentsAnnotationIT {
+
+    @Autowired
+    private AgenticEventListener eventListener;
+
+    @Autowired
+    private Ranker ranker;
+
+    @Autowired
+    private RagService defaultSpringVectorStore;
+
+    @BeforeEach
+    void setUp() {
+    }
+
+
+    @AfterEach
+    void tearDown() {
+    }
+
+
+    @Test
+    public void testAutoConfiguredBeanPresence() {
+        Assertions.assertNotNull(eventListener, "Event Listener should be Auto-Configured");
+        Assertions.assertNotNull(ranker, "Ranker should be Auto-Configured");
+        Assertions.assertNotNull(defaultSpringVectorStore, "RagService should be Auto-Configured");
+
+    }
+
+
+
 }
