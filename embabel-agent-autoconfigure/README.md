@@ -40,6 +40,7 @@ List of Annotations:
 4. EnableAgents - generic annotation; allows any mix of profiles
 
 ## Notes
+
 1. Only single annotation from the list above is allowed.
 2. We favour Annotation-Driven Auto-Configuration over Direct Usage
 
