@@ -8,7 +8,7 @@ Bootstrap beans defined in @**Configuration** artifacts for Spring Boot Applicat
 1. **AgentPlatformAutoConfiguration** - bootstraps Agent Platform Configuration,  Tools Group Configuration, and RAG Service Configuration
 
 
-## Direct Usage (not recommended)
+## Direct Usage of Auto-Configuration
 
 Required dependency:
 
@@ -37,4 +37,7 @@ List of Annotations:
 3. EnableAgentBedrock (as shell application)
 4. EnableAgents - generic annotation; allows any mix of profiles
 
-Note! - only single annotation is allowed.
+## Notes
+1. Only single annotation from the list above is allowed.
+2. We favour Annotation-Driven Auto-Configuration over Direct Usage
+
