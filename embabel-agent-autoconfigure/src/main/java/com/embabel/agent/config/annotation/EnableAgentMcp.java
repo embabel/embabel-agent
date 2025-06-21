@@ -21,10 +21,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Enable MVP Profiles
+ * Enable MCP Profiles
  */
 @Retention(RetentionPolicy.RUNTIME) // Keep the annotation at runtime for reflection
 @Target(ElementType.TYPE)
-@EnableAgents("docker-desktop, docker-ce")
-public @interface EnableAgentMCP {
+@EnableAgents("docker-desktop, web")
+public @interface EnableAgentMcp {
 }
