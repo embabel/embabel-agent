@@ -25,6 +25,7 @@ import com.embabel.agent.api.common.StuckHandlerResult
 import com.embabel.agent.api.common.StuckHandlingResultCode
 import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.agent
+import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.core.*
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.domain.io.UserInput
@@ -165,6 +166,39 @@ class SimpleAgentProcessTest {
             val agentStatus = agentProcess.run()
             assertEquals(AgentProcessStatusCode.WAITING, agentStatus.status)
         }
+    }
+
+    @Nested
+    inner class Kill {
+
+        @Test
+        fun `cannot run killed process`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("Rod")
+            val agentProcess = SimpleAgentProcess(
+                id = "test",
+                agent = evenMoreEvilWizard(),
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                parentId = null,
+            )
+            assertEquals(AgentProcessStatusCode.NOT_STARTED, agentProcess.status)
+            agentProcess.kill()
+            assertEquals(AgentProcessStatusCode.KILLED, agentProcess.status)
+            for (i in 0..10) {
+                val status = agentProcess.tick()
+                assertEquals(AgentProcessStatusCode.KILLED, status.status, "Process should remain killed")
+            }
+            for (i in 0..10) {
+                val status = agentProcess.run()
+                assertEquals(AgentProcessStatusCode.KILLED, status.status, "Process should remain killed")
+            }
+
+
+        }
+
     }
 
     @Nested

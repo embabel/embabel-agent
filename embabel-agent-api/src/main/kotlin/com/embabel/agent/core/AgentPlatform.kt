@@ -37,6 +37,12 @@ interface AgentPlatform : AgentScope {
      */
     fun getAgentProcess(id: String): AgentProcess?
 
+    /**
+     * Kill an agent process by id.
+     * Return the killed process, or null if no such process was found.
+     */
+    fun killAgentProcess(id: String): AgentProcess?
+
     fun agents(): List<Agent>
 
     fun deploy(agent: Agent): AgentPlatform

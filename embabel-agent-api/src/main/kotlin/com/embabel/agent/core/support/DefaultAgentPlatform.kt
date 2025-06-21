@@ -71,6 +71,22 @@ internal class DefaultAgentPlatform(
         return agentProcessRepository.findById(id)
     }
 
+    override fun killAgentProcess(id: String): AgentProcess? {
+        val process = agentProcessRepository.findById(id)
+        if (process == null) {
+            logger.warn("Agent process {} not found", id)
+            return null
+        }
+        logger.info("Killing agent process {}", id)
+        val killEvent = process.kill()
+        if (killEvent != null) {
+            eventListener.onProcessEvent(killEvent)
+        } else {
+            logger.warn("Failed to kill agent process {}", id)
+        }
+        return process
+    }
+
     override fun agents(): List<Agent> =
         agents.values.sortedBy { it.name }
 

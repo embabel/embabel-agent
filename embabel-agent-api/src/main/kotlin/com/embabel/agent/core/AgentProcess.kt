@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.event.ProcessKilledEvent
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
@@ -36,6 +37,16 @@ data class ActionInvocation(
 }
 
 /**
+ * Safely serializable status for agent processes.
+ */
+data class AgentProcessStatusReport(
+    val id: String,
+    override val status: AgentProcessStatusCode,
+    override val timestamp: Instant,
+    override val runningTime: Duration,
+) : Timed, Timestamped, OperationStatus<AgentProcessStatusCode>
+
+/**
  * Run of an agent
  */
 @JsonSerialize(using = ComputerSaysNoSerializer::class)
@@ -48,6 +59,22 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
     val id: String
 
     val parentId: String?
+
+    /**
+     * Return a serializable status report for this process.
+     */
+    fun statusReport(): AgentProcessStatusReport =
+        AgentProcessStatusReport(
+            id = id,
+            status = status,
+            timestamp = timestamp,
+            runningTime = runningTime,
+        )
+
+    /**
+     * Kill this process and return an event describing the kill if we are successful
+     */
+    fun kill(): ProcessKilledEvent?
 
     val history: List<ActionInvocation>
 

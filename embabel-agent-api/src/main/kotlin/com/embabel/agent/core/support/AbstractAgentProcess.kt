@@ -94,6 +94,11 @@ abstract class AbstractAgentProcess(
     override val toolsStats: ToolsStats
         get() = agenticEventListenerToolsStats
 
+    override fun kill(): ProcessKilledEvent? {
+        _status = AgentProcessStatusCode.KILLED
+        return ProcessKilledEvent(this)
+    }
+
     override fun bind(key: String, value: Any): Bindable {
         blackboard[key] = value
         processContext.onProcessEvent(
@@ -131,6 +136,11 @@ abstract class AbstractAgentProcess(
     }
 
     override fun run(): AgentProcess {
+        if (_status == AgentProcessStatusCode.KILLED) {
+            logger.warn("Process {} has been killed {}", this.id, _status)
+            return this
+        }
+
         _status = AgentProcessStatusCode.RUNNING
         if (agent.goals.isEmpty()) {
             logger.info("🤔 Process {} has no goals: {}", this.id, agent.goals)
@@ -171,7 +181,7 @@ abstract class AbstractAgentProcess(
                 platformServices.eventListener.onProcessEvent(AgentProcessFinishedEvent(this))
             }
 
-            AgentProcessStatusCode.TERMINATED -> {
+            AgentProcessStatusCode.TERMINATED, AgentProcessStatusCode.KILLED -> {
                 // Event will have been raised at the point of termination
             }
 
@@ -223,6 +233,11 @@ abstract class AbstractAgentProcess(
     }
 
     override fun tick(): AgentProcess {
+        if (_status == AgentProcessStatusCode.KILLED) {
+            logger.warn("Process {} has been killed {}", this.id, _status)
+            return this
+        }
+
         val worldState = worldStateDeterminer.determineWorldState()
         _lastWorldState = worldState
         platformServices.eventListener.onProcessEvent(
