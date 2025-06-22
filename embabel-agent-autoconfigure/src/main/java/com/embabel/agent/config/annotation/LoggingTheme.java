@@ -15,21 +15,22 @@
  */
 package com.embabel.agent.config.annotation;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+public enum LoggingTheme {
+    SEVERANCE("severance"),
+    STARWARS("starwars");
 
-/**
- * Enable Embabel Shell Agent application
- */
-@Retention(RetentionPolicy.RUNTIME) // Keep the annotation at runtime for reflection
-@Target(ElementType.TYPE)
-@EnableAgents("shell")
-public @interface EnableAgentShell {
-    /**
-     * Optional logging theme for the shell agent.
-     * Default is "severance".
-     */
-    LoggingTheme loggingTheme() default LoggingTheme.SEVERANCE;
+    private final String theme;
+
+    LoggingTheme(String theme) {
+        this.theme = theme;
+    }
+
+    public String getTheme() {
+        return theme;
+    }
+
+    @Override
+    public String toString() {
+        return theme;
+    }
 }

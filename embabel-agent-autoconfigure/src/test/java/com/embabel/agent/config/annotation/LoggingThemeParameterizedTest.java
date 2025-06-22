@@ -26,6 +26,7 @@ import org.springframework.mock.env.MockEnvironment;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -63,7 +64,7 @@ class LoggingThemeParameterizedTest {
     @DisplayName("Should handle @EnableAgentShell alone (inherits shell from @EnableAgents)")
     void testEnableAgentShellAlone() {
         // Given - Only @EnableAgentShell, no explicit @EnableAgents
-        @EnableAgentShell(loggingTheme = "starwars")
+        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
         class TestApp {}
 
         when(application.getAllSources()).thenReturn(new HashSet<>(Arrays.asList(TestApp.class)));
@@ -84,7 +85,7 @@ class LoggingThemeParameterizedTest {
     void testExplicitEnableAgentsOverride() {
         // Given - Both annotations, @EnableAgents with explicit values
         @EnableAgents({"custom1", "custom2"})
-        @EnableAgentShell(loggingTheme = "severance")
+        @EnableAgentShell(loggingTheme = LoggingTheme.SEVERANCE)
         class TestApp {}
 
         when(application.getAllSources()).thenReturn(new HashSet<>(Arrays.asList(TestApp.class)));
@@ -107,10 +108,10 @@ class LoggingThemeParameterizedTest {
     void testEnableAgentsEmptyArray() {
         // Given
         @EnableAgents({})
-        @EnableAgentShell(loggingTheme = "starwars")
+        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
         class TestApp {}
 
-        when(application.getAllSources()).thenReturn(new HashSet<>(Arrays.asList(TestApp.class)));
+        when(application.getAllSources()).thenReturn(new HashSet<>(List.of(TestApp.class)));
 
         // When
         processor.postProcessEnvironment(environment, application);

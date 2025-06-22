@@ -113,11 +113,11 @@ public class EmbabelEnvironmentProcessor implements EnvironmentPostProcessor, Or
                         (Class<?>) source, EnableAgentMcp.class);
 
                 if (enableAgentShell != null) {
-                    return enableAgentShell.loggingTheme();
+                    return enableAgentShell.loggingTheme().getTheme();
                 }
 
                 if (enableAgentMcp != null) {
-                    return enableAgentMcp.loggingTheme();
+                    return enableAgentMcp.loggingTheme().getTheme();
                 }
             }
         }

@@ -29,7 +29,7 @@ import java.lang.annotation.Target;
 public @interface EnableAgentMcp {
     /**
      * Optional logging theme for the MCP agent.
-     * Default is "severance".
+     * Default is SEVERANCE.
      */
-    String loggingTheme() default "severance";
+    LoggingTheme loggingTheme() default LoggingTheme.SEVERANCE;
 }

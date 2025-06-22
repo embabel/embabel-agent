@@ -17,6 +17,7 @@ package com.embabel.agent.config.annotation.spi;
 
 import com.embabel.agent.config.annotation.EnableAgentShell;
 import com.embabel.agent.config.annotation.EnableAgents;
+import com.embabel.agent.config.annotation.LoggingTheme;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -84,7 +85,7 @@ class EmbabelEnvironmentProcessorTest {
     @DisplayName("Should activate starwars profile when loggingTheme is starwars")
     void testStarWarsThemeActivatesProfile() {
         // Given
-        @EnableAgentShell(loggingTheme = "starwars")
+        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
         class TestApp {
         }
 
@@ -104,7 +105,7 @@ class EmbabelEnvironmentProcessorTest {
     @DisplayName("Should activate severance profile when loggingTheme is severance")
     void testSeveranceThemeActivatesProfile() {
         // Given
-        @EnableAgentShell(loggingTheme = "severance")
+        @EnableAgentShell(loggingTheme = LoggingTheme.SEVERANCE)
         class TestApp {
         }
 
@@ -121,50 +122,12 @@ class EmbabelEnvironmentProcessorTest {
     }
 
     @Test
-    @DisplayName("Should not activate theme profile when loggingTheme is empty")
-    void testEmptyThemeDoesNotActivateProfile() {
-        // Given
-        @EnableAgentShell(loggingTheme = "")
-        class TestApp {
-        }
-
-        when(application.getAllSources()).thenReturn(new HashSet<>(List.of(TestApp.class)));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        String activeProfiles = System.getProperty("spring.profiles.active");
-        assertThat(activeProfiles).contains("shell");
-        assertThat(activeProfiles).doesNotContain("starwars", "severance");
-    }
-
-    @Test
-    @DisplayName("Should handle unknown theme gracefully")
-    void testUnknownThemeIsIgnored() {
-        // Given
-        @EnableAgentShell(loggingTheme = "unknown")
-        class TestApp {
-        }
-
-        when(application.getAllSources()).thenReturn(new HashSet<>(List.of(TestApp.class)));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        String activeProfiles = System.getProperty("spring.profiles.active");
-        assertThat(activeProfiles).contains("shell");
-        assertThat(activeProfiles).doesNotContain("unknown");
-    }
-
-    @Test
     @DisplayName("Should preserve existing profiles")
     void testPreservesExistingProfiles() {
         // Given
         System.setProperty("spring.profiles.active", "existing,profiles");
 
-        @EnableAgentShell(loggingTheme = "starwars")
+        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
         class TestApp {
         }
 
@@ -204,7 +167,7 @@ class EmbabelEnvironmentProcessorTest {
     @DisplayName("Should handle multiple source classes")
     void testMultipleSourceClasses() {
         // Given
-        @EnableAgentShell(loggingTheme = "starwars")
+        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
         class TestApp1 {
         }
 
