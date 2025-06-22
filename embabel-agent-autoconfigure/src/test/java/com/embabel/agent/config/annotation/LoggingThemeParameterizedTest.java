@@ -33,7 +33,7 @@ import static org.mockito.Mockito.*;
 /**
  * Additional test cases for edge scenarios
  */
-class EdgeCaseProfileActivationTest {
+class LoggingThemeParameterizedTest {
 
     private EmbabelEnvironmentProcessor processor;
     private ConfigurableEnvironment environment;
