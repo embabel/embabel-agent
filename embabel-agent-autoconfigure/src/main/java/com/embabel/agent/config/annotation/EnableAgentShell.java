@@ -29,7 +29,7 @@ import java.lang.annotation.Target;
 public @interface EnableAgentShell {
     /**
      * Optional logging theme for the shell agent.
-     * Default is "severence".
+     * Default is "severance".
      */
-    String loggingTheme() default "severence";
+    String loggingTheme() default "severance";
 }

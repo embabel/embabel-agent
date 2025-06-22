@@ -25,11 +25,11 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME) // Keep the annotation at runtime for reflection
 @Target(ElementType.TYPE)
-@EnableAgents("docker-desktop, web")
+@EnableAgents("mcp-server")
 public @interface EnableAgentMcp {
     /**
      * Optional logging theme for the MCP agent.
-     * Default is "severence".
+     * Default is "severance".
      */
-    String loggingTheme() default "severence";
+    String loggingTheme() default "severance";
 }
