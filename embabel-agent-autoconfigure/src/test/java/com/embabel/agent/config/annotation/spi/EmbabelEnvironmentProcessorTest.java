@@ -85,7 +85,7 @@ class EmbabelEnvironmentProcessorTest {
     @DisplayName("Should activate starwars profile when loggingTheme is starwars")
     void testStarWarsThemeActivatesProfile() {
         // Given
-        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
+        @EnableAgentShell(loggingTheme = LoggingTheme.STAR_WARS)
         class TestApp {
         }
 
@@ -127,7 +127,7 @@ class EmbabelEnvironmentProcessorTest {
         // Given
         System.setProperty("spring.profiles.active", "existing,profiles");
 
-        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
+        @EnableAgentShell(loggingTheme = LoggingTheme.STAR_WARS)
         class TestApp {
         }
 
@@ -167,7 +167,7 @@ class EmbabelEnvironmentProcessorTest {
     @DisplayName("Should handle multiple source classes")
     void testMultipleSourceClasses() {
         // Given
-        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
+        @EnableAgentShell(loggingTheme = LoggingTheme.STAR_WARS)
         class TestApp1 {
         }
 

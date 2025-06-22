@@ -17,7 +17,7 @@ package com.embabel.agent.config.annotation;
 
 public enum LoggingTheme {
     SEVERANCE("severance"),
-    STARWARS("starwars");
+    STAR_WARS("starwars");
 
     private final String theme;
 

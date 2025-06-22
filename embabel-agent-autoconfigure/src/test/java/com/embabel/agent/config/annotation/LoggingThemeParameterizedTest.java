@@ -64,7 +64,7 @@ class LoggingThemeParameterizedTest {
     @DisplayName("Should handle @EnableAgentShell alone (inherits shell from @EnableAgents)")
     void testEnableAgentShellAlone() {
         // Given - Only @EnableAgentShell, no explicit @EnableAgents
-        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
+        @EnableAgentShell(loggingTheme = LoggingTheme.STAR_WARS)
         class TestApp {}
 
         when(application.getAllSources()).thenReturn(new HashSet<>(Arrays.asList(TestApp.class)));
@@ -108,7 +108,7 @@ class LoggingThemeParameterizedTest {
     void testEnableAgentsEmptyArray() {
         // Given
         @EnableAgents({})
-        @EnableAgentShell(loggingTheme = LoggingTheme.STARWARS)
+        @EnableAgentShell(loggingTheme = LoggingTheme.STAR_WARS)
         class TestApp {}
 
         when(application.getAllSources()).thenReturn(new HashSet<>(List.of(TestApp.class)));
