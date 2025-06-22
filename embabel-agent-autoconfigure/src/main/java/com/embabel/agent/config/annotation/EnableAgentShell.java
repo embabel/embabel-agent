@@ -27,4 +27,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @EnableAgents("shell")
 public @interface EnableAgentShell {
+    /**
+     * Optional logging theme for the shell agent.
+     * Default is "severence".
+     */
+    String loggingTheme() default "severence";
 }

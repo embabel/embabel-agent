@@ -27,4 +27,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @EnableAgents("docker-desktop, web")
 public @interface EnableAgentMcp {
+    /**
+     * Optional logging theme for the MCP agent.
+     * Default is "severence".
+     */
+    String loggingTheme() default "severence";
 }
