@@ -46,7 +46,6 @@ object DefaultOptionsConverter : OptionsConverter<ChatOptions> {
             .build()
 }
 
-
 /**
  * Wraps a Spring AI ChatModel exposing an LLM.
  * @param name name of the LLM
@@ -63,8 +62,8 @@ data class Llm(
     override val provider: String,
     override val model: ChatModel,
     val optionsConverter: OptionsConverter<*>,
-    val knowledgeCutoffDate: LocalDate? = null,
+    override val knowledgeCutoffDate: LocalDate? = null,
     override val promptContributors: List<PromptContributor> =
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
-    val pricingModel: PricingModel? = null,
-) : AiModel<ChatModel>, PromptContributorConsumer
+    override val pricingModel: PricingModel? = null,
+) : AiModel<ChatModel>, LlmMetadata, PromptContributorConsumer
