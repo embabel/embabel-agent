@@ -15,33 +15,13 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.common.core.types.HasInfoString
-import org.springframework.ai.model.Model
+import org.springframework.ai.embedding.EmbeddingModel
 
 /**
- * Metadata about an AI model.
- * Pure data.
+ * Wraps a Spring AI EmbeddingModel exposing an embedding service.
  */
-interface ModelMetadata {
-
-    /**
-     * Name of the LLM, such as "gpt-3.5-turbo"
-     */
-    val name: String
-
-    /**
-     * Name of the provider, such as "OpenAI"
-     */
-    val provider: String
-}
-
-/**
- * Wraps a Spring AI model and allows metadata to be attached to a model
- */
-interface AiModel<M : Model<*, *>> : ModelMetadata, HasInfoString {
-
-    val model: M
-
-    override fun infoString(verbose: Boolean?): String =
-        "name: $name, provider: $provider"
-}
+data class EmbeddingService(
+    override val name: String,
+    override val provider: String,
+    override val model: EmbeddingModel,
+) : AiModel<EmbeddingModel>
