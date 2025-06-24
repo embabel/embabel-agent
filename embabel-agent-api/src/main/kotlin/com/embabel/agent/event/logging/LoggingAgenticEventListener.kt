@@ -323,6 +323,10 @@ open class LoggingAgenticEventListener(
                 logger.info(getProgressUpdateEventMessage(event))
             }
 
+            is ProcessKilledEvent -> {
+                logger.info("[${event.processId}] process killed")
+            }
+
             else -> {
                 // Do nothing
             }

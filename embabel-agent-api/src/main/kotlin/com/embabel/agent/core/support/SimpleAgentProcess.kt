@@ -65,7 +65,7 @@ internal class SimpleAgentProcess(
                 agent.planningSystem.infoString(verbose = true),
                 blackboard,
             )
-            _status = AgentProcessStatusCode.STUCK
+            setStatus(AgentProcessStatusCode.STUCK)
             return this
         }
 
@@ -92,7 +92,7 @@ internal class SimpleAgentProcess(
                 )
             )
             logger.debug("Final blackboard: {}", blackboard.infoString())
-            _status = AgentProcessStatusCode.COMPLETED
+            setStatus(AgentProcessStatusCode.COMPLETED)
         } else {
             platformServices.eventListener.onProcessEvent(
                 AgentProcessPlanFormulatedEvent(
@@ -110,7 +110,7 @@ internal class SimpleAgentProcess(
                         ) { it.name }
                     }")
             val actionStatus = executeAction(agent)
-            _status = actionStatusToAgentProcessStatus(actionStatus)
+            setStatus(actionStatusToAgentProcessStatus(actionStatus))
         }
         return this
     }

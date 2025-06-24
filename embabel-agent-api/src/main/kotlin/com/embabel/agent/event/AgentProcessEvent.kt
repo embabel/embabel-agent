@@ -242,6 +242,13 @@ class ObjectBoundEvent(
 ) : AbstractAgentProcessEvent(agentProcess)
 
 /**
+ * The process was killed by the platform.
+ */
+class ProcessKilledEvent(
+    agentProcess: AgentProcess,
+) : AbstractAgentProcessEvent(agentProcess)
+
+/**
  * Progress update
  */
 class ProgressUpdateEvent(
