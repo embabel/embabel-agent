@@ -16,7 +16,7 @@
 package com.embabel.agent.config.annotation;
 
 import com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration;
-import com.embabel.agent.config.annotation.spi.EmbabelEnvironmentPostProcessor;
+import com.embabel.agent.config.annotation.spi.EnvironmentPostProcessor;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.ComponentScan;
@@ -109,7 +109,7 @@ import java.lang.annotation.Target;
  * }</pre>
  *
  * <h3>Implementation Note:</h3>
- * <p>The actual profile activation is handled by {@link EmbabelEnvironmentPostProcessor}
+ * <p>The actual profile activation is handled by {@link EnvironmentPostProcessor}
  * which processes this annotation during the Spring Boot startup sequence.
  *
  * @see EnableAgentShell

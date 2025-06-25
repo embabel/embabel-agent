@@ -21,7 +21,6 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.annotation.MergedAnnotations;
@@ -79,12 +78,12 @@ import java.util.Set;
  * @author Embabel Team
  * @see EnableAgents
  * @see AgentPlatform
- * @see EnvironmentPostProcessor
+ * @see org.springframework.boot.env.EnvironmentPostProcessor
  * @since 1.0
  */
-public class EmbabelEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
+public class EnvironmentPostProcessor implements org.springframework.boot.env.EnvironmentPostProcessor, Ordered {
 
-    private final Logger logger = LoggerFactory.getLogger(EmbabelEnvironmentPostProcessor.class);
+    private final Logger logger = LoggerFactory.getLogger(EnvironmentPostProcessor.class);
 
     private static final String SPRING_PROFILES_ACTIVE = "spring.profiles.active";
 

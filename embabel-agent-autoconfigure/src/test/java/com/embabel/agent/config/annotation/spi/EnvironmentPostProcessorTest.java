@@ -30,16 +30,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class EmbabelEnvironmentPostProcessorTest {
+class EnvironmentPostProcessorTest {
 
-    private EmbabelEnvironmentPostProcessor processor;
+    private EnvironmentPostProcessor processor;
     private MockEnvironment environment;
     private SpringApplication application;
     private String originalProfilesProperty;
 
     @BeforeEach
     void setUp() {
-        processor = new EmbabelEnvironmentPostProcessor();
+        processor = new EnvironmentPostProcessor();
         environment = new MockEnvironment();
         application = mock(SpringApplication.class);
 
