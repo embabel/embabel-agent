@@ -56,5 +56,5 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@AgentPlatform("mcp-server")
+@AgentPlatform(StartupMode.MCP_SERVER)
 public @interface EnableAgentMcpServer {}

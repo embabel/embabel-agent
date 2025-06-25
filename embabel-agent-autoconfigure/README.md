@@ -58,29 +58,41 @@ public class ShellAgentApplication {
 The `@EnableAgents` annotation provides additional configuration options:
 
 ```java
+import com.embabel.agent.config.annotation.LocalModels;
+import com.embabel.agent.config.annotation.LoggingThemes;
+import com.embabel.agent.config.annotation.McpServers;
+
 @SpringBootApplication
 @EnableAgents(
-    loggingTheme = "starwars",      // Activates "starwars" profile
-    localModels = {"ollama"},        // Activates "ollama" profile
-    mcpClients = {"filesystem"}      // Activates "filesystem" profile
+        loggingTheme = LoggingThemes.STAR_WARS,         // Activates "starwars" profile
+        localModels =  {LocalModels.OLLAMA},            // Activates "ollama" profile
+        mcpServers =   {McpServers.DOCKER_DESKTOP}      // Activates "filesystem" profile
 )
 public class CustomAgentApplication {
-    // Result: Profiles "starwars", "ollama", "filesystem" are active
+    public static void main(String[] args) {
+        SpringApplication.run(CustomAgentApplication.class, args);
+    }
 }
 ```
 
 ### Combining Platform and Agent Annotations
 
 ```java
+import com.embabel.agent.config.annotation.LocalModels;
+import com.embabel.agent.config.annotation.LoggingThemes;
+import com.embabel.agent.config.annotation.McpServers;
+
 @SpringBootApplication
 @EnableAgentShell                    // Activates "shell" profile
 @EnableAgents(
-    loggingTheme = "starwars",      // Activates "starwars" profile
-    localModels = {"ollama", "llamacpp"},  // Activates "ollama" and "llamacpp" profiles
-    mcpClients = {"docker", "github"}      // Activates "docker" and "github" profiles
+        loggingTheme = LoggingThemes.STAR_WARS,         // Activates "starwars" profile
+        localModels = {LocalModels.OLLAMA},             // Activates "ollama" and "llamacpp" profiles
+        mcpServers = {McpServers.DOCKER_DESKTOP}        // Activates "docker" and "github" profiles
 )
-public class AdvancedAgentApplication {
-    // Result: Profiles "shell", "starwars", "ollama", "llamacpp", "docker", "github" are active
+public class AdvancedAgentApplication { 
+    public static void main(String[] args) {
+        SpringApplication.run(AdvancedAgentApplication.class, args);
+    }
 }
 ```
 
@@ -91,7 +103,7 @@ The `EmbabelEnvironmentPostProcessor` activates profiles in the following order:
 1. **Platform Profiles** - From `@AgentPlatform` or meta-annotations like `@EnableAgentShell`
 2. **Logging Theme** - From `@EnableAgents(loggingTheme="...")`
 3. **Local Models** - From `@EnableAgents(localModels={...})`
-4. **MCP Clients** - From `@EnableAgents(mcpClients={...})`
+4. **MCP Servers** - From `@EnableAgents(mcpServers={...})`
 
 ## Available Logging Themes
 

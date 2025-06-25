@@ -25,6 +25,7 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 import java.util.Arrays;
@@ -142,26 +143,24 @@ public class EmbabelEnvironmentPostProcessor implements EnvironmentPostProcessor
      * @return array of platform profile names, empty if none found
      */
     private String[] findPlatformProfiles(SpringApplication application) {
-        // Iterate through all application sources (typically just the main class)
+        var allPlatformProfiles = new LinkedHashSet<String>();
+
         for (Object source : application.getAllSources()) {
             if (source instanceof Class<?> clazz) {
-                // Check for direct @AgentPlatform annotation
-                var agentPlatform = AnnotationUtils.findAnnotation(clazz, AgentPlatform.class);
+                // Use MergedAnnotations to find ALL occurrences of @AgentPlatform
+                MergedAnnotations annotations = MergedAnnotations.from(clazz);
 
-                // Check for meta-annotations (e.g., @EnableAgentShell)
-                // This handles annotations that are themselves annotated with @AgentPlatform
-                var mergedAttributes = AnnotatedElementUtils.getMergedAnnotationAttributes(
-                        clazz, AgentPlatform.class);
-
-                // Prefer merged attributes (handles meta-annotations properly)
-                if (mergedAttributes != null && !mergedAttributes.isEmpty()) {
-                    return mergedAttributes.getStringArray("value");
-                } else if (agentPlatform != null) {
-                    return agentPlatform.value();
-                }
+                // Stream through all @AgentPlatform annotations (direct and meta)
+                annotations.stream(AgentPlatform.class)
+                        .forEach(mergedAnnotation -> {
+                            String[] values = mergedAnnotation.getStringArray("value");
+                            allPlatformProfiles.addAll(Arrays.asList(values));
+                        });
             }
         }
-        return new String[0];
+
+        logger.debug("Collected all platform profiles: {}", allPlatformProfiles);
+        return allPlatformProfiles.toArray(new String[0]);
     }
 
     /**

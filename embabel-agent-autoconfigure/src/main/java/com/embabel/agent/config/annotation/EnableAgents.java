@@ -83,7 +83,7 @@ public @interface EnableAgents {
      *
      * @return the logging theme name, or empty string for default logging
      */
-    String loggingTheme() default LoggingThemes.STAR_WARS;
+    String loggingTheme() default "";
 
     /**
      * Specifies local AI model providers to enable.

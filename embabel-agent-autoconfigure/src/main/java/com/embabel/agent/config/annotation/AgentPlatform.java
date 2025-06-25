@@ -142,7 +142,6 @@ public @interface AgentPlatform {
      *
      * <h4>Common Values:</h4>
      * <ul>
-     *   <li>{@code "default"} - Basic platform features only</li>
      *   <li>{@code "shell"} - Interactive CLI mode</li>
      *   <li>{@code "mcp-server"} - MCP protocol server</li>
      *   <li>{@code "bedrock"} - AWS Bedrock integration</li>
@@ -151,10 +150,10 @@ public @interface AgentPlatform {
      * <h4>Multiple Profiles:</h4>
      * <p>Multiple profiles can be specified to combine features:
      * <pre>{@code
-     * @AgentPlatform({"shell", "metrics", "debug"})
+     * @AgentPlatform({"shell", "metrics", "observability"})
      * }</pre>
      *
      * @return array of profile names to activate
      */
-    String[] value() default {"default"};
+    String[] value() default {};
 }

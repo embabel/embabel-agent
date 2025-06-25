@@ -87,16 +87,6 @@ class EnableAgentsAnnotationIT {
     }
 
     @Test
-    @DisplayName("Should activate default profile when no specific profile is set")
-    void testDefaultProfileActivation() {
-        // Verify default profile is active
-        String[] activeProfiles = environment.getActiveProfiles();
-        assertThat(activeProfiles)
-                .as("Should have at least the default profile active")
-                .contains("default");
-    }
-
-    @Test
     @DisplayName("Should register agent platform configuration beans")
     void testAgentPlatformConfigurationBeans() {
         // Verify that agent platform specific beans are registered
@@ -120,7 +110,6 @@ class EnableAgentsAnnotationIT {
         // For example, if @EnableAgents had attributes:
         // - loggingTheme: verify theme profile is active
         // - localModels: verify model profiles are active
-        // - mcpClients: verify client profiles are active
 
         // Since the test class uses @EnableAgents with defaults,
         // we just verify the base configuration works
@@ -159,18 +148,17 @@ class EnableAgentsWithAttributesIT {
         assertThat(activeProfiles)
                 .as("Should contain all configured profiles")
                 .contains(
-                        "default",        // From @AgentPlatform
-                        "starwars",       // From loggingTheme
-                        "ollama",         // From localModels
-                        "filesystem"      // From mcpClients
+                        LoggingThemes.STAR_WARS,       // From loggingTheme
+                        LocalModels.OLLAMA,            // From localModels
+                        McpServers.DOCKER_DESKTOP      // From mcpClients
                 );
     }
 
     @SpringBootApplication
     @EnableAgents(
-            loggingTheme = "starwars",
-            localModels = {"ollama"},
-            mcpServers = {"filesystem"}
+            loggingTheme = LoggingThemes.STAR_WARS,
+            localModels = {LocalModels.OLLAMA},
+            mcpServers = {McpServers.DOCKER_DESKTOP}
     )
     static class CustomAttributesTestApplication {
         // Configuration with custom attributes

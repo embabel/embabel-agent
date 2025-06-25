@@ -85,10 +85,11 @@ import java.lang.annotation.Target;
  * @see EnableAgentMcpServer
  * @see EnableAgents
  * @see AgentPlatform
+ * @see StartupMode
  * @since 1.0
  * @author Embabel Team
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@AgentPlatform("shell")
+@AgentPlatform(StartupMode.SHELL)
 public @interface EnableAgentShell {}

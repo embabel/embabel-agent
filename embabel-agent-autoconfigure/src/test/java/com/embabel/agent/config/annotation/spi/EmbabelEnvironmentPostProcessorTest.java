@@ -15,8 +15,7 @@
  */
 package com.embabel.agent.config.annotation.spi;
 
-import com.embabel.agent.config.annotation.AgentPlatform;
-import com.embabel.agent.config.annotation.EnableAgents;
+import com.embabel.agent.config.annotation.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -86,8 +85,8 @@ class EmbabelEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(getAddedProfiles()).containsExactly("shell");
-        assertThat(System.getProperty("spring.profiles.active")).isEqualTo("shell");
+        assertThat(getAddedProfiles()).containsExactly(StartupMode.SHELL);
+        assertThat(System.getProperty("spring.profiles.active")).isEqualTo(StartupMode.SHELL);
     }
 
     @Test
@@ -102,14 +101,14 @@ class EmbabelEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(getAddedProfiles()).containsExactly("starwars");
-        assertThat(System.getProperty("spring.profiles.active")).isEqualTo("default,starwars");
+        assertThat(getAddedProfiles()).containsExactly(LoggingThemes.STAR_WARS);
+        assertThat(System.getProperty("spring.profiles.active")).isEqualTo(LoggingThemes.STAR_WARS);
     }
 
     @Test
     void testEnableAgentsWithLocalModels() {
         // Given
-        @EnableAgents(localModels = {"ollama", "llamacpp"})
+        @EnableAgents(localModels = {LocalModels.OLLAMA, LocalModels.DOCKER})
         class TestApp {
         }
         when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
@@ -118,15 +117,15 @@ class EmbabelEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(getAddedProfiles()).containsExactlyInAnyOrder("ollama", "llamacpp", "starwars");
+        assertThat(getAddedProfiles()).containsExactlyInAnyOrder(LocalModels.OLLAMA, LocalModels.DOCKER);
         assertThat(Arrays.stream(System.getProperty("spring.profiles.active").split(",")).collect(Collectors.toSet())
-        ).isEqualTo(Set.of("default", "ollama", "llamacpp", "starwars"));
+        ).isEqualTo(Set.of(LocalModels.OLLAMA, LocalModels.DOCKER));
     }
 
     @Test
-    void testEnableAgentsWithMcpClients() {
+    void testEnableAgentsWithMcpServers() {
         // Given
-        @EnableAgents(mcpServers = {"filesystem", "github"})
+        @EnableAgents(mcpServers = {McpServers.DOCKER_DESKTOP})
         class TestApp {
         }
         when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
@@ -135,19 +134,19 @@ class EmbabelEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(getAddedProfiles()).containsExactlyInAnyOrder("filesystem", "github", "starwars");
+        assertThat(getAddedProfiles()).containsExactlyInAnyOrder(McpServers.DOCKER_DESKTOP);
         assertThat(Arrays.stream(System.getProperty("spring.profiles.active").split(",")).collect(Collectors.toSet())
-        ).isEqualTo(Set.of("default", "filesystem", "github", "starwars"));
+        ).isEqualTo(Set.of(McpServers.DOCKER_DESKTOP));
     }
 
     @Test
     void testCombinedAnnotations() {
         // Given
-        @AgentPlatform("shell")
+        @EnableAgentShell
         @EnableAgents(
-                loggingTheme = "starwars",
-                localModels = {"ollama"},
-                mcpServers = {"docker"}
+                loggingTheme = LoggingThemes.STAR_WARS,
+                localModels = {LocalModels.OLLAMA},
+                mcpServers = {McpServers.DOCKER_DESKTOP}
         )
         class TestApp {
         }
@@ -158,17 +157,20 @@ class EmbabelEnvironmentPostProcessorTest {
 
         // Then
         assertThat(getAddedProfiles())
-                .containsExactlyInAnyOrder("shell", "starwars", "ollama", "docker");
+                .containsExactlyInAnyOrder(StartupMode.SHELL, LoggingThemes.STAR_WARS, LocalModels.OLLAMA, McpServers.DOCKER_DESKTOP);
         assertThat(System.getProperty("spring.profiles.active"))
-                .isEqualTo("shell,starwars,ollama,docker");
+                .isEqualTo("shell,starwars,ollama,docker-desktop");
     }
 
     @Test
-    void testPreservesExistingProfiles() {
+    void testShellModeAfterEnableAgents() {
         // Given
-        System.setProperty("spring.profiles.active", "existing,profiles");
-
-        @EnableAgents(loggingTheme = "starwars")
+        @EnableAgents(
+                loggingTheme = LoggingThemes.STAR_WARS,
+                localModels = {LocalModels.OLLAMA},
+                mcpServers = {McpServers.DOCKER_DESKTOP}
+        )
+        @EnableAgentShell
         class TestApp {
         }
         when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
@@ -177,9 +179,29 @@ class EmbabelEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(getAddedProfiles()).containsExactly("starwars");
+        assertThat(getAddedProfiles())
+                .containsExactlyInAnyOrder(StartupMode.SHELL, LoggingThemes.STAR_WARS, LocalModels.OLLAMA, McpServers.DOCKER_DESKTOP);
         assertThat(System.getProperty("spring.profiles.active"))
-                .isEqualTo("existing,profiles,default,starwars");
+                .isEqualTo("shell,starwars,ollama,docker-desktop");
+    }
+
+    @Test
+    void testPreservesExistingProfiles() {
+        // Given
+        System.setProperty("spring.profiles.active", "existing,profiles");
+
+        @EnableAgents(loggingTheme = LoggingThemes.STAR_WARS)
+        class TestApp {
+        }
+        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then
+        assertThat(getAddedProfiles()).containsExactly(LoggingThemes.STAR_WARS);
+        assertThat(System.getProperty("spring.profiles.active"))
+                .isEqualTo("existing,profiles,starwars");
     }
 
     @Test
@@ -195,7 +217,7 @@ class EmbabelEnvironmentPostProcessorTest {
 
         // Then
         assertThat(getAddedProfiles()).isEmpty();
-        assertThat(System.getProperty("spring.profiles.active")).isEqualTo("default");
+        assertThat(System.getProperty("spring.profiles.active")).isNull();
     }
 
     @Test
@@ -205,11 +227,9 @@ class EmbabelEnvironmentPostProcessorTest {
 
     /**
      * Helper method to get only the profiles added by our processor,
-     * filtering out "default" profile that MockEnvironment might add.
      */
     private Set<String> getAddedProfiles() {
         return Arrays.stream(environment.getActiveProfiles())
-                .filter(profile -> !"default".equals(profile))
                 .collect(Collectors.toSet());
     }
 }
