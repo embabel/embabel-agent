@@ -21,12 +21,12 @@ import org.springframework.validation.annotation.Validated
 
 /**
  * Configuration properties for the model provider
- * @param llms: Map of role to LLM name. Each entry will require an
+ * @param llms Map of role to LLM name. Each entry will require an
  * LLM to be registered with the same name.
  * @param embeddingServices: As with LLMs: map of role to embedding service name
- * @param defaultLlm: Default LLM name. Must be an LLM name. It's good practice to override this
+ * @param defaultLlm Default LLM name. Must be an LLM name. It's good practice to override this
  * in configuration.
- * @param defaultEmbeddingModel: Default embedding model name. Must be an embedding model name.
+ * @param defaultEmbeddingModel Default embedding model name. Must be an embedding model name.
  * Also set this
  */
 @ConfigurationProperties("embabel.models")
