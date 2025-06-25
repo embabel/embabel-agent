@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
-import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.core.env.ConfigurableEnvironment;
@@ -44,7 +43,7 @@ import java.util.Set;
  *   <li><b>Platform Profiles</b> - From {@code @AgentPlatform} or meta-annotations like {@code @EnableAgentShell}</li>
  *   <li><b>Logging Theme</b> - From {@code @EnableAgents(loggingTheme="...")}</li>
  *   <li><b>Local Models</b> - From {@code @EnableAgents(localModels={...})}</li>
- *   <li><b>MCP Clients</b> - From {@code @EnableAgents(mcpClients={...})}</li>
+ *   <li><b>MCP Servers</b> - From {@code @EnableAgents(mcpServers={...})}</li>
  * </ol>
  *
  * <h3>Profile Activation:</h3>
@@ -59,12 +58,13 @@ import java.util.Set;
  * @SpringBootApplication
  * @EnableAgentShell  // Activates "shell" profile
  * @EnableAgents(
- *     loggingTheme = "starwars",    // Activates "starwars" profile
- *     localModels = {"ollama"},      // Activates "ollama" profile
- *     mcpClients = {"filesystem"}    // Activates "filesystem" profile
+ *     loggingTheme = LoggingThemes.START_WARS
+ *     localModels = {LocalModels.OLAMA},
+ *     mcpServer = {McpServers.DOCKER_DESKTOP}
  * )
  * public class MyApp {
- *     // Result: Profiles "shell", "starwars", "ollama", "filesystem" are active
+ *     // Result: Application comes up with Start Wars Theme, Local Models for Ollama
+ *     // and will try to connect to Docker Desktop MCP server.
  * }
  * }</pre>
  *
@@ -120,11 +120,11 @@ public class EmbabelEnvironmentPostProcessor implements EnvironmentPostProcessor
             logger.info("Found localModels - adding profiles: {}", Arrays.toString(localModelsProfiles));
         }
 
-        // 4. Get profiles from mcpClients
-        var mcpClientsProfiles = findMcpClients(application);
-        if (ArrayUtils.isNotEmpty(mcpClientsProfiles)) {
-            allProfiles.addAll(Arrays.asList(mcpClientsProfiles));
-            logger.info("Found mcpClients - adding profiles: {}", Arrays.toString(mcpClientsProfiles));
+        // 4. Get profiles from mcpServers
+        var mcpServerProfiles = findMcpServers(application);
+        if (ArrayUtils.isNotEmpty(mcpServerProfiles)) {
+            allProfiles.addAll(Arrays.asList(mcpServerProfiles));
+            logger.info("Found mcpServers - adding profiles: {}", Arrays.toString(mcpServerProfiles));
         }
 
         // Apply all collected profiles
@@ -188,12 +188,12 @@ public class EmbabelEnvironmentPostProcessor implements EnvironmentPostProcessor
     }
 
     /**
-     * Finds MCP client profiles from {@code @EnableAgents} annotation.
+     * Finds MCP server profile from {@code @EnableAgents} annotation.
      *
      * @param application the Spring application
-     * @return array of MCP client names, empty if none specified
+     * @return array of MCP server names, empty if none specified
      */
-    private String[] findMcpClients(SpringApplication application) {
+    private String[] findMcpServers(SpringApplication application) {
         EnableAgents enableAgents = findEnableAgentsAnnotation(application);
         // Return array or empty array to avoid null
         return enableAgents != null ? enableAgents.mcpServers() : new String[0];
