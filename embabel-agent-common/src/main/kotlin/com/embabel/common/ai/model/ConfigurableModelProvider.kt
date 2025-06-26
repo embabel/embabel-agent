@@ -39,11 +39,11 @@ data class ConfigurableModelProviderProperties(
     val defaultEmbeddingModel: String = "text-embedding-3-small",
 ) {
 
-    fun allLlmNames(): Set<String> {
+    fun allWellKnownLlmNames(): Set<String> {
         return llms.values.toSet() + defaultLlm
     }
 
-    fun allEmbeddingServiceNames(): Set<String> {
+    fun allWellKnownEmbeddingServiceNames(): Set<String> {
         return embeddingServices.values.toSet() + defaultEmbeddingModel
     }
 }
