@@ -119,6 +119,8 @@ interface ModelProvider : HasInfoString {
 
     fun listModelNames(klass: Class<out AiModel<*>>): List<String>
 
+    fun listModels(): List<ModelMetadata>
+
     /**
      * Well-known roles for models
      * Useful but not exhaustive: users are free to define their own roles

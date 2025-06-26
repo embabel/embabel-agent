@@ -18,6 +18,10 @@ package com.embabel.common.ai.model
 import com.embabel.common.core.types.HasInfoString
 import org.springframework.ai.model.Model
 
+enum class ModelType {
+    LLM, EMBEDDING,
+}
+
 /**
  * Metadata about an AI model.
  * Pure data.
@@ -33,6 +37,8 @@ interface ModelMetadata {
      * Name of the provider, such as "OpenAI"
      */
     val provider: String
+
+    val type: ModelType
 }
 
 /**

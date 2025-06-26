@@ -86,6 +86,22 @@ class ConfigurableModelProvider(
         return "${model.infoString(verbose = false)}$maybeRoles"
     }
 
+    override fun listModels(): List<ModelMetadata> =
+        llms.map {
+            LlmMetadata(
+                it.name,
+                provider = it.provider,
+                knowledgeCutoffDate = it.knowledgeCutoffDate,
+                pricingModel = it.pricingModel,
+            )
+        } + embeddingServices.map {
+            EmbeddingServiceMetadata(
+                it.name,
+                provider = it.provider,
+            )
+        }
+
+
     override fun infoString(verbose: Boolean?): String {
         val llms = "Available LLMs:\n\t${llms.joinToString("\n\t") { showModel(it) }}"
         val embeddingServices =

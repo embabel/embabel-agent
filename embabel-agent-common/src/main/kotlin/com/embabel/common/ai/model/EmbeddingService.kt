@@ -15,13 +15,48 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.util.ComputerSaysNoSerializer
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.embedding.EmbeddingModel
+import java.time.LocalDate
+
+interface EmbeddingServiceMetadata : ModelMetadata {
+
+    override val type: ModelType get() = ModelType.EMBEDDING
+
+    companion object {
+        /**
+         * Creates a new instance of [EmbeddingServiceMetadata].
+         *
+         * @param name Name of the LLM.
+         * @param provider Name of the provider, such as OpenAI.
+         */
+        operator fun invoke(
+            name: String,
+            provider: String,
+            knowledgeCutoffDate: LocalDate? = null,
+            pricingModel: PricingModel? = null
+        ): EmbeddingServiceMetadata = EmbeddingServiceMetadataImpl(name, provider)
+
+        @JvmStatic
+        fun create(
+            name: String,
+            provider: String,
+        ): EmbeddingServiceMetadata = EmbeddingServiceMetadataImpl(name, provider)
+    }
+}
 
 /**
  * Wraps a Spring AI EmbeddingModel exposing an embedding service.
  */
+@JsonSerialize(using = ComputerSaysNoSerializer::class)
 data class EmbeddingService(
     override val name: String,
     override val provider: String,
     override val model: EmbeddingModel,
-) : AiModel<EmbeddingModel>
+) : AiModel<EmbeddingModel>, EmbeddingServiceMetadata
+
+data class EmbeddingServiceMetadataImpl(
+    override val name: String,
+    override val provider: String,
+) : EmbeddingServiceMetadata

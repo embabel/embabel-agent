@@ -18,9 +18,9 @@ package com.embabel.common.ai.model
 
 import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.mockk
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -79,6 +79,28 @@ class ConfigurableModelProviderTest() {
             val roles = mp.listModelNames(EmbeddingService::class.java)
             assertFalse(roles.isEmpty())
             assertContains(roles, "text-embedding-3-small")
+        }
+
+        @Test
+        fun `models are of correct type`() {
+            val models = mp.listModels()
+            assertFalse(models.isEmpty())
+            assertContains(models.map { it.name }, "gpt40")
+            assertContains(models.map { it.name }, "text-embedding-3-small")
+            assertEquals(
+                0, models.filterIsInstance<Llm>().size, "Should not have Llm class, but safe metadata class",
+            )
+            assertEquals(
+                0,
+                models.filterIsInstance<EmbeddingService>().size,
+                "Should not have EmbeddingService class, but safe metadata class",
+            )
+        }
+
+        @Test
+        fun `models are serializable`() {
+            val models = mp.listModels()
+            jacksonObjectMapper().writeValueAsString(models)
         }
 
     }

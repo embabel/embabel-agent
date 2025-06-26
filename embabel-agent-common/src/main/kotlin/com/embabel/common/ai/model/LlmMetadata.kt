@@ -22,6 +22,8 @@ import java.time.LocalDate
  */
 interface LlmMetadata : ModelMetadata {
 
+    override val type: ModelType get() = ModelType.LLM
+
     /**
      * The knowledge cutoff date of the model, if known.
      */
@@ -32,4 +34,38 @@ interface LlmMetadata : ModelMetadata {
      */
     val pricingModel: PricingModel?
 
+    companion object {
+
+        /**
+         * Creates a new instance of [LlmMetadata].
+         *
+         * @param name Name of the LLM.
+         * @param provider Name of the provider, such as OpenAI.
+         * @param knowledgeCutoffDate Knowledge cutoff date of the model, if known.
+         * @param pricingModel Pricing model for the LLM, if known.
+         */
+        operator fun invoke(
+            name: String,
+            provider: String,
+            knowledgeCutoffDate: LocalDate? = null,
+            pricingModel: PricingModel? = null
+        ): LlmMetadata = LlmMetadataImpl(name, provider, knowledgeCutoffDate, pricingModel)
+
+        @JvmStatic
+        @JvmOverloads
+        fun create(
+            name: String,
+            provider: String,
+            knowledgeCutoffDate: LocalDate? = null,
+            pricingModel: PricingModel? = null
+        ): LlmMetadata = LlmMetadataImpl(name, provider, knowledgeCutoffDate, pricingModel)
+    }
+
 }
+
+private class LlmMetadataImpl(
+    override val name: String,
+    override val provider: String,
+    override val knowledgeCutoffDate: LocalDate? = null,
+    override val pricingModel: PricingModel? = null
+) : LlmMetadata
