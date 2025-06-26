@@ -20,14 +20,25 @@ import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
+import org.springframework.ai.bedrock.cohere.BedrockCohereEmbeddingModel
+import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi
+import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel
 import org.springframework.ai.bedrock.converse.BedrockProxyChatModel
+import org.springframework.ai.bedrock.titan.BedrockTitanEmbeddingModel
+import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi
+import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi.TitanEmbeddingModel
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.observation.ChatModelObservationConvention
+import org.springframework.ai.model.Model
+import org.springframework.ai.model.ModelOptionsUtils
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionConfiguration
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionProperties
+import org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingProperties
+import org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbeddingProperties
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration
@@ -51,10 +62,21 @@ data class BedrockModelProperties(
     val outputPrice: Double = 0.0
 )
 
+@ConditionalOnClass(
+    BedrockProxyChatModel::class,
+    BedrockRuntimeClient::class,
+    BedrockRuntimeAsyncClient::class,
+    TitanEmbeddingBedrockApi::class,
+    CohereEmbeddingBedrockApi::class
+)
 @Configuration
 @Import(BedrockAwsConnectionConfiguration::class)
 @ExcludeFromJacocoGeneratedReport(reason = "Bedrock configuration can't be unit tested")
-@EnableConfigurationProperties(BedrockProperties::class)
+@EnableConfigurationProperties(
+    BedrockProperties::class,
+    BedrockCohereEmbeddingProperties::class,
+    BedrockTitanEmbeddingProperties::class
+)
 class BedrockModels(
 
     private val bedrockProperties: BedrockProperties,
@@ -68,6 +90,8 @@ class BedrockModels(
     private val observationConvention: ObjectProvider<ChatModelObservationConvention>,
     private val bedrockRuntimeClient: ObjectProvider<BedrockRuntimeClient>,
     private val bedrockRuntimeAsyncClient: ObjectProvider<BedrockRuntimeAsyncClient>,
+    private val bedrockCohereEmbeddingProperties: BedrockCohereEmbeddingProperties,
+    private val bedrockTitanEmbeddingProperties: BedrockTitanEmbeddingProperties,
 ) {
     private val logger = LoggerFactory.getLogger(BedrockModels::class.java)
 
@@ -88,25 +112,24 @@ class BedrockModels(
             return
         }
 
-        val configuredLlmModelNames = properties.llms.values.toSet() + properties.defaultLlm
-        if (configuredLlmModelNames.isEmpty()) {
+        val bedrockModelNames = bedrockProperties.models.map { it.name }
+        val configurableLlmModelNames =
+            properties.allWellKnownLlmNames().filter { bedrockModelNames.contains(it) }.toSet()
+        if (configurableLlmModelNames.isEmpty()) {
             logger.warn("No Bedrock models configured.")
             return
         }
 
-        logger.info("Registering Bedrock models: {}", configuredLlmModelNames)
+        logger.info("Registering Bedrock models: {}", configurableLlmModelNames)
         bedrockProperties.models
-            .filter { configuredLlmModelNames.contains(it.name) }
-            .forEach { model ->
-                try {
-                    val beanName = "bedrockModel-${model.name.replace(":", "-").lowercase()}"
-                    val llmModel = llmOf(model)
-                    configurableBeanFactory.registerSingleton(beanName, llmModel)
-                    logger.debug("Successfully registered Bedrock model {} as bean {}", model.name, beanName)
-                } catch (e: Exception) {
-                    logger.error("Failed to register Bedrock model {}: {}", model.name, e.message)
-                }
-            }
+            .filter { configurableLlmModelNames.contains(it.name) }
+            .forEach { model -> registerModel(llmOf(model), model.name) }
+        TitanEmbeddingModel.entries.forEach { model ->
+            registerModel(embeddingServiceOf(model), model.name)
+        }
+        CohereEmbeddingModel.entries.forEach { model ->
+            registerModel(embeddingServiceOf(model), model.name)
+        }
     }
 
     private fun isBedrockConfigured(environment: Environment): Boolean {
@@ -154,6 +177,45 @@ class BedrockModels(
         observationConvention.ifAvailable(chatModel::setObservationConvention)
 
         return chatModel
+    }
+
+    private fun embeddingServiceOf(model: TitanEmbeddingModel): EmbeddingService = EmbeddingService(
+        name = model.id(),
+        model = BedrockTitanEmbeddingModel(
+            TitanEmbeddingBedrockApi(
+                model.id(),
+                credentialsProvider,
+                regionProvider.region,
+                ModelOptionsUtils.OBJECT_MAPPER,
+                connectionProperties.timeout
+            )
+        ).withInputType(bedrockTitanEmbeddingProperties.inputType),
+        provider = PROVIDER,
+    )
+
+    private fun embeddingServiceOf(model: CohereEmbeddingModel): EmbeddingService = EmbeddingService(
+        name = model.id(),
+        model = BedrockCohereEmbeddingModel(
+            CohereEmbeddingBedrockApi(
+                model.id(),
+                credentialsProvider,
+                regionProvider.region,
+                ModelOptionsUtils.OBJECT_MAPPER,
+                connectionProperties.timeout
+            ),
+            bedrockCohereEmbeddingProperties.options
+        ),
+        provider = PROVIDER,
+    )
+
+    private fun <M : Model<*, *>> registerModel(model: AiModel<M>, modelName: String) {
+        try {
+            val beanName = "bedrockModel-${modelName.replace(":", "-").lowercase()}"
+            configurableBeanFactory.registerSingleton(beanName, model)
+            logger.debug("Successfully registered Bedrock model {} as bean {}", modelName, beanName)
+        } catch (e: Exception) {
+            logger.error("Failed to register Bedrock model {}: {}", modelName, e.message)
+        }
     }
 
 
