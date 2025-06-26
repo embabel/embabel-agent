@@ -22,8 +22,9 @@ import org.springframework.validation.annotation.Validated
 /**
  * Configuration properties for the model provider
  * @param llms Map of role to LLM name. Each entry will require an
- * LLM to be registered with the same name.
- * @param embeddingServices: As with LLMs: map of role to embedding service name
+ * LLM to be registered with the same name. May not include the default LLM.
+ * @param embeddingServices: As with LLMs: map of role to embedding service name.
+ * May not include the default embedding service.
  * @param defaultLlm Default LLM name. Must be an LLM name. It's good practice to override this
  * in configuration.
  * @param defaultEmbeddingModel Default embedding model name. Must be an embedding model name.
@@ -36,7 +37,16 @@ data class ConfigurableModelProviderProperties(
     val embeddingServices: Map<String, String> = emptyMap(),
     val defaultLlm: String = "gpt-4.1-mini",
     val defaultEmbeddingModel: String = "text-embedding-3-small",
-)
+) {
+
+    fun allLlmNames(): Set<String> {
+        return llms.values.toSet() + defaultLlm
+    }
+
+    fun allEmbeddingServiceNames(): Set<String> {
+        return embeddingServices.values.toSet() + defaultEmbeddingModel
+    }
+}
 
 /**
  * Take LLM definitions from configuration
