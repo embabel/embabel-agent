@@ -132,12 +132,21 @@
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-bedrock-converse</artifactId>
+            <artifactId>spring-ai-bedrock</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- for class BedrockAwsConnectionConfiguration -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-autoconfigure-model-bedrock-ai</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-autoconfigure-model-bedrock-ai</artifactId>
+            <artifactId>spring-ai-bedrock-converse</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
