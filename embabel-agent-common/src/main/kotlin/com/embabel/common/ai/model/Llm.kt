@@ -18,7 +18,6 @@ package com.embabel.common.ai.model
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
-import com.embabel.common.util.ComputerSaysNoSerializer
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -59,7 +58,7 @@ object DefaultOptionsConverter : OptionsConverter<ChatOptions> {
  * Knowledge cutoff is most important and will be included if knowledgeCutoffDate is not null.
  * @param pricingModel if known for this LLM
  */
-@JsonSerialize(using = ComputerSaysNoSerializer::class)
+@JsonSerialize(`as` = LlmMetadata::class)
 data class Llm(
     override val name: String,
     override val provider: String,

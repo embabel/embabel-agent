@@ -15,7 +15,6 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.common.util.ComputerSaysNoSerializer
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.embedding.EmbeddingModel
@@ -51,7 +50,7 @@ interface EmbeddingServiceMetadata : ModelMetadata {
 /**
  * Wraps a Spring AI EmbeddingModel exposing an embedding service.
  */
-@JsonSerialize(using = ComputerSaysNoSerializer::class)
+@JsonSerialize(`as` = EmbeddingServiceMetadata::class)
 data class EmbeddingService(
     override val name: String,
     override val provider: String,
