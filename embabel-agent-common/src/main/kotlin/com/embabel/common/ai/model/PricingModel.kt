@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.springframework.ai.chat.metadata.Usage
 
 const val ONE_MILLION = 1000000.0
@@ -25,6 +26,7 @@ const val ONE_MILLION = 1000000.0
  * hourly rate for the model running whether or not it is in use. See
  * [OpenAI pricing](https://openai.com/pricing#language-models)
  */
+@JsonDeserialize(`as` = PerTokenPricingModel::class)
 interface PricingModel {
 
     fun usdPerInputToken(): Double

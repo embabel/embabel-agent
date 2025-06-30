@@ -16,6 +16,8 @@
 package com.embabel.common.ai.model
 
 import com.embabel.common.core.types.HasInfoString
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.springframework.ai.model.Model
 
 enum class ModelType {
@@ -26,6 +28,15 @@ enum class ModelType {
  * Metadata about an AI model.
  * Pure data.
  */
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.CLASS,
+    include = JsonTypeInfo.As.PROPERTY,
+    property = "@class"
+)
+@JsonSubTypes(
+    JsonSubTypes.Type(value = LlmMetadata::class),
+    JsonSubTypes.Type(value = EmbeddingServiceMetadata::class),
+)
 interface ModelMetadata {
 
     /**

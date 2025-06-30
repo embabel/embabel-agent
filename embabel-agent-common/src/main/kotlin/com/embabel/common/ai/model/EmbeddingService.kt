@@ -16,10 +16,12 @@
 package com.embabel.common.ai.model
 
 import com.embabel.common.util.ComputerSaysNoSerializer
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.embedding.EmbeddingModel
 import java.time.LocalDate
 
+@JsonDeserialize(`as` = EmbeddingServiceMetadataImpl::class)
 interface EmbeddingServiceMetadata : ModelMetadata {
 
     override val type: ModelType get() = ModelType.EMBEDDING

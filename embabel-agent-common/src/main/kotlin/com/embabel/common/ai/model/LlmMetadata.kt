@@ -15,11 +15,13 @@
  */
 package com.embabel.common.ai.model
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import java.time.LocalDate
 
 /**
  * Metadata about a Large Language Model (LLM).
  */
+@JsonDeserialize(`as` = LlmMetadataImpl::class)
 interface LlmMetadata : ModelMetadata {
 
     override val type: ModelType get() = ModelType.LLM
