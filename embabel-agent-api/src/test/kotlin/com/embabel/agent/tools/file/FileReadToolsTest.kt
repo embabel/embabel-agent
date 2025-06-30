@@ -21,12 +21,10 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.junit.jupiter.api.condition.DisabledOnOs
-import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.test.assertFalse
+import java.nio.file.Paths
 
 class FileReadToolsTest {
 
@@ -63,16 +61,18 @@ class FileReadToolsTest {
         }
 
         @Test
-        @DisabledOnOs(OS.WINDOWS)
         fun `should find files by extension excluding root`() {
             val result = fileReadTools.findFiles("**/*.txt")
 
             assertEquals(3, result.size)
 
-            assertTrue(result.any { it.endsWith("dir1/file3.txt") })
-            assertTrue(result.any { it.endsWith("dir2/file4.txt") })
-            assertFalse(
-                result.any { it.endsWith("file1.txt") }, "" +
+            val paths = result.toPaths()
+
+            assertTrue(paths.any { it.endsWith(Paths.get("dir1", "file3.txt")) })
+            assertTrue(paths.any { it.endsWith(Paths.get("dir2", "file4.txt")) })
+            assertTrue(paths.any { it.endsWith(Paths.get("dir2", "subdir", "file5.txt")) })
+            assertTrue(
+                paths.none { it.endsWith(Paths.get("dir1")) }, "" +
                         "Expected file1.txt NOT to be found:\n${result.joinToString("\n")}"
             )
         }
@@ -81,18 +81,21 @@ class FileReadToolsTest {
         fun `should find files by extension in root`() {
             val result = fileReadTools.findFiles("*.txt")
             assertEquals(1, result.size)
+
+            val paths = result.toPaths()
             assertTrue(
-                result.any { it.endsWith("file1.txt") }, "" +
+                paths.any { it.endsWith(Paths.get("file1.txt")) }, "" +
                         "Expected file1.txt to be found:\n${result.joinToString("\n")}"
             )
         }
 
         @Test
-        @DisabledOnOs(OS.WINDOWS)
         fun `should find files in specific directory`() {
             val result = fileReadTools.findFiles("dir1/*")
             assertEquals(1, result.size)
-            assertTrue(result[0].endsWith("dir1/file3.txt"))
+
+            val paths = result.toPaths()
+            assertTrue(paths[0].endsWith(Paths.get("dir1", "file3.txt")))
         }
 
         @Test
@@ -249,3 +252,5 @@ class FileReadToolsTest {
         }
     }
 }
+
+private fun List<String>.toPaths(): List<Path> = map { Paths.get(it) }
