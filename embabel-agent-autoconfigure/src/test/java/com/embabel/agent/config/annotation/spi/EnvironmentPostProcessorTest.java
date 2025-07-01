@@ -211,6 +211,20 @@ class EnvironmentPostProcessorTest {
     }
 
     @Test
+    void testEmptyProfiles() {
+        class TestApp {
+        }
+        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then
+        assertThat(getAddedProfiles()).isEmpty();
+        assertThat(System.getProperty("spring.profiles.active")).isNull();
+    }
+
+    @Test
     void testHighestPrecedenceOrder() {
         assertThat(processor.getOrder()).isEqualTo(Integer.MIN_VALUE);
     }
