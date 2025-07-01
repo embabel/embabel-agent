@@ -236,19 +236,15 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
             mergedProfiles.addAll(Arrays.asList(existingProfiles.split(",")));
             // Add new profiles
             mergedProfiles.addAll(profiles);
-            // Update system property with merged set
-            System.setProperty(SPRING_PROFILES_ACTIVE, String.join(",", mergedProfiles));
+            // Update environment
+            mergedProfiles.forEach(environment::addActiveProfile);
         } else {
-            // No existing profiles, just set new ones
-            System.setProperty(SPRING_PROFILES_ACTIVE, newProfiles);
+            profiles.forEach(environment::addActiveProfile);
         }
 
-        // Also add profiles directly to Spring environment
-        // This ensures they're active even if system property is overridden
-        profiles.forEach(environment::addActiveProfile);
 
         // Log the final state for debugging
-        logger.info("Activated Spring profiles: {}", System.getProperty(SPRING_PROFILES_ACTIVE));
+        logger.info("Activated Spring profiles: {}", (Object[]) environment.getActiveProfiles());
     }
 
     /**
