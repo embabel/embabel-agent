@@ -151,7 +151,7 @@ class EnvironmentPostProcessorTest {
 
         // Then
         assertThat(getAddedProfiles())
-                .containsExactlyInAnyOrder(StartupMode.SHELL, LoggingThemes.STAR_WARS, LocalModels.OLLAMA, McpServers.DOCKER_DESKTOP);;
+                .containsExactlyInAnyOrder(StartupMode.SHELL, LoggingThemes.STAR_WARS, LocalModels.OLLAMA, McpServers.DOCKER_DESKTOP);
     }
 
     @Test

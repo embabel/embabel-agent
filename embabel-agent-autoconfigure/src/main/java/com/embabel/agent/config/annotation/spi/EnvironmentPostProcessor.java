@@ -227,8 +227,7 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
     private void activateProfiles(ConfigurableEnvironment environment, Set<String> profiles) {
         // Get existing profiles from system property
         String existingProfiles = System.getProperty(SPRING_PROFILES_ACTIVE);
-        String newProfiles = String.join(",", profiles);
-
+        
         if (existingProfiles != null && !existingProfiles.isEmpty()) {
             // Merge with existing profiles, maintaining uniqueness
             var mergedProfiles = new LinkedHashSet<String>();
