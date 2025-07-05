@@ -15,6 +15,11 @@ include::examples/examples-guide.adoc[]
 include::design/design.adoc[]
 
 include::contributing/contributing.adoc[]
+
 include::roadmap/roadmap.adoc[]
 
 include::resources/resources.adoc[]
+
+== APPENDIX
+
+include::appendix/astar-goap-planner.adoc[]
