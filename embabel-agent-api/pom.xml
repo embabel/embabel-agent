@@ -132,12 +132,14 @@
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-bedrock-converse</artifactId>
+            <artifactId>spring-ai-starter-model-bedrock</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-autoconfigure-model-bedrock-ai</artifactId>
+            <artifactId>spring-ai-starter-model-bedrock-converse</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <dependency>

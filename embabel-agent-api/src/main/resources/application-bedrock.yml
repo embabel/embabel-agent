@@ -1,10 +1,16 @@
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.bedrock.converse.autoconfigure.BedrockConverseProxyChatAutoConfiguration
+      - org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingAutoConfiguration
+      - org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbeddingAutoConfiguration
   ai:
     bedrock:
       aws:
-        region: ${AWS_REGION}
-        access-key: ${AWS_ACCESS_KEY_ID}
-        secret-key: ${AWS_SECRET_ACCESS_KEY}
+        region: ${AWS_REGION:}
+        access-key: ${AWS_ACCESS_KEY_ID:}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+        session-token: ${AWS_SESSION_TOKEN:}
 
 embabel:
   models:
