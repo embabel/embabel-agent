@@ -11,12 +11,18 @@
     <packaging>jar</packaging>
     <name>Embabel Agent Test</name>
     <description>Test Support Framework for Agent API(s)</description>
-    
+
     <dependencies>
         <!-- Main Dependencies -->
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-api</artifactId>
+        </dependency>
+
+        <!-- Unit and Integration Testing -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
         </dependency>
     </dependencies>
 
