@@ -109,6 +109,20 @@ interface PromptContributor : PromptElement {
                 promptContributionLocation = location,
             )
         }
+
+        @JvmStatic
+        @JvmOverloads
+        fun dynamic(
+            contributionMaker: () -> String,
+            role: String? = null,
+            location: PromptContributionLocation = PromptContributionLocation.BEGINNING,
+        ): PromptContributor {
+            return DynamicPromptContributor(
+                contributionMaker = contributionMaker,
+                role = role,
+                promptContributionLocation = location,
+            )
+        }
     }
 }
 
@@ -119,6 +133,18 @@ private data class FixedPromptContributor(
 ) : PromptContributor {
 
     override fun contribution() = content
+
+    override fun toString(): String = "FixedPromptContributor: [${contribution()}]"
+
+}
+
+private data class DynamicPromptContributor(
+    val contributionMaker: () -> String,
+    override val role: String?,
+    override val promptContributionLocation: PromptContributionLocation,
+) : PromptContributor {
+
+    override fun contribution() = contributionMaker()
 
     override fun toString(): String = "FixedPromptContributor: [${contribution()}]"
 
