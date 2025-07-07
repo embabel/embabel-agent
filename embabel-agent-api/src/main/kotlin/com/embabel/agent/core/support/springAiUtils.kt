@@ -16,8 +16,8 @@
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.ToolObject
+import org.springframework.ai.support.ToolCallbacks
 import org.springframework.ai.tool.ToolCallback
-import org.springframework.ai.tool.ToolCallbacks
 import org.springframework.ai.tool.definition.DefaultToolDefinition
 import org.springframework.ai.tool.definition.ToolDefinition
 

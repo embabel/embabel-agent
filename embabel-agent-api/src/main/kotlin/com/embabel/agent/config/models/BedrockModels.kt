@@ -176,8 +176,9 @@ class BedrockModels(
                 credentialsProvider,
                 regionProvider.region,
                 ModelOptionsUtils.OBJECT_MAPPER,
-                connectionProperties.timeout
-            )
+                connectionProperties.timeout,
+            ),
+            null,
         ).withInputType(bedrockTitanEmbeddingProperties.inputType),
         provider = PROVIDER,
     )
