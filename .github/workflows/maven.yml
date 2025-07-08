@@ -34,4 +34,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -U -B test verify
+        run: mvn -U -B test verify sonar:sonar -Dsonar.cpd.exclusions="embabel-agent-shell/**,embabel-agent-mcpserver/**" 
