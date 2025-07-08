@@ -20,13 +20,16 @@
 
     <modules>
         <module>embabel-agent-api</module>
+        <module>embabel-agent-a2a</module>
+        <module>embabel-agent-autoconfigure</module>
+        <module>embabel-agent-dependencies</module>
+        <module>embabel-agent-eval</module>
+        <module>embabel-agent-mcpserver</module>
         <module>embabel-agent-rag</module>
         <module>embabel-agent-shell</module>
         <module>embabel-agent-starters</module>
-        <module>embabel-agent-autoconfigure</module>
-        <module>embabel-agent-eval</module>
-        <module>embabel-agent-dependencies</module>
         <module>embabel-agent-test</module>
+        <module>embabel-agent-ux</module>
     </modules>
 
 
