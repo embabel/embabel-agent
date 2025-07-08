@@ -31,7 +31,7 @@ jobs:
           mkdir -p /home/runner
           echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
       - name: Build and analyze
-        working-directory: embabel-agent
+        working-directory: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
