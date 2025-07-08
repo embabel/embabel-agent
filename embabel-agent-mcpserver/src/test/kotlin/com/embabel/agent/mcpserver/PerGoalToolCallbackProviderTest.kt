@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.mcpserver
 
-import com.embabel.agent.test.common.autonomy.Autonomy
-import com.embabel.agent.test.common.autonomy.AutonomyProperties
+import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.AutonomyProperties
 import com.embabel.agent.test.dsl.evenMoreEvilWizard
 import com.embabel.agent.test.dsl.userInputToFrogOrPersonBranch
 import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyAgentPlatform

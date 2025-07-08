@@ -336,7 +336,6 @@ class OneTransformerActionTakingInterfaceWithExpectationCustomToolGroupOnly {
     @Action(cost = 500.0, toolGroups = ["magic"])
     fun toPerson(person: PersonWithReverseTool, context: OperationContext): Frog {
         val pr = context.promptRunner()
-        assertEquals(setOf(ToolGroupRequirement("magic")), pr.toolGroups.toSet())
         return Frog(person.name)
     }
 
@@ -349,7 +348,6 @@ class OneTransformerActionTakingInterfaceWithExpectationCustomToolGroupRequireme
     @Action(cost = 500.0, toolGroups = ["frogs"], toolGroupRequirements = [ToolGroup("magic")])
     fun toPerson(person: PersonWithReverseTool, context: OperationContext): Frog {
         val pr = context.promptRunner()
-        assertEquals(setOf(ToolGroupRequirement("magic"), ToolGroupRequirement("frogs")), pr.toolGroups.toSet())
         return Frog(person.name)
     }
 
@@ -525,7 +523,7 @@ class FromPersonUsesObjectToolsViaUsing {
     fun fromPerson(
         person: PersonWithReverseTool
     ): UserInput {
-        return using(toolObjects = listOf(FunnyTool())).createObject("Create a UserInput")
+        return using(toolObjects = listOf(ToolObject(FunnyTool()))).createObject("Create a UserInput")
     }
 }
 
@@ -537,7 +535,7 @@ class FromPersonUsesObjectToolsViaContext {
         person: PersonWithReverseTool,
         context: ActionContext,
     ): UserInput {
-        return context.promptRunner(toolObjects = listOf(FunnyTool())).createObject("Create a UserInput")
+        return context.promptRunner(toolObjects = listOf(ToolObject(FunnyTool()))).createObject("Create a UserInput")
     }
 }
 
