@@ -122,9 +122,13 @@ class FileReadToolsTest {
             Files.createDirectories(tempDir.resolve("thing/foo"))
             Files.writeString(tempDir.resolve("thing/pom.xml"), "maven stuff")
             Files.writeString(tempDir.resolve("thing/foo/pom.xml"), "maven stuff")
+
             val result = fileReadTools.findFiles("**/pom.xml", findHighest = true)
+
             assertEquals(1, result.size, "Should only find highest level pom.xml")
-            assertTrue(result[0].endsWith("thing/pom.xml"), "Should exclude under directories when requested")
+            val resultPath = Paths.get(result[0])
+            val expectedPath = Paths.get("thing", "pom.xml")
+            assertTrue(resultPath.endsWith(expectedPath), "Should exclude under directories when requested")
         }
 
         @Test

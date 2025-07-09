@@ -117,34 +117,57 @@ interface FileReadTools : DirectoryBased, SelfToolCallbackPublisher {
             }
         }
 
-        // We cannot rely on Files.walk with findHighest because it works depth first
-        val excludedPaths = mutableSetOf<String>()
-        val queue = ArrayDeque<Path>().apply { offer(basePath) }
+        // We need to process directories breadth-first to find the highest matches
+        val processedDirs = mutableSetOf<String>()
+        val queue = ArrayDeque<Path>()
+        queue.offer(basePath)
 
         while (queue.isNotEmpty()) {
-            val path = queue.poll()
-            val pathStr = path.toAbsolutePath().toString()
+            val dir = queue.poll()
+            val dirStr = dir.toAbsolutePath().toString()
 
-            if (excludedPaths.any { pathStr.startsWith("$it${File.separator}") }) continue
+            // Skip if we've already processed this directory
+            if (dirStr in processedDirs) {
+                continue
+            }
+            processedDirs.add(dirStr)
 
-            if (matcher.matches(basePath.relativize(path))) {
-                results.add(pathStr)
-                excludedPaths.add(path.parent.toAbsolutePath().toString())
+            // First, check if this directory itself matches
+            if (Files.isRegularFile(dir) && matcher.matches(basePath.relativize(dir))) {
+                results.add(dirStr)
                 continue
             }
 
             try {
-                Files.newDirectoryStream(path).use { stream ->
-                    stream.forEach { subPath ->
-                        if (Files.isDirectory(subPath)) {
-                            queue.offer(subPath)
-                        } else if (matcher.matches(basePath.relativize(subPath))) {
-                            results.add(subPath.toAbsolutePath().toString())
-                            excludedPaths.add(subPath.parent.toAbsolutePath().toString())
+                // Look for matches in this directory
+                val matchesInDir = mutableListOf<String>()
+                val subdirs = mutableListOf<Path>()
+
+                Files.newDirectoryStream(dir).use { stream ->
+                    stream.forEach { entry ->
+                        if (Files.isDirectory(entry)) {
+                            subdirs.add(entry)
+                        } else if (matcher.matches(basePath.relativize(entry))) {
+                            matchesInDir.add(entry.toAbsolutePath().toString())
                         }
                     }
                 }
-            } catch (_: IOException) { /* Skip unreadable directories */
+
+                if (matchesInDir.isNotEmpty()) {
+                    // Found matches in this directory, add them and don't process subdirectories
+                    results.addAll(matchesInDir)
+
+                    // Mark all subdirectories as processed so we don't look into them
+                    subdirs.forEach { subdir ->
+                        processedDirs.add(subdir.toAbsolutePath().toString())
+                    }
+                } else {
+                    // No matches in this directory, so process subdirectories
+                    queue.addAll(subdirs)
+                }
+            } catch (_: IOException) {
+                loggerFor<FileReadTools>().warn("Failed to read directory at {}", dirStr)
+                continue
             }
         }
 
