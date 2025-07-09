@@ -51,14 +51,14 @@ class FileReadToolsTest {
         fun setupFiles() {
             // Create directory structure
             Files.createDirectories(tempDir.resolve("dir1"))
-            Files.createDirectories(tempDir.resolve("dir2/subdir"))
+            Files.createDirectories(tempDir.resolve(Paths.get("dir2", "subdir")))
 
             // Create files
             Files.writeString(tempDir.resolve("file1.txt"), "content1")
             Files.writeString(tempDir.resolve("file2.md"), "content2")
-            Files.writeString(tempDir.resolve("dir1/file3.txt"), "content3")
-            Files.writeString(tempDir.resolve("dir2/file4.txt"), "content4")
-            Files.writeString(tempDir.resolve("dir2/subdir/file5.txt"), "content5")
+            Files.writeString(tempDir.resolve(Paths.get("dir1", "file3.txt")), "content3")
+            Files.writeString(tempDir.resolve(Paths.get("dir2", "file4.txt")), "content4")
+            Files.writeString(tempDir.resolve(Paths.get("dir2", "subdir", "file5.txt")), "content5")
         }
 
         @Test
@@ -109,9 +109,9 @@ class FileReadToolsTest {
         @Test
         fun `should not exclude under`() {
             Files.createDirectories(tempDir.resolve("thing"))
-            Files.createDirectories(tempDir.resolve("thing/foo"))
-            Files.writeString(tempDir.resolve("thing/pom.xml"), "maven stuff")
-            Files.writeString(tempDir.resolve("thing/foo/pom.xml"), "maven stuff")
+            Files.createDirectories(tempDir.resolve(Paths.get("thing", "foo")))
+            Files.writeString(tempDir.resolve(Paths.get("thing", "pom.xml")), "maven stuff")
+            Files.writeString(tempDir.resolve(Paths.get("thing", "foo", "pom.xml")), "maven stuff")
             val result = fileReadTools.findFiles("**/pom.xml")
             assertEquals(2, result.size, "Should not exclude under directories by default")
         }
@@ -119,9 +119,9 @@ class FileReadToolsTest {
         @Test
         fun `should exclude under when requested`() {
             Files.createDirectories(tempDir.resolve("thing"))
-            Files.createDirectories(tempDir.resolve("thing/foo"))
-            Files.writeString(tempDir.resolve("thing/pom.xml"), "maven stuff")
-            Files.writeString(tempDir.resolve("thing/foo/pom.xml"), "maven stuff")
+            Files.createDirectories(tempDir.resolve(Paths.get("thing", "foo")))
+            Files.writeString(tempDir.resolve(Paths.get("thing", "pom.xml")), "maven stuff")
+            Files.writeString(tempDir.resolve(Paths.get("thing", "foo", "pom.xml")), "maven stuff")
 
             val result = fileReadTools.findFiles("**/pom.xml", findHighest = true)
 
@@ -134,12 +134,12 @@ class FileReadToolsTest {
         @Test
         fun `should not exclude under when parallel`() {
             Files.createDirectories(tempDir.resolve("thing"))
-            Files.createDirectories(tempDir.resolve("thing/foo"))
+            Files.createDirectories(tempDir.resolve(Paths.get("thing", "foo")))
             Files.createDirectories(tempDir.resolve("that"))
-            Files.createDirectories(tempDir.resolve("that/foo"))
-            Files.writeString(tempDir.resolve("thing/pom.xml"), "maven stuff")
+            Files.createDirectories(tempDir.resolve(Paths.get("that", "foo")))
+            Files.writeString(tempDir.resolve(Paths.get("thing", "pom.xml")), "maven stuff")
             // Not parallel
-            Files.writeString(tempDir.resolve("that/foo/pom.xml"), "maven stuff")
+            Files.writeString(tempDir.resolve(Paths.get("that", "foo", "pom.xml")), "maven stuff")
             val result = fileReadTools.findFiles("**/pom.xml")
             assertEquals(2, result.size, "Should not exclude when not nested")
         }
@@ -199,7 +199,7 @@ class FileReadToolsTest {
 
             // Create files
             Files.writeString(tempDir.resolve("file1.txt"), "content1")
-            Files.writeString(tempDir.resolve("nonemptydir/file2.txt"), "content2")
+            Files.writeString(tempDir.resolve(Paths.get("nonemptydir", "file2.txt")), "content2")
         }
 
         @Test
@@ -247,9 +247,10 @@ class FileReadToolsTest {
 
         @Test
         fun `should resolve relative path`() {
-            val result = fileReadTools.resolvePath("subdir/file.txt")
+            val relativePath = Paths.get("subdir", "file.txt").toString()
+            val result = fileReadTools.resolvePath(relativePath)
 
-            assertEquals(tempDir.resolve("subdir/file.txt"), result)
+            assertEquals(tempDir.resolve(relativePath), result)
         }
 
         @Test
