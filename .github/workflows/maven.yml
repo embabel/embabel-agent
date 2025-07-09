@@ -35,4 +35,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -U -B test verify sonar:sonar -Dsonar.projectKey="embabel-agent" -Dsonar.host.url="https://sonarcloud.io" -Dsonar.cpd.exclusions="embabel-agent-shell/**,embabel-agent-mcpserver/**" 
+        run: mvn -U -B test verify sonar:sonar -Dsonar.projectKey="embabel_embabel-agent" -Dsonar.host.url="https://sonarcloud.io" -Dsonar.cpd.exclusions="embabel-agent-shell/**,embabel-agent-mcpserver/**" 
