@@ -26,6 +26,19 @@ import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Service
 
+val LumonDepartments = listOf(
+    "MDR",
+    "Lumon",
+    "Choreography and Merriment",
+    "Mammalians Nurturable",
+    "Optics And Design",
+    "Perpetuity Wing",
+    "Macrodata Refinement",
+    "The Board",
+    "Wellness",
+    "Testing Floor",
+)
+
 val MdrFiles = listOf(
     "Allentown", "Dranesville", "Wellington",
     "Tumwater", "Lucknow", "Sopchoppy", "Astoria",
