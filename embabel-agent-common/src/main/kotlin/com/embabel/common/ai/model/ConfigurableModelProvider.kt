@@ -28,7 +28,7 @@ import org.springframework.validation.annotation.Validated
  * @param defaultLlm Default LLM name. Must be an LLM name. It's good practice to override this
  * in configuration.
  * @param defaultEmbeddingModel Default embedding model name. Must be an embedding model name.
- * Also set this
+ * Need not be set, in which case it defaults to null.
  */
 @ConfigurationProperties("embabel.models")
 @Validated
@@ -36,7 +36,7 @@ data class ConfigurableModelProviderProperties(
     val llms: Map<String, String> = emptyMap(),
     val embeddingServices: Map<String, String> = emptyMap(),
     val defaultLlm: String = "gpt-4.1-mini",
-    val defaultEmbeddingModel: String = "text-embedding-3-small",
+    val defaultEmbeddingModel: String? = null,
 ) {
 
     fun allWellKnownLlmNames(): Set<String> {
@@ -44,7 +44,7 @@ data class ConfigurableModelProviderProperties(
     }
 
     fun allWellKnownEmbeddingServiceNames(): Set<String> {
-        return embeddingServices.values.toSet() + defaultEmbeddingModel
+        return embeddingServices.values.toSet() + setOfNotNull(defaultEmbeddingModel)
     }
 }
 
@@ -62,8 +62,10 @@ class ConfigurableModelProvider(
     private val defaultLlm = llms.firstOrNull { it.name == properties.defaultLlm }
         ?: throw IllegalArgumentException("Default LLM '${properties.defaultLlm}' not found in available models: ${llms.map { it.name }}")
 
-    private val defaultEmbeddingService = embeddingServices.firstOrNull { it.name == properties.defaultEmbeddingModel }
-        ?: throw IllegalArgumentException("Default embedding service '${properties.defaultEmbeddingModel}' not found in available models: ${embeddingServices.map { it.name }}")
+    // Compute this lazily as embedding services may not be available
+    private fun defaultEmbeddingService() =
+        embeddingServices.firstOrNull { it.name == properties.defaultEmbeddingModel }
+            ?: throw IllegalArgumentException("Default embedding service '${properties.defaultEmbeddingModel}' not found in available models: ${embeddingServices.map { it.name }}")
 
     init {
         properties.llms.forEach { (role, model) ->
@@ -185,7 +187,7 @@ class ConfigurableModelProvider(
 
             // TODO should handle other criteria
             else -> {
-                defaultEmbeddingService
+                defaultEmbeddingService()
             }
         }
 }

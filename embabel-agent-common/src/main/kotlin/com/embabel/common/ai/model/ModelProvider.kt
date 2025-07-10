@@ -117,7 +117,7 @@ interface ModelProvider : HasInfoString {
      */
     fun listRoles(modelClass: Class<out AiModel<*>>): List<String>
 
-    fun listModelNames(klass: Class<out AiModel<*>>): List<String>
+    fun listModelNames(modelClass: Class<out AiModel<*>>): List<String>
 
     fun listModels(): List<ModelMetadata>
 
