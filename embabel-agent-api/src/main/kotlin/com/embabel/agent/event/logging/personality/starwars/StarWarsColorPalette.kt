@@ -27,7 +27,8 @@ object StarWarsColorPalette : ColorPalette {
     const val LIGHTSABER_RED: Int = 0xff0000
     const val IMPERIAL_GRAY: Int = 0x2f4f4f
     const val REPUBLIC_GOLD: Int = 0xffd700
-    const val YELLOW_ACCENT: Int = 0xffff00
+    const val YELLOW_ACCENT: Int = 0xFFD100
+    const val TATOOINE_ORANGE: Int = 0xAD7D37
 
     override val highlight: Int
         get() = LIGHTSABER_BLUE

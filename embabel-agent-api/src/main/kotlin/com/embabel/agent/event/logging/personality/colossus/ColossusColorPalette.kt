@@ -26,7 +26,8 @@ object ColossusColorPalette : ColorPalette {
     const val BRONZE_FIRE: Int = 0xcd7f32
     const val ANCIENT_STONE: Int = 0x8b7d6b
     const val TITAN_GOLD: Int = 0xffd700
-    const val PANEL: Int = 0x4a4a4a
+    const val PANEL: Int = 0x84a396
+    const val ACCENT_GREEN: Int = 0xacb366
 
     override val highlight: Int
         get() = TITAN_GOLD

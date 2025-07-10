@@ -27,7 +27,8 @@ object MontyPythonColorPalette : ColorPalette {
     const val KNIGHT_ARMOR: Int = 0xc0c0c0
     const val DEAD_PARROT_BLUE: Int = 0x4169e1
     const val SILLY_WALK_BROWN: Int = 0x8b4513
-    const val BRIGHT_RED: Int = 0xff0000
+    const val BRIGHT_RED: Int = 0xE50000
+    const val ROYAL_BLUE: Int = 0x0038A8
 
     override val highlight: Int
         get() = HOLY_GRAIL_GOLD

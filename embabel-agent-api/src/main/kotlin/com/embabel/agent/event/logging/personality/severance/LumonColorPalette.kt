@@ -25,6 +25,7 @@ object LumonColorPalette : ColorPalette {
     const val MEMBRANE: Int = 0xbeb780
     const val WELLNESS: Int = 0xf5f5dc
     const val MDR: Int = 0x00cc66
+    const val ORIGINAL_GREEN: Int = 0x7da17e
     const val DISCIPLINE: Int = 0x2f4f4f
 
     override val highlight: Int
