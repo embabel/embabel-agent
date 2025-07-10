@@ -17,45 +17,40 @@ package com.embabel.chat.agent
 
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.agent.shell.ShellConfig
-import com.embabel.agent.shell.TerminalServices
 import com.embabel.chat.*
 
 /**
- * Uses last message as intent.
- * Wholly delegates handling to agent platform.
- * Can bind conversation to the blackboard if so configured.
+ * Base class for agent platform chat sessions.
+ * Uses last message as intent and delegates handling to agent platform.
  */
-class LastMessageIntentAgentPlatformChatSession(
+abstract class AgentPlatformChatSession(
     private val autonomy: Autonomy,
     private val goalChoiceApprover: GoalChoiceApprover,
     override val messageListener: MessageListener,
     val processOptions: ProcessOptions = ProcessOptions(),
-    private val terminalServices: TerminalServices,
-    private val config: ShellConfig.ChatConfig,
 ) : ChatSession {
 
-    private var _conversation: Conversation = InMemoryConversation()
+    private var internalConversation: Conversation = InMemoryConversation()
 
     override val conversation: Conversation
-        get() = _conversation
+        get() = internalConversation
 
     override fun respond(message: UserMessage, additionalListener: MessageListener?) {
-        _conversation = conversation.withMessage(message)
-        val asssistantMessage = generateResponse(message)
-        _conversation = conversation.withMessage(asssistantMessage)
-        messageListener.onMessage(asssistantMessage)
-        additionalListener?.onMessage(asssistantMessage)
+        internalConversation = conversation.withMessage(message)
+        val assistantMessage = generateResponse(message)
+        internalConversation = conversation.withMessage(assistantMessage)
+        messageListener.onMessage(assistantMessage)
+        additionalListener?.onMessage(assistantMessage)
     }
 
-    private fun generateResponse(message: UserMessage): AssistantMessage {
+    protected fun generateResponse(message: UserMessage): AssistantMessage {
         try {
             val dynamicExecutionResult = autonomy.chooseAndAccomplishGoal(
                 intent = message.content,
                 processOptions = processOptions,
                 goalChoiceApprover = goalChoiceApprover,
                 agentScope = autonomy.agentPlatform,
-                additionalBindings = if (config.bindConversation)
+                additionalBindings = if (shouldBindConversation())
                     mapOf("conversation" to conversation)
                 else emptyMap()
             )
@@ -82,27 +77,13 @@ class LastMessageIntentAgentPlatformChatSession(
         }
     }
 
-    private fun handleProcessWaitingException(pwe: ProcessWaitingException, basis: Any): AssistantMessage {
-        val awaitableResponse = terminalServices.handleProcessWaitingException(pwe)
-        if (awaitableResponse == null) {
-            return AssistantMessage("Operation cancelled.")
-        }
-        pwe.awaitable.onResponse(
-            response = awaitableResponse,
-            processContext = pwe.agentProcess!!.processContext
-        )
-        try {
-            pwe.agentProcess.run()
-            val ape = AgentProcessExecution.fromProcessStatus(
-                basis = basis,
-                agentProcess = pwe.agentProcess
-            )
-            return AgenticResultAssistantMessage(
-                agentProcessExecution = ape,
-                content = ape.output.toString(),
-            )
-        } catch (e: ProcessWaitingException) {
-            return handleProcessWaitingException(e, basis)
-        }
-    }
+    /**
+     * Determines whether conversation should be bound to the blackboard
+     */
+    protected abstract fun shouldBindConversation(): Boolean
+
+    /**
+     * Handles process waiting exceptions in a platform-specific way
+     */
+    protected abstract fun handleProcessWaitingException(pwe: ProcessWaitingException, basis: Any): AssistantMessage
 }

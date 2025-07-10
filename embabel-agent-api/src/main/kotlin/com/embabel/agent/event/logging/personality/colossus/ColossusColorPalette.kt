@@ -13,33 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.event.logging.personality.starwars
+package com.embabel.agent.event.logging.personality.colossus
 
 import com.embabel.agent.event.logging.personality.ColorPalette
-import com.embabel.agent.shell.MessageGeneratorPromptProvider
-import com.embabel.common.util.RandomFromFileMessageGenerator
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("starwars")
-object StarWarsColorPalette : ColorPalette {
-    const val YELLOW_ACCENT: Int = 0xFFD100
-    const val TATOOINE_ORANGE: Int = 0xAD7D37
+@Profile("colossus")
+object ColossusColorPalette : ColorPalette {
+    const val CAVE_SHADOW: Int = 0x2d2d30
+    const val BRONZE_FIRE: Int = 0xcd7f32
+    const val ANCIENT_STONE: Int = 0x8b7d6b
+    const val TITAN_GOLD: Int = 0xffd700
+    const val PANEL: Int = 0x4a4a4a
 
     override val highlight: Int
-        get() = YELLOW_ACCENT
+        get() = TITAN_GOLD
     override val color2: Int
-        get() = TATOOINE_ORANGE
+        get() = BRONZE_FIRE
 }
-
-
-@Component
-@Profile("starwars")
-class StarWarsPromptProvider : MessageGeneratorPromptProvider(
-    color = StarWarsColorPalette.YELLOW_ACCENT,
-    prompt = "starwars",
-    messageGenerator = RandomFromFileMessageGenerator(
-        url = "logging/starwars.txt"
-    ),
-)

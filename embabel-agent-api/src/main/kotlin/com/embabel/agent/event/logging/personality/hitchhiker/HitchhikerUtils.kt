@@ -13,18 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.shell
+package com.embabel.agent.event.logging.personality.hitchhiker
 
-import org.jline.utils.AttributedString
-import org.jline.utils.AttributedStyle
-import org.springframework.shell.jline.PromptProvider
+import com.embabel.common.util.bold
+import com.embabel.common.util.color
+import com.embabel.common.util.italic
 
 /**
- * Vanilla prompt provider
+ * Hitchhiker's Guide personality utility functions
  */
-internal class DefaultPromptProvider : PromptProvider {
-    override fun getPrompt() = AttributedString(
-        "embabel> ",
-        AttributedStyle.DEFAULT.foreground(AttributedStyle.YELLOW)
-    )
-}
+fun guide(text: String) = "📕 ${"Guide".bold()} ${text.italic().color(HitchhikerColorPalette.BABEL_GREEN)}"

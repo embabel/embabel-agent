@@ -13,32 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.event.logging.personality.colossus
+package com.embabel.agent.event.logging.personality.montypython
 
 import com.embabel.agent.event.logging.personality.ColorPalette
-import com.embabel.agent.shell.MessageGeneratorPromptProvider
-import com.embabel.common.util.RandomFromFileMessageGenerator
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
 
-
 @Component
-@Profile("colossus")
-object ColossusColorPalette : ColorPalette {
-    const val PANEL: Int = 0x84a396
+@Profile("montypython")
+object MontyPythonColorPalette : ColorPalette {
+    const val HOLY_GRAIL_GOLD: Int = 0xffd700
+    const val SPAM_PINK: Int = 0xffc0cb
+    const val KNIGHT_ARMOR: Int = 0xc0c0c0
+    const val DEAD_PARROT_BLUE: Int = 0x4169e1
+    const val SILLY_WALK_BROWN: Int = 0x8b4513
+    const val BRIGHT_RED: Int = 0xff0000
 
     override val highlight: Int
-        get() = PANEL
+        get() = HOLY_GRAIL_GOLD
     override val color2: Int
-        get() = 0xacb366
+        get() = DEAD_PARROT_BLUE
 }
-
-@Component
-@Profile("colossus")
-class ColossusPromptProvider : MessageGeneratorPromptProvider(
-    color = ColossusColorPalette.PANEL,
-    prompt = "Colossus",
-    messageGenerator = RandomFromFileMessageGenerator(
-        url = "logging/colossus.txt"
-    ),
-)

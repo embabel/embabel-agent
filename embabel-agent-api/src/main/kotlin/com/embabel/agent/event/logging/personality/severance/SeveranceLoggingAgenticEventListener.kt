@@ -19,6 +19,7 @@ import com.embabel.agent.core.EarlyTermination
 import com.embabel.agent.event.*
 import com.embabel.agent.event.logging.LoggingAgenticEventListener
 import com.embabel.agent.event.logging.LoggingPersonality.Companion.BANNER_WIDTH
+import com.embabel.agent.event.logging.personality.severance.kier
 import com.embabel.common.util.color
 import com.embabel.common.util.hexToRgb
 import org.slf4j.LoggerFactory

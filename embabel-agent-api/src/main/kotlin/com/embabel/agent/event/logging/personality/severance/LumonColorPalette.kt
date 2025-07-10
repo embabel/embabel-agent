@@ -16,47 +16,19 @@
 package com.embabel.agent.event.logging.personality.severance
 
 import com.embabel.agent.event.logging.personality.ColorPalette
-import com.embabel.agent.shell.MessageGeneratorPromptProvider
-import com.embabel.common.util.RandomFromFileMessageGenerator
-import com.embabel.common.util.bold
-import com.embabel.common.util.color
-import com.embabel.common.util.italic
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
-
-fun kier(text: String) = "🧔🏼‍♂️ ${"Kier".bold()} ${text.italic().color(LumonColorPalette.MEMBRANE)}"
 
 @Component
 @Profile("severance")
 object LumonColorPalette : ColorPalette {
     const val MEMBRANE: Int = 0xbeb780
-    const val GREEN: Int = 0x7da17e
+    const val WELLNESS: Int = 0xf5f5dc
+    const val MDR: Int = 0x00cc66
+    const val DISCIPLINE: Int = 0x2f4f4f
 
     override val highlight: Int
         get() = MEMBRANE
     override val color2: Int
-        get() = GREEN
+        get() = MDR
 }
-
-val LumonDepartments = listOf(
-    "MDR",
-    "Lumon",
-    "Choreography and Merriment",
-    "Mammalians Nurturable",
-    "Optics And Design",
-    "Perpetuity Wing",
-    "Macrodata Refinement",
-    "The Board",
-    "Wellness",
-    "Testing Floor",
-)
-
-@Component
-@Profile("severance")
-class SeverancePromptProvider : MessageGeneratorPromptProvider(
-    color = LumonColorPalette.MEMBRANE,
-    prompt = LumonDepartments.random(),
-    messageGenerator = RandomFromFileMessageGenerator(
-        url = "logging/severance.txt"
-    ),
-)

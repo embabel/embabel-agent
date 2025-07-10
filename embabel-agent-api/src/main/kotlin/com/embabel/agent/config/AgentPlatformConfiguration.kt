@@ -20,7 +20,6 @@ import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.event.logging.LoggingAgenticEventListener
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.agent.event.logging.personality.DefaultColorPalette
-import com.embabel.agent.shell.DefaultPromptProvider
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.support.*
 import com.embabel.common.ai.model.*
@@ -37,7 +36,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
 import org.springframework.context.annotation.Primary
-import org.springframework.shell.jline.PromptProvider
 import org.springframework.web.client.RestTemplate
 
 /**
@@ -86,12 +84,6 @@ import org.springframework.web.client.RestTemplate
     fun eventListener(listeners: List<AgenticEventListener>): AgenticEventListener =
         AgenticEventListener.from(listeners)
 
-    /**
-     * Fallback if we don't have a more interesting prompt provider
-     */
-    @Bean
-    @ConditionalOnMissingBean(PromptProvider::class)
-    fun defaultPromptProvider(): PromptProvider = DefaultPromptProvider()
 
     @Bean
     @ConditionalOnMissingBean(ColorPalette::class)

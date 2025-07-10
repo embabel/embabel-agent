@@ -13,17 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent
+package com.embabel.chat.agent.shell
 
 import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
-import com.embabel.agent.core.support.LocalPerson
-import com.embabel.agent.shell.ShellConfig
+import com.embabel.agent.domain.library.Person
+import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.MessageSavingMessageListener
 import com.embabel.chat.UserMessage
-import com.embabel.chat.agent.LastMessageIntentAgentPlatformChatSession
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -32,6 +31,8 @@ import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
 class LastMessageIntentAgentPlatformChatSessionTest {
+
+    data class LocalPerson(override val name: String) : Person
 
     @Test
     fun `should invoke chooseAndAccomplishGoal`() {
@@ -48,7 +49,7 @@ class LastMessageIntentAgentPlatformChatSessionTest {
             GoalChoiceApprover.Companion.APPROVE_ALL,
             messageListener = {},
             terminalServices = mockk(),
-            config = ShellConfig.ChatConfig(),
+            config = ShellProperties.ChatConfig(),
         )
         val userMessage = UserMessage("Hello, world!")
         val l = MessageSavingMessageListener()

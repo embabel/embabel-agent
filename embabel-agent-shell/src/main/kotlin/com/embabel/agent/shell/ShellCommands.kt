@@ -21,7 +21,7 @@ import com.embabel.agent.core.*
 import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.agent.rag.Ingester
-import com.embabel.chat.agent.LastMessageIntentAgentPlatformChatSession
+import com.embabel.chat.agent.shell.LastMessageIntentAgentPlatformChatSession
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.util.bold
 import com.embabel.common.util.color
@@ -130,7 +130,7 @@ class ShellCommands(
         )
         blackboard = processOptions.blackboard
         // Create shell module's own ChatConfig instance
-        val shellChatConfig = ShellConfig.ChatConfig(
+        val shellChatConfig = ShellProperties.ChatConfig(
             confirmGoals = shellProperties.chat.confirmGoals,
             bindConversation = shellProperties.chat.bindConversation
         )
