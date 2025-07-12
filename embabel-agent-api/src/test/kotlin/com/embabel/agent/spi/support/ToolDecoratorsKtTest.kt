@@ -26,7 +26,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.springframework.ai.tool.ToolCallbacks
+import org.springframework.ai.support.ToolCallbacks
 import org.springframework.ai.tool.annotation.Tool
 
 class SimpleTools {
