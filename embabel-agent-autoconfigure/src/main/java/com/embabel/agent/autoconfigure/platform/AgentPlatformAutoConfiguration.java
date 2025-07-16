@@ -20,6 +20,7 @@ import com.embabel.agent.config.AgentPlatformConfiguration;
 import com.embabel.agent.config.RuntimeHintsConfig;
 import com.embabel.agent.config.RagServiceConfiguration;
 import com.embabel.agent.config.ToolGroupsConfiguration;
+import com.embabel.common.util.UtilRuntimeHints;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.ImportRuntimeHints;
 
 /**
  * Bootstraps Agent Platform Configuration, Tools Configuration, and Rag Service Configuration
@@ -44,7 +46,8 @@ import org.springframework.context.annotation.Import;
         }
 )
 @ConditionalOnClass({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
-@Import({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class, RuntimeHintsConfig.class})
+@Import({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
+@ImportRuntimeHints(UtilRuntimeHints.class)
 public class AgentPlatformAutoConfiguration {
     final private Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
 
