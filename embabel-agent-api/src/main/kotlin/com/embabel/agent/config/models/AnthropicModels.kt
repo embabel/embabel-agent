@@ -42,7 +42,7 @@ data class AnthropicProperties(
 ) : RetryProperties
 
 
-@Configuration
+@Configuration(proxyBeanMethods=false)
 @ConditionalOnProperty("ANTHROPIC_API_KEY")
 @Profile("!test")
 @ExcludeFromJacocoGeneratedReport(reason = "Anthropic configuration can't be unit tested")

@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.util.concurrent.Executor
 
-@Configuration
+@Configuration(proxyBeanMethods=false)
 class AsyncConfiguration {
 
     @Bean

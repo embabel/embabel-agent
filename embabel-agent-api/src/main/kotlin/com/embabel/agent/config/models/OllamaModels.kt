@@ -38,7 +38,7 @@ import org.springframework.web.client.body
  * from Ollama unless the "ollama" profile is set.
  */
 @ExcludeFromJacocoGeneratedReport(reason = "Ollama configuration can't be unit tested")
-@Configuration
+@Configuration(proxyBeanMethods=false)
 class OllamaModels(
     @Value("\${spring.ai.ollama.base-url}")
     private val baseUrl: String,

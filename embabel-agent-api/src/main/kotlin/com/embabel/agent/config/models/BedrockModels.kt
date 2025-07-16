@@ -69,7 +69,7 @@ data class BedrockModelProperties(
     TitanEmbeddingBedrockApi::class,
     CohereEmbeddingBedrockApi::class
 )
-@Configuration
+@Configuration(proxyBeanMethods=false)
 @Import(BedrockAwsConnectionConfiguration::class)
 @EnableConfigurationProperties(
     BedrockProperties::class,
