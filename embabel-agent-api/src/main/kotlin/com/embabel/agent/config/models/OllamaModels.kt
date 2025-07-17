@@ -24,6 +24,7 @@ import org.springframework.ai.ollama.OllamaChatModel
 import org.springframework.ai.ollama.OllamaEmbeddingModel
 import org.springframework.ai.ollama.api.OllamaApi
 import org.springframework.ai.ollama.api.OllamaOptions
+import org.springframework.aot.hint.annotation.RegisterReflectionForBinding
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Configuration
@@ -37,6 +38,11 @@ import org.springframework.web.client.body
  * This class will always be loaded, but models won't be loaded
  * from Ollama unless the "ollama" profile is set.
  */
+@RegisterReflectionForBinding(
+    OllamaModels.ModelResponse::class,
+    OllamaModels.ModelDetails::class,
+    OllamaModels.Model::class
+)
 @ExcludeFromJacocoGeneratedReport(reason = "Ollama configuration can't be unit tested")
 @Configuration(proxyBeanMethods=false)
 class OllamaModels(
