@@ -17,6 +17,7 @@ package com.embabel.agent.autoconfigure.platform;
 
 
 import com.embabel.agent.config.AgentPlatformConfiguration;
+import com.embabel.agent.config.RuntimeHintsConfig;
 import com.embabel.agent.config.RagServiceConfiguration;
 import com.embabel.agent.config.ToolGroupsConfiguration;
 import jakarta.annotation.PostConstruct;
@@ -43,7 +44,7 @@ import org.springframework.context.annotation.Import;
         }
 )
 @ConditionalOnClass({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
-@Import({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
+@Import({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class, RuntimeHintsConfig.class})
 public class AgentPlatformAutoConfiguration {
     final private Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
 

@@ -15,17 +15,12 @@
  */
 package com.embabel.agent.config
 
-import com.embabel.agent.api.common.Asyncer
-import com.embabel.agent.spi.support.ExecutorAsyncer
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import java.util.concurrent.Executor
+import org.springframework.aot.hint.RuntimeHints
+import org.springframework.aot.hint.RuntimeHintsRegistrar
 
-@Configuration(proxyBeanMethods=false)
-class AsyncConfiguration {
-
-    @Bean
-    fun asyncer(executor: Executor): Asyncer {
-        return ExecutorAsyncer(executor)
+class PersonalityResourcesRuntimeHints : RuntimeHintsRegistrar {
+    override fun registerHints(hints: RuntimeHints, classLoader: ClassLoader?) {
+        // Register all *.txt files in logging/
+        hints.resources().registerPattern("logging/.*\\.txt")
     }
 }

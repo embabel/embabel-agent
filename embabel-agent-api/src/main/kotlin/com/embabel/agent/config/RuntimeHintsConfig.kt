@@ -15,17 +15,14 @@
  */
 package com.embabel.agent.config
 
-import com.embabel.agent.api.common.Asyncer
-import com.embabel.agent.spi.support.ExecutorAsyncer
-import org.springframework.context.annotation.Bean
+import com.embabel.common.util.UtilRuntimeHints
 import org.springframework.context.annotation.Configuration
-import java.util.concurrent.Executor
+import org.springframework.context.annotation.ImportRuntimeHints
 
-@Configuration(proxyBeanMethods=false)
-class AsyncConfiguration {
-
-    @Bean
-    fun asyncer(executor: Executor): Asyncer {
-        return ExecutorAsyncer(executor)
-    }
-}
+@ImportRuntimeHints(
+    UtilRuntimeHints::class,
+    PersonalityResourcesRuntimeHints::class,
+    ToolRuntimeHints::class
+)
+@Configuration(proxyBeanMethods = false)
+class RuntimeHintsConfig

@@ -39,7 +39,7 @@ data class OpenAiProperties(
 /**
  * Well-known OpenAI models.
  */
-@Configuration
+@Configuration(proxyBeanMethods=false)
 @Profile("!test")
 @ConditionalOnProperty("OPENAI_API_KEY")
 class OpenAiModels(
