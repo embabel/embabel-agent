@@ -367,8 +367,9 @@ Optional:
 
 ### Services
 
-You will need Docker Desktop with the Docker MCP extension installed for
-Docker MCP tools such as web search tools. Be sure to activate
+You will need the [Docker MCP toolkit](https://docs.docker.com/ai/mcp-catalog-and-toolkit/toolkit) 
+integrated in Docker Desktop version 4.42 or later to use Docker MCP tools such as the web search tools.
+If using an older version, you can add the MCP toolkit as a Docker extension. Be sure to activate
 the following tools from the catalog:
 
 - Brave Search
