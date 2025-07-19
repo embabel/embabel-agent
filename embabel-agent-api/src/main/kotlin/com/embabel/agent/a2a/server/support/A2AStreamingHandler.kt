@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import com.embabel.agent.a2a.spec.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile

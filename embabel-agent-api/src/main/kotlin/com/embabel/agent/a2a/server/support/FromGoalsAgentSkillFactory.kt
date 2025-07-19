@@ -16,8 +16,8 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.server.AgentSkillFactory
-import com.embabel.agent.a2a.spec.AgentSkill
 import com.embabel.agent.core.Goal
+import io.a2a.spec.AgentSkill
 
 /**
  * Expose a skill for every goal defined in the agent platform.
@@ -30,13 +30,13 @@ class FromGoalsAgentSkillFactory(
         return goals
             .map { goal ->
                 AgentSkill(
-                    id = "${namespace}_goal_${goal.name}",
-                    name = goal.name,
-                    description = goal.description,
-                    inputModes = listOf("application/json"),
-                    outputModes = listOf("application/json"),
-                    tags = goal.tags.toList(),
-                    examples = goal.examples.toList(),
+                    "${namespace}_goal_${goal.name}",
+                    goal.name,
+                    goal.description,
+                    goal.tags.toList(),
+                    goal.examples.toList(),
+                    listOf("application/json"),
+                    listOf("application/json"),
                 )
             }
     }

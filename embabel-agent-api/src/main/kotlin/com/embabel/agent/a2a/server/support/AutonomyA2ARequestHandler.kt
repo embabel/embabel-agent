@@ -18,16 +18,31 @@ package com.embabel.agent.a2a.server.support
 import com.embabel.agent.a2a.server.A2ARequestEvent
 import com.embabel.agent.a2a.server.A2ARequestHandler
 import com.embabel.agent.a2a.server.A2AResponseEvent
-import com.embabel.agent.a2a.spec.*
-import com.embabel.agent.a2a.spec.A2AErrorCodes.TASK_NOT_FOUND
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.event.AgenticEventListener
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.a2a.spec.Artifact
+import io.a2a.spec.DataPart
+import io.a2a.spec.EventKind
+import io.a2a.spec.JSONRPCRequest
+import io.a2a.spec.JSONRPCResponse
+import io.a2a.spec.Message
+import io.a2a.spec.MessageSendParams
+import io.a2a.spec.SendMessageRequest
+import io.a2a.spec.SendMessageResponse
+import io.a2a.spec.Task
+import io.a2a.spec.TaskIdParams
+import io.a2a.spec.TaskQueryParams
+import io.a2a.spec.TaskState
+import io.a2a.spec.TaskStatus
+import io.a2a.spec.TaskStatusUpdateEvent
+import io.a2a.spec.TextPart
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.time.LocalDateTime
 import java.util.*
 
 /**
@@ -46,7 +61,7 @@ class AutonomyA2ARequestHandler(
 
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
 
-    override fun handleJsonRpcStream(request: JSONRPCRequest): SseEmitter {
+    override fun handleJsonRpcStream(request: JSONRPCRequest<Any>): SseEmitter {
         return when (request.method) {
             "message/stream" -> handleMessageStream(request)
             else -> throw UnsupportedOperationException("Method ${request.method} is not supported for streaming")
@@ -54,8 +69,8 @@ class AutonomyA2ARequestHandler(
     }
 
     override fun handleJsonRpc(
-        request: JSONRPCRequest
-    ): JSONRPCResponse {
+        request: JSONRPCRequest<Any>
+    ): JSONRPCResponse<Any> {
         logger.info("Received JSONRPC message {}: {}", request.method, request)
         agenticEventListener.onPlatformEvent(
             A2ARequestEvent(
@@ -66,7 +81,7 @@ class AutonomyA2ARequestHandler(
         val result = when (request.method) {
             "message/send" -> {
                 val messageSendParams = objectMapper.convertValue(request.params, MessageSendParams::class.java)
-                handleMessageSend(request, messageSendParams)
+                handleMessageSend(request, messageSendParams) as JSONRPCResponse<Any>
             }
 
             "message/list" -> {
@@ -110,9 +125,9 @@ class AutonomyA2ARequestHandler(
     }
 
     private fun handleMessageSend(
-        request: JSONRPCRequest,
+        request: SendMessageRequest,
         params: MessageSendParams,
-    ): JSONRPCResponse {
+    ): SendMessageResponse {
         // TODO handle other message parts and handle errors
         val intent = params.message.parts.filterIsInstance<TextPart>().single().text
         logger.info("Handling message send request with intent: '{}'", intent)
@@ -121,20 +136,24 @@ class AutonomyA2ARequestHandler(
                 intent = intent,
                 processOptions = ProcessOptions(),
             )
-            val task = Task(
-                id = params.message.taskId ?: UUID.randomUUID().toString(),
-                contextId = params.message.contextId ?: ("ctx_" + UUID.randomUUID().toString()),
-                status = TaskStatus(
-                    state = TaskState.completed,
-                ),
-                history = listOf(params.message),
-                artifacts = listOf(
-                    Artifact(
-                        parts = listOf(DataPart(data = mapOf("output" to dynamicExecutionResult.output))),
+            val task = Task.Builder()
+                .id(params.message.taskId ?: UUID.randomUUID().toString())
+                .contextId(params.message.contextId ?: ("ctx_" + UUID.randomUUID().toString()))
+                .status(TaskStatus(TaskState.COMPLETED))
+                .history(listOfNotNull(params.message))
+                .artifacts(
+                    listOf(
+                        Artifact.Builder()
+                            .artifactId(UUID.randomUUID().toString())
+                            .parts(
+                                listOf(
+                                    DataPart(mapOf("output" to dynamicExecutionResult.output))
+                                )
+                            )
+                            .build()
                     )
-                ),
-                metadata = null,
-            )
+                )
+                .build()
 
             val jSONRPCResponse = request.successResponseWith(result = task)
             logger.info("Handled message send request, response={}", jSONRPCResponse)
@@ -153,27 +172,26 @@ class AutonomyA2ARequestHandler(
         }
     }
 
-    fun handleMessageStream(request: JSONRPCRequest): SseEmitter {
-        val params = objectMapper.convertValue(request.params, MessageStreamParams::class.java)
+    fun handleMessageStream(request: JSONRPCRequest<Any>): SseEmitter {
+        val params = objectMapper.convertValue(request.params, MessageSendParams::class.java)
         val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
         val emitter = streamingHandler.createStream(streamId)
 
         Thread.startVirtualThread {
             try {
                 // Send initial status event
-                val statusEvent = TaskStatusUpdateEvent(
-                    taskId = params.taskId,
-                    contextId = "ctx_${UUID.randomUUID()}",
-                    status = TaskStatus(
-                        state = TaskState.working,
-                        message = Message(
-                            role = "system",
-                            parts = listOf(TextPart("Task started...")),
-                            messageId = UUID.randomUUID().toString(),
-                            taskId = params.taskId
-                        )
-                    )
-                )
+                val message = Message.Builder()
+                    .messageId(UUID.randomUUID().toString())
+                    .role(Message.Role.AGENT) // TODO? before it was system
+                    .parts(listOf(TextPart("Task started...")))
+                    .contextId(params.message.contextId)
+                    .taskId(params.message.taskId)
+                    .build()
+                val statusEvent = TaskStatusUpdateEvent.Builder()
+                    .taskId(params.message.taskId)
+                    .contextId(params.message.contextId)
+                    .status(TaskStatus(TaskState.WORKING, message, LocalDateTime.now()))
+                    .build()
                 streamingHandler.sendStreamEvent(streamId, statusEvent)
 
                 // Send the received message, if any
@@ -182,7 +200,7 @@ class AutonomyA2ARequestHandler(
                 }
 
                 val intent = params.message?.parts?.filterIsInstance<TextPart>()?.firstOrNull()?.text
-                    ?: "Task ${params.taskId}"
+                    ?: "Task ${params.message.taskId}"
 
                 // Execute the task using autonomy service
                 val result = autonomy.chooseAndRunAgent(
@@ -257,18 +275,25 @@ class AutonomyA2ARequestHandler(
     }
 
     private fun handleTasksGet(
-        request: JSONRPCRequest,
+        request: JSONRPCRequest<Any>,
         params: TaskQueryParams,
-    ): JSONRPCResponse {
+    ): JSONRPCResponse<Any> {
         TODO()
     }
 
     private fun handleCancelTask(
-        request: JSONRPCRequest,
+        request: JSONRPCRequest<Any>,
         tip: TaskIdParams,
-    ): JSONRPCResponse {
+    ): JSONRPCResponse<Any> {
         TODO()
     }
 
 
+}
+
+fun SendMessageRequest.successResponseWith(result: EventKind): SendMessageResponse {
+    return SendMessageResponse(
+        this.id,
+        result,
+    )
 }
