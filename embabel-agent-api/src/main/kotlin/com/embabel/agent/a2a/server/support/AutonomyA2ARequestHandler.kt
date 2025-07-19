@@ -25,6 +25,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.a2a.spec.Artifact
 import io.a2a.spec.DataPart
 import io.a2a.spec.EventKind
+import io.a2a.spec.JSONRPCError
+import io.a2a.spec.JSONRPCErrorResponse
 import io.a2a.spec.JSONRPCRequest
 import io.a2a.spec.JSONRPCResponse
 import io.a2a.spec.Message
@@ -33,6 +35,7 @@ import io.a2a.spec.SendMessageRequest
 import io.a2a.spec.SendMessageResponse
 import io.a2a.spec.Task
 import io.a2a.spec.TaskIdParams
+import io.a2a.spec.TaskNotFoundError
 import io.a2a.spec.TaskQueryParams
 import io.a2a.spec.TaskState
 import io.a2a.spec.TaskStatus
@@ -127,7 +130,7 @@ class AutonomyA2ARequestHandler(
     private fun handleMessageSend(
         request: SendMessageRequest,
         params: MessageSendParams,
-    ): SendMessageResponse {
+    ): JSONRPCResponse<out Any> {
         // TODO handle other message parts and handle errors
         val intent = params.message.parts.filterIsInstance<TextPart>().single().text
         logger.info("Handling message send request with intent: '{}'", intent)
@@ -162,11 +165,11 @@ class AutonomyA2ARequestHandler(
             logger.error("Error handling message send request", e)
             // TODO other kinds of errors
             return JSONRPCErrorResponse(
-                id = params.message.taskId ?: UUID.randomUUID().toString(),
-                error = JSONRPCError(
-                    code = TASK_NOT_FOUND,
-                    message = "Internal error: ${e.message}",
-                    data = e.stackTraceToString()
+                params.message.taskId ?: UUID.randomUUID().toString(),
+                TaskNotFoundError(
+                    null,
+                   "Internal error: ${e.message}",
+                    e.stackTraceToString()
                 )
             )
         }
