@@ -16,10 +16,10 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.server.AgentCardHandler
-import com.embabel.agent.a2a.spec.AgentCard
-import com.embabel.agent.a2a.spec.JSONRPCError
-import com.embabel.agent.a2a.spec.JSONRPCErrorResponse
-import com.embabel.agent.a2a.spec.JSONRPCRequest
+import io.a2a.spec.AgentCard
+import io.a2a.spec.JSONRPCError
+import io.a2a.spec.JSONRPCErrorResponse
+import io.a2a.spec.JSONRPCRequest
 import jakarta.servlet.ServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -110,7 +110,7 @@ private class AgentCardHandlerWebFacade(
     }
 
     @ResponseBody
-    fun handleJsonRpc(@RequestBody request: JSONRPCRequest): Any {
+    fun handleJsonRpc(@RequestBody request: JSONRPCRequest<Any>): Any {
         return try {
             // Check if this is a streaming request and handler supports streaming
             if (request.method == "message/stream") {
@@ -128,10 +128,11 @@ private class AgentCardHandlerWebFacade(
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(
                     JSONRPCErrorResponse(
-                        id = request.id,
-                        error = JSONRPCError(
-                            code = 500,
-                            message = "Internal server error: ${e.message}"
+                        request.id,
+                        JSONRPCError(
+                            500,
+                            "Internal server error: ${e.message}",
+                            null
                         )
                     )
                 )
