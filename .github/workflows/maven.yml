@@ -1,5 +1,9 @@
 # This workflow will build a Java / Kotlin project with Maven, and cache/restore any dependencies to improve the workflow execution time
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
 name: Build
 on:
   push:
@@ -21,11 +25,16 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Configure Testcontainers
-        if: matrix.os != 'windows-latest'
+      - name: Configure Testcontainers (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           mkdir -p /home/runner
           echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
+      - name: Configure Testcontainers (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p $HOME
+          echo "testcontainers.reuse.enable=true" > $HOME/.testcontainers.properties
       - name: Configure Testcontainers (Windows)
         if: matrix.os == 'windows-latest'
         run: |
