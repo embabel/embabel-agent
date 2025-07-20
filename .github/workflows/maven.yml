@@ -38,7 +38,6 @@ jobs:
       - name: Configure Testcontainers (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          mkdir -p $env:USERPROFILE
           echo "testcontainers.reuse.enable=true" > $env:USERPROFILE\.testcontainers.properties
       - name: Build and analyze
         env:
