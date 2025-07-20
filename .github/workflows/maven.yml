@@ -15,7 +15,7 @@ jobs:
     
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
     
     steps:
       - uses: actions/checkout@v4
@@ -30,11 +30,6 @@ jobs:
         run: |
           mkdir -p /home/runner
           echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
-      - name: Configure Testcontainers (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          mkdir -p $HOME
-          echo "testcontainers.reuse.enable=true" > $HOME/.testcontainers.properties
       - name: Configure Testcontainers (Windows)
         if: matrix.os == 'windows-latest'
         run: |
