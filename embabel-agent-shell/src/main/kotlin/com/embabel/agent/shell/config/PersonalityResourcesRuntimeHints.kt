@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config
+package com.embabel.agent.shell.config
 
 import org.springframework.aot.hint.RuntimeHints
 import org.springframework.aot.hint.RuntimeHintsRegistrar
 
 class PersonalityResourcesRuntimeHints : RuntimeHintsRegistrar {
     override fun registerHints(hints: RuntimeHints, classLoader: ClassLoader?) {
-        // Register all *.txt files in logging/
-        hints.resources().registerPattern("logging/.*\\.txt")
+        hints.resources().apply {
+            hints.resources().registerPattern("logging/*.txt")
+        }
     }
 }

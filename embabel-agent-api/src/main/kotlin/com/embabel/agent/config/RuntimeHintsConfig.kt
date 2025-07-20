@@ -21,7 +21,6 @@ import org.springframework.context.annotation.ImportRuntimeHints
 
 @ImportRuntimeHints(
     UtilRuntimeHints::class,
-    PersonalityResourcesRuntimeHints::class,
     ToolRuntimeHints::class
 )
 @Configuration(proxyBeanMethods = false)
