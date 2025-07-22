@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models
 
+import com.embabel.agent.config.AgentPlatformConfiguration
 import com.embabel.common.ai.model.*
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
@@ -37,6 +38,7 @@ import org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbe
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.boot.autoconfigure.AutoConfigureBefore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -76,6 +78,7 @@ data class BedrockModelProperties(
     BedrockCohereEmbeddingProperties::class,
     BedrockTitanEmbeddingProperties::class
 )
+@AutoConfigureBefore(AgentPlatformConfiguration::class)
 class BedrockModels(
 
     private val bedrockProperties: BedrockProperties,
@@ -96,7 +99,7 @@ class BedrockModels(
 
     @PostConstruct
     fun registerModels() {
-        if (!environment.activeProfiles.contains(BEDROCK_PROFILE)) {
+        if (!environment.activeProfiles.joinToString(",").contains(BEDROCK_PROFILE)) { // note that ["shell, bedrock"].contains"bedrock" is false
             logger.info("Bedrock models will not be queried as the '{}' profile is not active", BEDROCK_PROFILE)
             return
         }

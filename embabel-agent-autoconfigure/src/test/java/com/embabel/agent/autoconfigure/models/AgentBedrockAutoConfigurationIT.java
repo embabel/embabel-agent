@@ -15,8 +15,6 @@
  */
 package com.embabel.agent.autoconfigure.models;
 
-import com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration;
-import com.embabel.agent.config.annotation.EnableAgentBedrock;
 import com.embabel.common.ai.model.Llm;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -26,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Arrays;
 import java.util.List;
@@ -33,19 +32,19 @@ import java.util.List;
 import static com.embabel.agent.config.models.BedrockModels.*;
 
 @SpringBootTest(
-        classes = AgentPlatformAutoConfiguration.class,
+        classes = AgentBedrockAutoConfigurationIT.class,
         properties = {
                 "embabel.models.default-llm=" + EU_ANTHROPIC_CLAUDE_SONNET_4,
                 "embabel.models.llms.cheapest=" + EU_ANTHROPIC_CLAUDE_SONNET_4,
                 "embabel.models.llms.best=" + EU_ANTHROPIC_CLAUDE_OPUS_4,
                 "spring.ai.bedrock.aws.region=eu-west-3",
                 "spring.ai.bedrock.aws.access-key=AWSACCESSKEYID",
-                "spring.ai.bedrock.aws.secret-key=AWSSECRETACCESSKEY",
+                "spring.ai.bedrock.aws.secret-key=AWSSECRETACCESSKEY"
         })
-@EnableAgentBedrock // idk if this should work with test class
-//@ActiveProfiles(profiles = {"bedrock"}) // "bedrock" profile is detected, the imported Configuration BedrockModels is defined but created after modelProvider bean, which fails immediately
+//@EnableAgentBedrock // this delegates to AgentPlatfotmAutoConfiguration, which blocks from proper using of moodelProvider
+@ActiveProfiles("bedrock") // workaround
 @ComponentScan(basePackages = "com.embabel.agent.autoconfigure")
-@ImportAutoConfiguration(classes = {AgentBedrockAutoconfiguration.class, AgentPlatformAutoConfiguration.class})
+@ImportAutoConfiguration(classes = {AgentBedrockAutoConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class AgentBedrockAutoConfigurationIT {
 

@@ -1,2 +1,2 @@
 com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration
-com.embabel.agent.autoconfigure.models.AgentBedrockAutoconfiguration
+com.embabel.agent.autoconfigure.models.AgentBedrockAutoConfiguration
