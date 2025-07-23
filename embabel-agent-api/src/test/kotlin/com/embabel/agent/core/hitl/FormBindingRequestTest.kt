@@ -15,9 +15,15 @@
  */
 package com.embabel.agent.core.hitl
 
+import com.embabel.agent.api.dsl.evenMoreEvilWizard
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyAgentProcessRunning
 import com.embabel.ux.form.*
-import io.mockk.*
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkConstructor
+import io.mockk.unmockkAll
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.assertTrue
 import java.util.*
@@ -65,7 +71,7 @@ class FormBindingRequestTest {
     }
 
     @Nested
-    inner class `Constructor` {
+    inner class Constructor {
         @Test
         fun `should create FormBindingRequest with correct properties`() {
             val request = FormBindingRequest(form, TestData::class.java)
@@ -84,10 +90,11 @@ class FormBindingRequestTest {
     }
 
     @Nested
-    inner class `onResponse method` {
+    inner class OnResponse {
+
         @Test
         fun `should process form submission and add bound instance to blackboard`() {
-            // Arrange
+            val agentProcess = dummyAgentProcessRunning(evenMoreEvilWizard())
             val request = FormBindingRequest(form, TestData::class.java)
             val formSubmission = FormSubmission(
                 formId = form.id,
@@ -114,17 +121,15 @@ class FormBindingRequestTest {
             val testData = TestData("John Doe", "john@example.com")
             every { anyConstructed<FormBinder<TestData>>().bind(submissionResult) } returns testData
 
-            // Act
-            val result = request.onResponse(response, processContext)
+            val result = request.onResponse(response, agentProcess)
 
-            // Assert
-            verify { processContext.blackboard += testData }
+            assertEquals(testData, agentProcess.lastResult())
             assertEquals(ResponseImpact.UPDATED, result)
         }
 
         @Test
         fun `should throw IllegalStateException when form submission is not valid`() {
-            // Arrange
+            val agentProcess = mockk<AgentProcess>()
             val request = FormBindingRequest(form, TestData::class.java)
             val formSubmission = FormSubmission(
                 formId = form.id,
@@ -149,9 +154,8 @@ class FormBindingRequestTest {
                 )
             } returns submissionResult
 
-            // Act & Assert
             val exception = assertThrows<IllegalStateException> {
-                request.onResponse(response, processContext)
+                request.onResponse(response, agentProcess)
             }
 
             assertTrue(exception.message!!.contains("Form submission is not valid"))
@@ -159,7 +163,7 @@ class FormBindingRequestTest {
     }
 
     @Nested
-    inner class `FormResponse class` {
+    inner class FormResponseClass {
         @Test
         fun `should create FormResponse with correct properties`() {
             // Arrange

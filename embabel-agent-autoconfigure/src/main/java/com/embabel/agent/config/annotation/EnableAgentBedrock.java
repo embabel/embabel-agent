@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.config.annotation;
 
+import com.embabel.agent.config.models.BedrockModels;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -90,6 +92,6 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@AgentPlatform("shell, bedrock")
+@AgentPlatform({StartupMode.SHELL, BedrockModels.BEDROCK_PROFILE})
 public @interface EnableAgentBedrock {
 }

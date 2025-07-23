@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.tools.file
 
-import com.embabel.common.util.StringTransformer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -38,10 +37,10 @@ class FileReadToolsTest {
     @BeforeEach
     fun setUp() {
         rootPath = tempDir.toString()
-        fileReadTools = object : FileReadTools {
-            override val root: String = rootPath
-            override val fileContentTransformers: List<StringTransformer> = emptyList()
-        }
+        fileReadTools = FileTools.readOnly(
+            rootPath,
+            emptyList()
+        )
     }
 
     @Nested
@@ -189,7 +188,7 @@ class FileReadToolsTest {
     }
 
     @Nested
-    inner class `listFiles` {
+    inner class ListFiles {
 
         @BeforeEach
         fun setupDirectoryStructure() {
@@ -262,7 +261,7 @@ class FileReadToolsTest {
     }
 
     @Nested
-    inner class `resolveAndValidateFile` {
+    inner class ResolveAndValidateFile {
 
         @BeforeEach
         fun setupFile() {
@@ -287,8 +286,101 @@ class FileReadToolsTest {
         @Test
         fun `should return path when file exists`() {
             val result = fileReadTools.resolveAndValidateFile("file.txt")
-
             assertEquals(tempDir.resolve("file.txt"), result)
+        }
+    }
+
+    @Nested
+    inner class FileReadLog {
+
+        private val testContent = "test content"
+        private lateinit var testFile: Path
+
+        @BeforeEach
+        fun setupFile() {
+            fileReadTools.flushReads()
+            testFile = tempDir.resolve("test.txt")
+            Files.writeString(testFile, testContent)
+        }
+
+        @Test
+        fun `should read file content`() {
+            assertTrue(fileReadTools.getReads().isEmpty(), "Reads should be empty")
+            val result = fileReadTools.readFile("test.txt")
+            assertEquals(1, fileReadTools.getReads().size, "Should have recorded read")
+            assertEquals("test.txt", fileReadTools.getReads()[0].path)
+            assertEquals("test.txt", fileReadTools.getPathsRead().single())
+            assertEquals(testContent, result)
+        }
+
+        @Test
+        fun `should count reads`() {
+            assertTrue(fileReadTools.getReads().isEmpty(), "Reads should be empty")
+            val result = fileReadTools.readFile("test.txt")
+            assertEquals(1, fileReadTools.getReads().size, "Should have recorded read")
+            fileReadTools.readFile("test.txt")
+            assertEquals(1, fileReadTools.getReads().size, "Should still have one read")
+
+            val read = fileReadTools.getReads().single()
+            assertEquals("test.txt", read.path)
+            assertEquals(2, read.count())
+        }
+
+        @Test
+        fun `should throw exception when file does not exist`() {
+            assertThrows<IllegalArgumentException> {
+                fileReadTools.readFile("nonexistent.txt")
+            }
+            assertTrue(fileReadTools.getReads().isEmpty(), "Reading a non-existent file should not count")
+
+        }
+
+        @Test
+        fun `should throw exception when path is a directory`() {
+            Files.createDirectory(tempDir.resolve("testdir"))
+            assertThrows<IllegalArgumentException> {
+                fileReadTools.readFile("testdir")
+            }
+            assertTrue(fileReadTools.getReads().isEmpty(), "Writing a directory should not count")
+        }
+    }
+
+    @Nested
+    inner class AccessLog {
+
+        private val testContent = "test content"
+        private lateinit var testFile: Path
+
+        @BeforeEach
+        fun setupFile() {
+            fileReadTools.flushReads()
+            testFile = tempDir.resolve("test.txt")
+            Files.writeString(testFile, testContent)
+        }
+
+        @Test
+        fun `should read file content`() {
+            assertTrue(fileReadTools.getPathsAccessed().isEmpty(), "Reads should be empty")
+            val result = fileReadTools.readFile("test.txt")
+            assertEquals(1, fileReadTools.getPathsAccessed().size, "Should have recorded read")
+        }
+
+        @Test
+        fun `should throw exception when file does not exist`() {
+            assertThrows<IllegalArgumentException> {
+                fileReadTools.readFile("nonexistent.txt")
+            }
+            assertTrue(fileReadTools.getPathsAccessed().isEmpty(), "Reading a non-existent file should not count")
+
+        }
+
+        @Test
+        fun `should throw exception when path is a directory`() {
+            Files.createDirectory(tempDir.resolve("testdir"))
+            assertThrows<IllegalArgumentException> {
+                fileReadTools.readFile("testdir")
+            }
+            assertTrue(fileReadTools.getPathsAccessed().isEmpty(), "Writing a directory should not count")
         }
     }
 }

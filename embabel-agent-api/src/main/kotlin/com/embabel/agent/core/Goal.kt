@@ -24,7 +24,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 /**
  * Agent platform goal. Exposes GOAP metadata.
  * @param name name of the goal
- * @param description description of the goal. This should be sufficiently detailed to enable goal choice by an LLM
+ * @param description description of the goal. This should be sufficiently detailed to enable goal choice by an LLM.
+ * The goal description may also be exposed to MCP clients as a hint for the goal's purpose,
+ * so ensure that it is clear and unambiguous.
  * @param pre preconditions for the goal, as a set of strings. These are the conditions that must be true before the goal can be achieved.
  * @param inputs inputs required for the goal, as a set of IoBinding objects. These are the inputs that must be provided to achieve the goal.
  * @param value value of the goal, as a ZeroToOne. This is the value of achieving the goal.
@@ -33,6 +35,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore
  * @param examples The set of example scenarios that the skill can perform.
  * Will be used by the client as a hint to understand how the skill can be used.
  *  example: ["I need a recipe for bread"]
+ *  @param startingInputTypes input types that we can prompt the user from to get to this goal.
+ *  Useful for MCP prompts. A Goal may not know all possible input types, but
+ *  it is still useful to be able to specify some of them.
  */
 data class Goal(
     override val name: String,
@@ -42,6 +47,7 @@ data class Goal(
     override val value: ZeroToOne = 0.0,
     val tags: Set<String> = emptySet(),
     val examples: Set<String> = emptySet(),
+    val startingInputTypes: Set<Class<*>> = emptySet(),
 ) : GoapGoal, AgentSystemStep {
 
     // These methods are for Java, to obviate the builder antipattern

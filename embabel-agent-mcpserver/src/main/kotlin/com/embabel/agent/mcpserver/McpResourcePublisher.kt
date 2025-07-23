@@ -13,41 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.rag
+package com.embabel.agent.mcpserver
 
 import com.embabel.common.core.types.HasInfoString
+import io.modelcontextprotocol.server.McpServerFeatures
 
-typealias Embedding = FloatArray
+interface McpResourcePublisher : HasInfoString {
 
-/**
- * Embedded object instance.
- */
-interface Embedded {
-
-    val embedding: Embedding?
-
-}
-
-
-/**
- * A Retrievable object instance is a chunk or an entity
- * It has a stable id.
- */
-interface Retrievable : HasInfoString {
-
-    val id: String
-
-    val metadata: Map<String, Any?>
-
-    /**
-     * Embedding value of this retrievable object.
-     */
-    fun embeddableValue(): String
-
-    /**
-     * Neighbors of this retrievable object.
-     * Allows navigation of a graph
-     */
-    val neighbors: Map<String, Collection<Retrievable>> get() = mapOf()
+    fun resources(): List<McpServerFeatures.SyncResourceSpecification>
 
 }

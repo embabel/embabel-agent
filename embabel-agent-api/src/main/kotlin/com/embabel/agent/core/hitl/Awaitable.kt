@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.core.hitl
 
-import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.AgentProcess
 import com.embabel.common.core.StableIdentified
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Timestamped
@@ -35,7 +35,7 @@ interface Awaitable<P : Any, R : AwaitableResponse> : StableIdentified, Timestam
      */
     fun onResponse(
         response: R,
-        processContext: ProcessContext,
+        agentProcess: AgentProcess,
     ): ResponseImpact
 
     override fun infoString(verbose: Boolean?): String {

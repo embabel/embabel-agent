@@ -54,5 +54,31 @@ fun evenMoreEvilWizard() = agent("EvenMoreEvilWizard", description = "Turn a per
         )
     }
 
-    goal(name = "done", description = "done", satisfiedBy = SnakeMeal::class)
+    goal(
+        name = "done",
+        description = "done",
+        satisfiedBy = SnakeMeal::class,
+    )
 }
+
+fun evenMoreEvilWizardWithStructuredInput() =
+    agent("EvenMoreEvilWizardWithStructuredInput", description = "Turn a person into a frog") {
+
+        transformation<UserInput, MagicVictim>(name = "thing") {
+            MagicVictim(name = "Hamish")
+        }
+
+        flow {
+            aggregate<MagicVictim, Frog, SnakeMeal>(
+                transforms = listOf({ Frog(it.input.name) }, { Frog("2") }, { Frog("3") }),
+                merge = { frogs, _ -> SnakeMeal(frogs) },
+            )
+        }
+
+        goal(
+            name = "done",
+            description = "done",
+            satisfiedBy = SnakeMeal::class,
+            startingInputTypes = setOf(MagicVictim::class),
+        )
+    }

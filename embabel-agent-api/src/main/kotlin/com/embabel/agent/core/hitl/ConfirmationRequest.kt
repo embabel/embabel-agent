@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.core.hitl
 
-import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.AgentProcess
 import com.embabel.common.util.loggerFor
 import java.time.Instant
 import java.util.*
@@ -35,7 +35,7 @@ class ConfirmationRequest<P : Any>(
 
     override fun onResponse(
         response: ConfirmationResponse,
-        processContext: ProcessContext,
+        agentProcess: AgentProcess,
     ): ResponseImpact {
 
         return if (response.accepted) {
@@ -43,7 +43,7 @@ class ConfirmationRequest<P : Any>(
                 "Accepted confirmation request. Promoting payload to blackboard: {}",
                 payload,
             )
-            processContext.blackboard += payload
+            agentProcess += payload
             ResponseImpact.UPDATED
         } else {
             loggerFor<ConfirmationRequest<*>>().info("Rejected confirmation request: {}", payload)

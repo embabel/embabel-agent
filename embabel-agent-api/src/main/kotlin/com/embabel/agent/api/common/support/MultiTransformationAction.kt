@@ -137,6 +137,10 @@ class MultiTransformationAction<O : Any>(
             fields
         }
     }
+
+    override fun toString(): String {
+        return "${javaClass.simpleName}: name=$name"
+    }
 }
 
 private fun calculateOutputs(outputVarName: String?, outputClass: Class<*>): Set<IoBinding> {

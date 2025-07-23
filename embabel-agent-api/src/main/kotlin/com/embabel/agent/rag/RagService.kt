@@ -77,6 +77,17 @@ interface NavigableRagService : RagService {
     fun explore(retrievable: Retrievable, explorationRequest: ExplorationRequest): Retrievable
 }
 
+
+/**
+ * RagService comparable to a Spring Data repository.
+ */
+interface RepositoryRagService : RagService {
+
+    fun findById(id: String, label: String, explorationRequest: ExplorationRequest): EntityData?
+
+    fun save(entityData: EntityData): EntityData
+}
+
 private data class EmptyRagService(
     override val name: String,
     override val description: String,

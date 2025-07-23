@@ -367,9 +367,8 @@ Optional:
 
 ### Services
 
-You will need Docker Desktop with the Docker MCP extension installed for
-Docker MCP tools such as web search tools. Be sure to activate
-the following tools from the catalog:
+You will need a Docker Desktop version [`>4.43.2`](https://docs.docker.com/desktop/release-notes/).
+Be sure to activate the following MCP tools from the catalog:
 
 - Brave Search
 - Fetch
@@ -541,7 +540,7 @@ with the Spring AI `@Tool` annotation.
 You can use the Embabel agent platform as an MCP server from a
 UI like Claude Desktop. The Embabel MCP server is available over SSE.
 
-Configure it as follows in your `claude-desktop.yml`:
+Configure Claude Desktop as follows in your `claude_desktop_config.yml`:
 
 ```json
 {
@@ -557,10 +556,20 @@ Configure it as follows in your `claude-desktop.yml`:
   }
 }
 
-
 ```
 
-*Note:* This feature is presently immature.
+See [MCP Quickstart for Claude Desktop Users](https://modelcontextprotocol.io/quickstart/user) for how to configure
+Claude Desktop.
+
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a helpful tool for interacting with your
+Embabel
+SSE server, manually invoking tools and checking the exposed prompts and resources.
+
+Start the MCP Inspector with:
+
+```bash
+npx @modelcontextprotocol/inspector
+```
 
 ## Consuming MCP Servers
 

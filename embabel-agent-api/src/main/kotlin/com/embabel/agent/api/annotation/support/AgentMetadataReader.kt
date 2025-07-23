@@ -365,10 +365,7 @@ class AgentMetadataReader(
         instance: Any,
     ): AgentCoreGoal? {
         val actionAnnotation = method.getAnnotation(Action::class.java)
-        val goalAnnotation = method.getAnnotation(AchievesGoal::class.java)
-        if (goalAnnotation == null) {
-            return null
-        }
+        val goalAnnotation = method.getAnnotation(AchievesGoal::class.java) ?: return null
         val inputBinding = IoBinding(
             name = actionAnnotation.outputBinding,
             type = method.returnType.name,
@@ -380,6 +377,7 @@ class AgentMetadataReader(
             value = goalAnnotation.value,
             // Add precondition of the action having run
             pre = setOf(Rerun.hasRunCondition(action)) + action.preconditions.keys.toSet(),
+            startingInputTypes = goalAnnotation.startingInputTypes.map { it.java }.toSet(),
         )
     }
 }

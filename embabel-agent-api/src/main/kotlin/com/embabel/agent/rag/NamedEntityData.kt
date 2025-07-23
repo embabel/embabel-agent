@@ -15,39 +15,23 @@
  */
 package com.embabel.agent.rag
 
-import com.embabel.common.core.types.HasInfoString
-
-typealias Embedding = FloatArray
+import com.embabel.common.core.types.Named
 
 /**
- * Embedded object instance.
+ * Adds a name to the well known entity data.
  */
-interface Embedded {
+interface NamedEntityData : EntityData, Named
 
-    val embedding: Embedding?
+data class SimpleNamedEntityData(
+    override val id: String,
+    override val name: String,
+    override val description: String,
+    override val labels: Set<String>,
+    override val properties: Map<String, Any>,
+    override val metadata: Map<String, Any?> = emptyMap(),
+) : NamedEntityData {
 
-}
-
-
-/**
- * A Retrievable object instance is a chunk or an entity
- * It has a stable id.
- */
-interface Retrievable : HasInfoString {
-
-    val id: String
-
-    val metadata: Map<String, Any?>
-
-    /**
-     * Embedding value of this retrievable object.
-     */
-    fun embeddableValue(): String
-
-    /**
-     * Neighbors of this retrievable object.
-     * Allows navigation of a graph
-     */
-    val neighbors: Map<String, Collection<Retrievable>> get() = mapOf()
-
+    override fun embeddableValue(): String {
+        return "$name: $description"
+    }
 }

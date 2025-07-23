@@ -1,7 +1,27 @@
 [[overview.agent-framework]]
 === Why do we need an Agent Framework?
 
+Aren’t LLMs smart enough to solve our problems directly?
+Aren’t MCP tools all we need to allow them to solve complex problems?
+
+But there are many reasons that a higher level orchestration technology is needed, especially for business applications.
+Here are some of the most important:
+
+- *Explainability*: Why were choices made in solving a problem?
+- *Discoverability*: How do we find the right tools at each point, and ensure that models aren’t confused in choosing between them?
+- *Ability to mix models*, so that we are not reliant on God models but can use local, cheaper, private models for many tasks
+- *Ability to inject guardrails* at any point in a flow
+- *Ability to manage flow execution* and introduce greater resilience
+- *Composability of flows at scale*.
+We’ll soon be seeing not just agents running on one system, but federations of agents.
+- *Safer integration with sensitive existing systems* such as databases, where it is dangerous to allow even the best LLM write access.
+
 Agent frameworks break complex tasks into smaller, manageable components, offering greater control and predictability.
 
 Agent frameworks offer "code agency" as well as "LLM agency." This division is well described in this
 https://research.nvidia.com/labs/lpr/slm-agents/[paper from NVIDIA Research].
+
+Further reading:
+
+- [Embabel: A new Agent Platform For the JVM](https://medium.com/@springrod/embabel-a-new-agent-platform-for-the-jvm-1c83402e0014)
+- [The Embabel Vision](https://medium.com/@springrod/the-embabel-vision-967654f13793)

@@ -70,7 +70,7 @@ class FileWriteToolsTest {
             assertEquals(1, fileWriteTools.getChanges().size, "Should track one change")
             val change = fileWriteTools.getChanges().first()
             assertEquals(
-                FileWriteTools.FileModificationType.CREATE, change.type,
+                FileModificationType.CREATE, change.type,
                 "Change type should be CREATE"
             )
             assertEquals(
@@ -172,7 +172,7 @@ class FileWriteToolsTest {
             assertEquals(1, fileWriteTools.getChanges().size, "Should track one change")
             val change = fileWriteTools.getChanges().first()
             assertEquals(
-                FileWriteTools.FileModificationType.EDIT, change.type,
+                FileModificationType.EDIT, change.type,
                 "Change type should be EDIT"
             )
             assertEquals(
@@ -218,7 +218,7 @@ class FileWriteToolsTest {
             assertEquals(1, fileWriteTools.getChanges().size, "Should track one change")
             val change = fileWriteTools.getChanges().first()
             assertEquals(
-                FileWriteTools.FileModificationType.CREATE_DIRECTORY, change.type,
+                FileModificationType.CREATE_DIRECTORY, change.type,
                 "Change type should be CREATE_DIRECTORY"
             )
             assertEquals(
@@ -295,7 +295,7 @@ class FileWriteToolsTest {
             assertEquals(1, fileWriteTools.getChanges().size, "Should track one change")
             val change = fileWriteTools.getChanges().first()
             assertEquals(
-                FileWriteTools.FileModificationType.APPEND, change.type,
+                FileModificationType.APPEND, change.type,
                 "Change type should be APPEND"
             )
             assertEquals(
@@ -373,7 +373,7 @@ class FileWriteToolsTest {
             assertEquals(1, fileWriteTools.getChanges().size, "Should track one change")
             val change = fileWriteTools.getChanges().first()
             assertEquals(
-                FileWriteTools.FileModificationType.DELETE, change.type,
+                FileModificationType.DELETE, change.type,
                 "Change type should be DELETE"
             )
             assertEquals(
@@ -526,15 +526,15 @@ class FileWriteToolsTest {
         fun `should not duplicate add`() {
             val ft = FileTools.readWrite(rootPath)
             ft.recordChange(
-                FileWriteTools.FileModification(
-                    type = FileWriteTools.FileModificationType.CREATE,
+                FileModification(
+                    type = FileModificationType.CREATE,
                     path = "test.txt",
                 )
             )
             assertEquals(1, ft.getChanges().size, "Should have one change after first add")
             ft.recordChange(
-                FileWriteTools.FileModification(
-                    type = FileWriteTools.FileModificationType.CREATE,
+                FileModification(
+                    type = FileModificationType.CREATE,
                     path = "test.txt",
                 )
             )
@@ -545,19 +545,52 @@ class FileWriteToolsTest {
         fun `should not duplicate add and modify`() {
             val ft = FileTools.readWrite(rootPath)
             ft.recordChange(
-                FileWriteTools.FileModification(
-                    type = FileWriteTools.FileModificationType.CREATE,
+                FileModification(
+                    type = FileModificationType.CREATE,
                     path = "test.txt",
                 )
             )
             assertEquals(1, ft.getChanges().size, "Should have one change after first add")
             ft.recordChange(
-                FileWriteTools.FileModification(
-                    type = FileWriteTools.FileModificationType.EDIT,
+                FileModification(
+                    type = FileModificationType.EDIT,
                     path = "test.txt",
                 )
             )
             assertEquals(1, ft.getChanges().size, "Should still have one change after add and modify")
+        }
+
+    }
+
+    @Nested
+    inner class AccessLog {
+
+        @Test
+        fun `log write`() {
+            val ft = FileTools.readWrite(rootPath)
+            assertEquals(0, ft.getPathsAccessed().size, "Should have 0 access before doing anything")
+            ft.createFile("thing", "content")
+            assertEquals(1, ft.getPathsAccessed().size, "Should have 1 access")
+            ft.createFile("thing2", "content")
+            assertEquals(2, ft.getPathsAccessed().size, "Should have 2 accesses")
+        }
+
+        @Test
+        fun `log duplicates only once`() {
+            val ft = FileTools.readWrite(rootPath)
+            ft.createFile("thing", "content")
+            ft.readFile("thing")
+            ft.readFile("thing")
+            ft.readFile("thing")
+            assertEquals(1, ft.getPathsAccessed().size, "Should have 1 access after read")
+        }
+
+        @Test
+        fun `log duplicate read and write only once`() {
+            val ft = FileTools.readWrite(rootPath)
+            ft.createFile("thing", "content")
+            ft.readFile("thing")
+            assertEquals(1, ft.getPathsAccessed().size, "Should have 1 access after duplicate read")
         }
 
     }

@@ -15,11 +15,16 @@
  */
 package com.embabel.chat.agent.shell
 
-import com.embabel.agent.api.common.autonomy.*
+import com.embabel.agent.api.common.autonomy.AgentProcessExecution
+import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
+import com.embabel.agent.api.common.autonomy.ProcessWaitingException
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.shell.TerminalServices
 import com.embabel.agent.shell.config.ShellProperties
-import com.embabel.chat.*
+import com.embabel.chat.AgenticResultAssistantMessage
+import com.embabel.chat.AssistantMessage
+import com.embabel.chat.MessageListener
 import com.embabel.chat.agent.AgentPlatformChatSession
 
 /**
@@ -45,7 +50,7 @@ class LastMessageIntentAgentPlatformChatSession(
         }
         pwe.awaitable.onResponse(
             response = awaitableResponse,
-            processContext = pwe.agentProcess!!.processContext
+            agentProcess = pwe.agentProcess!!,
         )
         try {
             val agentProcess = pwe.agentProcess!!

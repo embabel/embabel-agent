@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.core.hitl
 
-import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.AgentProcess
 import com.embabel.common.util.loggerFor
 import com.embabel.ux.form.DefaultFormProcessor
 import com.embabel.ux.form.Form
@@ -27,6 +27,7 @@ import java.util.*
 /**
  * Present the user with a form
  * and bind it to the given class
+ * @param O the class to bind the form submission to
  */
 class FormBindingRequest<O : Any>(
     form: Form,
@@ -37,9 +38,11 @@ class FormBindingRequest<O : Any>(
     persistent = persistent,
 ) {
 
+    private val logger = loggerFor<FormBindingRequest<O>>()
+
     override fun onResponse(
         response: FormResponse,
-        processContext: ProcessContext,
+        agentProcess: AgentProcess,
     ): ResponseImpact {
         val formSubmissionResult = DefaultFormProcessor().processSubmission(payload, response.formSubmission)
         if (!formSubmissionResult.valid) {
@@ -47,9 +50,12 @@ class FormBindingRequest<O : Any>(
         }
         val formBinder = FormBinder(outputClass)
         val boundInstance = formBinder.bind(formSubmissionResult)
-        loggerFor<FormBindingRequest<*>>()
-            .info("Bound form submission to {}", boundInstance)
-        processContext.blackboard += boundInstance
+        return bind(boundInstance, agentProcess)
+    }
+
+    fun bind(boundInstance: O, agentProcess: AgentProcess): ResponseImpact {
+        logger.info("Bound form submission to {}", boundInstance)
+        agentProcess += boundInstance
         return ResponseImpact.UPDATED
     }
 

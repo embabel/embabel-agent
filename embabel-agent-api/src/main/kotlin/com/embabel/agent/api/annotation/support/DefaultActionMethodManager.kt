@@ -133,10 +133,9 @@ internal class DefaultActionMethodManager(
                     if (lastArg == null) {
                         val kParam = kFunction?.parameters?.firstOrNull { kfp -> kfp.name == parameter.name }
                         val isNullable =
-                            kParam?.isOptional ?: kParam?.type?.isMarkedNullable
-                            ?: false
-                        if (isNullable) {
-                            error("Action ${actionContext.action.name}: No value found in blackboard for parameter ${parameter.name}:${parameter.type.name}")
+                            (kParam?.isOptional == true) || (kParam?.type?.isMarkedNullable == true)
+                        if (!isNullable) {
+                            error("Action ${actionContext.action.name}: Internal error. No value found in blackboard for non-nullable parameter ${parameter.name}:${parameter.type.name}")
                         }
                     }
                     args += lastArg

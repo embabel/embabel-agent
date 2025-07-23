@@ -59,7 +59,17 @@ interface LlmCall : LlmUse, ToolConsumer {
     val contextualPromptContributors: List<ContextualPromptElement>
 
     companion object {
-        operator fun invoke(): LlmCall = LlmCallImpl(name = MobyNameGenerator.generateName())
+
+        operator fun invoke(llm: LlmOptions? = null): LlmCall = LlmCallImpl(
+            llm = llm,
+            name = MobyNameGenerator.generateName(),
+        )
+
+        @JvmStatic
+        fun using(
+            llm: LlmOptions,
+        ): LlmCall = invoke(llm = llm)
+
     }
 }
 
@@ -101,6 +111,8 @@ data class LlmInteraction(
     override val name: String = id.value
 
     companion object {
+
+        @JvmStatic
         fun from(llm: LlmCall, id: InteractionId) = LlmInteraction(
             id = id,
             llm = llm.llm ?: LlmOptions(),
@@ -108,6 +120,12 @@ data class LlmInteraction(
             toolGroups = llm.toolGroups,
             promptContributors = llm.promptContributors,
             generateExamples = llm.generateExamples,
+        )
+
+        @JvmStatic
+        fun using(llm: LlmOptions) = from(
+            llm = LlmCall.using(llm),
+            id = InteractionId("using"),
         )
     }
 }
