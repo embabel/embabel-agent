@@ -105,12 +105,13 @@ data class Agent(
         verbose: Boolean?,
         indent: Int,
     ): String =
-        """|description: ${description}
+        """|
+           |description: ${description}
            |provider: $provider
            |version: $version
-           |${super.infoString(verbose, 0)}
+           |${super.infoString(verbose, 1)}
         """.trimMargin()
-            .indentLines(indent)
+            .indentLines(indent, removeBlankLines = false)
 
     private companion object {
         private val logger = LoggerFactory.getLogger(Agent::class.java)
