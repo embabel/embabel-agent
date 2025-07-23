@@ -23,6 +23,7 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
 import org.springframework.ai.tool.ToolCallback
 
 /**
@@ -143,9 +144,12 @@ class InvalidLlmReturnFormatException(
 ),
     HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String =
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
         if (verbose == true) {
-            "${javaClass.simpleName}: Expected type: ${expectedType.name}, root cause: ${cause!!.message}, return\n$llmReturn"
+            "${javaClass.simpleName}: Expected type: ${expectedType.name}, root cause: ${cause!!.message}, return\n$llmReturn".indent(indent)
         } else {
             "${javaClass.simpleName}: Expected type: ${expectedType.name}, root cause: ${cause!!.message}"
         }

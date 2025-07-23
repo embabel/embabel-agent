@@ -18,6 +18,8 @@ package com.embabel.plan
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Named
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
 
 /**
  * A step in a plan. Can be an action or a goal
@@ -73,13 +75,18 @@ open class Plan(
 
     val netValue: Double get() = goal.value + actionsValue - cost
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return if (verbose == true) {
             "\n${
                 actions.mapIndexed { index, action ->
                     "\t".repeat(index + 1) + action.name
                 }.joinToString(" ->\n")
             }\ncost=$cost; netValue=$netValue"
+                .indentLines(level = indent, removeBlankLines = false)
+
 
         } else {
             actions.joinToString(" -> ") { it.name } +

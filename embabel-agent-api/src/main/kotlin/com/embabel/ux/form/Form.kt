@@ -16,6 +16,7 @@
 package com.embabel.ux.form
 
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import java.util.*
@@ -29,8 +30,11 @@ data class Form(
     val id: String = UUID.randomUUID().toString(),
 ) : HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String {
-        return toString()
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return toString().indent(indent)
     }
 }
 

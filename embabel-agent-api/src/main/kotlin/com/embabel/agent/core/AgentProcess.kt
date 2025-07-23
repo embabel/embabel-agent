@@ -34,7 +34,10 @@ data class ActionInvocation(
     override val runningTime: Duration,
 ) : Timestamped, Timed, HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return "$actionName(${"%,d".format(runningTime.toMillis())}ms)"
     }
 }

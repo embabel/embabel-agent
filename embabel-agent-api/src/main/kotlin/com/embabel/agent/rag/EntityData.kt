@@ -16,6 +16,7 @@
 package com.embabel.agent.rag
 
 import com.embabel.common.core.types.Described
+import com.embabel.common.util.indent
 import io.swagger.v3.oas.annotations.media.Schema
 
 /**
@@ -48,9 +49,9 @@ interface EntityData : Retrievable, Described {
     )
     val properties: Map<String, Any>
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(verbose: Boolean?, indent: Int): String {
         val labelsString = labels.joinToString(":")
-        return "(${labelsString} id='$id')"
+        return "(${labelsString} id='$id')".indent(indent)
     }
 
 }

@@ -16,6 +16,7 @@
 package com.embabel.plan
 
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -40,18 +41,24 @@ class PlanTest {
     // Simple implementation of Goal for testing
     private class TestGoal(
         override val name: String,
-        override val value: Double = 0.0
+        override val value: Double = 0.0,
     ) : Goal {
-        override fun infoString(verbose: Boolean?): String = "Goal($name, value=$value)"
+        override fun infoString(
+            verbose: Boolean?,
+            indent: Int,
+        ): String = "Goal($name, value=$value)".indent(indent)
     }
 
     // Simple implementation of Action for testing
     private class TestAction(
         override val name: String,
         override val cost: ZeroToOne = 0.0,
-        override val value: ZeroToOne = 0.0
+        override val value: ZeroToOne = 0.0,
     ) : Action {
-        override fun infoString(verbose: Boolean?): String = name
+        override fun infoString(
+            verbose: Boolean?,
+            indent: Int,
+        ): String = name.indent(indent)
     }
 
     @Test

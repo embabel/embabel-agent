@@ -150,9 +150,7 @@ class ShellCommands(
         return "${"Agents:".bold()}\n${
             agentPlatform.agents()
                 .joinToString(separator = "\n${"-".repeat(shellProperties.lineLength)}\n") {
-                    "\t" + it.infoString(
-                        verbose = true
-                    )
+                    it.infoString(verbose = true, indent = 1)
                 }
         }"
     }
@@ -161,7 +159,7 @@ class ShellCommands(
     fun actions(): String {
         return "${"Actions:".bold()}\n${
             agentPlatform.actions
-                .joinToString(separator = "\n") { "\t" + it.infoString(verbose = true) }
+                .joinToString(separator = "\n") { it.infoString(verbose = true, indent = 1) }
         }"
     }
 
@@ -169,7 +167,7 @@ class ShellCommands(
     fun conditions(): String {
         return "${"Conditions:".bold()}\n${
             agentPlatform.conditions
-                .joinToString(separator = "\n") { "\t" + it.infoString(verbose = true) }
+                .joinToString(separator = "\n") { it.infoString(verbose = true, indent = 1) }
         }"
     }
 
@@ -177,7 +175,7 @@ class ShellCommands(
     fun goals(): String {
         return "${"Goals:".bold()}\n${
             agentPlatform.goals
-                .joinToString(separator = "\n") { "\t" + it.infoString(verbose = true) }
+                .joinToString(separator = "\n") { it.infoString(verbose = true, indent = 1) }
         }"
     }
 
@@ -203,11 +201,7 @@ class ShellCommands(
     }
 
     @ShellMethod("Information about the AgentPlatform")
-    fun platform(): String {
-        return """
-            AgentPlatform: ${agentPlatform.name}
-        """.trimIndent()
-    }
+    fun platform(): String = "AgentPlatform: ${agentPlatform.name}"
 
 
     @ShellMethod(

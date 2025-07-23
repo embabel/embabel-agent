@@ -16,6 +16,7 @@
 package com.embabel.agent.core.hitl
 
 import com.embabel.agent.core.AgentProcess
+import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
 import java.time.Instant
 import java.util.*
@@ -51,8 +52,11 @@ class ConfirmationRequest<P : Any>(
         }
     }
 
-    override fun infoString(verbose: Boolean?): String {
-        return "ConfirmationRequest(id=$id, payload=$payload, message='$message')"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return "ConfirmationRequest(id=$id, payload=$payload, message='$message')".indent(indent)
     }
 
     override fun toString(): String {

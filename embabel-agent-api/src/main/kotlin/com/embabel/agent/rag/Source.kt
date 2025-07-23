@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag
 
+import com.embabel.common.util.indent
 import java.util.*
 
 /**
@@ -58,9 +59,10 @@ interface Chunk : Source {
 
     }
 
-    override fun infoString(verbose: Boolean?): String {
-        return "chunk: $text"
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String = "chunk: $text".indent(indent)
 }
 
 private data class ChunkImpl(
@@ -83,6 +85,8 @@ data class Fact(
 
     override fun embeddableValue(): String = assertion
 
-    override fun infoString(verbose: Boolean?): String =
-        "Fact $id from $authority: $assertion"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String = "Fact $id from $authority: $assertion".indent(indent)
 }

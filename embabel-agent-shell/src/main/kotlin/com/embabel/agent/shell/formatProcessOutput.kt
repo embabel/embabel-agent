@@ -51,17 +51,11 @@ fun formatProcessOutput(
         if (result.output is InternetResources) {
             val internetResourcesOutput = result.output as InternetResources
             output += "\n\n" + internetResourcesOutput.links.joinToString("\n") {
-                "- ${it.url}: ${
-                    it.summary.color(
-                        colorPalette.color2
-                    )
-                }"
+                "- ${it.url}: ${it.summary.color(colorPalette.color2)}"
             }
         }
     } else {
-        output = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(
-            result.output
-        )
+        output = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(result.output)
     }
     return """|
             |

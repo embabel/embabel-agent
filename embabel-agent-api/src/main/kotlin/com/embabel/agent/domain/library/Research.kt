@@ -16,6 +16,8 @@
 package com.embabel.agent.domain.library
 
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
 import com.fasterxml.jackson.annotation.JsonClassDescription
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 
@@ -41,12 +43,16 @@ data class ResearchReport(
     override val links: List<InternetResource>,
 ) : HasContent, InternetResources, HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return """
             Report:
             $content
             Links: ${links.joinToString("\n") { it.url }}
         """.trimIndent()
+            .indentLines(indent)
     }
 }
 

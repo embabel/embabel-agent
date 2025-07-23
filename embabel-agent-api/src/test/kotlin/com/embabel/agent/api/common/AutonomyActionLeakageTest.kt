@@ -22,6 +22,7 @@ import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.testing.integration.IntegrationTestUtils
 import com.embabel.agent.testing.integration.RandomRanker
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
 import com.embabel.plan.goap.ConditionDetermination
 import io.mockk.clearAllMocks
 import io.mockk.unmockkAll
@@ -135,8 +136,11 @@ class AutonomyActionLeakageTest {
                 get() = ActionQos()
             override val name = "action1"
             override val value: ZeroToOne = 0.3
-            override fun infoString(verbose: Boolean?): String {
-                return "ACTION 1"
+            override fun infoString(
+                verbose: Boolean?,
+                indent: Int,
+            ): String {
+                return "ACTION 1".indent(indent)
             }
 
             override val description = "Action for goal 1"
@@ -175,8 +179,11 @@ class AutonomyActionLeakageTest {
                 get() = ActionQos()
             override val name = "action2"
             override val value: ZeroToOne = 0.3
-            override fun infoString(verbose: Boolean?): String {
-                return "ACTION 2"
+            override fun infoString(
+                verbose: Boolean?,
+                indent: Int,
+            ): String {
+                return "ACTION 2".indent(indent)
             }
 
             override val description = "Action for goal 2"
@@ -417,7 +424,11 @@ class AutonomyActionLeakageTest {
             override val qos: ActionQos = ActionQos()
             override val name = name
             override val value: ZeroToOne = 0.3
-            override fun infoString(verbose: Boolean?): String = name
+            override fun infoString(
+                verbose: Boolean?,
+                indent: Int,
+            ): String = name.indent(indent)
+
             override val description = description
             override val inputs: Set<IoBinding> = setOf(IoBinding(name, type = UserInput::class.java))
             override val preconditions = preconditions

@@ -21,6 +21,7 @@ import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.ComputerSaysNoSerializer
+import com.embabel.common.util.indentLines
 import com.embabel.plan.goap.GoapPlanningSystem
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.slf4j.LoggerFactory
@@ -100,11 +101,16 @@ data class Agent(
             return GoapPlanningSystem(actions, goals)
         }
 
-    override fun infoString(verbose: Boolean?): String {
-        return "description: ${description}\n\tprovider: $provider\n\tversion: $version\n\tname: " + super.infoString(
-            verbose
-        )
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        """|description: ${description}
+           |provider: $provider
+           |version: $version
+           |${super.infoString(verbose, 0)}
+        """.trimMargin()
+            .indentLines(indent)
 
     private companion object {
         private val logger = LoggerFactory.getLogger(Agent::class.java)

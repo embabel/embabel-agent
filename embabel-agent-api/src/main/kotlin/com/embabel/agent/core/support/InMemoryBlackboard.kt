@@ -16,6 +16,7 @@
 package com.embabel.agent.core.support
 
 import com.embabel.agent.core.Blackboard
+import com.embabel.common.util.indent
 import java.util.*
 
 /**
@@ -75,12 +76,15 @@ class InMemoryBlackboard(
         return _map
     }
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         val joiner = if (verbose == true) "\n" else ", "
         val entriesString =
             if (verbose == true) "\n" + objects.joinToString(joiner) else objects.map { "${it::class.simpleName}" }
         val mapString =
             if (verbose == true) "\n" + _map.entries.joinToString(joiner) else _map.entries.joinToString(joiner) { "${it.key}=${it.value::class.simpleName}" }
-        return "${javaClass.simpleName}: id=$blackboardId${joiner}map:$mapString${joiner}entries:$entriesString"
+        return "${javaClass.simpleName}: id=$blackboardId${joiner}map:$mapString${joiner}entries:$entriesString".indent(indent)
     }
 }

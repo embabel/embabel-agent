@@ -17,6 +17,8 @@ package com.embabel.agent.core
 
 import com.embabel.agent.core.support.SerializableAction
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
 import com.embabel.common.util.loggerFor
 import com.embabel.plan.goap.EffectSpec
 import com.embabel.plan.goap.GoapAction
@@ -74,8 +76,17 @@ interface Action : AgentSystemStep, GoapAction, ActionRunner, DataDictionary, To
         return type
     }
 
-    override fun infoString(verbose: Boolean?): String =
-        "$name - pre=${preconditions} post=${effects}"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        """|name: $name
+           |preconditions:
+           |${preconditions.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent(1) }}
+           |postconditions:
+           |${effects.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent(1) }}
+           |""".trimMargin()
+            .indentLines(indent)
 
     fun shortName(): String {
         return name.split('.').lastOrNull() ?: name

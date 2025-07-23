@@ -17,6 +17,7 @@ package com.embabel.agent.rag
 
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.test.ai.FakeEmbeddingModel
+import com.embabel.common.util.indent
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
@@ -48,7 +49,10 @@ class FakeRagService : RagService {
     override val description: String
         get() = "test RAG"
 
-    override fun infoString(verbose: Boolean?): String {
-        return "RAG service: $name"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return "RAG service: $name".indent(indent)
     }
 }

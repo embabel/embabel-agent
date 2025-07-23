@@ -16,6 +16,7 @@
 package com.embabel.agent.spi
 
 import com.embabel.common.core.types.*
+import com.embabel.common.util.indent
 
 /**
  * Rank available choices based on user input and agent metadata.
@@ -41,12 +42,15 @@ interface Ranker {
  * Rankings, sorted by score descending
  */
 data class Rankings<T>(
-    val rankings: List<Ranking<T>>
+    val rankings: List<Ranking<T>>,
 ) : HasInfoString where T : Named, T : Described {
 
-    override fun infoString(verbose: Boolean?): String =
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
         rankings.joinToString("\n") { ranking ->
-            ranking.infoString(verbose)
+            ranking.infoString(verbose, indent + 1)
         }
 }
 
@@ -61,11 +65,14 @@ data class Ranking<T>(
     override val score: ZeroToOne,
 ) : HasInfoString, SimilarityResult<T> where T : Named, T : Described {
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         var s = "${match.name}: ${"%.2f".format(score)}"
         if (verbose == true) {
             s += " - ${match.description}"
         }
-        return s
+        return if (verbose == true) s.indent(indent) else s
     }
 }

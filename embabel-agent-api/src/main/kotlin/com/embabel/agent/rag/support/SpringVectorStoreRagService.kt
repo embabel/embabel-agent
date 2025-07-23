@@ -21,6 +21,7 @@ import com.embabel.agent.rag.RagResponse
 import com.embabel.agent.rag.WritableRagService
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
 import org.slf4j.LoggerFactory
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
@@ -63,8 +64,11 @@ class SpringVectorStoreRagService(
         vectorStore.accept(documents)
     }
 
-    override fun infoString(verbose: Boolean?): String {
-        return "${vectorStore.name}: ${vectorStore.javaClass.name}"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return "${vectorStore.name}: ${vectorStore.javaClass.name}".indent(indent)
     }
 }
 

@@ -16,6 +16,7 @@
 package com.embabel.plan.goap
 
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
 import com.embabel.plan.*
 import com.fasterxml.jackson.annotation.JsonIgnore
 
@@ -87,8 +88,11 @@ interface GoapAction : GoapStep, Action {
     override val knownConditions: Set<String>
         get() = preconditions.keys + effects.keys
 
-    override fun infoString(verbose: Boolean?): String =
-        "$name - pre=${preconditions} cost=$cost value=${value}"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        "$name - pre=${preconditions} cost=$cost value=${value}".indent(indent)
 
 
     companion object {
@@ -125,14 +129,17 @@ private data class SimpleGoapAction(
 /**
  * Goal in a GOAP system.
  */
-interface GoapGoal : GoapStep, Goal {
+interface GoapGoal : GoapStep,
+    Goal {
 
     @get:JsonIgnore
     override val knownConditions: Set<String>
         get() = preconditions.keys
 
-    override fun infoString(verbose: Boolean?): String =
-        "$name - pre=${preconditions} value=${value}"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String = "$name - pre=${preconditions} value=${value}".indent(indent)
 
     companion object {
 
@@ -190,8 +197,11 @@ data class GoapPlanningSystem(
         return knownPreconditions() + knownEffects()
     }
 
-    override fun infoString(verbose: Boolean?): String =
-        "GOAP system: actions=${actions.map { it.name }}, goals=${goals.map { it.name }}, knownPreconditions=${knownPreconditions()}, knownEffects=${knownEffects()}"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        "GOAP system: actions=${actions.map { it.name }}, goals=${goals.map { it.name }}, knownPreconditions=${knownPreconditions()}, knownEffects=${knownEffects()}".indent(indent)
 }
 
 class GoapPlan(

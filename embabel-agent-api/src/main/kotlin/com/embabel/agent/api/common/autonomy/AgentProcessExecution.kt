@@ -45,12 +45,16 @@ class AgentProcessExecution private constructor(
     val agentProcess: AgentProcess,
 ) : HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String {
-        if (verbose == true) {
-            return "${javaClass.simpleName}(basis=$basis, output=$output, agentProcess=${agentProcess.infoString(verbose)})"
-        }
-        return "${javaClass.simpleName}(basis=$basis, output=${output::class.simpleName}, agentProcess=${agentProcess.id})"
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        if (verbose == true)
+            "${javaClass.simpleName}(basis=$basis, output=$output, agentProcess=${
+                agentProcess.infoString(verbose, indent + 1)
+            })"
+        else
+            "${javaClass.simpleName}(basis=$basis, output=${output::class.simpleName}, agentProcess=${agentProcess.id})"
 
     override fun toString(): String = infoString(verbose = false)
 

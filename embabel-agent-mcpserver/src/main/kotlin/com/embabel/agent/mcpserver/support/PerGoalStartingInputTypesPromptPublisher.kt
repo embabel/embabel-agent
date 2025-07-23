@@ -18,6 +18,7 @@ package com.embabel.agent.mcpserver.support
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.core.Goal
 import com.embabel.agent.mcpserver.McpPromptPublisher
+import com.embabel.common.util.indent
 import io.modelcontextprotocol.server.McpServerFeatures
 import org.springframework.stereotype.Service
 
@@ -46,8 +47,9 @@ class PerGoalStartingInputTypesPromptPublisher(
         }
     }
 
-    override fun infoString(verbose: Boolean?): String {
-        return "${javaClass.simpleName}(prompts=${prompts().size})"
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String = "${javaClass.simpleName}(prompts=${prompts().size})".indent(indent)
 
 }

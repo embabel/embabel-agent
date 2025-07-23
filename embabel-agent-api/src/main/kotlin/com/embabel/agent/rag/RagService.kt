@@ -17,6 +17,7 @@ package com.embabel.agent.rag
 
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
 
 
 /**
@@ -100,7 +101,10 @@ private data class EmptyRagService(
         )
     }
 
-    override fun infoString(verbose: Boolean?): String {
-        return "Empty RAG service: $name"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return "Empty RAG service: $name".indent(indent)
     }
 }
