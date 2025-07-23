@@ -29,7 +29,7 @@ interface A2ARequestHandler {
      * @param request the JSON-RPC request
      * @return the JSON-RPC response
      */
-    fun handleJsonRpc(request: JSONRPCRequest<Any>): JSONRPCResponse<Any>
+    fun handleJsonRpc(request: JSONRPCRequest<out Any>): JSONRPCResponse<out Any>
 
     /**
      * Handles a streaming JSON-RPC request using Server-Sent Events (SSE).
@@ -44,7 +44,7 @@ interface A2ARequestHandler {
      * @see SseEmitter
      * @see JSONRPCRequest
      */
-    fun handleJsonRpcStream(request: JSONRPCRequest<Any>): SseEmitter {
+    fun handleJsonRpcStream(request: JSONRPCRequest<out Any>): SseEmitter {
         throw UnsupportedOperationException("Streaming not supported by this implementation")
     }
 }

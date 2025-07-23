@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.a2a.server
 
-import com.embabel.agent.a2a.spec.*
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.e2e.FakeConfig
@@ -25,6 +24,24 @@ import com.embabel.common.core.types.Semver.Companion.DEFAULT_VERSION
 import com.embabel.example.simple.horoscope.TestHoroscopeService
 import com.embabel.example.simple.horoscope.java.TestStarNewsFinder
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.a2a.spec.AgentCard
+import io.a2a.spec.CancelTaskResponse
+import io.a2a.spec.GetTaskPushNotificationConfigResponse
+import io.a2a.spec.GetTaskResponse
+import io.a2a.spec.JSONRPCRequest
+import io.a2a.spec.Message
+import io.a2a.spec.MessageSendParams
+import io.a2a.spec.PushNotificationAuthenticationInfo
+import io.a2a.spec.PushNotificationConfig
+import io.a2a.spec.SendMessageRequest
+import io.a2a.spec.SendMessageResponse
+import io.a2a.spec.SetTaskPushNotificationConfigResponse
+import io.a2a.spec.Task
+import io.a2a.spec.TaskIdParams
+import io.a2a.spec.TaskPushNotificationConfig
+import io.a2a.spec.TaskQueryParams
+import io.a2a.spec.TaskState
+import io.a2a.spec.TextPart
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
@@ -133,19 +150,20 @@ class A2AWebIntegrationTest(
     inner class MessageTests {
         @Test
         fun `should handle message send`() {
-            val message = Message(
-                role = "user",
-                parts = listOf(TextPart("Hello, agent!")),
-                messageId = "msg-123",
-                taskId = "task-123",
-                contextId = "ctx-123"
-            )
-            val params = MessageSendParams(message = message)
-            val request = JSONRPCRequest(
-                id = "msg-123",
-                method = "message/send",
-                params = params,
-            )
+            val message = Message.Builder()
+                .role(Message.Role.USER)
+                .parts(listOf(TextPart("Hello, agent!")))
+                .messageId("msg-123")
+                .taskId("task-123")
+                .contextId("ctx-123")
+                .build()
+            val params =  MessageSendParams.Builder().message(message).build()
+            val request = SendMessageRequest.Builder()
+                .jsonrpc(JSONRPCRequest.JSONRPC_VERSION)
+                .method(SendMessageRequest.METHOD)
+                .id("msg-123")
+                .params(params)
+                .build()
 
             val result = mockMvc.post("/a2a") {
                 contentType = MediaType.APPLICATION_JSON
@@ -157,7 +175,7 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, JSONRPCSuccessResponse::class.java)
+            val response = objectMapper.readValue(content, SendMessageResponse::class.java)
 
             assertNotNull(response)
             assertEquals("msg-123", response.id)
@@ -165,21 +183,21 @@ class A2AWebIntegrationTest(
             val task = objectMapper.convertValue(response.result, Task::class.java)
             assertEquals("task-123", task.id)
             assertEquals("ctx-123", task.contextId)
-            assertEquals(TaskState.completed, task.status.state)
+            assertEquals(TaskState.COMPLETED, task.status.state)
             assertTrue(task.history?.isNotEmpty() ?: false)
             assertEquals("Hello, agent!", (task.history.get(0)?.parts?.get(0) as? TextPart)?.text)
         }
 
         @Test
         fun `should handle message stream`() {
-            val message = Message(
-                role = "user",
-                parts = listOf(TextPart("Hello, agent!")),
-                messageId = "msg-123",
-                taskId = "task-123",
-                contextId = "ctx-123"
-            )
-            val params = MessageSendParams(message = message)
+            val message = Message.Builder()
+                .role(Message.Role.USER)
+                .parts(listOf(TextPart("Hello, agent!")))
+                .messageId("msg-123")
+                .taskId("task-123")
+                .contextId("ctx-123")
+                .build()
+            val params = MessageSendParams.Builder().message(message).build()
 
             // Note: We can't fully test SSE with MockMvc in a standard way
             // This test just verifies the endpoint doesn't throw an error
@@ -198,7 +216,7 @@ class A2AWebIntegrationTest(
     inner class TaskTests {
         @Test
         fun `should get task`() {
-            val params = TaskQueryParams(id = "task-123")
+            val params = TaskQueryParams("task-123")
 
             val result = mockMvc.post("/a2a/tasks/get") {
                 contentType = MediaType.APPLICATION_JSON
@@ -210,7 +228,7 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, JSONRPCSuccessResponse::class.java)
+            val response = objectMapper.readValue(content, GetTaskResponse::class.java)
 
             assertNotNull(response)
             assertEquals("task-123", response.id)
@@ -218,12 +236,12 @@ class A2AWebIntegrationTest(
             val task = objectMapper.convertValue(response.result, Task::class.java)
             assertEquals("task-123", task.id)
             assertEquals("ctx-1", task.contextId)
-            assertEquals(TaskState.completed, task.status.state)
+            assertEquals(TaskState.COMPLETED, task.status.state)
         }
 
         @Test
         fun `should cancel task`() {
-            val params = TaskIdParams(id = "task-123")
+            val params = TaskIdParams("task-123")
 
             val result = mockMvc.post("/a2a/tasks/cancel") {
                 contentType = MediaType.APPLICATION_JSON
@@ -235,7 +253,7 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, JSONRPCSuccessResponse::class.java)
+            val response = objectMapper.readValue(content, CancelTaskResponse::class.java)
 
             assertNotNull(response)
             assertEquals("task-123", response.id)
@@ -243,7 +261,7 @@ class A2AWebIntegrationTest(
             val task = objectMapper.convertValue(response.result, Task::class.java)
             assertEquals("task-123", task.id)
             assertEquals("ctx-1", task.contextId)
-            assertEquals(TaskState.canceled, task.status.state)
+            assertEquals(TaskState.CANCELED, task.status.state)
         }
     }
 
@@ -253,16 +271,17 @@ class A2AWebIntegrationTest(
         @Test
         fun `should set push notification config`() {
             val config = PushNotificationConfig(
-                url = "https://client/notify",
-                token = "test-token",
-                authentication = PushNotificationAuthenticationInfo(
-                    schemes = listOf("Bearer"),
-                    credentials = "test-secret"
-                )
+                "https://client/notify",
+                "test-token",
+                PushNotificationAuthenticationInfo(
+                    listOf("Bearer"),
+                    "test-secret"
+                ),
+                null
             )
             val params = TaskPushNotificationConfig(
-                taskId = "task-123",
-                pushNotificationConfig = config
+                "task-123",
+                config
             )
 
             val result = mockMvc.post("/a2a/tasks/pushNotificationConfig/set") {
@@ -275,7 +294,7 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, JSONRPCSuccessResponse::class.java)
+            val response = objectMapper.readValue(content, SetTaskPushNotificationConfigResponse::class.java)
 
             assertNotNull(response)
             assertEquals("task-123", response.id)
@@ -290,7 +309,7 @@ class A2AWebIntegrationTest(
 
         @Test
         fun `should get push notification config`() {
-            val params = TaskIdParams(id = "task-123")
+            val params = TaskIdParams("task-123")
 
             val result = mockMvc.post("/a2a/tasks/pushNotificationConfig/get") {
                 contentType = MediaType.APPLICATION_JSON
@@ -302,7 +321,7 @@ class A2AWebIntegrationTest(
                 }.andReturn()
 
             val content = result.response.contentAsString
-            val response = objectMapper.readValue(content, JSONRPCSuccessResponse::class.java)
+            val response = objectMapper.readValue(content, GetTaskPushNotificationConfigResponse::class.java)
 
             assertNotNull(response)
             assertEquals("task-123", response.id)

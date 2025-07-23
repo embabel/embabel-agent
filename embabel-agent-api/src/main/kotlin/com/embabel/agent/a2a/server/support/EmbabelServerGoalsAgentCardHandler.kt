@@ -48,29 +48,31 @@ class EmbabelServerGoalsAgentCardHandler(
         port: Int,
     ): AgentCard {
         val hostingUrl = "$scheme://$host:$port/$path"
-        val agentCard = AgentCard(
-            agentPlatform.name,
-            agentPlatform.description,
-            hostingUrl,
-            AgentProvider("Embabel", "https://embabel.com"),
-            Semver.Companion.DEFAULT_VERSION,
-            "https://embabel.com/docs",
-            AgentCapabilities(
-                false,
-                false,
-                false,
-                emptyList()
-            ),
-            listOf("application/json", "text/plain"),
-            listOf("application/json", "text/plain"),
-            FromGoalsAgentSkillFactory(
-                goals = agentPlatform.goals.filter { goalFilter.invoke(it) }.toSet(),
-            ).skills(agentPlatform.name),
-            false,
-            null,
-            null,
-            null,
-        )
+        val agentCard = AgentCard.Builder()
+            .name(agentPlatform.name)
+            .description(agentPlatform.description)
+            .url(hostingUrl)
+            .provider(AgentProvider("Embabel", "https://embabel.com"))
+            .version(Semver.Companion.DEFAULT_VERSION)
+            .documentationUrl("https://embabel.com/docs")
+            .capabilities(
+                AgentCapabilities(
+                    false,
+                    false,
+                    false,
+                    emptyList()
+                ),
+            )
+            .defaultInputModes(listOf("application/json", "text/plain"))
+            .defaultOutputModes(listOf("application/json", "text/plain"))
+            .skills(
+                FromGoalsAgentSkillFactory(
+                    goals = agentPlatform.goals.filter { goalFilter.invoke(it) }.toSet(),
+                ).skills(agentPlatform.name)
+            )
+            .supportsAuthenticatedExtendedCard(false)
+            .protocolVersion("0.2.5") // TODO? same as the lib version?
+            .build()
         logger.info("Returning agent card: {}", agentCard)
         return agentCard
     }
