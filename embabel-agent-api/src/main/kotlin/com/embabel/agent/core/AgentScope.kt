@@ -54,11 +54,11 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
         return """|
            |name: $name
            |goals:
-           |${goals.sortedBy { it.name }.joinToString("\n") { it.infoString(verbose, 1) }}
+           |${goals.sortedBy { it.name }.joinToString("\n") { it.infoString(true, indent + 1) }}
            |actions:
-           |${actions.sortedBy { it.name }.joinToString("\n") { it.infoString(verbose, 1) }}
+           |${actions.sortedBy { it.name }.joinToString("\n") { it.infoString(true, indent + 1) }}
            |conditions:
-           |${conditions.map { it.name }.sorted().joinToString("\n") { it.indent(1) }}
+           |${conditions.map { it.name }.sorted().joinToString("\n") { it.indent(indent + 1) }}
            |data types: ${domainTypes.map { it.simpleName }.distinct().sorted().joinToString(", ")}
             """.trimMargin()
             .indentLines(indent)
