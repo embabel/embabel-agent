@@ -54,7 +54,7 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
         return """|
            |name: $name
            |goals:
-           |${goals.sortedBy { it.name }.joinToString("\n") { it.infoString(true, indent + 1) }}
+           |${goals.sortedBy { it.name }.joinToString("\n") { it.infoString(true, indent) }}
            |actions:
            |${actions.sortedBy { it.name }.joinToString("\n") { it.infoString(true, indent + 1) }}
            |conditions:

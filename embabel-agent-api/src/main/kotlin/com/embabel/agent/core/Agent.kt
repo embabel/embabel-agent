@@ -109,7 +109,7 @@ data class Agent(
            |description: ${description}
            |provider: $provider
            |version: $version
-           |${super.infoString(verbose, 1)}
+           |${super.infoString(verbose, indent + 1 )}
         """.trimMargin()
             .indentLines(indent, removeBlankLines = false)
 
@@ -119,7 +119,7 @@ data class Agent(
         fun inferDataTypes(
             agentName: String,
             defaultDataTypes: List<SchemaType>,
-            actions: List<Action>
+            actions: List<Action>,
         ): List<SchemaType> {
             // Merge properties from multiple type references
             for (action in actions) {
@@ -175,7 +175,7 @@ data class AgentMetadata(
     override val description: String,
     val goals: Set<Goal>,
     val actions: List<ActionMetadata>,
-    val conditions: Set<String>
+    val conditions: Set<String>,
 ) : Named, Described, AssetCoordinates {
 
     /**
