@@ -50,7 +50,7 @@ data class Rankings<T>(
         indent: Int,
     ): String =
         rankings.joinToString("\n") { ranking ->
-            ranking.infoString(verbose, indent + 1)
+            ranking.infoString(verbose, 1)
         }
 }
 

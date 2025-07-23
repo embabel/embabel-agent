@@ -59,7 +59,10 @@ interface Action : AgentSystemStep, GoapAction, ActionRunner, DataDictionary, To
                     referencedType(it, this)
                 }
 
-    private fun referencedType(binding: IoBinding, action: Action): SchemaType? {
+    private fun referencedType(
+        binding: IoBinding,
+        action: Action,
+    ): SchemaType? {
         var type = SchemaType(name = binding.type)
         for (prop in action.referencedInputProperties(binding.name)) {
             loggerFor<Action>().debug("Discovered property {}", prop)
@@ -82,7 +85,7 @@ interface Action : AgentSystemStep, GoapAction, ActionRunner, DataDictionary, To
     ): String =
         """|name: $name
            |preconditions:
-           |${preconditions.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent(1) }}
+           |${preconditions.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent( 1) }}
            |postconditions:
            |${effects.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent(1) }}
            |""".trimMargin()

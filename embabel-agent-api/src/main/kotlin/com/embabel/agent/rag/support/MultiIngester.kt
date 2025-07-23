@@ -72,7 +72,7 @@ class MultiIngester(
         if (ragServices.isEmpty()) "No RAG services" else
             "Multi ingester of ${
                 ragServices.joinToString(",") {
-                    it.infoString(verbose = verbose, indent = indent + 1)
+                    it.infoString(verbose = verbose, indent = 1)
                 }
             }"
 }

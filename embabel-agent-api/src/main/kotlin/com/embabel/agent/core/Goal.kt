@@ -78,7 +78,7 @@ data class Goal(
         if (verbose == true)
             """|"$description" $name
                |preconditions:
-               |${preconditions.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent(indent + 1) }}
+               |${preconditions.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent(1) }}
                |value: ${value}
            """.trimMargin()
                 .indentLines(indent)

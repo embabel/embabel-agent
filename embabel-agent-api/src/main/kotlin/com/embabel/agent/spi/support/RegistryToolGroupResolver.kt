@@ -84,7 +84,7 @@ class RegistryToolGroupResolver(
         return "RegistryToolGroupResolver: name='$name', ${toolGroups.size} available tool groups:\n\t${
             toolGroups.sortedBy { it.metadata.role }
                 .joinToString("\n") {
-                    it.infoString(verbose = true, indent = indent + 1)
+                    it.infoString(verbose = true, indent = 1)
                 }
         }"
     }

@@ -288,16 +288,16 @@ interface ToolGroup : ToolCallbackPublisher, HasInfoString {
         indent: Int,
     ): String {
         if (toolCallbacks.isEmpty()) {
-            return metadata.infoString(verbose = true, indent = indent + 1) + "\n❌ No tools found".indent(indent + 1)
+            return metadata.infoString(verbose = true, indent = 1) + "\n❌ No tools found".indent(1)
         }
         return when (verbose) {
-            true -> metadata.infoString(verbose = true, indent = indent + 1) + "\n" +
+            true -> metadata.infoString(verbose = true, indent = 1) + "\n" +
                     toolCallbacks
                         .sortedBy { it.toolDefinition.name() }
-                        .joinToString { it.toolDefinition.name() }.indent(indent + 1)
+                        .joinToString { it.toolDefinition.name() }.indent(1)
 
             else -> {
-                metadata.infoString(verbose = false, indent = indent + 1)
+                metadata.infoString(verbose = false)
             }
         }
     }

@@ -55,7 +55,7 @@ interface ToolsStats : HasInfoString {
             prefix = "Tool usage:\n",
             separator = ",\n"
         ) { (_, toolStats) ->
-            "\t${toolStats.infoString(verbose, indent + 1)}"
+            "\t${toolStats.infoString(verbose, 1)}"
         }
     }
 }

@@ -51,7 +51,7 @@ class AgentProcessExecution private constructor(
     ): String =
         if (verbose == true)
             "${javaClass.simpleName}(basis=$basis, output=$output, agentProcess=${
-                agentProcess.infoString(verbose, indent + 1)
+                agentProcess.infoString(verbose,  1)
             })"
         else
             "${javaClass.simpleName}(basis=$basis, output=${output::class.simpleName}, agentProcess=${agentProcess.id})"
