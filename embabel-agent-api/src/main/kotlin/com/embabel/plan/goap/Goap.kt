@@ -206,11 +206,11 @@ data class GoapPlanningSystem(
         """|actions: 
            |${actions.joinToString("\n") { it.name.indent(1) }} 
            |goals: 
-           |${goals.joinToString("\n") { it.name.indent(1) }}, 
+           |${goals.joinToString("\n") { it.name.indent(1) }}
            |knownPreconditions: 
-           |${knownPreconditions()}.indent(1), 
+           |${knownPreconditions().joinToString(", ").indent(1)} 
            |knownEffects: 
-           |${knownEffects()}.indent(1)
+           |${knownEffects().joinToString(", ").indent(1)}
            |""".trimMargin()
             .indentLines(indent)
 }
