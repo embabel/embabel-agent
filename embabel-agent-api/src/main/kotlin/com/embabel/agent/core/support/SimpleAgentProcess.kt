@@ -64,7 +64,7 @@ internal class SimpleAgentProcess(
                    |context:{}
                    |""".trimMargin(),
                 id,
-                worldState.infoString(verbose = true),
+                worldState.infoString(verbose = true, indent = 1),
                 "\n" + agent.planningSystem.infoString(verbose = true, 1),
                 "\n" + blackboard.infoString(true, 1),
             )
