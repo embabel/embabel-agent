@@ -64,10 +64,10 @@ class MontyPythonLoggingAgenticEventListener : LoggingAgenticEventListener(
         "And now for something completely different: ${e.processId}"
 
     override fun getAgentProcessReadyToPlanEventMessage(e: AgentProcessReadyToPlanEvent): String =
-        "[${e.processId}] My brain hurts! Ready to plan from ${e.worldState.infoString(verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans)}"
+        "[${e.processId}] My brain hurts! Ready to plan from: ${e.worldState.infoString(verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans)}"
 
     override fun getAgentProcessPlanFormulatedEventMessage(e: AgentProcessPlanFormulatedEvent): String =
-        "[${e.processId}] We've found a witch! Formulated plan <${e.plan.infoString(verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans)}> from ${e.worldState.infoString()}"
+        "[${e.processId}] We've found a witch! Formulated plan: ${e.plan.infoString(verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans)}> from ${e.worldState.infoString()}"
 
     override fun getProcessCompletionMessage(e: AgentProcessFinishedEvent): String =
         "[${e.processId}] Tis but a scratch: process completed in ${e.agentProcess.runningTime}"

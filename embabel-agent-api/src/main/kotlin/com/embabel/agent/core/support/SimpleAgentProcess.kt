@@ -59,8 +59,8 @@ internal class SimpleAgentProcess(
         val plan = planner.bestValuePlanToAnyGoal(system = agent.planningSystem)
         if (plan == null) {
             logger.info(
-                """|❌ Process {} stuck No plan from {} 
-                   |in:{} 
+                """|❌ Process {} stuck No plan from {}
+                   |in:{}
                    |context:{}
                    |""".trimMargin(),
                 id,

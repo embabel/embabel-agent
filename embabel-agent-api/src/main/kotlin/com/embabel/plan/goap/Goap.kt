@@ -206,13 +206,13 @@ data class GoapPlanningSystem(
         indent: Int,
     ): String =
         "GOAP system:".indent(indent) + "\n" +
-                """|actions: 
-           |${actions.joinToString("\n") { it.name.indent(1) }} 
-           |goals: 
+                """|actions:
+           |${actions.joinToString("\n") { it.name.indent(1) }}
+           |goals:
            |${goals.joinToString("\n") { it.name.indent(1) }}
-           |knownPreconditions: 
+           |knownPreconditions:
            |${knownPreconditions().sortedBy { it }.joinToString("\n") { it.indent(1) }}
-           |knownEffects: 
+           |knownEffects:
            |${knownEffects().sortedBy { it }.joinToString("\n") { it.indent(1) }}
            |""".trimMargin()
                     .indentLines(indent + 1)

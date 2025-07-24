@@ -127,10 +127,9 @@ data class GoapWorldState(
         indent: Int,
     ): String =
         if (verbose == true)
-            "\n" + state.entries.toList().sortedWith(
-                compareByDescending<Map.Entry<String, ConditionDetermination>> { it.value }
-                    .thenBy { it.key }
-            )
+            "\n" + state.entries
+                .toList()
+                .sortedWith(compareByDescending<Map.Entry<String, ConditionDetermination>> { it.value }.thenBy { it.key })
                 .joinToString("\n") { (k, v) ->
                     (if (v == ConditionDetermination.TRUE)
                         "$k: $v".color(LUMON_MEMBRANE_COLOR)
