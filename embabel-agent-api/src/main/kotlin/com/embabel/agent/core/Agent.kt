@@ -108,7 +108,7 @@ data class Agent(
         """|description: ${description}
            |provider: $provider
            |version: $version
-           |${super.infoString(verbose)}
+           |${super.infoString(verbose, indent)}
         """.trimMargin()
             .indentLines(indent)
 
