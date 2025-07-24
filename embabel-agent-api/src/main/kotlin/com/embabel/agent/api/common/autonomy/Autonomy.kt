@@ -189,7 +189,7 @@ class Autonomy(
     fun runAgent(
         userInput: UserInput,
         processOptions: ProcessOptions,
-        agent: Agent
+        agent: Agent,
     ): AgentProcessExecution {
         val agentProcess = agentPlatform.runAgentFrom(
             processOptions = processOptions,
@@ -356,7 +356,10 @@ class Autonomy(
         for (condition in this.planningSystem.knownConditions()) {
             map[condition] = ConditionDetermination.FALSE
         }
-        logger.info("Pruning agent instance from {}", map)
+        logger.info(
+            "Pruning agent instance from:\n{}",
+            map.map { "${it.key}=${it.value}".indent(1) }.joinToString("\n")
+        )
         map += ("it:${userInput::class.qualifiedName}" to ConditionDetermination.TRUE)
 
         val planner = AStarGoapPlanner(
