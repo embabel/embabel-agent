@@ -366,7 +366,7 @@ class Autonomy(
         val pruned = planner.prune(planningSystem)
         val prunedActions = planningSystem.actions.subtract(pruned.actions)
         logger.info(
-            "Pruned planning system removed {} actions :\n{} \nPruned :\n{}",
+            "Pruned planning system removed {} actions:\n{} \nPruned:\n{}",
             prunedActions.size,
             prunedActions.joinToString("\n") { it.name.indent(1) },
             pruned.infoString(true, 1),

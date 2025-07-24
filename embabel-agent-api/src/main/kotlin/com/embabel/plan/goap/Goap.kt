@@ -202,7 +202,7 @@ data class GoapPlanningSystem(
         verbose: Boolean?,
         indent: Int,
     ): String =
-        "GOAP system:".indent(indent) +
+        "GOAP system:".indent(indent) + "\n" +
         """|actions: 
            |${actions.joinToString("\n") { it.name.indent(1) }} 
            |goals: 
