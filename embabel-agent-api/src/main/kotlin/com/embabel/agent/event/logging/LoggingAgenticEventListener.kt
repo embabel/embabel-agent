@@ -101,7 +101,7 @@ open class LoggingAgenticEventListener(
         "Failed to choose ${e.type.simpleName} based on ${e.basis}. Choices: ${e.rankings.infoString()}. Confidence cutoff: ${e.confidenceCutOff}"
 
     protected open fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        "Created agent ${e.agent.infoString()}"
+        "Created agent \n${e.agent.infoString(true, 1)}"
 
     override fun onPlatformEvent(event: AgentPlatformEvent) {
         when (event) {
@@ -336,19 +336,19 @@ open class LoggingAgenticEventListener(
     fun Prompt.toInfoString(): String {
         val bannerChar = "."
         return """|${lineSeparator("Messages ", bannerChar)}
-           |${
-            this.instructions.joinToString(
-                "\n${
-                    lineSeparator(
-                        "",
-                        bannerChar
-                    )
-                }\n"
-            ) { "${it.messageType} <${it.text}>" }
-        }
-           |${lineSeparator("Options", bannerChar)}
-           |${this.options}
-           |""".trimMargin()
+                  |${
+                    this.instructions.joinToString(
+                        "\n${
+                            lineSeparator(
+                                "",
+                                bannerChar
+                            )
+                        }\n"
+                    ) { "${it.messageType} <${it.text}>" }
+                }
+                  |${lineSeparator("Options", bannerChar)}
+                  |${this.options}
+                  |""".trimMargin()
     }
 
 }

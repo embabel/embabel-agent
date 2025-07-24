@@ -46,14 +46,12 @@ data class ResearchReport(
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
-    ): String {
-        return """
-            Report:
-            $content
-            Links: ${links.joinToString("\n") { it.url }}
-        """.trimIndent()
-            .indentLines(indent)
-    }
+    ): String =
+        """|Report:
+           |$content
+           |Links: ${links.joinToString("\n") { it.url }}
+           |""".trimMargin()
+        .indentLines(indent)
 }
 
 data class CompletedResearch(

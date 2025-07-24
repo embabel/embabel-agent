@@ -50,9 +50,8 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
-    ): String {
-        return """|
-           |name: $name
+    ): String =
+        """|name: $name
            |goals:
            |${goals.sortedBy { it.name }.joinToString("\n") { it.infoString(true, 1) }}
            |actions:
@@ -60,8 +59,8 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
            |conditions:
            |${conditions.map { it.name }.sorted().joinToString("\n") { it.indent(1) }}
            |data types: ${domainTypes.map { it.simpleName }.distinct().sorted().joinToString(", ")}
-            """.trimMargin()
-            .indentLines(indent)
+        """.trimMargin()
+        .indentLines(indent)
 
 //        "%s\n\tgoals:\n\t\t%s\n\tactions:\n\t\t%s\n\tconditions: %s\n\tdata types: %s".format(
 //            name,
@@ -72,7 +71,6 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
 //            conditions.map { it.name }.sorted(),
 //            domainTypes.map { it.simpleName }.distinct().sorted(),
 //        )
-    }
 
     /**
      * Create a new agent from the given scope
