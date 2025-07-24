@@ -30,12 +30,14 @@ import io.a2a.spec.EventKind
 import io.a2a.spec.GetTaskRequest
 import io.a2a.spec.GetTaskResponse
 import io.a2a.spec.JSONRPCErrorResponse
-import io.a2a.spec.JSONRPCRequest
 import io.a2a.spec.JSONRPCResponse
 import io.a2a.spec.Message
 import io.a2a.spec.MessageSendParams
+import io.a2a.spec.NonStreamingJSONRPCRequest
 import io.a2a.spec.SendMessageRequest
 import io.a2a.spec.SendMessageResponse
+import io.a2a.spec.SendStreamingMessageRequest
+import io.a2a.spec.StreamingJSONRPCRequest
 import io.a2a.spec.Task
 import io.a2a.spec.TaskIdParams
 import io.a2a.spec.TaskNotFoundError
@@ -67,16 +69,16 @@ class AutonomyA2ARequestHandler(
 
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
 
-    override fun handleJsonRpcStream(request: JSONRPCRequest<out Any>): SseEmitter {
-        return when (request.method) {
-            "message/stream" -> handleMessageStream(request)
+    override fun handleJsonRpcStream(request: StreamingJSONRPCRequest<*>): SseEmitter {
+        return when (request) {
+            is SendStreamingMessageRequest -> handleMessageStream(request)
             else -> throw UnsupportedOperationException("Method ${request.method} is not supported for streaming")
         }
     }
 
     override fun handleJsonRpc(
-        request: JSONRPCRequest<out Any>
-    ): JSONRPCResponse<out Any> {
+        request: NonStreamingJSONRPCRequest<*>
+    ): JSONRPCResponse<*> {
         logger.info("Received JSONRPC message {}: {}", request.method, request)
         agenticEventListener.onPlatformEvent(
             A2ARequestEvent(
@@ -84,36 +86,20 @@ class AutonomyA2ARequestHandler(
                 request = request,
             )
         )
-        val result = when (request.method) {
-            "message/send" -> {
+        val result = when (request) {
+            is SendMessageRequest -> {
                 val messageSendParams = objectMapper.convertValue(request.params, MessageSendParams::class.java)
-                handleMessageSend(request as SendMessageRequest, messageSendParams)
+                handleMessageSend(request, messageSendParams)
             }
 
-            "message/list" -> {
-                TODO("Listing messages is not supported")
-            }
-
-            "message/pending" -> {
-                TODO("pending messages is not supported")
-            }
-
-            "conversation/list" -> {
-                TODO("Listing conversations is not supported")
-            }
-
-            "task/list" -> {
+            is GetTaskRequest -> {
                 val tqp = objectMapper.convertValue(request.params, TaskQueryParams::class.java)
-                handleTasksGet(
-                    request as GetTaskRequest, tqp,
-                )
+                handleTasksGet(request, tqp)
             }
 
-            "tasks/cancel" -> {
+            is CancelTaskRequest -> {
                 val tip = objectMapper.convertValue(request.params, TaskIdParams::class.java)
-                handleCancelTask(
-                    request as CancelTaskRequest, tip,
-                )
+                handleCancelTask(request, tip)
             }
 
             else -> {
@@ -133,7 +119,7 @@ class AutonomyA2ARequestHandler(
     private fun handleMessageSend(
         request: SendMessageRequest,
         params: MessageSendParams,
-    ): JSONRPCResponse<out Any> {
+    ): JSONRPCResponse<*> {
         // TODO handle other message parts and handle errors
         val intent = params.message.parts.filterIsInstance<TextPart>().single().text
         logger.info("Handling message send request with intent: '{}'", intent)
@@ -178,7 +164,7 @@ class AutonomyA2ARequestHandler(
         }
     }
 
-    fun handleMessageStream(request: JSONRPCRequest<out Any>): SseEmitter {
+    fun handleMessageStream(request: SendStreamingMessageRequest): SseEmitter {
         val params = objectMapper.convertValue(request.params, MessageSendParams::class.java)
         val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
         val emitter = streamingHandler.createStream(streamId)

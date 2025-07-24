@@ -18,9 +18,13 @@ package com.embabel.agent.a2a.server.support
 import com.embabel.agent.a2a.server.AgentCardHandler
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.a2a.spec.AgentCard
+import io.a2a.spec.CancelTaskRequest
+import io.a2a.spec.GetTaskRequest
 import io.a2a.spec.JSONRPCError
 import io.a2a.spec.JSONRPCErrorResponse
 import io.a2a.spec.NonStreamingJSONRPCRequest
+import io.a2a.spec.SendMessageRequest
+import io.a2a.spec.SendStreamingMessageRequest
 import io.a2a.spec.StreamingJSONRPCRequest
 import jakarta.servlet.ServletRequest
 import org.slf4j.LoggerFactory
@@ -120,14 +124,21 @@ private class AgentCardHandlerWebFacade(
             val method = requestMap["method"] as? String
 
             return when (method) {
-                "message/stream" -> {
+                SendStreamingMessageRequest.METHOD -> {
                     // For streaming requests, return the SseEmitter directly without wrapping
-                    val request = objectMapper.convertValue(requestMap, StreamingJSONRPCRequest::class.java)
+                    val request = objectMapper.convertValue(requestMap, SendStreamingMessageRequest::class.java)
                     agentCardHandler.handleJsonRpcStream(request)
                 }
                 else -> {
+                    val request = when (method) {
+                        SendMessageRequest.METHOD -> objectMapper.convertValue(requestMap, SendMessageRequest::class.java)
+                        GetTaskRequest.METHOD -> objectMapper.convertValue(requestMap, GetTaskRequest::class.java)
+                        CancelTaskRequest.METHOD -> objectMapper.convertValue(requestMap, CancelTaskRequest::class.java)
+                        else -> {
+                            throw UnsupportedOperationException("Method ${method} is not supported")
+                        }
+                    }
                     // Regular JSON-RPC handling
-                    val request = objectMapper.convertValue(requestMap, NonStreamingJSONRPCRequest::class.java)
                     ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(agentCardHandler.handleJsonRpc(request))

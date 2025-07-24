@@ -188,6 +188,9 @@ class A2AWebIntegrationTest(
             assertEquals("Hello, agent!", (task.history.get(0)?.parts?.get(0) as? TextPart)?.text)
         }
 
+        // TODO test `should handle get task request` (GetTaskRequest)
+        // TODO test `should handle cancel task request` (CancelTaskRequest)
+
         @Test
         fun `should handle message stream`() {
             val message = Message.Builder()

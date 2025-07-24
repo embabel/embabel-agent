@@ -17,6 +17,8 @@ package com.embabel.agent.a2a.server
 
 import io.a2a.spec.JSONRPCRequest
 import io.a2a.spec.JSONRPCResponse
+import io.a2a.spec.NonStreamingJSONRPCRequest
+import io.a2a.spec.StreamingJSONRPCRequest
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 
 /**
@@ -29,7 +31,7 @@ interface A2ARequestHandler {
      * @param request the JSON-RPC request
      * @return the JSON-RPC response
      */
-    fun handleJsonRpc(request: JSONRPCRequest<out Any>): JSONRPCResponse<out Any>
+    fun handleJsonRpc(request: NonStreamingJSONRPCRequest<*>): JSONRPCResponse<*>
 
     /**
      * Handles a streaming JSON-RPC request using Server-Sent Events (SSE).
@@ -42,9 +44,9 @@ interface A2ARequestHandler {
      * @return An [SseEmitter] that will be used to send streaming events to the client
      * @throws UnsupportedOperationException if streaming is not supported by this implementation
      * @see SseEmitter
-     * @see JSONRPCRequest
+     * @see StreamingJSONRPCRequest
      */
-    fun handleJsonRpcStream(request: JSONRPCRequest<out Any>): SseEmitter {
+    fun handleJsonRpcStream(request: StreamingJSONRPCRequest<*>): SseEmitter {
         throw UnsupportedOperationException("Streaming not supported by this implementation")
     }
 }
