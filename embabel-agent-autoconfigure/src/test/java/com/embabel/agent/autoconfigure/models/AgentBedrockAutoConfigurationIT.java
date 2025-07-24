@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.autoconfigure.models;
 
+import com.embabel.agent.config.annotation.EnableAgentBedrock;
+//import com.embabel.agent.config.annotation.EnableAgentShell;
 import com.embabel.common.ai.model.Llm;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -24,7 +26,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Arrays;
 import java.util.List;
@@ -41,8 +42,8 @@ import static com.embabel.agent.config.models.BedrockModels.*;
                 "spring.ai.bedrock.aws.access-key=AWSACCESSKEYID",
                 "spring.ai.bedrock.aws.secret-key=AWSSECRETACCESSKEY"
         })
-//@EnableAgentBedrock // this delegates to AgentPlatfotmAutoConfiguration, which blocks from proper using of moodelProvider
-@ActiveProfiles("bedrock") // workaround
+@EnableAgentBedrock
+//@EnableAgentShell can be added as well
 @ComponentScan(basePackages = "com.embabel.agent.autoconfigure")
 @ImportAutoConfiguration(classes = {AgentBedrockAutoConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
