@@ -23,14 +23,14 @@ import java.time.Instant
 
 data class A2ARequestEvent(
     override val agentPlatform: AgentPlatform,
-    val request: JSONRPCRequest<out Any>,
+    val request: JSONRPCRequest<*>,
 ) : AgentPlatformEvent {
     override val timestamp: Instant = Instant.now()
 }
 
 data class A2AResponseEvent(
     override val agentPlatform: AgentPlatform,
-    val response: JSONRPCResponse<out Any>,
+    val response: JSONRPCResponse<*>,
 ) : AgentPlatformEvent {
     override val timestamp: Instant = Instant.now()
 }
