@@ -17,6 +17,7 @@ package com.embabel.plan.goap
 
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
 import com.embabel.plan.*
 import com.fasterxml.jackson.annotation.JsonIgnore
 
@@ -201,7 +202,17 @@ data class GoapPlanningSystem(
         verbose: Boolean?,
         indent: Int,
     ): String =
-        "GOAP system: actions=${actions.map { it.name }}, goals=${goals.map { it.name }}, knownPreconditions=${knownPreconditions()}, knownEffects=${knownEffects()}".indent(indent)
+        "GOAP system:".indent(indent) +
+        """|actions: 
+           |${actions.joinToString("\n") { it.name.indent(1) }} 
+           |goals: 
+           |${goals.joinToString("\n") { it.name.indent(1) }}, 
+           |knownPreconditions: 
+           |${knownPreconditions()}.indent(1), 
+           |knownEffects: 
+           |${knownEffects()}.indent(1)
+           |""".trimMargin()
+            .indentLines(indent)
 }
 
 class GoapPlan(
