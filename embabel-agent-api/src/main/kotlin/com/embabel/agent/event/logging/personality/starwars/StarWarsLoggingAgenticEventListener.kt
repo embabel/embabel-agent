@@ -91,7 +91,7 @@ class StarWarsLoggingAgenticEventListener : LoggingAgenticEventListener(
 
     override fun getAgentProcessPlanFormulatedEventMessage(e: AgentProcessPlanFormulatedEvent): String =
         "[${e.processId}] Control, control, you must learn control! Formulated plan: ${
-            e.plan.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 1)
+            e.plan.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 2)
         }from: ${e.worldState.infoString(verbose = true, indent = 2)}"
 
     override fun getProcessCompletionMessage(e: AgentProcessFinishedEvent): String =

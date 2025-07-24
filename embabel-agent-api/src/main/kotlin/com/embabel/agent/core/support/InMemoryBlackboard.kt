@@ -17,6 +17,7 @@ package com.embabel.agent.core.support
 
 import com.embabel.agent.core.Blackboard
 import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
 import java.util.*
 
 /**
@@ -86,8 +87,8 @@ class InMemoryBlackboard(
         val mapString =
             if (verbose == true) "\n" + _map.entries.joinToString(joiner) else _map.entries.joinToString(joiner) { "${it.key}=${it.value::class.simpleName}" }
         return """|${javaClass.simpleName}: id=$blackboardId${joiner}
-                  |map:$mapString${joiner}
-                  |entries:$entriesString
-                  |""".trimMargin().indent(indent)
+                  |map: $mapString${joiner}
+                  |entries: $entriesString
+                  |""".trimMargin().indentLines(indent)
     }
 }
