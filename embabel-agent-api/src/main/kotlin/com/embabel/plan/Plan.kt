@@ -83,7 +83,7 @@ open class Plan(
             "\n" +
                     """|${actions.map { it.name }.joinToString(" ->\n"){it.indent(1)}}
                        |cost: $cost
-                       |netValue: $netValue
+                       |netValue: $netValue $indent
                        |""".trimMargin()
                         .indentLines(level = indent, removeBlankLines = false)
 

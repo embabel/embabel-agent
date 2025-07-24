@@ -70,7 +70,7 @@ abstract class OptimizingGoapPlanner(
             if (allPlans.isEmpty())
                 ""
             else
-                ":\n" + allPlans.joinToString("\n") { it.infoString(true, 1) }
+                ":" + allPlans.joinToString("\n") { it.infoString(true, 1) }
         )
         return planningSystem.copy(
             actions = planningSystem.actions.filter { action ->
