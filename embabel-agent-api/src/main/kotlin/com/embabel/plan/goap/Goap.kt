@@ -211,9 +211,9 @@ data class GoapPlanningSystem(
            |goals: 
            |${goals.joinToString("\n") { it.name.indent(1) }}
            |knownPreconditions: 
-           |${knownPreconditions().joinToString("\n").indent(1)} 
+           |${knownPreconditions().sortedBy { it }.joinToString("\n") { it.indent(1) }}
            |knownEffects: 
-           |${knownEffects().joinToString("\n").indent(1)}
+           |${knownEffects().sortedBy { it }.joinToString("\n") { it.indent(1) }}
            |""".trimMargin()
                     .indentLines(indent + 1)
 }

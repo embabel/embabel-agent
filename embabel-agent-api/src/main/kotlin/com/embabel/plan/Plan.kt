@@ -80,12 +80,12 @@ open class Plan(
         indent: Int,
     ): String {
         return if (verbose == true) {
-            "\n${
-                actions.mapIndexed { index, action ->
-                    "\t".repeat(index + 1) + action.name
-                }.joinToString(" ->\n")
-            }\ncost=$cost; netValue=$netValue"
-                .indentLines(level = indent, removeBlankLines = false)
+            "\n" +
+                    """|${actions.map { it.name }.joinToString(" ->\n"){it.indent(1)}}
+                       |cost: $cost 
+                       |netValue: $netValue
+                       |""".trimMargin()
+                        .indentLines(level = indent, removeBlankLines = false)
 
 
         } else {

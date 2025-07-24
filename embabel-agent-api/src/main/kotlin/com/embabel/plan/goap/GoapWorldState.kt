@@ -129,7 +129,7 @@ data class GoapWorldState(
         if (verbose == true)
             "\n" + state.entries.toList().sortedWith(
                 compareByDescending<Map.Entry<String, ConditionDetermination>> { it.value }
-                    .thenByDescending { it.key }
+                    .thenBy { it.key }
             )
                 .joinToString("\n") { (k, v) ->
                     (if (v == ConditionDetermination.TRUE)
