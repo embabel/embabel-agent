@@ -17,6 +17,7 @@ package com.embabel.agent.mcpserver
 
 import com.embabel.agent.event.logging.LoggingPersonality.Companion.BANNER_WIDTH
 import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
+import io.modelcontextprotocol.server.McpServerFeatures
 import io.modelcontextprotocol.server.McpSyncServer
 import org.apache.catalina.util.ServerInfo
 import org.slf4j.LoggerFactory
@@ -121,10 +122,35 @@ class McpSyncServerConfiguration(
             ) { "${it.toolDefinition.name()}: ${it.toolDefinition.description()}" }
         )
 
+        val toolsToRemove = sneakilyGetTools(mcpSyncServer)
+        logger.info(
+            "Removing {} tools from MCP server: {}", toolsToRemove.size,
+            toolsToRemove.joinToString(", "),
+        )
+        for (tool in toolsToRemove) {
+            mcpSyncServer.removeTool(tool)
+        }
+
         val agentTools = McpToolUtils.toSyncToolSpecification(allToolCallbacks)
         for (agentTool in agentTools) {
             mcpSyncServer.addTool(agentTool);
         }
+    }
+
+    // We will remove this when we get tool list support in the MCP library
+    private fun sneakilyGetTools(mcpSyncServer: McpSyncServer): List<String> {
+        val asyncServer = mcpSyncServer.asyncServer
+        try {
+            //	private final CopyOnWriteArrayList<McpServerFeatures.AsyncToolSpecification> tools = new CopyOnWriteArrayList<>();
+            val toolsField = asyncServer.javaClass.getDeclaredField("tools")
+            toolsField.setAccessible(true)
+            @Suppress("UNCHECKED_CAST")
+            val tools = toolsField.get(asyncServer) as List<McpServerFeatures.AsyncToolSpecification>
+            return tools.map { it.tool.name() }
+        } catch (t: Throwable) {
+            logger.warn("Failed to sneakily get tools from MCP server: {}", t.message, t)
+        }
+        return emptyList()
     }
 
     private fun exposeMcpPrompts(mcpSyncServer: McpSyncServer) {
