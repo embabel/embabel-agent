@@ -85,8 +85,11 @@ class StarWarsLoggingAgenticEventListener : LoggingAgenticEventListener(
         "Created a process I have: ${e.processId}"
 
     override fun getAgentProcessReadyToPlanEventMessage(e: AgentProcessReadyToPlanEvent): String =
-        "[${e.processId}] Difficult to see. Always in motion is the future: Ready to plan from ${
-            e.worldState.infoString(verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans)
+        "[${e.processId}] Difficult to see. Always in motion is the future: Ready to plan from: ${
+            e.worldState.infoString(
+                verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans,
+                indent = 1,
+            )
         }"
 
     override fun getAgentProcessPlanFormulatedEventMessage(e: AgentProcessPlanFormulatedEvent): String =

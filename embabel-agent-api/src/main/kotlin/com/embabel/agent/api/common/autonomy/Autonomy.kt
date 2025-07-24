@@ -358,7 +358,7 @@ class Autonomy(
         }
         logger.info(
             "Pruning agent instance from:\n{}",
-            map.map { it.key to "${it.key}=${it.value}".indent(1) }
+            map.map { it.key to "${it.key}: ${it.value}".indent(1) }
                 .sortedBy { it.first }
                 .joinToString("\n") { it.second }
         )

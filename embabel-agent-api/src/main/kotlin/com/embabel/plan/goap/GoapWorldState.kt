@@ -125,17 +125,20 @@ data class GoapWorldState(
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
-    ): String {
-        return if (verbose == true)
-            "\n" + state.entries.sortedByDescending { it.value }
+    ): String =
+        if (verbose == true)
+            "\n" + state.entries.toList().sortedWith(
+                compareByDescending<Map.Entry<String, ConditionDetermination>> { it.value }
+                    .thenByDescending { it.key }
+            )
                 .joinToString("\n") { (k, v) ->
                     (if (v == ConditionDetermination.TRUE)
                         "$k: $v".color(LUMON_MEMBRANE_COLOR)
                     else
                         "$k: $v").indent(indent)
                 }
-        else state.toString()
-    }
+        else
+            state.toString()
 
     operator fun plus(pair: Pair<String, ConditionDetermination>): GoapWorldState =
         GoapWorldState(this.state + pair)
