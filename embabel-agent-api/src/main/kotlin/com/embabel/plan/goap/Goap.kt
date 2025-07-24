@@ -50,7 +50,10 @@ enum class ConditionDetermination {
 
 typealias EffectSpec = Map<String, ConditionDetermination>
 
-private fun preconditionsSatisfied(preconditions: EffectSpec, currentState: GoapState): Boolean =
+private fun preconditionsSatisfied(
+    preconditions: EffectSpec,
+    currentState: GoapState,
+): Boolean =
     preconditions.all { (key, value) -> currentState[key] == value }
 
 interface GoapStep : Step {
@@ -147,7 +150,7 @@ interface GoapGoal : GoapStep,
         operator fun invoke(
             name: String,
             preconditions: EffectSpec = mapOf(name to ConditionDetermination(true)),
-            value: ZeroToOne = 0.0
+            value: ZeroToOne = 0.0,
         ): GoapGoal {
             return GoapGoalImpl(name, preconditions, value)
         }
@@ -155,7 +158,7 @@ interface GoapGoal : GoapStep,
         operator fun invoke(
             name: String,
             pre: Collection<String>,
-            value: ZeroToOne = 0.0
+            value: ZeroToOne = 0.0,
         ): GoapGoal {
             return GoapGoalImpl(
                 name,
@@ -203,7 +206,7 @@ data class GoapPlanningSystem(
         indent: Int,
     ): String =
         "GOAP system:".indent(indent) + "\n" +
-        """|actions: 
+                """|actions: 
            |${actions.joinToString("\n") { it.name.indent(1) }} 
            |goals: 
            |${goals.joinToString("\n") { it.name.indent(1) }}
@@ -212,7 +215,7 @@ data class GoapPlanningSystem(
            |knownEffects: 
            |${knownEffects().joinToString(", ").indent(1)}
            |""".trimMargin()
-            .indentLines(indent)
+                    .indentLines(indent + 1)
 }
 
 class GoapPlan(

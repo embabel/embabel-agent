@@ -358,7 +358,9 @@ class Autonomy(
         }
         logger.info(
             "Pruning agent instance from:\n{}",
-            map.map { "${it.key}=${it.value}".indent(1) }.joinToString("\n")
+            map.map { it.key.length to "${it.key}=${it.value}".indent(1) }
+                .sortedBy { it.first }
+                .joinToString("\n") { it.second }
         )
         map += ("it:${userInput::class.qualifiedName}" to ConditionDetermination.TRUE)
 
