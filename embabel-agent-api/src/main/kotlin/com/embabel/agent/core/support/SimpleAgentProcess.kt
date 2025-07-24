@@ -59,11 +59,14 @@ internal class SimpleAgentProcess(
         val plan = planner.bestValuePlanToAnyGoal(system = agent.planningSystem)
         if (plan == null) {
             logger.info(
-                "❌ Process {} stuck: No plan from {} in {}, context={}",
+                """|❌ Process {} stuck No plan from {} 
+                   |in:\n{}, 
+                   |context:\n{}
+                   |""".trimMargin(),
                 id,
                 worldState.infoString(verbose = true),
-                agent.planningSystem.infoString(verbose = true),
-                blackboard,
+                agent.planningSystem.infoString(verbose = true, 1),
+                blackboard,infoString(true, 1),
             )
             setStatus(AgentProcessStatusCode.STUCK)
             return this
