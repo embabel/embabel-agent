@@ -60,13 +60,13 @@ internal class SimpleAgentProcess(
         if (plan == null) {
             logger.info(
                 """|❌ Process {} stuck No plan from {} 
-                   |in:\n{}, 
-                   |context:\n{}
+                   |in:{}, 
+                   |context:{}
                    |""".trimMargin(),
                 id,
                 worldState.infoString(verbose = true),
-                agent.planningSystem.infoString(verbose = true, 1),
-                blackboard,infoString(true, 1),
+                "\n" + agent.planningSystem.infoString(verbose = true, 1),
+                blackboard, infoString(true, 1),
             )
             setStatus(AgentProcessStatusCode.STUCK)
             return this
