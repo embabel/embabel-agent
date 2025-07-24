@@ -105,6 +105,7 @@ data class Agent(
         verbose: Boolean?,
         indent: Int,
     ): String =
+        "\n" +
         """|description: ${description}
            |provider: $provider
            |version: $version

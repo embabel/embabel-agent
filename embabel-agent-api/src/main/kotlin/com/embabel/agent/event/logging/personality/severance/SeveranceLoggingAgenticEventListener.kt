@@ -117,7 +117,7 @@ class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(
         "${highlight("WOE")}: Failed to choose ${e.type.simpleName} based on ${e.basis}. Choices: ${e.rankings.infoString()}. Confidence cutoff: ${e.confidenceCutOff}"
 
     override fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        "${highlight("WILES")}: Created agent ${e.agent.infoString()}"
+        "${highlight("WILES")}: Created agent ${e.agent.infoString(indent = 1)}"
 
     override fun getAgentProcessCreationEventMessage(e: AgentProcessCreationEvent): String =
         kier(

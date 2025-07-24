@@ -85,9 +85,15 @@ interface Action : AgentSystemStep, GoapAction, ActionRunner, DataDictionary, To
     ): String =
         """|name: $name
            |preconditions:
-           |${preconditions.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent( 1) }}
+           |${
+            preconditions.map { it.key to "${it.key}: ${it.value}" }.sortedBy { it.first }
+                .joinToString("\n") { it.second.indent(1) }
+        }
            |postconditions:
-           |${effects.map { "${it.key} (${it.value})" }.joinToString("\n") { it.indent(1) }}
+           |${
+            effects.map { it.key to "${it.key}: ${it.value}" }.sortedBy { it.first }
+                .joinToString("\n") { it.second.indent(1) }
+        }
            |""".trimMargin()
             .indentLines(indent)
 

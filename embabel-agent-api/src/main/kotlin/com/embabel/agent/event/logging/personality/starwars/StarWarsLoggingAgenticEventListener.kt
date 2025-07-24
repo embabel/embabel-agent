@@ -79,7 +79,7 @@ class StarWarsLoggingAgenticEventListener : LoggingAgenticEventListener(
         "Chosen ${e.type.simpleName} I have with confidence ${e.choice.score} based on ${e.basis}"
 
     override fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        "You will find only what you bring in: Created agent instance ${e.agent.infoString()}"
+        "You will find only what you bring in: Created agent instance ${e.agent.infoString(indent = 1)}"
 
     override fun getAgentProcessCreationEventMessage(e: AgentProcessCreationEvent): String =
         "Created a process I have: ${e.processId}"
