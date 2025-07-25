@@ -15,6 +15,9 @@
     <description>Parent POM for Embabel Agent Modules</description>
 
     <properties>
+        <sonar.coverage.jacoco.xmlReportPaths>
+            ${maven.multiModuleProjectDirectory}/embabel-agent-api/target/site/jacoco/jacoco.xml
+        </sonar.coverage.jacoco.xmlReportPaths>
         <embabel-common.version>0.1.0-SNAPSHOT</embabel-common.version>
     </properties>
 
@@ -102,6 +105,10 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>pl.project13.maven</groupId>
                 <artifactId>git-commit-id-plugin</artifactId>
