@@ -85,7 +85,7 @@ open class Plan(
                        |cost: $cost
                        |netValue: $netValue
                        |""".trimMargin()
-                        .indentLines(level = indent, removeBlankLines = false)
+                        .indentLines(level = indent)
 
 
         } else {

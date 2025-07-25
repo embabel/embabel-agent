@@ -65,8 +65,7 @@ abstract class OptimizingGoapPlanner(
     override fun prune(planningSystem: GoapPlanningSystem): GoapPlanningSystem {
         val allPlans = plansToGoals(planningSystem)
         loggerFor<OptimizingGoapPlanner>().info(
-            "{} plan(s) to consider in pruning{}",
-            allPlans.size,
+            "${allPlans.size} plan(s) to consider in pruning{}",
             if (allPlans.isEmpty())
                 ""
             else
