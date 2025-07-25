@@ -41,7 +41,10 @@ class InMemoryBlackboard(
 
     override fun get(name: String): Any? = _map[name]
 
-    override fun bind(key: String, value: Any): Blackboard {
+    override fun bind(
+        key: String,
+        value: Any,
+    ): Blackboard {
         _map[key] = value
         _entries.add(value)
         return this
@@ -55,11 +58,17 @@ class InMemoryBlackboard(
         bind(pair.first, pair.second)
     }
 
-    override operator fun set(key: String, value: Any) {
+    override operator fun set(
+        key: String,
+        value: Any,
+    ) {
         bind(key, value)
     }
 
-    override fun setCondition(key: String, value: Boolean): Blackboard {
+    override fun setCondition(
+        key: String,
+        value: Boolean,
+    ): Blackboard {
         _map[key] = value
         _entries.add(value)
         return this
@@ -82,13 +91,17 @@ class InMemoryBlackboard(
         indent: Int,
     ): String {
         val joiner = if (verbose == true) "\n" else ", "
-        val entriesString =
-            if (verbose == true) "\n" + objects.joinToString(joiner) else objects.map { "${it::class.simpleName}" }
         val mapString =
             if (verbose == true) "\n" + _map.entries.joinToString(joiner) else _map.entries.joinToString(joiner) { "${it.key}=${it.value::class.simpleName}" }
-        return """|${javaClass.simpleName}: id=$blackboardId${joiner}
-                  |map: $mapString${joiner}
-                  |entries: $entriesString
-                  |""".trimMargin().indentLines(indent)
+        val entriesString =
+            if (verbose == true) "\n" + objects.joinToString(joiner) else objects.map { "${it::class.simpleName}" }
+        return """|${javaClass.simpleName}: id=$blackboardId
+                  |map:
+                  |${_map.entries.joinToString(", ").indent(1)}
+                  |entries:
+                  |${objects.joinToString(", ").indent(1)}
+                  |"""
+            .trimMargin()
+            .indentLines(indent)
     }
 }
