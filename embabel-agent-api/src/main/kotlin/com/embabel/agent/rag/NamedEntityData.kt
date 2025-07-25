@@ -15,12 +15,12 @@
  */
 package com.embabel.agent.rag
 
+import com.embabel.common.core.types.Named
+
 /**
  * Adds a name to the well known entity data.
  */
-interface NamedEntityData : EntityData {
-    val name: String
-}
+interface NamedEntityData : EntityData, Named
 
 data class SimpleNamedEntityData(
     override val id: String,
