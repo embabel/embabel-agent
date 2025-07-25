@@ -19,6 +19,7 @@ import com.embabel.agent.common.Constants
 import com.embabel.agent.spi.PlatformServices
 import com.embabel.agent.spi.ToolGroupResolver
 import java.util.concurrent.CompletableFuture
+import kotlin.reflect.KClass
 
 /**
  * An AgentPlatform can run agents. It can also act as an agent itself,
@@ -147,6 +148,9 @@ interface AgentPlatform : AgentScope {
         agent: Agent,
         parentAgentProcess: AgentProcess,
     ): AgentProcess
+
+    fun findAgentByResultType(resultType: KClass<*>): Agent? =
+        TODO("Not yet implemented")
 
     override val schemaTypes: Collection<SchemaType>
         get() = agents().flatMap { it.schemaTypes }.distinctBy { it.name }
