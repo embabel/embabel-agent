@@ -52,7 +52,7 @@ data class DockerProperties(
  * http://localhost:12434/engines/v1/models (assuming default port).
  */
 @ExcludeFromJacocoGeneratedReport(reason = "Docker model configuration can't be unit tested")
-@Configuration
+@Configuration(proxyBeanMethods=false)
 class DockerLocalModels(
     private val dockerProperties: DockerProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,

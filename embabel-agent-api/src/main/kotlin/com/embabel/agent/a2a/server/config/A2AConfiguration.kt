@@ -27,7 +27,7 @@ import org.springframework.context.annotation.Profile
  * Expose AgentCardHandler objects.
  * Each will be exposed as an A2A endpoint with the path "a2a".
  */
-@Configuration
+@Configuration(proxyBeanMethods=false)
 @Profile("a2a")
 class A2AConfiguration {
 
