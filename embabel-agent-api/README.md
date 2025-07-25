@@ -6,142 +6,152 @@ Core library for building intelligent agent applications with Spring Boot integr
 
 The Embabel Agent Framework provides a library-centric approach to agent development, supporting multiple configuration methods and seamless integration with existing Spring Boot applications.
 
-## Configuration Approach - Planned
+## Strategic Direction: Enhanced Configurability
 
-The framework supports flexible configuration with clear precedence (highest to lowest priority):
+The framework is undergoing transformation from profile-based to property-based configuration for enhanced library usability and developer experience.
 
-1. **Programmatic Properties** (Highest Priority)
-   - AgentFrameworkProperties (for testing @TestPropertySource(properties = [...]))
-   - System properties (`-Dembabel.framework.logging.personality=starwars`)
-   - Environment variables (`EMBABEL_FRAMEWORK_LOGGING_PERSONALITY=starwars`)
-
-2. **Properties Files**
-   - `application.properties`
-   - `application-{profile}.properties`
-
-3. **YAML Files** (Lowest Priority)
-   - `application.yaml` (existing files work as-is with property semantics)
-   - `application-docker.yaml`, `application-neo.yaml` (backward compatible)
-   - `application-{profile}.yaml`
-
-## Configuration Properties
+## Configuration Architecture
 
 ### Framework Internal Properties (`embabel.framework.*`)
-
-True framework internals managed by the framework itself:
+**File:** `agent-framework.properties`  
+**Purpose:** True framework internals managed by the library
 
 ```properties
-# Framework scanning and registration
-embabel.framework.scanning.basePackages=com.embabel.agent
-embabel.framework.scanning.componentFilters=enabled
-
-# LLM operations internals
+# Framework capabilities and behavior
+embabel.framework.scanning.annotation=true
+embabel.framework.scanning.bean=true
 embabel.framework.llm-operations.timeout=30s
 embabel.framework.llm-operations.retryStrategy=exponential
-
-# Process ID generation
 embabel.framework.process-id-generation.strategy=uuid
-
-# Server-sent events configuration
-embabel.framework.sse.heartbeatInterval=30s
-
-# Logging infrastructure
-embabel.framework.logging.verbosity=normal
-
-# Test framework behavior
 embabel.framework.test.mockMode=true
-embabel.framework.test.simulateFailures=false
+embabel.framework.ranking.maxAttempts=5
 ```
 
-### Application Configuration Properties
+**Characteristics:**
+- ✅ **Sensible defaults** - rarely need changing
+- ✅ **Framework behavior** - internal operations
+- ✅ **Library-managed** - shipped with framework
+- ⚠️ **Override with caution** - can break framework assumptions
 
-Application developers manage these in their own configuration:
-
-```properties
-# Model provider selection (application choice)
-ai.models.provider=openai
-ai.models.openai.model=gpt-4
-ai.models.openai.apiKey=${OPENAI_API_KEY}
-
-# Feature toggles (application deployment choice)
-app.features.a2a.enabled=true
-app.features.observability.enabled=true
-
-# Business logic configuration (application policy)
-app.autonomy.goalConfidenceCutOff=0.7
-app.autonomy.maxRetries=3
-app.autonomy.timeout=30m
-```
-
-### Personality Configuration (Framework Exception)
-
-Personalities are a cross-cutting concern affecting both core framework (logging colors) and shell module (terminal display). They are treated as a framework exception:
-
-**Current (Transitional):**
-```properties
-# Temporary framework property during migration
-embabel.framework.logging.personality=starwars
-```
-
-**Roadmap:**
-1. **Phase 1**: Implement builder pattern for custom personalities
-2. **Phase 2**: Move to static palette definitions in `palettes.config`
-3. **Phase 3**: Programmatic fallback for backward compatibility
-
-```kotlin
-// Future: Builder pattern for custom personalities
-@Bean
-fun corporatePersonality(): PersonalityProvider {
-    return PersonalityBuilder()
-        .name("corporate")
-        .palette(CorporatePalette())
-        .displayTheme(CorporateDisplay())
-        .build()
-}
-```
-
-## Migration from Profile-Based Configuration
-
-### Existing YAML Files
-Your existing YAML configuration files continue to work unchanged:
+### Application Properties (`embabel.agent.*`)
+**File:** Developer's `application.yml`  
+**Purpose:** Business logic and deployment choices
 
 ```yaml
-# application-docker.yaml (NO CHANGES NEEDED)
-spring:
-  profiles:
-    active: docker
-
 embabel:
   agent:
+    # Application identity
+    platform:
+      name: my-agent-app
+      description: My Custom Agent Application
+    
+    # UI/UX choices
     logging:
       personality: starwars
+      verbosity: debug
+    
+    # Model provider choices
     models:
+      defaultLlm: gpt-4
+      defaultEmbeddingModel: text-embedding-3-small
       provider: openai
+      openai:
+        apiKey: ${OPENAI_API_KEY}
+    
+    # Business logic
+    autonomy:
+      goalConfidenceCutOff: 0.8
+      agentConfidenceCutOff: 0.75
+      maxRetries: 3
+    
+    # Infrastructure choices
+    infrastructure:
+      observability:
+        zipkinEndpoint: http://prod-zipkin:9411
+        tracingEnabled: true
+      neo4j:
+        uri: bolt://prod-cluster:7687
+        username: ${NEO4J_USERNAME}
+      mcp:
+        servers: ["github", "docker"]
+        github:
+          token: ${GITHUB_TOKEN}
 ```
 
-### Optional Import Pattern
-For new YAML files, you can optionally use import directives:
+**Characteristics:**
+- ✅ **Developer-controlled** - expected to be customized
+- ✅ **Environment-specific** - different per deployment
+- ✅ **Business decisions** - model choices, thresholds, services
+- ✅ **Infrastructure bindings** - endpoints, credentials, features
 
+## Strategic Migration from Profiles
+
+### Current Challenge
 ```yaml
-# application-myapp.yaml
+# ❌ Profile-based (being phased out)
 spring:
-  config:
-    import: 
-      - optional:classpath:embabel-agent-starwars.properties
-      - optional:file:.env[.properties]
+  profiles:
+    active: bedrock,shell,observability
 
-# Application-specific configuration
-server:
-  port: 8080
+# Multiple application-{profile}.yml files to maintain
+application-bedrock.yml     # Mixed framework + app concerns
+application-shell.yml       # Framework behavior
+application-observability.yml  # Infrastructure setup
 ```
+
+### Target Architecture
+```yaml
+# ✅ Property-based (target)
+embabel:
+  framework:
+    # Framework internals (library defaults)
+    capabilities:
+      bedrockSupported: true
+      shellSupported: true
+      observabilitySupported: true
+  
+  agent:
+    # Application choices (developer config)
+    models:
+      provider: bedrock
+      bedrock:
+        region: us-east-1
+    infrastructure:
+      observability:
+        enabled: true
+```
+
+### Migration Benefits
+- **🎯 Explicit configuration** - clear what features are enabled
+- **🔧 Enhanced configurability** - granular control over behavior  
+- **📚 Better IDE support** - auto-completion and validation
+- **🏗️ Library-centric design** - suitable for embedded usage
+- **🔄 Environment flexibility** - easy override with env vars
+- **📖 Self-documenting** - configuration structure shows capabilities
+
+## Property Precedence
+
+Configuration follows Spring Boot precedence (highest to lowest):
+
+1. **Programmatic Properties** (Highest)
+   - `@TestPropertySource(properties = [...])`
+   - System properties (`-Dembabel.framework.test.mockMode=false`)
+   - Environment variables (`EMBABEL_FRAMEWORK_TEST_MOCKMODE=false`)
+
+2. **Application Properties Files**
+   - `application.properties`
+   - `application.yml`
+
+3. **Framework Default Files** (Lowest)
+   - `agent-framework.properties`
+   - `agent-bedrock-models.properties`
+   - Code defaults in `AgentFrameworkProperties.kt`
 
 ## Spring Boot Integration
 
-Add the framework as a dependency and enable configuration properties:
-
 ```kotlin
 @SpringBootApplication
-@EnableConfigurationProperties(AgentFrameworkProperties::class)  // Enable framework properties
+@EnableConfigurationProperties(AgentFrameworkProperties::class)
 class MyAgentApplication
 
 fun main(args: Array<String>) {
@@ -149,19 +159,108 @@ fun main(args: Array<String>) {
 }
 ```
 
-## Shell Module Independence
+## Module Independence
 
-The shell functionality is completely encapsulated in the `embabel-agent-shell` module with its own `embabel.shell.*` configuration namespace. The core framework has no shell dependencies.
+### Core Framework (`embabel-agent-api`)
+- **Prefix:** `embabel.framework.*` and `embabel.agent.*`
+- **Scope:** Core agent capabilities, model providers, business logic
+- **Independence:** Works standalone without shell module
+
+### Shell Module (`embabel-agent-shell`)  
+- **Prefix:** `embabel.shell.*`
+- **Scope:** Interactive CLI interface and terminal services
+- **Independence:** Optional dependency with separate configuration
+
+### Autoconfigure Module (`embabel-agent-autoconfigure`)
+- **Annotation-driven:** `@EnableAgentBedrock`, `@EnableAgentShell`
+- **Profile activation:** Maintains profiles for annotation convenience
+- **Consumer choice:** Developers choose activation method
+
+## Configuration Examples
+
+### Development Environment
+```yaml
+embabel:
+  agent:
+    logging:
+      personality: starwars
+      verbosity: debug
+    models:
+      provider: ollama
+    infrastructure:
+      neo4j:
+        uri: bolt://localhost:7687
+      mcp:
+        servers: ["docker-desktop"]
+```
+
+### Production Environment
+```yaml
+embabel:
+  agent:
+    platform:
+      name: production-agent
+    logging:
+      personality: corporate
+      verbosity: normal
+    models:
+      provider: bedrock
+      bedrock:
+        region: us-east-1
+    infrastructure:
+      observability:
+        enabled: true
+        zipkinEndpoint: http://prod-zipkin:9411
+      neo4j:
+        uri: bolt://prod-cluster.company.com:7687
+        username: ${NEO4J_PROD_USER}
+        password: ${NEO4J_PROD_PASSWORD}
+```
 
 ## Phase 1: Library-Centric Transformation
 
-This framework is currently in Phase 1 of transformation from application-centric to library-centric design:
+Current transformation status:
 
-- ✅ **Dual Configuration Support** - Properties and existing YAML profiles work together
-- ✅ **Shell Module Encapsulation** - Complete separation of shell functionality  
-- ✅ **Backward Compatibility** - Existing configurations continue working
-- ✅ **Test Profile Safety** - Automatic mock providers in test environments
-- 🔄 **Phase 2 Planned** - Enhanced auto-configuration and profile deprecation
+- 🔄 **Property Segregation** - Framework vs application concerns
+- 🔄 **Profile Migration** - Moving from profile-based to property-based activation  
+- ✅ **Shell Independence** - Complete separation achieved
+- 🔄 **Enhanced Configurability** - Granular property control
+- 📋 **Annotation Support** - Maintained for developer convenience
+
+### Personality Plugin Infrastructure (In Progress)
+
+**Current State**: Profile-based personality activation
+```yaml
+# Current (being migrated away from)
+spring:
+  profiles:
+    active: starwars
+```
+
+**Target State**: Property-based with plugin architecture
+```yaml
+# Target library-centric approach
+embabel:
+  agent:
+    logging:
+      personality: starwars
+      verbosity: debug
+      enableRuntimeSwitching: true
+```
+
+**Plugin Architecture Features**:
+- ✅ **Property-based activation** - No Spring profile dependencies
+- 🔄 **Dynamic discovery** - Auto-find personality providers
+- 🔄 **Runtime switching** - Change personalities without restart
+- 🔄 **Plugin interface** - Clean provider contract for extensions
+
+**Implementation**: See [ITERATIVE_PLAN.md](ITERATIVE_PLAN.md) for detailed implementation steps
+
+### Next Phase Goals
+- **Complete profile departure** from core framework configuration
+- **Plugin architecture expansion** for personalities and model providers
+- **Enhanced property dynamism** matching profile flexibility
+- **Developer experience improvements** with better IDE support
 
 --------------------
 (c) Embabel Software Inc 2024-2025.
