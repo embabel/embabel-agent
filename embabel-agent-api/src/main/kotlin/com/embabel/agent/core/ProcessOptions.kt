@@ -97,6 +97,7 @@ data class Budget(
  * @param test whether to run in test mode. In test mode, the agent platform
  * will not use any external resources such as LLMs, and will not persist any state.
  * @param verbosity detailed verbosity settings for logging etc.
+ * @param prune whether to prune the agent to only relevant actions
  */
 data class ProcessOptions(
     val contextId: ContextId? = null,
@@ -110,6 +111,7 @@ data class ProcessOptions(
         operationDelay = Delay.NONE,
         earlyTerminationPolicy = budget.earlyTerminationPolicy(),
     ),
+    val prune: Boolean = false,
 ) {
 
     companion object {

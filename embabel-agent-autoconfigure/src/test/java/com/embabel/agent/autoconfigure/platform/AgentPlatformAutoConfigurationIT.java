@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.platform;
 
+import com.embabel.agent.config.annotation.AgentPlatform;
 import com.embabel.agent.event.AgenticEventListener;
 import com.embabel.agent.rag.RagService;
 import com.embabel.agent.spi.Ranker;
@@ -33,9 +34,10 @@ import org.springframework.test.annotation.DirtiesContext;
  * Test employs OPEN API KEY.
  *
  */
-@SpringBootTest(classes= AgentPlatformAutoConfiguration.class)
+@SpringBootTest(classes= AgentPlatformAutoConfigurationIT.class)
 @ComponentScan(basePackages = "com.embabel.agent.autoconfigure")
 @ImportAutoConfiguration(classes = {AgentPlatformAutoConfiguration.class})
+@AgentPlatform("my-domain")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class AgentPlatformAutoConfigurationIT {
 
