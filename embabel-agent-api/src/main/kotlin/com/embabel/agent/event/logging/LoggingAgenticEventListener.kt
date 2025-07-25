@@ -45,7 +45,11 @@ interface LoggingPersonality {
 
     val bannerWidth: Int get() = BANNER_WIDTH
 
-    fun lineSeparator(text: String, bannerChar: String, glyph: String = " ⇩  "): String =
+    fun lineSeparator(
+        text: String,
+        bannerChar: String,
+        glyph: String = " ⇩  ",
+    ): String =
         Companion.lineSeparator(text, bannerChar, glyph)
 
     companion object {
@@ -54,7 +58,11 @@ interface LoggingPersonality {
         /**
          * A line separator beginning with the text
          */
-        private fun lineSeparator(text: String, bannerChar: String, glyph: String = " ⇩  "): String {
+        private fun lineSeparator(
+            text: String,
+            bannerChar: String,
+            glyph: String = " ⇩  ",
+        ): String {
             if (text.isBlank()) {
                 return bannerChar.repeat(BANNER_WIDTH)
             }
@@ -149,10 +157,16 @@ open class LoggingAgenticEventListener(
     protected open fun getToolCallRequestEventMessage(e: ToolCallRequestEvent): String =
         "[${e.processId}] (${e.action?.shortName()}) calling tool ${e.tool}(${e.toolInput})"
 
-    protected open fun getToolCallSuccessResponseEventMessage(e: ToolCallResponseEvent, resultToShow: String): String =
+    protected open fun getToolCallSuccessResponseEventMessage(
+        e: ToolCallResponseEvent,
+        resultToShow: String,
+    ): String =
         "[${e.processId}] (${e.request.action?.shortName()}) tool ${e.request.tool} returned $resultToShow in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
 
-    protected open fun getToolCallFailureResponseEventMessage(e: ToolCallResponseEvent, throwable: Throwable?): String =
+    protected open fun getToolCallFailureResponseEventMessage(
+        e: ToolCallResponseEvent,
+        throwable: Throwable?,
+    ): String =
         "[${e.processId}] (${e.request.action?.shortName()}) failed tool ${e.request.tool} -> ${throwable} in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
 
     protected open fun getProcessCompletionMessage(e: AgentProcessFinishedEvent): String =
@@ -165,7 +179,7 @@ open class LoggingAgenticEventListener(
         "[${e.processId}] waiting"
 
     protected open fun getAgentProcessStuckEventMessage(e: AgentProcessStuckEvent): String =
-        "[${e.processId}] stuck at ${e.agentProcess.lastWorldState}"
+        "[${e.processId}] stuck at: ${e.agentProcess.lastWorldState?.infoString(true, 1)}"
 
     protected open fun getObjectAddedEventMessage(e: ObjectAddedEvent): String =
         "[${e.processId}] object added: ${if (e.agentProcess.processContext.processOptions.verbosity.debug) e.value else e.value::class.java.simpleName}"
@@ -337,15 +351,15 @@ open class LoggingAgenticEventListener(
         val bannerChar = "."
         return """|${lineSeparator("Messages ", bannerChar)}
                   |${
-                    this.instructions.joinToString(
-                        "\n${
-                            lineSeparator(
-                                "",
-                                bannerChar
-                            )
-                        }\n"
-                    ) { "${it.messageType} <${it.text}>" }
-                }
+            this.instructions.joinToString(
+                "\n${
+                    lineSeparator(
+                        "",
+                        bannerChar
+                    )
+                }\n"
+            ) { "${it.messageType} <${it.text}>" }
+        }
                   |${lineSeparator("Options", bannerChar)}
                   |${this.options}
                   |""".trimMargin()
