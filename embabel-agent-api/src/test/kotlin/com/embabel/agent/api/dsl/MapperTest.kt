@@ -55,7 +55,7 @@ class MapperTest {
     }
 
     @Test
-    //@Disabled("this test is disabled because it can cause flaky behavior in CI environments")
+    @Disabled("this test is disabled because it can cause flaky behavior in CI environments")
     fun `mapAsync should process items concurrently`() = runBlocking {
         val items = (1..100).toList()
         val counter = AtomicInteger(0)
