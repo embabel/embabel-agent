@@ -56,12 +56,12 @@ class EmbabelServerGoalsAgentCardHandler(
             .version(Semver.Companion.DEFAULT_VERSION)
             .documentationUrl("https://embabel.com/docs")
             .capabilities(
-                AgentCapabilities(
-                    false,
-                    false,
-                    false,
-                    emptyList()
-                ),
+                AgentCapabilities.Builder()
+                    .streaming(false) // TODO are they planning to support streaming?
+                    .pushNotifications(false)
+                    .stateTransitionHistory(false)
+                    .extensions(emptyList())
+                    .build()
             )
             .defaultInputModes(listOf("application/json", "text/plain"))
             .defaultOutputModes(listOf("application/json", "text/plain"))

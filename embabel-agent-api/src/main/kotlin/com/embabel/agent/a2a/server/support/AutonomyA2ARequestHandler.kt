@@ -79,7 +79,7 @@ class AutonomyA2ARequestHandler(
     override fun handleJsonRpc(
         request: NonStreamingJSONRPCRequest<*>
     ): JSONRPCResponse<*> {
-        logger.info("Received JSONRPC message {}: {}", request.method, request)
+        logger.info("Received JSONRPC message {}: {}", request.method, request::class.java.name)
         agenticEventListener.onPlatformEvent(
             A2ARequestEvent(
                 agentPlatform = autonomy.agentPlatform,
@@ -88,17 +88,17 @@ class AutonomyA2ARequestHandler(
         )
         val result = when (request) {
             is SendMessageRequest -> {
-                val messageSendParams = objectMapper.convertValue(request.params, MessageSendParams::class.java)
+                val messageSendParams = request.params
                 handleMessageSend(request, messageSendParams)
             }
 
             is GetTaskRequest -> {
-                val tqp = objectMapper.convertValue(request.params, TaskQueryParams::class.java)
+                val tqp = request.params
                 handleTasksGet(request, tqp)
             }
 
             is CancelTaskRequest -> {
-                val tip = objectMapper.convertValue(request.params, TaskIdParams::class.java)
+                val tip = request.params
                 handleCancelTask(request, tip)
             }
 
@@ -124,10 +124,11 @@ class AutonomyA2ARequestHandler(
         val intent = params.message.parts.filterIsInstance<TextPart>().single().text
         logger.info("Handling message send request with intent: '{}'", intent)
         try {
-            val dynamicExecutionResult = autonomy.chooseAndRunAgent(
+            val result = autonomy.chooseAndRunAgent(
                 intent = intent,
                 processOptions = ProcessOptions(),
             )
+            // TODO result should be based on the outputMode received in the "params.configuration.acceptedOutputModes"
             val task = Task.Builder()
                 .id(params.message.taskId ?: UUID.randomUUID().toString())
                 .contextId(params.message.contextId ?: ("ctx_" + UUID.randomUUID().toString()))
@@ -139,7 +140,7 @@ class AutonomyA2ARequestHandler(
                             .artifactId(UUID.randomUUID().toString())
                             .parts(
                                 listOf(
-                                    DataPart(mapOf("output" to dynamicExecutionResult.output))
+                                    DataPart(mapOf("output" to result.output))
                                 )
                             )
                             .build()
@@ -181,7 +182,7 @@ class AutonomyA2ARequestHandler(
                                 TaskState.WORKING,
                                 Message.Builder()
                                     .messageId(UUID.randomUUID().toString())
-                                    .role(Message.Role.AGENT) // TODO? before it was "system"
+                                    .role(Message.Role.AGENT)
                                     .parts(listOf(TextPart("Task started...")))
                                     .contextId(params.message.contextId)
                                     .taskId(params.message.taskId)
@@ -205,6 +206,7 @@ class AutonomyA2ARequestHandler(
                     intent = intent,
                     processOptions = ProcessOptions()
                 )
+                logger.debug("Task execution result: {}", result)
 
                 // Send intermediate status updates
                 streamingHandler.sendStreamEvent(
