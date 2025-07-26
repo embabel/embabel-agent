@@ -31,13 +31,18 @@ class NoSuitableModelException(criteria: ModelSelectionCriteria, models: List<Ai
 /**
  * Superinterface for model selection criteria
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.SIMPLE_NAME,
+    include = JsonTypeInfo.As.PROPERTY,
+    property = "type"
+)
 @JsonSubTypes(
     JsonSubTypes.Type(value = ByNameModelSelectionCriteria::class),
     JsonSubTypes.Type(value = ByRoleModelSelectionCriteria::class),
     JsonSubTypes.Type(value = RandomByNameModelSelectionCriteria::class),
     JsonSubTypes.Type(value = FallbackByNameModelSelectionCriteria::class),
     JsonSubTypes.Type(value = AutoModelSelectionCriteria::class),
+    JsonSubTypes.Type(value = DefaultModelSelectionCriteria::class),
     JsonSubTypes.Type(value = ByNameModelSelectionCriteria::class),
 )
 sealed interface ModelSelectionCriteria {
