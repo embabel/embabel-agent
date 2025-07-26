@@ -16,11 +16,18 @@
 package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.server.AgentCardHandler
-import com.embabel.agent.a2a.spec.AgentCard
-import com.embabel.agent.a2a.spec.JSONRPCError
-import com.embabel.agent.a2a.spec.JSONRPCErrorResponse
-import com.embabel.agent.a2a.spec.JSONRPCRequest
+import com.fasterxml.jackson.databind.ObjectMapper
+import io.a2a.spec.AgentCard
+import io.a2a.spec.CancelTaskRequest
+import io.a2a.spec.GetTaskRequest
+import io.a2a.spec.JSONRPCError
+import io.a2a.spec.JSONRPCErrorResponse
+import io.a2a.spec.NonStreamingJSONRPCRequest
+import io.a2a.spec.SendMessageRequest
+import io.a2a.spec.SendStreamingMessageRequest
+import io.a2a.spec.StreamingJSONRPCRequest
 import jakarta.servlet.ServletRequest
+import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.annotation.Profile
@@ -44,6 +51,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 class A2AEndpointRegistrar(
     private val agentCardHandlers: List<AgentCardHandler>,
     private val requestMappingHandlerMapping: RequestMappingHandlerMapping,
+    private val objectMapper: ObjectMapper,
 ) {
 
     private val logger = LoggerFactory.getLogger(A2AEndpointRegistrar::class.java)
@@ -59,7 +67,7 @@ class A2AEndpointRegistrar(
     private fun registerWebEndpoints(agentCardHandler: AgentCardHandler) {
         val endpointPath = "/${agentCardHandler.path}/.well-known/agent.json"
         logger.info(
-            "Registering web endpoint under {} for {}",
+            "Registering web endpoint (from abaddon_gtz) under {} for {}",
             endpointPath,
             agentCardHandler.infoString(verbose = true),
         )
@@ -68,7 +76,8 @@ class A2AEndpointRegistrar(
             .produces(MediaType.APPLICATION_JSON_VALUE)
             .build()
         val achwf = AgentCardHandlerWebFacade(
-            agentCardHandler
+            agentCardHandler,
+            objectMapper,
         )
         requestMappingHandlerMapping.registerMapping(
             agentCardGetMapping,
@@ -78,7 +87,7 @@ class A2AEndpointRegistrar(
 
         val jsonRpcPostMethod = achwf.javaClass.getMethod(
             "handleJsonRpc",
-            JSONRPCRequest::class.java,
+            Map::class.java,
         )
         val jsonRpcPostMapping = RequestMappingInfo.paths(agentCardHandler.path)
             .methods(RequestMethod.POST)
@@ -95,7 +104,9 @@ class A2AEndpointRegistrar(
 
 private class AgentCardHandlerWebFacade(
     val agentCardHandler: AgentCardHandler,
+    val objectMapper: ObjectMapper,
 ) {
+    private val logger = LoggerFactory.getLogger(AgentCardHandlerWebFacade::class.java)
 
     @ResponseBody
     fun agentCard(servletRequest: ServletRequest): ResponseEntity<AgentCard> {
@@ -110,28 +121,43 @@ private class AgentCardHandlerWebFacade(
     }
 
     @ResponseBody
-    fun handleJsonRpc(@RequestBody request: JSONRPCRequest): Any {
+    fun handleJsonRpc(@RequestBody requestMap: Map<String, Any>): Any {
         return try {
-            // Check if this is a streaming request and handler supports streaming
-            if (request.method == "message/stream") {
-                // For streaming requests, return the SseEmitter directly without wrapping
-                agentCardHandler.handleJsonRpcStream(request)
+            logger.debug("Received JSON-RPC request: {}", requestMap)
+            val method = requestMap["method"] as? String
 
-            } else {
-                // Regular JSON-RPC handling
-                ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(agentCardHandler.handleJsonRpc(request))
+            return when (method) {
+                SendStreamingMessageRequest.METHOD -> {
+                    // For streaming requests, return the SseEmitter directly without wrapping
+                    val request = objectMapper.convertValue(requestMap, SendStreamingMessageRequest::class.java)
+                    agentCardHandler.handleJsonRpcStream(request)
+                }
+                else -> {
+                    val request = when (method) {
+                        SendMessageRequest.METHOD -> objectMapper.convertValue(requestMap, SendMessageRequest::class.java)
+                        GetTaskRequest.METHOD -> objectMapper.convertValue(requestMap, GetTaskRequest::class.java)
+                        CancelTaskRequest.METHOD -> objectMapper.convertValue(requestMap, CancelTaskRequest::class.java)
+                        else -> {
+                            throw UnsupportedOperationException("Method ${method} is not supported")
+                        }
+                    }
+                    // Regular JSON-RPC handling
+                    ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(agentCardHandler.handleJsonRpc(request))
+                }
             }
         } catch (e: Exception) {
+            val requestId = requestMap["id"]
             ResponseEntity.status(500)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(
                     JSONRPCErrorResponse(
-                        id = request.id,
-                        error = JSONRPCError(
-                            code = 500,
-                            message = "Internal server error: ${e.message}"
+                        requestId,
+                        JSONRPCError(
+                            500,
+                            "Internal server error: ${e.message}",
+                            null
                         )
                     )
                 )

@@ -15,8 +15,13 @@
  */
 package com.embabel.agent.a2a.server.support
 
-import com.embabel.agent.a2a.spec.*
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.a2a.spec.Message
+import io.a2a.spec.SendStreamingMessageResponse
+import io.a2a.spec.StreamingEventKind
+import io.a2a.spec.Task
+import io.a2a.spec.TaskArtifactUpdateEvent
+import io.a2a.spec.TaskStatusUpdateEvent
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
@@ -75,7 +80,7 @@ class A2AStreamingHandler(
     /**
      * Sends a streaming event to the specified stream
      */
-    fun sendStreamEvent(streamId: String, event: StreamingResult) {
+    fun sendStreamEvent(streamId: String, event: StreamingEventKind) {
         val emitter = activeStreams[streamId] ?: run {
             logger.warn("No active stream found for streamId: {}", streamId)
             return
@@ -83,33 +88,43 @@ class A2AStreamingHandler(
 
         try {
             val eventData = when (event) {
-                is MessageResult -> {
+                is Message -> {
                     SseEmitter.event()
                         .name("message")
-                        .data(objectMapper.writeValueAsString(event.message), MediaType.APPLICATION_JSON)
+                        .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON)
                 }
-                is TaskResult -> {
+                is Task -> {
                     SseEmitter.event()
                         .name("task")
-                        .data(objectMapper.writeValueAsString(event.task), MediaType.APPLICATION_JSON)
+                        .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON)
                 }
                 is TaskStatusUpdateEvent -> {
                     SseEmitter.event()
                         .name("task-update")
-                        .data(objectMapper.writeValueAsString(JSONRPCSuccessResponse(
-                            jsonrpc = "2.0",
-                            id = streamId,
-                            result = event
-                        )), MediaType.APPLICATION_JSON)
+                        .data(
+                            objectMapper.writeValueAsString(
+                                SendStreamingMessageResponse(
+                                    "2.0",
+                                    streamId,
+                                    event,
+                                    null
+                                )
+                            ), MediaType.APPLICATION_JSON
+                        )
                 }
                 is TaskArtifactUpdateEvent -> {
                     SseEmitter.event()
                         .name("task-update")
-                        .data(objectMapper.writeValueAsString(JSONRPCSuccessResponse(
-                            jsonrpc = "2.0",
-                            id = streamId,
-                            result = event
-                        )), MediaType.APPLICATION_JSON)
+                        .data(
+                            objectMapper.writeValueAsString(
+                                SendStreamingMessageResponse(
+                                    "2.0",
+                                    streamId,
+                                    event,
+                                    null
+                                )
+                            ), MediaType.APPLICATION_JSON
+                        )
                 }
             }
             emitter.send(eventData)
