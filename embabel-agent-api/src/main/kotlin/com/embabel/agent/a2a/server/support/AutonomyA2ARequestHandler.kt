@@ -165,7 +165,7 @@ class AutonomyA2ARequestHandler(
     }
 
     fun handleMessageStream(request: SendStreamingMessageRequest): SseEmitter {
-        val params = objectMapper.convertValue(request.params, MessageSendParams::class.java)
+        val params = request.params
         val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
         val emitter = streamingHandler.createStream(streamId)
 
@@ -245,19 +245,19 @@ class AutonomyA2ARequestHandler(
                     .history(listOfNotNull(params.message))
                     .artifacts(
                         listOf(
-                            Artifact(
-                                UUID.randomUUID().toString(),
-                                null,
-                                null,
-                                listOf(DataPart(mapOf("output" to result.output))),
-                                null
-                            )
+                            Artifact.Builder()
+                                .artifactId(UUID.randomUUID().toString())
+                                .parts(
+                                    listOf(
+                                        DataPart(mapOf("output" to result.output))
+                                    )
+                                )
+                                .build()
                         )
                     )
                     .metadata(null)
                     .build()
                 streamingHandler.sendStreamEvent(streamId, taskResult)
-                streamingHandler.closeStream(streamId)
             } catch (e: Exception) {
                 logger.error("Streaming error", e)
                 try {
@@ -281,6 +281,7 @@ class AutonomyA2ARequestHandler(
                 } catch (sendError: Exception) {
                     logger.error("Error sending error event", sendError)
                 }
+            } finally {
                 streamingHandler.closeStream(streamId)
             }
         }

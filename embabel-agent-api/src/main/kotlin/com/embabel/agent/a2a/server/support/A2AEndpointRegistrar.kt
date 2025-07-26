@@ -27,6 +27,7 @@ import io.a2a.spec.SendMessageRequest
 import io.a2a.spec.SendStreamingMessageRequest
 import io.a2a.spec.StreamingJSONRPCRequest
 import jakarta.servlet.ServletRequest
+import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.annotation.Profile
@@ -66,7 +67,7 @@ class A2AEndpointRegistrar(
     private fun registerWebEndpoints(agentCardHandler: AgentCardHandler) {
         val endpointPath = "/${agentCardHandler.path}/.well-known/agent.json"
         logger.info(
-            "Registering web endpoint under {} for {}",
+            "Registering web endpoint (from abaddon_gtz) under {} for {}",
             endpointPath,
             agentCardHandler.infoString(verbose = true),
         )
@@ -105,6 +106,7 @@ private class AgentCardHandlerWebFacade(
     val agentCardHandler: AgentCardHandler,
     val objectMapper: ObjectMapper,
 ) {
+    private val logger = LoggerFactory.getLogger(AgentCardHandlerWebFacade::class.java)
 
     @ResponseBody
     fun agentCard(servletRequest: ServletRequest): ResponseEntity<AgentCard> {
@@ -121,6 +123,7 @@ private class AgentCardHandlerWebFacade(
     @ResponseBody
     fun handleJsonRpc(@RequestBody requestMap: Map<String, Any>): Any {
         return try {
+            logger.debug("Received JSON-RPC request: {}", requestMap)
             val method = requestMap["method"] as? String
 
             return when (method) {
