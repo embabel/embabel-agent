@@ -45,19 +45,9 @@ class Thinking private constructor(
 }
 
 /**
- * Portable LLM options.
+ * Common hyperparameters for LLMs.
  */
-@Schema(
-    description = "Options for LLM use",
-)
-@JsonDeserialize(`as` = BuildableLlmOptions::class)
-interface LlmOptions : HasInfoString {
-
-    @get:Schema(
-        description = "If provided, custom selection criteria for the LLM to use. If not provided, a default LLM will be used.",
-        required = false,
-    )
-    val criteria: ModelSelectionCriteria?
+interface LlmHyperparameters {
 
     @get:Schema(
         description = "The temperature to use when generating responses",
@@ -77,6 +67,22 @@ interface LlmOptions : HasInfoString {
     val topK: Int?
 
     val topP: Double?
+}
+
+/**
+ * Portable LLM options.
+ */
+@Schema(
+    description = "Options for LLM use",
+)
+@JsonDeserialize(`as` = BuildableLlmOptions::class)
+interface LlmOptions : LlmHyperparameters, HasInfoString {
+
+    @get:Schema(
+        description = "If provided, custom selection criteria for the LLM to use. If not provided, a default LLM will be used.",
+        required = false,
+    )
+    val criteria: ModelSelectionCriteria?
 
     val thinking: Thinking?
 
