@@ -35,7 +35,10 @@ import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionCo
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionProperties
 import org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingProperties
 import org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbeddingProperties
+import org.springframework.ai.model.tool.DefaultToolExecutionEligibilityPredicate
 import org.springframework.ai.model.tool.ToolCallingChatOptions
+import org.springframework.ai.model.tool.ToolCallingManager
+import org.springframework.ai.model.tool.ToolExecutionEligibilityPredicate
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.autoconfigure.AutoConfigureBefore
@@ -47,9 +50,12 @@ import org.springframework.context.annotation.Import
 import org.springframework.core.env.Environment
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
 import software.amazon.awssdk.core.exception.SdkClientException
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
+import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.regions.providers.AwsRegionProvider
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
+import java.time.Duration
 import java.time.LocalDate
 
 @ConfigurationProperties(prefix = "embabel.models.bedrock")
@@ -99,7 +105,7 @@ class BedrockModels(
 
     @PostConstruct
     fun registerModels() {
-        if (!environment.activeProfiles.joinToString(",").contains(BEDROCK_PROFILE)) { // note that ["shell, bedrock"].contains"bedrock" is false
+        if (!environment.activeProfiles.contains(BEDROCK_PROFILE)) {
             logger.info("Bedrock models will not be queried as the '{}' profile is not active", BEDROCK_PROFILE)
             return
         }
@@ -155,21 +161,18 @@ class BedrockModels(
         )
     )
 
-    private fun chatModelOf(model: String): ChatModel {
-        val chatModel = BedrockProxyChatModel.builder()
-            .credentialsProvider(credentialsProvider)
-            .region(regionProvider.region)
-            .timeout(connectionProperties.timeout)
-            .defaultOptions(ToolCallingChatOptions.builder().model(model).build())
-            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            .bedrockRuntimeClient(bedrockRuntimeClient.getIfAvailable())
-            .bedrockRuntimeAsyncClient(bedrockRuntimeAsyncClient.getIfAvailable())
-            .build()
-
-        observationConvention.ifAvailable(chatModel::setObservationConvention)
-
-        return chatModel
-    }
+    private fun chatModelOf(model: String): ChatModel = EmbabelBedrockProxyChatModelBuilder()
+        .credentialsProvider(credentialsProvider)
+        .region(regionProvider.region)
+        .timeout(connectionProperties.timeout)
+        .defaultOptions(ToolCallingChatOptions.builder().model(model).build())
+        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+        .bedrockRuntimeClient(bedrockRuntimeClient.getIfAvailable())
+        .bedrockRuntimeAsyncClient(bedrockRuntimeAsyncClient.getIfAvailable())
+        .build()
+        .apply<BedrockProxyChatModel> {
+            observationConvention.ifAvailable(::setObservationConvention)
+        }
 
     private fun embeddingServiceOf(model: TitanEmbeddingModel): EmbeddingService = EmbeddingService(
         name = model.id(),
@@ -180,7 +183,7 @@ class BedrockModels(
                 regionProvider.region,
                 ModelOptionsUtils.OBJECT_MAPPER,
                 connectionProperties.timeout,
-            ),  observationRegistry.getIfUnique { ObservationRegistry.NOOP}
+            ), observationRegistry.getIfUnique { ObservationRegistry.NOOP }
         ).withInputType(bedrockTitanEmbeddingProperties.inputType),
         provider = PROVIDER,
     )
@@ -252,4 +255,112 @@ object BedrockOptionsConverter : OptionsConverter<ToolCallingChatOptions> {
             .frequencyPenalty(options.frequencyPenalty)
             .topP(options.topP)
             .build()
+}
+
+/**
+ * Inspired from final org.springframework.ai.bedrock.converse.BedrockProxyChatModel.Builder class to avoid annoying
+ * warn log message during builder initialization relative to how AWS configuration values are provided.
+ */
+class EmbabelBedrockProxyChatModelBuilder internal constructor() {
+    private var credentialsProvider: AwsCredentialsProvider? = null
+    private var region: Region? = Region.US_EAST_1
+    private var timeout: Duration? = Duration.ofMinutes(10)
+    private var toolCallingManager: ToolCallingManager? = null
+    private var toolExecutionEligibilityPredicate: ToolExecutionEligibilityPredicate =
+        DefaultToolExecutionEligibilityPredicate()
+    private var defaultOptions = ToolCallingChatOptions.builder().build()
+    private var observationRegistry = ObservationRegistry.NOOP
+    private var customObservationConvention: ChatModelObservationConvention? = null
+    private var bedrockRuntimeClient: BedrockRuntimeClient? = null
+    private var bedrockRuntimeAsyncClient: BedrockRuntimeAsyncClient? = null
+    private val defaultToolCallingManager: ToolCallingManager = ToolCallingManager.builder().build()
+
+    fun toolCallingManager(toolCallingManager: ToolCallingManager?): EmbabelBedrockProxyChatModelBuilder {
+        this.toolCallingManager = toolCallingManager
+        return this
+    }
+
+    fun toolExecutionEligibilityPredicate(toolExecutionEligibilityPredicate: ToolExecutionEligibilityPredicate):
+            EmbabelBedrockProxyChatModelBuilder {
+        this.toolExecutionEligibilityPredicate = toolExecutionEligibilityPredicate
+        return this
+    }
+
+    fun credentialsProvider(credentialsProvider: AwsCredentialsProvider): EmbabelBedrockProxyChatModelBuilder {
+        this.credentialsProvider = credentialsProvider
+        return this
+    }
+
+    fun region(region: Region): EmbabelBedrockProxyChatModelBuilder {
+        this.region = region
+        return this
+    }
+
+    fun timeout(timeout: Duration): EmbabelBedrockProxyChatModelBuilder {
+        this.timeout = timeout
+        return this
+    }
+
+    fun defaultOptions(defaultOptions: ToolCallingChatOptions): EmbabelBedrockProxyChatModelBuilder {
+        this.defaultOptions = defaultOptions
+        return this
+    }
+
+    fun observationRegistry(observationRegistry: ObservationRegistry): EmbabelBedrockProxyChatModelBuilder {
+        this.observationRegistry = observationRegistry
+        return this
+    }
+
+    fun customObservationConvention(observationConvention: ChatModelObservationConvention): EmbabelBedrockProxyChatModelBuilder {
+        this.customObservationConvention = observationConvention
+        return this
+    }
+
+    fun bedrockRuntimeClient(bedrockRuntimeClient: BedrockRuntimeClient?): EmbabelBedrockProxyChatModelBuilder {
+        this.bedrockRuntimeClient = bedrockRuntimeClient
+        return this
+    }
+
+    fun bedrockRuntimeAsyncClient(bedrockRuntimeAsyncClient: BedrockRuntimeAsyncClient?): EmbabelBedrockProxyChatModelBuilder {
+        this.bedrockRuntimeAsyncClient = bedrockRuntimeAsyncClient
+        return this
+    }
+
+    fun build(): BedrockProxyChatModel {
+        if (this.bedrockRuntimeClient == null) {
+            this.bedrockRuntimeClient = BedrockRuntimeClient.builder()
+                .region(this.region)
+                .httpClientBuilder(null)
+                .credentialsProvider(this.credentialsProvider)
+                .overrideConfiguration { c -> c.apiCallTimeout(this.timeout) }
+                .build()
+        }
+
+        if (this.bedrockRuntimeAsyncClient == null) {
+            this.bedrockRuntimeAsyncClient = BedrockRuntimeAsyncClient.builder()
+                .region(this.region)
+                .httpClientBuilder(
+                    NettyNioAsyncHttpClient.builder()
+                        .tcpKeepAlive(true)
+                        .connectionAcquisitionTimeout(Duration.ofSeconds(30))
+                        .maxConcurrency(200)
+                )
+                .credentialsProvider(this.credentialsProvider)
+                .overrideConfiguration { c -> c.apiCallTimeout(this.timeout) }
+                .build()
+        }
+
+        return BedrockProxyChatModel(
+            bedrockRuntimeClient,
+            bedrockRuntimeAsyncClient,
+            defaultOptions,
+            observationRegistry,
+            toolCallingManager ?: defaultToolCallingManager,
+            toolExecutionEligibilityPredicate
+        ).apply {
+            if (customObservationConvention != null) {
+                setObservationConvention(customObservationConvention)
+            }
+        }
+    }
 }
