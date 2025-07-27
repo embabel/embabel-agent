@@ -32,19 +32,7 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-autoconfigure</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-model-bedrock-ai</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-autoconfigure-model-bedrock-ai</artifactId>
+                <artifactId>embabel-agent-platform-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -74,18 +62,6 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-starter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-starter-bedrock</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-test</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -93,6 +69,36 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-ux</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-bedrock</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-bedrock-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-platform</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-bedrock</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

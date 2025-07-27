@@ -45,7 +45,7 @@ import org.springframework.context.annotation.Import;
 @ConditionalOnClass({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
 @Import({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
 public class AgentPlatformAutoConfiguration {
-    final private Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
+    private final Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
 
     @PostConstruct
     public void logEvent() {

@@ -8,10 +8,10 @@
         <version>0.1.0-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
-    <artifactId>embabel-agent-model-bedrock-ai</artifactId>
+    <artifactId>embabel-agent-bedrock</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Embabel Agent Bedrock Model</name>
+    <name>Embabel Agent Bedrock</name>
     <description>Embabel configuration classes for Spring AI Bedrock</description>
 
     <properties>

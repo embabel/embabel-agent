@@ -21,6 +21,7 @@
     <modules>
         <module>embabel-agent-api</module>
         <module>embabel-agent-a2a</module>
+        <module>embabel-agent-autoconfigure</module>
         <module>embabel-agent-dependencies</module>
         <module>embabel-agent-eval</module>
         <module>embabel-agent-mcpserver</module>
@@ -30,10 +31,7 @@
         <module>embabel-agent-test</module>
         <module>embabel-agent-ux</module>
 
-        <module>models/embabel-agent-model-bedrock-ai</module>
-
-        <module>auto-configurations/platform/embabel-agent-autoconfigure</module>
-        <module>auto-configurations/models/embabel-agent-autoconfigure-model-bedrock-ai</module>
+        <module>models/embabel-agent-bedrock</module>
     </modules>
 
 

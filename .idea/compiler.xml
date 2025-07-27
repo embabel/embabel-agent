@@ -8,16 +8,18 @@
         <outputRelativeToContentRoot value="true" />
         <module name="embabel-horoscope-example" />
         <module name="embabel-agent-starter-platform" />
+        <module name="embabel-agent-bedrock-autoconfigure" />
         <module name="embabel-agent-ux" />
         <module name="embabel-agent-shell" />
         <module name="embabel-agent-starter-bedrock" />
+        <module name="embabel-agent-bedrock" />
         <module name="embabel-agent-a2a" />
-        <module name="embabel-agent-autoconfigure" />
         <module name="embabel-agent-rag" />
         <module name="embabel-agent-starter" />
         <module name="embabel-agent-autoconfigure-model-bedrock-ai" />
         <module name="embabel-agent-mcpserver" />
         <module name="embabel-agent-api" />
+        <module name="embabel-agent-platform-autoconfigure" />
         <module name="embabel-movie-example" />
         <module name="embabel-agent-test" />
         <module name="embabel-agent-eval" />
@@ -31,6 +33,7 @@
       <module name="embabel-agent-docs" target="21" />
       <module name="embabel-agent-example-dependencies" target="1.5" />
       <module name="embabel-agent-example-parent" target="21" />
+      <module name="embabel-agent-platorm-autoconfigure" target="21" />
       <module name="embabel-horoscope-example" target="21" />
       <module name="embabel-movie-example" target="21" />
       <module name="example-java-parent" target="21" />
