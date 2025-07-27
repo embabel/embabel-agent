@@ -30,8 +30,6 @@
         <module>embabel-agent-starters</module>
         <module>embabel-agent-test</module>
         <module>embabel-agent-ux</module>
-
-        <module>models/embabel-agent-bedrock</module>
     </modules>
 
 

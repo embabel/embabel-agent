@@ -12,7 +12,6 @@
         <module name="embabel-agent-ux" />
         <module name="embabel-agent-shell" />
         <module name="embabel-agent-starter-bedrock" />
-        <module name="embabel-agent-bedrock" />
         <module name="embabel-agent-a2a" />
         <module name="embabel-agent-rag" />
         <module name="embabel-agent-starter" />
