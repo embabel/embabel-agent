@@ -15,13 +15,26 @@
  */
 package com.embabel.agent.config.models.bedrock
 
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.APAC_ANTHROPIC_CLAUDE_3_5_HAIKU
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.APAC_ANTHROPIC_CLAUDE_3_5_SONNET
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.APAC_ANTHROPIC_CLAUDE_3_5_SONNET_V2
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.APAC_ANTHROPIC_CLAUDE_3_7_SONNET
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.APAC_ANTHROPIC_CLAUDE_OPUS_4
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.APAC_ANTHROPIC_CLAUDE_SONNET_4
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.EU_ANTHROPIC_CLAUDE_3_5_HAIKU
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.EU_ANTHROPIC_CLAUDE_3_5_SONNET
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.EU_ANTHROPIC_CLAUDE_3_5_SONNET_V2
 import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.EU_ANTHROPIC_CLAUDE_3_7_SONNET
 import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.EU_ANTHROPIC_CLAUDE_OPUS_4
 import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.EU_ANTHROPIC_CLAUDE_SONNET_4
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.US_ANTHROPIC_CLAUDE_3_5_HAIKU
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.US_ANTHROPIC_CLAUDE_3_5_SONNET
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.US_ANTHROPIC_CLAUDE_3_5_SONNET_V2
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.US_ANTHROPIC_CLAUDE_3_7_SONNET
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.US_ANTHROPIC_CLAUDE_OPUS_4
+import com.embabel.agent.config.models.bedrock.BedrockModels.Companion.US_ANTHROPIC_CLAUDE_SONNET_4
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.Llm
-import com.embabel.common.test.ai.config.FakeAiConfiguration
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel.COHERE_EMBED_ENGLISH_V3
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel.COHERE_EMBED_MULTILINGUAL_V3
@@ -29,54 +42,8 @@ import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi.TitanEm
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.ApplicationContext
-import org.springframework.context.annotation.Import
 import org.springframework.test.context.ActiveProfiles
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-
-
-@Import(FakeAiConfiguration::class)
-@SpringBootTest(
-    properties = [
-        "embabel.models.default-llm=gpt-4o-mini",
-        "embabel.models.default-embedding-model=text-embedding-ada-002",
-        "embabel.models.embedding-services.best=text-embedding-ada-002",
-        "embabel.models.embedding-services.cheapest=text-embedding-ada-002",
-        "spring.ai.bedrock.aws.region=eu-west-3",
-        "spring.ai.bedrock.aws.access-key=AWSACCESSKEYID",
-        "spring.ai.bedrock.aws.secret-key=AWSSECRETACCESSKEY",
-    ]
-)
-@ActiveProfiles(value = ["bedrock"])
-class BedrockModelsIntegrationDefaultTest {
-
-    @Autowired
-    private lateinit var applicationContext: ApplicationContext
-
-    @Autowired(required = false)
-    private lateinit var bedrockModels: BedrockModels
-
-    @Test
-    fun `should not register Bedrock models when no bedrock LLM is configured`() {
-        // Verify the bean exists
-        assertNotNull(bedrockModels)
-
-        // No bedrock models were registered
-        val bedrockModelBeans =
-            applicationContext.getBeanNamesForType(Llm::class.java).filter { it.startsWith("bedrockModel-") }
-
-        assertTrue(bedrockModelBeans.isEmpty())
-    }
-
-    @Test
-    fun `should always register Bedrock embedding services`() {
-        // No bedrock models were registered
-        val embeddingServices = applicationContext.getBeanNamesForType(EmbeddingService::class.java)
-            .filter { it.startsWith("bedrockModel-") }
-
-        assertFalse(embeddingServices.isEmpty())
-    }
-}
 
 @SpringBootTest(
     properties = [
@@ -96,14 +63,36 @@ class BedrockModelsIntegrationTest {
     private lateinit var applicationContext: ApplicationContext
 
     @Test
-    fun `should register configured Bedrock Llms only`() {
+    fun `should register Bedrock Llms`() {
         val bedrockLlmsNames = applicationContext.getBeanNamesForType(Llm::class.java)
             .filter { it.startsWith("bedrockModel-") }
             .map { applicationContext.getBean(it, Llm::class.java) }
             .map { it.name }
 
-        assertTrue(bedrockLlmsNames.containsAll(listOf(EU_ANTHROPIC_CLAUDE_SONNET_4, EU_ANTHROPIC_CLAUDE_OPUS_4)))
-        assertFalse(bedrockLlmsNames.contains(EU_ANTHROPIC_CLAUDE_3_7_SONNET))
+        assertTrue(
+            bedrockLlmsNames.containsAll(
+                listOf(
+                    EU_ANTHROPIC_CLAUDE_3_5_SONNET,
+                    EU_ANTHROPIC_CLAUDE_3_5_SONNET_V2,
+                    EU_ANTHROPIC_CLAUDE_3_5_HAIKU,
+                    EU_ANTHROPIC_CLAUDE_3_7_SONNET,
+                    EU_ANTHROPIC_CLAUDE_SONNET_4,
+                    EU_ANTHROPIC_CLAUDE_OPUS_4,
+                    US_ANTHROPIC_CLAUDE_3_5_SONNET,
+                    US_ANTHROPIC_CLAUDE_3_5_SONNET_V2,
+                    US_ANTHROPIC_CLAUDE_3_5_HAIKU,
+                    US_ANTHROPIC_CLAUDE_3_7_SONNET,
+                    US_ANTHROPIC_CLAUDE_SONNET_4,
+                    US_ANTHROPIC_CLAUDE_OPUS_4,
+                    APAC_ANTHROPIC_CLAUDE_3_5_SONNET,
+                    APAC_ANTHROPIC_CLAUDE_3_5_SONNET_V2,
+                    APAC_ANTHROPIC_CLAUDE_3_5_HAIKU,
+                    APAC_ANTHROPIC_CLAUDE_3_7_SONNET,
+                    APAC_ANTHROPIC_CLAUDE_SONNET_4,
+                    APAC_ANTHROPIC_CLAUDE_OPUS_4
+                )
+            )
+        )
     }
 
     @Test

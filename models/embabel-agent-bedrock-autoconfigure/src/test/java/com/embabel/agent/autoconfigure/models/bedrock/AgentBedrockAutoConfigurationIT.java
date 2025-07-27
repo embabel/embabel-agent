@@ -60,8 +60,7 @@ class AgentBedrockAutoConfigurationIT {
                 .map(Llm::getName)
                 .toList();
 
-        Assertions.assertTrue(bedrockLlmsNames.containsAll(List.of(EU_ANTHROPIC_CLAUDE_SONNET_4, EU_ANTHROPIC_CLAUDE_OPUS_4)));
-        Assertions.assertFalse(bedrockLlmsNames.contains(EU_ANTHROPIC_CLAUDE_3_7_SONNET));
+        Assertions.assertFalse(bedrockLlmsNames.isEmpty());
     }
 
 }

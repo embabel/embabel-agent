@@ -18,8 +18,6 @@ package com.embabel.agent.config.models.bedrock
 import com.embabel.agent.config.AgentPlatformConfiguration
 import com.embabel.common.ai.model.*
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
-import org.slf4j.LoggerFactory
 import org.springframework.ai.bedrock.cohere.BedrockCohereEmbeddingModel
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel
@@ -29,7 +27,6 @@ import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi
 import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi.TitanEmbeddingModel
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.observation.ChatModelObservationConvention
-import org.springframework.ai.model.Model
 import org.springframework.ai.model.ModelOptionsUtils
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionConfiguration
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionProperties
@@ -40,16 +37,14 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.model.tool.ToolExecutionEligibilityPredicate
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.autoconfigure.AutoConfigureBefore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
-import org.springframework.core.env.Environment
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
-import software.amazon.awssdk.core.exception.SdkClientException
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.regions.providers.AwsRegionProvider
@@ -86,9 +81,6 @@ data class BedrockModelProperties(
 class BedrockModels(
 
     private val bedrockProperties: BedrockProperties,
-    private val configurableBeanFactory: ConfigurableBeanFactory,
-    private val environment: Environment,
-    private val properties: ConfigurableModelProviderProperties,
     private val credentialsProvider: AwsCredentialsProvider,
     private val regionProvider: AwsRegionProvider,
     private val connectionProperties: BedrockAwsConnectionProperties,
@@ -99,53 +91,80 @@ class BedrockModels(
     private val bedrockCohereEmbeddingProperties: BedrockCohereEmbeddingProperties,
     private val bedrockTitanEmbeddingProperties: BedrockTitanEmbeddingProperties,
 ) {
-    private val logger = LoggerFactory.getLogger(BedrockModels::class.java)
 
-    @PostConstruct
-    fun registerModels() {
-        if (!environment.activeProfiles.contains(BEDROCK_PROFILE)) {
-            logger.info("Bedrock models will not be queried as the '{}' profile is not active", BEDROCK_PROFILE)
-            return
-        }
+    @Bean("bedrockModel-$EU_ANTHROPIC_CLAUDE_3_5_SONNET")
+    fun euAnthropicClaude35Sonnet(): Llm = llmOf(EU_ANTHROPIC_CLAUDE_3_5_SONNET)
 
-        if (!isBedrockConfigured()) {
-            logger.warn("Bedrock misconfigured, no Bedrock models available.")
-            return
-        }
+    @Bean("bedrockModel-$EU_ANTHROPIC_CLAUDE_3_5_SONNET_V2")
+    fun euAnthropicClaude35SonnetV2(): Llm = llmOf(EU_ANTHROPIC_CLAUDE_3_5_SONNET_V2)
 
-        if (bedrockProperties.models.isEmpty()) {
-            logger.warn("No Bedrock models available.")
-            return
-        }
+    @Bean("bedrockModel-$EU_ANTHROPIC_CLAUDE_3_5_HAIKU")
+    fun euAnthropicClaude35Haiku(): Llm = llmOf(EU_ANTHROPIC_CLAUDE_3_5_HAIKU)
 
-        val bedrockModelNames = bedrockProperties.models.map { it.name }
-        val configurableLlmModelNames =
-            properties.allWellKnownLlmNames().filter { bedrockModelNames.contains(it) }
-        if (configurableLlmModelNames.isEmpty()) {
-            logger.warn("No Bedrock LLM models to configure.")
-        } else {
-            logger.info("Registering Bedrock LLM models: {}", configurableLlmModelNames)
-            bedrockProperties.models
-                .filter { configurableLlmModelNames.contains(it.name) }
-                .forEach { model -> registerModel(llmOf(model), model.name) }
-        }
+    @Bean("bedrockModel-$EU_ANTHROPIC_CLAUDE_3_7_SONNET")
+    fun euAnthropicClaude37Sonnet(): Llm = llmOf(EU_ANTHROPIC_CLAUDE_3_7_SONNET)
 
-        TitanEmbeddingModel.entries.forEach { model ->
-            registerModel(embeddingServiceOf(model), model.name)
-        }
-        CohereEmbeddingModel.entries.forEach { model ->
-            registerModel(embeddingServiceOf(model), model.name)
-        }
-    }
+    @Bean("bedrockModel-$EU_ANTHROPIC_CLAUDE_SONNET_4")
+    fun euAnthropicClaudeSonnet4(): Llm = llmOf(EU_ANTHROPIC_CLAUDE_SONNET_4)
 
-    private fun isBedrockConfigured(): Boolean {
-        return try {
-            credentialsProvider.resolveCredentials()
-            true
-        } catch (_: SdkClientException) {
-            false
-        }
-    }
+    @Bean("bedrockModel-$EU_ANTHROPIC_CLAUDE_OPUS_4")
+    fun euAnthropicClaudeOpus4(): Llm = llmOf(EU_ANTHROPIC_CLAUDE_OPUS_4)
+
+    @Bean("bedrockModel-$US_ANTHROPIC_CLAUDE_3_5_SONNET")
+    fun usAnthropicClaude35Sonnet(): Llm = llmOf(US_ANTHROPIC_CLAUDE_3_5_SONNET)
+
+    @Bean("bedrockModel-$US_ANTHROPIC_CLAUDE_3_5_SONNET_V2")
+    fun usAnthropicClaude35SonnetV2(): Llm = llmOf(US_ANTHROPIC_CLAUDE_3_5_SONNET_V2)
+
+    @Bean("bedrockModel-$US_ANTHROPIC_CLAUDE_3_5_HAIKU")
+    fun usAnthropicClaude35Haiku(): Llm = llmOf(US_ANTHROPIC_CLAUDE_3_5_HAIKU)
+
+    @Bean("bedrockModel-$US_ANTHROPIC_CLAUDE_3_7_SONNET")
+    fun usAnthropicClaude37Sonnet(): Llm = llmOf(US_ANTHROPIC_CLAUDE_3_7_SONNET)
+
+    @Bean("bedrockModel-$US_ANTHROPIC_CLAUDE_SONNET_4")
+    fun usAnthropicClaudeSonnet4(): Llm = llmOf(US_ANTHROPIC_CLAUDE_SONNET_4)
+
+    @Bean("bedrockModel-$US_ANTHROPIC_CLAUDE_OPUS_4")
+    fun usAnthropicClaudeOpus4(): Llm = llmOf(US_ANTHROPIC_CLAUDE_OPUS_4)
+
+    @Bean("bedrockModel-$APAC_ANTHROPIC_CLAUDE_3_5_SONNET")
+    fun apacAnthropicClaude35Sonnet(): Llm = llmOf(APAC_ANTHROPIC_CLAUDE_3_5_SONNET)
+
+    @Bean("bedrockModel-$APAC_ANTHROPIC_CLAUDE_3_5_SONNET_V2")
+    fun apacAnthropicClaude35SonnetV2(): Llm = llmOf(APAC_ANTHROPIC_CLAUDE_3_5_SONNET_V2)
+
+    @Bean("bedrockModel-$APAC_ANTHROPIC_CLAUDE_3_5_HAIKU")
+    fun apacAnthropicClaude35Haiku(): Llm = llmOf(APAC_ANTHROPIC_CLAUDE_3_5_HAIKU)
+
+    @Bean("bedrockModel-$APAC_ANTHROPIC_CLAUDE_3_7_SONNET")
+    fun apacAnthropicClaude37Sonnet(): Llm = llmOf(APAC_ANTHROPIC_CLAUDE_3_7_SONNET)
+
+    @Bean("bedrockModel-$APAC_ANTHROPIC_CLAUDE_SONNET_4")
+    fun apacAnthropicClaudeSonnet4(): Llm = llmOf(APAC_ANTHROPIC_CLAUDE_SONNET_4)
+
+    @Bean("bedrockModel-$APAC_ANTHROPIC_CLAUDE_OPUS_4")
+    fun apacAnthropicClaudeOpus4(): Llm = llmOf(APAC_ANTHROPIC_CLAUDE_OPUS_4)
+
+    @Bean("bedrockModel-amazon.titan-embed-image-v1")
+    fun titanEmbedImageV1(): EmbeddingService = embeddingServiceOf(TitanEmbeddingModel.TITAN_EMBED_IMAGE_V1)
+
+    @Bean("bedrockModel-amazon.titan-embed-text-v1")
+    fun titanEmbedTextV1(): EmbeddingService = embeddingServiceOf(TitanEmbeddingModel.TITAN_EMBED_TEXT_V1)
+
+    @Bean("bedrockModel-amazon.titan-embed-text-v2:0")
+    fun titanEmbedTextV2(): EmbeddingService = embeddingServiceOf(TitanEmbeddingModel.TITAN_EMBED_TEXT_V2)
+
+    @Bean("bedrockModel-cohere.embed-multilingual-v3")
+    fun cohereEmbedMultilingualV3(): EmbeddingService = embeddingServiceOf(CohereEmbeddingModel.COHERE_EMBED_MULTILINGUAL_V3)
+
+    @Bean("bedrockModel-cohere.embed-english-v3")
+    fun cohereEmbedEnglishV3(): EmbeddingService = embeddingServiceOf(CohereEmbeddingModel.COHERE_EMBED_ENGLISH_V3)
+
+    private fun bedrockModelProperties(string: String): BedrockModelProperties =
+        bedrockProperties.models.find { it.name == string } ?: throw IllegalArgumentException("No bedrock model named $string")
+
+    private fun llmOf(model: String): Llm = llmOf(bedrockModelProperties(model))
 
     private fun llmOf(model: BedrockModelProperties): Llm = Llm(
         name = model.name,
@@ -201,18 +220,8 @@ class BedrockModels(
         provider = PROVIDER,
     )
 
-    private fun <M : Model<*, *>> registerModel(model: AiModel<M>, modelName: String) {
-        try {
-            val beanName = "bedrockModel-${modelName.replace(":", "-").lowercase()}"
-            configurableBeanFactory.registerSingleton(beanName, model)
-            logger.debug("Successfully registered Bedrock model {} as bean {}", modelName, beanName)
-        } catch (e: Exception) {
-            logger.error("Failed to register Bedrock model {}: {}", modelName, e.message)
-        }
-    }
-
-
     companion object {
+
         const val BEDROCK_PROFILE = "bedrock"
 
         // https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
