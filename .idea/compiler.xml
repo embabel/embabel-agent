@@ -15,15 +15,19 @@
         <module name="embabel-agent-autoconfigure" />
         <module name="embabel-agent-rag" />
         <module name="embabel-agent-starter" />
+        <module name="embabel-agent-autoconfigure-model-bedrock-ai" />
         <module name="embabel-agent-mcpserver" />
         <module name="embabel-agent-api" />
         <module name="embabel-movie-example" />
         <module name="embabel-agent-test" />
         <module name="embabel-agent-eval" />
+        <module name="embabel-agent-autoconfigure-models-bedrock-ai" />
+        <module name="embabel-agent-model-bedrock-ai" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
       <module name="dogfood" target="21" />
+      <module name="embabel-agent-autoconfigure-models-bedrock-ai" target="21" />
       <module name="embabel-agent-docs" target="21" />
       <module name="embabel-agent-example-dependencies" target="1.5" />
       <module name="embabel-agent-example-parent" target="21" />

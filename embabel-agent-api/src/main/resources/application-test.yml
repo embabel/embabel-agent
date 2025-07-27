@@ -3,11 +3,6 @@ spring:
     mcp:
       client:
         enabled: false
-  autoconfigure:
-    exclude:
-      - org.springframework.ai.model.bedrock.converse.autoconfigure.BedrockConverseProxyChatAutoConfiguration
-      - org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingAutoConfiguration
-      - org.springframework.ai.model.bedrock.titan.autoconfigure.BedrockTitanEmbeddingAutoConfiguration
 
 embabel:
   agent-platform:
