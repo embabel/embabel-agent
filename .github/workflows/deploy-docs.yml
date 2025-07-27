@@ -110,7 +110,7 @@ jobs:
               sudo mkdir -p /var/www/html/embabel-agent/api-docs &&
               sudo cp ~/index.html /var/www/html/embabel-agent/guide/ &&
               sudo cp -r ~/images /var/www/html/embabel-agent/guide &&
-              sudo cp -r ~/dokka  /var/www/html/embabel-agent/api-docs
+              sudo cp -r ~/dokka/*  /var/www/html/embabel-agent/api-docs
               "
 
       - name: Verify deployment
