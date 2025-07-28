@@ -50,6 +50,7 @@ data class Goal(
     val tags: Set<String> = emptySet(),
     val examples: Set<String> = emptySet(),
     val startingInputTypes: Set<Class<*>> = emptySet(),
+    val export: Export = Export(),
 ) : GoapGoal, AgentSystemStep {
 
     // These methods are for Java, to obviate the builder antipattern
@@ -146,3 +147,18 @@ data class Goal(
     }
 
 }
+
+/**
+ * Metadata describing how a goal will be exported
+ * @param name custom name for the goal when exported.
+ * If null, the goal naming strategy will be used.
+ * @param remote whether the goal is exported to a remote system (e.g., MCP).
+ * @param local whether the goal is exported to a local system (e.g., agent platform for use in prompted actions)
+ * @param exposeTextInput whether the goal should expose text input to the user.
+ */
+data class Export(
+    val name: String? = null,
+    val remote: Boolean = false,
+    val local: Boolean = true,
+    val exposeTextInput: Boolean = true,
+)

@@ -58,18 +58,21 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
            |${actions.sortedBy { it.name }.joinToString("\n") { it.infoString(true, 1) }}
            |conditions:
            |${conditions.map { it.name }.sorted().joinToString("\n") { it.indent(1) }}
-           |data types: ${domainTypes.map { it.simpleName }.distinct().sorted().joinToString(", ")}
+           |domain types: ${domainTypes.map { it.simpleName }.distinct().sorted().joinToString(", ")}
+           |schema types: ${schemaTypes.map { it }.joinToString(", ")}
         """.trimMargin()
         .indentLines(indent)
 
-//        "%s\n\tgoals:\n\t\t%s\n\tactions:\n\t\t%s\n\tconditions: %s\n\tdata types: %s".format(
+//        "%s\n\tgoals:\n\t\t%s\n\tactions:\n\t\t%s\n\tconditions: %s\n\tdomain types: %s\n\tschema types: %s".format(
 //            name,
 //            goals.sortedBy { it.name }
-//                .joinToString("\n") { it.infoString(verbose = verbose, level = 1) },
+//                .joinToString("\n\t\t") { it.infoString(verbose = verbose) },
 //            actions.sortedBy { it.name }
-//                .joinToString("\n") { it.infoString(verbose = verbose, level = 1) },
+//                .joinToString("\n\t\t") { it.infoString(verbose = verbose) },
 //            conditions.map { it.name }.sorted(),
 //            domainTypes.map { it.simpleName }.distinct().sorted(),
+//            schemaTypes.map { it }
+//                .sortedBy { it.name },
 //        )
 
     /**

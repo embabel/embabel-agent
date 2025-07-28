@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.dsl
 
+import com.embabel.agent.core.Export
 import com.embabel.agent.domain.io.UserInput
 
 data class MagicVictim(
@@ -61,6 +62,27 @@ fun evenMoreEvilWizard() = agent("EvenMoreEvilWizard", description = "Turn a per
     )
 }
 
+fun exportedEvenMoreEvilWizard() = agent("EvenMoreEvilWizard", description = "Turn a person into a frog") {
+
+    transformation<UserInput, MagicVictim>(name = "thing") {
+        MagicVictim(name = "Hamish")
+    }
+
+    flow {
+        aggregate<MagicVictim, Frog, SnakeMeal>(
+            transforms = listOf({ Frog(it.input.name) }, { Frog("2") }, { Frog("3") }),
+            merge = { frogs, _ -> SnakeMeal(frogs) },
+        )
+    }
+
+    goal(
+        name = "done",
+        description = "done",
+        satisfiedBy = SnakeMeal::class,
+        export = Export(remote = true),
+    )
+}
+
 fun evenMoreEvilWizardWithStructuredInput() =
     agent("EvenMoreEvilWizardWithStructuredInput", description = "Turn a person into a frog") {
 
@@ -80,5 +102,6 @@ fun evenMoreEvilWizardWithStructuredInput() =
             description = "done",
             satisfiedBy = SnakeMeal::class,
             startingInputTypes = setOf(MagicVictim::class),
+            export = Export(remote = true),
         )
     }

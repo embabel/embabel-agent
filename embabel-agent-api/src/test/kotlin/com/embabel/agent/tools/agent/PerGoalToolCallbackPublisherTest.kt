@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.dsl.evenMoreEvilWizardWithStructuredInput
+import com.embabel.agent.api.dsl.exportedEvenMoreEvilWizard
 import com.embabel.agent.api.dsl.userInputToFrogOrPersonBranch
 import com.embabel.agent.testing.integration.IntegrationTestUtils
 import com.embabel.agent.testing.integration.RandomRanker
@@ -31,9 +32,59 @@ import org.junit.jupiter.api.Assertions.*
 class PerGoalToolCallbackPublisherTest {
 
     @Test
-    fun `test user input function per goal`() {
+    fun `test local export by default`() {
         val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
         agentPlatform.deploy(evenMoreEvilWizard())
+        agentPlatform.deploy(userInputToFrogOrPersonBranch())
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), AutonomyProperties())
+
+        val provider = PerGoalToolCallbackPublisher(autonomy, jacksonObjectMapper(), mockk(), "testApp")
+
+        val toolCallbacks = provider.toolCallbacks
+        assertEquals(
+            3, toolCallbacks.size,
+            "Should not have 1 tool callback with no export defined"
+        )
+    }
+
+    @Test
+    fun `test no remote export by default`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(evenMoreEvilWizard())
+        agentPlatform.deploy(userInputToFrogOrPersonBranch())
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), AutonomyProperties())
+
+        val provider = PerGoalToolCallbackPublisher(autonomy, jacksonObjectMapper(), mockk(), "testApp")
+
+        val toolCallbacks = provider.toolCallbacks(remoteOnly = true)
+        assertEquals(
+            0,
+            toolCallbacks.size,
+            "Should not have any tool callbacks with no export defined: ${toolCallbacks.map { it.toolDefinition.name() }}"
+        )
+    }
+
+    @Test
+    fun `test explicit remote export`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(exportedEvenMoreEvilWizard())
+        agentPlatform.deploy(userInputToFrogOrPersonBranch())
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), AutonomyProperties())
+
+        val provider = PerGoalToolCallbackPublisher(autonomy, jacksonObjectMapper(), mockk(), "testApp")
+
+        val toolCallbacks = provider.toolCallbacks(remoteOnly = true)
+        assertEquals(
+            2,
+            toolCallbacks.size,
+            "Should not have tool callbacks with export defined: ${toolCallbacks.map { it.toolDefinition.name() }}"
+        )
+    }
+
+    @Test
+    fun `test user input function per goal`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(exportedEvenMoreEvilWizard())
         agentPlatform.deploy(userInputToFrogOrPersonBranch())
         val autonomy = Autonomy(agentPlatform, RandomRanker(), AutonomyProperties())
 
@@ -74,14 +125,13 @@ class PerGoalToolCallbackPublisherTest {
         val autonomy = Autonomy(agentPlatform, RandomRanker(), AutonomyProperties())
 
         val provider = PerGoalToolCallbackPublisher(autonomy, jacksonObjectMapper(), mockk(), "testApp")
-
         val toolCallbacks = provider.toolCallbacks
 
         assertNotNull(toolCallbacks)
         assertEquals(
-            2 + 1, // 2 goals + 1 continuation
+            2 + 1, // 2 functions for the goal + 1 continuation
             toolCallbacks.size,
-            "Should have 2 tool callback for the one goal plus continuation"
+            "Should have 2 tool callback for the one goal plus continuation: Have ${toolCallbacks.map { it.toolDefinition.name() }}"
         )
 
         // Tool callbacks should have distinct names

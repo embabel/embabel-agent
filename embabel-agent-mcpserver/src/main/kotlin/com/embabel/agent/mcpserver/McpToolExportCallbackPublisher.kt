@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service
 /**
  * Tag interface extending Spring AI ToolCallbackProvider
  * that identifies tool callbacks that our MCP server exposes.
+ * Will only export tools with Export(remote = true) defined.
  */
 interface McpToolExportCallbackPublisher : ToolCallbackPublisher, HasInfoString
 
@@ -37,7 +38,7 @@ class PerGoalMcpToolExportCallbackPublisher(
     private val delegate: PerGoalToolCallbackPublisher,
 ) : McpToolExportCallbackPublisher {
 
-    override val toolCallbacks: List<ToolCallback> get() = delegate.toolCallbacks
+    override val toolCallbacks: List<ToolCallback> get() = delegate.toolCallbacks(remoteOnly = true)
 
     override fun infoString(
         verbose: Boolean?,

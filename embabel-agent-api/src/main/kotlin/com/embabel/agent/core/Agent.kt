@@ -49,7 +49,7 @@ data class Agent(
     override val actions: List<Action>,
     override val goals: Set<Goal>,
     val stuckHandler: StuckHandler? = null,
-    override val schemaTypes: Collection<SchemaType> = inferDataTypes(
+    override val schemaTypes: Collection<SchemaType> = mergeSchemaTypes(
         agentName = name,
         defaultDataTypes = emptyList(),
         actions = actions,
@@ -113,10 +113,15 @@ data class Agent(
         """.trimMargin()
             .indentLines(indent)
 
-    private companion object {
+    companion object {
+
         private val logger = LoggerFactory.getLogger(Agent::class.java)
 
-        fun inferDataTypes(
+        /**
+         * Merge the default data types with the schema types from actions.
+         * Combines the properties of schema types
+         */
+        fun mergeSchemaTypes(
             agentName: String,
             defaultDataTypes: List<SchemaType>,
             actions: List<Action>,

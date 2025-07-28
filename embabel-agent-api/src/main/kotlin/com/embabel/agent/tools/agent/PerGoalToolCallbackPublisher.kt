@@ -66,12 +66,30 @@ class PerGoalToolCallbackPublisher(
 
     private val logger = LoggerFactory.getLogger(PerGoalToolCallbackPublisher::class.java)
 
+    private val platformTools = ToolCallbacks.from(this)
+
     override val toolCallbacks: List<ToolCallback>
-        get() {
-            return autonomy.agentPlatform.goals.flatMap { goal ->
+        get() = toolCallbacks(remoteOnly = false)
+
+    /**
+     * If remote is true, include only remote tools.
+     */
+    fun toolCallbacks(remoteOnly: Boolean): List<ToolCallback> {
+        val goalTools = autonomy.agentPlatform.goals
+            .filter { it.export.local }
+            .filter { !remoteOnly || it.export.remote }
+            .flatMap { goal ->
                 toolsForGoal(goal)
-            } + ToolCallbacks.from(this)
+            }
+        if (goalTools.isEmpty()) {
+            logger.info("No goals found in agent platform, no tool callbacks will be published")
+            return emptyList()
         }
+        logger.info("{} goal tools found in agent platform: {}", goalTools.size, goalTools)
+        val allTools = goalTools + platformTools
+        assert(allTools.size == goalTools.size + platformTools.size)
+        return allTools
+    }
 
     @Tool(
         name = FORM_SUBMISSION_TOOL_NAME,
@@ -127,20 +145,26 @@ class PerGoalToolCallbackPublisher(
      * Create a tool callback for the given goal.
      */
     fun toolsForGoal(goal: Goal): List<ToolCallback> {
-        return listOf(
-            GoalToolCallback(
-                name = "text_" + goalToolNamingStrategy.nameForGoal(goal),
-                description = goal.description,
-                goal = goal,
-                inputType = UserInput::class.java,
-            )
-        ) + goal.startingInputTypes.map { inputType ->
-            GoalToolCallback(
-                name = inputType.simpleName + "_" + goalToolNamingStrategy.nameForGoal(goal),
-                description = goal.description,
-                goal = goal,
-                inputType = inputType,
-            )
+        val goalName = goal.export.name ?: goalToolNamingStrategy.nameForGoal(goal)
+        return buildList {
+            if (goal.export.exposeTextInput) {
+                add(
+                    GoalToolCallback(
+                        name = "text_$goalName",
+                        description = goal.description,
+                        goal = goal,
+                        inputType = UserInput::class.java,
+                    )
+                )
+            }
+            goal.startingInputTypes.map { inputType ->
+                GoalToolCallback(
+                    name = "${inputType.simpleName}_$goalName",
+                    description = goal.description,
+                    goal = goal,
+                    inputType = inputType,
+                )
+            }.forEach { add(it) }
         }
     }
 
@@ -172,10 +196,20 @@ class PerGoalToolCallbackPublisher(
             toolInput: String,
             toolContext: ToolContext?,
         ): String {
+            logger.info("Calling tool {} with input {}", this.name, toolInput)
             val verbosity = Verbosity(
                 showPrompts = true,
             )
-            val inputObject = objectMapper.readValue(toolInput, inputType)
+            val inputObject = try {
+                val o = objectMapper.readValue(toolInput, inputType)
+                logger.info("Successfully parsed tool input to an instance of {}:\n{}", o::class.java.name, o)
+                o
+            } catch (e: Exception) {
+                val errorReturn =
+                    "BAD INPUT ERROR parsing tool input: ${e.message}: Try again and see if you can get the format right"
+                logger.warn("Error $errorReturn parsing tool input: $toolInput", e)
+                return errorReturn
+            }
             val processOptions = ProcessOptions(verbosity = verbosity)
             val agent = autonomy.createGoalAgent(
                 inputObject = inputObject,
@@ -186,7 +220,7 @@ class PerGoalToolCallbackPublisher(
             )
             try {
                 val agentProcessExecution = autonomy.runAgent(
-                    userInput = UserInput(toolInput),
+                    inputObject = inputObject,
                     processOptions = processOptions,
                     agent = agent,
                 )

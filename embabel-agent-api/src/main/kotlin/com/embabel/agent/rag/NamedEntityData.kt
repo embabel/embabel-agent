@@ -20,7 +20,13 @@ import com.embabel.common.core.types.Named
 /**
  * Adds a name to the well known entity data.
  */
-interface NamedEntityData : EntityData, Named
+interface NamedEntityData : EntityData, Named {
+
+    override fun infoString(verbose: Boolean?): String {
+        val labelsString = labels.joinToString(":")
+        return "(${labelsString} id='$id', name=$name)"
+    }
+}
 
 data class SimpleNamedEntityData(
     override val id: String,
@@ -34,4 +40,5 @@ data class SimpleNamedEntityData(
     override fun embeddableValue(): String {
         return "$name: $description"
     }
+
 }

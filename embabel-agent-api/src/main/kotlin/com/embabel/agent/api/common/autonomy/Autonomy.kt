@@ -187,7 +187,7 @@ class Autonomy(
     }
 
     fun runAgent(
-        userInput: UserInput,
+        inputObject: Any,
         processOptions: ProcessOptions,
         agent: Agent,
     ): AgentProcessExecution {
@@ -195,11 +195,11 @@ class Autonomy(
             processOptions = processOptions,
             agent = agent,
             bindings = mapOf(
-                IoBinding.DEFAULT_BINDING to userInput
+                IoBinding.DEFAULT_BINDING to inputObject
             )
         )
         return AgentProcessExecution.fromProcessStatus(
-            basis = userInput,
+            basis = inputObject,
             agentProcess = agentProcess,
         )
     }

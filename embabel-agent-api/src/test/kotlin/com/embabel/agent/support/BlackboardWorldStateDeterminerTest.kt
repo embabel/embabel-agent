@@ -95,6 +95,9 @@ class BlackboardWorldStateDeterminerTest {
                 thirdArg(),
             )
         }
+        every { mockAgentProcess.get(any()) } answers {
+            blackboard.get(firstArg())
+        }
         every { mockAgentProcess.agent } returns SimpleTestAgent
         val bsb = BlackboardWorldStateDeterminer(
             processContext = ProcessContext(
@@ -200,20 +203,50 @@ class BlackboardWorldStateDeterminerTest {
             )
         }
 
+
+        @Test
+        fun `exact type match with fqn`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = blackboardWorldStateDeterminer(blackboard)
+
+            blackboard["input"] = UserInput("xyz")
+            blackboard["person"] = PersonWithReverseTool("Rod")
+            assertEquals(
+                ConditionDetermination.TRUE,
+                bsb.determineCondition("it:${PersonWithReverseTool::class.qualifiedName}"),
+                "Should match against fully qualified name",
+            )
+        }
     }
 
-    @Test
-    fun `exact type match with fqn`() {
-        val blackboard = InMemoryBlackboard()
-        val bsb = blackboardWorldStateDeterminer(blackboard)
+    @Nested
+    inner class MapValue {
 
-        blackboard["input"] = UserInput("xyz")
-        blackboard["person"] = PersonWithReverseTool("Rod")
-        assertEquals(
-            ConditionDetermination.TRUE,
-            bsb.determineCondition("it:${PersonWithReverseTool::class.qualifiedName}"),
-            "Should match against fully qualified name",
-        )
+        @Test
+        fun `failed match by name`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = blackboardWorldStateDeterminer(blackboard)
+
+            blackboard["story"] = UserInput("xyz")
+            assertEquals(
+                ConditionDetermination.FALSE,
+                bsb.determineCondition("story:Story"),
+                "Should not match against non map",
+            )
+        }
+
+        @Test
+        fun `match by name`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = blackboardWorldStateDeterminer(blackboard)
+
+            blackboard["story"] = mapOf("content " to "xyz")
+            assertEquals(
+                ConditionDetermination.TRUE,
+                bsb.determineCondition("story:Story"),
+                "Should match against map with name",
+            )
+        }
     }
 
 }

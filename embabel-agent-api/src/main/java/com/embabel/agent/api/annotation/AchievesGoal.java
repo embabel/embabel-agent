@@ -57,4 +57,11 @@ public @interface AchievesGoal {
      */
     // This annotation is implemented in Java because the following is impossible in Kotlin:
     Class<?>[] startingInputTypes() default {};
+
+    /**
+     * How the goal should be exported as a tool
+     * Tools will not be exposed remotely by default
+     */
+    Export export() default @Export();
 }
+
