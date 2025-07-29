@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common.autonomy
 
+import com.embabel.agent.api.common.support.destructureAndBindIfNecessary
 import com.embabel.agent.common.Constants
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
@@ -191,13 +192,16 @@ class Autonomy(
         processOptions: ProcessOptions,
         agent: Agent,
     ): AgentProcessExecution {
-        val agentProcess = agentPlatform.runAgentFrom(
+        val agentProcess = agentPlatform.createAgentProcess(
             processOptions = processOptions,
             agent = agent,
             bindings = mapOf(
                 IoBinding.DEFAULT_BINDING to inputObject
             )
         )
+        // We treat the inputObject specially, and destructure it if it's a SomeOf composite
+        destructureAndBindIfNecessary(inputObject, "input", agentProcess, logger)
+        agentProcess.run()
         return AgentProcessExecution.fromProcessStatus(
             basis = inputObject,
             agentProcess = agentProcess,

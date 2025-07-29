@@ -220,7 +220,6 @@ class AgentBuilder(
         }.toSet(),
         pre: List<Condition> = emptyList(),
         value: ZeroToOne = 0.0,
-        startingInputTypes: Set<KClass<*>> = emptySet(),
         export: Export = Export(),
     ) {
         // TODO check validity
@@ -231,7 +230,6 @@ class AgentBuilder(
                 inputs = inputs,
                 pre = pre.map { it.name }.toSet(),
                 value = value,
-                startingInputTypes = startingInputTypes.map { it.java }.toSet(),
                 export = export,
             )
         )

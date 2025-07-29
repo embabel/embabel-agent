@@ -87,7 +87,6 @@ class AutonomyAgentSelectionTest {
     @Test
     @DisplayName("test agent selection with valid input (score above threshold)")
     fun testChooseAndRunAgentWithValidInput() {
-        // Setup test data
         val userInput = "Find a horoscope for Lynda who is a Scorpio"
 
         // Create a real goal for our agent
@@ -97,7 +96,7 @@ class AutonomyAgentSelectionTest {
             value = 0.8
         )
 
-        // Create a real agent as a spy - this is the KEY to fixing the infoString issue
+        // Create a real agent as a spy
         val realAgent = spyk(
             Agent(
                 name = "realTestAgent",
@@ -112,13 +111,11 @@ class AutonomyAgentSelectionTest {
             every { infoString(any()) } returns "TestAgent() - spied"
         }
 
-        // Mock process with expected return value
         val testProcess = mockk<AgentProcess>()
         val testOutput = object : HasContent {
             override val content = "Test output content"
         }
 
-        // Configure process to return COMPLETED status
         every { testProcess.status } returns AgentProcessStatusCode.COMPLETED
         every { testProcess.lastResult() } returns testOutput
 
@@ -126,12 +123,13 @@ class AutonomyAgentSelectionTest {
         val agentPlatform = mockk<AgentPlatform>()
         every { agentPlatform.agents() } returns listOf(realAgent)
         every {
-            agentPlatform.runAgentFrom(
+            agentPlatform.createAgentProcess(
                 processOptions = any(),
                 agent = realAgent,
                 bindings = any<Map<String, Any>>()
             )
         } returns testProcess
+        every { testProcess.run() } returns testProcess
 
         // Create a ranker that returns high confidence for our test agent
         val highScoreRanker = object : FakeRanker {
@@ -144,7 +142,6 @@ class AutonomyAgentSelectionTest {
             }
         }
 
-        // Create event listener mock to verify event publication
         val eventListener = mockk<AgenticEventListener>(relaxUnitFun = true)
 
         every {
@@ -164,31 +161,24 @@ class AutonomyAgentSelectionTest {
             processOptions = ProcessOptions(test = false)
         )
 
-        // Verify the result
         assertNotNull(result, "Result should not be null")
         assertEquals(testOutput, result.output, "Output should match expected")
         assertEquals(testProcess, result.agentProcess, "Process should match expected")
 
-        // Verify the key method interactions
         verify {
-            // Verify available agents were retrieved
             agentPlatform.agents()
 
             // Verify the agent was executed
-            agentPlatform.runAgentFrom(
+            agentPlatform.createAgentProcess(
                 processOptions = any(),
                 agent = realAgent,
                 bindings = any()
             )
 
-            // Verify process status was checked
             testProcess.status
-
-            // Verify result was retrieved
             testProcess.lastResult()
         }
 
-        // Verify events for agent selection
         verify {
             // Event listener should be called with events related to agent selection
             eventListener.onPlatformEvent(

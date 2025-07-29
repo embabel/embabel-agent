@@ -39,7 +39,7 @@ class PerGoalStartingInputTypesPromptPublisher(
 
     fun promptsForGoal(goal: Goal): List<McpServerFeatures.SyncPromptSpecification> {
         val mcpPromptFactory = McpPromptFactory()
-        return goal.startingInputTypes.map { inputType ->
+        return goal.export.startingInputTypes.map { inputType ->
             mcpPromptFactory.syncPromptSpecificationForType(
                 goal = goal,
                 inputType,

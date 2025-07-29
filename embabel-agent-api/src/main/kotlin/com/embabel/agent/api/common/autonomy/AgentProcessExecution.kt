@@ -121,7 +121,7 @@ class AgentProcessExecution private constructor(
  * Used for control flow
  */
 sealed class ProcessExecutionException(
-    val agentProcess: AgentProcess?,
+    open val agentProcess: AgentProcess?,
     message: String,
 ) : Exception(message)
 
@@ -151,21 +151,21 @@ class NoAgentFound(
 ) : ProcessExecutionException(null, "Agent not found: ${agentRankings.rankings.joinToString(",")}")
 
 class ProcessExecutionFailedException(
-    agentProcess: AgentProcess,
+    override val agentProcess: AgentProcess,
     val detail: String,
 ) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} failed: $detail")
 
 class ProcessExecutionTerminatedException(
-    agentProcess: AgentProcess,
+    override val agentProcess: AgentProcess,
     val detail: String,
 ) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} terminated: $detail")
 
 class ProcessExecutionStuckException(
-    agentProcess: AgentProcess,
+    override val agentProcess: AgentProcess,
     val detail: String,
 ) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} stuck: $detail")
 
 class ProcessWaitingException(
-    agentProcess: AgentProcess,
+    override val agentProcess: AgentProcess,
     val awaitable: Awaitable<*, AwaitableResponse>,
 ) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} is waiting for ${awaitable.infoString()}")

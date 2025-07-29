@@ -37,9 +37,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore
  * @param examples The set of example scenarios that the skill can perform.
  * Will be used by the client as a hint to understand how the skill can be used.
  *  example: ["I need a recipe for bread"]
- *  @param startingInputTypes input types that we can prompt the user from to get to this goal.
- *  Useful for MCP prompts. A Goal may not know all possible input types, but
- *  it is still useful to be able to specify some of them.
  */
 data class Goal(
     override val name: String,
@@ -49,7 +46,6 @@ data class Goal(
     override val value: ZeroToOne = 0.0,
     val tags: Set<String> = emptySet(),
     val examples: Set<String> = emptySet(),
-    val startingInputTypes: Set<Class<*>> = emptySet(),
     val export: Export = Export(),
 ) : GoapGoal, AgentSystemStep {
 
@@ -155,11 +151,14 @@ data class Goal(
  * If null, the goal naming strategy will be used.
  * @param remote whether the goal is exported to a remote system (e.g., MCP).
  * @param local whether the goal is exported to a local system (e.g., agent platform for use in prompted actions)
- * @param exposeTextInput whether the goal should expose text input to the user.
+ * @param startingInputTypes input types that we can prompt the user from to get to this goal.
+ * Useful for MCP prompts. A Goal may not know all possible input types, but
+ * it is still useful to be able to specify some of them. Include UserInput.class if the
+ * goal can be achieved starting from text
  */
 data class Export(
     val name: String? = null,
     val remote: Boolean = false,
     val local: Boolean = true,
-    val exposeTextInput: Boolean = true,
+    val startingInputTypes: Set<Class<*>> = emptySet(),
 )

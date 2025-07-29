@@ -53,12 +53,6 @@ public @interface AchievesGoal {
     String[] examples() default {};
 
     /**
-     * Any starting input types for the goal we might want to prompt for
-     */
-    // This annotation is implemented in Java because the following is impossible in Kotlin:
-    Class<?>[] startingInputTypes() default {};
-
-    /**
      * How the goal should be exported as a tool
      * Tools will not be exposed remotely by default
      */

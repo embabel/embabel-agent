@@ -378,12 +378,11 @@ class AgentMetadataReader(
             value = goalAnnotation.value,
             // Add precondition of the action having run
             pre = setOf(Rerun.hasRunCondition(action)) + action.preconditions.keys.toSet(),
-            startingInputTypes = goalAnnotation.startingInputTypes.map { it.java }.toSet(),
             export = Export(
                 local = goalAnnotation.export.local,
                 remote = goalAnnotation.export.remote,
                 name = goalAnnotation.export.name.ifBlank { null },
-                exposeTextInput = goalAnnotation.export.exposeTextInput,
+                startingInputTypes = goalAnnotation.export.startingInputTypes.map { it.java }.toSet(),
             )
         )
     }

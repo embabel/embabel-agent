@@ -101,7 +101,9 @@ fun evenMoreEvilWizardWithStructuredInput() =
             name = "done",
             description = "done",
             satisfiedBy = SnakeMeal::class,
-            startingInputTypes = setOf(MagicVictim::class),
-            export = Export(remote = true),
+            export = Export(
+                remote = true,
+                startingInputTypes = setOf(MagicVictim::class.java),
+            ),
         )
     }

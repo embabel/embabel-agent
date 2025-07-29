@@ -98,30 +98,13 @@ class MultiTransformationAction<O : Any>(
                 """.trimIndent()
             )
         }
-        if (SomeOf::class.java.isAssignableFrom(outputClass)) {
-            outputClass.declaredFields
-                .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
-                .forEach { field ->
-                    field.setAccessible(true)
-                    val fieldValue = field.get(output)
-                    if (fieldValue != null) {
-                        val bindingName = IoBinding.DEFAULT_BINDING // field.name
-                        processContext.agentProcess[bindingName] = fieldValue
-                        logger.info(
-                            "Binding output element of composition action {}: {} to {}",
-                            name,
-                            bindingName,
-                            fieldValue,
-                        )
-                    } else {
-                        logger.info(
-                            "Field {} in output of composite action {} is null, not binding",
-                            field.name,
-                            name,
-                        )
-                    }
-                }
-        }
+        destructureAndBindIfNecessary(
+            obj = output,
+            name = name,
+            blackboard = processContext.blackboard,
+            logger = logger
+        )
+
         if (outputVarName != null) {
             logger.debug("Binding output of action {}: {} to {}", name, outputVarName, output)
             processContext.agentProcess[outputVarName] = output

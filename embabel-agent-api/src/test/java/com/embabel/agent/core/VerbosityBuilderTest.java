@@ -13,26 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.annotation;
+package com.embabel.agent.core;
 
-/**
- * How a goal should be exposed
- */
-public @interface Export {
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
-    /**
-     * Set to override the name of the goal when it is exported.
-     */
-    String name() default "";
+class VerbosityBuilderTest {
 
-    boolean remote() default false;
+    @Test
+    void builder() {
+        var verbosity = Verbosity.builder()
+                .showPrompts(true)
+                .showLlmResponses(true)
+                .debug(true)
+                .showPlanning(true)
+                .build();
 
-    boolean local() default true;
-
-    /**
-     * Any starting input types for the goal we might want to prompt for
-     */
-    // This annotation is implemented in Java because the following is impossible in Kotlin:
-    Class<?>[] startingInputTypes() default {};
+        assertTrue(verbosity.getShowPrompts());
+        assertTrue(verbosity.getShowLlmResponses());
+        assertTrue(verbosity.getDebug());
+        assertTrue(verbosity.getShowPlanning());
+    }
 
 }

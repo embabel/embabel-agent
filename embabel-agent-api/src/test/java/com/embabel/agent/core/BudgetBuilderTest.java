@@ -13,26 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.annotation;
+package com.embabel.agent.core;
 
-/**
- * How a goal should be exposed
- */
-public @interface Export {
+import org.junit.jupiter.api.Test;
 
-    /**
-     * Set to override the name of the goal when it is exported.
-     */
-    String name() default "";
+import static org.codehaus.groovy.tools.shell.util.Preferences.verbosity;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-    boolean remote() default false;
+class BudgetBuilderTest {
 
-    boolean local() default true;
+    @Test
+    void builder() {
+        var budget = Budget.builder()
+                .cost(1)
+                .actions(2)
+                .tokens(3)
+                .build();
 
-    /**
-     * Any starting input types for the goal we might want to prompt for
-     */
-    // This annotation is implemented in Java because the following is impossible in Kotlin:
-    Class<?>[] startingInputTypes() default {};
+        assertEquals(1, budget.getCost());
+        assertEquals(2, budget.getActions());
+        assertEquals(3, budget.getTokens());
+    }
 
 }
