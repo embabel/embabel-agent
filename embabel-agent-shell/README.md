@@ -1,6 +1,6 @@
 # Embabel Agent Shell Module
 
-Interactive Spring Shell experience for the Embabel Agent platform users.
+Interactive Spring Shell experience for the Embabel Agent platform.
 
 ## Overview
 This module provides a terminal-based interface for interacting with the Embabel Agent platform, built on Spring Shell framework. It offers interactive commands for agent management, chat sessions, and system operations.
