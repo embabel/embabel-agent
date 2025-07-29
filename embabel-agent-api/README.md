@@ -176,11 +176,24 @@ fun main(args: Array<String>) {
 - **Profile activation:** Maintains profiles for annotation convenience
 - **Consumer choice:** Developers choose activation method
 
-## Configuration Examples
+## Configuration Examples & Templates
 
-### Development Environment
+The framework provides ready-to-use configuration templates in `src/main/resources/application-templates/`:
+
+### Available Templates
+- **`application-development.yml`** - Development environment with debug settings
+- **`application-production.yml`** - Production environment with security best practices  
+- **`application-minimal.yml`** - Minimal configuration to get started
+- **`application-full-featured.yml`** - Complete configuration with all available options
+- **`application-personality-demo.yml`** - Personality plugin examples and usage
+
+### Development Environment Example
 ```yaml
+# Copy from application-templates/application-development.yml
 embabel:
+  framework:
+    test:
+      mockMode: true
   agent:
     logging:
       personality: starwars
@@ -189,20 +202,27 @@ embabel:
       provider: ollama
     infrastructure:
       neo4j:
+        enabled: true
         uri: bolt://localhost:7687
-      mcp:
-        servers: ["docker-desktop"]
+  shell:
+    enabled: true
+    chat:
+      confirmGoals: true
 ```
 
-### Production Environment
+### Production Environment Example
 ```yaml
+# Copy from application-templates/application-production.yml
 embabel:
+  framework:
+    test:
+      mockMode: false
   agent:
     platform:
       name: production-agent
     logging:
       personality: corporate
-      verbosity: normal
+      verbosity: info
     models:
       provider: bedrock
       bedrock:
@@ -210,12 +230,19 @@ embabel:
     infrastructure:
       observability:
         enabled: true
-        zipkinEndpoint: http://prod-zipkin:9411
+        tracing:
+          zipkinEndpoint: ${ZIPKIN_ENDPOINT}
       neo4j:
-        uri: bolt://prod-cluster.company.com:7687
-        username: ${NEO4J_PROD_USER}
-        password: ${NEO4J_PROD_PASSWORD}
+        enabled: true
+        uri: ${NEO4J_URI}
+        authentication:
+          username: ${NEO4J_USERNAME}
+          password: ${NEO4J_PASSWORD}
+  shell:
+    enabled: false  # No interactive shell in production
 ```
+
+**Usage:** Copy the appropriate template to your `src/main/resources/application.yml` and customize for your needs.
 
 ## Phase 1: Library-Centric Transformation
 
@@ -254,7 +281,13 @@ embabel:
 - 🔄 **Runtime switching** - Change personalities without restart
 - 🔄 **Plugin interface** - Clean provider contract for extensions
 
-**Implementation**: See [ITERATIVE_PLAN.md](ITERATIVE_PLAN.md) for detailed implementation steps
+**Implementation**: 
+- **Detailed Steps**: [ITERATIVE_PLAN.md](ITERATIVE_PLAN.md) 
+- **Profile-Specific Changes**: [PROFILES_MIGRATION_GUIDE.md - Personality Profiles](PROFILES_MIGRATION_GUIDE.md#0-personality-profiles-migration)
+
+## Migration from Profiles
+
+For detailed migration instructions from profile-based configuration (`application-{profile}.yml`) to property-based configuration, see [PROFILES_MIGRATION_GUIDE.md](PROFILES_MIGRATION_GUIDE.md).
 
 ### Next Phase Goals
 - **Complete profile departure** from core framework configuration

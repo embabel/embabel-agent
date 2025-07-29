@@ -2,19 +2,287 @@
 
 ## Overview
 
-Transform the personality system from profile-based to property-based activation with plugin architecture support. This plan focuses specifically on the personality system as a test case for the broader library-centric transformation.
+Transform the personality system from profile-based to property-based activation with plugin architecture support. This plan focuses specifically on the personality system as a **test case** for the broader library-centric transformation.
 
 ## Implementation Strategy
 
-**Primary Goal**: Property-based configuration foundation before plugin infrastructure  
-**Approach**: Incremental commits with backward compatibility  
-**Timeline**: 6 iterations, each representing 1 commit  
+**Primary Goal**: Property-based configuration foundation with dual support during transition  
+**Approach**: Incremental commits with **full backward compatibility** (no breaking changes)  
+**Timeline**: 14 iterations, each representing 1 commit  
+**Integration**: This plan integrates with broader profile migration (see [PROFILES_MIGRATION_GUIDE.md](PROFILES_MIGRATION_GUIDE.md))
+
+### **Dual Support Strategy**
+Each iteration implements **both old and new systems simultaneously**:
+- **Property-based activation** (primary, `@Primary`)
+- **Profile-based activation** (fallback, `@ConditionalOnMissingBean`) 
+- **Deprecation warnings** for profile usage
+- **No file deletion** until final cleanup iterations
+
+### **Package Structure Strategy**
+
+**Existing Module Structure Analysis:**
+- **Shell Module**: Already has `ShellConfiguration.kt` and `ShellProperties.kt` in `embabel-agent-shell` module
+- **Core Module**: Configuration classes will be added to `embabel-agent-api` module
+- **Module Independence**: Shell configuration remains in shell module (separate deployable unit)
+
+**Proposed Configuration Class Organization:**
+
+#### **Core Framework (`embabel-agent-api`)**
+```
+com.embabel.agent.config/
+├── framework/                          # Framework internal configs
+│   ├── FrameworkPropertiesConfig.kt    # embabel.framework.*
+│   ├── ScanningConfiguration.kt        # embabel.framework.scanning.*
+│   └── RankingConfiguration.kt         # embabel.framework.ranking.*
+│
+├── agent/                              # Application-level configs  
+│   ├── logging/
+│   │   └── PersonalityConfiguration.kt # embabel.agent.logging.*
+│   ├── infrastructure/
+│   │   ├── Neo4jConfiguration.kt       # embabel.agent.infrastructure.neo4j.*
+│   │   ├── McpConfiguration.kt         # embabel.agent.infrastructure.mcp.*
+│   │   └── ObservabilityConfiguration.kt # embabel.agent.infrastructure.observability.*
+│   └── models/
+│       └── ModelConfiguration.kt      # embabel.agent.models.*
+```
+
+#### **Shell Module (`embabel-agent-shell`)** - Keep Existing
+```
+com.embabel.agent.shell.config/
+├── ShellConfiguration.kt               # Existing - keep as-is
+└── ShellProperties.kt                  # Existing - embabel.shell.* 
+```
+
+#### **AutoConfiguration Strategy (TBD)**
+**Options:**
+1. **Single module**: `embabel-agent-autoconfigure` with all auto-configuration classes
+2. **Multi-module**: `embabel-agent-autoconfigure-shell`, `embabel-agent-autoconfigure-neo4j`, etc.
+
+**Rationale:**
+- **Clear separation** between framework vs agent configuration packages
+- **Module independence** maintained (shell stays in shell module)
+- **Logical grouping** by functional area (logging, infrastructure, models)
+- **Matches property hierarchy** in package naming
+
+## Complete Implementation Sequence
+
+### **Phase A: Foundation & Core Migrations (Iterations 0-1)**
+
+**Iteration 0: Framework Property Foundation (Dual Support)**
+- **Goal**: Establish proper property segregation between framework internals and application configuration
+- **Files to create**: `FrameworkPropertiesConfig.kt`
+- **Files to modify**: `AgentScanningProperties.kt`, `LlmRanker.kt`
+- **Migration**: `embabel.agent-platform.*` → `embabel.framework.*`
+- **Details**: See detailed section below
+
+**Iteration 1: Shell Profile Migration (Dual Support)**
+- **Goal**: Add property-based activation while maintaining `application-shell.yml` and `@Profile("shell")` compatibility
+- **Files to modify**: `embabel-agent-shell/src/main/kotlin/com/embabel/agent/shell/config/ShellProperties.kt` (add dual support)
+- **Files to create**: `ShellAutoConfiguration.kt` (with dual support logic for both property and profile activation)
+- **Files to keep**: `application-shell.yml` (maintain for backward compatibility - **will be deprecated later**)
+- **Profiles to keep**: `@Profile("shell")` annotations (maintain for backward compatibility - **will be deprecated later**)
+- **Note**: Shell module already has configuration classes - extend existing structure
+- **Reference**: [PROFILES_MIGRATION_GUIDE.md - Section 1](PROFILES_MIGRATION_GUIDE.md#1-shell-profile-migration)
+
+### **Phase B: Personality Plugin Infrastructure (Iterations 2-7)**
+
+**Iteration 2: Personality Property-Based Configuration (Dual Support)**
+- **Goal**: Add `embabel.agent.logging.*` while maintaining profile activation compatibility
+- **Files to create**: `PersonalityConfiguration.kt`
+- **Files to modify**: All 5 personality classes (keep both `@Profile` and `@ConditionalOnProperty`)
+- **Reference**: [PROFILES_MIGRATION_GUIDE.md - Section 0: Personality Profiles](PROFILES_MIGRATION_GUIDE.md#0-personality-profiles-migration)
+- **Details**: See detailed section below
+
+**Iteration 3: Property Integration & Validation**
+- **Goal**: Robust property system with validation and fallback mechanisms
+- **Details**: See detailed section below
+
+**Iteration 4: Core Plugin Infrastructure**
+- **Goal**: Registry and provider interfaces for dynamic personality management
+- **Details**: See detailed section below
+
+**Iteration 5: Provider Implementation Wrappers**
+- **Goal**: Convert existing personalities to plugin providers
+- **Details**: See detailed section below
+
+**Iteration 6: Runtime Management & API**
+- **Goal**: Dynamic personality switching capabilities
+- **Details**: See detailed section below
+
+**Iteration 7: Enhanced Dynamic Properties**
+- **Goal**: Advanced property dynamism and external configuration support
+- **Details**: See detailed section below
+
+### **Phase C: Remaining Profile Migrations (Iterations 8-11)**
+
+**Iteration 8: Neo4j Profile Migration (Dual Support)**
+- **Goal**: Add `embabel.agent.infrastructure.neo4j.*` while maintaining `application-neo.yml` compatibility
+- **Files to create**: `Neo4jConfiguration.kt`, `Neo4jAutoConfiguration.kt` (with dual support)
+- **Files to keep**: `application-neo.yml` (maintain for backward compatibility)
+- **Security**: Remove hardcoded credentials, require environment variables
+- **Reference**: [PROFILES_MIGRATION_GUIDE.md - Section 2](PROFILES_MIGRATION_GUIDE.md#2-neo4j-profile-migration)
+
+**Iteration 9: MCP Profiles Migration (Dual Support)**
+- **Goal**: Add `embabel.agent.infrastructure.mcp.*` while maintaining existing profile files
+- **Files to create**: `McpConfiguration.kt`, `McpAutoConfiguration.kt` (with dual support)
+- **Files to keep**: `application-docker-ce.yml`, `application-docker-desktop.yml`
+- **Security**: Externalize API keys (GITHUB_TOKEN, BRAVE_API_KEY, etc.)
+- **Reference**: [PROFILES_MIGRATION_GUIDE.md - Section 3](PROFILES_MIGRATION_GUIDE.md#3-mcp-profiles-migration-docker-ce--docker-desktop)
+
+**Iteration 10: Observability Profile Migration (Dual Support)**
+- **Goal**: Add `embabel.agent.infrastructure.observability.*` while maintaining `application-observability.yml`
+- **Files to create**: `ObservabilityConfiguration.kt`, `ObservabilityAutoConfiguration.kt` (with dual support)
+- **Files to keep**: `application-observability.yml` (maintain for backward compatibility)
+- **Reference**: [PROFILES_MIGRATION_GUIDE.md - Section 4](PROFILES_MIGRATION_GUIDE.md#4-observability-profile-migration)
+
+**Iteration 11: Add Deprecation Warnings**
+- **Goal**: Warn users about profile usage, guide to property-based config
+- **Files to create**: `ProfileDeprecationWarner.kt`
+- **Profiles to deprecate**: `@Profile("shell")`, `@Profile("neo")`, `@Profile("docker-ce")`, `@Profile("docker-desktop")`, `@Profile("observability")`, personality profiles
+- **Files to deprecate**: `application-shell.yml`, `application-neo.yml`, `application-docker-ce.yml`, `application-docker-desktop.yml`, `application-observability.yml`
+- **Reference**: [PROFILES_MIGRATION_GUIDE.md - Backward Compatibility](PROFILES_MIGRATION_GUIDE.md#backward-compatibility-strategy)
+
+### **Phase D: Profile Deprecation & Cleanup (Iterations 12-13)**
+
+**Iteration 12: Remove Profile Support**
+- **Goal**: Remove all `@Profile` annotations and profile-based logic
+- **Files to modify**: All configuration classes, remove dual support
+- **Profiles to remove**: `@Profile("shell")`, `@Profile("neo")`, `@Profile("docker-ce")`, `@Profile("docker-desktop")`, `@Profile("observability")`, personality profiles
+- **Reference**: [PROFILES_MIGRATION_GUIDE.md - Phase 3](PROFILES_MIGRATION_GUIDE.md#phase-3-profile-removal)
+
+**Iteration 13: Delete Profile Files & Add Templates**
+- **Goal**: Remove all `application-{profile}.yml` files and provide property-based templates
+- **Files to delete**: `application-shell.yml`, `application-neo.yml`, `application-docker-ce.yml`, `application-docker-desktop.yml`, `application-observability.yml`
+- **Files to create**: Application configuration templates (see below)
+- **Note**: Shell module may require special handling due to module independence
+- **Documentation**: Update all examples to use property-based configuration
+
+### **Application Templates Structure**
+```
+src/main/resources/application-templates/
+├── application-development.yml      # Development environment example
+├── application-production.yml       # Production environment example  
+├── application-minimal.yml          # Minimal configuration example
+├── application-full-featured.yml    # Complete configuration with all options
+├── application-personality-demo.yml # Personality plugin examples
+└── README.md                       # Template usage instructions
+```
+
+**Template Benefits:**
+- **Developer onboarding** - Clear examples of property-based configuration
+- **Migration support** - Show equivalent property configs for old profiles  
+- **Environment examples** - Different deployment scenarios
+- **Living documentation** - Templates stay current with code changes
+
+**Total Timeline**: 14 iterations (1 framework foundation + 1 shell + 6 personality + 4 remaining profiles + 2 cleanup)  
+
+---
+
+## Future Iterations (Planning Placeholder)
+
+### **Phase D: Model Provider Plugin Infrastructure (Future)**
+
+**Purpose**: Apply lessons learned from personality plugin infrastructure to model providers
+
+**Planned Iterations (TBD):**
+- **Future Iteration A**: Model Provider Property-Based Configuration
+  - Replace hardcoded model provider selection with `embabel.agent.models.provider=*`
+  - Support: `openai`, `bedrock`, `ollama`, `anthropic`, etc.
+
+- **Future Iteration B**: Model Provider Plugin Interface
+  - Create `ModelProviderPlugin` interface
+  - Implement `ModelProviderRegistry` with auto-discovery
+  - Support runtime model provider switching
+
+- **Future Iteration C**: Dynamic Model Configuration
+  - Hot-reload model configurations
+  - External model definition files
+  - API endpoints for model management
+
+- **Future Iteration D**: Advanced Model Features
+  - Model capability detection
+  - Cost-aware model selection
+  - Performance-based model routing
+
+**Dependencies**: 
+- ✅ Framework Property Foundation (Iteration 0)
+- ✅ Personality Plugin Infrastructure (Iterations 1-6) - **serves as reference implementation**
+- ✅ Profile Migration Complete (Iterations 7-13)
+
+**Notes**: 
+- Model provider plugins will follow the same pattern established by personality plugins
+- Property-based activation: `embabel.agent.models.provider=bedrock`
+- Plugin discovery and runtime switching capabilities
+- Enhanced configurability for model selection criteria
+
+---
+
+## Iteration 0: Framework Property Foundation
+
+**Focus**: Establish proper property segregation between framework internals and application configuration
+
+### Files to Create:
+- `src/main/kotlin/com/embabel/agent/config/FrameworkPropertiesConfig.kt`
+
+### Files to Modify:
+- `src/main/kotlin/com/embabel/agent/core/deployment/AgentScanningProperties.kt`
+- `src/main/kotlin/com/embabel/agent/spi/support/LlmRanker.kt`
+
+### Changes:
+
+**1. Create FrameworkPropertiesConfig.kt:**
+```kotlin
+@ConfigurationProperties("embabel.framework")
+data class FrameworkPropertiesConfig(
+    var scanning: ScanningConfig = ScanningConfig(),
+    var ranking: RankingConfig = RankingConfig(),
+    var llmOperations: LlmOperationsConfig = LlmOperationsConfig(),
+    var processIdGeneration: ProcessIdGenerationConfig = ProcessIdGenerationConfig(),
+    var test: TestConfig = TestConfig()
+) {
+    data class ScanningConfig(
+        var annotation: Boolean = true,
+        var bean: Boolean = false
+    )
+    
+    data class RankingConfig(
+        var llm: String? = null,
+        var maxAttempts: Int = 5,
+        var backoffMillis: Long = 1000,
+        var backoffMultiplier: Double = 2.0,
+        var backoffMaxInterval: Long = 30000
+    )
+    
+    data class LlmOperationsConfig(
+        var timeout: String = "30s",
+        var retryStrategy: String = "exponential"
+    )
+    
+    data class ProcessIdGenerationConfig(
+        var strategy: String = "uuid"
+    )
+    
+    data class TestConfig(
+        var mockMode: Boolean = true
+    )
+}
+```
+
+**2. Update existing properties to use framework namespace:**
+- `embabel.agent-platform.scanning.*` → `embabel.framework.scanning.*`
+- `embabel.agent-platform.ranking.*` → `embabel.framework.ranking.*`
+
+### Testing:
+- Verify framework properties load correctly: `embabel.framework.scanning.annotation=true`
+- Test environment variable override: `EMBABEL_FRAMEWORK_SCANNING_ANNOTATION=false`
+- Ensure backward compatibility with existing `embabel.agent-platform.*` properties
+- Test system property override: `-Dembabel.framework.test.mockMode=false`
 
 ---
 
 ## Iteration 1: Property-Based Configuration Foundation
 
-**Focus**: Replace Spring profile dependencies with property-based activation across framework
+**Focus**: Replace Spring profile dependencies with property-based activation for personalities
 
 ### Files to Modify:
 - `src/main/kotlin/com/embabel/agent/event/logging/personality/starwars/StarWarsLoggingAgenticEventListener.kt`
@@ -38,19 +306,10 @@ data class PersonalityConfiguration(
 )
 ```
 
-**2. Update personality classes (example - StarWars):**
-```kotlin
-// REMOVE:
-@Profile("starwars")
-
-// ADD:
-@ConditionalOnProperty(
-    name = "embabel.agent.logging.personality", 
-    havingValue = "starwars"
-)
-```
-
-**3. Apply same pattern to all 5 personality classes**
+**2. Update all 5 personality classes:**
+- Replace `@Profile("personality-name")` with `@ConditionalOnProperty` activation
+- **Detailed Changes**: See [PROFILES_MIGRATION_GUIDE.md - Section 0: Personality Profiles Migration](PROFILES_MIGRATION_GUIDE.md#0-personality-profiles-migration)
+- **Files**: StarWars, Severance, Hitchhiker, MontyPython, Colossus event listeners
 
 ### Testing:
 - Verify property-based activation works: `embabel.agent.logging.personality=starwars`
