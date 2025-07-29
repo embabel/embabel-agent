@@ -185,7 +185,7 @@ data class EvaluationResult(
             |$subjectiveScores
             |${assertionScores.joinToString("\n")}
             |Response times: ${responseTimes()}
-        """.trimIndent()
+        """.trimMargin()
     }
 
 }

@@ -95,12 +95,13 @@ class InMemoryBlackboard(
             if (verbose == true) "\n" + _map.entries.joinToString(joiner) else _map.entries.joinToString(joiner) { "${it.key}=${it.value::class.simpleName}" }
         val entriesString =
             if (verbose == true) "\n" + objects.joinToString(joiner) else objects.map { "${it::class.simpleName}" }
-        return """|${javaClass.simpleName}: id=$blackboardId
-                  |map:
-                  |${_map.entries.joinToString(", ").indent(1)}
-                  |entries:
-                  |${objects.joinToString(", ").indent(1)}
-                  |"""
+        return """
+            |${javaClass.simpleName}: id=$blackboardId
+            |map:
+            |${_map.entries.joinToString(", ").indent(1)}
+            |entries:
+            |${objects.joinToString(", ").indent(1)}
+            |"""
             .trimMargin()
             .indentLines(indent)
     }

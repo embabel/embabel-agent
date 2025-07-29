@@ -207,14 +207,15 @@ data class GoapPlanningSystem(
     ): String =
         "GOAP system:".indent(indent) + "\n" +
                 """|actions:
-           |${actions.joinToString("\n") { it.name.indent(1) }}
-           |goals:
-           |${goals.joinToString("\n") { it.name.indent(1) }}
-           |knownPreconditions:
-           |${knownPreconditions().sortedBy { it }.joinToString("\n") { it.indent(1) }}
-           |knownEffects:
-           |${knownEffects().sortedBy { it }.joinToString("\n") { it.indent(1) }}
-           |""".trimMargin()
+                   |${actions.joinToString("\n") { it.name.indent(1) }}
+                   |goals:
+                   |${goals.joinToString("\n") { it.name.indent(1) }}
+                   |knownPreconditions:
+                   |${knownPreconditions().sortedBy { it }.joinToString("\n") { it.indent(1) }}
+                   |knownEffects:
+                   |${knownEffects().sortedBy { it }.joinToString("\n") { it.indent(1) }}
+                   |"""
+                    .trimMargin()
                     .indentLines(indent + 1)
 }
 

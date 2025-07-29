@@ -67,7 +67,8 @@ internal class SimpleAgentProcess(
                    |${agent.planningSystem.infoString(verbose = true, 1)}
                    |context:
                    |${blackboard.infoString(true, 1)}
-                   |""".trimMargin()
+                   |"""
+                    .trimMargin()
                     .indentLines(1)
             )
             setStatus(AgentProcessStatusCode.STUCK)

@@ -50,8 +50,9 @@ data class ResearchReport(
         """|Report:
            |$content
            |Links: ${links.joinToString("\n") { it.url }}
-           |""".trimMargin()
-        .indentLines(indent)
+           |"""
+            .trimMargin()
+            .indentLines(indent)
 }
 
 data class CompletedResearch(

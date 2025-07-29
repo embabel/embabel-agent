@@ -81,10 +81,14 @@ open class Plan(
     ): String {
         return if (verbose == true) {
             "\n" +
-                    """|${actions.map { it.name }.joinToString(" ->\n"){it.indent(1)}}
+                    """|${
+                        actions.mapIndexed { i, a -> i to a.name }
+                            .joinToString(" ->\n") { it.second.indent(1 + it.first) }
+                    }
                        |cost: $cost
                        |netValue: $netValue
-                       |""".trimMargin()
+                       |"""
+                        .trimMargin()
                         .indentLines(level = indent)
 
 

@@ -58,12 +58,13 @@ fun formatProcessOutput(
         output = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(result.output)
     }
     return """|
-            |
-            |You asked: ${result.basis.toString().color(colorPalette.highlight)}
-            |
-            |${output.color(colorPalette.color2)}
-            |
-            |${result.agentProcess.costInfoString(verbose = true)}
-            |${result.agentProcess.toolsStats.infoString(verbose = true)}
-            |""".trimMargin()
+              |${result.agentProcess.infoString(verbose = true)}
+              |
+              |You asked: ${result.basis.toString().color(colorPalette.highlight)}
+              |
+              |${output.color(colorPalette.color2)}
+              |
+              |${result.agentProcess.costInfoString(verbose = true)}
+              |${result.agentProcess.toolsStats.infoString(verbose = true)}
+              |""".trimMargin()
 }

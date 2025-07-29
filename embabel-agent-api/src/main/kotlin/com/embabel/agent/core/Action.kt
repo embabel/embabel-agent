@@ -94,7 +94,8 @@ interface Action : AgentSystemStep, GoapAction, ActionRunner, DataDictionary, To
             effects.map { it.key to "${it.key}: ${it.value}" }.sortedBy { it.first }
                 .joinToString("\n") { it.second.indent(1) }
         }
-           |""".trimMargin()
+           |"""
+            .trimMargin()
             .indentLines(indent)
 
     fun shortName(): String {

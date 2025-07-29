@@ -106,12 +106,13 @@ data class Agent(
         indent: Int,
     ): String =
         "\n" +
-        """|description: ${description}
-           |provider: $provider
-           |version: $version
-           |${super.infoString(verbose, indent)}
-        """.trimMargin()
-            .indentLines(indent)
+                """|description: ${description}
+                   |provider: $provider
+                   |version: $version
+                   |${super.infoString(verbose, indent)}
+                   |"""
+                    .trimMargin()
+                    .indentLines(indent)
 
     companion object {
 

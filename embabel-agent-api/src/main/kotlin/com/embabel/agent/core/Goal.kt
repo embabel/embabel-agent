@@ -84,7 +84,8 @@ data class Goal(
                     .joinToString("\n") { it.second.indent(1) }
             }
                |value: ${value}
-           """.trimMargin()
+               |"""
+                .trimMargin()
                 .indentLines(indent)
         else
             "$description: $name - pre=${preconditions} value=${value}"
