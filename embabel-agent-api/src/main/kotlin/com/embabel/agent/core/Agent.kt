@@ -106,7 +106,7 @@ data class Agent(
         indent: Int,
     ): String =
         "\n" +
-                """|description: ${description}
+                """|description: $description
                    |provider: $provider
                    |version: $version
                    |${super.infoString(verbose, indent)}

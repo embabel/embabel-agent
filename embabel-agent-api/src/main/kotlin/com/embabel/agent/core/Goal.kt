@@ -79,7 +79,7 @@ data class Goal(
                 preconditions.map { it.key to "${it.key}: ${it.value}" }.sortedBy { it.first }
                     .joinToString("\n") { it.second.indent(1) }
             }
-               |value: ${value}
+               |value: $value
                |"""
                 .trimMargin()
                 .indentLines(indent)

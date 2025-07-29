@@ -16,7 +16,6 @@
 package com.embabel.agent.domain.library
 
 import com.embabel.common.core.types.HasInfoString
-import com.embabel.common.util.indent
 import com.embabel.common.util.indentLines
 import com.fasterxml.jackson.annotation.JsonClassDescription
 import com.fasterxml.jackson.annotation.JsonPropertyDescription

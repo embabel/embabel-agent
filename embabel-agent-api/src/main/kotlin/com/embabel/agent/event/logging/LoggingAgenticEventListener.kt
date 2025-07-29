@@ -167,7 +167,7 @@ open class LoggingAgenticEventListener(
         e: ToolCallResponseEvent,
         throwable: Throwable?,
     ): String =
-        "[${e.processId}] (${e.request.action?.shortName()}) failed tool ${e.request.tool} -> ${throwable} in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
+        "[${e.processId}] (${e.request.action?.shortName()}) failed tool ${e.request.tool} -> $throwable in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
 
     protected open fun getProcessCompletionMessage(e: AgentProcessFinishedEvent): String =
         "[${e.processId}] completed in ${e.agentProcess.runningTime}"

@@ -133,7 +133,7 @@ class McpSyncServerConfiguration(
 
         val agentTools = McpToolUtils.toSyncToolSpecification(allToolCallbacks)
         for (agentTool in agentTools) {
-            mcpSyncServer.addTool(agentTool);
+            mcpSyncServer.addTool(agentTool)
         }
     }
 

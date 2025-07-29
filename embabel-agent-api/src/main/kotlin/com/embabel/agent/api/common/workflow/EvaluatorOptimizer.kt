@@ -23,7 +23,6 @@ import com.embabel.agent.api.dsl.AgentScopeBuilder
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.ComputedBooleanCondition
 import com.embabel.agent.core.Goal
-import com.embabel.agent.core.last
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.Timestamped
 import com.embabel.common.core.types.ZeroToOne
