@@ -15,6 +15,8 @@
     <description>Parent POM for Embabel Agent Modules</description>
 
     <properties>
+        <sonar.organization>embabel</sonar.organization>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.coverage.jacoco.xmlReportPaths>
             ${maven.multiModuleProjectDirectory}/embabel-agent-api/target/site/jacoco/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
