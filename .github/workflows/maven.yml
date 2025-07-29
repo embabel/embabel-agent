@@ -11,12 +11,7 @@ on:
     types: [ opened, synchronize, reopened ]
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 21
@@ -25,21 +20,8 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Configure Testcontainers (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          echo "testcontainers.reuse.enable=true" > $env:USERPROFILE\.testcontainers.properties
-      - name: Build and test
-        run: mvn -U -B test verify
-      - name: Linux-specific setup and SonarCloud analysis
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          # Configure Testcontainers for Linux
-          mkdir -p /home/runner
-          echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
-          
-          # Run SonarCloud analysis
-          mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=embabel_embabel-agent
+        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=embabel_embabel-agent 
