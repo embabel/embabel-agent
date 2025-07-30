@@ -80,16 +80,19 @@ open class Plan(
         indent: Int,
     ): String {
         return if (verbose == true) {
-            "\n" +
-                    """|${
-                        actions.mapIndexed { i, a -> i to a.name }
-                            .joinToString(" ->\n") { it.second.indent(1 + it.first) }
+            """|${
+                actions
+                    .mapIndexed { i, a -> i to a.name }
+                    .joinToString(" ->\n") {
+                        it.second.indent(1 + it.first)
                     }
-                       |cost: $cost
-                       |netValue: $netValue
-                       |"""
-                        .trimMargin()
-                        .indentLines(level = indent)
+            }
+               |goal: ${goal.name}
+               |cost: $cost
+               |netValue: $netValue
+               |"""
+                .trimMargin()
+                .indentLines(level = indent)
 
 
         } else {

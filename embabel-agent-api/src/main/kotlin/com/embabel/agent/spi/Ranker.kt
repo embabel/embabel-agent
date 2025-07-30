@@ -49,9 +49,7 @@ data class Rankings<T>(
         verbose: Boolean?,
         indent: Int,
     ): String =
-        rankings.joinToString("\n") { ranking ->
-            ranking.infoString(verbose, 1)
-        }
+        rankings.joinToString("\n") { it.infoString(verbose, indent) }
 }
 
 /**

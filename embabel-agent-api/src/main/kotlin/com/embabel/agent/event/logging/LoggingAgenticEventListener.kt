@@ -24,6 +24,7 @@ import com.embabel.agent.event.logging.personality.severance.LumonColorPalette
 import com.embabel.agent.spi.support.springai.ChatModelCallEvent
 import com.embabel.common.util.AnsiColor
 import com.embabel.common.util.color
+import com.embabel.common.util.indentLines
 import com.embabel.common.util.trim
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -103,13 +104,27 @@ open class LoggingAgenticEventListener(
         "Choosing ${e.type.simpleName} based on ${e.basis}"
 
     protected open fun getRankingChoiceMadeEventMessage(e: RankingChoiceMadeEvent<*>): String =
-        "Chose ${e.type.simpleName} '${e.choice.match.name}' with confidence ${e.choice.score} based on ${e.basis}. Choices: ${e.rankings.infoString()}"
+        """|Chose ${e.type.simpleName} '${e.choice.match.name}' with confidence ${e.choice.score} based on ${e.basis}.
+           |Choices:
+           |${e.rankings.infoString(indent = 1)}
+           |"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     protected open fun getRankingChoiceNotMadeEventMessage(e: RankingChoiceCouldNotBeMadeEvent<*>): String =
-        "Failed to choose ${e.type.simpleName} based on ${e.basis}. Choices: ${e.rankings.infoString()}. Confidence cutoff: ${e.confidenceCutOff}"
+        """|Failed to choose ${e.type.simpleName} based on ${e.basis}.
+           |Choices:
+           |${e.rankings.infoString()}.
+           |Confidence cutoff: ${e.confidenceCutOff}"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     protected open fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        "Created agent \n${e.agent.infoString(true, 1)}"
+        """|Created agent:
+           |${e.agent.infoString(true, 1)}
+           |"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     override fun onPlatformEvent(event: AgentPlatformEvent) {
         when (event) {
@@ -143,10 +158,20 @@ open class LoggingAgenticEventListener(
         "[${e.processId}] created"
 
     protected open fun getAgentProcessReadyToPlanEventMessage(e: AgentProcessReadyToPlanEvent): String =
-        "[${e.processId}] ready to plan from ${e.worldState.infoString(verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans)}"
+        """|[${e.processId}] ready to plan from:
+           |${e.worldState.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 1)}
+           |"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     protected open fun getAgentProcessPlanFormulatedEventMessage(e: AgentProcessPlanFormulatedEvent): String =
-        "[${e.processId}] formulated plan ${e.plan.infoString(verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans)} from ${e.worldState.infoString()}"
+        """|[${e.processId}] formulated plan:
+           |${e.plan.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 1)}
+           |from:
+           |${e.worldState.infoString(verbose = true, indent = 1)}
+           |"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     protected open fun getEarlyTerminationMessage(e: EarlyTermination): String =
         "[${e.processId}] early termination by ${e.policy} for ${e.reason}"
@@ -179,7 +204,11 @@ open class LoggingAgenticEventListener(
         "[${e.processId}] waiting"
 
     protected open fun getAgentProcessStuckEventMessage(e: AgentProcessStuckEvent): String =
-        "[${e.processId}] stuck at: ${e.agentProcess.lastWorldState?.infoString(true, 1)}"
+        """|[${e.processId}] stuck at:
+           |${e.agentProcess.lastWorldState?.infoString(true, 1)}
+           |"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     protected open fun getObjectAddedEventMessage(e: ObjectAddedEvent): String =
         "[${e.processId}] object added: ${if (e.agentProcess.processContext.processOptions.verbosity.debug) e.value else e.value::class.java.simpleName}"
@@ -351,18 +380,15 @@ open class LoggingAgenticEventListener(
         val bannerChar = "."
         return """|${lineSeparator("Messages ", bannerChar)}
                   |${
-            this.instructions.joinToString(
-                "\n${
-                    lineSeparator(
-                        "",
-                        bannerChar
-                    )
-                }\n"
-            ) { "${it.messageType} <${it.text}>" }
+            instructions.joinToString("\n${lineSeparator("", bannerChar)}\n") {
+                "${it.messageType} <${it.text}>"
+            }
         }
                   |${lineSeparator("Options", bannerChar)}
-                  |${this.options}
-                  |""".trimMargin()
+                  |$options
+                  |"""
+            .trimMargin()
+            .indentLines(level = 1)
     }
 
 }
