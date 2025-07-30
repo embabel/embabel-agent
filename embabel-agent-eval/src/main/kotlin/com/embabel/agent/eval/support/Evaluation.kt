@@ -178,7 +178,7 @@ data class EvaluationResult(
     }
 
     fun report(): String {
-        return """
+        return """|
             |Evaluation by ${job.evaluator.name}
             |${job.tasks.size} tasks, ${job.facts.size} facts, factsSupplied=$factsSupplied
             |${transcript.size} messages

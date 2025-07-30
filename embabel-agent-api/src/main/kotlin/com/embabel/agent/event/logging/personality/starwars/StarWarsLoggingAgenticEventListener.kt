@@ -81,7 +81,7 @@ class StarWarsLoggingAgenticEventListener : LoggingAgenticEventListener(
         "Chosen ${e.type.simpleName} I have with confidence ${e.choice.score} based on ${e.basis}"
 
     override fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        """You will find only what you bring in: Created agent instance:
+        """|You will find only what you bring in: Created agent instance:
            |${e.agent.infoString(indent = 1)}
            |"""
             .trimMargin()
@@ -91,14 +91,14 @@ class StarWarsLoggingAgenticEventListener : LoggingAgenticEventListener(
         "Created a process I have: ${e.processId}"
 
     override fun getAgentProcessReadyToPlanEventMessage(e: AgentProcessReadyToPlanEvent): String =
-        """[${e.processId}] Difficult to see. Always in motion is the future: Ready to plan from:
+        """|[${e.processId}] Difficult to see. Always in motion is the future: Ready to plan from:
            |${e.worldState.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 1)}
            |"""
             .trimMargin()
             .indentLines(level = 1, skipIndentFirstLine = true)
 
     override fun getAgentProcessPlanFormulatedEventMessage(e: AgentProcessPlanFormulatedEvent): String =
-        """[${e.processId}] Control, control, you must learn control! Formulated plan:
+        """|[${e.processId}] Control, control, you must learn control! Formulated plan:
            |${e.plan.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 1)}
            |from:
            |${e.worldState.infoString(verbose = true, indent = 1)}

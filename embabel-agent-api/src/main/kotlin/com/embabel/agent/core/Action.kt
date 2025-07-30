@@ -86,12 +86,16 @@ interface Action : AgentSystemStep, GoapAction, ActionRunner, DataDictionary, To
         """|name: $name
            |preconditions:
            |${
-            preconditions.map { it.key to "${it.key}: ${it.value}" }.sortedBy { it.first }
+            preconditions
+                .map { it.key to "${it.key}: ${it.value}" }
+                .sortedBy { it.first }
                 .joinToString("\n") { it.second.indent(1) }
         }
            |postconditions:
            |${
-            effects.map { it.key to "${it.key}: ${it.value}" }.sortedBy { it.first }
+            effects
+                .map { it.key to "${it.key}: ${it.value}" }
+                .sortedBy { it.first }
                 .joinToString("\n") { it.second.indent(1) }
         }
            |"""
