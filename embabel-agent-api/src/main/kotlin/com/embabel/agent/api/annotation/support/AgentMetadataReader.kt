@@ -26,6 +26,7 @@ import com.embabel.agent.core.Export
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.validation.AgentStructureValidator
 import com.embabel.agent.validation.AgentValidationManager
 import com.embabel.agent.validation.DefaultAgentValidationManager
 import com.embabel.agent.validation.GoapPathToCompletionValidator
@@ -35,6 +36,7 @@ import com.embabel.common.util.NameUtils
 import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
+import org.springframework.context.support.StaticApplicationContext
 import org.springframework.stereotype.Service
 import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
@@ -83,13 +85,25 @@ data class AgenticInfo(
 class AgentMetadataReader(
     private val actionMethodManager: ActionMethodManager = DefaultActionMethodManager(),
     private val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
+    private val agentStructureValidator: AgentStructureValidator,
+    private val goapPathToCompletionValidator: GoapPathToCompletionValidator
+) {
+    // test-friendly constructor
+    constructor() : this(
+        DefaultActionMethodManager(),
+        MethodDefinedOperationNameGenerator(),
+        AgentStructureValidator(StaticApplicationContext()),
+        GoapPathToCompletionValidator()
+    )
+
+    private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
+
     private val agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
         listOf(
-            GoapPathToCompletionValidator()
+            agentStructureValidator,
+            goapPathToCompletionValidator
         )
     )
-) {
-    private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
 
     fun createAgentScopes(vararg instances: Any): List<AgentScope> =
         instances.mapNotNull { createAgentMetadata(it) }
