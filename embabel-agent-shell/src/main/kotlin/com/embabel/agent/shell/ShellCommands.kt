@@ -147,7 +147,7 @@ class ShellCommands(
 
     @ShellMethod("List agents")
     fun agents(): String {
-        return "${"Agents:".bold()}${
+        return "${"Agents:".bold()}\n${
             agentPlatform.agents()
                 .joinToString(separator = "\n${"-".repeat(shellProperties.lineLength)}\n") {
                     it.infoString(verbose = true, indent = 1)
