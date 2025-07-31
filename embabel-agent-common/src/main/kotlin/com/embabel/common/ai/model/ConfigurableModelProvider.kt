@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.validation.annotation.Validated
@@ -104,11 +105,14 @@ class ConfigurableModelProvider(
         }
 
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+      verbose: Boolean?,
+      indent: Int,
+    ): String {
         val llms = "Available LLMs:\n\t${llms.joinToString("\n\t") { showModel(it) }}"
         val embeddingServices =
             "Available embedding services:\n\t${embeddingServices.joinToString("\n\t") { showModel(it) }}"
-        return "Default LLM: ${properties.defaultLlm}\n$llms\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServices"
+        return "Default LLM: ${properties.defaultLlm}\n$llms\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServices".indent(indent)
     }
 
     override fun listRoles(modelClass: Class<out AiModel<*>>): List<String> {

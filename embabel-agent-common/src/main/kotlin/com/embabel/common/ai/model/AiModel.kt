@@ -16,6 +16,7 @@
 package com.embabel.common.ai.model
 
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import org.springframework.ai.model.Model
@@ -59,6 +60,8 @@ interface AiModel<M : Model<*, *>> : ModelMetadata, HasInfoString {
 
     val model: M
 
-    override fun infoString(verbose: Boolean?): String =
-        "name: $name, provider: $provider"
+    override fun infoString(
+      verbose: Boolean?,
+      indent: Int,
+    ): String = "name: $name, provider: $provider".indent(indent)
 }

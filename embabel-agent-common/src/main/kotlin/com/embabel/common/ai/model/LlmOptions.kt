@@ -18,6 +18,7 @@ package com.embabel.common.ai.model
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.PlatformDefault
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.swagger.v3.oas.annotations.media.Schema
 
@@ -86,8 +87,11 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
 
     val thinking: Thinking?
 
-    override fun infoString(verbose: Boolean?): String {
-        return toString()
+    override fun infoString(
+      verbose: Boolean?,
+      indent: Int,
+    ): String {
+        return toString().indent(indent)
     }
 
     companion object {
