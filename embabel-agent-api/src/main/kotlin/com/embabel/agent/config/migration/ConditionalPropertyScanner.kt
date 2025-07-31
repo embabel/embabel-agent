@@ -16,9 +16,10 @@
 package com.embabel.agent.config.migration
 
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.config.BeanFactoryPostProcessor
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
+import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.context.ApplicationContext
+import org.springframework.context.ApplicationContextAware
 import org.springframework.context.annotation.Conditional
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import org.springframework.core.type.AnnotationMetadata
@@ -32,22 +33,64 @@ import java.util.regex.Pattern
  *
  * This component analyzes classes in configured packages to detect usage of deprecated
  * conditional properties and issues warnings through the SimpleDeprecatedConfigWarner.
- * Implements BeanFactoryPostProcessor to run early in the Spring lifecycle.
+ * Uses SmartInitializingSingleton to ensure all beans are fully available before scanning.
  *
- * ## Rule Invocation Flow
+ * ## Conditional Bean Loading Scenarios
+ *
+ * This scanner works with conditionally loaded beans based on migration configuration:
+ *
+ * ### **Scenario 1: Iteration 0 Default (Scanning Disabled)**
+ * ```properties
+ * # Default behavior - no scanning property set
+ * # embabel.agent.platform.migration.scanning.enabled=false (implicit)
+ * embabel.agent.platform.migration.warnings.enabled=true (default via matchIfMissing=true)
+ * ```
+ * **Bean State**: `scanningConfig = null`, `propertyWarner = available`
+ * **Behavior**: Scanner logs "scanning disabled", no package scanning occurs
+ * **Use Case**: Iteration 0 production - warnings work, scanning deferred to Iteration 1
+ *
+ * ### **Scenario 2: Warnings Explicitly Disabled**
+ * ```properties
+ * embabel.agent.platform.migration.warnings.enabled=false
+ * embabel.agent.platform.migration.scanning.enabled=false
+ * ```
+ * **Bean State**: `scanningConfig = null`, `propertyWarner = null`
+ * **Behavior**: Scanner logs "migration system completely disabled"
+ * **Use Case**: Production environments that want to disable all migration detection
+ *
+ * ### **Scenario 3: Full Migration Detection (Iteration 1+)**
+ * ```properties
+ * embabel.agent.platform.migration.warnings.enabled=true
+ * embabel.agent.platform.migration.scanning.enabled=true
+ * ```
+ * **Bean State**: `scanningConfig = available`, `propertyWarner = available`
+ * **Behavior**: Full package scanning with conditional annotation detection
+ * **Use Case**: Iteration 1+ production - complete migration detection system active
+ *
+ * ### **Scenario 4: Warnings Only (Partial Detection)**
+ * ```properties
+ * embabel.agent.platform.migration.warnings.enabled=true
+ * # embabel.agent.platform.migration.scanning.enabled=false (default)
+ * ```
+ * **Bean State**: `scanningConfig = null`, `propertyWarner = available`
+ * **Behavior**: Property warnings work, but no @ConditionalOnProperty scanning
+ * **Use Case**: Users want property warnings but not bytecode scanning overhead
+ *
+ * ## Rule Invocation Flow (When Fully Enabled)
  *
  * The migration rules are automatically invoked during Spring application startup
  * whenever deprecated conditional properties are detected in scanned classes:
  *
  * **Example Scenario**: Class `MyService` has `@ConditionalOnProperty("embabel.agent.anthropic.max-attempts")`
  *
- * 1. **Spring startup** → `postProcessBeanFactory()` called during bean factory initialization
- * 2. **Package scanning** → Finds `MyService.class` in configured include packages
- * 3. **Annotation detection** → Finds `@ConditionalOnProperty` annotation on the class
- * 4. **Property extraction** → Extracts `"embabel.agent.anthropic.max-attempts"` from annotation attributes
- * 5. **Deprecation check** → `isDeprecatedProperty()` returns `true` based on migration rules
- * 6. **Warning generation** → `getRecommendedProperty()` called with deprecated property name
- * 7. **Rule matching** → Rule with pattern `embabel\.agent\.([^.]+)\.max-attempts` matches the property
+ * 1. **Spring startup** → `afterSingletonsInstantiated()` called after all beans initialized
+ * 2. **Bean availability check** → Verifies both scanning config and property warner are available
+ * 3. **Package scanning** → Finds `MyService.class` in configured include packages
+ * 4. **Annotation detection** → Finds `@ConditionalOnProperty` annotation on the class
+ * 5. **Property extraction** → Extracts `"embabel.agent.anthropic.max-attempts"` from annotation attributes
+ * 6. **Deprecation check** → `isDeprecatedProperty()` returns `true` based on migration rules
+ * 7. **Warning generation** → `getRecommendedProperty()` called with deprecated property name
+ * 8. **Rule matching** → Rule with pattern `embabel\.agent\.([^.]+)\.max-attempts` matches the property
  * 8. **Transformation** → `$1` captures `"anthropic"`, result = `"embabel.agent.platform.models.anthropic.max-attempts"`
  * 9. **Warning issued** → Logger warns about deprecated usage with recommended replacement property
  *
@@ -56,14 +99,92 @@ import java.util.regex.Pattern
  * @see SimpleDeprecatedConfigWarner for warning output format
  */
 @Component
-class ConditionalPropertyScanner(
-    private val scanningConfig: ConditionalPropertyScanningConfig,
-    private val propertyWarner: SimpleDeprecatedConfigWarner
-) : BeanFactoryPostProcessor {
+class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContextAware {
 
+    private lateinit var applicationContext: ApplicationContext
     private val logger = LoggerFactory.getLogger(ConditionalPropertyScanner::class.java)
     private val resourceResolver = PathMatchingResourcePatternResolver()
     private val metadataReaderFactory = CachingMetadataReaderFactory()
+
+    override fun setApplicationContext(applicationContext: ApplicationContext) {
+        this.applicationContext = applicationContext
+    }
+
+    /**
+     * Performs conditional property scanning after all singletons are initialized.
+     *
+     * This method handles all conditional bean loading scenarios:
+     *
+     * <h3>Scenario 1: Iteration 0 Default (Scanning Disabled)</h3>
+     * <pre>{@code
+     * # Configuration:
+     * # embabel.agent.platform.migration.scanning.enabled=false (implicit default)
+     * embabel.agent.platform.migration.warnings.enabled=true (default via matchIfMissing=true)
+     *
+     * # Bean State: scanningConfig = null, propertyWarner = available
+     * # Behavior: Logs "scanning disabled", no package scanning occurs
+     * # Use Case: Iteration 0 production - warnings work, scanning deferred
+     * }</pre>
+     *
+     * <h3>Scenario 2: Migration System Completely Disabled</h3>
+     * <pre>{@code
+     * # Configuration:
+     * embabel.agent.platform.migration.warnings.enabled=false
+     * embabel.agent.platform.migration.scanning.enabled=false
+     *
+     * # Bean State: scanningConfig = null, propertyWarner = null
+     * # Behavior: Logs "migration system disabled", no detection occurs
+     * # Use Case: Production environments disabling all migration detection
+     * }</pre>
+     *
+     * <h3>Scenario 3: Full Migration Detection (Iteration 1+)</h3>
+     * <pre>{@code
+     * # Configuration:
+     * embabel.agent.platform.migration.warnings.enabled=true
+     * embabel.agent.platform.migration.scanning.enabled=true
+     *
+     * # Bean State: scanningConfig = available, propertyWarner = available
+     * # Behavior: Full package scanning with conditional annotation detection
+     * # Use Case: Iteration 1+ production - complete migration system active
+     * }</pre>
+     *
+     * <h3>Scenario 4: Warnings Only (Partial Detection)</h3>
+     * <pre>{@code
+     * # Configuration:
+     * embabel.agent.platform.migration.warnings.enabled=true
+     * # embabel.agent.platform.migration.scanning.enabled=false (default)
+     *
+     * # Bean State: scanningConfig = null, propertyWarner = available
+     * # Behavior: Property warnings work, no @ConditionalOnProperty scanning
+     * # Use Case: Property warnings without bytecode scanning overhead
+     * }</pre>
+     *
+     * @see ConditionalPropertyScanningConfig for scanning configuration
+     * @see SimpleDeprecatedConfigWarner for warning system
+     */
+    override fun afterSingletonsInstantiated() {
+        val scanningConfig = applicationContext.getBeanProvider(ConditionalPropertyScanningConfig::class.java).getIfAvailable()
+        val propertyWarner = applicationContext.getBeanProvider(SimpleDeprecatedConfigWarner::class.java).getIfAvailable()
+
+        when {
+            scanningConfig == null && propertyWarner == null -> {
+                logger.debug("Migration system completely disabled - both scanning config and property warner unavailable")
+            }
+            scanningConfig == null -> {
+                logger.debug("ConditionalPropertyScanningConfig not available - scanning disabled (Scenario 1/4: Iteration 0 default or warnings-only mode)")
+            }
+            propertyWarner == null -> {
+                logger.debug("SimpleDeprecatedConfigWarner not available - cannot issue warnings (Scenario 2: Migration system disabled)")
+            }
+            !scanningConfig.enabled -> {
+                logger.debug("Conditional property scanning explicitly disabled via embabel.agent.platform.migration.scanning.enabled=false")
+            }
+            else -> {
+                logger.info("All migration components available - starting conditional property scanning (Scenario 3: Full detection active)")
+                doScanning(scanningConfig, propertyWarner)
+            }
+        }
+    }
 
     /**
      * Property migration rules with simple runtime extensibility.
@@ -184,16 +305,17 @@ class ConditionalPropertyScanner(
      * **Execution Order**: Runs early in Spring lifecycle, after property sources are loaded
      * but before regular bean creation begins.
      */
-    override fun postProcessBeanFactory(beanFactory: ConfigurableListableBeanFactory) {
-        if (!scanningConfig.enabled) {
-            logger.debug("Conditional property scanning is disabled")
-            return
-        }
-
+    /**
+     * Performs the actual scanning with provided configuration and warning components.
+     *
+     * @param scanningConfig The scanning configuration bean
+     * @param propertyWarner The property warning component
+     */
+    private fun doScanning(scanningConfig: ConditionalPropertyScanningConfig, propertyWarner: SimpleDeprecatedConfigWarner) {
         logger.info("Scanning for deprecated conditional properties in packages: ${scanningConfig.includePackages}")
 
         try {
-            scanForDeprecatedConditionals()
+            scanForDeprecatedConditionals(scanningConfig, propertyWarner)
         } catch (e: Exception) {
             logger.warn("Error during conditional property scanning: ${e.message}", e)
         }
@@ -206,19 +328,19 @@ class ConditionalPropertyScanner(
      * all .class files in the configured include packages and analyzes each one
      * for deprecated conditional annotations.
      */
-    private fun scanForDeprecatedConditionals() {
+    private fun scanForDeprecatedConditionals(scanningConfig: ConditionalPropertyScanningConfig, propertyWarner: SimpleDeprecatedConfigWarner) {
         var scannedClasses = 0
         var foundDeprecated = 0
 
         scanningConfig.includePackages.forEach { packageName ->
             if (scanningConfig.shouldIncludePackage(packageName)) {
-                val packageResources = findClassesInPackage(packageName)
+                val packageResources = findClassesInPackage(packageName, scanningConfig)
                 packageResources.forEach { resource ->
                     try {
                         val metadataReader = metadataReaderFactory.getMetadataReader(resource)
                         scannedClasses++
 
-                        if (analyzeClassForDeprecatedConditionals(metadataReader)) {
+                        if (analyzeClassForDeprecatedConditionals(metadataReader, scanningConfig, propertyWarner)) {
                             foundDeprecated++
                         }
                     } catch (e: Exception) {
@@ -237,7 +359,7 @@ class ConditionalPropertyScanner(
      * Uses Spring's PathMatchingResourcePatternResolver to locate .class files
      * and optionally filters out JAR-based classes based on configuration.
      */
-    private fun findClassesInPackage(packageName: String): Array<org.springframework.core.io.Resource> {
+    private fun findClassesInPackage(packageName: String, scanningConfig: ConditionalPropertyScanningConfig): Array<org.springframework.core.io.Resource> {
         val packagePath = packageName.replace('.', '/')
         val pattern = "classpath*:$packagePath/**/*.class"
 
@@ -268,7 +390,7 @@ class ConditionalPropertyScanner(
      * @param metadataReader Spring metadata reader for the class
      * @return true if deprecated conditionals were found in this class
      */
-    private fun analyzeClassForDeprecatedConditionals(metadataReader: MetadataReader): Boolean {
+    private fun analyzeClassForDeprecatedConditionals(metadataReader: MetadataReader, scanningConfig: ConditionalPropertyScanningConfig, propertyWarner: SimpleDeprecatedConfigWarner): Boolean {
         val className = metadataReader.classMetadata.className
         val annotationMetadata = metadataReader.annotationMetadata
 
@@ -281,7 +403,7 @@ class ConditionalPropertyScanner(
 
         // Check for @ConditionalOnProperty annotations
         if (annotationMetadata.hasAnnotation(ConditionalOnProperty::class.java.name)) {
-            foundDeprecated = analyzeConditionalOnProperty(className, annotationMetadata) || foundDeprecated
+            foundDeprecated = analyzeConditionalOnProperty(className, annotationMetadata, propertyWarner) || foundDeprecated
         }
 
         // Check for meta-annotations that might contain @ConditionalOnProperty
@@ -314,7 +436,7 @@ class ConditionalPropertyScanner(
      * @param annotationMetadata Metadata containing annotation information
      * @return true if deprecated properties were found in the annotation
      */
-    private fun analyzeConditionalOnProperty(className: String, annotationMetadata: AnnotationMetadata): Boolean {
+    private fun analyzeConditionalOnProperty(className: String, annotationMetadata: AnnotationMetadata, propertyWarner: SimpleDeprecatedConfigWarner): Boolean {
         val attributes = annotationMetadata.getAnnotationAttributes(ConditionalOnProperty::class.java.name)
             ?: return false
 
@@ -328,7 +450,7 @@ class ConditionalPropertyScanner(
         name?.let { propertyName ->
             val fullPropertyName = if (prefix != null) "$prefix.$propertyName" else propertyName
             if (isDeprecatedProperty(fullPropertyName)) {
-                issueDeprecatedConditionalWarning(className, fullPropertyName)
+                issueDeprecatedConditionalWarning(className, fullPropertyName, propertyWarner)
                 foundDeprecated = true
             }
         }
@@ -338,7 +460,7 @@ class ConditionalPropertyScanner(
             val propertyName = prop.toString()
             val fullPropertyName = if (prefix != null) "$prefix.$propertyName" else propertyName
             if (isDeprecatedProperty(fullPropertyName)) {
-                issueDeprecatedConditionalWarning(className, fullPropertyName)
+                issueDeprecatedConditionalWarning(className, fullPropertyName, propertyWarner)
                 foundDeprecated = true
             }
         }
@@ -376,7 +498,7 @@ class ConditionalPropertyScanner(
      * @param className The class containing the deprecated annotation
      * @param propertyName The deprecated property name
      */
-    private fun issueDeprecatedConditionalWarning(className: String, propertyName: String) {
+    private fun issueDeprecatedConditionalWarning(className: String, propertyName: String, propertyWarner: SimpleDeprecatedConfigWarner) {
         val recommendedProperty = getRecommendedProperty(propertyName)
 
         val annotationDetails = "@ConditionalOnProperty(\"$propertyName\")"

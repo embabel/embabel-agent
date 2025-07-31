@@ -19,7 +19,8 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
+import org.springframework.context.ApplicationContext
+import org.springframework.beans.factory.ObjectProvider
 import java.util.regex.Pattern
 
 /**
@@ -30,40 +31,54 @@ class ConditionalPropertyScannerTest {
     private lateinit var scanningConfig: ConditionalPropertyScanningConfig
     private lateinit var propertyWarner: SimpleDeprecatedConfigWarner
     private lateinit var scanner: ConditionalPropertyScanner
-    private lateinit var beanFactory: ConfigurableListableBeanFactory
+    private lateinit var applicationContext: ApplicationContext
+    private lateinit var scanningConfigProvider: ObjectProvider<ConditionalPropertyScanningConfig>
+    private lateinit var propertyWarnerProvider: ObjectProvider<SimpleDeprecatedConfigWarner>
 
     @BeforeEach
     fun setUp() {
         scanningConfig = mock(ConditionalPropertyScanningConfig::class.java)
         propertyWarner = mock(SimpleDeprecatedConfigWarner::class.java)
-        scanner = ConditionalPropertyScanner(scanningConfig, propertyWarner)
-        beanFactory = mock(ConfigurableListableBeanFactory::class.java)
+        applicationContext = mock(ApplicationContext::class.java)
+        scanningConfigProvider = mock(ObjectProvider::class.java) as ObjectProvider<ConditionalPropertyScanningConfig>
+        propertyWarnerProvider = mock(ObjectProvider::class.java) as ObjectProvider<SimpleDeprecatedConfigWarner>
+
+        scanner = ConditionalPropertyScanner()
+        scanner.setApplicationContext(applicationContext)
+
+        `when`(applicationContext.getBeanProvider(ConditionalPropertyScanningConfig::class.java)).thenReturn(scanningConfigProvider)
+        `when`(applicationContext.getBeanProvider(SimpleDeprecatedConfigWarner::class.java)).thenReturn(propertyWarnerProvider)
     }
 
     @Test
-    fun `scanner should skip processing when disabled`() {
+    fun `scanner should skip processing when scanning config unavailable`() {
         // Given
-        `when`(scanningConfig.enabled).thenReturn(false)
+        `when`(scanningConfigProvider.getIfAvailable()).thenReturn(null)
+        `when`(propertyWarnerProvider.getIfAvailable()).thenReturn(propertyWarner)
 
         // When
-        scanner.postProcessBeanFactory(beanFactory)
+        scanner.afterSingletonsInstantiated()
 
         // Then
-        verify(scanningConfig, times(1)).enabled
-        verifyNoMoreInteractions(scanningConfig)
+        verify(scanningConfigProvider).getIfAvailable()
+        verify(propertyWarnerProvider).getIfAvailable()
         verifyNoInteractions(propertyWarner)
     }
 
     @Test
-    fun `scanner should process when enabled`() {
+    fun `scanner should process when both components available and enabled`() {
         // Given
+        `when`(scanningConfigProvider.getIfAvailable()).thenReturn(scanningConfig)
+        `when`(propertyWarnerProvider.getIfAvailable()).thenReturn(propertyWarner)
         `when`(scanningConfig.enabled).thenReturn(true)
         `when`(scanningConfig.includePackages).thenReturn(listOf("com.example.test"))
 
         // When
-        scanner.postProcessBeanFactory(beanFactory)
+        scanner.afterSingletonsInstantiated()
 
         // Then
+        verify(scanningConfigProvider).getIfAvailable()
+        verify(propertyWarnerProvider).getIfAvailable()
         verify(scanningConfig).enabled
         verify(scanningConfig, atLeastOnce()).includePackages
         // Note: Full scanning behavior would require more complex mocking of Spring's resource resolution
@@ -217,5 +232,38 @@ class ConditionalPropertyScannerTest {
         assertThat(rules).hasSize(2)
         assertThat(rules[0].description).isEqualTo("First rule")
         assertThat(rules[1].description).isEqualTo("Second rule")
+    }
+
+    @Test
+    fun `scanner should skip processing when scanning explicitly disabled`() {
+        // Given
+        `when`(scanningConfigProvider.getIfAvailable()).thenReturn(scanningConfig)
+        `when`(propertyWarnerProvider.getIfAvailable()).thenReturn(propertyWarner)
+        `when`(scanningConfig.enabled).thenReturn(false)
+
+        // When
+        scanner.afterSingletonsInstantiated()
+
+        // Then
+        verify(scanningConfigProvider).getIfAvailable()
+        verify(propertyWarnerProvider).getIfAvailable()
+        verify(scanningConfig).enabled
+        verifyNoInteractions(propertyWarner)
+    }
+
+    @Test
+    fun `scanner should skip processing when both components unavailable`() {
+        // Given
+        `when`(scanningConfigProvider.getIfAvailable()).thenReturn(null)
+        `when`(propertyWarnerProvider.getIfAvailable()).thenReturn(null)
+
+        // When
+        scanner.afterSingletonsInstantiated()
+
+        // Then
+        verify(scanningConfigProvider).getIfAvailable()
+        verify(propertyWarnerProvider).getIfAvailable()
+        verifyNoInteractions(scanningConfig)
+        verifyNoInteractions(propertyWarner)
     }
 }
