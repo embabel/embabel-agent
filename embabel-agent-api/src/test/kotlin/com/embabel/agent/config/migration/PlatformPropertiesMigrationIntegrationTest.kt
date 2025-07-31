@@ -311,10 +311,7 @@ class PlatformPropertiesMigrationIntegrationTest {
             SimpleDeprecatedConfigWarner(environment)
 
         @Bean
-        fun conditionalPropertyScanner(
-            scanningConfig: ConditionalPropertyScanningConfig,
-            propertyWarner: SimpleDeprecatedConfigWarner
-        ): ConditionalPropertyScanner =
-            ConditionalPropertyScanner(scanningConfig, propertyWarner)
+        fun conditionalPropertyScanner(): ConditionalPropertyScanner =
+            ConditionalPropertyScanner()
     }
 }
