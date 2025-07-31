@@ -12,26 +12,56 @@ The framework is undergoing transformation from profile-based to property-based 
 
 ## Configuration Architecture
 
-### Framework Internal Properties (`embabel.framework.*`)
-**File:** `agent-framework.properties`  
-**Purpose:** True framework internals managed by the library
+### **Property Segregation Principle**
+
+The framework separates configuration into two distinct categories based on **who controls** and **how often** properties change:
+
+#### **Platform Properties (`embabel.agent.platform.*`)**
+**Definition:** Internal framework behavior that library controls
+
+| Criteria | Platform Properties | Example |
+|----------|-------------------|---------|
+| **Ownership** | Library manages defaults | `embabel.agent.platform.scanning.annotation=true` |
+| **Change Frequency** | Rarely customized | `embabel.agent.platform.ranking.max-attempts=5` |
+| **Purpose** | How framework works internally | `embabel.agent.platform.llm-operations.backoff-millis=5000` |
+| **Risk Level** | Can break platform assumptions | `embabel.agent.platform.models.anthropic.retry-multiplier=2.0` |
+| **Defaults** | Shipped with library | In `agent-platform.properties` |
+
+#### **Application Properties (`embabel.agent.*`)**  
+**Definition:** Business decisions and deployment choices that developer controls
+
+| Criteria | Application Properties | Example |
+|----------|----------------------|---------|
+| **Ownership** | Developer customizes | `embabel.agent.models.provider=openai` |
+| **Change Frequency** | Expected to be modified | `embabel.agent.logging.personality=starwars` |
+| **Purpose** | What application wants to do | `embabel.agent.infrastructure.neo4j.enabled=true` |
+| **Risk Level** | Safe to change | `embabel.agent.models.openai.model=gpt-4` |
+| **Defaults** | In developer's `application.yml` | User-specific values |
+
+### Platform Internal Properties (`embabel.agent.platform.*`)
+**File:** `agent-platform.properties`  
+**Purpose:** Platform internals managed by the library
 
 ```properties
-# Framework capabilities and behavior
-embabel.framework.scanning.annotation=true
-embabel.framework.scanning.bean=true
-embabel.framework.llm-operations.timeout=30s
-embabel.framework.llm-operations.retryStrategy=exponential
-embabel.framework.process-id-generation.strategy=uuid
-embabel.framework.test.mockMode=true
-embabel.framework.ranking.maxAttempts=5
+# Platform capabilities and behavior  
+embabel.agent.platform.scanning.annotation=true
+embabel.agent.platform.scanning.bean=true
+embabel.agent.platform.llm-operations.data-binding.max-attempts=10
+embabel.agent.platform.llm-operations.prompts.generate-examples-by-default=true
+embabel.agent.platform.process-id-generation.include-version=false
+embabel.agent.platform.ranking.max-attempts=5
+embabel.agent.platform.ranking.backoff-millis=100
+embabel.agent.platform.autonomy.agent-confidence-cut-off=0.6
+embabel.agent.platform.sse.max-buffer-size=100
+embabel.agent.platform.models.anthropic.max-attempts=10
+embabel.agent.platform.test.mock-mode=true
 ```
 
 **Characteristics:**
 - ✅ **Sensible defaults** - rarely need changing
-- ✅ **Framework behavior** - internal operations
-- ✅ **Library-managed** - shipped with framework
-- ⚠️ **Override with caution** - can break framework assumptions
+- ✅ **Platform behavior** - internal operations  
+- ✅ **Library-managed** - shipped with library
+- ⚠️ **Override with caution** - can break platform assumptions
 
 ### Application Properties (`embabel.agent.*`)
 **File:** Developer's `application.yml`  
@@ -40,11 +70,6 @@ embabel.framework.ranking.maxAttempts=5
 ```yaml
 embabel:
   agent:
-    # Application identity
-    platform:
-      name: my-agent-app
-      description: My Custom Agent Application
-    
     # UI/UX choices
     logging:
       personality: starwars
@@ -52,30 +77,31 @@ embabel:
     
     # Model provider choices
     models:
-      defaultLlm: gpt-4
-      defaultEmbeddingModel: text-embedding-3-small
       provider: openai
       openai:
         apiKey: ${OPENAI_API_KEY}
-    
-    # Business logic
-    autonomy:
-      goalConfidenceCutOff: 0.8
-      agentConfidenceCutOff: 0.75
-      maxRetries: 3
+        model: gpt-4
     
     # Infrastructure choices
     infrastructure:
       observability:
-        zipkinEndpoint: http://prod-zipkin:9411
+        enabled: true
+        zipkinEndpoint: ${ZIPKIN_ENDPOINT}
         tracingEnabled: true
       neo4j:
-        uri: bolt://prod-cluster:7687
-        username: ${NEO4J_USERNAME}
+        enabled: true
+        uri: ${NEO4J_URI}
+        authentication:
+          username: ${NEO4J_USERNAME}
+          password: ${NEO4J_PASSWORD}
       mcp:
-        servers: ["github", "docker"]
-        github:
-          token: ${GITHUB_TOKEN}
+        enabled: true
+        servers:
+          github:
+            command: docker
+            args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "mcp/github"]
+            env:
+              GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN}
 ```
 
 **Characteristics:**
@@ -103,14 +129,14 @@ application-observability.yml  # Infrastructure setup
 ```yaml
 # ✅ Property-based (target)
 embabel:
-  framework:
-    # Framework internals (library defaults)
-    capabilities:
-      bedrockSupported: true
-      shellSupported: true
-      observabilitySupported: true
-  
   agent:
+    platform:
+      # Platform internals (library defaults)
+      scanning:
+        annotation: true
+      test:
+        mockMode: false
+    
     # Application choices (developer config)
     models:
       provider: bedrock
@@ -142,16 +168,15 @@ Configuration follows Spring Boot precedence (highest to lowest):
    - `application.properties`
    - `application.yml`
 
-3. **Framework Default Files** (Lowest)
-   - `agent-framework.properties`
-   - `agent-bedrock-models.properties`
-   - Code defaults in `AgentFrameworkProperties.kt`
+3. **Platform Default Files** (Lowest)
+   - `agent-platform.properties`
+   - Code defaults in `AgentPlatformProperties.kt`
 
 ## Spring Boot Integration
 
 ```kotlin
 @SpringBootApplication
-@EnableConfigurationProperties(AgentFrameworkProperties::class)
+@EnableConfigurationProperties(AgentPlatformProperties::class)
 class MyAgentApplication
 
 fun main(args: Array<String>) {
@@ -162,7 +187,7 @@ fun main(args: Array<String>) {
 ## Module Independence
 
 ### Core Framework (`embabel-agent-api`)
-- **Prefix:** `embabel.framework.*` and `embabel.agent.*`
+- **Prefix:** `embabel.agent.platform.*` and `embabel.agent.*`
 - **Scope:** Core agent capabilities, model providers, business logic
 - **Independence:** Works standalone without shell module
 
@@ -178,77 +203,140 @@ fun main(args: Array<String>) {
 
 ## Configuration Examples & Templates
 
-The framework provides ready-to-use configuration templates in `src/main/resources/application-templates/`:
+The framework provides **granular, composable templates** in `src/main/resources/application-templates/`:
 
-### Available Templates
-- **`application-development.yml`** - Development environment with debug settings
-- **`application-production.yml`** - Production environment with security best practices  
-- **`application-minimal.yml`** - Minimal configuration to get started
-- **`application-full-featured.yml`** - Complete configuration with all available options
-- **`application-personality-demo.yml`** - Personality plugin examples and usage
+### Template Structure
+```
+application-templates/
+├── base/                        # Granular building blocks
+│   ├── platform-defaults.yml   # Platform internal settings
+│   ├── logging-starwars.yml     # StarWars personality configuration
+│   ├── models-openai.yml        # OpenAI model configuration
+│   └── infrastructure-neo4j.yml # Neo4j infrastructure configuration
+├── environments/               # Environment-specific overrides
+│   ├── development-overrides.yml
+│   └── production-overrides.yml
+└── composed/                   # Example compositions using imports
+    ├── application-development.yml
+    ├── application-production.yml
+    └── application-minimal.yml
+```
+
+### Import-Based Composition
+Templates are designed for **composition using Spring Boot imports**, not copy-paste.
 
 ### Development Environment Example
 ```yaml
-# Copy from application-templates/application-development.yml
-embabel:
-  framework:
-    test:
-      mockMode: true
-  agent:
-    logging:
-      personality: starwars
-      verbosity: debug
-    models:
-      provider: ollama
-    infrastructure:
-      neo4j:
-        enabled: true
-        uri: bolt://localhost:7687
-  shell:
-    enabled: true
-    chat:
-      confirmGoals: true
+# application.yml - Import-based composition
+spring:
+  config:
+    import:
+      - classpath:application-templates/base/platform-defaults.yml
+      - classpath:application-templates/base/logging-starwars.yml
+      - classpath:application-templates/base/models-openai.yml
+      - classpath:application-templates/base/infrastructure-neo4j.yml
+      - classpath:application-templates/environments/development-overrides.yml
+
+# Application-specific configuration
+server:
+  port: 8080
 ```
 
 ### Production Environment Example
 ```yaml
-# Copy from application-templates/application-production.yml
-embabel:
-  framework:
-    test:
-      mockMode: false
-  agent:
-    platform:
-      name: production-agent
-    logging:
-      personality: corporate
-      verbosity: info
-    models:
-      provider: bedrock
-      bedrock:
-        region: us-east-1
-    infrastructure:
-      observability:
-        enabled: true
-        tracing:
-          zipkinEndpoint: ${ZIPKIN_ENDPOINT}
-      neo4j:
-        enabled: true
-        uri: ${NEO4J_URI}
-        authentication:
-          username: ${NEO4J_USERNAME}
-          password: ${NEO4J_PASSWORD}
-  shell:
-    enabled: false  # No interactive shell in production
+# application.yml - Import-based composition
+spring:
+  config:
+    import:
+      - classpath:application-templates/base/platform-defaults.yml
+      - classpath:application-templates/base/logging-severance.yml
+      - classpath:application-templates/base/models-bedrock.yml
+      - classpath:application-templates/base/infrastructure-neo4j.yml
+      - classpath:application-templates/base/infrastructure-observability.yml
+      - classpath:application-templates/environments/production-overrides.yml
+
+# Application-specific configuration
+server:
+  port: 8443
 ```
 
-**Usage:** Copy the appropriate template to your `src/main/resources/application.yml` and customize for your needs.
+### Custom Composition Example
+```yaml
+# application.yml - Mix and match as needed
+spring:
+  config:
+    import:
+      - classpath:application-templates/base/logging-starwars.yml
+      - classpath:application-templates/base/models-anthropic.yml  # Custom mix
+      - classpath:shell-templates/base/shell-enabled.yml          # From shell module
+
+# Your application configuration
+myapp:
+  custom:
+    setting: value
+```
+
+**Usage:** Compose exactly what you need using Spring Boot's `spring.config.import` feature.
+
+## Property Migration (v1.x → v2.0)
+
+### **Platform Property Namespace Consolidation**
+
+The framework consolidates internal platform properties under unified namespaces for better organization and clarity:
+
+| Old Property Namespace | New Property Namespace | Purpose |
+|------------------------|------------------------|---------|
+| `embabel.agent-platform.*` | `embabel.agent.platform.*` | Agent scanning, ranking settings |
+| `embabel.autonomy.*` | `embabel.agent.platform.autonomy.*` | Autonomy confidence thresholds |
+| `embabel.process-id-generation.*` | `embabel.agent.platform.process-id-generation.*` | Process ID generation settings |
+| `embabel.llm-operations.*` | `embabel.agent.platform.llm-operations.*` | LLM operation retry and prompt settings |
+| `embabel.sse.*` | `embabel.agent.platform.sse.*` | Server-sent events configuration |
+| `embabel.anthropic.*` | `embabel.agent.platform.models.anthropic.*` | Anthropic provider retry settings |
+
+### **Action Required**
+
+**If you customized any platform properties**, update your `application.yml`:
+
+```yaml
+# OLD - Will be ignored
+embabel:
+  agent-platform:
+    ranking:
+      max-attempts: 10
+  autonomy:
+    agent-confidence-cut-off: 0.8
+
+# NEW - Required  
+embabel:
+  agent:
+    platform:
+      ranking:
+        max-attempts: 10
+      autonomy:
+        agent-confidence-cut-off: 0.8
+```
+
+### **Migration Detection**
+
+The framework automatically detects deprecated property usage and provides warnings:
+
+```yaml
+# Optional: Enable detailed scanning for your code
+embabel:
+  migration:
+    conditional-scanning:
+      enabled: true
+      include-packages:
+        - "com.yourcompany"  # Scan your packages for @ConditionalOnProperty usage
+```
+
+**Full Migration Guide**: [PROFILES_MIGRATION_GUIDE.md - Property Namespace Migration](PROFILES_MIGRATION_GUIDE.md#phase-0-platform-property-consolidation)
 
 ## Phase 1: Library-Centric Transformation
 
 Current transformation status:
 
-- 🔄 **Property Segregation** - Framework vs application concerns
+- ✅ **Property Segregation** - Platform vs application concerns clearly defined
 - 🔄 **Profile Migration** - Moving from profile-based to property-based activation  
 - ✅ **Shell Independence** - Complete separation achieved
 - 🔄 **Enhanced Configurability** - Granular property control
