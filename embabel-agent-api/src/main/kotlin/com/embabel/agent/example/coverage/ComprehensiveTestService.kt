@@ -37,15 +37,15 @@ data class User(
     val metadata: Map<String, Any> = emptyMap()
 ) {
     fun isAdult(): Boolean = age >= 18
-    
+
     fun getDisplayName(): String = when {
         name.isBlank() -> "Anonymous User"
         name.length > 50 -> "${name.take(47)}..."
         else -> name
     }
-    
+
     fun isValidEmail(): Boolean = email.contains("@") && email.contains(".")
-    
+
     companion object {
         fun createGuest(): User = User(
             id = -1L,
@@ -54,7 +54,7 @@ data class User(
             age = 0,
             isActive = false
         )
-        
+
         fun createSample(id: Long): User = User(
             id = id,
             name = "Sample User $id",
@@ -75,18 +75,18 @@ data class Product(
 ) {
     val isExpensive: Boolean
         get() = price > BigDecimal("100.00")
-    
+
     val isPremium: Boolean
         get() = tags.contains("premium") || price > BigDecimal("500.00")
-    
+
     fun applyDiscount(percentage: Double): Product = when {
         percentage <= 0.0 -> this
         percentage >= 100.0 -> this.copy(price = BigDecimal.ZERO)
         else -> this.copy(price = price.multiply(BigDecimal(1.0 - percentage / 100.0)))
     }
-    
+
     fun hasTag(tag: String): Boolean = tags.any { it.equals(tag, ignoreCase = true) }
-    
+
     fun getFormattedPrice(): String = "$${price.setScale(2, BigDecimal.ROUND_HALF_UP)}"
 }
 
@@ -98,25 +98,25 @@ enum class ProductCategory(val displayName: String, val taxRate: Double, val isD
     EBOOKS("E-Books", 0.0, true),
     FOOD("Food & Beverages", 0.05, false),
     HOME("Home & Garden", 0.07, false);
-    
-    fun calculateTax(amount: BigDecimal): BigDecimal = 
+
+    fun calculateTax(amount: BigDecimal): BigDecimal =
         amount.multiply(BigDecimal(taxRate))
-    
+
     fun getShippingCost(amount: BigDecimal): BigDecimal = when {
         isDigital -> BigDecimal.ZERO
         amount > BigDecimal("50") -> BigDecimal.ZERO
         this == BOOKS -> BigDecimal("3.99")
         else -> BigDecimal("9.99")
     }
-    
+
     companion object {
         fun findByDisplayName(displayName: String): ProductCategory? =
             values().find { it.displayName.equals(displayName, ignoreCase = true) }
-            
-        fun getDigitalCategories(): List<ProductCategory> = 
+
+        fun getDigitalCategories(): List<ProductCategory> =
             values().filter { it.isDigital }
-            
-        fun getPhysicalCategories(): List<ProductCategory> = 
+
+        fun getPhysicalCategories(): List<ProductCategory> =
             values().filter { !it.isDigital }
     }
 }
@@ -128,22 +128,22 @@ sealed class OrderStatus {
     data class Delivered(val deliveredAt: LocalDateTime, val signature: String?) : OrderStatus()
     data class Cancelled(val reason: String, val refundAmount: BigDecimal?) : OrderStatus()
     data class Returned(val returnedAt: LocalDateTime, val refundAmount: BigDecimal) : OrderStatus()
-    
+
     fun isCompleted(): Boolean = when (this) {
         is Delivered, is Cancelled, is Returned -> true
         else -> false
     }
-    
+
     fun isCancellable(): Boolean = when (this) {
         is Pending, is Processing -> true
         else -> false
     }
-    
+
     fun isReturnable(): Boolean = when (this) {
         is Delivered -> true
         else -> false
     }
-    
+
     fun getStatusMessage(): String = when (this) {
         is Pending -> "Your order is being prepared"
         is Processing -> "Your order is being processed"
@@ -152,7 +152,7 @@ sealed class OrderStatus {
         is Cancelled -> "Order cancelled: $reason"
         is Returned -> "Order returned on ${returnedAt.format(DateTimeFormatter.ISO_LOCAL_DATE)}"
     }
-    
+
     fun getDaysInStatus(currentTime: LocalDateTime = LocalDateTime.now()): Long = when (this) {
         is Shipped -> java.time.Duration.between(currentTime.minusDays(1), currentTime).toDays()
         is Delivered -> java.time.Duration.between(deliveredAt, currentTime).toDays()
@@ -183,16 +183,16 @@ class BusinessRuleException(val rule: String, message: String) : ServiceExceptio
 class ComprehensiveTestService(
     private val properties: TestServiceProperties = TestServiceProperties()
 ) {
-    
+
     private val cache = ConcurrentHashMap<String, Any>()
     private var operationCount = 0L
     private val userStorage = mutableMapOf<Long, User>()
     private val productStorage = mutableMapOf<String, Product>()
-    
+
     // Basic CRUD operations
     fun createUser(name: String, email: String, age: Int): User {
         validateUserInput(name, email, age)
-        
+
         val user = User(
             id = generateUserId(),
             name = name.trim(),
@@ -204,12 +204,12 @@ class ComprehensiveTestService(
                 "version" to "1.0"
             )
         )
-        
+
         userStorage[user.id] = user
         incrementOperationCount()
         return user
     }
-    
+
     fun findUserById(id: Long): User? {
         return when {
             id <= 0 -> null
@@ -220,10 +220,10 @@ class ComprehensiveTestService(
             else -> null
         }.also { incrementOperationCount() }
     }
-    
+
     fun updateUser(id: Long, updates: Map<String, Any>): User {
         val existingUser = findUserById(id) ?: throw ResourceNotFoundException("USER_$id")
-        
+
         val updatedUser = existingUser.copy(
             name = updates["name"] as? String ?: existingUser.name,
             email = updates["email"] as? String ?: existingUser.email,
@@ -231,13 +231,13 @@ class ComprehensiveTestService(
             isActive = updates["isActive"] as? Boolean ?: existingUser.isActive,
             metadata = existingUser.metadata + ("updatedAt" to LocalDateTime.now())
         )
-        
+
         validateUserInput(updatedUser.name, updatedUser.email, updatedUser.age)
         userStorage[id] = updatedUser
         incrementOperationCount()
         return updatedUser
     }
-    
+
     fun deleteUser(id: Long): Boolean {
         return when {
             id <= 0 -> false
@@ -254,25 +254,25 @@ class ComprehensiveTestService(
             else -> false
         }
     }
-    
+
     fun getAllUsers(): List<User> {
         incrementOperationCount()
         return userStorage.values.toList()
     }
-    
+
     // Product operations with complex business logic
     fun createProduct(name: String, price: BigDecimal, category: ProductCategory, tags: Set<String> = emptySet()): Product {
         validateProductInput(name, price, category)
-        
+
         val processedTags = tags.map { it.lowercase().trim() }.toSet()
         val finalPrice = when {
-            properties.features["autoDiscount"] == true && price > BigDecimal("500") -> 
+            properties.features["autoDiscount"] == true && price > BigDecimal("500") ->
                 price.multiply(BigDecimal(1.0 - properties.defaultDiscountRate))
             category.isDigital && price > BigDecimal("100") ->
                 price.multiply(BigDecimal(0.95)) // 5% discount for expensive digital products
             else -> price
         }
-        
+
         val product = Product(
             id = generateProductId(),
             name = name.trim(),
@@ -280,17 +280,17 @@ class ComprehensiveTestService(
             category = category,
             tags = processedTags
         )
-        
+
         productStorage[product.id] = product
-        
+
         if (properties.enableCaching) {
             cache["product_${product.id}"] = product
         }
-        
+
         incrementOperationCount()
         return product
     }
-    
+
     fun searchProducts(
         query: String? = null,
         category: ProductCategory? = null,
@@ -304,70 +304,70 @@ class ComprehensiveTestService(
         } else {
             productStorage.values.toList()
         }
-        
+
         return allProducts.filter { product ->
-            val matchesQuery = query?.let { 
-                product.name.contains(it, ignoreCase = true) || 
+            val matchesQuery = query?.let {
+                product.name.contains(it, ignoreCase = true) ||
                 product.tags.any { tag -> tag.contains(it, ignoreCase = true) }
             } ?: true
-            
+
             val matchesCategory = category?.let { product.category == it } ?: true
-            
+
             val matchesMinPrice = minPrice?.let { product.price >= it } ?: true
             val matchesMaxPrice = maxPrice?.let { product.price <= it } ?: true
-            
+
             val matchesTags = if (tags.isEmpty()) true else {
-                tags.any { searchTag -> 
-                    product.tags.any { productTag -> 
-                        productTag.contains(searchTag, ignoreCase = true) 
+                tags.any { searchTag ->
+                    product.tags.any { productTag ->
+                        productTag.contains(searchTag, ignoreCase = true)
                     }
                 }
             }
-            
+
             matchesQuery && matchesCategory && matchesMinPrice && matchesMaxPrice && matchesTags
         }.also { incrementOperationCount() }
     }
-    
+
     fun getProductById(id: String): Product? {
         return productStorage[id] ?: cache["product_$id"] as? Product
     }
-    
+
     fun updateProductPrice(id: String, newPrice: BigDecimal): Product {
         val product = getProductById(id) ?: throw ResourceNotFoundException("PRODUCT_$id")
-        
+
         if (newPrice < BigDecimal.ZERO) {
             throw ValidationException("price", "Price cannot be negative")
         }
-        
+
         val updatedProduct = product.copy(price = newPrice)
         productStorage[id] = updatedProduct
-        
+
         if (properties.enableCaching) {
             cache["product_$id"] = updatedProduct
         }
-        
+
         incrementOperationCount()
         return updatedProduct
     }
-    
+
     // Order processing with sealed classes
     fun processOrder(userId: Long, productIds: List<String>): OrderStatus {
         val user = findUserById(userId) ?: return OrderStatus.Cancelled("User not found", null)
-        
+
         if (!user.isActive) {
             return OrderStatus.Cancelled("User account is inactive", null)
         }
-        
+
         if (productIds.isEmpty()) {
             return OrderStatus.Cancelled("No products in order", null)
         }
-        
+
         return when {
-            productIds.size > properties.maxOrderItems -> 
+            productIds.size > properties.maxOrderItems ->
                 OrderStatus.Cancelled("Too many items (max ${properties.maxOrderItems})", null)
-            user.age < 18 && hasAgeRestrictedProducts(productIds) -> 
+            user.age < 18 && hasAgeRestrictedProducts(productIds) ->
                 OrderStatus.Cancelled("Age restricted items", null)
-            productIds.any { it.startsWith("RESTRICTED") } -> 
+            productIds.any { it.startsWith("RESTRICTED") } ->
                 OrderStatus.Cancelled("Restricted items", null)
             hasInvalidProducts(productIds) ->
                 OrderStatus.Cancelled("Invalid products in order", null)
@@ -378,7 +378,7 @@ class ComprehensiveTestService(
             }
         }.also { incrementOperationCount() }
     }
-    
+
     fun updateOrderStatus(orderId: String, newStatus: OrderStatus): OrderStatus {
         return when (newStatus) {
             is OrderStatus.Pending -> {
@@ -412,12 +412,12 @@ class ComprehensiveTestService(
             else -> newStatus
         }.also { incrementOperationCount() }
     }
-    
+
     // Async operations for testing
     fun processAsync(operation: String): CompletableFuture<String> {
         return CompletableFuture.supplyAsync {
             Thread.sleep(Random.nextLong(10, 100)) // Simulate work
-            
+
             when (operation.lowercase()) {
                 "success" -> "Operation completed successfully"
                 "failure" -> throw ServiceException("Async operation failed")
@@ -430,17 +430,17 @@ class ComprehensiveTestService(
             }
         }.also { incrementOperationCount() }
     }
-    
+
     fun processAsyncWithRetry(operation: String, maxRetries: Int = properties.maxRetries): CompletableFuture<String> {
         return CompletableFuture.supplyAsync {
             var attempts = 0
             var lastException: Exception? = null
-            
+
             while (attempts < maxRetries) {
                 try {
                     attempts++
                     Thread.sleep(attempts * 10L) // Increasing delay
-                    
+
                     return@supplyAsync when (operation.lowercase()) {
                         "flaky" -> {
                             if (Random.nextDouble() < 0.7) throw ServiceException("Flaky operation failed")
@@ -457,20 +457,20 @@ class ComprehensiveTestService(
                     if (attempts >= maxRetries) break
                 }
             }
-            
+
             throw ServiceException("Failed after $attempts attempts", lastException)
         }.also { incrementOperationCount() }
     }
-    
+
     // Collection operations with higher-order functions
     fun analyzeUsers(users: List<User>): Map<String, Any> {
         if (users.isEmpty()) return emptyMap()
-        
+
         val adults = users.filter { it.isAdult() }
         val activeUsers = users.filter { it.isActive }
         val validEmailUsers = users.filter { it.isValidEmail() }
         val averageAge = users.map { it.age }.average()
-        
+
         val ageGroups = users.groupBy { user ->
             when (user.age) {
                 in 0..17 -> "Minor"
@@ -478,19 +478,19 @@ class ComprehensiveTestService(
                 else -> "Senior"
             }
         }
-        
+
         val emailDomains = users.mapNotNull { user ->
             user.email.substringAfter("@", "").takeIf { it.isNotEmpty() }
         }.groupingBy { it }.eachCount()
-        
+
         val nameStats = users.map { it.name.length }.let { lengths ->
             mapOf(
                 "averageLength" to lengths.average(),
-                "maxLength" to lengths.maxOrNull(),
-                "minLength" to lengths.minOrNull()
+                "maxLength" to (lengths.maxOrNull() ?: 0),
+                "minLength" to (lengths.minOrNull() ?: 0)
             )
         }
-        
+
         return mapOf(
             "totalUsers" to users.size,
             "adultUsers" to adults.size,
@@ -500,12 +500,12 @@ class ComprehensiveTestService(
             "ageGroups" to ageGroups.mapValues { it.value.size },
             "emailDomains" to emailDomains,
             "nameStats" to nameStats,
-            "oldestUser" to users.maxByOrNull { it.age },
-            "youngestUser" to users.minByOrNull { it.age },
-            "mostCommonAge" to users.groupingBy { it.age }.eachCount().maxByOrNull { it.value }?.key
+            "oldestUser" to (users.maxByOrNull { it.age } ?: User.createGuest()),
+            "youngestUser" to (users.minByOrNull { it.age } ?: User.createGuest()),
+            "mostCommonAge" to (users.groupingBy { it.age }.eachCount().maxByOrNull { it.value }?.key ?: 0)
         ).also { incrementOperationCount() }
     }
-    
+
     fun calculateDiscounts(products: List<Product>): Map<Product, BigDecimal> {
         return products.associateWith { product ->
             val baseDiscount = when (product.category) {
@@ -517,7 +517,7 @@ class ComprehensiveTestService(
                 ProductCategory.FOOD -> 0.02
                 ProductCategory.HOME -> 0.08
             }
-            
+
             val volumeDiscount = when {
                 product.hasTag("bulk") -> 0.10
                 product.hasTag("clearance") -> 0.25
@@ -526,42 +526,42 @@ class ComprehensiveTestService(
                 product.isPremium -> 0.03
                 else -> 0.0
             }
-            
+
             val seasonalDiscount = when (LocalDateTime.now().monthValue) {
                 12, 1, 2 -> 0.10  // Winter sale
                 6, 7, 8 -> 0.15   // Summer sale
                 11 -> 0.20        // Black Friday
                 else -> 0.0
             }
-            
+
             val loyaltyDiscount = if (product.hasTag("vip")) 0.05 else 0.0
-            
+
             val totalDiscount = (baseDiscount + volumeDiscount + seasonalDiscount + loyaltyDiscount)
                 .coerceAtMost(0.50) // Max 50% discount
-            
+
             product.price.multiply(BigDecimal(totalDiscount))
         }.also { incrementOperationCount() }
     }
-    
+
     fun calculateOrderTotal(
-        products: List<Product>, 
+        products: List<Product>,
         discounts: Map<Product, BigDecimal>? = null,
         shippingAddress: String? = null
     ): Map<String, BigDecimal> {
         val subtotal = products.map { it.price }.fold(BigDecimal.ZERO) { acc, price -> acc.add(price) }
-        
-        val totalDiscounts = discounts?.values?.fold(BigDecimal.ZERO) { acc, discount -> 
-            acc.add(discount) 
+
+        val totalDiscounts = discounts?.values?.fold(BigDecimal.ZERO) { acc, discount ->
+            acc.add(discount)
         } ?: BigDecimal.ZERO
-        
+
         val discountedSubtotal = subtotal.subtract(totalDiscounts)
-        
+
         val taxes = products.map { product ->
             product.category.calculateTax(
                 discounts?.get(product)?.let { product.price.subtract(it) } ?: product.price
             )
         }.fold(BigDecimal.ZERO) { acc, tax -> acc.add(tax) }
-        
+
         val shipping = when {
             discountedSubtotal >= properties.freeShippingThreshold -> BigDecimal.ZERO
             products.all { it.category.isDigital } -> BigDecimal.ZERO
@@ -570,9 +570,9 @@ class ComprehensiveTestService(
             products.any { it.category == ProductCategory.HOME } -> BigDecimal("15.00")
             else -> BigDecimal("9.99")
         }
-        
+
         val total = discountedSubtotal.add(taxes).add(shipping)
-        
+
         return mapOf(
             "subtotal" to subtotal,
             "discounts" to totalDiscounts,
@@ -582,7 +582,7 @@ class ComprehensiveTestService(
             "total" to total
         ).also { incrementOperationCount() }
     }
-    
+
     // Validation methods with multiple branches
     private fun validateUserInput(name: String, email: String, age: Int) {
         when {
@@ -598,7 +598,7 @@ class ComprehensiveTestService(
             age > 150 -> throw ValidationException("age", "Age seems unrealistic (max 150)")
         }
     }
-    
+
     private fun validateProductInput(name: String, price: BigDecimal, category: ProductCategory) {
         when {
             name.isBlank() -> throw ValidationException("name", "Product name cannot be blank")
@@ -606,18 +606,18 @@ class ComprehensiveTestService(
             name.length > 200 -> throw ValidationException("name", "Product name too long (max 200 characters)")
             price < BigDecimal.ZERO -> throw ValidationException("price", "Price cannot be negative")
             price > BigDecimal("999999.99") -> throw ValidationException("price", "Price too high (max $999,999.99)")
-            price == BigDecimal.ZERO && !category.isDigital -> 
+            price == BigDecimal.ZERO && !category.isDigital ->
                 throw ValidationException("price", "Physical products cannot be free")
-            !properties.allowedCategories.contains(category.name) -> 
+            !properties.allowedCategories.contains(category.name) ->
                 throw ValidationException("category", "Category not allowed: ${category.name}")
         }
     }
-    
+
     // Helper methods with various logic paths
     private fun generateUserId(): Long = System.currentTimeMillis() + Random.nextLong(1000)
-    
+
     private fun generateProductId(): String = "PROD_${System.currentTimeMillis()}_${Random.nextInt(1000, 9999)}"
-    
+
     private fun generateTrackingNumber(): String {
         val prefixes = listOf("TRK", "SHP", "DLV", "EXP", "FST")
         val prefix = prefixes[Random.nextInt(prefixes.size)]
@@ -625,11 +625,11 @@ class ComprehensiveTestService(
         val checksum = (prefix.hashCode() + number.hashCode()).toString().takeLast(2)
         return "$prefix$number$checksum"
     }
-    
+
     private fun createSampleUser(id: Long): User {
         val names = listOf("Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry", "Ivy", "Jack")
         val domains = listOf("example.com", "test.org", "sample.net", "demo.co", "mock.io")
-        
+
         return User(
             id = id,
             name = names[Random.nextInt(names.size)],
@@ -637,14 +637,14 @@ class ComprehensiveTestService(
             age = Random.nextInt(16, 85),
             isActive = Random.nextBoolean(),
             metadata = mapOf(
-                "generated" to true, 
+                "generated" to true,
                 "timestamp" to LocalDateTime.now(),
                 "source" to "sample",
                 "version" to Random.nextInt(1, 5)
             )
         )
     }
-    
+
     private fun generateSampleProducts(): List<Product> {
         val productData = listOf(
             Triple("Laptop Pro", ProductCategory.ELECTRONICS, setOf("premium", "professional")),
@@ -658,7 +658,7 @@ class ComprehensiveTestService(
             Triple("Programming E-Book", ProductCategory.EBOOKS, setOf("technical", "reference")),
             Triple("Organic Coffee Beans", ProductCategory.FOOD, setOf("organic", "premium"))
         )
-        
+
         return productData.mapIndexed { index, (name, category, tags) ->
             Product(
                 id = "SAMPLE_$index",
@@ -669,66 +669,66 @@ class ComprehensiveTestService(
             )
         }
     }
-    
+
     private fun hasAgeRestrictedProducts(productIds: List<String>): Boolean {
         return productIds.any { it.contains("ADULT") || it.contains("18+") }
     }
-    
+
     private fun hasInvalidProducts(productIds: List<String>): Boolean {
         return productIds.any { id ->
             id.isBlank() || id.startsWith("INVALID") || id.length > 50
         }
     }
-    
+
     private fun calculateDeliveryDate(productIds: List<String>): LocalDateTime {
         val hasDigitalOnly = productIds.all { it.startsWith("DIGITAL") }
         val hasExpressItems = productIds.any { it.contains("EXPRESS") }
         val hasLargeItems = productIds.any { it.contains("LARGE") }
-        
+
         val baseDays = when {
             hasDigitalOnly -> 0
             hasExpressItems -> 1
             hasLargeItems -> 7
             else -> 3
         }
-        
+
         val additionalDays = if (productIds.size > 5) 1 else 0
-        
+
         return LocalDateTime.now().plusDays((baseDays + additionalDays).toLong())
     }
-    
+
     @Synchronized
     private fun incrementOperationCount() {
         operationCount++
     }
-    
+
     // Public methods for testing state
     fun getOperationCount(): Long = operationCount
-    
+
     fun resetOperationCount() {
         operationCount = 0
     }
-    
+
     fun clearCache() {
         cache.clear()
         incrementOperationCount()
     }
-    
+
     fun getCacheSize(): Int = cache.size
-    
+
     fun getUserCount(): Int = userStorage.size
-    
+
     fun getProductCount(): Int = productStorage.size
-    
+
     fun getProperties(): TestServiceProperties = properties
-    
+
     fun clearAllData() {
         userStorage.clear()
         productStorage.clear()
         clearCache()
         resetOperationCount()
     }
-    
+
     // Method with try-catch for exception testing
     fun safeOperation(input: String): String {
         return try {
@@ -755,7 +755,7 @@ class ComprehensiveTestService(
             incrementOperationCount()
         }
     }
-    
+
     // Method with complex conditional logic
     fun complexBusinessLogic(
         userAge: Int,
@@ -775,7 +775,7 @@ class ComprehensiveTestService(
             productCategory.isDigital && orderAmount > BigDecimal("30") -> true
             else -> false
         }
-        
+
         val discountRate = when {
             !eligibleForDiscount -> 0.0
             seasonalPromo && isPremiumMember && loyaltyPoints >= 5000 -> 0.30 // Max combo discount
@@ -789,14 +789,14 @@ class ComprehensiveTestService(
             loyaltyPoints >= 1000 -> 0.05
             else -> 0.03
         }
-        
+
         val taxRate = productCategory.taxRate
         val subtotal = orderAmount
         val discountAmount = subtotal.multiply(BigDecimal(discountRate))
         val taxableAmount = subtotal.subtract(discountAmount)
         val taxAmount = taxableAmount.multiply(BigDecimal(taxRate))
         val total = taxableAmount.add(taxAmount)
-        
+
         val shippingCost = when {
             productCategory.isDigital -> BigDecimal.ZERO
             total >= properties.freeShippingThreshold -> BigDecimal.ZERO
@@ -804,15 +804,15 @@ class ComprehensiveTestService(
             loyaltyPoints >= 1000 -> BigDecimal("4.99")
             else -> productCategory.getShippingCost(orderAmount)
         }
-        
+
         val finalTotal = total.add(shippingCost)
-        
+
         val loyaltyPointsEarned = when {
             isPremiumMember -> (finalTotal.multiply(BigDecimal("0.02"))).toInt() // 2% for premium
             loyaltyPoints >= 5000 -> (finalTotal.multiply(BigDecimal("0.015"))).toInt() // 1.5% for VIP
             else -> (finalTotal.multiply(BigDecimal("0.01"))).toInt() // 1% base rate
         }
-        
+
         val estimatedDeliveryDays = when {
             productCategory.isDigital -> 0
             isPremiumMember && shippingCost > BigDecimal.ZERO -> 1
@@ -820,7 +820,7 @@ class ComprehensiveTestService(
             orderAmount > BigDecimal("100") -> 2
             else -> 3
         }
-        
+
         return mapOf(
             "subtotal" to subtotal,
             "discountRate" to discountRate,
@@ -855,8 +855,8 @@ fun Product.getCategoryDisplay(): String = "${category.displayName} ${if (catego
 fun List<Product>.filterByPriceRange(min: BigDecimal, max: BigDecimal): List<Product> =
     filter { it.price >= min && it.price <= max }
 
-fun List<Product>.getAveragePrice(): BigDecimal? = 
-    if (isEmpty()) null 
+fun List<Product>.getAveragePrice(): BigDecimal? =
+    if (isEmpty()) null
     else map { it.price }.fold(BigDecimal.ZERO) { acc, price -> acc.add(price) }
         .divide(BigDecimal(size), 2, BigDecimal.ROUND_HALF_UP)
 
