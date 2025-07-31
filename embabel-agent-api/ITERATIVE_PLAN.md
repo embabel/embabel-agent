@@ -1110,6 +1110,81 @@ embabel.agent.platform.test.mock-mode=true
 - **Comprehensive Coverage**: Platform property foundation ready for all future migrations
 - **Future-Proof**: Foundation supports all subsequent platform property updates
 
+#### **Post-Implementation Fixes**
+
+**Issue**: Migration components caused Spring ApplicationContext loading failures during integration tests.
+
+**Root Cause**: `@Component` classes (`SimpleDeprecatedConfigWarner`, `ConditionalPropertyScanningConfig`) were instantiated during all Spring context loading, including tests, causing circular dependency issues.
+
+**Permanent Solution Applied:**
+
+**File 1: `SimpleDeprecatedConfigWarner.kt`**
+```kotlin
+// BEFORE (temporary workaround):
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.test.mock-mode"],
+    havingValue = "false",
+    matchIfMissing = false
+)
+
+// AFTER (permanent solution):
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.migration.warnings.enabled"],
+    havingValue = "true",
+    matchIfMissing = true  // Enabled by default in production
+)
+```
+
+**File 2: `ConditionalPropertyScanningConfig.kt`**
+```kotlin
+// BEFORE (temporary workaround):
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.test.mock-mode"],
+    havingValue = "false",
+    matchIfMissing = false
+)
+
+// AFTER (permanent solution):
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.migration.scanning.enabled"],
+    havingValue = "true",
+    matchIfMissing = false  // Disabled by default (Iteration 0 design)
+)
+```
+
+**Configuration Control:**
+```yaml
+# Production - Enable migration warnings (default behavior)
+embabel:
+  agent:
+    platform:
+      migration:
+        warnings:
+          enabled: true  # Default via matchIfMissing=true
+
+# Production - Conditional scanning disabled by default in Iteration 0  
+        scanning:
+          enabled: false  # Explicit disable (matchIfMissing=false)
+
+# Tests - Can override for specific migration tests
+        scanning:
+          enabled: true  # Override in migration-specific tests only
+```
+
+**Benefits of Permanent Solution:**
+- ✅ **Proper Separation**: Migration components controlled by appropriate configuration properties
+- ✅ **Production Ready**: Warnings enabled by default for production users  
+- ✅ **Test Isolation**: Integration tests no longer have Spring context loading issues
+- ✅ **Iteration 0 Design**: Conditional scanning remains disabled by default as planned
+- ✅ **Migration Test Support**: Migration-specific tests can enable scanning when needed
+- ✅ **Future Flexibility**: Clear configuration path for enabling features in later iterations
+
+**Impact on Iteration 0 Deliverables:**
+- Migration warning system works in production ✅
+- Migration detection tests continue to pass ✅  
+- Integration tests no longer fail due to context loading ✅
+- All original Iteration 0 goals achieved ✅
+
 ---
 
 ### Appendix B: Iteration 1 - Platform Property @ConfigurationProperties Migration

@@ -16,6 +16,7 @@
 package com.embabel.agent.config.migration
 
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.core.env.Environment
 import org.springframework.stereotype.Component
 
@@ -27,6 +28,11 @@ import org.springframework.stereotype.Component
  * Warnings are rate-limited to prevent log spam and can be aggregated for overview.
  */
 @Component
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.migration.warnings.enabled"],
+    havingValue = "true",
+    matchIfMissing = true
+)
 class SimpleDeprecatedConfigWarner(
     private val environment: Environment
 ) {
