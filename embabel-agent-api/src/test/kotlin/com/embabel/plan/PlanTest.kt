@@ -146,16 +146,16 @@ class PlanTest {
 
         val plan = Plan(actions, goal)
 
-        val verboseInfo = plan.infoString(verbose = true)
+        val verboseInfo = plan.infoString(verbose = true, indent = 1)
 
         // Check format with indentation
-        assertTrue(verboseInfo.contains("\t".repeat(1) + "Action1"))
-        assertTrue(verboseInfo.contains("\t".repeat(2) + "Action2"))
-        assertTrue(verboseInfo.contains("\t".repeat(3) + "Action3"))
+        assertTrue(verboseInfo.contains("  ".repeat(1) + "Action1"))
+        assertTrue(verboseInfo.contains("  ".repeat(2) + "Action2"))
+        assertTrue(verboseInfo.contains("  ".repeat(3) + "Action3"))
 
         // Should contain cost and netValue
-        assertTrue(verboseInfo.contains("cost="))
-        assertTrue(verboseInfo.contains("netValue="))
+        assertTrue(verboseInfo.contains("cost:"))
+        assertTrue(verboseInfo.contains("netValue:"))
     }
 
     @Test
