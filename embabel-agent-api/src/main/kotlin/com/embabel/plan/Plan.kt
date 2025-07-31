@@ -84,7 +84,7 @@ open class Plan(
                 actions
                     .mapIndexed { i, a -> i to a.name }
                     .joinToString(" ->\n") {
-                        it.second.indent(1 + it.first)
+                        it.second.indent(it.first)
                     }
             }
                |goal: ${goal.name}
