@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.migration
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Configuration
 
@@ -27,6 +28,11 @@ import org.springframework.context.annotation.Configuration
  */
 @Configuration
 @ConfigurationProperties("embabel.agent.platform.migration.scanning")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.migration.scanning.enabled"],
+    havingValue = "true",
+    matchIfMissing = false
+)
 data class ConditionalPropertyScanningConfig(
     /**
      * Base packages to scan for deprecated conditional annotations.
