@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.a2a.server
 
-import io.a2a.spec.JSONRPCRequest
 import io.a2a.spec.JSONRPCResponse
 import io.a2a.spec.NonStreamingJSONRPCRequest
 import io.a2a.spec.StreamingJSONRPCRequest

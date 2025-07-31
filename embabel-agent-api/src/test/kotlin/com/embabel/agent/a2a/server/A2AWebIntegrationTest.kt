@@ -188,8 +188,67 @@ class A2AWebIntegrationTest(
             assertEquals("Hello, agent!", (task.history.get(0)?.parts?.get(0) as? TextPart)?.text)
         }
 
-        // TODO test `should handle get task request` (GetTaskRequest)
-        // TODO test `should handle cancel task request` (CancelTaskRequest)
+//        @Test
+//        fun `should handle get task request`() {
+//            val params = TaskQueryParams("task-123")
+//            val request = GetTaskRequest.Builder()
+//                .jsonrpc(JSONRPCRequest.JSONRPC_VERSION)
+//                .method(GetTaskRequest.METHOD)
+//                .id("get-task-123")
+//                .params(params)
+//                .build()
+//
+//            val result = mockMvc.post("/a2a") {
+//                contentType = MediaType.APPLICATION_JSON
+//                content = objectMapper.writeValueAsString(request)
+//            }
+//                .andExpect {
+//                    status().isOk()
+//                    content { contentType(MediaType.APPLICATION_JSON) }
+//                }.andReturn()
+//
+//            val content = result.response.contentAsString
+//            val response = objectMapper.readValue(content, GetTaskResponse::class.java)
+//
+//            assertNotNull(response)
+//            assertEquals("get-task-123", response.id)
+//
+//            val task = objectMapper.convertValue(response.result, Task::class.java)
+//            assertEquals("task-123", task.id)
+//            assertNotNull(task.contextId)
+//            assertNotNull(task.status.state)
+//        }
+
+//        @Test
+//        fun `should handle cancel task request`() {
+//            val params = TaskIdParams("task-123")
+//            val request = CancelTaskRequest.Builder()
+//                .jsonrpc(JSONRPCRequest.JSONRPC_VERSION)
+//                .method(CancelTaskRequest.METHOD)
+//                .id("cancel-123")
+//                .params(params)
+//                .build()
+//
+//            val result = mockMvc.post("/a2a") {
+//                contentType = MediaType.APPLICATION_JSON
+//                content = objectMapper.writeValueAsString(request)
+//            }
+//                .andExpect {
+//                    status().isOk()
+//                    content { contentType(MediaType.APPLICATION_JSON) }
+//                }.andReturn()
+//
+//            val content = result.response.contentAsString
+//            val response = objectMapper.readValue(content, CancelTaskResponse::class.java)
+//
+//            assertNotNull(response)
+//            assertEquals("cancel-123", response.id)
+//
+//            val task = objectMapper.convertValue(response.result, Task::class.java)
+//            assertEquals("task-123", task.id)
+//            assertNotNull(task.contextId)
+//            assertEquals(TaskState.CANCELED, task.status.state)
+//        }
 
         @Test
         fun `should handle message stream`() {

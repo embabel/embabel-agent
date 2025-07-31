@@ -18,10 +18,10 @@ package com.embabel.agent.a2a.server.support
 import com.embabel.agent.a2a.server.A2ARequestEvent
 import com.embabel.agent.a2a.server.A2ARequestHandler
 import com.embabel.agent.a2a.server.A2AResponseEvent
+import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.event.AgenticEventListener
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.a2a.spec.Artifact
 import io.a2a.spec.CancelTaskRequest
 import io.a2a.spec.CancelTaskResponse
@@ -64,7 +64,6 @@ class AutonomyA2ARequestHandler(
     private val autonomy: Autonomy,
     private val agenticEventListener: AgenticEventListener,
     private val streamingHandler: A2AStreamingHandler,
-    private val objectMapper: ObjectMapper,
 ) : A2ARequestHandler {
 
     private val logger = LoggerFactory.getLogger(A2ARequestHandler::class.java)
@@ -128,22 +127,15 @@ class AutonomyA2ARequestHandler(
                 intent = intent,
                 processOptions = ProcessOptions(),
             )
-            // TODO result should be based on the outputMode received in the "params.configuration.acceptedOutputModes"
+
             val task = Task.Builder()
-                .id(params.message.taskId ?: UUID.randomUUID().toString())
-                .contextId(params.message.contextId ?: ("ctx_" + UUID.randomUUID().toString()))
+                .id(ensureTaskId(params.message.taskId))
+                .contextId(ensureContextId(params.message.contextId))
                 .status(TaskStatus(TaskState.COMPLETED))
                 .history(listOfNotNull(params.message))
                 .artifacts(
                     listOf(
-                        Artifact.Builder()
-                            .artifactId(UUID.randomUUID().toString())
-                            .parts(
-                                listOf(
-                                    DataPart(mapOf("output" to result.output))
-                                )
-                            )
-                            .build()
+                        createResultArtifact(result, params.configuration.acceptedOutputModes)
                     )
                 )
                 .build()
@@ -155,7 +147,7 @@ class AutonomyA2ARequestHandler(
             logger.error("Error handling message send request", e)
             // TODO other kinds of errors
             return JSONRPCErrorResponse(
-                params.message.taskId ?: UUID.randomUUID().toString(),
+                ensureTaskId(params.message.taskId),
                 TaskNotFoundError(
                     null,
                    "Internal error: ${e.message}",
@@ -177,19 +169,7 @@ class AutonomyA2ARequestHandler(
                     streamId, TaskStatusUpdateEvent.Builder()
                         .taskId(params.message.taskId)
                         .contextId(params.message.contextId)
-                        .status(
-                            TaskStatus(
-                                TaskState.WORKING,
-                                Message.Builder()
-                                    .messageId(UUID.randomUUID().toString())
-                                    .role(Message.Role.AGENT)
-                                    .parts(listOf(TextPart("Task started...")))
-                                    .contextId(params.message.contextId)
-                                    .taskId(params.message.taskId)
-                                    .build(),
-                                LocalDateTime.now()
-                            )
-                        )
+                        .status(createWorkingTaskStatus(params, "Task started..."))
                         .build()
                 )
 
@@ -212,19 +192,8 @@ class AutonomyA2ARequestHandler(
                 streamingHandler.sendStreamEvent(
                     streamId, TaskStatusUpdateEvent.Builder()
                         .taskId(params.message.taskId)
-                        .contextId("ctx_${UUID.randomUUID()}")
-                        .status(
-                            TaskStatus(
-                                TaskState.WORKING,
-                                Message.Builder()
-                                    .role(Message.Role.AGENT) // TODO? before it was "system"
-                                    .parts(listOf(TextPart("Processing task...")))
-                                    .messageId(UUID.randomUUID().toString())
-                                    .taskId(params.message.taskId)
-                                    .build(),
-                                LocalDateTime.now()
-                            )
-                        )
+                        .contextId(ensureContextId(params.message.contextId))
+                        .status(createWorkingTaskStatus(params, "Processing task..."))
                         .build()
                 )
 
@@ -232,29 +201,11 @@ class AutonomyA2ARequestHandler(
                 val taskResult = Task.Builder()
                     .id(params.message.taskId)
                     .contextId("ctx_${UUID.randomUUID()}")
-                    .status(
-                        TaskStatus(
-                            TaskState.COMPLETED,
-                            Message.Builder()
-                                .role(Message.Role.AGENT) // TODO? before it was "system"
-                                .parts(listOf(TextPart("Task completed successfully")))
-                                .messageId(UUID.randomUUID().toString())
-                                .taskId(params.message.taskId)
-                                .build(),
-                            LocalDateTime.now()
-                        )
-                    )
+                    .status(createCompletedTaskStatus(params))
                     .history(listOfNotNull(params.message))
                     .artifacts(
                         listOf(
-                            Artifact.Builder()
-                                .artifactId(UUID.randomUUID().toString())
-                                .parts(
-                                    listOf(
-                                        DataPart(mapOf("output" to result.output))
-                                    )
-                                )
-                                .build()
+                            createResultArtifact(result, params.configuration.acceptedOutputModes)
                         )
                     )
                     .metadata(null)
@@ -266,19 +217,9 @@ class AutonomyA2ARequestHandler(
                     streamingHandler.sendStreamEvent(
                         streamId, TaskStatusUpdateEvent.Builder()
                             .taskId(params.message.taskId)
-                            .contextId("ctx_${UUID.randomUUID()}")
-                            .status(
-                                TaskStatus(
-                                    TaskState.FAILED,
-                                    Message.Builder()
-                                        .role(Message.Role.AGENT) // TODO? before it was "system"
-                                        .parts(listOf(TextPart("Error: ${e.message}")))
-                                        .messageId(UUID.randomUUID().toString())
-                                        .taskId(params.message.taskId)
-                                        .build(),
-                                    LocalDateTime.now()
-                                ),
-                            ).build()
+                            .contextId(ensureContextId(params.message.contextId))
+                            .status(createFailedTaskStatus(params, e))
+                            .build()
                     )
                 } catch (sendError: Exception) {
                     logger.error("Error sending error event", sendError)
@@ -305,7 +246,70 @@ class AutonomyA2ARequestHandler(
         TODO()
     }
 
+    private fun createFailedTaskStatus(params: MessageSendParams, e: Exception): TaskStatus = TaskStatus(
+        TaskState.FAILED,
+        Message.Builder()
+            .messageId(UUID.randomUUID().toString())
+            .role(Message.Role.AGENT)
+            .parts(listOf(TextPart("Error: ${e.message}")))
+            .contextId(params.message.contextId)
+            .taskId(params.message.taskId)
+            .build(),
+        LocalDateTime.now()
+    )
 
+    private fun createCompletedTaskStatus(
+        params: MessageSendParams,
+        textPart: String = "Task completed successfully"
+    ): TaskStatus = TaskStatus(
+        TaskState.COMPLETED,
+        Message.Builder()
+            .messageId(UUID.randomUUID().toString())
+            .role(Message.Role.AGENT)
+            .parts(listOf(TextPart(textPart)))
+            .contextId(params.message.contextId)
+            .taskId(params.message.taskId)
+            .build(),
+        LocalDateTime.now()
+    )
+
+    private fun createWorkingTaskStatus(
+        params: MessageSendParams,
+        textPart: String = "Working..."
+    ): TaskStatus = TaskStatus(
+        TaskState.WORKING,
+        Message.Builder()
+            .messageId(UUID.randomUUID().toString())
+            .role(Message.Role.AGENT)
+            .parts(listOf(TextPart(textPart)))
+            .contextId(params.message.contextId)
+            .taskId(params.message.taskId)
+            .build(),
+        LocalDateTime.now()
+    )
+
+    private fun ensureContextId(providedContextId: String?): String {
+        return providedContextId ?: ("ctx_" + UUID.randomUUID().toString())
+    }
+
+    private fun ensureTaskId(providedTaskId: String?): String {
+        return providedTaskId ?: UUID.randomUUID().toString()
+    }
+
+    private fun createResultArtifact(
+        result: AgentProcessExecution,
+        acceptedOutputModes: List<String> = emptyList()
+    ): Artifact {
+        // TODO result should be based on the outputMode received in the "params.configuration.acceptedOutputModes"
+        return Artifact.Builder()
+            .artifactId(UUID.randomUUID().toString())
+            .parts(
+                listOf(
+                    DataPart(mapOf("output" to result.output))
+                )
+            )
+            .build()
+    }
 }
 
 fun SendMessageRequest.successResponseWith(result: EventKind): SendMessageResponse {

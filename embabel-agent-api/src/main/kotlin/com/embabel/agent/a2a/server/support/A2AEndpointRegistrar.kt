@@ -22,12 +22,9 @@ import io.a2a.spec.CancelTaskRequest
 import io.a2a.spec.GetTaskRequest
 import io.a2a.spec.JSONRPCError
 import io.a2a.spec.JSONRPCErrorResponse
-import io.a2a.spec.NonStreamingJSONRPCRequest
 import io.a2a.spec.SendMessageRequest
 import io.a2a.spec.SendStreamingMessageRequest
-import io.a2a.spec.StreamingJSONRPCRequest
 import jakarta.servlet.ServletRequest
-import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.annotation.Profile
