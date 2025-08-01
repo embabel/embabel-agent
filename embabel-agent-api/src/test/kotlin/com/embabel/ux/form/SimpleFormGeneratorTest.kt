@@ -25,32 +25,32 @@ import java.time.LocalTime
 
 data class AllTypesClass(
 
-    @FormField("string-id")
+    @property:FormField("string-id")
     @Text(label = "custom label")
     val stringField: String,
 
-    @FormField("int-id")
+    @property:FormField("int-id")
     val intField: Int,
 
-    @FormField("long-id")
+    @property:FormField("long-id")
     val longField: Long,
 
-    @FormField("double-id")
+    @property:FormField("double-id")
     val doubleField: Double,
 
-    @FormField("float-id")
+    @property:FormField("float-id")
     val floatField: Float,
 
-    @FormField("boolean-id")
+    @property:FormField("boolean-id")
     val booleanField: Boolean,
 
-    @FormField("date-id")
+    @property:FormField("date-id")
     val dateField: LocalDate,
 
-    @FormField("time-id")
+    @property:FormField("time-id")
     val timeField: LocalTime,
 
-    @FormField("list-id")
+    @property:FormField("list-id")
     val listField: List<String>
 )
 
@@ -120,11 +120,11 @@ class SimpleFormGeneratorTest {
         fun shouldSkipPropertiesWithoutAnnotation() {
             // Given
             data class MixedClass(
-                @FormField("annotated-id")
+                @property:FormField("annotated-id")
                 val annotatedField: String,
 
                 // Negative annotation, should be skipped
-                @NoFormField
+                @property:NoFormField
                 val unannotatedField: String
             )
 
@@ -298,12 +298,12 @@ class SimpleFormGeneratorTest {
         fun shouldHandleNestedDataClasses() {
             // Given
             data class NestedClass(
-                @FormField("nested-id")
+                @property:FormField("nested-id")
                 val nestedField: String
             )
 
             data class OuterClass(
-                @FormField("outer-id")
+                @property:FormField("outer-id")
                 val outerField: String,
 
                 // No annotation on the nested object itself
@@ -331,25 +331,25 @@ class SimpleFormGeneratorTest {
         fun shouldGenerateUserRegistrationForm() {
             // Given
             data class UserRegistration(
-                @FormField("name-field")
+                @property:FormField("name-field")
                 val fullName: String,
 
-                @FormField("email-field")
+                @property:FormField("email-field")
                 val emailAddress: String,
 
-                @FormField("password-field")
+                @property:FormField("password-field")
                 val password: String,
 
-                @FormField("age-field")
+                @property:FormField("age-field")
                 val age: Int,
 
-                @FormField("terms-field")
+                @property:FormField("terms-field")
                 val acceptTerms: Boolean,
 
-                @FormField("birth-date-field")
+                @property:FormField("birth-date-field")
                 val dateOfBirth: LocalDate,
 
-                @FormField("bio-field")
+                @property:FormField("bio-field")
                 val biography: String? = null
             )
 

@@ -16,12 +16,13 @@
 package com.embabel.ux.form
 
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import java.util.*
 
 /**
- * Form that can be represented in a data-independent way
+ * UX-independent form definition. Controls, not data.
  */
 data class Form(
     val title: String,
@@ -29,8 +30,11 @@ data class Form(
     val id: String = UUID.randomUUID().toString(),
 ) : HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String {
-        return toString()
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return toString().indent(indent)
     }
 }
 

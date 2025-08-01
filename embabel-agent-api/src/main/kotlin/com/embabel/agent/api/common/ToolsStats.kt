@@ -32,7 +32,10 @@ open class ToolStats(
     val failures: Int = 0,
 ) : HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String =
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
         "ToolStats(name=$name, calls=$calls, avgResponseTime=$averageResponseTime ms, failures=$failures)"
 
 }
@@ -44,12 +47,15 @@ interface ToolsStats : HasInfoString {
 
     val toolsStats: Map<String, ToolStats>
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return toolsStats.entries.joinToString(
             prefix = "Tool usage:\n",
             separator = ",\n"
         ) { (_, toolStats) ->
-            "\t${toolStats.infoString(verbose)}"
+            "\t${toolStats.infoString(verbose, 1)}"
         }
     }
 }

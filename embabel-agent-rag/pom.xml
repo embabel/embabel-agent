@@ -26,7 +26,19 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-neo4j-store</artifactId>
         </dependency>
-        <!-- Test Dependencies -->
+
+        <dependency>
+            <groupId>org.neo4j</groupId>
+            <artifactId>neo4j-ogm-spring-boot-starter</artifactId>
+            <version>1.2.5</version>
+        </dependency>
+
+        <!-- TODO could move RAG in here and not need this -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-api</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test</artifactId>

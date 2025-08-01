@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.experimental.primitive.PromptCondition
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
 import com.embabel.plan.goap.ConditionDetermination
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
@@ -51,9 +52,10 @@ interface Condition : Operation, HasInfoString {
         context: OperationContext,
     ): ConditionDetermination
 
-    override fun infoString(verbose: Boolean?): String {
-        return "Condition(name='$name', cost=$cost)"
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String = "Condition(name='$name', cost=$cost)".indent(indent)
 
     operator fun not(): Condition = NotCondition(this)
 
@@ -102,7 +104,10 @@ private class UnknownCondition(private val condition: Condition) : Condition {
     }
 }
 
-private class OrCondition(private val a: Condition, private val b: Condition) : Condition {
+private class OrCondition(
+    private val a: Condition,
+    private val b: Condition,
+) : Condition {
     override val name = "(${a.name} OR ${b.name})"
 
     // The cost is the minimum of both conditions since we can short-circuit
@@ -127,7 +132,10 @@ private class OrCondition(private val a: Condition, private val b: Condition) : 
     }
 }
 
-private class AndCondition(private val a: Condition, private val b: Condition) : Condition {
+private class AndCondition(
+    private val a: Condition,
+    private val b: Condition,
+) : Condition {
     override val name = "(${a.name} AND ${b.name})"
 
     // The cost is the minimum of both conditions since we can short-circuit

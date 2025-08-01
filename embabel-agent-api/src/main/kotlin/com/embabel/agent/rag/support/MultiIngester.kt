@@ -65,7 +65,14 @@ class MultiIngester(
         )
     }
 
-    override fun infoString(verbose: Boolean?): String =
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
         if (ragServices.isEmpty()) "No RAG services" else
-            "Multi ingester of ${ragServices.joinToString(",") { it.infoString(verbose = verbose) }}"
+            "Multi ingester of ${
+                ragServices.joinToString(",") {
+                    it.infoString(verbose = verbose, indent = 1)
+                }
+            }"
 }

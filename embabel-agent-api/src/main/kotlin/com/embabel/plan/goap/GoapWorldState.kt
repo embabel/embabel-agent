@@ -16,6 +16,7 @@
 package com.embabel.plan.goap
 
 import com.embabel.common.util.color
+import com.embabel.common.util.indent
 import com.embabel.plan.WorldState
 import java.time.Instant
 
@@ -121,12 +122,22 @@ data class GoapWorldState(
         return result
     }
 
-    override fun infoString(verbose: Boolean?): String {
-        return if (verbose == true)
-            "\n\t" + state.entries.sortedByDescending { it.value }
-                .joinToString("\n\t") { (k, v) -> if (v == ConditionDetermination.TRUE) "$k: $v".color(LUMON_MEMBRANE_COLOR) else "$k: $v" }
-        else state.toString()
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        if (verbose == true)
+            state.entries
+                .toList()
+                .sortedWith(compareByDescending<Map.Entry<String, ConditionDetermination>> { it.value }.thenBy { it.key })
+                .joinToString("\n") { (k, v) ->
+                    (if (v == ConditionDetermination.TRUE)
+                        "$k: $v".color(LUMON_MEMBRANE_COLOR)
+                    else
+                        "$k: $v").indent(indent)
+                }
+        else
+            state.toString()
 
     operator fun plus(pair: Pair<String, ConditionDetermination>): GoapWorldState =
         GoapWorldState(this.state + pair)

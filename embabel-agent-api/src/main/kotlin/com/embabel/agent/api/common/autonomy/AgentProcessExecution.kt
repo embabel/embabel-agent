@@ -45,12 +45,28 @@ class AgentProcessExecution private constructor(
     val agentProcess: AgentProcess,
 ) : HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String {
-        return "DynamicExecutionResult(basis=$basis, output=$output, agentProcess=${agentProcess.infoString(verbose)})"
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        if (verbose == true)
+            "${javaClass.simpleName}(basis=$basis, output=$output, agentProcess=${
+                agentProcess.infoString(verbose,  1)
+            })"
+        else
+            "${javaClass.simpleName}(basis=$basis, output=${output::class.simpleName}, agentProcess=${agentProcess.id})"
+
+    override fun toString(): String = infoString(verbose = false)
 
     companion object {
 
+        @Throws(
+            ProcessExecutionException::class,
+            ProcessExecutionStuckException::class,
+            ProcessExecutionFailedException::class,
+            ProcessWaitingException::class,
+            ProcessExecutionTerminatedException::class,
+        )
         @Suppress("UNCHECKED_CAST")
         fun fromProcessStatus(
             basis: Any,
@@ -105,7 +121,7 @@ class AgentProcessExecution private constructor(
  * Used for control flow
  */
 sealed class ProcessExecutionException(
-    val agentProcess: AgentProcess?,
+    open val agentProcess: AgentProcess?,
     message: String,
 ) : Exception(message)
 
@@ -135,21 +151,21 @@ class NoAgentFound(
 ) : ProcessExecutionException(null, "Agent not found: ${agentRankings.rankings.joinToString(",")}")
 
 class ProcessExecutionFailedException(
-    agentProcess: AgentProcess,
+    override val agentProcess: AgentProcess,
     val detail: String,
 ) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} failed: $detail")
 
 class ProcessExecutionTerminatedException(
-    agentProcess: AgentProcess,
+    override val agentProcess: AgentProcess,
     val detail: String,
 ) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} terminated: $detail")
 
 class ProcessExecutionStuckException(
-    agentProcess: AgentProcess,
+    override val agentProcess: AgentProcess,
     val detail: String,
 ) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} stuck: $detail")
 
 class ProcessWaitingException(
-    agentProcess: AgentProcess,
+    override val agentProcess: AgentProcess,
     val awaitable: Awaitable<*, AwaitableResponse>,
 ) : ProcessExecutionException(agentProcess, "Process ${agentProcess.id} is waiting for ${awaitable.infoString()}")

@@ -150,7 +150,7 @@ object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
     /**
      * Anthropic's default is too low and results in truncated responses.
      */
-    const val DEFAULT_MAX_TOKENS = 10000
+    const val DEFAULT_MAX_TOKENS = 8192
 
     override fun convertOptions(options: LlmOptions): AnthropicChatOptions =
         AnthropicChatOptions.builder()

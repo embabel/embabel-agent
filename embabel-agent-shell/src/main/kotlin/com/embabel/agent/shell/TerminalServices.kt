@@ -120,7 +120,7 @@ class TerminalServices(
 
     private fun confirmationResponseFromUserInput(
         confirmationRequest: ConfirmationRequest<*>,
-    ): ConfirmationResponse? {
+    ): ConfirmationResponse {
         val confirmed = confirm(confirmationRequest.message)
         return ConfirmationResponse(
             awaitableId = confirmationRequest.id,

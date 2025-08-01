@@ -17,6 +17,7 @@ package com.embabel.agent.domain.io
 
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.common.core.types.Timestamped
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import java.time.Instant
 
@@ -26,6 +27,7 @@ interface SystemInput : Timestamped
  * Special class that represents a single user input
  * Starting point for many flows.
  */
+@JsonIgnoreProperties(value = ["timestamp"], allowGetters = true)
 data class UserInput(
     @get:JsonPropertyDescription("user input")
     override val content: String,

@@ -15,19 +15,38 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
+import kotlin.collections.map
+
 /**
  * Simple data type
  */
 data class SchemaType(
     val name: String,
     val properties: List<PropertyDefinition> = emptyList(),
-) {
+) : HasInfoString {
 
     fun withProperty(
         property: PropertyDefinition,
     ): SchemaType {
         return copy(properties = properties + property)
     }
+
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return """
+                |name: $name
+                |properties:
+                |${properties.map { it }.joinToString("\n") { it.toString().indent(1) }}
+                |"""
+            .trimMargin()
+            .indentLines(indent)
+    }
+
 }
 
 data class PropertyDefinition(

@@ -18,6 +18,8 @@ package com.embabel.agent.core
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Named
+import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
 import com.fasterxml.jackson.annotation.JsonIgnore
 
 interface ConditionSource {
@@ -45,16 +47,35 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
     override val domainTypes: Collection<Class<*>>
         get() = actions.flatMap { it.domainTypes }.distinct()
 
-    override fun infoString(verbose: Boolean?): String =
-        "%s\n\tgoals:\n\t\t%s\n\tactions:\n\t\t%s\n\tconditions: %s\n\tdata types: %s".format(
-            name,
-            goals.sortedBy { it.name }
-                .joinToString("\n\t\t") { it.infoString(verbose = verbose) },
-            actions.sortedBy { it.name }
-                .joinToString("\n\t\t") { it.infoString(verbose = verbose) },
-            conditions.map { it.name }.sorted(),
-            domainTypes.map { it.simpleName }.distinct().sorted(),
-        )
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        """|name: $name
+           |goals:
+           |${goals.sortedBy { it.name }.joinToString("\n") { it.infoString(true, 1) }}
+           |actions:
+           |${actions.sortedBy { it.name }.joinToString("\n") { it.infoString(true, 1) }}
+           |conditions:
+           |${conditions.map { it.name }.sorted().joinToString("\n") { it.indent(1) }}
+           |domain types: ${domainTypes.map { it.simpleName }.distinct().sorted().joinToString(", ")}
+           |schema types:
+           |${schemaTypes.map { it }.joinToString("\n") { it.infoString(true, 1) }}
+           |"""
+            .trimMargin()
+            .indentLines(indent)
+
+//        "%s\n\tgoals:\n\t\t%s\n\tactions:\n\t\t%s\n\tconditions: %s\n\tdomain types: %s\n\tschema types: %s".format(
+//            name,
+//            goals.sortedBy { it.name }
+//                .joinToString("\n\t\t") { it.infoString(verbose = verbose) },
+//            actions.sortedBy { it.name }
+//                .joinToString("\n\t\t") { it.infoString(verbose = verbose) },
+//            conditions.map { it.name }.sorted(),
+//            domainTypes.map { it.simpleName }.distinct().sorted(),
+//            schemaTypes.map { it }
+//                .sortedBy { it.name },
+//        )
 
     /**
      * Create a new agent from the given scope

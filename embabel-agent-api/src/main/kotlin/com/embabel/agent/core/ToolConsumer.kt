@@ -19,6 +19,7 @@ import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.common.core.types.AssetCoordinates
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Semver
+import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.springframework.ai.tool.ToolCallback
@@ -136,8 +137,11 @@ private data class MinimalToolGroupMetadata(
     override val version: Semver,
 ) : ToolGroupMetadata {
 
-    override fun infoString(verbose: Boolean?): String {
-        return "role:$role, artifact:$name, version:$version, provider:$provider - $description"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return "role:$role, artifact:$name, version:$version, provider:$provider - $description".indent(indent)
     }
 }
 
@@ -174,7 +178,8 @@ interface ToolGroupConsumer {
  * Interface allowing abstraction between tool concept
  * and specific tools.
  */
-interface ToolConsumer : ToolCallbackConsumer, ToolGroupConsumer {
+interface ToolConsumer : ToolCallbackConsumer,
+    ToolGroupConsumer {
 
     val name: String
 
@@ -189,7 +194,7 @@ interface ToolConsumer : ToolCallbackConsumer, ToolGroupConsumer {
         // Factored into companion so Java can use it
         fun resolveToolCallbacks(
             toolConsumer: ToolConsumer,
-            toolGroupResolver: ToolGroupResolver
+            toolGroupResolver: ToolGroupResolver,
         ): List<ToolCallback> {
             val tools = mutableListOf<ToolCallback>()
             tools += toolConsumer.toolCallbacks
@@ -278,15 +283,18 @@ interface ToolGroup : ToolCallbackPublisher, HasInfoString {
         )
     }
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         if (toolCallbacks.isEmpty()) {
-            return metadata.infoString(verbose = true) + "\n\t\t❌ No tools found"
+            return metadata.infoString(verbose = true, indent = 1) + "\n❌ No tools found".indent(1)
         }
         return when (verbose) {
-            true -> metadata.infoString(verbose = true) + "\n\t\t" +
+            true -> metadata.infoString(verbose = true, indent = 1) + "\n" +
                     toolCallbacks
                         .sortedBy { it.toolDefinition.name() }
-                        .joinToString { it.toolDefinition.name() }
+                        .joinToString { it.toolDefinition.name() }.indent(1)
 
             else -> {
                 metadata.infoString(verbose = false)

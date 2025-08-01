@@ -43,11 +43,11 @@ import kotlin.test.assertTrue
 @AutoConfigureMockMvc(addFilters = false)
 @EnableAutoConfiguration
 class AgentProcessControllerIntegrationTest(
-    @Autowired
+    @param:Autowired
     private val mockMvc: MockMvc,
-    @Autowired
+    @param:Autowired
     private val objectMapper: ObjectMapper,
-    @Autowired
+    @param:Autowired
     private val agentPlatform: AgentPlatform,
 ) {
 

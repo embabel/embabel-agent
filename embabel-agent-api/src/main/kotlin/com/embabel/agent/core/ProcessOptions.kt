@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.core
 
+import java.util.function.Consumer
+
 /**
  * Controls log output.
  */
@@ -25,6 +27,76 @@ data class Verbosity(
     val showPlanning: Boolean = false,
 ) {
     val showLongPlans: Boolean get() = showPlanning || debug || showLlmResponses || showPrompts
+
+    companion object {
+
+        /**
+         * Obtain a new [Builder] to for [Verbosity].
+         *
+         * @return a builder through which you can set verbosity options
+         */
+        @JvmStatic
+        fun builder(): Builder {
+            return Builder()
+        }
+    }
+
+    /**
+     * Nested builder for [Verbosity] objects.
+     */
+    class Builder internal constructor() {
+
+        private var verbosity = Verbosity()
+
+        /**
+         * Show or hide the prompts sent to the agent.
+         * @param showPrompts whether to display prompts
+         * @return this [Builder]
+         */
+        fun showPrompts(showPrompts: Boolean): Builder {
+            this.verbosity = this.verbosity.copy(showPrompts = showPrompts)
+            return this
+        }
+
+        /**
+         * Show or hide the responses received from the LLM.
+         * @param showLlmResponses whether to display LLM responses
+         * @return this [Builder]
+         */
+        fun showLlmResponses(showLlmResponses: Boolean): Builder {
+            this.verbosity = this.verbosity.copy(showLlmResponses = showLlmResponses)
+            return this
+        }
+
+        /**
+         * Enable or disable debugging output.
+         * @param debug true to enable debugging, false otherwise
+         * @return this [Builder]
+         */
+        fun debug(debug: Boolean): Builder {
+            this.verbosity = this.verbosity.copy(debug = debug)
+            return this
+        }
+
+        /**
+         * Show or hide planning steps taken by the agent.
+         * @param showPlanning whether to display planning details
+         * @return this [Builder]
+         */
+        fun showPlanning(showPlanning: Boolean): Builder {
+            this.verbosity = this.verbosity.copy(showPlanning = showPlanning)
+            return this
+        }
+
+        /**
+         * Build the [Verbosity].
+         * @return a newly built [Verbosity]
+         */
+        fun build(): Verbosity {
+            return this.verbosity
+        }
+    }
+
 }
 
 enum class Delay {
@@ -82,7 +154,68 @@ data class Budget(
         const val DEFAULT_ACTION_LIMIT = 50
 
         const val DEFAULT_TOKEN_LIMIT = 1000000
+
+        /**
+         * Obtain a new [Builder] to for [Budget].
+         *
+         * @return a builder through which you can set budget options
+         */
+        @JvmStatic
+        fun builder(): Builder {
+            return Builder()
+        }
+
     }
+
+    /**
+     * Nested builder for [Budget] objects.
+     */
+    class Builder internal constructor() {
+
+        private var budget = Budget()
+
+        /**
+         * Sets the cost of running the process, in USD.
+         * @param cost the cost limit
+         * @return this [Builder]
+         */
+        fun cost(cost: Double): Builder {
+            this.budget = this.budget.copy(cost = cost)
+            return this
+        }
+
+        /**
+         * Set the maximum number of actions the agent can perform before termination.
+         * @param actions the action count limit
+         * @return this [Builder]
+         */
+        fun actions(actions: Int): Builder {
+            this.budget = this.budget.copy(actions = actions)
+            return this
+        }
+
+        /**
+         * Set a maximum the maximum number of tokens the agent can use before termination.
+         * This can be useful in the case of local models where the cost is not directly measurable,
+         * but we don't want excessive work.
+         * @param tokens the token count limit
+         * @return this [Builder]
+         */
+        fun tokens(tokens: Int): Builder {
+            this.budget = this.budget.copy(tokens = tokens)
+            return this
+        }
+
+        /**
+         * Build the [Budget].
+         * @return a newly built [Budget]
+         */
+        fun build(): Budget {
+            return this.budget
+        }
+
+    }
+
 }
 
 /**
@@ -97,6 +230,7 @@ data class Budget(
  * @param test whether to run in test mode. In test mode, the agent platform
  * will not use any external resources such as LLMs, and will not persist any state.
  * @param verbosity detailed verbosity settings for logging etc.
+ * @param prune whether to prune the agent to only relevant actions
  */
 data class ProcessOptions(
     val contextId: ContextId? = null,
@@ -110,11 +244,141 @@ data class ProcessOptions(
         operationDelay = Delay.NONE,
         earlyTerminationPolicy = budget.earlyTerminationPolicy(),
     ),
+    val prune: Boolean = false,
 ) {
 
     companion object {
 
         @JvmStatic
         val DEFAULT = ProcessOptions()
+
+        /**
+         * Obtain a new [Builder] to for [ProcessOptions].
+         *
+         * @return a builder through which you can set processing options
+         */
+        @JvmStatic
+        fun builder(): Builder {
+            return Builder()
+        }
+
     }
+
+    /**
+     * Nested builder for [ProcessOptions] objects.
+     */
+    class Builder internal constructor() {
+
+        private var processOptions = ProcessOptions.DEFAULT
+
+        /**
+         * Set the context identifier to use for the invocation. Can be null.
+         * If set it can enable connection to external resources and persistence
+         * from previous runs.
+         * @param contextId the context ID to associate with this invocation, or null
+         * @return this [Builder]
+         */
+        @JvmName("contextId")
+        fun contextId(contextId: ContextId?): Builder {
+            this.processOptions = processOptions.copy(contextId = contextId)
+            return this
+        }
+
+        /**
+         * An existing blackboard to use for this invocation.
+         * By default, it will be modified as the process runs.
+         * @param blackboard the existing blackboard to use
+         * @return this [Builder]
+         */
+        fun blackboard(blackboard: Blackboard): Builder {
+            this.processOptions = processOptions.copy(blackboard = blackboard)
+            return this
+        }
+
+        /**
+         * Enable or disable test mode for this invocation.
+         * In test mode, the agent platform will not use any external resources such as LLMs,
+         * and will not persist any state.
+         * @param test true to run in test mode, false otherwise
+         * @return this [Builder]
+         */
+        fun test(test: Boolean): Builder {
+            this.processOptions = processOptions.copy(test = test)
+            return this
+        }
+
+        /**
+         * Set a specific verbosity directly.
+         * @param verbosity the desired verbosity
+         * @return this [Builder]
+         */
+        fun verbosity(verbosity: Verbosity): Builder {
+            this.processOptions = processOptions.copy(verbosity = verbosity)
+            return this
+        }
+
+        /**
+         * Configure verbosity settings via a nested builder.
+         * @param consumer a function that takes a [Verbosity.Builder]
+         * @return this [Builder]
+         */
+        fun verbosity(consumer: Consumer<Verbosity.Builder>): Builder {
+            val verbosityBuilder = Verbosity.builder()
+            consumer.accept(verbosityBuilder)
+            this.processOptions = processOptions.copy(verbosity = verbosityBuilder.build())
+            return this
+        }
+
+        /**
+         * Allow or prevent automatic goal adjustments during execution.
+         * @param allowGoalChange true to permit the agent to change goals mid-execution
+         * @return this [Builder]
+         */
+        fun allowGoalChange(allowGoalChange: Boolean): Builder {
+            this.processOptions = processOptions.copy(allowGoalChange = allowGoalChange)
+            return this
+        }
+
+        /**
+         * Set budget constraints directly.
+         * @param budget the budget settings to apply
+         * @return this [Builder]
+         */
+        fun budget(budget: Budget): Builder {
+            this.processOptions = processOptions.copy(budget = budget)
+            return this
+        }
+
+        /**
+         * Configure budget constraints via a nested builder.
+         * @param consumer a function that takes a [Budget.Builder]
+         * @return this [Builder]
+         */
+        fun budget(consumer: Consumer<Budget.Builder>): Builder {
+            val budgetBuilder = Budget.builder()
+            consumer.accept(budgetBuilder)
+            this.processOptions = processOptions.copy(budget = budgetBuilder.build())
+            return this
+        }
+
+        /**
+         * Set process control settings directly.
+         * @param control the control policy settings
+         * @return this [Builder]
+         */
+        fun control(control: ProcessControl): Builder {
+            this.processOptions = processOptions.copy(control = control)
+            return this
+        }
+
+        /**
+         * Build the [ProcessOptions].
+         * @return a newly built [ProcessOptions]
+         */
+        fun build(): ProcessOptions {
+            return this.processOptions
+        }
+
+    }
+
 }

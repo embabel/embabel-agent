@@ -16,6 +16,8 @@
 package com.embabel.agent.core
 
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
 import com.embabel.plan.goap.ConditionDetermination
 import com.embabel.plan.goap.EffectSpec
 import com.embabel.plan.goap.GoapGoal
@@ -24,7 +26,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 /**
  * Agent platform goal. Exposes GOAP metadata.
  * @param name name of the goal
- * @param description description of the goal. This should be sufficiently detailed to enable goal choice by an LLM
+ * @param description description of the goal. This should be sufficiently detailed to enable goal choice by an LLM.
+ * The goal description may also be exposed to MCP clients as a hint for the goal's purpose,
+ * so ensure that it is clear and unambiguous.
  * @param pre preconditions for the goal, as a set of strings. These are the conditions that must be true before the goal can be achieved.
  * @param inputs inputs required for the goal, as a set of IoBinding objects. These are the inputs that must be provided to achieve the goal.
  * @param value value of the goal, as a ZeroToOne. This is the value of achieving the goal.
@@ -42,6 +46,7 @@ data class Goal(
     override val value: ZeroToOne = 0.0,
     val tags: Set<String> = emptySet(),
     val examples: Set<String> = emptySet(),
+    val export: Export = Export(),
 ) : GoapGoal, AgentSystemStep {
 
     // These methods are for Java, to obviate the builder antipattern
@@ -63,10 +68,23 @@ data class Goal(
             conditions
         }
 
-    override fun infoString(verbose: Boolean?): String {
-        val separator = if (verbose == true) "\n\t\t" else " - "
-        return "$description: $name${separator}pre=${preconditions} value=${value}"
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        if (verbose == true)
+            """|"$description" $name
+               |preconditions:
+               |${
+                preconditions.map { it.key to "${it.key}: ${it.value}" }.sortedBy { it.first }
+                    .joinToString("\n") { it.second.indent(1) }
+            }
+               |value: $value
+               |"""
+                .trimMargin()
+                .indentLines(indent)
+        else
+            "$description: $name - pre=${preconditions} value=${value}"
 
     companion object {
 
@@ -126,3 +144,21 @@ data class Goal(
     }
 
 }
+
+/**
+ * Metadata describing how a goal will be exported
+ * @param name custom name for the goal when exported.
+ * If null, the goal naming strategy will be used.
+ * @param remote whether the goal is exported to a remote system (e.g., MCP).
+ * @param local whether the goal is exported to a local system (e.g., agent platform for use in prompted actions)
+ * @param startingInputTypes input types that we can prompt the user from to get to this goal.
+ * Useful for MCP prompts. A Goal may not know all possible input types, but
+ * it is still useful to be able to specify some of them. Include UserInput.class if the
+ * goal can be achieved starting from text
+ */
+data class Export(
+    val name: String? = null,
+    val remote: Boolean = false,
+    val local: Boolean = true,
+    val startingInputTypes: Set<Class<*>> = emptySet(),
+)

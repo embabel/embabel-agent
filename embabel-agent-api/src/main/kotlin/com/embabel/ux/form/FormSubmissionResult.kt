@@ -17,6 +17,7 @@ package com.embabel.ux.form
 
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Timestamped
+import com.embabel.common.util.indent
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -40,8 +41,14 @@ data class FormSubmissionResult(
     val validationErrors: Map<String, String> = emptyMap(),
 ) : HasInfoString {
 
-    override fun infoString(verbose: Boolean?): String {
-        return if (verbose == true) toString() else "${javaClass.simpleName}(submissionId=${submission.submissionId}, valid=$valid, validationErrors=$validationErrors)"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return if (verbose == true)
+            toString().indent(indent)
+        else
+            "${javaClass.simpleName}(submissionId=${submission.submissionId}, valid=$valid, validationErrors=$validationErrors)"
     }
 }
 

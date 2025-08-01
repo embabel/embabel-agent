@@ -18,9 +18,11 @@ package com.embabel.agent.event.logging.personality.starwars
 import com.embabel.agent.event.*
 import com.embabel.agent.event.logging.LoggingAgenticEventListener
 import com.embabel.common.util.color
+import com.embabel.common.util.indentLines
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
+import kotlin.jvm.java
 
 /**
  * May the force be with you
@@ -79,20 +81,30 @@ class StarWarsLoggingAgenticEventListener : LoggingAgenticEventListener(
         "Chosen ${e.type.simpleName} I have with confidence ${e.choice.score} based on ${e.basis}"
 
     override fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        "You will find only what you bring in: Created agent instance ${e.agent.infoString()}"
+        """|You will find only what you bring in: Created agent instance:
+           |${e.agent.infoString(indent = 1)}
+           |"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     override fun getAgentProcessCreationEventMessage(e: AgentProcessCreationEvent): String =
         "Created a process I have: ${e.processId}"
 
     override fun getAgentProcessReadyToPlanEventMessage(e: AgentProcessReadyToPlanEvent): String =
-        "[${e.processId}] Difficult to see. Always in motion is the future: Ready to plan from ${
-            e.worldState.infoString(
-                verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans
-            )
-        }"
+        """|[${e.processId}] Difficult to see. Always in motion is the future: Ready to plan from:
+           |${e.worldState.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 1)}
+           |"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     override fun getAgentProcessPlanFormulatedEventMessage(e: AgentProcessPlanFormulatedEvent): String =
-        "[${e.processId}] Control, control, you must learn control! Formulated plan <${e.plan.infoString(verbose = e.agentProcess.processContext.processOptions.verbosity.showLongPlans)}> from ${e.worldState.infoString()}"
+        """|[${e.processId}] Control, control, you must learn control! Formulated plan:
+           |${e.plan.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 1)}
+           |from:
+           |${e.worldState.infoString(verbose = true, indent = 1)}
+           |"""
+            .trimMargin()
+            .indentLines(level = 1, skipIndentFirstLine = true)
 
     override fun getProcessCompletionMessage(e: AgentProcessFinishedEvent): String =
         "[${e.processId}]Feel the force: process completed in ${e.agentProcess.runningTime}"

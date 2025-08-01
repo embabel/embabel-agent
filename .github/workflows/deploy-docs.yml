@@ -97,14 +97,20 @@ jobs:
           gcloud compute scp --recurse target/generated-docs/images \
             ${{ github.event.inputs.vm_instance }}:~/images \
             --zone=${{ github.event.inputs.vm_zone }}
+
+          gcloud compute scp --recurse target/dokka-aggregate \
+            ${{ github.event.inputs.vm_instance }}:~/dokka \
+            --zone=${{ github.event.inputs.vm_zone }}          
           
           # Step 2: Move files with sudo via SSH
           gcloud compute ssh ${{ github.event.inputs.vm_instance }} \
             --zone=${{ github.event.inputs.vm_zone }} \
             --command="
               sudo mkdir -p /var/www/html/embabel-agent/guide &&
+              sudo mkdir -p /var/www/html/embabel-agent/api-docs &&
               sudo cp ~/index.html /var/www/html/embabel-agent/guide/ &&
-              sudo cp -r ~/images /var/www/html/embabel-agent/guide
+              sudo cp -r ~/images /var/www/html/embabel-agent/guide &&
+              sudo cp -r ~/dokka/*  /var/www/html/embabel-agent/api-docs
               "
 
       - name: Verify deployment

@@ -21,6 +21,7 @@ import com.embabel.agent.core.*
 import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.agent.rag.Ingester
+import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.chat.agent.shell.LastMessageIntentAgentPlatformChatSession
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.util.bold
@@ -28,7 +29,6 @@ import com.embabel.common.util.color
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.Logger
 import org.springframework.boot.SpringApplication
-import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.core.env.ConfigurableEnvironment
 import org.springframework.shell.standard.ShellComponent
@@ -36,7 +36,6 @@ import org.springframework.shell.standard.ShellMethod
 import org.springframework.shell.standard.ShellOption
 import java.util.concurrent.CompletableFuture
 import kotlin.system.exitProcess
-import com.embabel.agent.shell.config.ShellProperties
 
 /**
  * Shell configuration for the shell module (duplicate of API's ShellConfig for independence)
@@ -150,7 +149,9 @@ class ShellCommands(
     fun agents(): String {
         return "${"Agents:".bold()}\n${
             agentPlatform.agents()
-                .joinToString(separator = "\n${"-".repeat(shellProperties.lineLength)}\n") { "\t" + it.infoString(verbose = true) }
+                .joinToString(separator = "\n${"-".repeat(shellProperties.lineLength)}\n") {
+                    it.infoString(verbose = true, indent = 1)
+                }
         }"
     }
 
@@ -158,7 +159,7 @@ class ShellCommands(
     fun actions(): String {
         return "${"Actions:".bold()}\n${
             agentPlatform.actions
-                .joinToString(separator = "\n") { "\t" + it.infoString(verbose = true) }
+                .joinToString(separator = "\n") { it.infoString(verbose = true, indent = 1) }
         }"
     }
 
@@ -166,7 +167,7 @@ class ShellCommands(
     fun conditions(): String {
         return "${"Conditions:".bold()}\n${
             agentPlatform.conditions
-                .joinToString(separator = "\n") { "\t" + it.infoString(verbose = true) }
+                .joinToString(separator = "\n") { it.infoString(verbose = true, indent = 1) }
         }"
     }
 
@@ -174,7 +175,7 @@ class ShellCommands(
     fun goals(): String {
         return "${"Goals:".bold()}\n${
             agentPlatform.goals
-                .joinToString(separator = "\n") { "\t" + it.infoString(verbose = true) }
+                .joinToString(separator = "\n") { it.infoString(verbose = true, indent = 1) }
         }"
     }
 
@@ -200,11 +201,7 @@ class ShellCommands(
     }
 
     @ShellMethod("Information about the AgentPlatform")
-    fun platform(): String {
-        return """
-            AgentPlatform: ${agentPlatform.name}
-        """.trimIndent()
-    }
+    fun platform(): String = "AgentPlatform: ${agentPlatform.name}"
 
 
     @ShellMethod(
@@ -486,7 +483,7 @@ class ShellCommands(
             }
             pwe.awaitable.onResponse(
                 response = awaitableResponse,
-                processContext = pwe.agentProcess!!.processContext
+                agentProcess = pwe.agentProcess!!,
             )
             return runProcess(verbosity, basis) {
                 AgentProcessExecution.fromProcessStatus(

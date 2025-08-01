@@ -39,7 +39,7 @@ data class OpenAiProperties(
 /**
  * Well-known OpenAI models.
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @Profile("!test")
 @ConditionalOnProperty("OPENAI_API_KEY")
 class OpenAiModels(
@@ -53,7 +53,13 @@ class OpenAiModels(
     embeddingsPath: String?,
     observationRegistry: ObservationRegistry,
     private val properties: OpenAiProperties,
-) : OpenAiCompatibleModelFactory(baseUrl = baseUrl, apiKey = apiKey, completionsPath = completionsPath, embeddingsPath = embeddingsPath, observationRegistry = observationRegistry) {
+) : OpenAiCompatibleModelFactory(
+    baseUrl = baseUrl,
+    apiKey = apiKey,
+    completionsPath = completionsPath,
+    embeddingsPath = embeddingsPath,
+    observationRegistry = observationRegistry
+) {
 
     init {
         logger.info("Open AI models are available: {}", properties)

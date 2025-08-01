@@ -13,28 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.ux.form;
+package com.embabel.agent.mcpserver
 
-public class JavaPersonBean {
+import com.embabel.common.core.types.HasInfoString
+import io.modelcontextprotocol.server.McpServerFeatures
 
-    String name;
+interface McpPromptPublisher : HasInfoString {
 
-    int age;
+    fun prompts(): List<McpServerFeatures.SyncPromptSpecification>
 
-
-    public String getName() {
-        return name;
-    }
-
-    public int getAge() {
-        return age;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public void setAge(int age) {
-        this.age = age;
-    }
 }

@@ -16,7 +16,6 @@
 package com.embabel.ux.form
 
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -29,36 +28,36 @@ data class TypeTestUser(
     // Now form field on this one
     val stringValue: String,
 
-    @FormField("int-id")
+    @property:FormField("int-id")
     val intValue: Int,
 
-    @FormField("long-id")
+    @property:FormField("long-id")
     val longValue: Long,
 
-    @FormField("double-id")
+    @property:FormField("double-id")
     val doubleValue: Double,
 
-    @FormField("float-id")
+    @property:FormField("float-id")
     val floatValue: Float,
 
-    @FormField("boolean-id")
+    @property:FormField("boolean-id")
     val booleanValue: Boolean,
 
-    @FormField("date-id")
+    @property:FormField("date-id")
     val dateValue: LocalDate,
 
-    @FormField("time-id")
+    @property:FormField("time-id")
     val timeValue: LocalTime
 )
 
 data class OptionalFieldsUser(
-    @FormField("name-id")
+    @property:FormField("name-id")
     val name: String,
 
-    @FormField("age-id")
+    @property:FormField("age-id")
     val age: Int?,
 
-    @FormField("email-id")
+    @property:FormField("email-id")
     val email: String?
 )
 
@@ -66,55 +65,55 @@ class FormBinderTest {
 
     // Test data classes
     data class SimpleUser(
-        @FormField("name-id")
+        @property:FormField("name-id")
         val name: String,
 
-        @FormField("age-id")
+        @property:FormField("age-id")
         val age: Int
     )
 
     data class UserWithOptional(
-        @FormField("name-id")
+        @property:FormField("name-id")
         val name: String,
 
-        @FormField("age-id")
+        @property:FormField("age-id")
         val age: Int,
 
-        @FormField("bio-id")
+        @property:FormField("bio-id")
         val bio: String? = null
     )
 
     data class ComplexUser(
-        @FormField("name-id")
+        @property:FormField("name-id")
         val name: String,
 
-        @FormField("email-id")
+        @property:FormField("email-id")
         val email: String,
 
-        @FormField("age-id")
+        @property:FormField("age-id")
         val age: Int,
 
-        @FormField("birth-date-id")
+        @property:FormField("birth-date-id")
         val birthDate: LocalDate,
 
-        @FormField("wake-time-id")
+        @property:FormField("wake-time-id")
         val wakeTime: LocalTime,
 
-        @FormField("active-id")
+        @property:FormField("active-id")
         val isActive: Boolean,
 
-        @FormField("country-id")
+        @property:FormField("country-id")
         val country: String,
 
-        @FormField("hobbies-id")
+        @property:FormField("hobbies-id")
         val hobbies: List<String>
     )
 
     data class UnmappedFieldUser(
-        @FormField("name-id")
+        @property:FormField("name-id")
         val name: String,
 
-        @NoFormField
+        @property:NoFormField
         val unmappedField: String // No annotation
     )
 
@@ -177,13 +176,8 @@ class FormBinderTest {
         @Test
         @DisplayName("Should bind a simple form submission to a data class")
         fun bindSimpleFormSubmission() {
-            // Given
             val submission = createSimpleSubmission()
-
-            // When
             val user: SimpleUser = submission.bindTo()
-
-            // Then
             assertEquals("John Doe", user.name)
             assertEquals(30, user.age)
         }
@@ -271,44 +265,42 @@ class FormBinderTest {
 
     @Nested
     @DisplayName("Java Binding Tests")
-    @Disabled("Disabled until Java binding is implemented in FormBinder")
     inner class JavaBindingTests {
 
         @Test
         fun `bind record`() {
-            // Given
-            val submission = createSimpleSubmission()
-
-            // When
+            val submission = FormSubmissionResult(
+                submission = FormSubmission(
+                    formId = "test-form",
+                    values = mapOf(
+                        "name" to "John Doe",
+                        "age" to 30
+                    )
+                ),
+                values = mapOf(
+                    "name" to ControlValue.TextValue("John Doe"),
+                    "age" to ControlValue.NumberValue(30.0)
+                ),
+                valid = true,
+                validationErrors = emptyMap()
+            )
             val user: JavaPersonRecord = submission.bindTo()
-
-            // Then
             assertEquals("John Doe", user.name)
             assertEquals(30, user.age)
         }
 
         @Test
-        fun `bind bean`() {
-            // Given
+        fun `bind record with control id`() {
             val submission = createSimpleSubmission()
-
-            // When
-            val user: JavaPersonBean = submission.bindTo()
-
-            // Then
+            val user: JavaPersonRecordWithControlId = submission.bindTo()
             assertEquals("John Doe", user.name)
             assertEquals(30, user.age)
         }
 
         @Test
         fun `bind immutable class`() {
-            // Given
             val submission = createSimpleSubmission()
-
-            // When
             val user: JavaPersonImmutable = submission.bindTo()
-
-            // Then
             assertEquals("John Doe", user.getName())
             assertEquals(30, user.getAge())
         }

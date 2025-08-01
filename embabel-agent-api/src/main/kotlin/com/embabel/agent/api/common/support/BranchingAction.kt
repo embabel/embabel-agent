@@ -115,4 +115,7 @@ open class BranchingAction<I, O1, O2>(
             fields
         }
     }
+
+    override fun toString(): String =
+        "${javaClass.simpleName}: name=$name, left=${leftOutputClass.simpleName}, right=${rightOutputClass.simpleName}"
 }

@@ -102,7 +102,7 @@ The standard repository for all knowledge and wisdom in the universe
         "${highlight("IMPROBABILITY")}: Failed to choose ${e.type.simpleName} based on ${e.basis}. Choices: ${e.rankings.infoString()}. Confidence cutoff: ${e.confidenceCutOff}"
 
     override fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        "${highlight("GUIDE ENTRY")}: Created agent ${e.agent.infoString()}"
+        "${highlight("GUIDE ENTRY")}: Created agent ${e.agent.infoString(indent = 1)}"
 
     override fun getAgentProcessCreationEventMessage(e: AgentProcessCreationEvent): String =
         guide(

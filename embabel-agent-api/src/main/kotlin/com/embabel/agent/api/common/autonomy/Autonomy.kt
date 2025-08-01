@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common.autonomy
 
+import com.embabel.agent.api.common.support.destructureAndBindIfNecessary
 import com.embabel.agent.common.Constants
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
@@ -25,6 +26,7 @@ import com.embabel.agent.spi.Rankings
 import com.embabel.agent.testing.integration.FakeRanker
 import com.embabel.agent.testing.integration.RandomRanker
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
 import com.embabel.plan.goap.AStarGoapPlanner
 import com.embabel.plan.goap.ConditionDetermination
@@ -58,6 +60,8 @@ class Autonomy(
     val properties: AutonomyProperties,
 ) {
 
+    private val logger = loggerFor<Autonomy>()
+
     private val eventListener = agentPlatform.platformServices.eventListener
 
     /**
@@ -80,7 +84,7 @@ class Autonomy(
         additionalBindings: Map<String, Any> = emptyMap(),
     ): AgentProcessExecution {
         val userInput = UserInput(intent)
-        val goalRun = createGoalSeeker(
+        val goalSeeker = createGoalSeeker(
             userInput = userInput,
             processOptions = processOptions,
             goalChoiceApprover = goalChoiceApprover,
@@ -89,7 +93,7 @@ class Autonomy(
         )
         val agentProcess = agentPlatform.createAgentProcess(
             processOptions = processOptions,
-            agent = goalRun.agent,
+            agent = goalSeeker.agent,
             bindings = mapOf(
                 IoBinding.DEFAULT_BINDING to userInput
             ) + additionalBindings
@@ -158,7 +162,7 @@ class Autonomy(
             throw NoAgentFound(agentRankings = agentRankings, basis = userInput)
         }
 
-        loggerFor<AgentPlatform>().debug(
+        logger.debug(
             "Agent choice {} with confidence {} for user intent {}: Choices were {}",
             agentChoice.match.name,
             agentChoice.score,
@@ -184,19 +188,22 @@ class Autonomy(
     }
 
     fun runAgent(
-        userInput: UserInput,
+        inputObject: Any,
         processOptions: ProcessOptions,
-        agent: Agent
+        agent: Agent,
     ): AgentProcessExecution {
-        val agentProcess = agentPlatform.runAgentFrom(
+        val agentProcess = agentPlatform.createAgentProcess(
             processOptions = processOptions,
             agent = agent,
             bindings = mapOf(
-                IoBinding.DEFAULT_BINDING to userInput
+                IoBinding.DEFAULT_BINDING to inputObject
             )
         )
+        // We treat the inputObject specially, and destructure it if it's a SomeOf composite
+        destructureAndBindIfNecessary(inputObject, "input", agentProcess, logger)
+        agentProcess.run()
         return AgentProcessExecution.fromProcessStatus(
-            basis = userInput,
+            basis = inputObject,
             agentProcess = agentProcess,
         )
     }
@@ -264,7 +271,7 @@ class Autonomy(
             throw NoGoalFound(goalRankings = goalRankings, basis = userInput)
         }
 
-        loggerFor<AgentPlatform>().debug(
+        logger.debug(
             "Goal choice {} with confidence {} for user intent {}: Choices were {}",
             goalChoice.match.name,
             goalChoice.score,
@@ -298,7 +305,12 @@ class Autonomy(
             throw goalNotApproved
         }
 
-        val goalAgent = createGoalAgent(userInput = userInput, agentScope = agentScope, goal = goalChoice.match)
+        val goalAgent = createGoalAgent(
+            inputObject = userInput,
+            agentScope = agentScope,
+            goal = goalChoice.match,
+            prune = processOptions.prune,
+        )
         if (emitEvents) eventListener.onPlatformEvent(
             DynamicAgentCreationEvent(
                 agent = goalAgent,
@@ -309,25 +321,39 @@ class Autonomy(
         return GoalSeeker(agent = goalAgent, rankings = goalRankings)
     }
 
+    /**
+     * Create an agent to accomplish this goal from the given user input
+     * @param inputObject any input object
+     * @param agentScope scope to look for the agent
+     * @param goal the goal to accomplish
+     * @param prune whether to prune the agent to only relevant actions
+     */
     fun createGoalAgent(
-        userInput: UserInput,
+        inputObject: Any,
         agentScope: AgentScope,
-        goal: Goal
+        goal: Goal,
+        prune: Boolean,
     ): Agent {
-        return agentScope.createAgent(
+        val agent = agentScope.createAgent(
             name = "goal-${goal.name}",
             provider = Constants.EMBABEL_PROVIDER,
             description = goal.description,
         )
             .withSingleGoal(goal)
-            .prune(userInput)
+
+        return if (prune && inputObject is UserInput) {
+            // TODO generalize this to any input type
+            agent.prune(inputObject)
+        } else {
+            agent
+        }
     }
 
     /**
      * Agent with only relevant actions
      */
     private fun Agent.prune(userInput: UserInput): Agent {
-        loggerFor<Autonomy>().debug(
+        logger.debug(
             "Raw agent: {}",
             infoString(),
         )
@@ -335,18 +361,25 @@ class Autonomy(
         for (condition in this.planningSystem.knownConditions()) {
             map[condition] = ConditionDetermination.FALSE
         }
-        loggerFor<Autonomy>().info("Pruning agent instance from {}", map)
+        logger.info(
+            "Pruning agent instance from:\n{}",
+            map.map { it.key to "${it.key}: ${it.value}".indent(1) }
+                .sortedBy { it.first }
+                .joinToString("\n") { it.second }
+        )
         map += ("it:${userInput::class.qualifiedName}" to ConditionDetermination.TRUE)
 
         val planner = AStarGoapPlanner(
-            WorldStateDeterminer.fromMap(
-                map
-            ),
+            WorldStateDeterminer.fromMap(map),
         )
+
         val pruned = planner.prune(planningSystem)
-        loggerFor<Autonomy>().info(
-            "Pruned planning system: {}",
-            pruned.infoString(),
+        val prunedActions = planningSystem.actions.subtract(pruned.actions)
+        logger.info(
+            "Pruned planning system removed {} actions:\n{} \nPruned:\n{}",
+            prunedActions.size,
+            prunedActions.toList().sortedBy { it.name }.joinToString("\n") { it.name.indent(1) },
+            pruned.infoString(true, 1),
         )
         return pruneTo(pruned)
     }

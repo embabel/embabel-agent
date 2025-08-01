@@ -57,7 +57,14 @@ class ConsensusRagService(
     override val description: String
         get() = "Consensus of [${ragServices.joinToString(",") { it.description }}]"
 
-    override fun infoString(verbose: Boolean?): String =
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
         if (ragServices.isEmpty()) "No RAG services" else
-            "Consensus of ${ragServices.joinToString(",") { it.infoString(verbose = verbose) }}"
+            "Consensus of ${
+                ragServices.joinToString(",") {
+                    it.infoString(verbose = verbose, indent = 1)
+                }
+            }"
 }

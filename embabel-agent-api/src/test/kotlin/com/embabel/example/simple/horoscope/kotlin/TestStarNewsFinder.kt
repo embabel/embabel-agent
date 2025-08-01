@@ -81,9 +81,9 @@ data class Writeup(
 )
 class TestStarNewsFinder(
     private val horoscopeService: TestHoroscopeService,
-    @Value("\${star-news-finder.story.count:5}")
+    @param:Value("\${star-news-finder.story.count:5}")
     private val storyCount: Int,
-    @Value("\${star-news-finder.word.count:100}")
+    @param:Value("\${star-news-finder.word.count:100}")
     private val wordCount: Int,
 ) {
 

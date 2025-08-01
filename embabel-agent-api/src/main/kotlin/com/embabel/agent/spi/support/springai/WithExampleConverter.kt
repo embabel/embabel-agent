@@ -94,23 +94,23 @@ class WithExampleConverter<T>(
             // - success: wraps the dummy example
             // - failure: wraps a fixed failure message
             """|
-        |Examples:
-        |   success:
-        |   ${objectMapper.writeValueAsString(MaybeReturn(success = example))}
-        |
-        |   failure:
-        |   ${objectMapper.writeValueAsString(MaybeReturn<T>(failure = "Insufficient context to create this structure"))}
-        |
-        |${delegate.format}
-        """.trimMargin()
+               |Examples:
+               |   success:
+               |   ${objectMapper.writeValueAsString(MaybeReturn(success = example))}
+               |
+               |   failure:
+               |   ${objectMapper.writeValueAsString(MaybeReturn<T>(failure = "Insufficient context to create this structure"))}
+               |
+               |${delegate.format}
+               |""".trimMargin()
         } else {
             // Otherwise, just show a single example output (not wrapped in MaybeReturn)
             """|
-        |Example:
-        |${objectMapper.writeValueAsString(example)}
-        |
-        |${delegate.format}
-        """.trimMargin()
+               |Example:
+               |${objectMapper.writeValueAsString(example)}
+               |
+               |${delegate.format}
+               |""".trimMargin()
         }
     }
 }

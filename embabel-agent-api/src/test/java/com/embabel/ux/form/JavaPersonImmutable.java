@@ -30,7 +30,7 @@ public class JavaPersonImmutable {
         return age;
     }
 
-    public JavaPersonImmutable(String name, int age) {
+    public JavaPersonImmutable(@FormField(controlId = "name-id") String name, @FormField(controlId = "age-id") int age) {
         this.name = name;
         this.age = age;
     }

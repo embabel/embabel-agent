@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.annotation.support
 
+import com.embabel.agent.api.annotation.AwaitableResponseException
 import com.embabel.agent.api.annotation.RequireNameMatch
 import com.embabel.agent.api.common.CreateObjectPromptException
 import com.embabel.agent.api.common.OperationContext
@@ -40,7 +41,7 @@ import kotlin.reflect.jvm.kotlinFunction
  */
 @Component
 internal class DefaultActionMethodManager(
-    val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator()
+    val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
 ) : ActionMethodManager {
 
     private val logger = LoggerFactory.getLogger(DefaultActionMethodManager::class.java)
@@ -133,10 +134,9 @@ internal class DefaultActionMethodManager(
                     if (lastArg == null) {
                         val kParam = kFunction?.parameters?.firstOrNull { kfp -> kfp.name == parameter.name }
                         val isNullable =
-                            kParam?.isOptional ?: kParam?.type?.isMarkedNullable
-                            ?: false
-                        if (isNullable) {
-                            error("Action ${actionContext.action.name}: No value found in blackboard for parameter ${parameter.name}:${parameter.type.name}")
+                            (kParam?.isOptional == true) || (kParam?.type?.isMarkedNullable == true)
+                        if (!isNullable) {
+                            error("Action ${actionContext.action.name}: Internal error. No value found in blackboard for non-nullable parameter ${parameter.name}:${parameter.type.name}")
                         }
                     }
                     args += lastArg
@@ -174,6 +174,15 @@ internal class DefaultActionMethodManager(
                     outputClass = actionContext.outputClass as Class<Any>,
                 )
             }
+        } catch (awe: AwaitableResponseException) {
+            // This is not a failure, but will drive transition to a wait state
+            logger.info(
+                "Action method {}.{} entering wait state: {}",
+                instance.javaClass.name,
+                method.name,
+                awe.message,
+            )
+            throw awe
         } catch (t: Throwable) {
             logger.warn(
                 "Error invoking action method {}.{}: {}",

@@ -55,6 +55,10 @@ object SimpleRagResponseFormatter : RagResponseFormatter {
                     is Fact -> {
                         "${result.score}: fact - ${match.assertion}"
                     }
+
+                    else -> {
+                        "${result.score}: ${result.match.javaClass.simpleName} - ${match.infoString(verbose = true)}"
+                    }
                 }
             }
         }

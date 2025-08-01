@@ -11,11 +11,29 @@
     <packaging>jar</packaging>
     <name>Embabel Agent Autoconfiguration</name>
     <description>Spring Boot Auto-Configurations for Embabel Agent API</description>
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+    </properties>
 
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-api</artifactId>
+        </dependency>
+
+
+        <!--  overriding optional parameter for bedrock -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-bedrock</artifactId>
+            <optional>false</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-bedrock-converse</artifactId>
+            <optional>false</optional>
         </dependency>
 
         <!-- Move this one to a dedicted starter once ready-->

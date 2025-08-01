@@ -68,3 +68,7 @@ logging:
     com.embabel.agent.spi.support.LlmRanker: INFO
     com.embabel.agent.spi.support.com.embabel.agent.spi.support.springai.ChatClientLlmOperations: INFO
 
+    # Suppress AWS Bedrock warnings until Autoconfiguration Issue is resolved.
+    org.springframework.ai.bedrock: ERROR
+    software.amazon.awssdk: ERROR
+

@@ -109,6 +109,60 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.jetbrains.dokka</groupId>
+                <artifactId>dokka-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>aggregate-docs</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>dokka</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Collect source from all sibling modules -->
+                            <sourceDirectories>
+                                <dir>${project.parent.basedir}/embabel-agent-api/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-api/src/main/java</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-a2a/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-autoconfigure/src/main/java</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-eval/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-rag/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-shell/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-ux/src/main/kotlin</dir>
+                            </sourceDirectories>
+                            <samples>
+                                <dir>${project.parent.basedir}/embabel-agent-api/src/test/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-test/src/test/kotlin</dir>
+                            </samples>
+                            <!-- Platform settings -->
+                            <platform>jvm</platform>
+                            <includeNonPublic>false</includeNonPublic>
+                            <reportUndocumented>true</reportUndocumented>
+                            <skipEmptyPackages>true</skipEmptyPackages>
+                            <jdkVersion>${java.version}</jdkVersion>
+                            <languageVersion>${kotlin.compiler.apiVersion}</languageVersion>
+                            <apiVersion>${kotlin.compiler.apiVersion}</apiVersion>
+                            <noStdlibLink>false</noStdlibLink>
+                            <noJdkLink>false</noJdkLink>
+                            <suppressObviousFunctions>true</suppressObviousFunctions>
+                            <outputDir>${project.build.directory}/dokka-aggregate</outputDir>
+                            <moduleName>Embabel Agent Documentation</moduleName>
+                            <externalDocumentationLinks>
+                                <link>
+                                    <url>https://docs.spring.io/spring-framework/docs/current/javadoc-api/</url>
+                                </link>
+                                <link>
+                                    <url>https://docs.spring.io/spring-boot/docs/current/api/</url>
+                                </link>
+                                <link>
+                                    <url>https://docs.spring.io/spring-ai/docs/current/api/</url>
+                                </link>
+                            </externalDocumentationLinks>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 

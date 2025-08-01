@@ -21,6 +21,7 @@ import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.ComputerSaysNoSerializer
+import com.embabel.common.util.indentLines
 import com.embabel.plan.goap.GoapPlanningSystem
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.slf4j.LoggerFactory
@@ -48,7 +49,7 @@ data class Agent(
     override val actions: List<Action>,
     override val goals: Set<Goal>,
     val stuckHandler: StuckHandler? = null,
-    override val schemaTypes: Collection<SchemaType> = inferDataTypes(
+    override val schemaTypes: Collection<SchemaType> = mergeSchemaTypes(
         agentName = name,
         defaultDataTypes = emptyList(),
         actions = actions,
@@ -100,19 +101,30 @@ data class Agent(
             return GoapPlanningSystem(actions, goals)
         }
 
-    override fun infoString(verbose: Boolean?): String {
-        return "description: ${description}\n\tprovider: $provider\n\tversion: $version\n\tname: " + super.infoString(
-            verbose
-        )
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        """|description: $description
+           |provider: $provider
+           |version: $version
+           |${super.infoString(verbose, indent)}
+           |"""
+            .trimMargin()
+            .indentLines(indent)
 
-    private companion object {
+    companion object {
+
         private val logger = LoggerFactory.getLogger(Agent::class.java)
 
-        fun inferDataTypes(
+        /**
+         * Merge the default data types with the schema types from actions.
+         * Combines the properties of schema types
+         */
+        fun mergeSchemaTypes(
             agentName: String,
             defaultDataTypes: List<SchemaType>,
-            actions: List<Action>
+            actions: List<Action>,
         ): List<SchemaType> {
             // Merge properties from multiple type references
             for (action in actions) {
@@ -168,7 +180,7 @@ data class AgentMetadata(
     override val description: String,
     val goals: Set<Goal>,
     val actions: List<ActionMetadata>,
-    val conditions: Set<String>
+    val conditions: Set<String>,
 ) : Named, Described, AssetCoordinates {
 
     /**

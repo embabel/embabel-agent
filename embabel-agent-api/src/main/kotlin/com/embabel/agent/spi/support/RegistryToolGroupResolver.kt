@@ -37,9 +37,7 @@ class RegistryToolGroupResolver(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     init {
-        logger.info(
-            infoString(verbose = true)
-        )
+        logger.info(infoString(verbose = true))
     }
 
     override fun availableToolGroups(): List<ToolGroupMetadata> = toolGroups.map { it.metadata }
@@ -76,12 +74,18 @@ class RegistryToolGroupResolver(
         return "RegistryToolGroupResolver(name='$name', ${toolGroups.size} toolGroups: ${toolGroups.joinToString(", ") { it.metadata.role }})"
     }
 
-    override fun infoString(verbose: Boolean?): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         if (verbose == false) {
             return "RegistryToolGroupResolver(name='$name', ${toolGroups.size} tool groups)"
         }
         return "RegistryToolGroupResolver: name='$name', ${toolGroups.size} available tool groups:\n\t${
-            toolGroups.sortedBy { it.metadata.role }.joinToString("\n\t") { it.infoString(verbose = true) }
+            toolGroups.sortedBy { it.metadata.role }
+                .joinToString("\n") {
+                    it.infoString(verbose = true, indent = 1)
+                }
         }"
     }
 }

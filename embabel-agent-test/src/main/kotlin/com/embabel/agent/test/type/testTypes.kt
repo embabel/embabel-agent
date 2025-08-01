@@ -17,10 +17,10 @@ package com.embabel.agent.test.annotation.support
 
 import com.embabel.agent.api.annotation.*
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.dsl.*
+import com.embabel.agent.api.dsl.chain
+import com.embabel.agent.api.dsl.runAgent
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.domain.Frog
@@ -28,7 +28,6 @@ import com.embabel.agent.test.dsl.SnakeMeal
 import com.embabel.agent.test.dsl.evenMoreEvilWizard
 import com.embabel.common.ai.model.LlmOptions
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.springframework.ai.tool.annotation.Tool
 
 data class PersonWithReverseTool(val name: String) {

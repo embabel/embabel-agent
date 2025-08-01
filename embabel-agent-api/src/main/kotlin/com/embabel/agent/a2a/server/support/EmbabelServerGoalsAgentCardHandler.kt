@@ -20,9 +20,7 @@ import com.embabel.agent.a2a.server.AgentCardHandler
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Goal
 import com.embabel.common.core.types.Semver
-import io.a2a.spec.AgentCapabilities
-import io.a2a.spec.AgentCard
-import io.a2a.spec.AgentProvider
+import com.embabel.common.util.indent
 import org.slf4j.LoggerFactory
 
 typealias GoalFilter = (Goal) -> Boolean
@@ -77,7 +75,8 @@ class EmbabelServerGoalsAgentCardHandler(
         return agentCard
     }
 
-    override fun infoString(verbose: Boolean?): String {
-        return "${javaClass.simpleName}(path='$path', agentPlatform=${agentPlatform.name})"
-    }
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String = "${javaClass.simpleName}(path='$path', agentPlatform=${agentPlatform.name})".indent(indent)
 }

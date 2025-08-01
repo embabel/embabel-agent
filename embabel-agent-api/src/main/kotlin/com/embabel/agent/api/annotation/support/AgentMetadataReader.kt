@@ -22,9 +22,11 @@ import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.AgentScope
 import com.embabel.agent.core.ComputedBooleanCondition
+import com.embabel.agent.core.Export
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.validation.AgentStructureValidator
 import com.embabel.agent.validation.AgentValidationManager
 import com.embabel.agent.validation.DefaultAgentValidationManager
 import com.embabel.agent.validation.GoapPathToCompletionValidator
@@ -34,6 +36,7 @@ import com.embabel.common.util.NameUtils
 import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
+import org.springframework.context.support.StaticApplicationContext
 import org.springframework.stereotype.Service
 import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
@@ -82,13 +85,25 @@ data class AgenticInfo(
 class AgentMetadataReader(
     private val actionMethodManager: ActionMethodManager = DefaultActionMethodManager(),
     private val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
+    private val agentStructureValidator: AgentStructureValidator,
+    private val goapPathToCompletionValidator: GoapPathToCompletionValidator
+) {
+    // test-friendly constructor
+    constructor() : this(
+        DefaultActionMethodManager(),
+        MethodDefinedOperationNameGenerator(),
+        AgentStructureValidator(StaticApplicationContext()),
+        GoapPathToCompletionValidator()
+    )
+
+    private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
+
     private val agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
         listOf(
-            GoapPathToCompletionValidator()
+            agentStructureValidator,
+            goapPathToCompletionValidator
         )
     )
-) {
-    private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
 
     fun createAgentScopes(vararg instances: Any): List<AgentScope> =
         instances.mapNotNull { createAgentMetadata(it) }
@@ -365,10 +380,7 @@ class AgentMetadataReader(
         instance: Any,
     ): AgentCoreGoal? {
         val actionAnnotation = method.getAnnotation(Action::class.java)
-        val goalAnnotation = method.getAnnotation(AchievesGoal::class.java)
-        if (goalAnnotation == null) {
-            return null
-        }
+        val goalAnnotation = method.getAnnotation(AchievesGoal::class.java) ?: return null
         val inputBinding = IoBinding(
             name = actionAnnotation.outputBinding,
             type = method.returnType.name,
@@ -380,6 +392,12 @@ class AgentMetadataReader(
             value = goalAnnotation.value,
             // Add precondition of the action having run
             pre = setOf(Rerun.hasRunCondition(action)) + action.preconditions.keys.toSet(),
+            export = Export(
+                local = goalAnnotation.export.local,
+                remote = goalAnnotation.export.remote,
+                name = goalAnnotation.export.name.ifBlank { null },
+                startingInputTypes = goalAnnotation.export.startingInputTypes.map { it.java }.toSet(),
+            )
         )
     }
 }

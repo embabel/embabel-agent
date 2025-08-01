@@ -90,6 +90,9 @@ open class TransformationAction<I, O>(
             fields
         }
     }
+
+    override fun toString() =
+        "${javaClass.simpleName}: name=$name"
 }
 
 /**

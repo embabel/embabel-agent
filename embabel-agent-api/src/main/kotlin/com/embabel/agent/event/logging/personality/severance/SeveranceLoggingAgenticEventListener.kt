@@ -19,7 +19,6 @@ import com.embabel.agent.core.EarlyTermination
 import com.embabel.agent.event.*
 import com.embabel.agent.event.logging.LoggingAgenticEventListener
 import com.embabel.agent.event.logging.LoggingPersonality.Companion.BANNER_WIDTH
-import com.embabel.agent.event.logging.personality.severance.kier
 import com.embabel.common.util.color
 import com.embabel.common.util.hexToRgb
 import org.slf4j.LoggerFactory
@@ -117,7 +116,7 @@ class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(
         "${highlight("WOE")}: Failed to choose ${e.type.simpleName} based on ${e.basis}. Choices: ${e.rankings.infoString()}. Confidence cutoff: ${e.confidenceCutOff}"
 
     override fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        "${highlight("WILES")}: Created agent ${e.agent.infoString()}"
+        "${highlight("WILES")}: Created agent ${e.agent.infoString(indent = 1)}"
 
     override fun getAgentProcessCreationEventMessage(e: AgentProcessCreationEvent): String =
         kier(
@@ -166,7 +165,7 @@ class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(
         "[${e.processId}] ${highlight("VISION")}: (${e.request.action?.shortName()}) tool ${e.request.tool} returned $resultToShow in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
 
     override fun getToolCallFailureResponseEventMessage(e: ToolCallResponseEvent, throwable: Throwable?): String =
-        "[${e.processId}] ${highlight("WOE")}: (${e.request.action?.shortName()}) tool ${e.request.tool} failed ${throwable} in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
+        "[${e.processId}] ${highlight("WOE")}: (${e.request.action?.shortName()}) tool ${e.request.tool} failed $throwable in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
 
     override fun getLlmRequestEventMessage(e: LlmRequestEvent<*>): String =
         "[${e.processId}] \uD83D\uDDA5\uFE0F MACRODATA REFINEMENT: requesting LLM ${e.llm.name} to transform ${e.interaction.id.value} from ${e.outputClass.simpleName} -> ${e.interaction.llm} using ${e.interaction.toolCallbacks.joinToString { it.toolDefinition.name() }}"

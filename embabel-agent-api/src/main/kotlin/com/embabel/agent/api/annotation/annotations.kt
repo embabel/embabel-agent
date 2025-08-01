@@ -143,25 +143,6 @@ annotation class Action(
     val toolGroupRequirements: Array<ToolGroup> = [],
 )
 
-/**
- * Annotation that can be added to an @Action method
- * to indicate that its execution achieves a goal
- * @param description description of the goal. The name will be auto-generated
- * @param value value of achieving the goal
- * @param tags set of tags describing classes or capabilities for this goal.
- *   example: ["cooking", "customer support", "billing"]
- * @param examples set of example scenarios that the goal can achieve.
- *   example: ["I need a recipe for bread", "I want to support a customer with a billing issue"]
- */
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.RUNTIME)
-@MustBeDocumented
-annotation class AchievesGoal(
-    val description: String,
-    val value: Double = 0.0,
-    val tags: Array<String> = [],
-    val examples: Array<String> = [],
-)
 
 /**
  * Annotation that can added to parameters of an @Action method

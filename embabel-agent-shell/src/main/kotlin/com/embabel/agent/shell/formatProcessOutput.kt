@@ -51,25 +51,20 @@ fun formatProcessOutput(
         if (result.output is InternetResources) {
             val internetResourcesOutput = result.output as InternetResources
             output += "\n\n" + internetResourcesOutput.links.joinToString("\n") {
-                "- ${it.url}: ${
-                    it.summary.color(
-                        colorPalette.color2
-                    )
-                }"
+                "- ${it.url}: ${it.summary.color(colorPalette.color2)}"
             }
         }
     } else {
-        output = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(
-            result.output
-        )
+        output = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(result.output)
     }
     return """|
-            |
-            |You asked: ${result.basis.toString().color(colorPalette.highlight)}
-            |
-            |${output.color(colorPalette.color2)}
-            |
-            |${result.agentProcess.costInfoString(verbose = true)}
-            |${result.agentProcess.toolsStats.infoString(verbose = true)}
-            |""".trimMargin()
+              |${result.agentProcess.infoString(verbose = true)}
+              |
+              |You asked: ${result.basis.toString().color(colorPalette.highlight)}
+              |
+              |${output.color(colorPalette.color2)}
+              |
+              |${result.agentProcess.costInfoString(verbose = true)}
+              |${result.agentProcess.toolsStats.infoString(verbose = true)}
+              |""".trimMargin()
 }

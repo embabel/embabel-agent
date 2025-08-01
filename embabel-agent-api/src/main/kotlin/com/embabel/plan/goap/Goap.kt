@@ -16,6 +16,8 @@
 package com.embabel.plan.goap
 
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
 import com.embabel.plan.*
 import com.fasterxml.jackson.annotation.JsonIgnore
 
@@ -48,7 +50,10 @@ enum class ConditionDetermination {
 
 typealias EffectSpec = Map<String, ConditionDetermination>
 
-private fun preconditionsSatisfied(preconditions: EffectSpec, currentState: GoapState): Boolean =
+private fun preconditionsSatisfied(
+    preconditions: EffectSpec,
+    currentState: GoapState,
+): Boolean =
     preconditions.all { (key, value) -> currentState[key] == value }
 
 interface GoapStep : Step {
@@ -87,8 +92,11 @@ interface GoapAction : GoapStep, Action {
     override val knownConditions: Set<String>
         get() = preconditions.keys + effects.keys
 
-    override fun infoString(verbose: Boolean?): String =
-        "$name - pre=${preconditions} cost=$cost value=${value}"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        "$name - pre=${preconditions} cost=$cost value=${value}".indent(indent)
 
 
     companion object {
@@ -125,21 +133,24 @@ private data class SimpleGoapAction(
 /**
  * Goal in a GOAP system.
  */
-interface GoapGoal : GoapStep, Goal {
+interface GoapGoal : GoapStep,
+    Goal {
 
     @get:JsonIgnore
     override val knownConditions: Set<String>
         get() = preconditions.keys
 
-    override fun infoString(verbose: Boolean?): String =
-        "$name - pre=${preconditions} value=${value}"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String = "$name - pre=${preconditions} value=${value}".indent(indent)
 
     companion object {
 
         operator fun invoke(
             name: String,
             preconditions: EffectSpec = mapOf(name to ConditionDetermination(true)),
-            value: ZeroToOne = 0.0
+            value: ZeroToOne = 0.0,
         ): GoapGoal {
             return GoapGoalImpl(name, preconditions, value)
         }
@@ -147,7 +158,7 @@ interface GoapGoal : GoapStep, Goal {
         operator fun invoke(
             name: String,
             pre: Collection<String>,
-            value: ZeroToOne = 0.0
+            value: ZeroToOne = 0.0,
         ): GoapGoal {
             return GoapGoalImpl(
                 name,
@@ -190,8 +201,22 @@ data class GoapPlanningSystem(
         return knownPreconditions() + knownEffects()
     }
 
-    override fun infoString(verbose: Boolean?): String =
-        "GOAP system: actions=${actions.map { it.name }}, goals=${goals.map { it.name }}, knownPreconditions=${knownPreconditions()}, knownEffects=${knownEffects()}"
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String =
+        "GOAP system:".indent(indent) + "\n" +
+                """|actions:
+                   |${actions.joinToString("\n") { it.name.indent(1) }}
+                   |goals:
+                   |${goals.joinToString("\n") { it.name.indent(1) }}
+                   |knownPreconditions:
+                   |${knownPreconditions().sortedBy { it }.joinToString("\n") { it.indent(1) }}
+                   |knownEffects:
+                   |${knownEffects().sortedBy { it }.joinToString("\n") { it.indent(1) }}
+                   |"""
+                    .trimMargin()
+                    .indentLines(indent + 1)
 }
 
 class GoapPlan(

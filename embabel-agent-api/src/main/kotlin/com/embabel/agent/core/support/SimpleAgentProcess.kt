@@ -19,6 +19,7 @@ import com.embabel.agent.core.*
 import com.embabel.agent.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.event.GoalAchievedEvent
 import com.embabel.agent.spi.PlatformServices
+import com.embabel.common.util.indentLines
 import com.embabel.plan.WorldState
 import com.embabel.plan.goap.AStarGoapPlanner
 import com.embabel.plan.goap.WorldStateDeterminer
@@ -59,11 +60,16 @@ internal class SimpleAgentProcess(
         val plan = planner.bestValuePlanToAnyGoal(system = agent.planningSystem)
         if (plan == null) {
             logger.info(
-                "❌ Process {} stuck: No plan from {} in {}, context={}",
-                id,
-                worldState.infoString(verbose = true),
-                agent.planningSystem.infoString(verbose = true),
-                blackboard,
+                "❌ Process $id stuck\n" +
+                """|No plan from:
+                   |${worldState.infoString(verbose = true, indent = 1)}
+                   |in:
+                   |${agent.planningSystem.infoString(verbose = true, 1)}
+                   |context:
+                   |${blackboard.infoString(true, 1)}
+                   |"""
+                    .trimMargin()
+                    .indentLines(1)
             )
             setStatus(AgentProcessStatusCode.STUCK)
             return this

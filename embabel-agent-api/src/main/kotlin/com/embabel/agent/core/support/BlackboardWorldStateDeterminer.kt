@@ -52,6 +52,16 @@ class BlackboardWorldStateDeterminer(
             // Data binding condition
             condition.contains(":") -> {
                 val (variable, type) = condition.split(":")
+
+                // If the variable is a map, we are satisfied by having the name bound
+                // rather than checking the type
+                // TODO may want to add type checking here
+                val found = processContext.blackboard[variable]
+                val maybeMap = found as? Map<*, *>
+                if (maybeMap != null) {
+                    return ConditionDetermination(true)
+                }
+
                 val value = processContext.getValue(variable, type)
 
                 val determination = when {
