@@ -135,7 +135,7 @@ class AutonomyA2ARequestHandler(
                 .history(listOfNotNull(params.message))
                 .artifacts(
                     listOf(
-                        createResultArtifact(result, params.configuration.acceptedOutputModes)
+                        createResultArtifact(result, params.configuration?.acceptedOutputModes)
                     )
                 )
                 .build()
@@ -205,7 +205,7 @@ class AutonomyA2ARequestHandler(
                     .history(listOfNotNull(params.message))
                     .artifacts(
                         listOf(
-                            createResultArtifact(result, params.configuration.acceptedOutputModes)
+                            createResultArtifact(result, params.configuration?.acceptedOutputModes)
                         )
                     )
                     .metadata(null)
@@ -298,7 +298,7 @@ class AutonomyA2ARequestHandler(
 
     private fun createResultArtifact(
         result: AgentProcessExecution,
-        acceptedOutputModes: List<String> = emptyList()
+        acceptedOutputModes: List<String>? = emptyList()
     ): Artifact {
         // TODO result should be based on the outputMode received in the "params.configuration.acceptedOutputModes"
         return Artifact.Builder()
