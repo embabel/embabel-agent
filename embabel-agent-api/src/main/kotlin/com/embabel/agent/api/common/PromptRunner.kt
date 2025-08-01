@@ -176,6 +176,13 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     ): PromptRunner
 
     /**
+     * Add a list of handoffs to agents on this platform
+     */
+    fun withHandoffs(
+        vararg inputTypes: Class<*>,
+    ): PromptRunner
+
+    /**
      * Add a prompt contributor
      * @param promptContributor
      * @return PromptRunner instance with the added PromptContributor

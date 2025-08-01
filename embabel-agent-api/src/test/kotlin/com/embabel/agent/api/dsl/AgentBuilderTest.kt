@@ -29,6 +29,7 @@ import com.embabel.agent.support.Dog
 import com.embabel.agent.testing.common.EventSavingAgenticEventListener
 import com.embabel.agent.testing.integration.DummyObjectCreatingLlmOperations
 import com.embabel.common.core.types.Semver
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
@@ -113,7 +114,9 @@ class AgentBuilderTest {
                 operationScheduler = mockk(),
                 agentPlatform = mockk(),
                 ragService = mockk(),
-                asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor())
+                asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),
+                objectMapper = jacksonObjectMapper(),
+                applicationContext = null,
             )
             val processContext = ProcessContext(
                 agentProcess = SimpleAgentProcess(
@@ -149,7 +152,9 @@ class AgentBuilderTest {
                 operationScheduler = mockk(),
                 agentPlatform = mockk(),
                 ragService = RagService.empty(),
-                asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor())
+                asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),
+                objectMapper = jacksonObjectMapper(),
+                applicationContext = null,
             )
             val processContext = ProcessContext(
                 agentProcess = SimpleAgentProcess(

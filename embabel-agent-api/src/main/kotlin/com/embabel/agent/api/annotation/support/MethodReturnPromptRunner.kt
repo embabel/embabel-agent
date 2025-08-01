@@ -77,7 +77,7 @@ internal data class MethodReturnPromptRunner(
     override fun evaluateCondition(
         condition: String,
         context: String,
-        confidenceThreshold: ZeroToOne
+        confidenceThreshold: ZeroToOne,
     ): Boolean {
         throw EvaluateConditionPromptException(
             condition = condition,
@@ -92,6 +92,10 @@ internal data class MethodReturnPromptRunner(
             contextualPromptContributors = contextualPromptContributors,
             generateExamples = generateExamples,
         )
+    }
+
+    override fun withHandoffs(vararg inputTypes: Class<*>): PromptRunner {
+        TODO("Probably won't be implemented as this class is likely to be deprecated")
     }
 
     override fun withLlm(llm: LlmOptions): PromptRunner =

@@ -88,7 +88,10 @@ class PerGoalToolCallbackPublisher(
 
     private val logger = LoggerFactory.getLogger(PerGoalToolCallbackPublisher::class.java)
 
-    private val platformTools = ToolCallbacks.from(this)
+    /**
+     * Generic tools
+     */
+    val platformTools: List<ToolCallback> = ToolCallbacks.from(this).toList()
 
     /**
      * Return all tool callbacks for the agent platform.
@@ -97,9 +100,9 @@ class PerGoalToolCallbackPublisher(
         get() = toolCallbacks(remoteOnly = false)
 
     /**
-     * If remote is true, include only remote tools.
+     * Tools associated with goals.
      */
-    fun toolCallbacks(remoteOnly: Boolean): List<ToolCallback> {
+    fun goalTools(remoteOnly: Boolean): List<GoalToolCallback<*>> {
         val goalTools = autonomy.agentPlatform.goals
             .filter { it.export.local }
             .filter { !remoteOnly || it.export.remote }
@@ -111,6 +114,14 @@ class PerGoalToolCallbackPublisher(
             return emptyList()
         }
         logger.info("{} goal tools found in agent platform: {}", goalTools.size, goalTools)
+        return goalTools
+    }
+
+    /**
+     * If remote is true, include only remote tools.
+     */
+    fun toolCallbacks(remoteOnly: Boolean): List<ToolCallback> {
+        val goalTools = goalTools(remoteOnly)
         val allTools = goalTools + platformTools
         assert(allTools.size == goalTools.size + platformTools.size)
         return allTools
@@ -188,7 +199,7 @@ class PerGoalToolCallbackPublisher(
      * Create tool callbacks for the given goal.
      * There will be one tool callback for each starting input type of the goal.
      */
-    fun toolsForGoal(goal: Goal): List<ToolCallback> {
+    fun toolsForGoal(goal: Goal): List<GoalToolCallback<*>> {
         val goalName = goal.export.name ?: goalToolNamingStrategy.nameForGoal(goal)
         return goal.export.startingInputTypes.map { inputType ->
             GoalToolCallback(
@@ -203,11 +214,11 @@ class PerGoalToolCallbackPublisher(
     /**
      * Spring AI ToolCallback implementation for a specific goal.
      */
-    internal inner class GoalToolCallback<I : Any>(
-        private val name: String,
-        private val description: String,
-        private val goal: Goal,
-        private val inputType: Class<I>,
+    inner class GoalToolCallback<I : Any>(
+        val name: String,
+        val description: String,
+        val goal: Goal,
+        val inputType: Class<I>,
     ) : ToolCallback {
 
         override fun getToolDefinition(): ToolDefinition {

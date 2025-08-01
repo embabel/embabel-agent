@@ -16,9 +16,12 @@
 package com.embabel.agent.spi
 
 import com.embabel.agent.api.common.Asyncer
+import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.rag.RagService
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.context.ApplicationContext
 
 /**
  * Services used by the platform and available to user-authored code.
@@ -34,4 +37,15 @@ data class PlatformServices(
     val operationScheduler: OperationScheduler,
     val asyncer: Asyncer,
     val ragService: RagService,
-)
+    val objectMapper: ObjectMapper,
+    private val applicationContext: ApplicationContext?,
+) {
+
+    // We get this from the context because of circular dependencies
+    fun autonomy(): Autonomy {
+        if (applicationContext == null) {
+            throw IllegalStateException("Application context is not available, cannot retrieve Autonomy bean.")
+        }
+        return applicationContext.getBean(Autonomy::class.java)
+    }
+}

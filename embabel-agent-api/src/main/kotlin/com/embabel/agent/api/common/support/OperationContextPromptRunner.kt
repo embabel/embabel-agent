@@ -25,10 +25,12 @@ import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.prompt.element.ContextualPromptElement
 import com.embabel.agent.spi.InteractionId
 import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.tools.agent.Handoffs
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
+import org.springframework.ai.tool.ToolCallback
 
 /**
  * Uses the platform's LlmOperations to execute the prompt.
@@ -42,11 +44,15 @@ internal data class OperationContextPromptRunner(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
+    private val handoffToolCallbacks: List<ToolCallback> = emptyList(),
 ) : PromptRunner {
 
     val action = (context as? ActionContext)?.action
 
-    private fun idForPrompt(prompt: String, outputClass: Class<*>): InteractionId {
+    private fun idForPrompt(
+        prompt: String,
+        outputClass: Class<*>,
+    ): InteractionId {
         return InteractionId("${context.operation.name}-${outputClass.name}")
     }
 
@@ -59,7 +65,7 @@ internal data class OperationContextPromptRunner(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                toolCallbacks = safelyGetToolCallbacks(toolObjects),
+                toolCallbacks = safelyGetToolCallbacks(toolObjects) + handoffToolCallbacks,
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(
                         context
@@ -83,7 +89,7 @@ internal data class OperationContextPromptRunner(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                toolCallbacks = safelyGetToolCallbacks(toolObjects),
+                toolCallbacks = safelyGetToolCallbacks(toolObjects) + handoffToolCallbacks,
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(
                         context
@@ -110,7 +116,7 @@ internal data class OperationContextPromptRunner(
     override fun evaluateCondition(
         condition: String,
         context: String,
-        confidenceThreshold: ZeroToOne
+        confidenceThreshold: ZeroToOne,
     ): Boolean {
         val prompt =
             """
@@ -145,6 +151,18 @@ internal data class OperationContextPromptRunner(
 
     override fun withToolObject(toolObject: ToolObject): PromptRunner =
         copy(toolObjects = this.toolObjects + toolObject)
+
+    override fun withHandoffs(vararg inputTypes: Class<*>): PromptRunner {
+        val handoffs = Handoffs(
+            autonomy = context.agentPlatform().platformServices.autonomy(),
+            objectMapper = context.agentPlatform().platformServices.objectMapper,
+            inputTypes = inputTypes.toList(),
+            applicationName = context.agentPlatform().name,
+        )
+        return copy(
+            handoffToolCallbacks = this.handoffToolCallbacks + handoffs.toolCallbacks,
+        )
+    }
 
     override fun withPromptContributors(promptContributors: List<PromptContributor>): PromptRunner =
         copy(promptContributors = this.promptContributors + promptContributors)
