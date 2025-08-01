@@ -9,6 +9,7 @@ on:
   push:
   pull_request:
     types: [ opened, synchronize, reopened ]
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -25,17 +26,21 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Configure Testcontainers (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          mkdir -p /home/runner
-          echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
       - name: Configure Testcontainers (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           echo "testcontainers.reuse.enable=true" > $env:USERPROFILE\.testcontainers.properties
-      - name: Build and analyze
+      - name: Build and test
+        run: mvn -U -B test verify
+      - name: Linux-specific setup and SonarCloud analysis
+        if: matrix.os == 'ubuntu-latest'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -U -B test verify
+        run: |
+          # Configure Testcontainers for Linux
+          mkdir -p /home/runner
+          echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
+          
+          # Run SonarCloud analysis
+          mvn -P jacoco-code-coverage -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=embabel_embabel-agent
