@@ -64,7 +64,7 @@ class A2AEndpointRegistrar(
     private fun registerWebEndpoints(agentCardHandler: AgentCardHandler) {
         val endpointPath = "/${agentCardHandler.path}/.well-known/agent.json"
         logger.info(
-            "Registering web endpoint (from abaddon_gtz) under {} for {}",
+            "Registering web endpoint under {} for {}",
             endpointPath,
             agentCardHandler.infoString(verbose = true),
         )
