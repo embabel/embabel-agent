@@ -21,6 +21,9 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Goal
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.indent
+import io.a2a.spec.AgentCapabilities
+import io.a2a.spec.AgentCard
+import io.a2a.spec.AgentProvider
 import org.slf4j.LoggerFactory
 
 typealias GoalFilter = (Goal) -> Boolean
