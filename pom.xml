@@ -15,8 +15,6 @@
     <description>Parent POM for Embabel Agent Modules</description>
 
     <properties>
-        <sonar.organization>embabel</sonar.organization>
-        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <embabel-common.version>0.1.0-SNAPSHOT</embabel-common.version>
     </properties>
 

@@ -885,3 +885,12 @@ fun OrderStatus.getActionableSteps2(): List<String> = when (this) {
     is OrderStatus.Cancelled -> listOf("Check refund status", "Reorder if desired")
     is OrderStatus.Returned -> listOf("Check refund status", "Consider alternative products")
 }
+
+fun OrderStatus.getActionableSteps3(): List<String> = when (this) {
+    is OrderStatus.Pending -> listOf("Wait for processing", "Contact support to modify")
+    is OrderStatus.Processing -> listOf("Wait for shipment", "Contact support to cancel")
+    is OrderStatus.Shipped -> listOf("Track package", "Prepare for delivery")
+    is OrderStatus.Delivered -> listOf("Enjoy your purchase", "Leave a review", "Consider return if needed")
+    is OrderStatus.Cancelled -> listOf("Check refund status", "Reorder if desired")
+    is OrderStatus.Returned -> listOf("Check refund status", "Consider alternative products")
+}
