@@ -26,33 +26,16 @@ import org.springframework.ai.tool.annotation.ToolParam
 /**
  * Expose a RagService as tools
  */
-interface RagServiceTools : SelfToolCallbackPublisher {
-
-    val ragService: RagService
-
-    val toolFormatter: RagResponseFormatter get() = SimpleRagResponseFormatter
+class RagServiceTools(
+    private val ragService: RagService,
+    private val toolFormatter: RagResponseFormatter = SimpleRagResponseFormatter
+) : SelfToolCallbackPublisher {
 
     @Tool(description = "Query the RAG service")
     fun search(
-        @ToolParam(
-            description = "Query to search for",
-        )
-        query: String,
+        @ToolParam(description = "Query to search for")
+        query: String
     ): String {
         return toolFormatter.format(ragService.search(RagRequest(query)))
     }
-
-    companion object {
-
-        operator fun invoke(
-            ragService: RagService,
-            toolFormatter: RagResponseFormatter = SimpleRagResponseFormatter,
-        ): RagServiceTools {
-            return object : RagServiceTools {
-                override val ragService: RagService = ragService
-                override val toolFormatter: RagResponseFormatter = toolFormatter
-            }
-        }
-    }
-
 }

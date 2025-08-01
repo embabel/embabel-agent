@@ -17,7 +17,9 @@ package com.embabel.agent.domain.io
 
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.common.core.types.Timestamped
+import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import java.time.Instant
 
@@ -34,6 +36,7 @@ data class UserInput(
     override val timestamp: Instant = Instant.now(),
 ) : SystemInput, HasContent {
 
-    // For Java
-    constructor (content: String) : this(content, Instant.now())
+    // For Java and Graal
+    @JsonCreator
+    constructor (@JsonProperty("content") content: String) : this(content, Instant.now())
 }
