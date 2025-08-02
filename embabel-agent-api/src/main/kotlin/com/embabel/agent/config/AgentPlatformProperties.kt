@@ -37,14 +37,14 @@ data class AgentPlatformProperties(
     /**
      * Platform behavior configurations
      */
-    var scanning: ScanningConfig = ScanningConfig(),
-    var ranking: RankingConfig = RankingConfig(),
-    var llmOperations: LlmOperationsConfig = LlmOperationsConfig(),
-    var processIdGeneration: ProcessIdGenerationConfig = ProcessIdGenerationConfig(),
-    var autonomy: AutonomyConfig = AutonomyConfig(),
-    var models: ModelsConfig = ModelsConfig(),
-    var sse: SseConfig = SseConfig(),
-    var test: TestConfig = TestConfig()
+    val scanning: ScanningConfig = ScanningConfig(),
+    val ranking: RankingConfig = RankingConfig(),
+    val llmOperations: LlmOperationsConfig = LlmOperationsConfig(),
+    val processIdGeneration: ProcessIdGenerationConfig = ProcessIdGenerationConfig(),
+    val autonomy: AutonomyConfig = AutonomyConfig(),
+    val models: ModelsConfig = ModelsConfig(),
+    val sse: SseConfig = SseConfig(),
+    val test: TestConfig = TestConfig()
 ) {
     /**
      * Agent scanning configuration
@@ -69,8 +69,8 @@ data class AgentPlatformProperties(
      * LLM operations configuration
      */
     data class LlmOperationsConfig(
-        var prompts: PromptsConfig = PromptsConfig(),
-        var dataBinding: DataBindingConfig = DataBindingConfig()
+        val prompts: PromptsConfig = PromptsConfig(),
+        val dataBinding: DataBindingConfig = DataBindingConfig()
     ) {
         /**
          * Prompt configuration
@@ -109,8 +109,8 @@ data class AgentPlatformProperties(
      * Model provider integration configurations
      */
     data class ModelsConfig(
-        var anthropic: AnthropicConfig = AnthropicConfig(),
-        var openai: OpenAiConfig = OpenAiConfig()
+        val anthropic: AnthropicConfig = AnthropicConfig(),
+        val openai: OpenAiConfig = OpenAiConfig()
     ) {
         /**
          * Anthropic provider retry configuration

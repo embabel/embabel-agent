@@ -18,7 +18,7 @@ package com.embabel.agent.config.migration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.*
+import io.mockk.*
 import org.springframework.context.ApplicationContext
 import org.springframework.beans.factory.ObjectProvider
 import java.util.regex.Pattern
@@ -37,50 +37,50 @@ class ConditionalPropertyScannerTest {
 
     @BeforeEach
     fun setUp() {
-        scanningConfig = mock(ConditionalPropertyScanningConfig::class.java)
-        propertyWarner = mock(SimpleDeprecatedConfigWarner::class.java)
-        applicationContext = mock(ApplicationContext::class.java)
-        scanningConfigProvider = mock(ObjectProvider::class.java) as ObjectProvider<ConditionalPropertyScanningConfig>
-        propertyWarnerProvider = mock(ObjectProvider::class.java) as ObjectProvider<SimpleDeprecatedConfigWarner>
+        scanningConfig = mockk<ConditionalPropertyScanningConfig>()
+        propertyWarner = mockk<SimpleDeprecatedConfigWarner>()
+        applicationContext = mockk<ApplicationContext>()
+        scanningConfigProvider = mockk<ObjectProvider<ConditionalPropertyScanningConfig>>()
+        propertyWarnerProvider = mockk<ObjectProvider<SimpleDeprecatedConfigWarner>>()
 
         scanner = ConditionalPropertyScanner()
         scanner.setApplicationContext(applicationContext)
 
-        `when`(applicationContext.getBeanProvider(ConditionalPropertyScanningConfig::class.java)).thenReturn(scanningConfigProvider)
-        `when`(applicationContext.getBeanProvider(SimpleDeprecatedConfigWarner::class.java)).thenReturn(propertyWarnerProvider)
+        every { applicationContext.getBeanProvider(ConditionalPropertyScanningConfig::class.java) } returns scanningConfigProvider
+        every { applicationContext.getBeanProvider(SimpleDeprecatedConfigWarner::class.java) } returns propertyWarnerProvider
     }
 
     @Test
     fun `scanner should skip processing when scanning config unavailable`() {
         // Given
-        `when`(scanningConfigProvider.getIfAvailable()).thenReturn(null)
-        `when`(propertyWarnerProvider.getIfAvailable()).thenReturn(propertyWarner)
+        every { scanningConfigProvider.getIfAvailable() } returns null
+        every { propertyWarnerProvider.getIfAvailable() } returns propertyWarner
 
         // When
         scanner.afterSingletonsInstantiated()
 
         // Then
-        verify(scanningConfigProvider).getIfAvailable()
-        verify(propertyWarnerProvider).getIfAvailable()
-        verifyNoInteractions(propertyWarner)
+        verify { scanningConfigProvider.getIfAvailable() }
+        verify { propertyWarnerProvider.getIfAvailable() }
+        verify(exactly = 0) { propertyWarner.warnDeprecatedConditional(any(), any(), any()) }
     }
 
     @Test
     fun `scanner should process when both components available and enabled`() {
         // Given
-        `when`(scanningConfigProvider.getIfAvailable()).thenReturn(scanningConfig)
-        `when`(propertyWarnerProvider.getIfAvailable()).thenReturn(propertyWarner)
-        `when`(scanningConfig.enabled).thenReturn(true)
-        `when`(scanningConfig.includePackages).thenReturn(listOf("com.example.test"))
+        every { scanningConfigProvider.getIfAvailable() } returns scanningConfig
+        every { propertyWarnerProvider.getIfAvailable() } returns propertyWarner
+        every { scanningConfig.enabled } returns true
+        every { scanningConfig.includePackages } returns listOf("com.example.test")
 
         // When
         scanner.afterSingletonsInstantiated()
 
         // Then
-        verify(scanningConfigProvider).getIfAvailable()
-        verify(propertyWarnerProvider).getIfAvailable()
-        verify(scanningConfig).enabled
-        verify(scanningConfig, atLeastOnce()).includePackages
+        verify { scanningConfigProvider.getIfAvailable() }
+        verify { propertyWarnerProvider.getIfAvailable() }
+        verify { scanningConfig.enabled }
+        verify(atLeast = 1) { scanningConfig.includePackages }
         // Note: Full scanning behavior would require more complex mocking of Spring's resource resolution
     }
 
@@ -237,33 +237,33 @@ class ConditionalPropertyScannerTest {
     @Test
     fun `scanner should skip processing when scanning explicitly disabled`() {
         // Given
-        `when`(scanningConfigProvider.getIfAvailable()).thenReturn(scanningConfig)
-        `when`(propertyWarnerProvider.getIfAvailable()).thenReturn(propertyWarner)
-        `when`(scanningConfig.enabled).thenReturn(false)
+        every { scanningConfigProvider.getIfAvailable() } returns scanningConfig
+        every { propertyWarnerProvider.getIfAvailable() } returns propertyWarner
+        every { scanningConfig.enabled } returns false
 
         // When
         scanner.afterSingletonsInstantiated()
 
         // Then
-        verify(scanningConfigProvider).getIfAvailable()
-        verify(propertyWarnerProvider).getIfAvailable()
-        verify(scanningConfig).enabled
-        verifyNoInteractions(propertyWarner)
+        verify { scanningConfigProvider.getIfAvailable() }
+        verify { propertyWarnerProvider.getIfAvailable() }
+        verify { scanningConfig.enabled }
+        verify(exactly = 0) { propertyWarner.warnDeprecatedConditional(any(), any(), any()) }
     }
 
     @Test
     fun `scanner should skip processing when both components unavailable`() {
         // Given
-        `when`(scanningConfigProvider.getIfAvailable()).thenReturn(null)
-        `when`(propertyWarnerProvider.getIfAvailable()).thenReturn(null)
+        every { scanningConfigProvider.getIfAvailable() } returns null
+        every { propertyWarnerProvider.getIfAvailable() } returns null
 
         // When
         scanner.afterSingletonsInstantiated()
 
         // Then
-        verify(scanningConfigProvider).getIfAvailable()
-        verify(propertyWarnerProvider).getIfAvailable()
-        verifyNoInteractions(scanningConfig)
-        verifyNoInteractions(propertyWarner)
+        verify { scanningConfigProvider.getIfAvailable() }
+        verify { propertyWarnerProvider.getIfAvailable() }
+        verify(exactly = 0) { scanningConfig.enabled }
+        verify(exactly = 0) { propertyWarner.warnDeprecatedConditional(any(), any(), any()) }
     }
 }
