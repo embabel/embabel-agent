@@ -72,6 +72,7 @@ class ConditionalPropertyScannerTest {
         every { propertyWarnerProvider.getIfAvailable() } returns propertyWarner
         every { scanningConfig.enabled } returns true
         every { scanningConfig.includePackages } returns listOf("com.example.test")
+        every { scanningConfig.shouldIncludePackage(any()) } returns true
 
         // When
         scanner.afterSingletonsInstantiated()
