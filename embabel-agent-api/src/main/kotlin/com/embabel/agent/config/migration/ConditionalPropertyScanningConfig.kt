@@ -22,7 +22,7 @@ import org.springframework.context.annotation.Configuration
 /**
  * Configuration for conditional property scanning during migration.
  *
- * Controls which packages are scanned for deprecated @ConditionalOnProperty annotations.
+ * Controls which packages are scanned for deprecated property in @ConditionalOnProperty annotations.
  * Uses a flexible approach with configurable include/exclude patterns to handle
  * diverse project structures and dependencies.
  */
