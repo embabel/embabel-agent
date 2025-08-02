@@ -355,11 +355,11 @@ class AutonomyGoalSelectionTest {
 
         // Verify rankings
         assertEquals(
-            1, exception.goalRankings.rankings.size,
+            1, exception.goalRankings.rankings().size,
             "There should be exactly one ranking"
         )
 
-        val ranking = exception.goalRankings.rankings.firstOrNull()
+        val ranking = exception.goalRankings.rankings().firstOrNull()
         assertNotNull(ranking, "There should be a ranking in the exception")
 
         assertEquals(

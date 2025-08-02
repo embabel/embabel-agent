@@ -136,7 +136,7 @@ class AutonomyAgentSelectionTest {
             override fun <T> rank(
                 description: String,
                 userInput: String,
-                rankables: Collection<T>
+                rankables: Collection<T>,
             ): Rankings<T> where T : com.embabel.common.core.types.Named, T : com.embabel.common.core.types.Described {
                 return Rankings(rankables.map { Ranking(it, 0.8) })
             }
@@ -243,7 +243,7 @@ class AutonomyAgentSelectionTest {
             override fun <T> rank(
                 description: String,
                 userInput: String,
-                rankables: Collection<T>
+                rankables: Collection<T>,
             ): Rankings<T> where T : com.embabel.common.core.types.Named, T : com.embabel.common.core.types.Described {
                 return Rankings(rankables.map { Ranking(it, 0.3) })
             }
@@ -278,7 +278,7 @@ class AutonomyAgentSelectionTest {
         )
 
         // Verify rankings in exception
-        val rankings = exception.agentRankings.rankings
+        val rankings = exception.agentRankings.rankings()
         assertEquals(1, rankings.size, "Should have exactly one ranking")
 
         val ranking = rankings.first()

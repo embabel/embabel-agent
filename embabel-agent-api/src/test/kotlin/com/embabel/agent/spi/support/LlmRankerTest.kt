@@ -43,7 +43,7 @@ class LlmRankerTest {
                 "goal",
                 userInput = "whatever", emptySet(),
             )
-            assertTrue(result.rankings.isEmpty())
+            assertTrue(result.rankings().isEmpty())
         }
     }
 
@@ -81,7 +81,7 @@ class LlmRankerTest {
                     ),
                 ),
             )
-            assertEquals("weather", rankings.rankings[0].match.name)
+            assertEquals("weather", rankings.rankings()[0].match.name)
         }
     }
 

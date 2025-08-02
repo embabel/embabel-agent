@@ -191,7 +191,7 @@ class ShellCommands(
                 agentScope = agentPlatform,
                 goalChoiceApprover = GoalChoiceApprover approveWithScoreOver .8,
             )
-            val fmt = goalSeeker.rankings.rankings.joinToString("\n") {
+            val fmt = goalSeeker.rankings.rankings().joinToString("\n") {
                 it.infoString(verbose = true)
             }
             return fmt.color(colorPalette.color2) + "\n" + goalSeeker.agent.infoString(verbose = true)

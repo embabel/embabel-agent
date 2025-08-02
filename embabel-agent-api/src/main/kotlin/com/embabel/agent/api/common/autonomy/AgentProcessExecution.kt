@@ -51,7 +51,7 @@ class AgentProcessExecution private constructor(
     ): String =
         if (verbose == true)
             "${javaClass.simpleName}(basis=$basis, output=$output, agentProcess=${
-                agentProcess.infoString(verbose,  1)
+                agentProcess.infoString(verbose, 1)
             })"
         else
             "${javaClass.simpleName}(basis=$basis, output=${output::class.simpleName}, agentProcess=${agentProcess.id})"
@@ -128,7 +128,7 @@ sealed class ProcessExecutionException(
 class NoGoalFound(
     val basis: Any,
     val goalRankings: Rankings<Goal>,
-) : ProcessExecutionException(null, "Goal not found: ${goalRankings.rankings.joinToString(",")}")
+) : ProcessExecutionException(null, "Goal not found: ${goalRankings.rankings().joinToString(",")}")
 
 /**
  * The Ranker chose a goal, but it was rejected by the GoalApprover
@@ -139,7 +139,7 @@ class GoalNotApproved(
     val reason: String,
     override val agentPlatform: AgentPlatform,
 ) : AgentPlatformEvent,
-    ProcessExecutionException(null, "Goal not approved because $reason: ${goalRankings.rankings.joinToString(",")}") {
+    ProcessExecutionException(null, "Goal not approved because $reason: ${goalRankings.rankings().joinToString(",")}") {
 
     override val timestamp: Instant = Instant.now()
 
@@ -148,7 +148,7 @@ class GoalNotApproved(
 class NoAgentFound(
     val basis: Any,
     val agentRankings: Rankings<Agent>,
-) : ProcessExecutionException(null, "Agent not found: ${agentRankings.rankings.joinToString(",")}")
+) : ProcessExecutionException(null, "Agent not found: ${agentRankings.rankings().joinToString(",")}")
 
 class ProcessExecutionFailedException(
     override val agentProcess: AgentProcess,

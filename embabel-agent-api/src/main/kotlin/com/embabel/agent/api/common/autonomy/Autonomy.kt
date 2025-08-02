@@ -144,7 +144,7 @@ class Autonomy(
                 rankables = agentPlatform.agents()
             )
         val credibleAgents = agentRankings
-            .rankings
+            .rankings()
             .filter { it.score > properties.agentConfidenceCutOff }
         val agentChoice = credibleAgents.firstOrNull()
         if (agentChoice == null) {
@@ -255,7 +255,7 @@ class Autonomy(
                 rankables = agentScope.goals
             )
         val credibleGoals = goalRankings
-            .rankings
+            .rankings()
             .filter { it.score > properties.goalConfidenceCutOff }
         val goalChoice = credibleGoals.firstOrNull()
         if (goalChoice == null) {
