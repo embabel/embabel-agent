@@ -81,7 +81,7 @@ annotation class Agent(
     val planner: Planner = Planner.GOAP,
     val scan: Boolean = true,
     @get:AliasFor(annotation = Component::class, attribute = "value")
-    val beanName: String = ""
+    val beanName: String = "",
 )
 
 /**
@@ -118,7 +118,7 @@ annotation class ToolGroup(
  * goals as a planner chooses actions based on preconditions
  * and effects rather than by description. The description property is
  * used for documentation purposes, having the advantage over comments
- * that it can appear in logs.
+ * that it can appear in logs. Description defaults to name
  * @param pre Preconditions for the action
  * @param outputBinding Output binding for the action.
  * Only required for a custom binding.

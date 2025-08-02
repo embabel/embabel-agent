@@ -322,6 +322,7 @@ class Autonomy(
     }
 
     /**
+     * Open mode.
      * Create an agent to accomplish this goal from the given user input
      * @param inputObject any input object
      * @param agentScope scope to look for the agent
