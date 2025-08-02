@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/auto-configurations/models/embabel-agent-autoconfigure-model-bedrock-ai/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/auto-configurations/platform/embabel-agent-autoconfigure/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-a2a/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-dependencies/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-dependencies/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-docs/src/main/java" charset="UTF-8" />
@@ -37,6 +41,9 @@
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-test/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-ux/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/models/embabel-agent-bedrock-autoconfigure/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/models/embabel-agent-bedrock/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/models/embabel-agent-model-bedrock-ai/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
   </component>
