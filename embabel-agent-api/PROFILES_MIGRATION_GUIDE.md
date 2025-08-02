@@ -1,5 +1,44 @@
 # Profiles Migration Guide: From Profile-Based to Property-Based Configuration
 
+## Table of Contents
+
+### **Getting Started**
+- [Overview](#overview)
+- [Security Considerations](#security-considerations)
+- [Migration Strategy Overview](#migration-strategy-overview)
+
+### **Phase 0: Platform Property Foundation**
+- [Platform Property Consolidation (Prerequisite)](#phase-0-platform-property-consolidation-prerequisite)
+  - [Migration Detection Configuration](#migration-detection-configuration)
+  - [Property Namespace Changes](#property-namespace-changes)
+  - [Action Required: Update Your Platform Property Overrides](#action-required-update-your-platform-property-overrides)
+  - [Environment Variable Updates](#environment-variable-updates)
+  - [Migration Detection & Warnings](#migration-detection--warnings)
+  - [Testing Platform Property Migration](#testing-platform-property-migration)
+  - [Configuration Precedence](#configuration-precedence-highest-to-lowest)
+
+### **Profile Migration Matrix**
+- [Profile Migration Matrix](#profile-migration-matrix)
+
+### **Individual Profile Migrations**
+- [0. Personality Profiles Migration](#0-personality-profiles-migration)
+- [1. Shell Profile Migration](#1-shell-profile-migration)
+- [2. Neo4j Profile Migration](#2-neo4j-profile-migration)
+- [3. MCP Profiles Migration (docker-ce & docker-desktop)](#3-mcp-profiles-migration-docker-ce--docker-desktop)
+- [4. Observability Profile Migration](#4-observability-profile-migration)
+
+### **Implementation Strategy**
+- [Backward Compatibility Strategy](#backward-compatibility-strategy)
+- [Environment Variables Best Practices](#environment-variables-best-practices)
+- [Configuration Examples by Environment](#configuration-examples-by-environment)
+
+### **Support & Maintenance**
+- [Troubleshooting](#troubleshooting)
+- [Migration Timeline](#migration-timeline)
+- [Benefits of Property-Based Configuration](#benefits-of-property-based-configuration)
+
+---
+
 ## Overview
 
 This guide provides detailed step-by-step instructions for migrating from Spring profile-based configuration (`application-{profile}.yml`) to property-based configuration (`embabel.agent.*` properties) in the Embabel Agent Framework.
@@ -31,8 +70,242 @@ data class AuthConfig(
 
 ### **Property Segregation Principle**
 
-- **Framework Properties (`embabel.framework.*`)** - Internal framework behavior, rarely changed
+- **Platform Properties (`embabel.agent.platform.*`)** - Internal platform behavior, rarely changed
 - **Application Properties (`embabel.agent.*`)** - Business logic, deployment choices, credentials
+
+---
+
+## **Phase 0: Platform Property Consolidation (Prerequisite)**
+
+**Important**: Before migrating profiles, the framework consolidates internal platform properties under a unified namespace. This is automatic for the library but requires action if you customized platform properties.
+
+### **Migration Detection Configuration**
+
+The framework automatically detects deprecated property usage and issues warnings. You can configure this scanning behavior:
+
+#### **application.properties**
+```properties
+# Override scanning packages (default: com.embabel.agent, com.embabel.agent.shell)
+embabel.agent.platform.migration.scanning.include-packages[0]=com.embabel.agent
+embabel.agent.platform.migration.scanning.include-packages[1]=com.mycorp.custom
+embabel.agent.platform.migration.scanning.include-packages[2]=com.thirdparty.integration
+
+# Add additional package excludes
+embabel.agent.platform.migration.scanning.additional-excludes[0]=com.noisy.framework
+embabel.agent.platform.migration.scanning.additional-excludes[1]=com.slow.scanner
+
+# Control JAR scanning (default: true for performance)
+embabel.agent.platform.migration.scanning.auto-exclude-jar-packages=false
+
+# Enable scanning for Iteration 1+ migrations (disabled by default in Iteration 0)
+embabel.agent.platform.migration.scanning.enabled=true
+
+# Disable scanning entirely (e.g., in production)
+embabel.agent.platform.migration.scanning.enabled=false
+```
+
+#### **application.yml**
+```yaml
+embabel:
+  agent:
+    platform:
+      migration:
+        scanning:
+          include-packages:
+            - com.embabel.agent
+            - com.mycorp.custom
+            - com.thirdparty.integration
+          additional-excludes:
+            - com.noisy.framework
+            - com.slow.scanner
+          auto-exclude-jar-packages: false
+          # Enable for Iteration 1+ migrations (disabled by default in Iteration 0)
+          enabled: true
+```
+
+#### **Environment Variables**
+```bash
+# Include packages (comma-separated)
+export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES=com.embabel.agent,com.mycorp.custom
+
+# Additional excludes (comma-separated)  
+export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_ADDITIONAL_EXCLUDES=com.noisy.framework,com.slow.scanner
+
+# Control scanning behavior
+export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_AUTO_EXCLUDE_JAR_PACKAGES=false
+
+# Enable for Iteration 1+ migrations (disabled by default in Iteration 0)
+export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_ENABLED=true
+
+# Disable scanning entirely (e.g., in production)
+export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_ENABLED=false
+```
+
+### **Property Namespace Changes**
+
+These changes happen automatically in the library - **no action needed** unless you override these properties:
+
+| Old Property Namespace | New Property Namespace | Purpose |
+|------------------------|------------------------|---------|
+| `embabel.agent-platform.*` | `embabel.agent.platform.*` | Agent scanning, ranking settings |
+| `embabel.autonomy.*` | `embabel.agent.platform.autonomy.*` | Autonomy confidence thresholds |
+| `embabel.process-id-generation.*` | `embabel.agent.platform.process-id-generation.*` | Process ID generation settings |
+| `embabel.llm-operations.*` | `embabel.agent.platform.llm-operations.*` | LLM operation retry and prompt settings |
+| `embabel.sse.*` | `embabel.agent.platform.sse.*` | Server-sent events configuration |
+| `embabel.anthropic.*` | `embabel.agent.platform.models.anthropic.*` | Anthropic provider retry settings |
+
+### **Action Required: Update Your Platform Property Overrides**
+
+**If you customized any platform properties**, update your configuration:
+
+```yaml
+# OLD - Will be ignored
+embabel:
+  agent-platform:
+    scanning:
+      annotation: false
+    ranking:
+      max-attempts: 10
+      backoff-millis: 200
+  autonomy:
+    agent-confidence-cut-off: 0.8
+    goal-confidence-cut-off: 0.7
+  process-id-generation:
+    include-version: true
+    include-agent-name: true
+  llm-operations:
+    prompts:
+      maybe-prompt-template: "custom_template"
+      generate-examples-by-default: false
+    data-binding:
+      max-attempts: 15
+      fixed-backoff-millis: 50
+  sse:
+    max-buffer-size: 200
+    max-process-buffers: 2000
+  anthropic:
+    max-attempts: 15
+    backoff-millis: 3000
+
+# NEW - Required
+embabel:
+  agent:
+    platform:
+      scanning:
+        annotation: false
+      ranking:
+        max-attempts: 10
+        backoff-millis: 200
+      autonomy:
+        agent-confidence-cut-off: 0.8
+        goal-confidence-cut-off: 0.7
+      process-id-generation:
+        include-version: true
+        include-agent-name: true
+      llm-operations:
+        prompts:
+          maybe-prompt-template: "custom_template"
+          generate-examples-by-default: false
+        data-binding:
+          max-attempts: 15
+          fixed-backoff-millis: 50
+      sse:
+        max-buffer-size: 200
+        max-process-buffers: 2000
+      models:
+        anthropic:
+          max-attempts: 15
+          backoff-millis: 3000
+```
+
+### **Environment Variable Updates**
+
+Update environment variables to use new namespaces:
+
+```bash
+# OLD - Will be ignored
+export EMBABEL_AGENT_PLATFORM_RANKING_MAX_ATTEMPTS=10
+export EMBABEL_AUTONOMY_AGENT_CONFIDENCE_CUT_OFF=0.8
+export EMBABEL_PROCESS_ID_GENERATION_INCLUDE_VERSION=true
+export EMBABEL_LLM_OPERATIONS_DATA_BINDING_MAX_ATTEMPTS=15
+export EMBABEL_SSE_MAX_BUFFER_SIZE=200
+export EMBABEL_ANTHROPIC_MAX_ATTEMPTS=15
+
+# NEW - Required
+export EMBABEL_AGENT_PLATFORM_RANKING_MAX_ATTEMPTS=10
+export EMBABEL_AGENT_PLATFORM_AUTONOMY_AGENT_CONFIDENCE_CUT_OFF=0.8
+export EMBABEL_AGENT_PLATFORM_PROCESS_ID_GENERATION_INCLUDE_VERSION=true
+export EMBABEL_AGENT_PLATFORM_LLM_OPERATIONS_DATA_BINDING_MAX_ATTEMPTS=15
+export EMBABEL_AGENT_PLATFORM_SSE_MAX_BUFFER_SIZE=200
+export EMBABEL_AGENT_PLATFORM_MODELS_ANTHROPIC_MAX_ATTEMPTS=15
+```
+
+### **Migration Detection & Warnings**
+
+The framework includes automatic detection for deprecated property usage:
+
+#### **1. Property Value Detection**
+Automatically scans all property sources and warns about deprecated namespaces:
+
+```
+⚠️  DEPRECATED PROPERTIES DETECTED ⚠️
+
+The following deprecated properties were found:
+  - embabel.agent-platform.ranking.max-attempts → embabel.agent.platform.ranking.max-attempts
+  - embabel.autonomy.agent-confidence-cut-off → embabel.agent.platform.autonomy.agent-confidence-cut-off
+
+If you customized any of these in your application.yml/properties files,
+update them to the new namespace. Library defaults will be updated automatically.
+```
+
+#### **2. Conditional Annotation Detection**
+Optionally scans your code for `@ConditionalOnProperty` using deprecated property names:
+
+```yaml
+# Optional: Enable detailed scanning for your code
+embabel:
+  migration:
+    conditional-scanning:
+      enabled: true
+      include-packages:
+        - "com.yourcompany"  # Your package to scan for @ConditionalOnProperty usage
+        - "com.yourclient"   # Additional packages to scan
+```
+
+Example warning:
+```
+⚠️  DEPRECATED @ConditionalOnProperty DETECTED ⚠️
+
+Found user code using deprecated property names in conditional annotations:
+
+Bean: MyCustomRankingConfig
+Location: com.yourcompany.config.MyCustomRankingConfig
+Change: embabel.agent-platform.ranking.enabled → embabel.agent.platform.ranking.enabled
+```
+
+### **Testing Platform Property Migration**
+
+```kotlin
+@TestPropertySource(properties = [
+    "embabel.agent.platform.scanning.annotation=false",
+    "embabel.agent.platform.ranking.max-attempts=15",
+    "embabel.agent.platform.autonomy.agent-confidence-cut-off=0.9"
+])
+class PlatformPropertyMigrationTest {
+    
+    @Autowired
+    private lateinit var agentPlatformProperties: AgentPlatformProperties
+    
+    @Test
+    fun `should use new platform property namespace`() {
+        assertThat(agentPlatformProperties.scanning.annotation).isFalse()
+        assertThat(agentPlatformProperties.ranking.maxAttempts).isEqualTo(15)
+        assertThat(agentPlatformProperties.autonomy.agentConfidenceCutOff).isEqualTo(0.9)
+    }
+}
+```
+
+---
 
 ### **Configuration Precedence (Highest to Lowest)**
 
@@ -684,9 +957,10 @@ src/main/resources/application-templates/
 ```yaml
 # Copy to your src/main/resources/application.yml and customize
 embabel:
-  framework:
-    test:
-      mockMode: true
+  agent:
+    platform:
+      test:
+        mockMode: true
   agent:
     logging:
       personality: starwars
@@ -708,9 +982,10 @@ embabel:
 ```yaml
 # Copy to your src/main/resources/application.yml and customize
 embabel:
-  framework:
-    test:
-      mockMode: false
+  agent:
+    platform:
+      test:
+        mockMode: false
   agent:
     logging:
       personality: corporate
