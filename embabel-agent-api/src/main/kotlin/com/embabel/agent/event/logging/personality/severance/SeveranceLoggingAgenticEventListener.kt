@@ -106,17 +106,18 @@ class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(
 
     override fun getRankingChoiceMadeEventMessage(e: RankingChoiceMadeEvent<*>): String =
         kier(
-            """
-        Chose ${e.type.simpleName} '${e.choice.match.name}' with confidence ${e.choice.score} based on ${e.basis}. Choices: ${e.rankings.infoString()}
-            May my cunning acument slice through the fog of small minds, guiding them to their great purpose in labor.
-        """.trimIndent()
+            """|
+            |Chose ${e.type.simpleName} '${e.choice.match.name}' with confidence ${e.choice.score} based on ${e.basis}. Choices:
+            |${e.rankings.infoString()}
+            |May my cunning acument slice through the fog of small minds, guiding them to their great purpose in labor.
+            """.trimMargin()
         )
 
     override fun getRankingChoiceNotMadeEventMessage(e: RankingChoiceCouldNotBeMadeEvent<*>): String =
         "${highlight("WOE")}: Failed to choose ${e.type.simpleName} based on ${e.basis}. Choices: ${e.rankings.infoString()}. Confidence cutoff: ${e.confidenceCutOff}"
 
     override fun getDynamicAgentCreationMessage(e: DynamicAgentCreationEvent): String =
-        "${highlight("WILES")}: Created agent ${e.agent.infoString(indent = 1)}"
+        "${highlight("WILES")}: Created agent\n${e.agent.infoString(indent = 1)}"
 
     override fun getAgentProcessCreationEventMessage(e: AgentProcessCreationEvent): String =
         kier(
@@ -161,10 +162,16 @@ class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(
     override fun getToolCallRequestEventMessage(e: ToolCallRequestEvent): String =
         "[${e.processId}] ${highlight("VERVE")}: (${e.action?.shortName()}) calling tool ${e.tool}(${e.toolInput})"
 
-    override fun getToolCallSuccessResponseEventMessage(e: ToolCallResponseEvent, resultToShow: String): String =
+    override fun getToolCallSuccessResponseEventMessage(
+        e: ToolCallResponseEvent,
+        resultToShow: String,
+    ): String =
         "[${e.processId}] ${highlight("VISION")}: (${e.request.action?.shortName()}) tool ${e.request.tool} returned $resultToShow in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
 
-    override fun getToolCallFailureResponseEventMessage(e: ToolCallResponseEvent, throwable: Throwable?): String =
+    override fun getToolCallFailureResponseEventMessage(
+        e: ToolCallResponseEvent,
+        throwable: Throwable?,
+    ): String =
         "[${e.processId}] ${highlight("WOE")}: (${e.request.action?.shortName()}) tool ${e.request.tool} failed $throwable in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
 
     override fun getLlmRequestEventMessage(e: LlmRequestEvent<*>): String =

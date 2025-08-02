@@ -56,6 +56,13 @@ data class Goal(
         return copy(pre = pre + preconditions)
     }
 
+    fun withPreconditions(vararg goals: Goal): Goal {
+        return copy(pre = pre + goals.flatMap { it.pre }.toSet())
+    }
+
+    /**
+     * Create a goal with the given value.
+     */
     fun withValue(value: Double): Goal {
         return copy(value = value)
     }

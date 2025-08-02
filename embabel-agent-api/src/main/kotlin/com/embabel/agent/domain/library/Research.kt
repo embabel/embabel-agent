@@ -32,10 +32,11 @@ data class ResearchTopics(
 )
 
 /**
- * Reusable domain object for a research report
+ * Reusable domain object for a research report.
+ * Open as subclasses can be created to hold additional information.
  */
 @JsonClassDescription("Research report, containing a text field and links")
-data class ResearchReport(
+open class ResearchReport(
     @get:JsonPropertyDescription(
         "The text of the research report",
     )

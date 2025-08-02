@@ -17,6 +17,7 @@ package com.embabel.chat.agent
 
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.domain.io.UserInput
 import com.embabel.chat.*
 
 /**
@@ -35,7 +36,10 @@ abstract class AgentPlatformChatSession(
     override val conversation: Conversation
         get() = internalConversation
 
-    override fun respond(message: UserMessage, additionalListener: MessageListener?) {
+    override fun respond(
+        message: UserMessage,
+        additionalListener: MessageListener?,
+    ) {
         internalConversation = conversation.withMessage(message)
         val assistantMessage = generateResponse(message)
         internalConversation = conversation.withMessage(assistantMessage)
@@ -46,13 +50,12 @@ abstract class AgentPlatformChatSession(
     protected fun generateResponse(message: UserMessage): AssistantMessage {
         try {
             val dynamicExecutionResult = autonomy.chooseAndAccomplishGoal(
-                intent = message.content,
                 processOptions = processOptions,
                 goalChoiceApprover = goalChoiceApprover,
                 agentScope = autonomy.agentPlatform,
-                additionalBindings = if (shouldBindConversation())
+                bindings = (if (shouldBindConversation())
                     mapOf("conversation" to conversation)
-                else emptyMap()
+                else emptyMap()) + mapOf("userInput" to UserInput(message.content)),
             )
             val result = dynamicExecutionResult.output
             return AgenticResultAssistantMessage(
@@ -85,5 +88,8 @@ abstract class AgentPlatformChatSession(
     /**
      * Handles process waiting exceptions in a platform-specific way
      */
-    protected abstract fun handleProcessWaitingException(pwe: ProcessWaitingException, basis: Any): AssistantMessage
+    protected abstract fun handleProcessWaitingException(
+        pwe: ProcessWaitingException,
+        basis: Any,
+    ): AssistantMessage
 }

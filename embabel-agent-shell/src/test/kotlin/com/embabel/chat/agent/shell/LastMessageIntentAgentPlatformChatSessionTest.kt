@@ -38,12 +38,19 @@ class LastMessageIntentAgentPlatformChatSessionTest {
     fun `should invoke chooseAndAccomplishGoal`() {
         val mockAutonomy = mockk<Autonomy>()
         every { mockAutonomy.agentPlatform } returns mockk()
-        val intent = slot<String>()
+        val intent = slot<Map<String, Any>>()
         val der = mockk<AgentProcessExecution>()
         val output = LocalPerson("Gordon")
         every { der.output } returns output
 
-        every { mockAutonomy.chooseAndAccomplishGoal(capture(intent), any(), any(), any()) } returns der
+        every {
+            mockAutonomy.chooseAndAccomplishGoal(
+                bindings = capture(intent),
+                goalChoiceApprover = any(),
+                agentScope = any(),
+                processOptions = any(),
+            )
+        } returns der
         val chatSession = LastMessageIntentAgentPlatformChatSession(
             mockAutonomy,
             GoalChoiceApprover.Companion.APPROVE_ALL,
