@@ -31,8 +31,8 @@ data class AgentPlatformProperties(
     /**
      * Core platform identity
      */
-    var name: String = "embabel-default",
-    var description: String = "Embabel Default Agent Platform",
+    val name: String = "embabel-default",
+    val description: String = "Embabel Default Agent Platform",
 
     /**
      * Platform behavior configurations
@@ -50,19 +50,19 @@ data class AgentPlatformProperties(
      * Agent scanning configuration
      */
     data class ScanningConfig(
-        var annotation: Boolean = true,
-        var bean: Boolean = false
+        val annotation: Boolean = true,
+        val bean: Boolean = false
     )
 
     /**
      * Ranking configuration with retry logic
      */
     data class RankingConfig(
-        var llm: String? = null,
-        var maxAttempts: Int = 5,
-        var backoffMillis: Long = 100L,
-        var backoffMultiplier: Double = 5.0,
-        var backoffMaxInterval: Long = 180000L
+        val llm: String? = null,
+        val maxAttempts: Int = 5,
+        val backoffMillis: Long = 100L,
+        val backoffMultiplier: Double = 5.0,
+        val backoffMaxInterval: Long = 180000L
     )
 
     /**
@@ -76,16 +76,16 @@ data class AgentPlatformProperties(
          * Prompt configuration
          */
         data class PromptsConfig(
-            var maybePromptTemplate: String = "maybe_prompt_contribution",
-            var generateExamplesByDefault: Boolean = true
+            val maybePromptTemplate: String = "maybe_prompt_contribution",
+            val generateExamplesByDefault: Boolean = true
         )
 
         /**
          * Data binding retry configuration
          */
         data class DataBindingConfig(
-            var maxAttempts: Int = 10,
-            var fixedBackoffMillis: Long = 30L
+            val maxAttempts: Int = 10,
+            val fixedBackoffMillis: Long = 30L
         )
     }
 
@@ -93,16 +93,16 @@ data class AgentPlatformProperties(
      * Process ID generation configuration
      */
     data class ProcessIdGenerationConfig(
-        var includeVersion: Boolean = false,
-        var includeAgentName: Boolean = false
+        val includeVersion: Boolean = false,
+        val includeAgentName: Boolean = false
     )
 
     /**
      * Autonomy thresholds configuration
      */
     data class AutonomyConfig(
-        var agentConfidenceCutOff: Double = 0.6,
-        var goalConfidenceCutOff: Double = 0.6
+        val agentConfidenceCutOff: Double = 0.6,
+        val goalConfidenceCutOff: Double = 0.6
     )
 
     /**
@@ -116,20 +116,20 @@ data class AgentPlatformProperties(
          * Anthropic provider retry configuration
          */
         data class AnthropicConfig(
-            var maxAttempts: Int = 10,
-            var backoffMillis: Long = 5000L,
-            var backoffMultiplier: Double = 5.0,
-            var backoffMaxInterval: Long = 180000L
+            val maxAttempts: Int = 10,
+            val backoffMillis: Long = 5000L,
+            val backoffMultiplier: Double = 5.0,
+            val backoffMaxInterval: Long = 180000L
         )
 
         /**
          * OpenAI provider retry configuration
          */
         data class OpenAiConfig(
-            var maxAttempts: Int = 10,
-            var backoffMillis: Long = 5000L,
-            var backoffMultiplier: Double = 5.0,
-            var backoffMaxInterval: Long = 180000L
+            val maxAttempts: Int = 10,
+            val backoffMillis: Long = 5000L,
+            val backoffMultiplier: Double = 5.0,
+            val backoffMaxInterval: Long = 180000L
         )
     }
 
@@ -137,14 +137,14 @@ data class AgentPlatformProperties(
      * Server-sent events configuration
      */
     data class SseConfig(
-        var maxBufferSize: Int = 100,
-        var maxProcessBuffers: Int = 1000
+        val maxBufferSize: Int = 100,
+        val maxProcessBuffers: Int = 1000
     )
 
     /**
      * Test configuration
      */
     data class TestConfig(
-        var mockMode: Boolean = true
+        val mockMode: Boolean = true
     )
 }

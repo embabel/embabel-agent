@@ -97,7 +97,7 @@ data class ConditionalPropertyScanningConfig(
      *
      * @see PROFILES_MIGRATION_GUIDE.md for additional configuration examples and migration guidance
      */
-    var includePackages: List<String> = listOf(
+    val includePackages: List<String> = listOf(
         "com.embabel.agent",
         "com.embabel.agent.shell"
     ),
@@ -107,31 +107,31 @@ data class ConditionalPropertyScanningConfig(
      * Uses a comprehensive strategy that excludes common framework and library packages
      * while allowing configuration override for custom environments.
      */
-    var excludePackages: List<String> = defaultExcludePackages(),
+    val excludePackages: List<String> = defaultExcludePackages(),
 
     /**
      * Additional user-specific packages to exclude.
      * Allows runtime customization without modifying the default exclusion list.
      */
-    var additionalExcludes: List<String> = emptyList(),
+    val additionalExcludes: List<String> = emptyList(),
 
     /**
      * Whether to use classpath-based detection to automatically exclude JAR-based packages.
      * When enabled, packages from JAR files are automatically excluded from scanning.
      */
-    var autoExcludeJarPackages: Boolean = true,
+    val autoExcludeJarPackages: Boolean = true,
 
     /**
      * Maximum depth for package scanning to prevent excessive recursion.
      */
-    var maxScanDepth: Int = 10,
+    val maxScanDepth: Int = 10,
 
     /**
      * Whether scanning is enabled.
      * Disabled by default in Iteration 0, should be enabled starting Iteration 1
      * when users need migration detection for @ConditionalOnProperty annotations.
      */
-    var enabled: Boolean = false
+    val enabled: Boolean = false
 ) {
 
     companion object {

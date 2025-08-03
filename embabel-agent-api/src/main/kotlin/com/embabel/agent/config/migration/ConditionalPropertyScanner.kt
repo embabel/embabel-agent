@@ -16,11 +16,11 @@
 package com.embabel.agent.config.migration
 
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.context.ApplicationContext
-import org.springframework.context.ApplicationContextAware
 import org.springframework.context.annotation.Conditional
+import org.springframework.core.io.Resource
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import org.springframework.core.type.AnnotationMetadata
 import org.springframework.core.type.classreading.CachingMetadataReaderFactory
@@ -99,86 +99,34 @@ import java.util.regex.Pattern
  * @see SimpleDeprecatedConfigWarner for warning output format
  */
 @Component
-class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContextAware {
+class ConditionalPropertyScanner(
+    private val scanningConfigProvider: ObjectProvider<ConditionalPropertyScanningConfig>,
+    private val propertyWarnerProvider: ObjectProvider<SimpleDeprecatedConfigWarner>
+) : SmartInitializingSingleton {
 
-    private lateinit var applicationContext: ApplicationContext
-    private val logger = LoggerFactory.getLogger(ConditionalPropertyScanner::class.java)
     private val resourceResolver = PathMatchingResourcePatternResolver()
     private val metadataReaderFactory = CachingMetadataReaderFactory()
 
-    override fun setApplicationContext(applicationContext: ApplicationContext) {
-        this.applicationContext = applicationContext
-    }
-
     /**
      * Performs conditional property scanning after all singletons are initialized.
-     *
-     * This method handles all conditional bean loading scenarios:
-     *
-     * <h3>Scenario 1: Iteration 0 Default (Scanning Disabled)</h3>
-     * <pre>{@code
-     * # Configuration:
-     * # embabel.agent.platform.migration.scanning.enabled=false (implicit default)
-     * embabel.agent.platform.migration.warnings.enabled=true (default via matchIfMissing=true)
-     *
-     * # Bean State: scanningConfig = null, propertyWarner = available
-     * # Behavior: Logs "scanning disabled", no package scanning occurs
-     * # Use Case: Iteration 0 production - warnings work, scanning deferred
-     * }</pre>
-     *
-     * <h3>Scenario 2: Migration System Completely Disabled</h3>
-     * <pre>{@code
-     * # Configuration:
-     * embabel.agent.platform.migration.warnings.enabled=false
-     * embabel.agent.platform.migration.scanning.enabled=false
-     *
-     * # Bean State: scanningConfig = null, propertyWarner = null
-     * # Behavior: Logs "migration system disabled", no detection occurs
-     * # Use Case: Production environments disabling all migration detection
-     * }</pre>
-     *
-     * <h3>Scenario 3: Full Migration Detection (Iteration 1+)</h3>
-     * <pre>{@code
-     * # Configuration:
-     * embabel.agent.platform.migration.warnings.enabled=true
-     * embabel.agent.platform.migration.scanning.enabled=true
-     *
-     * # Bean State: scanningConfig = available, propertyWarner = available
-     * # Behavior: Full package scanning with conditional annotation detection
-     * # Use Case: Iteration 1+ production - complete migration system active
-     * }</pre>
-     *
-     * <h3>Scenario 4: Warnings Only (Partial Detection)</h3>
-     * <pre>{@code
-     * # Configuration:
-     * embabel.agent.platform.migration.warnings.enabled=true
-     * # embabel.agent.platform.migration.scanning.enabled=false (default)
-     *
-     * # Bean State: scanningConfig = null, propertyWarner = available
-     * # Behavior: Property warnings work, no @ConditionalOnProperty scanning
-     * # Use Case: Property warnings without bytecode scanning overhead
-     * }</pre>
-     *
-     * @see ConditionalPropertyScanningConfig for scanning configuration
-     * @see SimpleDeprecatedConfigWarner for warning system
      */
     override fun afterSingletonsInstantiated() {
-        val scanningConfig = applicationContext.getBeanProvider(ConditionalPropertyScanningConfig::class.java).getIfAvailable()
-        val propertyWarner = applicationContext.getBeanProvider(SimpleDeprecatedConfigWarner::class.java).getIfAvailable()
+        val scanningConfig = scanningConfigProvider.getIfAvailable()
+        val propertyWarner = propertyWarnerProvider.getIfAvailable()
 
         when {
-            scanningConfig == null && propertyWarner == null -> {
+            scanningConfig == null && propertyWarner == null ->
                 logger.debug("Migration system completely disabled - both scanning config and property warner unavailable")
-            }
-            scanningConfig == null -> {
+
+            scanningConfig == null ->
                 logger.debug("ConditionalPropertyScanningConfig not available - scanning disabled (Scenario 1/4: Iteration 0 default or warnings-only mode)")
-            }
-            propertyWarner == null -> {
+
+            propertyWarner == null ->
                 logger.debug("SimpleDeprecatedConfigWarner not available - cannot issue warnings (Scenario 2: Migration system disabled)")
-            }
-            !scanningConfig.enabled -> {
+
+            !scanningConfig.enabled ->
                 logger.debug("Conditional property scanning explicitly disabled via embabel.agent.platform.migration.scanning.enabled=false")
-            }
+
             else -> {
                 logger.info("All migration components available - starting conditional property scanning (Scenario 3: Full detection active)")
                 doScanning(scanningConfig, propertyWarner)
@@ -196,40 +144,40 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * Explicit property mappings for all known migrations.
      * Simple, predictable, and safe approach without regex complexity.
      */
-    private val exactPropertyMappings = mapOf(
+    private val exactPropertyMappings = buildMap<String, String> {
         // Platform namespace consolidation (embabel.agent-platform.* → embabel.agent.platform.*)
-        "embabel.agent-platform.ranking.max-attempts" to "embabel.agent.platform.ranking.max-attempts",
-        "embabel.agent-platform.ranking.backoff-millis" to "embabel.agent.platform.ranking.backoff-millis",
-        "embabel.agent-platform.ranking.backoff-multiplier" to "embabel.agent.platform.ranking.backoff-multiplier",
-        "embabel.agent-platform.ranking.backoff-max-interval" to "embabel.agent.platform.ranking.backoff-max-interval",
-        "embabel.agent-platform.llm-operations.prompts.template" to "embabel.agent.platform.llm-operations.prompts.template",
-        "embabel.agent-platform.llm-operations.data-binding.max-attempts" to "embabel.agent.platform.llm-operations.data-binding.max-attempts",
-        "embabel.agent-platform.llm-operations.data-binding.fixed-backoff-millis" to "embabel.agent.platform.llm-operations.data-binding.fixed-backoff-millis",
-        "embabel.agent-platform.autonomy.agent-confidence-cut-off" to "embabel.agent.platform.autonomy.agent-confidence-cut-off",
-        "embabel.agent-platform.autonomy.goal-confidence-cut-off" to "embabel.agent.platform.autonomy.goal-confidence-cut-off",
-        "embabel.agent-platform.process-id-generation.include-version" to "embabel.agent.platform.process-id-generation.include-version",
-        "embabel.agent-platform.process-id-generation.include-agent-name" to "embabel.agent.platform.process-id-generation.include-agent-name",
+        put("embabel.agent-platform.ranking.max-attempts", "embabel.agent.platform.ranking.max-attempts")
+        put("embabel.agent-platform.ranking.backoff-millis", "embabel.agent.platform.ranking.backoff-millis")
+        put("embabel.agent-platform.ranking.backoff-multiplier", "embabel.agent.platform.ranking.backoff-multiplier")
+        put("embabel.agent-platform.ranking.backoff-max-interval", "embabel.agent.platform.ranking.backoff-max-interval")
+        put("embabel.agent-platform.llm-operations.prompts.template", "embabel.agent.platform.llm-operations.prompts.template")
+        put("embabel.agent-platform.llm-operations.data-binding.max-attempts", "embabel.agent.platform.llm-operations.data-binding.max-attempts")
+        put("embabel.agent-platform.llm-operations.data-binding.fixed-backoff-millis", "embabel.agent.platform.llm-operations.data-binding.fixed-backoff-millis")
+        put("embabel.agent-platform.autonomy.agent-confidence-cut-off", "embabel.agent.platform.autonomy.agent-confidence-cut-off")
+        put("embabel.agent-platform.autonomy.goal-confidence-cut-off", "embabel.agent.platform.autonomy.goal-confidence-cut-off")
+        put("embabel.agent-platform.process-id-generation.include-version", "embabel.agent.platform.process-id-generation.include-version")
+        put("embabel.agent-platform.process-id-generation.include-agent-name", "embabel.agent.platform.process-id-generation.include-agent-name")
 
         // Model provider configurations (embabel.agent.PROVIDER.* → embabel.agent.platform.models.PROVIDER.*)
-        "embabel.agent.anthropic.max-attempts" to "embabel.agent.platform.models.anthropic.max-attempts",
-        "embabel.agent.anthropic.backoff-millis" to "embabel.agent.platform.models.anthropic.backoff-millis",
-        "embabel.agent.anthropic.backoff-multiplier" to "embabel.agent.platform.models.anthropic.backoff-multiplier",
-        "embabel.agent.anthropic.backoff-max-interval" to "embabel.agent.platform.models.anthropic.backoff-max-interval",
-        "embabel.agent.openai.max-attempts" to "embabel.agent.platform.models.openai.max-attempts",
-        "embabel.agent.openai.backoff-millis" to "embabel.agent.platform.models.openai.backoff-millis",
-        "embabel.agent.openai.backoff-multiplier" to "embabel.agent.platform.models.openai.backoff-multiplier",
-        "embabel.agent.openai.backoff-max-interval" to "embabel.agent.platform.models.openai.backoff-max-interval",
+        put("embabel.agent.anthropic.max-attempts", "embabel.agent.platform.models.anthropic.max-attempts")
+        put("embabel.agent.anthropic.backoff-millis", "embabel.agent.platform.models.anthropic.backoff-millis")
+        put("embabel.agent.anthropic.backoff-multiplier", "embabel.agent.platform.models.anthropic.backoff-multiplier")
+        put("embabel.agent.anthropic.backoff-max-interval", "embabel.agent.platform.models.anthropic.backoff-max-interval")
+        put("embabel.agent.openai.max-attempts", "embabel.agent.platform.models.openai.max-attempts")
+        put("embabel.agent.openai.backoff-millis", "embabel.agent.platform.models.openai.backoff-millis")
+        put("embabel.agent.openai.backoff-multiplier", "embabel.agent.platform.models.openai.backoff-multiplier")
+        put("embabel.agent.openai.backoff-max-interval", "embabel.agent.platform.models.openai.backoff-max-interval")
 
         // Specific platform feature migrations
-        "embabel.agent.enable-scanning" to "embabel.agent.platform.scanning.annotation",
-        "embabel.agent.mock-mode" to "embabel.agent.platform.test.mock-mode",
-        "embabel.agent.sse.max-buffer-size" to "embabel.agent.platform.sse.max-buffer-size",
-        "embabel.agent.sse.max-process-buffers" to "embabel.agent.platform.sse.max-process-buffers",
+        put("embabel.agent.enable-scanning", "embabel.agent.platform.scanning.annotation")
+        put("embabel.agent.mock-mode", "embabel.agent.platform.test.mock-mode")
+        put("embabel.agent.sse.max-buffer-size", "embabel.agent.platform.sse.max-buffer-size")
+        put("embabel.agent.sse.max-process-buffers", "embabel.agent.platform.sse.max-process-buffers")
 
         // @ConfigurationProperties prefix migrations
-        "embabel.anthropic" to "embabel.agent.platform.models.anthropic",
-        "embabel.openai" to "embabel.agent.platform.models.openai"
-    )
+        put("embabel.anthropic", "embabel.agent.platform.models.anthropic")
+        put("embabel.openai", "embabel.agent.platform.models.openai")
+    }
 
     /**
      * Data class representing a property migration rule with pattern matching.
@@ -282,29 +230,12 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
          */
         fun tryApply(property: String): String? {
             // Check optional condition first
-            if (condition != null && !condition.invoke(property)) {
-                return null
-            }
+            condition?.let { if (!it(property)) return null }
 
-            val matcher = pattern.matcher(property)
-            return if (matcher.matches()) {
-                matcher.replaceAll(replacement)
-            } else {
-                null
-            }
+            return pattern.matcher(property).takeIf { it.matches() }?.replaceAll(replacement)
         }
     }
 
-    /**
-     * BeanFactoryPostProcessor implementation - called during Spring startup.
-     *
-     * This method is automatically invoked by Spring during application context initialization,
-     * before any beans are instantiated. It triggers the complete scanning and warning process
-     * for deprecated conditional properties.
-     *
-     * **Execution Order**: Runs early in Spring lifecycle, after property sources are loaded
-     * but before regular bean creation begins.
-     */
     /**
      * Performs the actual scanning with provided configuration and warning components.
      *
@@ -314,10 +245,10 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
     private fun doScanning(scanningConfig: ConditionalPropertyScanningConfig, propertyWarner: SimpleDeprecatedConfigWarner) {
         logger.info("Scanning for deprecated conditional properties in packages: ${scanningConfig.includePackages}")
 
-        try {
+        runCatching {
             scanForDeprecatedConditionals(scanningConfig, propertyWarner)
-        } catch (e: Exception) {
-            logger.warn("Error during conditional property scanning: ${e.message}", e)
+        }.onFailure { exception ->
+            logger.warn("Error during conditional property scanning: ${exception.message}", exception)
         }
     }
 
@@ -329,26 +260,21 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * for deprecated conditional annotations.
      */
     private fun scanForDeprecatedConditionals(scanningConfig: ConditionalPropertyScanningConfig, propertyWarner: SimpleDeprecatedConfigWarner) {
-        var scannedClasses = 0
-        var foundDeprecated = 0
-
-        scanningConfig.includePackages.forEach { packageName ->
-            if (scanningConfig.shouldIncludePackage(packageName)) {
-                val packageResources = findClassesInPackage(packageName, scanningConfig)
-                packageResources.forEach { resource ->
-                    try {
-                        val metadataReader = metadataReaderFactory.getMetadataReader(resource)
-                        scannedClasses++
-
-                        if (analyzeClassForDeprecatedConditionals(metadataReader, scanningConfig, propertyWarner)) {
-                            foundDeprecated++
-                        }
-                    } catch (e: Exception) {
-                        logger.debug("Error reading class metadata for ${resource}: ${e.message}")
-                    }
+        val scanningResults = scanningConfig.includePackages
+            .filter(scanningConfig::shouldIncludePackage)
+            .flatMap { packageName -> findClassesInPackage(packageName, scanningConfig).asIterable() }
+            .mapNotNull { resource ->
+                runCatching {
+                    val metadataReader = metadataReaderFactory.getMetadataReader(resource)
+                    metadataReader to analyzeClassForDeprecatedConditionals(metadataReader, scanningConfig, propertyWarner)
+                }.getOrElse { exception ->
+                    logger.debug("Error reading class metadata for $resource: ${exception.message}")
+                    null
                 }
             }
-        }
+
+        val scannedClasses = scanningResults.size
+        val foundDeprecated = scanningResults.count { it.second }
 
         logger.info("Conditional property scanning completed. Scanned: $scannedClasses classes, Found deprecated: $foundDeprecated")
     }
@@ -359,24 +285,22 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * Uses Spring's PathMatchingResourcePatternResolver to locate .class files
      * and optionally filters out JAR-based classes based on configuration.
      */
-    private fun findClassesInPackage(packageName: String, scanningConfig: ConditionalPropertyScanningConfig): Array<org.springframework.core.io.Resource> {
+    private fun findClassesInPackage(packageName: String, scanningConfig: ConditionalPropertyScanningConfig): Array<Resource> {
         val packagePath = packageName.replace('.', '/')
         val pattern = "classpath*:$packagePath/**/*.class"
 
-        return try {
-            val resources = resourceResolver.getResources(pattern)
-
-            // Filter out JAR-based packages if auto-exclude is enabled
-            if (scanningConfig.autoExcludeJarPackages) {
-                resources.filter { resource ->
-                    val url = resource.url.toString()
-                    !url.contains(".jar!") && !url.contains(".war!")
-                }.toTypedArray()
-            } else {
-                resources
-            }
-        } catch (e: Exception) {
-            logger.debug("Error finding classes in package $packageName: ${e.message}")
+        return runCatching {
+            resourceResolver.getResources(pattern).let { resources ->
+                if (scanningConfig.autoExcludeJarPackages) {
+                    resources.filterNot { resource ->
+                        with(resource.url.toString()) { contains(".jar!") || contains(".war!") }
+                    }
+                } else {
+                    resources.asIterable()
+                }
+            }.toList().toTypedArray()
+        }.getOrElse { exception ->
+            logger.debug("Error finding classes in package $packageName: ${exception.message}")
             emptyArray()
         }
     }
@@ -390,38 +314,38 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * @param metadataReader Spring metadata reader for the class
      * @return true if deprecated conditionals were found in this class
      */
-    private fun analyzeClassForDeprecatedConditionals(metadataReader: MetadataReader, scanningConfig: ConditionalPropertyScanningConfig, propertyWarner: SimpleDeprecatedConfigWarner): Boolean {
+    private fun analyzeClassForDeprecatedConditionals(
+        metadataReader: MetadataReader,
+        scanningConfig: ConditionalPropertyScanningConfig,
+        propertyWarner: SimpleDeprecatedConfigWarner
+    ): Boolean {
         val className = metadataReader.classMetadata.className
         val annotationMetadata = metadataReader.annotationMetadata
 
         // Skip if package should be excluded
-        if (scanningConfig.shouldExcludePackage(className)) {
-            return false
-        }
+        if (scanningConfig.shouldExcludePackage(className)) return false
 
         var foundDeprecated = false
 
         // Check for @ConditionalOnProperty annotations
         if (annotationMetadata.hasAnnotation(ConditionalOnProperty::class.java.name)) {
-            foundDeprecated = analyzeConditionalOnProperty(className, annotationMetadata, propertyWarner) || foundDeprecated
+            foundDeprecated = analyzeConditionalOnProperty(className, annotationMetadata, propertyWarner)
         }
 
         // Check for meta-annotations that might contain @ConditionalOnProperty
-        annotationMetadata.annotationTypes.forEach { annotationType ->
-            if (annotationType != ConditionalOnProperty::class.java.name) {
-                try {
-                    val metaClass = Class.forName(annotationType)
+        annotationMetadata.annotationTypes
+            .filterNot { it == ConditionalOnProperty::class.java.name }
+            .forEach { annotationType ->
+                runCatching {
+                    Class.forName(annotationType)
+                }.onSuccess { metaClass ->
                     if (metaClass.isAnnotationPresent(ConditionalOnProperty::class.java) ||
                         metaClass.isAnnotationPresent(Conditional::class.java)) {
-
                         logger.debug("Found meta-annotation with conditional logic in $className: $annotationType")
                         // Could analyze meta-annotations further if needed
                     }
-                } catch (e: ClassNotFoundException) {
-                    // Ignore - annotation class not available
                 }
             }
-        }
 
         return foundDeprecated
     }
@@ -436,7 +360,11 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * @param annotationMetadata Metadata containing annotation information
      * @return true if deprecated properties were found in the annotation
      */
-    private fun analyzeConditionalOnProperty(className: String, annotationMetadata: AnnotationMetadata, propertyWarner: SimpleDeprecatedConfigWarner): Boolean {
+    private fun analyzeConditionalOnProperty(
+        className: String,
+        annotationMetadata: AnnotationMetadata,
+        propertyWarner: SimpleDeprecatedConfigWarner
+    ): Boolean {
         val attributes = annotationMetadata.getAnnotationAttributes(ConditionalOnProperty::class.java.name)
             ?: return false
 
@@ -444,28 +372,26 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
         val prefix = attributes["prefix"] as? String
         val value = attributes["value"] as? Array<*>
 
-        var foundDeprecated = false
-
-        // Check single property name
-        name?.let { propertyName ->
-            val fullPropertyName = if (prefix != null) "$prefix.$propertyName" else propertyName
-            if (isDeprecatedProperty(fullPropertyName)) {
-                issueDeprecatedConditionalWarning(className, fullPropertyName, propertyWarner)
-                foundDeprecated = true
+        val deprecatedProperties = sequence {
+            // Check single property name
+            name?.let { propertyName ->
+                val fullPropertyName = prefix?.let { "$it.$propertyName" } ?: propertyName
+                if (isDeprecatedProperty(fullPropertyName)) yield(fullPropertyName)
             }
+
+            // Check property array
+            value?.forEach { prop ->
+                val propertyName = prop.toString()
+                val fullPropertyName = prefix?.let { "$it.$propertyName" } ?: propertyName
+                if (isDeprecatedProperty(fullPropertyName)) yield(fullPropertyName)
+            }
+        }.toList()
+
+        deprecatedProperties.forEach { propertyName ->
+            issueDeprecatedConditionalWarning(className, propertyName, propertyWarner)
         }
 
-        // Check property array
-        value?.forEach { prop ->
-            val propertyName = prop.toString()
-            val fullPropertyName = if (prefix != null) "$prefix.$propertyName" else propertyName
-            if (isDeprecatedProperty(fullPropertyName)) {
-                issueDeprecatedConditionalWarning(className, fullPropertyName, propertyWarner)
-                foundDeprecated = true
-            }
-        }
-
-        return foundDeprecated
+        return deprecatedProperties.isNotEmpty()
     }
 
     /**
@@ -477,17 +403,8 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * @param propertyName The full property name to check
      * @return true if the property is deprecated and should trigger a warning
      */
-    private fun isDeprecatedProperty(propertyName: String): Boolean {
-        // Check exact mappings first
-        if (exactPropertyMappings.containsKey(propertyName)) {
-            return true
-        }
-
-        // Check runtime rules
-        return propertyMigrationRules.any { rule ->
-            rule.tryApply(propertyName) != null
-        }
-    }
+    private fun isDeprecatedProperty(propertyName: String): Boolean =
+        propertyName in exactPropertyMappings || propertyMigrationRules.any { rule -> rule.tryApply(propertyName) != null }
 
     /**
      * Issues a warning for deprecated conditional property usage.
@@ -498,9 +415,12 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * @param className The class containing the deprecated annotation
      * @param propertyName The deprecated property name
      */
-    private fun issueDeprecatedConditionalWarning(className: String, propertyName: String, propertyWarner: SimpleDeprecatedConfigWarner) {
+    private fun issueDeprecatedConditionalWarning(
+        className: String,
+        propertyName: String,
+        propertyWarner: SimpleDeprecatedConfigWarner
+    ) {
         val recommendedProperty = getRecommendedProperty(propertyName)
-
         val annotationDetails = "@ConditionalOnProperty(\"$propertyName\")"
         val recommendedApproach = "@ConditionalOnProperty(\"$recommendedProperty\")"
 
@@ -520,18 +440,10 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * @param deprecatedProperty The deprecated property name
      * @return The recommended replacement property name
      */
-    private fun getRecommendedProperty(deprecatedProperty: String): String {
-        // Check exact mappings first
-        exactPropertyMappings[deprecatedProperty]?.let { return it }
-
-        // Check runtime rules
-        propertyMigrationRules.forEach { rule ->
-            rule.tryApply(deprecatedProperty)?.let { return it }
-        }
-
-        // Fallback
-        return "$deprecatedProperty (please check migration guide for specific replacement)"
-    }
+    private fun getRecommendedProperty(deprecatedProperty: String): String =
+        exactPropertyMappings[deprecatedProperty]
+            ?: propertyMigrationRules.firstNotNullOfOrNull { rule -> rule.tryApply(deprecatedProperty) }
+            ?: "$deprecatedProperty (please check migration guide for specific replacement)"
 
     /**
      * Adds a new property migration rule at runtime.
@@ -546,4 +458,8 @@ class ConditionalPropertyScanner : SmartInitializingSingleton, ApplicationContex
      * Gets all currently configured migration rules.
      */
     fun getMigrationRules(): List<PropertyMigrationRule> = propertyMigrationRules.toList()
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(ConditionalPropertyScanner::class.java)
+    }
 }

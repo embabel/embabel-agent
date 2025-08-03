@@ -24,6 +24,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.SpringBootTest
@@ -96,9 +97,6 @@ class PlatformPropertiesMigrationIntegrationTest {
 
     @Test
     fun `should issue warnings for deprecated properties`() {
-        // Given - enable individual logging for this test
-        propertyWarner.enableIndividualLogging = true
-
         // When - manually trigger property warnings (simulating what scanner would do)
         propertyWarner.warnDeprecatedProperty(
             "embabel.agent.anthropic.max-attempts",
@@ -223,9 +221,6 @@ class PlatformPropertiesMigrationIntegrationTest {
 
     @Test
     fun `should demonstrate complete migration workflow`() {
-        // Given - enable individual logging for this test
-        propertyWarner.enableIndividualLogging = true
-
         // Given - simulate a complete migration scenario
         val deprecatedProperties = mapOf(
             "embabel.agent.anthropic.max-attempts" to "15",
@@ -308,10 +303,13 @@ class PlatformPropertiesMigrationIntegrationTest {
 
         @Bean
         fun simpleDeprecatedConfigWarner(environment: Environment): SimpleDeprecatedConfigWarner =
-            SimpleDeprecatedConfigWarner(environment)
+            SimpleDeprecatedConfigWarner(environment, enableIndividualLogging = true)
 
         @Bean
-        fun conditionalPropertyScanner(): ConditionalPropertyScanner =
-            ConditionalPropertyScanner()
+        fun conditionalPropertyScanner(
+            scanningConfigProvider: ObjectProvider<ConditionalPropertyScanningConfig>,
+            propertyWarnerProvider: ObjectProvider<SimpleDeprecatedConfigWarner>
+        ): ConditionalPropertyScanner =
+            ConditionalPropertyScanner(scanningConfigProvider, propertyWarnerProvider)
     }
 }

@@ -34,17 +34,15 @@ import org.springframework.stereotype.Component
     matchIfMissing = true
 )
 class SimpleDeprecatedConfigWarner(
-    private val environment: Environment
-) {
-
+    private val environment: Environment,
     /**
      * Configuration for individual warning logging behavior.
      * When true, individual warnings are logged immediately.
      * When false, only aggregated summary is logged via logAggregatedSummary().
      */
-    var enableIndividualLogging: Boolean = false
+    private val enableIndividualLogging: Boolean = false
+) {
 
-    private val logger = LoggerFactory.getLogger(SimpleDeprecatedConfigWarner::class.java)
     private val warnedProperties = mutableSetOf<String>()
     private val deprecationDetails = mutableMapOf<String, DeprecationInfo>()
 
@@ -62,12 +60,9 @@ class SimpleDeprecatedConfigWarner(
         deprecationReason: String? = null
     ) {
         // Rate limiting: only warn once per property per application run
-        if (warnedProperties.contains(deprecatedProperty)) {
-            return
-        }
+        if (deprecatedProperty in warnedProperties) return
 
-        val propertyValue = environment.getProperty(deprecatedProperty)
-        if (propertyValue != null) {
+        environment.getProperty(deprecatedProperty)?.let { propertyValue ->
             warnedProperties.add(deprecatedProperty)
             deprecationDetails[deprecatedProperty] = DeprecationInfo(
                 type = DeprecationType.PROPERTY,
@@ -76,13 +71,12 @@ class SimpleDeprecatedConfigWarner(
                 reason = deprecationReason
             )
 
-            val reasonText = deprecationReason?.let { " Reason: $it" } ?: ""
-            val message = buildString {
-                append("DEPRECATED PROPERTY USAGE: Property '${deprecatedProperty}' is deprecated and will be removed in a future version.")
-                append(" Please migrate to '${recommendedProperty}' instead.")
-                reasonText.takeIf { it.isNotEmpty() }?.let { append(it) }
-                append(" Current value: '${propertyValue}'")
-            }
+            val message = buildDeprecatedPropertyMessage(
+                deprecatedProperty,
+                recommendedProperty,
+                deprecationReason,
+                propertyValue
+            )
 
             if (enableIndividualLogging) {
                 logger.warn(message)
@@ -106,12 +100,9 @@ class SimpleDeprecatedConfigWarner(
         val warningKey = "PROFILE:$deprecatedProfile"
 
         // Rate limiting: only warn once per profile per application run
-        if (warnedProperties.contains(warningKey)) {
-            return
-        }
+        if (warningKey in warnedProperties) return
 
-        val activeProfiles = environment.activeProfiles.toList()
-        if (activeProfiles.contains(deprecatedProfile)) {
+        if (deprecatedProfile in environment.activeProfiles) {
             warnedProperties.add(warningKey)
             deprecationDetails[warningKey] = DeprecationInfo(
                 type = DeprecationType.PROFILE,
@@ -120,12 +111,7 @@ class SimpleDeprecatedConfigWarner(
                 reason = deprecationReason
             )
 
-            val reasonText = deprecationReason?.let { " Reason: $it" } ?: ""
-            val message = buildString {
-                append("DEPRECATED PROFILE USAGE: Profile '${deprecatedProfile}' is deprecated and will be removed in a future version.")
-                append(" Please migrate to property-based configuration using '${recommendedProperty}=true' instead.")
-                reasonText.takeIf { it.isNotEmpty() }?.let { append(it) }
-            }
+            val message = buildDeprecatedProfileMessage(deprecatedProfile, recommendedProperty, deprecationReason)
 
             if (enableIndividualLogging) {
                 logger.warn(message)
@@ -148,9 +134,7 @@ class SimpleDeprecatedConfigWarner(
         val warningKey = "CONDITIONAL:$className"
 
         // Rate limiting: only warn once per class per application run
-        if (warnedProperties.contains(warningKey)) {
-            return
-        }
+        if (warningKey in warnedProperties) return
 
         warnedProperties.add(warningKey)
         deprecationDetails[warningKey] = DeprecationInfo(
@@ -160,10 +144,7 @@ class SimpleDeprecatedConfigWarner(
             reason = "Conditional annotation migration"
         )
 
-        val message = buildString {
-            append("DEPRECATED CONDITIONAL USAGE: Class '${className}' uses deprecated conditional annotation: ${annotationDetails}.")
-            append(" Please migrate to: ${recommendedApproach}")
-        }
+        val message = buildDeprecatedConditionalMessage(className, annotationDetails, recommendedApproach)
 
         if (enableIndividualLogging) {
             logger.warn(message)
@@ -175,41 +156,10 @@ class SimpleDeprecatedConfigWarner(
      * Provides a high-level overview with migration details for better user experience.
      */
     fun logAggregatedSummary() {
-        if (deprecationDetails.isEmpty()) {
-            return // No deprecated configurations to report
-        }
+        if (deprecationDetails.isEmpty()) return
 
         val categories = getDeprecationCategories()
-        val totalCount = categories.properties.size + categories.profiles.size + categories.conditionals.size
-
-        val message = buildString {
-            append("DEPRECATED CONFIGURATION SUMMARY: Found ")
-
-            val parts = mutableListOf<String>()
-            if (categories.properties.isNotEmpty()) parts.add("${categories.properties.size} deprecated properties")
-            if (categories.profiles.isNotEmpty()) parts.add("${categories.profiles.size} deprecated profiles")
-            if (categories.conditionals.isNotEmpty()) parts.add("${categories.conditionals.size} deprecated conditionals")
-
-            append(parts.joinToString(", "))
-            append(". See migration guide for details.")
-
-            // Add migration details
-            if (categories.properties.isNotEmpty()) {
-                append("\n  Properties: ")
-                append(categories.properties.joinToString(", ") { "${it.deprecatedItem} → ${it.recommendedReplacement}" })
-            }
-
-            if (categories.profiles.isNotEmpty()) {
-                append("\n  Profiles: ")
-                append(categories.profiles.joinToString(", ") { "${it.deprecatedItem} → ${it.recommendedReplacement}" })
-            }
-
-            if (categories.conditionals.isNotEmpty()) {
-                append("\n  Conditionals: ")
-                append(categories.conditionals.joinToString(", ") { "${it.deprecatedItem}: @ConditionalOnProperty migration needed" })
-            }
-        }
-
+        val message = buildAggregatedSummaryMessage(categories)
         logger.warn(message)
     }
 
@@ -217,17 +167,15 @@ class SimpleDeprecatedConfigWarner(
      * Get categorized deprecation information for analysis or reporting.
      */
     fun getDeprecationCategories(): DeprecationCategories {
-        val properties = mutableListOf<DeprecationInfo>()
-        val profiles = mutableListOf<DeprecationInfo>()
-        val conditionals = mutableListOf<DeprecationInfo>()
-
-        deprecationDetails.values.forEach { info ->
-            when (info.type) {
-                DeprecationType.PROPERTY -> properties.add(info)
-                DeprecationType.PROFILE -> profiles.add(info)
-                DeprecationType.CONDITIONAL -> conditionals.add(info)
+        val (properties, profiles, conditionals) = deprecationDetails.values
+            .groupBy { it.type }
+            .let { grouped ->
+                Triple(
+                    grouped[DeprecationType.PROPERTY].orEmpty(),
+                    grouped[DeprecationType.PROFILE].orEmpty(),
+                    grouped[DeprecationType.CONDITIONAL].orEmpty()
+                )
             }
-        }
 
         return DeprecationCategories(properties, profiles, conditionals)
     }
@@ -248,6 +196,66 @@ class SimpleDeprecatedConfigWarner(
     fun clearWarnings() {
         warnedProperties.clear()
         deprecationDetails.clear()
+    }
+
+    private fun buildDeprecatedPropertyMessage(
+        deprecatedProperty: String,
+        recommendedProperty: String,
+        deprecationReason: String?,
+        propertyValue: String
+    ): String = buildString {
+        append("DEPRECATED PROPERTY USAGE: Property '$deprecatedProperty' is deprecated and will be removed in a future version.")
+        append(" Please migrate to '$recommendedProperty' instead.")
+        deprecationReason?.let { append(" Reason: $it") }
+        append(" Current value: '$propertyValue'")
+    }
+
+    private fun buildDeprecatedProfileMessage(
+        deprecatedProfile: String,
+        recommendedProperty: String,
+        deprecationReason: String?
+    ): String = buildString {
+        append("DEPRECATED PROFILE USAGE: Profile '$deprecatedProfile' is deprecated and will be removed in a future version.")
+        append(" Please migrate to property-based configuration using '$recommendedProperty=true' instead.")
+        deprecationReason?.let { append(" Reason: $it") }
+    }
+
+    private fun buildDeprecatedConditionalMessage(
+        className: String,
+        annotationDetails: String,
+        recommendedApproach: String
+    ): String = buildString {
+        append("DEPRECATED CONDITIONAL USAGE: Class '$className' uses deprecated conditional annotation: $annotationDetails.")
+        append(" Please migrate to: $recommendedApproach")
+    }
+
+    private fun buildAggregatedSummaryMessage(categories: DeprecationCategories): String = buildString {
+        append("DEPRECATED CONFIGURATION SUMMARY: Found ")
+
+        val parts = buildList {
+            if (categories.properties.isNotEmpty()) add("${categories.properties.size} deprecated properties")
+            if (categories.profiles.isNotEmpty()) add("${categories.profiles.size} deprecated profiles")
+            if (categories.conditionals.isNotEmpty()) add("${categories.conditionals.size} deprecated conditionals")
+        }
+
+        append(parts.joinToString(", "))
+        append(". See migration guide for details.")
+
+        // Add migration details
+        if (categories.properties.isNotEmpty()) {
+            append("\n  Properties: ")
+            append(categories.properties.joinToString(", ") { "${it.deprecatedItem} → ${it.recommendedReplacement}" })
+        }
+
+        if (categories.profiles.isNotEmpty()) {
+            append("\n  Profiles: ")
+            append(categories.profiles.joinToString(", ") { "${it.deprecatedItem} → ${it.recommendedReplacement}" })
+        }
+
+        if (categories.conditionals.isNotEmpty()) {
+            append("\n  Conditionals: ")
+            append(categories.conditionals.joinToString(", ") { "${it.deprecatedItem}: @ConditionalOnProperty migration needed" })
+        }
     }
 
     /**
@@ -275,4 +283,8 @@ class SimpleDeprecatedConfigWarner(
         val profiles: List<DeprecationInfo>,
         val conditionals: List<DeprecationInfo>
     )
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(SimpleDeprecatedConfigWarner::class.java)
+    }
 }

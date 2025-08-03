@@ -19,7 +19,6 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import io.mockk.*
-import org.springframework.context.ApplicationContext
 import org.springframework.beans.factory.ObjectProvider
 import java.util.regex.Pattern
 
@@ -31,7 +30,6 @@ class ConditionalPropertyScannerTest {
     private lateinit var scanningConfig: ConditionalPropertyScanningConfig
     private lateinit var propertyWarner: SimpleDeprecatedConfigWarner
     private lateinit var scanner: ConditionalPropertyScanner
-    private lateinit var applicationContext: ApplicationContext
     private lateinit var scanningConfigProvider: ObjectProvider<ConditionalPropertyScanningConfig>
     private lateinit var propertyWarnerProvider: ObjectProvider<SimpleDeprecatedConfigWarner>
 
@@ -39,15 +37,11 @@ class ConditionalPropertyScannerTest {
     fun setUp() {
         scanningConfig = mockk<ConditionalPropertyScanningConfig>()
         propertyWarner = mockk<SimpleDeprecatedConfigWarner>()
-        applicationContext = mockk<ApplicationContext>()
         scanningConfigProvider = mockk<ObjectProvider<ConditionalPropertyScanningConfig>>()
         propertyWarnerProvider = mockk<ObjectProvider<SimpleDeprecatedConfigWarner>>()
 
-        scanner = ConditionalPropertyScanner()
-        scanner.setApplicationContext(applicationContext)
-
-        every { applicationContext.getBeanProvider(ConditionalPropertyScanningConfig::class.java) } returns scanningConfigProvider
-        every { applicationContext.getBeanProvider(SimpleDeprecatedConfigWarner::class.java) } returns propertyWarnerProvider
+        // Create scanner with constructor injection
+        scanner = ConditionalPropertyScanner(scanningConfigProvider, propertyWarnerProvider)
     }
 
     @Test
