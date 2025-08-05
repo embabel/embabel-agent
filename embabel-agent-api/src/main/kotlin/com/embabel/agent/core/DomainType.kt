@@ -15,22 +15,29 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.common.SomeOf
 import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.core.types.Named
 import com.embabel.common.util.indent
 import com.embabel.common.util.indentLines
-import kotlin.collections.map
+
+/**
+ * Type known to the Embabel agent platform.
+ * May be backed by a domain object or by a map.
+ */
+sealed interface DomainType : HasInfoString, Named
 
 /**
  * Simple data type
  */
-data class SchemaType(
-    val name: String,
+data class DynamicType(
+    override val name: String,
     val properties: List<PropertyDefinition> = emptyList(),
-) : HasInfoString {
+) : DomainType {
 
     fun withProperty(
         property: PropertyDefinition,
-    ): SchemaType {
+    ): DynamicType {
         return copy(properties = properties + property)
     }
 
@@ -54,3 +61,47 @@ data class PropertyDefinition(
     val type: String = "string",
     val description: String? = name,
 )
+
+/**
+ * Typed backed by a JVM object
+ */
+data class JvmType(
+    val clazz: Class<*>,
+) : DomainType {
+
+    override val name: String
+        get() = clazz.name
+
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return """
+                |class: ${clazz.name}
+                |"""
+            .trimMargin()
+            .indentLines(indent)
+    }
+
+    companion object {
+
+        /**
+         * May need to break up with SomeOf
+         */
+        fun fromClasses(
+            classes: Collection<Class<*>>,
+        ): List<JvmType> {
+            return classes.flatMap {
+                if (SomeOf::class.java.isAssignableFrom(it)) {
+                    SomeOf.eligibleFields(it)
+                        .map { field ->
+                            JvmType(field.type)
+                        }
+                } else {
+                    listOf(JvmType(it))
+                }
+            }
+        }
+    }
+
+}

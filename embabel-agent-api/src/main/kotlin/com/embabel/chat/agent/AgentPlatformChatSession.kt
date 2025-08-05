@@ -17,6 +17,7 @@ package com.embabel.chat.agent
 
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.domain.io.UserInput
 import com.embabel.chat.*
 
 /**
@@ -35,7 +36,10 @@ abstract class AgentPlatformChatSession(
     override val conversation: Conversation
         get() = internalConversation
 
-    override fun respond(message: UserMessage, additionalListener: MessageListener?) {
+    override fun respond(
+        message: UserMessage,
+        additionalListener: MessageListener?,
+    ) {
         internalConversation = conversation.withMessage(message)
         val assistantMessage = generateResponse(message)
         internalConversation = conversation.withMessage(assistantMessage)
@@ -44,15 +48,20 @@ abstract class AgentPlatformChatSession(
     }
 
     protected fun generateResponse(message: UserMessage): AssistantMessage {
+        val bindings = buildMap {
+            put("userInput", UserInput(message.content))
+            if (shouldBindConversation())
+                put("conversation", conversation)
+        }
         try {
             val dynamicExecutionResult = autonomy.chooseAndAccomplishGoal(
-                intent = message.content,
                 processOptions = processOptions,
                 goalChoiceApprover = goalChoiceApprover,
                 agentScope = autonomy.agentPlatform,
-                additionalBindings = if (shouldBindConversation())
-                    mapOf("conversation" to conversation)
-                else emptyMap()
+                bindings = bindings,
+                goalSelectionOptions = GoalSelectionOptions(
+                    multiGoal = true,
+                ),
             )
             val result = dynamicExecutionResult.output
             return AgenticResultAssistantMessage(
@@ -85,5 +94,8 @@ abstract class AgentPlatformChatSession(
     /**
      * Handles process waiting exceptions in a platform-specific way
      */
-    protected abstract fun handleProcessWaitingException(pwe: ProcessWaitingException, basis: Any): AssistantMessage
+    protected abstract fun handleProcessWaitingException(
+        pwe: ProcessWaitingException,
+        basis: Any,
+    ): AssistantMessage
 }

@@ -31,6 +31,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore
  * so ensure that it is clear and unambiguous.
  * @param pre preconditions for the goal, as a set of strings. These are the conditions that must be true before the goal can be achieved.
  * @param inputs inputs required for the goal, as a set of IoBinding objects. These are the inputs that must be provided to achieve the goal.
+ * @param outputClass if this goal returns a single instance of a Java class, this is the class that will be returned.
  * @param value value of the goal, as a ZeroToOne. This is the value of achieving the goal.
  * @param tags Set of tags describing classes or capabilities for this specific skill.
  *    example: ["cooking", "customer support", "billing"]
@@ -43,6 +44,7 @@ data class Goal(
     override val description: String,
     val pre: Set<String> = emptySet(),
     override val inputs: Set<IoBinding> = emptySet(),
+    val outputClass: Class<*>?,
     override val value: ZeroToOne = 0.0,
     val tags: Set<String> = emptySet(),
     val examples: Set<String> = emptySet(),
@@ -54,6 +56,13 @@ data class Goal(
         return copy(pre = pre + preconditions)
     }
 
+    fun withPreconditions(vararg goals: Goal): Goal {
+        return copy(pre = pre + goals.flatMap { it.pre }.toSet())
+    }
+
+    /**
+     * Create a goal with the given value.
+     */
     fun withValue(value: Double): Goal {
         return copy(value = value)
     }
@@ -136,6 +145,7 @@ data class Goal(
                 description = description,
                 inputs = inputs,
                 pre = pre.map { it.name }.toSet(),
+                outputClass = satisfiedBy,
                 value = value,
                 tags = tags,
                 examples = examples,

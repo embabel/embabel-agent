@@ -79,8 +79,9 @@ open class BranchingAction<I, O1, O2>(
     qos = qos,
 ) {
 
-    override val domainTypes
+    override val domainTypes: Collection<DomainType>
         get() = setOf(inputClass, leftOutputClass, rightOutputClass)
+            .map { JvmType(it) }
 
     @Suppress("UNCHECKED_CAST")
     override fun execute(

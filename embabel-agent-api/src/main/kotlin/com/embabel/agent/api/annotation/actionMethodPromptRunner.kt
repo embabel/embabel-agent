@@ -34,6 +34,7 @@ import com.embabel.common.ai.prompt.PromptContributor
  * @promptContributors promptContributors to expose
  * @generateExamples whether to override default example generation
  */
+@Deprecated("Use an OperationContext to obtain a PromptRunner. Define it as an argument to your @Action method.")
 @JvmOverloads
 fun using(
     llm: LlmOptions? = null,
@@ -49,7 +50,7 @@ fun using(
         toolObjects = toolObjects,
         promptContributors = promptContributors,
         generateExamples = generateExamples,
-        contextualPromptContributors = contextualPromptContributors, // No contextual contributors for this runner
+        contextualPromptContributors = contextualPromptContributors, // No contextual contributors for this runner,
     )
 
 /**
@@ -63,6 +64,7 @@ fun using(
  * @promptContributors promptContributors to expose
  * @generateExamples whether to override default example generation
  */
+@Deprecated("Use an OperationContext to obtain a PromptRunner. Define it as an argument to your @Action method.")
 @JvmOverloads
 fun usingModel(
     model: String,
@@ -85,6 +87,7 @@ fun usingModel(
  * Return a PromptRunner instance for use in @Action methods
  * that uses default LLM and hyperparameters.
  */
+@Deprecated("Use an OperationContext to obtain a PromptRunner. Define it as an argument to your @Action method.")
 val usingDefaultLlm: PromptRunner =
     MethodReturnPromptRunner(
         llm = null,

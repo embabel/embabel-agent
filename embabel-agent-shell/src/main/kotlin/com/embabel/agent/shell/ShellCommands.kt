@@ -18,6 +18,7 @@ package com.embabel.agent.shell
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.*
+import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.agent.rag.Ingester
@@ -147,12 +148,13 @@ class ShellCommands(
 
     @ShellMethod("List agents")
     fun agents(): String {
-        return "${"Agents:".bold()}\n${
+        val detail = "${"Agents:".bold()}\n${
             agentPlatform.agents()
                 .joinToString(separator = "\n${"-".repeat(shellProperties.lineLength)}\n") {
                     it.infoString(verbose = true, indent = 1)
                 }
         }"
+        return detail + "\n\nTLDR;\n${agentPlatform.agents().joinToString("\n") { "${it.name}: ${it.description}" }}"
     }
 
     @ShellMethod("List actions")
@@ -188,8 +190,9 @@ class ShellCommands(
                 intent = intent,
                 agentScope = agentPlatform,
                 goalChoiceApprover = GoalChoiceApprover approveWithScoreOver .8,
+                goalSelectionOptions = GoalSelectionOptions(),
             )
-            val fmt = goalSeeker.rankings.rankings.joinToString("\n") {
+            val fmt = goalSeeker.rankings.rankings().joinToString("\n") {
                 it.infoString(verbose = true)
             }
             return fmt.color(colorPalette.color2) + "\n" + goalSeeker.agent.infoString(verbose = true)
@@ -400,10 +403,11 @@ class ShellCommands(
             if (openMode) {
                 logger.info("Executing in open mode: Trying to find appropriate goal and using all actions known to platform that can help achieve it")
                 autonomy.chooseAndAccomplishGoal(
-                    intent = intent,
                     processOptions = processOptions,
                     goalChoiceApprover = GoalChoiceApprover.APPROVE_ALL,
                     agentScope = agentPlatform,
+                    bindings = mapOf(IoBinding.DEFAULT_BINDING to UserInput(intent)),
+                    goalSelectionOptions = GoalSelectionOptions(),
                 )
             } else {
                 logger.info("Executing in closed mode: Trying to find appropriate agent")
@@ -424,7 +428,7 @@ class ShellCommands(
     private fun runProcess(
         verbosity: Verbosity,
         basis: Any,
-        run: () -> AgentProcessExecution
+        run: () -> AgentProcessExecution,
     ): String {
         try {
             val result = run()
@@ -474,21 +478,19 @@ class ShellCommands(
             }
             return "The process was terminated. Not my fault.\n\t${pete.detail.color(colorPalette.color2)}\n"
         } catch (pwe: ProcessWaitingException) {
-            pwe.agentProcess?.let {
-                recordAgentProcess(it)
-            }
+            recordAgentProcess(pwe.agentProcess)
             val awaitableResponse = terminalServices.handleProcessWaitingException(pwe)
             if (awaitableResponse == null) {
                 return "Operation cancelled.\n"
             }
             pwe.awaitable.onResponse(
                 response = awaitableResponse,
-                agentProcess = pwe.agentProcess!!,
+                agentProcess = pwe.agentProcess,
             )
             return runProcess(verbosity, basis) {
                 AgentProcessExecution.fromProcessStatus(
                     basis = basis,
-                    agentProcess = pwe.agentProcess!!.run()
+                    agentProcess = pwe.agentProcess.run()
                 )
             }
         }

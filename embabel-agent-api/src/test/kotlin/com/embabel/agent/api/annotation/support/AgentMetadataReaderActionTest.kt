@@ -17,6 +17,7 @@ package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.SnakeMeal
+import com.embabel.agent.channel.DevNullOutputChannel
 import com.embabel.agent.core.*
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.support.InMemoryBlackboard
@@ -28,6 +29,7 @@ import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.PlatformServices
 import com.embabel.agent.support.Dog
 import com.embabel.agent.testing.integration.IntegrationTestUtils
+import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyAgentProcessRunning
 import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyPlatformServices
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.plan.goap.ConditionDetermination
@@ -233,32 +235,18 @@ class AgentMetadataReaderActionTest {
         assertEquals(1, metadata!!.actions.size)
         val action = metadata.actions.first()
         val agent = mockk<CoreAgent>()
-        every { agent.domainTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java)
-        val mockAgentProcess = mockk<AgentProcess>()
-        every { mockAgentProcess.agent } returns agent
-        val mockPlatformServices = mockk<PlatformServices>()
-        every { mockPlatformServices.llmOperations } returns mockk()
-        every { mockPlatformServices.eventListener } returns DevNull
-        val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
-        every { mockAgentProcess.getValue(any(), any(), any()) } answers {
-            blackboard.getValue(
-                firstArg(),
-                secondArg(),
-                thirdArg(),
-            )
-        }
-        every { mockAgentProcess.set(any(), any()) } answers {
-            blackboard.set(
-                firstArg(),
-                secondArg(),
-            )
-        }
-        every { mockAgentProcess.lastResult() } returns PersonWithReverseTool("John Doe")
+        every { agent.domainTypes } returns listOf(
+            PersonWithReverseTool::class.java,
+            UserInput::class.java,
+        ).map { JvmType(it) }
 
+        val dummyPlatformServices = dummyPlatformServices()
         val pc = ProcessContext(
-            platformServices = mockPlatformServices,
-            agentProcess = mockAgentProcess,
+            platformServices = dummyPlatformServices,
+            agentProcess = dummyAgentProcessRunning(metadata as com.embabel.agent.core.Agent, dummyPlatformServices),
+            outputChannel = DevNullOutputChannel,
         )
+        pc.agentProcess.bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
         val result = action.execute(pc, action)
         assertEquals(ActionStatusCode.SUCCEEDED, result.status)
         assertEquals(PersonWithReverseTool("John Doe"), pc.blackboard.lastResult())
@@ -275,7 +263,7 @@ class AgentMetadataReaderActionTest {
         )
         val action = metadata.actions.first()
         val agent = mockk<CoreAgent>()
-        every { agent.domainTypes } returns listOf(SnakeMeal::class.java, UserInput::class.java)
+        every { agent.jvmTypes } returns listOf(SnakeMeal::class.java, UserInput::class.java).map { JvmType(it) }
         val mockAgentProcess = mockk<AgentProcess>()
         every { mockAgentProcess.agent } returns agent
         val mockPlatformServices = mockk<PlatformServices>()
@@ -300,6 +288,7 @@ class AgentMetadataReaderActionTest {
         val pc = ProcessContext(
             platformServices = mockPlatformServices,
             agentProcess = mockAgentProcess,
+            outputChannel = DevNullOutputChannel,
         )
         val result = action.execute(pc, action)
         assertEquals(ActionStatusCode.SUCCEEDED, result.status)
@@ -320,7 +309,7 @@ class AgentMetadataReaderActionTest {
             name = "name",
             provider = "provider",
             actions = listOf(action),
-            schemaTypes = emptyList(),
+            domainTypes = emptyList(),
             goals = emptySet(),
             description = "whatever",
         )
@@ -362,7 +351,9 @@ class AgentMetadataReaderActionTest {
             "Should not consider payload as input: ${action.inputs}",
         )
         val agent = mockk<CoreAgent>()
-        every { agent.domainTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java)
+        every { agent.jvmTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java).map {
+            JvmType(it)
+        }
         val mockAgentProcess = mockk<AgentProcess>()
         every { mockAgentProcess.agent } returns agent
         val mockPlatformServices = mockk<PlatformServices>()
@@ -385,8 +376,7 @@ class AgentMetadataReaderActionTest {
         every { mockAgentProcess.lastResult() } returns PersonWithReverseTool("John Doe")
 
         val pc = ProcessContext(
-
-            platformServices = mockPlatformServices,
+            platformServices = dummyPlatformServices(),
             agentProcess = mockAgentProcess,
         )
         val result = action.execute(pc, action)
@@ -408,7 +398,7 @@ class AgentMetadataReaderActionTest {
             name = "name",
             provider = "provider",
             actions = listOf(action),
-            schemaTypes = emptyList(),
+            domainTypes = emptyList(),
             goals = emptySet(),
             description = "whatever",
         )
@@ -449,7 +439,10 @@ class AgentMetadataReaderActionTest {
             "Should not consider payload as input",
         )
         val agent = mockk<CoreAgent>()
-        every { agent.domainTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java)
+        every { agent.jvmTypes } returns listOf(
+            PersonWithReverseTool::class.java,
+            UserInput::class.java
+        ).map { JvmType(it) }
         val mockAgentProcess = mockk<AgentProcess>()
         every { mockAgentProcess.agent } returns agent
         val mockPlatformServices = mockk<PlatformServices>()
@@ -472,8 +465,7 @@ class AgentMetadataReaderActionTest {
         every { mockAgentProcess.lastResult() } returns PersonWithReverseTool("John Doe")
 
         val pc = ProcessContext(
-
-            platformServices = mockPlatformServices,
+            platformServices = dummyPlatformServices(),
             agentProcess = mockAgentProcess,
         )
         val result = action.execute(pc, action)
@@ -489,7 +481,10 @@ class AgentMetadataReaderActionTest {
         assertEquals(1, metadata!!.actions.size)
         val action = metadata.actions.first()
         val agent = mockk<CoreAgent>()
-        every { agent.domainTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java)
+        every { agent.jvmTypes } returns listOf(
+            PersonWithReverseTool::class.java,
+            UserInput::class.java
+        ).map { JvmType(it) }
         val mockAgentProcess = mockk<AgentProcess>()
         every { mockAgentProcess.agent } returns agent
         val mockPlatformServices = mockk<PlatformServices>()
@@ -515,7 +510,7 @@ class AgentMetadataReaderActionTest {
         every { mockAgentProcess.lastResult() } returns PersonWithReverseTool("John Doe")
 
         val pc = ProcessContext(
-            platformServices = mockPlatformServices,
+            platformServices = dummyPlatformServices(),
             agentProcess = mockAgentProcess,
         )
         val result = action.execute(pc, action)
@@ -598,7 +593,10 @@ class AgentMetadataReaderActionTest {
             assertEquals(1, metadata!!.actions.size)
             val action = metadata.actions.first()
             val agent = mockk<CoreAgent>()
-            every { agent.domainTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java)
+            every { agent.jvmTypes } returns listOf(
+                PersonWithReverseTool::class.java,
+                UserInput::class.java
+            ).map { JvmType(it) }
             val mockAgentProcess = mockk<AgentProcess>()
             every { mockAgentProcess.agent } returns agent
             val llmo = slot<LlmInteraction>()
@@ -615,6 +613,8 @@ class AgentMetadataReaderActionTest {
             val mockPlatformServices = mockk<PlatformServices>()
             every { mockPlatformServices.llmOperations } returns llmt
             every { mockPlatformServices.eventListener } returns DevNull
+            every { mockPlatformServices.outputChannel } returns DevNullOutputChannel
+
             val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
             every { mockAgentProcess.getValue(any(), any(), any()) } answers {
                 blackboard.getValue(
@@ -650,7 +650,10 @@ class AgentMetadataReaderActionTest {
             assertEquals(1, metadata!!.actions.size)
             val action = metadata.actions.first()
             val agent = mockk<CoreAgent>()
-            every { agent.domainTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java)
+            every { agent.jvmTypes } returns listOf(
+                PersonWithReverseTool::class.java,
+                UserInput::class.java
+            ).map { JvmType(it) }
             val mockAgentProcess = mockk<AgentProcess>()
             every { mockAgentProcess.agent } returns agent
             val llmi = slot<LlmInteraction>()
@@ -667,6 +670,7 @@ class AgentMetadataReaderActionTest {
             val mockPlatformServices = mockk<PlatformServices>()
             every { mockPlatformServices.llmOperations } returns llmt
             every { mockPlatformServices.eventListener } returns DevNull
+            every { mockPlatformServices.outputChannel } returns DevNullOutputChannel
             val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
             every { mockAgentProcess.getValue(any(), any(), any()) } answers {
                 blackboard.getValue(
@@ -745,14 +749,20 @@ class AgentMetadataReaderActionTest {
 //            )
         }
 
-        private fun testToolsAreExposed(instance: Any, expectedToolCount: Int = 1): List<ToolCallback> {
+        private fun testToolsAreExposed(
+            instance: Any,
+            expectedToolCount: Int = 1,
+        ): List<ToolCallback> {
             val reader = AgentMetadataReader()
             val metadata = reader.createAgentMetadata(instance)
             assertNotNull(metadata)
             assertEquals(1, metadata!!.actions.size)
             val action = metadata.actions.first()
             val agent = mockk<CoreAgent>()
-            every { agent.domainTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java)
+            every { agent.jvmTypes } returns listOf(
+                PersonWithReverseTool::class.java,
+                UserInput::class.java
+            ).map { JvmType(it) }
             val mockAgentProcess = mockk<AgentProcess>()
             every { mockAgentProcess.agent } returns agent
             val llmo = slot<LlmInteraction>()
@@ -769,6 +779,8 @@ class AgentMetadataReaderActionTest {
             val mockPlatformServices = mockk<PlatformServices>()
             every { mockPlatformServices.llmOperations } returns llmt
             every { mockPlatformServices.eventListener } returns DevNull
+            every { mockPlatformServices.outputChannel } returns DevNullOutputChannel
+
             val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, PersonWithReverseTool("John Doe"))
             every { mockAgentProcess.getValue(any(), any(), any()) } answers {
                 blackboard.getValue(
@@ -815,7 +827,10 @@ class AgentMetadataReaderActionTest {
             assertEquals(1, metadata!!.actions.size)
             val action = metadata.actions.first()
             val agent = mockk<CoreAgent>()
-            every { agent.domainTypes } returns listOf(PersonWithReverseTool::class.java, UserInput::class.java)
+            every { agent.jvmTypes } returns listOf(
+                PersonWithReverseTool::class.java,
+                UserInput::class.java
+            ).map { JvmType(it) }
             val mockAgentProcess = mockk<AgentProcess>()
             every { mockAgentProcess.agent } returns agent
             every { mockAgentProcess.id } returns "mythical_beast"
@@ -824,6 +839,7 @@ class AgentMetadataReaderActionTest {
             val llmt = mockk<LlmOperations>()
             every { mockPlatformServices.llmOperations } returns llmt
             every { mockPlatformServices.eventListener } returns DevNull
+            every { mockPlatformServices.outputChannel } returns DevNullOutputChannel
             val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
             every { mockAgentProcess.getValue(any(), any(), any()) } answers {
                 blackboard.getValue(
@@ -913,7 +929,6 @@ class AgentMetadataReaderActionTest {
 
             val ap = IntegrationTestUtils.dummyAgentPlatform()
             val agent = metadata as CoreAgent
-            println(agent.infoString(true))
             val agentProcess =
                 ap.runAgentFrom(
                     agent,

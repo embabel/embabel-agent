@@ -20,7 +20,6 @@ import com.embabel.agent.rag.RagResponse
 import com.embabel.agent.rag.RagService
 import com.embabel.agent.rag.neo.common.CypherQuery
 import com.embabel.agent.rag.schema.SchemaResolver
-import com.embabel.boogie.neo.ogm.OgmMappedNamedEntity
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
@@ -129,7 +128,10 @@ class OgmRagService(
         }
     }
 
-    override fun infoString(verbose: Boolean?, indent: Int): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return "OgmRagService: name=$name, description=$description, embeddingService=${
             embeddingService.infoString(
                 verbose

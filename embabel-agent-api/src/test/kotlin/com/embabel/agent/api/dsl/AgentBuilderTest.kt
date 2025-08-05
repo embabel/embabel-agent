@@ -22,18 +22,12 @@ import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.core.support.SimpleAgentProcess
-import com.embabel.agent.rag.RagService
-import com.embabel.agent.spi.PlatformServices
-import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.support.Dog
-import com.embabel.agent.testing.common.EventSavingAgenticEventListener
-import com.embabel.agent.testing.integration.DummyObjectCreatingLlmOperations
+import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyPlatformServices
 import com.embabel.common.core.types.Semver
-import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.util.concurrent.Executors
 import kotlin.test.assertTrue
 
 val emptyAgent = agent(name = "foo", description = "bar") {}
@@ -107,14 +101,7 @@ class AgentBuilderTest {
                 ?: error("Action not found: ${agent.actions.map { it.name }}")
             val blackboard = InMemoryBlackboard()
             blackboard += PersonWithReverseTool("foo")
-            val platformServices = PlatformServices(
-                eventListener = EventSavingAgenticEventListener(),
-                llmOperations = DummyObjectCreatingLlmOperations.LoremIpsum,
-                operationScheduler = mockk(),
-                agentPlatform = mockk(),
-                ragService = mockk(),
-                asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor())
-            )
+            val platformServices = dummyPlatformServices()
             val processContext = ProcessContext(
                 agentProcess = SimpleAgentProcess(
                     agent = EvilWizardAgent,
@@ -143,14 +130,7 @@ class AgentBuilderTest {
                 ?: error("Action not found: ${agent.actions.map { it.name }}")
             val blackboard = InMemoryBlackboard()
             blackboard += MagicVictim("Hash")
-            val platformServices = PlatformServices(
-                eventListener = EventSavingAgenticEventListener(),
-                llmOperations = DummyObjectCreatingLlmOperations.LoremIpsum,
-                operationScheduler = mockk(),
-                agentPlatform = mockk(),
-                ragService = RagService.empty(),
-                asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor())
-            )
+            val platformServices = dummyPlatformServices()
             val processContext = ProcessContext(
                 agentProcess = SimpleAgentProcess(
                     agent = EvilWizardAgent,

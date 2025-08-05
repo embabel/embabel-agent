@@ -228,6 +228,7 @@ class AgentBuilder(
                 name = name,
                 description = description,
                 inputs = inputs,
+                outputClass = satisfiedBy?.java,
                 pre = pre.map { it.name }.toSet(),
                 value = value,
                 export = export,
@@ -242,9 +243,12 @@ class AgentBuilder(
     class ConditionDelegateProvider(
         private val specifiedName: String? = null,
         private val factory: (name: String) -> Condition,
-        private val conditions: MutableSet<Condition>
+        private val conditions: MutableSet<Condition>,
     ) {
-        operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): ConditionDelegate {
+        operator fun provideDelegate(
+            thisRef: Any?,
+            prop: KProperty<*>,
+        ): ConditionDelegate {
             val condition = factory(specifiedName ?: prop.name)
             conditions.add(condition) // Store the condition
             return ConditionDelegate(condition)
@@ -252,9 +256,12 @@ class AgentBuilder(
     }
 
     class ConditionDelegate(
-        private val condition: Condition
+        private val condition: Condition,
     ) {
-        operator fun getValue(thisRef: Any?, property: KProperty<*>): Condition = condition
+        operator fun getValue(
+            thisRef: Any?,
+            property: KProperty<*>,
+        ): Condition = condition
     }
 
     fun condition(

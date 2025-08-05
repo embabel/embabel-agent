@@ -44,7 +44,7 @@ interface ActionSource {
 interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString {
 
     @get:JsonIgnore
-    override val domainTypes: Collection<Class<*>>
+    override val domainTypes: Collection<DomainType>
         get() = actions.flatMap { it.domainTypes }.distinct()
 
     override fun infoString(
@@ -58,24 +58,11 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
            |${actions.sortedBy { it.name }.joinToString("\n") { it.infoString(true, 1) }}
            |conditions:
            |${conditions.map { it.name }.sorted().joinToString("\n") { it.indent(1) }}
-           |domain types: ${domainTypes.map { it.simpleName }.distinct().sorted().joinToString(", ")}
            |schema types:
-           |${schemaTypes.map { it }.joinToString("\n") { it.infoString(true, 1) }}
+           |${domainTypes.map { it }.joinToString("\n") { it.infoString(true, 1) }}
            |"""
             .trimMargin()
             .indentLines(indent)
-
-//        "%s\n\tgoals:\n\t\t%s\n\tactions:\n\t\t%s\n\tconditions: %s\n\tdomain types: %s\n\tschema types: %s".format(
-//            name,
-//            goals.sortedBy { it.name }
-//                .joinToString("\n\t\t") { it.infoString(verbose = verbose) },
-//            actions.sortedBy { it.name }
-//                .joinToString("\n\t\t") { it.infoString(verbose = verbose) },
-//            conditions.map { it.name }.sorted(),
-//            domainTypes.map { it.simpleName }.distinct().sorted(),
-//            schemaTypes.map { it }
-//                .sortedBy { it.name },
-//        )
 
     /**
      * Create a new agent from the given scope
@@ -98,9 +85,9 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
         return newAgent
     }
 
-    fun resolveSchemaType(name: String): SchemaType {
-        return schemaTypes.find { it.name == name }
-            ?: error("Schema type '$name' not found in agent $name")
+    fun resolveType(name: String): DomainType {
+        return domainTypes.find { it.name == name }
+            ?: error("Schema type '$name' not found in agent ${this.name}: types were ${domainTypes.joinToString(", ") { it.name }}")
     }
 
     companion object {
@@ -120,7 +107,6 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
                 conditions = conditions,
             )
         }
-
     }
 }
 
@@ -130,5 +116,5 @@ private data class AgentScopeImpl(
     override val actions: List<Action>,
     override val goals: Set<Goal>,
     override val conditions: Set<Condition>,
-    override val schemaTypes: Collection<SchemaType> = emptyList(),
+    override val domainTypes: Collection<DynamicType> = emptyList(),
 ) : AgentScope

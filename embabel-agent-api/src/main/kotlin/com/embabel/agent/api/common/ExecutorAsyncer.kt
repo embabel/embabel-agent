@@ -25,7 +25,7 @@ interface Asyncer {
     fun <T> async(block: () -> T): CompletableFuture<T>
 
     fun <T, R> parallelMap(
-        coll: Collection<T>,
+        items: Collection<T>,
         maxConcurrency: Int,
         transform: (t: T) -> R,
     ): List<R>

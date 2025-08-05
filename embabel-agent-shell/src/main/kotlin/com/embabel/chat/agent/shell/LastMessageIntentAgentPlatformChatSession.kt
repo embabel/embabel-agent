@@ -43,17 +43,18 @@ class LastMessageIntentAgentPlatformChatSession(
 
     override fun shouldBindConversation(): Boolean = config.bindConversation
 
-    override fun handleProcessWaitingException(pwe: ProcessWaitingException, basis: Any): AssistantMessage {
-        val awaitableResponse = terminalServices.handleProcessWaitingException(pwe)
-        if (awaitableResponse == null) {
-            return AssistantMessage("Operation cancelled.")
-        }
+    override fun handleProcessWaitingException(
+        pwe: ProcessWaitingException,
+        basis: Any,
+    ): AssistantMessage {
+        val awaitableResponse =
+            terminalServices.handleProcessWaitingException(pwe) ?: return AssistantMessage("Operation cancelled.")
         pwe.awaitable.onResponse(
             response = awaitableResponse,
-            agentProcess = pwe.agentProcess!!,
+            agentProcess = pwe.agentProcess,
         )
         try {
-            val agentProcess = pwe.agentProcess!!
+            val agentProcess = pwe.agentProcess
             agentProcess.run()
             val ape = AgentProcessExecution.fromProcessStatus(
                 basis = basis,

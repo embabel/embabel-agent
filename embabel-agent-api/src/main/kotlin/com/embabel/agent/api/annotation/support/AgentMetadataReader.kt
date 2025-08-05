@@ -86,7 +86,7 @@ class AgentMetadataReader(
     private val actionMethodManager: ActionMethodManager = DefaultActionMethodManager(),
     private val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
     private val agentStructureValidator: AgentStructureValidator,
-    private val goapPathToCompletionValidator: GoapPathToCompletionValidator
+    private val goapPathToCompletionValidator: GoapPathToCompletionValidator,
 ) {
     // test-friendly constructor
     constructor() : this(
@@ -304,7 +304,7 @@ class AgentMetadataReader(
 
                 else -> {
                     val requireNameMatch = parameter.getAnnotation(RequireNameMatch::class.java)
-                    val domainTypes = context.agentProcess.agent.domainTypes
+                    val domainTypes = context.agentProcess.agent.jvmTypes.map { it.clazz }
                     val variable = if (requireNameMatch != null) {
                         parameter.name
                     } else {
@@ -313,7 +313,7 @@ class AgentMetadataReader(
                     args += context.getValue(
                         variable = variable,
                         type = parameter.type.name,
-                        domainTypes = domainTypes,
+                        context.agentProcess.agent,
                     )
                         ?: return run {
                             // TODO assignable?
@@ -389,6 +389,7 @@ class AgentMetadataReader(
             name = nameGenerator.generateName(instance, method.name),
             description = goalAnnotation.description,
             inputs = setOf(inputBinding),
+            outputClass = method.returnType,
             value = goalAnnotation.value,
             // Add precondition of the action having run
             pre = setOf(Rerun.hasRunCondition(action)) + action.preconditions.keys.toSet(),

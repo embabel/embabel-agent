@@ -23,6 +23,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.StringTransformer
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.tool.ToolCallback
+import org.springframework.ai.tool.definition.ToolDefinition
 
 /**
  * Decorate tools with metadata and publish events.
@@ -40,20 +41,41 @@ class DefaultToolDecorator(
         llmOptions: LlmOptions,
     ): ToolCallback {
         val toolGroup = toolGroupResolver?.findToolGroupForTool(toolName = tool.toolDefinition.name())
-        return OutputTransformingToolCallback(
-            delegate = ObservabilityToolCallback(
-                delegate = MetadataEnrichedToolCallback(
-                    toolGroupMetadata = toolGroup?.resolvedToolGroup?.metadata,
-                    delegate = tool,
-                )
-                    .withEventPublication(
-                        agentProcess = agentProcess,
-                        action = action,
-                        llmOptions = llmOptions,
-                    ),
-                observationRegistry = observationRegistry,
-            ),
-            outputTransformer = outputTransformer
+        return ExceptionSuppressingToolCallback(
+            delegate = OutputTransformingToolCallback(
+                delegate = ObservabilityToolCallback(
+                    delegate = MetadataEnrichedToolCallback(
+                        toolGroupMetadata = toolGroup?.resolvedToolGroup?.metadata,
+                        delegate = tool,
+                    )
+                        .withEventPublication(
+                            agentProcess = agentProcess,
+                            action = action,
+                            llmOptions = llmOptions,
+                        ),
+                    observationRegistry = observationRegistry,
+                ),
+                outputTransformer = outputTransformer
+            )
         )
+    }
+}
+
+/**
+ * Explain exception rather than propagate it
+ */
+class ExceptionSuppressingToolCallback(
+    private val delegate: ToolCallback,
+) : ToolCallback {
+
+    override fun getToolDefinition(): ToolDefinition = delegate.toolDefinition
+
+    override fun call(toolInput: String): String {
+        return try {
+            delegate.call(toolInput)
+        } catch (t: Throwable) {
+            // Suppress the exception and return a message instead
+            "WARNING: Tool '${delegate.toolDefinition.name()}' failed with exception: ${t.message ?: "No message"}"
+        }
     }
 }

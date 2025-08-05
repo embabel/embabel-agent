@@ -42,14 +42,16 @@ interface Ranker {
  * Rankings, sorted by score descending
  */
 data class Rankings<T>(
-    val rankings: List<Ranking<T>>,
+    private val rankings: List<Ranking<T>>,
 ) : HasInfoString where T : Named, T : Described {
+
+    fun rankings(): List<Ranking<T>> = rankings.sortedByDescending { it.score }
 
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
     ): String =
-        rankings.joinToString("\n") { it.infoString(verbose, indent) }
+        rankings().joinToString("\n") { it.infoString(verbose, indent) }
 }
 
 /**

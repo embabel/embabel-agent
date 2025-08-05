@@ -15,7 +15,10 @@
  */
 package com.embabel.agent.rag.neo.ogm
 
-import com.embabel.agent.rag.*
+import com.embabel.agent.rag.Chunk
+import com.embabel.agent.rag.NamedEntityData
+import com.embabel.agent.rag.Retrievable
+import com.embabel.agent.rag.RetrievableEntity
 import com.embabel.agent.rag.repository.ChunkRepository
 import com.embabel.agent.rag.schema.*
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
@@ -24,6 +27,7 @@ import org.neo4j.ogm.session.Session
 import org.neo4j.ogm.session.SessionFactory
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.data.neo4j.transaction.SessionFactoryUtils
 import org.springframework.stereotype.Service
 
 /**
@@ -52,7 +56,7 @@ class NeoOgmKnowledgeGraphService(
     private val embeddingService = modelProvider.getEmbeddingService(DefaultModelSelectionCriteria)
 
     override fun findAll(): List<Chunk> {
-        val rows = sessionFactory.openSession().query(
+        val rows = SessionFactoryUtils.getSession(sessionFactory).query(
             cypherChunkQuery(""),
             emptyMap<String, Any?>(),
             true,
@@ -65,7 +69,8 @@ class NeoOgmKnowledgeGraphService(
 
 
     override fun findChunksById(chunkIds: List<String>): List<Chunk> {
-        val rows = sessionFactory.openSession().query(
+        val session = SessionFactoryUtils.getSession(sessionFactory)
+        val rows = session.query(
             cypherChunkQuery(" WHERE c.id IN \$ids "),
             mapOf("ids" to chunkIds),
             true,
@@ -120,9 +125,7 @@ class NeoOgmKnowledgeGraphService(
         )
     }
 
-
     private fun createEntity(
-        session: Session,
         entity: NamedEntityData,
         basis: Retrievable,
     ) {
@@ -139,7 +142,6 @@ class NeoOgmKnowledgeGraphService(
             purpose = "Merge entity",
             query = "create_entity",
             params = params,
-            session = session,
             logger = logger,
         )
         if (result.queryStatistics().nodesCreated != 1) {
@@ -151,10 +153,10 @@ class NeoOgmKnowledgeGraphService(
         }
     }
 
-    private fun embedEntities(
-        session: Session,
-        entities: List<EntityData>
+    fun embedEntities(
+        entities: List<RetrievableEntity>,
     ) {
+        val session = SessionFactoryUtils.getSession(sessionFactory)
         entities.forEach { entity ->
             embedEntity(session, entity)
         }
@@ -162,7 +164,7 @@ class NeoOgmKnowledgeGraphService(
 
     private fun embedEntity(
         session: Session,
-        entity: EntityData
+        entity: RetrievableEntity,
     ) {
         val embedding = embeddingService.model.embed(entity.embeddableValue())
         val cypher = """
@@ -170,18 +172,23 @@ class NeoOgmKnowledgeGraphService(
                 SET n.embedding = ${'$'}embedding
                 RETURN COUNT(n) as nodesUpdated
                """.trimIndent()
-        logger.info("Executing embedding cypher: {}", cypher)
-        session.query(
-            cypher,
-            mapOf(
-                "entityId" to entity.id,
-                "embedding" to embedding,
-            )
+        val params = mapOf(
+            "entityId" to entity.id,
+            "embedding" to embedding,
         )
-
+        logger.info("Executing embed entity cypher: {},\nparams={}", cypher, params)
+        val result = session.query(
+            cypher,
+            params,
+        )
+        val propertiesSet = result.queryStatistics().propertiesSet
+        if (propertiesSet < 1) {
+            logger.warn(
+                "Expected to set at least 1 embedding property, but set: {}. entityId={}, cypher={}",
+                propertiesSet,
+                entity,
+                cypher,
+            )
+        }
     }
-}
-
-fun EntityData.neoLabels(): String {
-    return labels.joinToString(":")
 }

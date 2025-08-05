@@ -34,7 +34,10 @@ class MetadataEnrichedToolCallback(
         try {
             return delegate.call(toolInput)
         } catch (t: Throwable) {
-            loggerFor<MetadataEnrichedToolCallback>().error("Tool call failure on ${delegate.toolDefinition.name()}", t)
+            loggerFor<MetadataEnrichedToolCallback>().warn(
+                "Tool call failure on ${delegate.toolDefinition.name()}: {}",
+                t.message,
+            )
             throw t
         }
     }

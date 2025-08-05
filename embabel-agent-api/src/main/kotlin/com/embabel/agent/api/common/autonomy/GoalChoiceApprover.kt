@@ -52,7 +52,7 @@ fun interface GoalChoiceApprover {
      * Respond to a goal choice.
      */
     fun approve(
-        goalChoiceApprovalRequest: GoalChoiceApprovalRequest
+        goalChoiceApprovalRequest: GoalChoiceApprovalRequest,
     ): GoalChoiceApprovalResponse
 
     companion object {
@@ -62,12 +62,12 @@ fun interface GoalChoiceApprover {
          * Approve if the score is greater than this value
          */
         infix fun approveWithScoreOver(score: ZeroToOne) = GoalChoiceApprover { request ->
-            if ((request.rankings.rankings.firstOrNull()?.score ?: 0.0) > score) {
+            if ((request.rankings.rankings().firstOrNull()?.score ?: 0.0) > score) {
                 GoalChoiceApproved(request)
             } else {
                 GoalChoiceNotApproved(
                     request = request,
-                    reason = "Score ${request.rankings.rankings.firstOrNull()?.score} is not over $score",
+                    reason = "Score ${request.rankings.rankings().firstOrNull()?.score} is not over $score",
                 )
             }
         }

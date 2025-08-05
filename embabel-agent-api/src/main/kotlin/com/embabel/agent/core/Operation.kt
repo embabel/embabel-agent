@@ -28,8 +28,8 @@ sealed interface Operation : Named
 interface AgentSystemStep : GoapStep, Described, Operation {
 
     /**
-     * Data inputs to this set.
-     * Will be used to build preconditions
+     * Data inputs to this step.
+     * Will be used to build preconditions,
      * in addition to explicit preconditions.
      */
     val inputs: Set<IoBinding>

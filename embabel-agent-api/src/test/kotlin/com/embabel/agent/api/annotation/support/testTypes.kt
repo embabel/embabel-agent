@@ -217,13 +217,16 @@ class CustomNameConditionFromBlackboard {
 class ConditionsFromBlackboard {
 
     @Condition
-    fun condition1(person: PersonWithReverseTool, frog: Frog): Boolean {
+    fun condition1(
+        person: PersonWithReverseTool,
+        frog: Frog,
+    ): Boolean {
         return person.name == "Rod"
     }
 
 }
 
-@AgentCapabilities
+@Agent(description = "one transformer action only")
 class OneTransformerActionOnly {
 
     @Action(cost = 500.0)
@@ -237,7 +240,10 @@ class OneTransformerActionOnly {
 class OneTransformerActionWithNullableParameter {
 
     @Action(cost = 500.0)
-    fun toPerson(userInput: UserInput, person: SnakeMeal?): PersonWithReverseTool {
+    fun toPerson(
+        userInput: UserInput,
+        person: SnakeMeal?,
+    ): PersonWithReverseTool {
         var content = userInput.content
         if (person != null) {
             content += " and tasty!"
@@ -322,7 +328,10 @@ class OneTransformerActionTakingInterfaceWithExpectationCustomToolGroupOnly {
 
     @AchievesGoal(description = "Creating a frog")
     @Action(cost = 500.0, toolGroups = ["magic"])
-    fun toPerson(person: PersonWithReverseTool, context: OperationContext): Frog {
+    fun toPerson(
+        person: PersonWithReverseTool,
+        context: OperationContext,
+    ): Frog {
         val pr = context.promptRunner()
         assertEquals(setOf(ToolGroupRequirement("magic")), pr.toolGroups.toSet())
 //        assertFalse(pr.toolCallbacks.isEmpty(), "ToolCallbacks should be expanded")
@@ -336,7 +345,10 @@ class OneTransformerActionTakingInterfaceWithExpectationCustomToolGroupRequireme
 
     @AchievesGoal(description = "Creating a frog")
     @Action(cost = 500.0, toolGroups = ["frogs"], toolGroupRequirements = [ToolGroup("magic")])
-    fun toPerson(person: PersonWithReverseTool, context: OperationContext): Frog {
+    fun toPerson(
+        person: PersonWithReverseTool,
+        context: OperationContext,
+    ): Frog {
         val pr = context.promptRunner()
         assertEquals(setOf(ToolGroupRequirement("magic"), ToolGroupRequirement("frogs")), pr.toolGroups.toSet())
 //        assertFalse(pr.toolCallbacks.isEmpty(), "ToolCallbacks should be expanded")
@@ -358,7 +370,10 @@ data class Task(
 class AgentWithCustomName {
 
     @Action(cost = 500.0)
-    fun toPerson(userInput: UserInput, task: Task): PersonWithReverseTool {
+    fun toPerson(
+        userInput: UserInput,
+        task: Task,
+    ): PersonWithReverseTool {
         return PersonWithReverseTool(userInput.content)
     }
 
@@ -371,7 +386,10 @@ class AgentWithCustomName {
 class AgentWithOneTransformerActionWith2ArgsOnly {
 
     @Action(cost = 500.0)
-    fun toPerson(userInput: UserInput, task: Task): PersonWithReverseTool {
+    fun toPerson(
+        userInput: UserInput,
+        task: Task,
+    ): PersonWithReverseTool {
         return PersonWithReverseTool(userInput.content)
     }
 
@@ -394,7 +412,10 @@ class OneTransformerActionWith2ArgsAndCustomInputBindings {
 class OneTransformerActionWith2ArgsAndCustomOutputBinding {
 
     @Action(outputBinding = "person")
-    fun toPerson(userInput: UserInput, task: Task): PersonWithReverseTool {
+    fun toPerson(
+        userInput: UserInput,
+        task: Task,
+    ): PersonWithReverseTool {
         return PersonWithReverseTool(userInput.content)
     }
 
@@ -490,7 +511,7 @@ class FromPersonUsesDomainObjectTools {
 
     @Action
     fun fromPerson(
-        person: PersonWithReverseTool
+        person: PersonWithReverseTool,
     ): UserInput {
         return using().createObject("Create a UserInput")
     }
@@ -513,7 +534,7 @@ class FromPersonUsesObjectToolsViaUsing {
 
     @Action
     fun fromPerson(
-        person: PersonWithReverseTool
+        person: PersonWithReverseTool,
     ): UserInput {
         return using(toolObjects = listOf(ToolObject(FunnyTool()))).createObject("Create a UserInput")
     }
@@ -524,7 +545,7 @@ class FromPersonUsesObjectToolsViaUsingWithRenaming {
 
     @Action
     fun fromPerson(
-        person: PersonWithReverseTool
+        person: PersonWithReverseTool,
     ): UserInput {
         return using()
             .withToolObject(
@@ -541,7 +562,7 @@ class FromPersonUsesObjectToolsViaUsingWithFilter {
 
     @Action
     fun fromPerson(
-        person: PersonWithReverseTool
+        person: PersonWithReverseTool,
     ): UserInput {
         return using()
             .withToolObject(
@@ -637,7 +658,8 @@ class ToolMethodsOnDomainObjects {
 
     @Action
     fun toFrog(
-        wumpty: Wumpus, person: PersonWithReverseTool,
+        wumpty: Wumpus,
+        person: PersonWithReverseTool,
     ): Frog {
         return Frog(wumpty.name)
     }
@@ -653,7 +675,7 @@ class DefineFlowTest {
     @Action
     fun toFrog(
         userInput: UserInput,
-        context: TransformationActionContext<UserInput, PersonWithReverseTool>
+        context: TransformationActionContext<UserInput, PersonWithReverseTool>,
     ): Frog {
         return chain<UserInput, PersonWithReverseTool, Frog>(
             { PersonWithReverseTool(it.input.content) },
@@ -672,7 +694,10 @@ class DefineFlowTest {
 class LocalAgentTest {
 
     @Action
-    fun toDeadPerson(userInput: UserInput, context: TransformationActionContext<UserInput, SnakeMeal>): SnakeMeal {
+    fun toDeadPerson(
+        userInput: UserInput,
+        context: TransformationActionContext<UserInput, SnakeMeal>,
+    ): SnakeMeal {
         return runAgent<UserInput, SnakeMeal>(evenMoreEvilWizard(), context)
     }
 

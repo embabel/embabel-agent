@@ -19,18 +19,24 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.fasterxml.jackson.annotation.JsonClassDescription
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 
-@JsonClassDescription("Internet resource")
-data class InternetResource(
-    @get:JsonPropertyDescription("url of the resource")
-    val url: String,
-    @get: JsonPropertyDescription("concise summary of the resource")
-    val summary: String,
-) : PromptContributor {
+interface Page : PromptContributor {
+
+    val url: String
+
+    val summary: String
 
     override fun contribution(): String {
         return "URL: $url\nSummary: $summary"
     }
 }
+
+@JsonClassDescription("Internet resource")
+open class InternetResource(
+    @get:JsonPropertyDescription("url of the resource")
+    override val url: String,
+    @get:JsonPropertyDescription("concise summary of the resource")
+    override val summary: String,
+) : Page
 
 interface InternetResources : PromptContributor {
 

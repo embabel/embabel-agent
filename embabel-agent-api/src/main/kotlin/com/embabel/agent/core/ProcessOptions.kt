@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.event.AgenticEventListener
+import com.embabel.agent.identity.User
 import java.util.function.Consumer
 
 /**
@@ -219,10 +221,21 @@ data class Budget(
 }
 
 /**
+ * Identities associated with an agent process.
+ * @param forUser the user for whom the process is running. Can be null.
+ * @param runAs the user under which the process is running. Can be null.
+ */
+data class Identities(
+    val forUser: User? = null,
+    val runAs: User? = null,
+)
+
+/**
  * How to run an AgentProcess
  * @param contextId context id to use for this process. Can be null.
  * If set it can enable connection to external resources and persistence
  * from previous runs.
+ * @param identities identities associated with this process.
  * @param blackboard an existing blackboard to use for this process.
  * By default, it will be modified as the process runs.
  * Whether this is an independent copy is up to the caller, who can call spawn()
@@ -231,9 +244,11 @@ data class Budget(
  * will not use any external resources such as LLMs, and will not persist any state.
  * @param verbosity detailed verbosity settings for logging etc.
  * @param prune whether to prune the agent to only relevant actions
+ * @param listeners additional listeners (beyond platform event listeners) to receive events from this process.
  */
 data class ProcessOptions(
     val contextId: ContextId? = null,
+    val identities: Identities = Identities(),
     val blackboard: Blackboard? = null,
     val test: Boolean = false,
     val verbosity: Verbosity = Verbosity(),
@@ -245,6 +260,7 @@ data class ProcessOptions(
         earlyTerminationPolicy = budget.earlyTerminationPolicy(),
     ),
     val prune: Boolean = false,
+    val listeners: List<AgenticEventListener> = emptyList(),
 ) {
 
     companion object {

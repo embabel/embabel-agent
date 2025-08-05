@@ -16,7 +16,9 @@
 package com.embabel.agent.support
 
 import com.embabel.agent.api.annotation.support.PersonWithReverseTool
+import com.embabel.agent.core.DataDictionaryImpl
 import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.JvmType
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.domain.io.UserInput
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -37,7 +39,13 @@ class BlackboardTest {
                 bb.getValue(
                     IoBinding.DEFAULT_BINDING,
                     "AllOfTheAbove",
-                    listOf(AllOfTheAbove::class.java, UserInput::class.java, PersonWithReverseTool::class.java),
+                    DataDictionaryImpl(
+                        listOf(
+                            AllOfTheAbove::class.java,
+                            UserInput::class.java,
+                            PersonWithReverseTool::class.java
+                        ).map { JvmType(it) },
+                    )
                 )
             )
         }
@@ -50,7 +58,12 @@ class BlackboardTest {
                 bb.getValue(
                     IoBinding.DEFAULT_BINDING,
                     "AllOfTheAbove",
-                    listOf(AllOfTheAbove::class.java, UserInput::class.java, PersonWithReverseTool::class.java),
+
+                    DataDictionaryImpl(
+                        AllOfTheAbove::class.java,
+                        UserInput::class.java,
+                        PersonWithReverseTool::class.java
+                    ),
                 )
             )
         }
@@ -63,7 +76,7 @@ class BlackboardTest {
             val aota = bb.getValue(
                 IoBinding.DEFAULT_BINDING,
                 "AllOfTheAbove",
-                listOf(AllOfTheAbove::class.java, UserInput::class.java, PersonWithReverseTool::class.java),
+                DataDictionaryImpl(AllOfTheAbove::class.java, UserInput::class.java, PersonWithReverseTool::class.java),
             )
             assertNotNull(aota)
             aota as AllOfTheAbove
@@ -80,13 +93,19 @@ class BlackboardTest {
         @Test
         fun `empty blackboard, no domain objects`() {
             val bb = InMemoryBlackboard()
-            assertNull(bb.getValue(IoBinding.DEFAULT_BINDING, "Person", emptyList()))
+            assertNull(bb.getValue(IoBinding.DEFAULT_BINDING, "Person", DataDictionaryImpl()))
         }
 
         @Test
         fun `empty blackboard, relevant domain object`() {
             val bb = InMemoryBlackboard()
-            assertNull(bb.getValue(IoBinding.DEFAULT_BINDING, "Person", listOf(PersonWithReverseTool::class.java)))
+            assertNull(
+                bb.getValue(
+                    IoBinding.DEFAULT_BINDING,
+                    "Person",
+                    DataDictionaryImpl(PersonWithReverseTool::class.java)
+                )
+            )
         }
 
         @Test
@@ -99,7 +118,7 @@ class BlackboardTest {
                 bb.getValue(
                     IoBinding.DEFAULT_BINDING,
                     PersonWithReverseTool::class.java.simpleName,
-                    listOf(PersonWithReverseTool::class.java)
+                    DataDictionaryImpl(PersonWithReverseTool::class.java)
                 )
             )
         }
@@ -109,7 +128,7 @@ class BlackboardTest {
             val bb = InMemoryBlackboard()
             val duke = Dog("Duke")
             bb += duke
-            assertEquals(duke, bb.getValue(IoBinding.DEFAULT_BINDING, "Dog", listOf(Dog::class.java)))
+            assertEquals(duke, bb.getValue(IoBinding.DEFAULT_BINDING, "Dog", DataDictionaryImpl(Dog::class.java)))
         }
 
 
@@ -118,7 +137,7 @@ class BlackboardTest {
             val bb = InMemoryBlackboard()
             val duke = Dog("Duke")
             bb += duke
-            assertEquals(duke, bb.getValue(IoBinding.DEFAULT_BINDING, "Organism", listOf(Dog::class.java)))
+            assertEquals(duke, bb.getValue(IoBinding.DEFAULT_BINDING, "Organism", DataDictionaryImpl(Dog::class.java)))
         }
 
         @Test
@@ -126,7 +145,7 @@ class BlackboardTest {
             val bb = InMemoryBlackboard()
             val duke = Dog("Duke")
             bb += duke
-            assertEquals(duke, bb.getValue(IoBinding.DEFAULT_BINDING, "Animal", listOf(Dog::class.java)))
+            assertEquals(duke, bb.getValue(IoBinding.DEFAULT_BINDING, "Animal", DataDictionaryImpl(Dog::class.java)))
         }
 
         @Test
@@ -134,7 +153,13 @@ class BlackboardTest {
             val bb = InMemoryBlackboard()
             val john = PersonWithReverseTool("John")
             bb += john
-            assertNull(bb.getValue("person", "Point", listOf(PersonWithReverseTool::class.java, Point::class.java)))
+            assertNull(
+                bb.getValue(
+                    "person",
+                    "Point",
+                    DataDictionaryImpl(PersonWithReverseTool::class.java, Point::class.java)
+                )
+            )
         }
 
 

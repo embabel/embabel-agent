@@ -33,9 +33,15 @@ interface Bindable {
     /**
      * Bind a value to a name
      */
-    operator fun set(key: String, value: Any) // don't implement here as it can upset delegation
+    operator fun set(
+        key: String,
+        value: Any,
+    ) // don't implement here as it can upset delegation
 
-    fun bind(key: String, value: Any): Bindable
+    fun bind(
+        key: String,
+        value: Any,
+    ): Bindable
 
     /**
      * Add to entries without binding to a variable name.
@@ -109,14 +115,14 @@ interface Blackboard : Bindable, MayHaveLastResult, HasInfoString {
     fun getValue(
         variable: String = IoBinding.DEFAULT_BINDING,
         type: String,
-        domainTypes: Collection<Class<*>>,
+        dataDictionary: DataDictionary,
     ): Any? {
         val bound = this[variable]
         if (bound != null && satisfiesType(bound, type)) {
             return bound
         }
 
-        val aggregationClass = domainTypes.filter {
+        val aggregationClass = dataDictionary.jvmTypes.map { it.clazz }.filter {
             Aggregation::class.java.isAssignableFrom(it)
         }.find { it.simpleName == type }
         if (aggregationClass != null) {
@@ -164,7 +170,10 @@ interface Blackboard : Bindable, MayHaveLastResult, HasInfoString {
      * Explicitly set the condition value
      * Used in planning.
      */
-    fun setCondition(key: String, value: Boolean): Blackboard
+    fun setCondition(
+        key: String,
+        value: Boolean,
+    ): Blackboard
 
     fun getCondition(key: String): Boolean?
 
@@ -184,7 +193,10 @@ interface Blackboard : Bindable, MayHaveLastResult, HasInfoString {
  * Does the bound instance satisfy the type.
  * Match on simple name or FQN of type or any supertype
  */
-fun satisfiesType(boundInstance: Any, type: String): Boolean {
+fun satisfiesType(
+    boundInstance: Any,
+    type: String,
+): Boolean {
     if (boundInstance::class.simpleName == type) {
         return true
     }
@@ -222,14 +234,20 @@ inline fun <reified T> Blackboard.lastOrNull(predicate: (t: T) -> Boolean): T? {
     return objects.filterIsInstance<T>().lastOrNull { predicate(it) }
 }
 
-fun <T> Blackboard.lastOrNull(clazz: Class<T>, predicate: (t: T) -> Boolean): T? {
+fun <T> Blackboard.lastOrNull(
+    clazz: Class<T>,
+    predicate: (t: T) -> Boolean,
+): T? {
     return objects.filterIsInstance<T>(clazz).lastOrNull { predicate(it) }
 }
 
 /**
  * Try to instantiate an Aggregation subclass from the blackboard
  */
-private fun <T : Aggregation> aggregationFromBlackboard(blackboard: Blackboard, clazz: KClass<T>): T? {
+private fun <T : Aggregation> aggregationFromBlackboard(
+    blackboard: Blackboard,
+    clazz: KClass<T>,
+): T? {
     // Get the constructor for the specific Megazord subclass
     val constructor = clazz.constructors.firstOrNull()
         ?: throw IllegalArgumentException("No constructor found for ${clazz.simpleName}")

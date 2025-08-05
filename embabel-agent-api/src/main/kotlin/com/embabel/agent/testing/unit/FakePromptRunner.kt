@@ -124,7 +124,7 @@ data class FakePromptRunner(
     override fun evaluateCondition(
         condition: String,
         context: String,
-        confidenceThreshold: ZeroToOne
+        confidenceThreshold: ZeroToOne,
     ): Boolean {
         _llmInvocations += LlmInvocation(
             interaction = createLlmInteraction(),
@@ -170,4 +170,8 @@ data class FakePromptRunner(
             ),
             generateExamples = generateExamples,
         )
+
+    override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner {
+        TODO("Implement handoff support")
+    }
 }

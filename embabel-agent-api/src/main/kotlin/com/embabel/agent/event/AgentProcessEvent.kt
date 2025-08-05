@@ -33,11 +33,7 @@ import java.time.Instant
 /**
  * Event relating to a specific process. Most events are related to a process.
  */
-interface AgentProcessEvent : AgenticEvent {
-
-    val processId: String
-
-}
+interface AgentProcessEvent : AgenticEvent, InProcess
 
 /**
  * Convenient superclass for AgentProcessEvent implementations
@@ -117,7 +113,10 @@ class ToolCallRequestEvent(
     val correlationId: String = "${agentProcess.id}-$tool-${System.currentTimeMillis()}",
 ) : AbstractAgentProcessEvent(agentProcess) {
 
-    fun responseEvent(result: Result<String>, runningTime: Duration): ToolCallResponseEvent {
+    fun responseEvent(
+        result: Result<String>,
+        runningTime: Duration,
+    ): ToolCallResponseEvent {
         return ToolCallResponseEvent(
             request = this,
             result = result,
@@ -179,7 +178,10 @@ class LlmRequestEvent<O>(
         )
     }
 
-    fun responseEvent(response: O, runningTime: Duration): LlmResponseEvent<O> {
+    fun responseEvent(
+        response: O,
+        runningTime: Duration,
+    ): LlmResponseEvent<O> {
         return LlmResponseEvent(
             request = this,
             outputClass = outputClass,
@@ -188,7 +190,10 @@ class LlmRequestEvent<O>(
         )
     }
 
-    fun maybeResponseEvent(response: Result<O>, runningTime: Duration): LlmResponseEvent<Result<O>> {
+    fun maybeResponseEvent(
+        response: Result<O>,
+        runningTime: Duration,
+    ): LlmResponseEvent<Result<O>> {
         return LlmResponseEvent(
             request = this,
             outputClass = outputClass,

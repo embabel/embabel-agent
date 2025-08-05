@@ -42,28 +42,37 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
     JsonSubTypes.Type(value = SerializableAction::class),
 )
 interface Action : AgentSystemStep, GoapAction, ActionRunner, DataDictionary, ToolGroupConsumer {
+
+    /**
+     * Expected data outputs of the action.
+     */
     val outputs: Set<IoBinding>
+
     override val cost: ZeroToOne get() = 0.0
 
     /**
      * Can this action be run again if it has already run?
+     * Must be set to true to allow looping style behavior.
      */
     val canRerun: Boolean
 
+    /**
+     * Quality of Service for this action.
+     */
     val qos: ActionQos
 
-    override val schemaTypes: Collection<SchemaType>
+    override val domainTypes: Collection<DomainType>
         get() =
             (inputs + outputs)
-                .mapNotNull {
+                .map {
                     referencedType(it, this)
                 }
 
     private fun referencedType(
         binding: IoBinding,
         action: Action,
-    ): SchemaType? {
-        var type = SchemaType(name = binding.type)
+    ): DynamicType {
+        var type = DynamicType(name = binding.type)
         for (prop in action.referencedInputProperties(binding.name)) {
             loggerFor<Action>().debug("Discovered property {}", prop)
             type = type.withProperty(PropertyDefinition(name = prop))

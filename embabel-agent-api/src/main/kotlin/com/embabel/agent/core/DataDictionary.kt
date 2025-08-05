@@ -21,15 +21,26 @@ package com.embabel.agent.core
 interface DataDictionary {
 
     /**
-     * Schema types referenced by this component.
-     * These are not backed by JVM objects.
+     * All known types referenced by this component.
+     * These may or may not be backed by JVM objects.
      */
-    val schemaTypes: Collection<SchemaType>
+    val domainTypes: Collection<DomainType>
 
-    /**
-     * Referenced domain types.
-     * These are normally data classes in Kotlin.
-     * They may have methods annotated with the Spring @Tool annotation.
-     */
-    val domainTypes: Collection<Class<*>>
+    val dynamicTypes: Collection<DynamicType>
+        get() =
+            domainTypes.filterIsInstance<DynamicType>().toSet()
+
+    val jvmTypes: Collection<JvmType>
+        get() =
+            domainTypes.filterIsInstance<JvmType>().toSet()
+
+}
+
+class DataDictionaryImpl(
+    override val domainTypes: Collection<DomainType>,
+) : DataDictionary {
+
+    constructor (
+        vararg embabelTypes: Class<*>,
+    ) : this(embabelTypes.map { JvmType(it) })
 }

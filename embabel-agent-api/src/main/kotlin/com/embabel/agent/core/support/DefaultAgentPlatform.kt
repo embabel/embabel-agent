@@ -16,6 +16,7 @@
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.Asyncer
+import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.*
 import com.embabel.agent.event.AgentDeploymentEvent
 import com.embabel.agent.event.AgentProcessCreationEvent
@@ -29,6 +30,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.ApplicationContext
 import org.springframework.core.io.Resource
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import org.springframework.core.io.support.ResourcePatternResolver
@@ -37,9 +39,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Service
 internal class DefaultAgentPlatform(
-    @Value("\${embabel.agent-platform.name:default-agent-platform}")
+    @param:Value("\${embabel.agent-platform.name:default-agent-platform}")
     override val name: String,
-    @Value("\${embabel.agent-platform.description:Default Agent Platform}")
+    @param:Value("\${embabel.agent-platform.description:Default Agent Platform}")
     override val description: String,
     private val llmOperations: LlmOperations,
     override val toolGroupResolver: ToolGroupResolver,
@@ -49,6 +51,9 @@ internal class DefaultAgentPlatform(
     private val operationScheduler: OperationScheduler = OperationScheduler.PRONTO,
     private val ragService: RagService,
     private val asyncer: Asyncer,
+    private val objectMapper: ObjectMapper,
+    private val outputChannel: OutputChannel,
+    private val applicationContext: ApplicationContext? = null,
 ) : AgentPlatform {
 
     private val logger = LoggerFactory.getLogger(DefaultAgentPlatform::class.java)
@@ -64,6 +69,9 @@ internal class DefaultAgentPlatform(
         operationScheduler = operationScheduler,
         ragService = ragService,
         asyncer = asyncer,
+        objectMapper = objectMapper,
+        applicationContext = applicationContext,
+        outputChannel = outputChannel,
     )
 
     init {
@@ -166,7 +174,7 @@ internal class DefaultAgentPlatform(
 
     override fun createChildProcess(
         agent: Agent,
-        parentAgentProcess: AgentProcess
+        parentAgentProcess: AgentProcess,
     ): AgentProcess {
         val childBlackboard = parentAgentProcess.processContext.blackboard.spawn()
         val processOptions = parentAgentProcess.processContext.processOptions

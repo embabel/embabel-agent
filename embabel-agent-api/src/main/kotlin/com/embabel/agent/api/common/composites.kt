@@ -15,6 +15,9 @@
  */
 package com.embabel.agent.api.common
 
+import java.lang.reflect.Field
+import java.lang.reflect.Modifier
+
 /**
  * Tag interface to indicate that an implementing type should be built from the context from its bound fields.
  * Provides a strongly typed way to wait on combined results.
@@ -28,4 +31,19 @@ interface Aggregation
  * Tag interface used as an action return type. Indicates that some of the fields will be bound to the blackboard.
  * Fields are usually nullable.
  */
-interface SomeOf
+interface SomeOf {
+
+    companion object {
+
+        /**
+         * Fields of this SomeOf that are domain types and can be bound to the blackboard.
+         */
+        fun eligibleFields(
+            outputClass: Class<*>,
+        ): Set<Field> {
+            return outputClass.declaredFields
+                .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
+                .toSet()
+        }
+    }
+}

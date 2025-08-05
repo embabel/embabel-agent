@@ -37,7 +37,6 @@ import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.testing.common.EventSavingAgenticEventListener
 import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyPlatformServices
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
@@ -289,7 +288,7 @@ class SimpleAgentProcessTest {
             val agentProcess = SimpleAgentProcess(
                 id = "test",
                 agent = SimpleTestAgent,
-                processOptions = mockk(),
+                processOptions = ProcessOptions(),
                 blackboard = blackboard,
                 platformServices = dummyPlatformServices,
                 parentId = null,
@@ -307,7 +306,7 @@ class SimpleAgentProcessTest {
             val agentProcess = SimpleAgentProcess(
                 id = "test",
                 agent = SimpleTestAgent,
-                processOptions = mockk(),
+                processOptions = ProcessOptions(),
                 blackboard = blackboard,
                 platformServices = dummyPlatformServices,
                 parentId = null,
@@ -324,7 +323,7 @@ class SimpleAgentProcessTest {
             val blackboard = InMemoryBlackboard()
             val agentProcess = SimpleAgentProcess(
                 "test", agent = SimpleTestAgent,
-                processOptions = mockk(),
+                processOptions = ProcessOptions(),
                 blackboard = blackboard,
                 platformServices = dummyPlatformServices,
                 parentId = null,
@@ -342,7 +341,7 @@ class SimpleAgentProcessTest {
             val blackboard = InMemoryBlackboard()
             val agentProcess = SimpleAgentProcess(
                 "test", agent = SimpleTestAgent,
-                processOptions = mockk(),
+                processOptions = ProcessOptions(),
                 blackboard = blackboard,
                 platformServices = dummyPlatformServices,
                 parentId = null,
@@ -368,7 +367,7 @@ class SimpleAgentProcessTest {
             val blackboard = InMemoryBlackboard()
             val agentProcess = SimpleAgentProcess(
                 "test", agent = SimpleTestAgent,
-                processOptions = mockk(),
+                processOptions = ProcessOptions(),
                 blackboard = blackboard,
                 platformServices = dummyPlatformServices,
                 parentId = null,

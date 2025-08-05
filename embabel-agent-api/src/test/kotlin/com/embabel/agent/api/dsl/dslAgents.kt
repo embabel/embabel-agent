@@ -59,6 +59,9 @@ fun evenMoreEvilWizard() = agent("EvenMoreEvilWizard", description = "Turn a per
         name = "done",
         description = "done",
         satisfiedBy = SnakeMeal::class,
+        export = Export(
+            startingInputTypes = setOf(MagicVictim::class.java),
+        ),
     )
 }
 
@@ -79,7 +82,7 @@ fun exportedEvenMoreEvilWizard() = agent("EvenMoreEvilWizard", description = "Tu
         name = "done",
         description = "done",
         satisfiedBy = SnakeMeal::class,
-        export = Export(remote = true),
+        export = Export(remote = true, startingInputTypes = setOf(MagicVictim::class.java)),
     )
 }
 

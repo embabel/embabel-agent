@@ -57,8 +57,8 @@ open class TransformationAction<I, O>(
     qos = qos,
 ) {
 
-    override val domainTypes
-        get() = setOf(inputClass, outputClass)
+    override val domainTypes: Collection<DomainType>
+        get() = setOf(inputClass, outputClass).map { DynamicType(it.name) }
 
     @Suppress("UNCHECKED_CAST")
     override fun execute(
@@ -101,7 +101,7 @@ open class TransformationAction<I, O>(
  */
 fun expandInputBindings(
     inputVarName: String,
-    inputClass: Class<*>
+    inputClass: Class<*>,
 ): Set<IoBinding> {
     if (inputClass == Unit::class.java) {
         // Unit is a special case, we don't want to bind any inputs

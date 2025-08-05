@@ -16,6 +16,8 @@
 package com.embabel.agent.prompt
 
 import com.embabel.common.util.DummyInstanceCreator
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 
@@ -25,7 +27,8 @@ import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 object PromptUtils {
 
     val dummyInstanceCreator = DummyInstanceCreator()
-    val om = jacksonObjectMapper().registerKotlinModule()
+
+    val om: ObjectMapper = jacksonObjectMapper().registerKotlinModule().registerModule(JavaTimeModule())
 
     /**
      * Generates a JSON example of the given class

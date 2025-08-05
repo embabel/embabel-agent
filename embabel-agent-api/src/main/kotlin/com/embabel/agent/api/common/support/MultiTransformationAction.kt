@@ -21,7 +21,6 @@ import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.common.core.types.ZeroToOne
-import java.lang.reflect.Modifier
 
 /**
  * Transformer that can take multiple inputs.
@@ -57,13 +56,13 @@ class MultiTransformationAction<O : Any>(
     qos = qos,
 ) {
 
-    override val domainTypes
-        get() = inputClasses + outputClass
+    override val domainTypes: Collection<DomainType>
+        get() = JvmType.fromClasses(inputClasses + outputClass)
 
     @Suppress("UNCHECKED_CAST")
     override fun execute(
         processContext: ProcessContext,
-        action: Action
+        action: Action,
     ): ActionStatus = ActionRunner.execute(processContext) {
         val inputValues: List<Any> = inputs.map {
             processContext.getValue(variable = it.name, type = it.type)
@@ -86,7 +85,7 @@ class MultiTransformationAction<O : Any>(
 
     private fun bindOutput(
         processContext: ProcessContext,
-        output: O
+        output: O,
     ) {
         if (!outputClass.isInstance(output)) {
             throw IllegalArgumentException(
@@ -126,7 +125,10 @@ class MultiTransformationAction<O : Any>(
     }
 }
 
-private fun calculateOutputs(outputVarName: String?, outputClass: Class<*>): Set<IoBinding> {
+private fun calculateOutputs(
+    outputVarName: String?,
+    outputClass: Class<*>,
+): Set<IoBinding> {
     return if (outputVarName == null) {
         emptySet()
     } else {
@@ -134,10 +136,12 @@ private fun calculateOutputs(outputVarName: String?, outputClass: Class<*>): Set
     }
 }
 
-private fun bindingsFrom(outputVarName: String?, outputClass: Class<*>): Set<IoBinding> {
+private fun bindingsFrom(
+    outputVarName: String?,
+    outputClass: Class<*>,
+): Set<IoBinding> {
     if (SomeOf::class.java.isAssignableFrom(outputClass)) {
-        return outputClass.declaredFields
-            .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
+        return SomeOf.eligibleFields(outputClass)
             .map { field ->
                 IoBinding(
                     // TODO bind to name if requires match

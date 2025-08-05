@@ -21,7 +21,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Semaphore
 
 class ExecutorAsyncer(
-    private val executor: Executor
+    private val executor: Executor,
 ) : Asyncer {
 
     override fun <T> async(block: () -> T): CompletableFuture<T> {
@@ -29,17 +29,17 @@ class ExecutorAsyncer(
     }
 
     override fun <T, R> parallelMap(
-        coll: Collection<T>,
+        items: Collection<T>,
         maxConcurrency: Int,
         transform: (t: T) -> R,
     ): List<R> {
-        if (coll.isEmpty()) {
+        if (items.isEmpty()) {
             return mutableListOf()
         }
 
-        if (maxConcurrency >= coll.size) {
+        if (maxConcurrency >= items.size) {
             // No concurrency limit needed - process all at once
-            val futures = coll.map { item ->
+            val futures = items.map { item ->
                 async { transform(item) }
             }
 
@@ -50,7 +50,7 @@ class ExecutorAsyncer(
             // Use semaphore for concurrency control
             val semaphore = Semaphore(maxConcurrency)
 
-            val futures = coll.map { item ->
+            val futures = items.map { item ->
                 async {
                     try {
                         semaphore.acquire()

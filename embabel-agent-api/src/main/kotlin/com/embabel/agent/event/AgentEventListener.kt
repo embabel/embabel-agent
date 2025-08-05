@@ -53,7 +53,12 @@ interface AgenticEventListener {
 
 }
 
-private class MulticastAgenticEventListener(
+/**
+ * Multicast event listener that forwards events to multiple listeners.
+ * If any listener throws an exception, it is logged but does not stop
+ * the processing of other listeners.
+ */
+class MulticastAgenticEventListener(
     private val eventListeners: List<AgenticEventListener>,
 ) : AgenticEventListener {
 

@@ -126,6 +126,7 @@ class AgentMetadataReaderTest {
             assertEquals(1, metadata!!.goals.size)
             val action = metadata.actions.single()
             val g = metadata.goals.single()
+            assertEquals(PersonWithReverseTool::class.java, g.outputClass)
             assertEquals("Creating a person", g.description)
             val expected = mapOf(
                 "it:${PersonWithReverseTool::class.qualifiedName}" to ConditionDetermination.TRUE,
@@ -220,7 +221,7 @@ class AgentMetadataReaderTest {
         @Test
         fun `not an agent`() {
             val reader = AgentMetadataReader()
-            val metadata = reader.createAgentMetadata(OneTransformerActionOnly())
+            val metadata = reader.createAgentMetadata(ConditionFromBlackboard())
             assertNotNull(metadata)
             assertFalse(metadata!! is CoreAgent)
         }

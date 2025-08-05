@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory
  * @param stuckHandler The handler to call when the agent is stuck, if provided
  * @param conditions Well-known conditions that can be referenced by actions
  * @param actions The actions the agent can use
- * @param schemaTypes Data types used in this agent
+ * @param domainTypes Data types used in this agent
  */
 @JsonSerialize(using = ComputerSaysNoSerializer::class)
 data class Agent(
@@ -49,7 +49,7 @@ data class Agent(
     override val actions: List<Action>,
     override val goals: Set<Goal>,
     val stuckHandler: StuckHandler? = null,
-    override val schemaTypes: Collection<SchemaType> = mergeSchemaTypes(
+    override val domainTypes: Collection<DomainType> = mergeTypes(
         agentName = name,
         defaultDataTypes = emptyList(),
         actions = actions,
@@ -121,22 +121,22 @@ data class Agent(
          * Merge the default data types with the schema types from actions.
          * Combines the properties of schema types
          */
-        fun mergeSchemaTypes(
+        fun mergeTypes(
             agentName: String,
-            defaultDataTypes: List<SchemaType>,
+            defaultDataTypes: List<DynamicType>,
             actions: List<Action>,
-        ): List<SchemaType> {
+        ): List<DomainType> {
             // Merge properties from multiple type references
             for (action in actions) {
                 logger.debug(
                     "Action {} has types {}, inputBinding={}",
                     action.name,
-                    action.schemaTypes,
+                    action.domainTypes,
                     action.inputs,
                 )
             }
-            val types = (defaultDataTypes + actions
-                .flatMap { it.schemaTypes }
+            val mergedSchemaTypes = (defaultDataTypes + actions
+                .flatMap { it.dynamicTypes }
                 .groupBy { it.name }
                 .mapValues { (_, types) ->
                     types.reduce { acc, type ->
@@ -151,8 +151,8 @@ data class Agent(
             logger.debug(
                 "Agent {} inferred types:\n\t{}",
                 agentName,
-                types.joinToString("\n\t") { "${it.name} - ${it.properties.map { p -> p.name }}" })
-            return types
+                mergedSchemaTypes.joinToString("\n\t") { "${it.name} - ${it.properties.map { p -> p.name }}" })
+            return mergedSchemaTypes + actions.flatMap { it.jvmTypes }.distinctBy { it.name }
         }
     }
 

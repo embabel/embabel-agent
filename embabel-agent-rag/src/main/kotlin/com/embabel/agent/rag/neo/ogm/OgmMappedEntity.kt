@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.boogie.neo.ogm
+package com.embabel.agent.rag.neo.ogm
 
 import com.embabel.agent.rag.MappedEntity
 import com.embabel.common.core.types.Described
@@ -43,7 +43,10 @@ abstract class OgmMappedNamedEntity(
     id: String,
 ) : OgmMappedEntity(id), Named, Described {
 
-    override fun infoString(verbose: Boolean?, indent: Int): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return "${javaClass.simpleName}: name=$name, description=$description, id=$id"
     }
 

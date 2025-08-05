@@ -17,6 +17,7 @@ package com.embabel.agent.api.annotation.support;
 
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
+import com.embabel.agent.channel.DevNullOutputChannel;
 import com.embabel.agent.core.ActionStatusCode;
 import com.embabel.agent.core.ProcessContext;
 import com.embabel.agent.core.ProcessOptions;
@@ -34,6 +35,9 @@ import static com.embabel.common.core.types.Semver.DEFAULT_VERSION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+/**
+ * Need a Java test because there's no equivalent in Kotlin
+ */
 class PackageVisibleTests {
 
     @Test
@@ -43,7 +47,7 @@ class PackageVisibleTests {
         assertNotNull(metadata);
         assertEquals(1, metadata.getActions().size(), "Should have exactly 1 action");
 
-        var action = metadata.getActions().get(0);
+        var action = metadata.getActions().getFirst();
         var agent = new com.embabel.agent.core.Agent(
                 "name",
                 "provider",
@@ -54,11 +58,12 @@ class PackageVisibleTests {
                 Set.of()
         );
         PlatformServices platformServices = dummyPlatformServices();
-        ProcessOptions processOptions = ProcessOptions.getDEFAULT();
+        var processOptions = ProcessOptions.getDEFAULT();
 
         var pc = new ProcessContext(
                 processOptions,
                 platformServices,
+                DevNullOutputChannel.INSTANCE,
                 new SimpleAgentProcess(
                         "test",
                         null,

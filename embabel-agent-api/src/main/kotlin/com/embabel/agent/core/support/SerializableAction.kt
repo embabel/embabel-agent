@@ -15,10 +15,7 @@
  */
 package com.embabel.agent.core.support
 
-import com.embabel.agent.core.ActionQos
-import com.embabel.agent.core.ActionRunner
-import com.embabel.agent.core.IoBinding
-import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.*
 import com.embabel.common.core.types.ZeroToOne
 
 /**
@@ -64,6 +61,6 @@ internal class SerializableAction(
 ),
     ActionRunner by runner {
 
-    override val domainTypes: Collection<Class<*>>
+    override val domainTypes: Collection<DomainType>
         get() = emptySet()
 }

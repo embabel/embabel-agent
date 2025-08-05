@@ -78,13 +78,11 @@ class BlackboardWorldStateDeterminerTest {
 
     init {
         every { mockPlatformServices.eventListener } returns eventListener
-    }
-
-    init {
         every { mockPlatformServices.llmOperations } returns mockk()
+        every { mockPlatformServices.outputChannel } returns mockk()
     }
 
-    private fun blackboardWorldStateDeterminer(blackboard: Blackboard): BlackboardWorldStateDeterminer {
+    private fun createBlackboardWorldStateDeterminer(blackboard: Blackboard): BlackboardWorldStateDeterminer {
         val mockAgentProcess = mockk<AgentProcess>()
         every { mockAgentProcess.history } returns emptyList()
         every { mockAgentProcess.infoString(any()) } returns ""
@@ -115,7 +113,7 @@ class BlackboardWorldStateDeterminerTest {
         @Test
         fun `negative world`() {
             val blackboard = InMemoryBlackboard()
-            val bsb = blackboardWorldStateDeterminer(blackboard)
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
             val worldState = bsb.determineWorldState().state
             assertTrue(
                 worldState.containsAll(
@@ -133,7 +131,7 @@ class BlackboardWorldStateDeterminerTest {
         fun `one element world`() {
             val blackboard = InMemoryBlackboard()
 
-            val bsb = blackboardWorldStateDeterminer(blackboard)
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
 
             blackboard += UserInput("xyz")
             val worldState = bsb.determineWorldState().state
@@ -152,7 +150,7 @@ class BlackboardWorldStateDeterminerTest {
         fun `activated megazord`() {
             val blackboard = InMemoryBlackboard()
 
-            val bsb = blackboardWorldStateDeterminer(blackboard)
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
 
             blackboard["input"] = UserInput("xyz")
             blackboard["person"] = PersonWithReverseTool("Rod")
@@ -179,7 +177,7 @@ class BlackboardWorldStateDeterminerTest {
         @Test
         fun `exact type match with simple name`() {
             val blackboard = InMemoryBlackboard()
-            val bsb = blackboardWorldStateDeterminer(blackboard)
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
 
             blackboard["input"] = UserInput("xyz")
             blackboard["person"] = PersonWithReverseTool("Rod")
@@ -190,7 +188,7 @@ class BlackboardWorldStateDeterminerTest {
         @Test
         fun `subclass match`() {
             val blackboard = InMemoryBlackboard()
-            val bsb = blackboardWorldStateDeterminer(blackboard)
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
 
             blackboard["input"] = UserInput("xyz")
             blackboard["person"] = FancyPerson("Rod")
@@ -207,7 +205,7 @@ class BlackboardWorldStateDeterminerTest {
         @Test
         fun `exact type match with fqn`() {
             val blackboard = InMemoryBlackboard()
-            val bsb = blackboardWorldStateDeterminer(blackboard)
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
 
             blackboard["input"] = UserInput("xyz")
             blackboard["person"] = PersonWithReverseTool("Rod")
@@ -225,7 +223,7 @@ class BlackboardWorldStateDeterminerTest {
         @Test
         fun `failed match by name`() {
             val blackboard = InMemoryBlackboard()
-            val bsb = blackboardWorldStateDeterminer(blackboard)
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
 
             blackboard["story"] = UserInput("xyz")
             assertEquals(
@@ -238,7 +236,7 @@ class BlackboardWorldStateDeterminerTest {
         @Test
         fun `match by name`() {
             val blackboard = InMemoryBlackboard()
-            val bsb = blackboardWorldStateDeterminer(blackboard)
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
 
             blackboard["story"] = mapOf("content " to "xyz")
             assertEquals(

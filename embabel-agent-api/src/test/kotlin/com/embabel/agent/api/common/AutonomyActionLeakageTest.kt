@@ -115,14 +115,16 @@ class AutonomyActionLeakageTest {
             name = "goal1",
             description = "Test goal 1",
             value = 0.8,
-            pre = setOf(condition1.name)
+            pre = setOf(condition1.name),
+            outputClass = null,
         )
 
         val goal2 = Goal(
             name = "goal2",
             description = "Test goal 2",
             value = 0.8,
-            pre = setOf(condition2.name)
+            pre = setOf(condition2.name),
+            outputClass = null,
         )
 
         // Create action1 that satisfies goal1
@@ -153,7 +155,10 @@ class AutonomyActionLeakageTest {
                 condition1.name to ConditionDetermination.TRUE
             )
 
-            override fun execute(processContext: ProcessContext, action: Action): ActionStatus {
+            override fun execute(
+                processContext: ProcessContext,
+                action: Action,
+            ): ActionStatus {
                 return ActionStatus(runningTime = java.time.Duration.ofSeconds(2), status = ActionStatusCode.SUCCEEDED)
             }
 
@@ -161,11 +166,11 @@ class AutonomyActionLeakageTest {
                 return emptySet()
             }
 
-            override val domainTypes: Collection<Class<*>>
-                get() = listOf(DummyType::class.java)
+            override val domainTypes: Collection<DomainType>
+                get() = listOf(JvmType(DummyType::class.java))
             override val toolGroups: Set<ToolGroupRequirement>
                 get() = emptySet()
-            override val schemaTypes = emptyList<SchemaType>()
+
         }
 
         // Create action2 that satisfies goal2
@@ -196,7 +201,10 @@ class AutonomyActionLeakageTest {
                 condition2.name to ConditionDetermination.TRUE
             )
 
-            override fun execute(processContext: ProcessContext, action: Action): ActionStatus {
+            override fun execute(
+                processContext: ProcessContext,
+                action: Action,
+            ): ActionStatus {
                 return ActionStatus(runningTime = java.time.Duration.ofSeconds(2), status = ActionStatusCode.SUCCEEDED)
             }
 
@@ -204,11 +212,10 @@ class AutonomyActionLeakageTest {
                 return emptySet()
             }
 
-            override val domainTypes: Collection<Class<*>>
-                get() = listOf(DummyType::class.java)
+            override val domainTypes
+                get() = listOf(JvmType(DummyType::class.java))
             override val toolGroups: Set<ToolGroupRequirement>
                 get() = emptySet()
-            override val schemaTypes = emptyList<SchemaType>()
         }
 
         // Create an agent with both actions
@@ -282,14 +289,16 @@ class AutonomyActionLeakageTest {
             name = "goal1",
             description = "Agent1 goal 1",
             value = 0.8,
-            pre = setOf(condition1.name)
+            pre = setOf(condition1.name),
+            outputClass = null,
         )
 
         val goal2 = Goal(
             name = "goal2",
             description = "Agent1 goal 2",
             value = 0.8,
-            pre = setOf(condition2.name)
+            pre = setOf(condition2.name),
+            outputClass = null,
         )
 
         // Agent2 conditions and goals
@@ -309,14 +318,16 @@ class AutonomyActionLeakageTest {
             name = "goal3",
             description = "Agent2 goal 1",
             value = 0.8,
-            pre = setOf(condition3.name)
+            pre = setOf(condition3.name),
+            outputClass = null,
         )
 
         val goal4 = Goal(
             name = "goal4",
             description = "Agent2 goal 2",
             value = 0.8,
-            pre = setOf(condition4.name)
+            pre = setOf(condition4.name),
+            outputClass = null,
         )
 
         // Create Agent1 actions
@@ -415,7 +426,7 @@ class AutonomyActionLeakageTest {
         name: String,
         description: String,
         preconditions: Map<String, ConditionDetermination>,
-        effects: Map<String, ConditionDetermination>
+        effects: Map<String, ConditionDetermination>,
     ): Action {
         return object : Action {
             override val outputs: Set<IoBinding> = setOf(IoBinding(name, type = UserInput::class.java))
@@ -433,14 +444,16 @@ class AutonomyActionLeakageTest {
             override val inputs: Set<IoBinding> = setOf(IoBinding(name, type = UserInput::class.java))
             override val preconditions = preconditions
             override val effects = effects
-            override val schemaTypes = emptyList<SchemaType>()
 
-            override fun execute(processContext: ProcessContext, action: Action): ActionStatus {
+            override fun execute(
+                processContext: ProcessContext,
+                action: Action,
+            ): ActionStatus {
                 return ActionStatus(runningTime = java.time.Duration.ofSeconds(2), status = ActionStatusCode.SUCCEEDED)
             }
 
             override fun referencedInputProperties(variable: String): Set<String> = emptySet()
-            override val domainTypes: Collection<Class<*>> = listOf(DummyType::class.java)
+            override val domainTypes = listOf(JvmType(DummyType::class.java))
             override val toolGroups: Set<ToolGroupRequirement> = emptySet()
         }
     }

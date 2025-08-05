@@ -32,7 +32,7 @@ import java.lang.reflect.Method
 class McpPromptFactory(
     val excludedInterfaces: Set<Class<*>> = setOf(
         Timestamped::class.java,
-    )
+    ),
 ) {
 
     /**
@@ -51,7 +51,7 @@ class McpPromptFactory(
     ): McpServerFeatures.SyncPromptSpecification where G : Named, G : Described {
         return McpServerFeatures.SyncPromptSpecification(
             McpSchema.Prompt(
-                name,
+                "${inputType.simpleName}_$name",
                 description,
                 argumentsFromType(inputType),
             )

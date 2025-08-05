@@ -15,29 +15,36 @@
  */
 package com.embabel.agent.core.support
 
-import com.embabel.agent.core.Blackboard
-import com.embabel.common.util.indent
-import com.embabel.common.util.indentLines
-import java.util.*
-
 /**
  * Simple in memory blackboard implementation
  * backed by a map.
  */
+import com.embabel.agent.core.Blackboard
+import com.embabel.common.util.indent
+import com.embabel.common.util.indentLines
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+
 class InMemoryBlackboard(
     override val blackboardId: String = UUID.randomUUID().toString(),
 ) : Blackboard {
-    private val _map: MutableMap<String, Any> = mutableMapOf()
-    private val _entries: MutableList<Any> = mutableListOf()
+
+    private val _map: MutableMap<String, Any> = ConcurrentHashMap()
+    private val _entries: MutableList<Any> = Collections.synchronizedList(mutableListOf())
 
     override fun spawn(): Blackboard {
         return InMemoryBlackboard().apply {
             _map.putAll(this@InMemoryBlackboard._map)
-            _entries.addAll(this@InMemoryBlackboard._entries)
+            synchronized(_entries) {
+                _entries.addAll(this@InMemoryBlackboard._entries)
+            }
         }
     }
 
-    override val objects: List<Any> get() = _entries
+    override val objects: List<Any>
+        get() = synchronized(_entries) {
+            _entries.toList() // Return a snapshot to avoid concurrent modification
+        }
 
     override fun get(name: String): Any? = _map[name]
 
@@ -83,24 +90,23 @@ class InMemoryBlackboard(
     }
 
     override fun expressionEvaluationModel(): Map<String, Any> {
-        return _map
+        return _map.toMap() // Return a snapshot copy
     }
 
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
     ): String {
-        val joiner = if (verbose == true) "\n" else ", "
-        val mapString =
-            if (verbose == true) "\n" + _map.entries.joinToString(joiner) else _map.entries.joinToString(joiner) { "${it.key}=${it.value::class.simpleName}" }
-        val entriesString =
-            if (verbose == true) "\n" + objects.joinToString(joiner) else objects.map { "${it::class.simpleName}" }
+        // Create snapshots for thread-safe iteration
+        val mapSnapshot = _map.toMap()
+        val objectsSnapshot = synchronized(_entries) { _entries.toList() }
+
         return """
             |${javaClass.simpleName}: id=$blackboardId
             |map:
-            |${_map.entries.joinToString(", ").indent(1)}
+            |${mapSnapshot.entries.joinToString(", ").indent(1)}
             |entries:
-            |${objects.joinToString(", ").indent(1)}
+            |${objectsSnapshot.joinToString(", ").indent(1)}
             |"""
             .trimMargin()
             .indentLines(indent)

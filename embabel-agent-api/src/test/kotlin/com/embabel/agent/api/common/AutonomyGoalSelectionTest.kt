@@ -148,7 +148,7 @@ class AutonomyGoalSelectionTest {
             override fun <T> rank(
                 description: String,
                 userInput: String,
-                rankables: Collection<T>
+                rankables: Collection<T>,
             ): Rankings<T> where T : com.embabel.common.core.types.Named, T : com.embabel.common.core.types.Described {
                 // Create a map of rankings with different scores
                 val rankings = rankables.mapIndexed { index, item ->
@@ -182,10 +182,10 @@ class AutonomyGoalSelectionTest {
 
         // Execute the real method - no mocking of chooseAndAccomplishGoal
         val result = autonomy.chooseAndAccomplishGoal(
-            intent = userInput,
             processOptions = ProcessOptions(test = false),
             goalChoiceApprover = GoalChoiceApprover.APPROVE_ALL,
-            agentScope = agentScope
+            agentScope = agentScope,
+            bindings = mapOf(IoBinding.DEFAULT_BINDING to UserInput(userInput))
         )
 
         // Verify the result
@@ -286,7 +286,7 @@ class AutonomyGoalSelectionTest {
             override fun <T> rank(
                 description: String,
                 userInput: String,
-                rankables: Collection<T>
+                rankables: Collection<T>,
             ): Rankings<T> where T : com.embabel.common.core.types.Named, T : com.embabel.common.core.types.Described {
                 // Return 0.3 which is below the 0.5 threshold
                 return Rankings(rankables.map { Ranking(it, 0.3) })
@@ -337,10 +337,10 @@ class AutonomyGoalSelectionTest {
         val exception = assertThrows<NoGoalFound> {
             // IMPORTANT: Use test=false to prevent RandomRanker creation
             autonomy.chooseAndAccomplishGoal(
-                intent = "test input",
                 processOptions = ProcessOptions(test = false),
                 goalChoiceApprover = GoalChoiceApprover.APPROVE_ALL,
-                agentScope = agentScope
+                agentScope = agentScope,
+                bindings = mapOf(IoBinding.DEFAULT_BINDING to UserInput("test input"))
             )
         }
 
@@ -355,11 +355,11 @@ class AutonomyGoalSelectionTest {
 
         // Verify rankings
         assertEquals(
-            1, exception.goalRankings.rankings.size,
+            1, exception.goalRankings.rankings().size,
             "There should be exactly one ranking"
         )
 
-        val ranking = exception.goalRankings.rankings.firstOrNull()
+        val ranking = exception.goalRankings.rankings().firstOrNull()
         assertNotNull(ranking, "There should be a ranking in the exception")
 
         assertEquals(

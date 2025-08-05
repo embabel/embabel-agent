@@ -68,7 +68,7 @@ class FakeConfig {
         override fun <T> rank(
             description: String,
             userInput: String,
-            rankables: Collection<T>
+            rankables: Collection<T>,
         ): Rankings<T> where T : Named, T : Described {
             when (description) {
                 "agent" -> {
@@ -230,15 +230,17 @@ class AgentPlatformIntegrationTest(
         @Test
         fun `run star finder agent`() {
             val dynamicExecutionResult = autonomy.chooseAndAccomplishGoal(
-                intent = "Lynda is a Scorpio, find some news for her",
                 processOptions = ProcessOptions(test = true),
                 goalChoiceApprover = GoalChoiceApprover.APPROVE_ALL,
                 agentScope = agentPlatform,
+                bindings = mapOf(
+                    "userInput" to UserInput("Lynda is a Scorpio, find some news for her"),
+                ),
             )
             assertNotNull(dynamicExecutionResult.output)
             assertTrue(
                 dynamicExecutionResult.output is HasContent,
-                "Expected HasContent, got ${dynamicExecutionResult.output?.javaClass?.name}"
+                "Expected HasContent, got ${dynamicExecutionResult.output.javaClass.name}"
             )
         }
 

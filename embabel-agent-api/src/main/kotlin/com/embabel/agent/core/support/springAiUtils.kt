@@ -58,6 +58,9 @@ fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallback> {
         .sortedBy { it.toolDefinition.name() }
 }
 
+/**
+ * Allows renaming a ToolCallback
+ */
 class RenamedToolCallback(
     private val delegate: ToolCallback,
     private val newName: String,

@@ -32,7 +32,7 @@ interface Conversation : StableIdentified {
     fun withMessage(message: Message): Conversation
 
     fun promptContributor(
-        conversationFormatter: ConversationFormatter = WindowingConversationFormatter()
+        conversationFormatter: ConversationFormatter = WindowingConversationFormatter(),
     ) = PromptContributor.dynamic({ "Conversation so far:\n" + conversationFormatter.format(this) })
 
 
@@ -66,6 +66,7 @@ enum class Role {
  * Message class for agent system
  * @param role Role of the message sender. AI system specific
  * @param content Content of the message
+ * @param name of the sender, if available
  */
 sealed class Message(
     val role: Role,
