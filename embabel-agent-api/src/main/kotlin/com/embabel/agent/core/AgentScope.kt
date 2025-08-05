@@ -37,11 +37,25 @@ interface ActionSource {
     val actions: List<Action>
 }
 
+interface AgentFactory {
+
+    /**
+     * Create a new agent from the given scope
+     * @param name Name of the agent to create
+     * @param description Description of the agent to create
+     */
+    fun createAgent(
+        name: String,
+        provider: String,
+        description: String,
+    ): Agent
+}
+
 /**
  * Defines the scope of an agent or agents: Goals, conditions and actions.
  * Both Agents and AgentPlatforms are AgentScopes.
  */
-interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString {
+interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString, AgentFactory {
 
     @get:JsonIgnore
     override val domainTypes: Collection<DomainType>
@@ -69,7 +83,7 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
      * @param name Name of the agent to create
      * @param description Description of the agent to create
      */
-    fun createAgent(
+    override fun createAgent(
         name: String,
         provider: String,
         description: String,

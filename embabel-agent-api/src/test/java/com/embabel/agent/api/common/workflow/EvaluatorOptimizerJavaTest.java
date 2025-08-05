@@ -20,13 +20,16 @@ import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.annotation.support.AgentMetadataReader;
 import com.embabel.agent.api.common.ActionContext;
+import com.embabel.agent.api.common.TransformationActionContext;
 import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.ProcessOptions;
 import com.embabel.agent.domain.io.UserInput;
 import com.embabel.agent.testing.integration.IntegrationTestUtils;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -35,8 +38,26 @@ class EvaluatorOptimizerJavaTest {
 
     @Test
     void doesNotTerminate() {
+        doesNotTerminate(new EvaluationFlowDoesNotTerminateJava());
+    }
+
+    @Test
+    void doesNotTerminateBuilder() {
+        doesNotTerminate(new EvaluationBuilderFlowDoesNotTerminateJava());
+    }
+
+    @Test
+    void doesNotTerminateClass() {
+        var f = new EvaluationBuilderFlowDoesNotTerminateClass(Report.class, 3);
+        doesNotTerminate(Builders.createAgent(
+                f, "name", "description", "version"
+        ));
+    }
+
+
+    private void doesNotTerminate(Object ag) {
         AgentMetadataReader reader = new AgentMetadataReader();
-        var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(new EvaluationFlowDoesNotTerminateJava());
+        var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(ag);
         var ap = IntegrationTestUtils.dummyAgentPlatform();
         var result = ap.runAgentFrom(
                 agent,
@@ -47,9 +68,7 @@ class EvaluatorOptimizerJavaTest {
         assertTrue(result.lastResult() instanceof Report);
     }
 
-
-    // --- Helper classes for the test flows ---
-
+    
     public static class Report {
         private final String content;
 
@@ -97,6 +116,67 @@ class EvaluatorOptimizerJavaTest {
             assertEquals(0.5, scoredResult.getFeedback().getScore());
             return scoredResult.getResult();
         }
+    }
+
+    @Agent(description = "evaluator test")
+    public static class EvaluationBuilderFlowDoesNotTerminateJava {
+        @Action
+        public ScoredResult<Report, SimpleFeedback> toFeedback(UserInput userInput, ActionContext context) {
+            final int[] count = {0};
+            var eo = new EvaluatorOptimizerBuilder<Report, SimpleFeedback>(Report.class, SimpleFeedback.class)
+                    .withGenerator(
+                            tac -> {
+                                count[0]++;
+                                return new Report("thing-" + count[0]);
+                            }).withEvaluator(
+                            ctx -> new SimpleFeedback(0.5, "feedback"))
+                    .withAcceptanceCriteria(
+                            f -> false)// never acceptable, hit max iterations
+                    .withMaxIterations(3)
+                    .build();
+
+            return context.asSubProcess(
+                    (Class<ScoredResult<Report, SimpleFeedback>>) (Class<?>) ScoredResult.class,
+                    eo
+            );
+        }
+
+        @AchievesGoal(description = "Creating a person")
+        @Action
+        public Report done(ScoredResult<Report, SimpleFeedback> scoredResult) {
+            assertEquals(0.5, scoredResult.getFeedback().getScore());
+            return scoredResult.getResult();
+        }
+    }
+
+    public record EvaluationBuilderFlowDoesNotTerminateClass(
+            Class<Report> resultClass,
+            int maxIterations
+    ) implements EvaluatorOptimizerFlow<Report, SimpleFeedback> {
+
+        @Override
+        @NotNull
+        public Class<SimpleFeedback> feedbackClass() {
+            return SimpleFeedback.class;
+        }
+
+        @Override
+        @NotNull
+        public Report generate(@NotNull TransformationActionContext<SimpleFeedback, Report> context) {
+            return new Report("thing-" + UUID.randomUUID());
+        }
+
+        @Override
+        @NotNull
+        public SimpleFeedback evaluate(@NotNull TransformationActionContext<Report, SimpleFeedback> context) {
+            return new SimpleFeedback(0.5, "feedback");
+        }
+
+        @Override
+        public boolean judge(@NotNull SimpleFeedback feedback) {
+            return false;
+        }
+
     }
 
 }
