@@ -77,8 +77,15 @@ class FakeOperationContext(
         toolObjects: List<ToolObject>,
         promptContributors: List<PromptContributor>,
         contextualPromptContributors: List<ContextualPromptElement>,
-        generateExamples: Boolean
-    ): PromptRunner = promptRunner
+        generateExamples: Boolean,
+    ): PromptRunner {
+        return promptRunner
+            .withLlm(llm)
+            .let { runner -> toolGroups.fold(runner) { acc, tg -> acc.withToolGroup(tg) } }
+            .let { runner -> toolObjects.fold(runner) { acc, to -> acc.withToolObject(to) } }
+            .let { runner -> promptContributors.fold(runner) { acc, pc -> acc.withPromptContributor(pc) } }
+            .withGenerateExamples(generateExamples)
+    }
 
     companion object {
 
