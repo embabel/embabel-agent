@@ -13,10 +13,6 @@
     <name>Embabel Agent API</name>
     <description>Fluent DSL and Kotlin DSL for Agentic Flows</description>
 
-    <properties>
-        <embabel-common.version>0.1.0-SNAPSHOT</embabel-common.version>
-    </properties>
-
     <dependencies>
 
         <!--
