@@ -1,2 +1,2 @@
 [[authors]]
-Rod Johnson, Alex Hein-Heifetz, Dr. Igor Dayen
+Rod Johnson, Alex Hein-Heifetz, Dr. Igor Dayen, Jim Clark, Arjen Poutsma, Jasper Blues
