@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-dependencies-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
         <relativePath/>
     </parent>
     <groupId>com.embabel.agent</groupId>
@@ -88,6 +88,16 @@
 
     <repositories>
         <repository>
+            <id>embabel-releases</id>
+            <url>https://repo.embabel.com/artifactory/libs-release</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
             <id>embabel-snapshots</id>
             <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
             <snapshots>
@@ -98,9 +108,13 @@
 
     <distributionManagement>
         <repository>
+            <id>embabel-releases</id>
+            <url>https://repo.embabel.com/artifactory/libs-release</url>
+        </repository>
+        <snapshotRepository>
             <id>embabel-snapshots</id>
             <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
-        </repository>
+        </snapshotRepository>
     </distributionManagement>
     
 </project>
