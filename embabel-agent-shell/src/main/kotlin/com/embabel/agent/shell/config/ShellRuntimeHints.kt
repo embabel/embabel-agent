@@ -13,19 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config
+package com.embabel.agent.shell.config
 
-import com.embabel.agent.api.common.Asyncer
-import com.embabel.agent.spi.support.ExecutorAsyncer
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import java.util.concurrent.Executor
+import com.embabel.agent.shell.ShellConfig
+import org.springframework.aot.hint.RuntimeHints
+import org.springframework.aot.hint.RuntimeHintsRegistrar
 
-@Configuration(proxyBeanMethods=false)
-class AsyncConfiguration {
-
-    @Bean
-    fun asyncer(executor: Executor): Asyncer {
-        return ExecutorAsyncer(executor)
+class ShellRuntimeHints : RuntimeHintsRegistrar {
+    override fun registerHints(hints: RuntimeHints, classLoader: ClassLoader?) {
+        hints.reflection().registerType(ShellConfig::class.java)
+        hints.reflection().registerType(ShellConfig.ChatConfig::class.java)
     }
 }

@@ -44,7 +44,7 @@ import org.springframework.web.client.RestTemplate
 /**
  * Core configuration for AgentPlatform
  */
-@Configuration
+@Configuration(proxyBeanMethods=false)
 @EnableConfigurationProperties(ConfigurableModelProviderProperties::class)
 /*internal*/ class AgentPlatformConfiguration(
 ) {
