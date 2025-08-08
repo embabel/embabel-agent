@@ -746,6 +746,13 @@ Add the required repositories to your `build.gradle.kts`:
 repositories {
     mavenCentral()
     maven {
+        name = "embabel-releases"
+        url = uri("https://repo.embabel.com/artifactory/libs-release")
+        mavenContent {
+            releasesOnly()
+        }
+   }
+   maven {
         name = "embabel-snapshots"
         url = uri("https://repo.embabel.com/artifactory/libs-snapshot")
         mavenContent {
