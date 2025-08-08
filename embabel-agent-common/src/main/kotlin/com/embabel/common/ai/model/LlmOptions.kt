@@ -17,6 +17,7 @@ package com.embabel.common.ai.model
 
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.PlatformDefault
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
+import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byRole
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
@@ -88,8 +89,8 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
     val thinking: Thinking?
 
     override fun infoString(
-      verbose: Boolean?,
-      indent: Int,
+        verbose: Boolean?,
+        indent: Int,
     ): String {
         return toString().indent(indent)
     }
@@ -125,6 +126,10 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
             temperature = DEFAULT_TEMPERATURE,
         )
 
+        @Deprecated(
+            "Use 'withModel' instead",
+            ReplaceWith("withModel(model)"),
+        )
         @JvmOverloads
         @JvmStatic
         fun fromModel(
@@ -134,6 +139,40 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
             criteria = byName(model),
             temperature = temperature,
         )
+
+        /**
+         * Create an LlmOptions instance with a specific model.
+         * @param model The name of the model to use.
+         */
+        @JvmStatic
+        fun withModel(
+            model: String,
+        ): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = byName(model),
+        )
+
+        @JvmStatic
+        fun withDefaultLlm(): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = DefaultModelSelectionCriteria,
+        )
+
+        @JvmStatic
+        fun withAutoLlm(): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = AutoModelSelectionCriteria,
+        )
+
+        /**
+         * Create an LlmOptions instance using the model given
+         * a specific role.
+         * You will need to define the model for the role
+         * in configuration.
+         * @param role The role for which to select the model.
+         */
+        @JvmStatic
+        fun withLlmForRole(role: String): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = byRole(role),
+        )
+
 
         @JvmOverloads
         operator fun invoke(
