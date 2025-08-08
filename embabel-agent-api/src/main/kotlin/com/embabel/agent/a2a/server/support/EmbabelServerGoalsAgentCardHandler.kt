@@ -17,13 +17,13 @@ package com.embabel.agent.a2a.server.support
 
 import com.embabel.agent.a2a.server.A2ARequestHandler
 import com.embabel.agent.a2a.server.AgentCardHandler
-import com.embabel.agent.a2a.spec.AgentCapabilities
-import com.embabel.agent.a2a.spec.AgentCard
-import com.embabel.agent.a2a.spec.AgentProvider
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Goal
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.indent
+import io.a2a.spec.AgentCapabilities
+import io.a2a.spec.AgentCard
+import io.a2a.spec.AgentProvider
 import org.slf4j.LoggerFactory
 
 typealias GoalFilter = (Goal) -> Boolean
@@ -49,27 +49,31 @@ class EmbabelServerGoalsAgentCardHandler(
         port: Int,
     ): AgentCard {
         val hostingUrl = "$scheme://$host:$port/$path"
-        val agentCard = AgentCard(
-            name = agentPlatform.name,
-            description = agentPlatform.description,
-            url = hostingUrl,
-            provider = AgentProvider("Embabel", "https://embabel.com"),
-            version = Semver.Companion.DEFAULT_VERSION,
-            documentationUrl = "https://embabel.com/docs",
-            capabilities = AgentCapabilities(
-                streaming = false,
-                pushNotifications = false,
-                stateTransitionHistory = false,
-            ),
-            securitySchemes = null,
-            security = null,
-            defaultInputModes = listOf("application/json", "text/plain"),
-            defaultOutputModes = listOf("application/json", "text/plain"),
-            skills = FromGoalsAgentSkillFactory(
-                goals = agentPlatform.goals.filter { goalFilter.invoke(it) }.toSet(),
-            ).skills(agentPlatform.name),
-            supportsAuthenticatedExtendedCard = false,
-        )
+        val agentCard = AgentCard.Builder()
+            .name(agentPlatform.name)
+            .description(agentPlatform.description)
+            .url(hostingUrl)
+            .provider(AgentProvider("Embabel", "https://embabel.com"))
+            .version(Semver.Companion.DEFAULT_VERSION)
+            .documentationUrl("https://embabel.com/docs")
+            .capabilities(
+                AgentCapabilities.Builder()
+                    .streaming(false) // TODO are they planning to support streaming?
+                    .pushNotifications(false)
+                    .stateTransitionHistory(false)
+                    .extensions(emptyList())
+                    .build()
+            )
+            .defaultInputModes(listOf("application/json", "text/plain"))
+            .defaultOutputModes(listOf("application/json", "text/plain"))
+            .skills(
+                FromGoalsAgentSkillFactory(
+                    goals = agentPlatform.goals.filter { goalFilter.invoke(it) }.toSet(),
+                ).skills(agentPlatform.name)
+            )
+            .supportsAuthenticatedExtendedCard(false)
+            .protocolVersion("0.2.5")
+            .build()
         logger.info("Returning agent card: {}", agentCard)
         return agentCard
     }

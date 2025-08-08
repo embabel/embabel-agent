@@ -165,6 +165,12 @@
         </dependency>
         <!-- ================ Observability ================ -->
 
+        <dependency>
+            <groupId>io.github.a2asdk</groupId>
+            <artifactId>a2a-java-sdk-spec</artifactId>
+            <version>0.2.5</version>
+        </dependency>
+
         <!-- Unit and Integration Testing -->
         <!-- Most common testing dependencies are in the embabel-agent-parent -->
         <!-- If something is missing, add it here -->
