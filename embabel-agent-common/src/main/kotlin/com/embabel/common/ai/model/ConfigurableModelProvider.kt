@@ -106,13 +106,23 @@ class ConfigurableModelProvider(
 
 
     override fun infoString(
-      verbose: Boolean?,
-      indent: Int,
+        verbose: Boolean?,
+        indent: Int,
     ): String {
-        val llms = "Available LLMs:\n\t${llms.joinToString("\n\t") { showModel(it) }}"
+        val llms = "Available LLMs:\n\t${
+            llms
+                .sortedBy { it.name }
+                .joinToString("\n\t") { showModel(it) }
+        }"
         val embeddingServices =
-            "Available embedding services:\n\t${embeddingServices.joinToString("\n\t") { showModel(it) }}"
-        return "Default LLM: ${properties.defaultLlm}\n$llms\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServices".indent(indent)
+            "Available embedding services:\n\t${
+                embeddingServices
+                    .sortedBy { it.name }
+                    .joinToString("\n\t") { showModel(it) }
+            }"
+        return "Default LLM: ${properties.defaultLlm}\n$llms\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServices".indent(
+            indent
+        )
     }
 
     override fun listRoles(modelClass: Class<out AiModel<*>>): List<String> {
