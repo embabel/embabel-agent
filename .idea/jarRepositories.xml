@@ -46,5 +46,10 @@
       <option name="name" value="github" />
       <option name="url" value="https://maven.pkg.github.com/embabel/embabel-build" />
     </remote-repository>
+    <remote-repository>
+      <option name="id" value="embabel-releases" />
+      <option name="name" value="embabel-releases" />
+      <option name="url" value="https://repo.embabel.com/artifactory/libs-release" />
+    </remote-repository>
   </component>
 </project>

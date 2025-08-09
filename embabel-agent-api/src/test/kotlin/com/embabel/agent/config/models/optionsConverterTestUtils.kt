@@ -20,6 +20,10 @@ import com.embabel.common.ai.model.OptionsConverter
 import org.junit.jupiter.api.Assertions.assertEquals
 
 fun checkOptionsConverterPreservesCoreValues(optionsConverter: OptionsConverter<*>) {
-    val options = optionsConverter.convertOptions(LlmOptions.Companion(temperature = 0.5))
-    assertEquals(0.5, options.temperature)
+    val llmo = LlmOptions.Companion(temperature = 0.5).withTopK(10).withTopP(.2).withFrequencyPenalty(.2)
+    val options = optionsConverter.convertOptions(llmo)
+    assertEquals(llmo.temperature, options.temperature, "Should have preserved temperature")
+//    assertEquals(llmo.topK, options.topK, "Should have preserved topK")
+    assertEquals(llmo.topP, options.topP, "Should have preserved topP")
+//    assertEquals(llmo.frequencyPenalty, options.frequencyPenalty, "Should have preserved frequencyPenalty")
 }
