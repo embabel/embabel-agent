@@ -55,10 +55,9 @@ interface LlmHyperparameters {
         description = "The temperature to use when generating responses",
         minimum = "0.0",
         maximum = "1.0",
-        defaultValue = "0.0",
         required = true,
     )
-    val temperature: Double
+    val temperature: Double?
 
     val frequencyPenalty: Double?
 
@@ -100,44 +99,34 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
         /**
          * Create an LlmOptions instance we can build.
          */
-        @JvmOverloads
         operator fun invoke(
-            temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
             criteria = PlatformDefault,
-            temperature = temperature,
         )
 
         /**
          * Create an LlmOptions instance we can build.
          */
-        @JvmOverloads
         operator fun invoke(
             model: String,
-            temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
             criteria = ByNameModelSelectionCriteria(model),
-            temperature = temperature,
         )
 
         @JvmStatic
         fun withDefaults(): BuildableLlmOptions = BuildableLlmOptions(
             criteria = PlatformDefault,
-            temperature = DEFAULT_TEMPERATURE,
         )
 
         @Deprecated(
             "Use 'withModel' instead",
             ReplaceWith("withModel(model)"),
         )
-        @JvmOverloads
         @JvmStatic
         fun fromModel(
             model: String,
-            temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
             criteria = byName(model),
-            temperature = temperature,
         )
 
         /**
@@ -173,34 +162,25 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
             criteria = byRole(role),
         )
 
-
-        @JvmOverloads
         operator fun invoke(
             criteria: ModelSelectionCriteria,
-            temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
             criteria = criteria,
-            temperature = temperature,
         )
 
-        @JvmOverloads
         @JvmStatic
         fun fromCriteria(
             criteria: ModelSelectionCriteria,
-            temperature: Double = DEFAULT_TEMPERATURE,
         ): BuildableLlmOptions = BuildableLlmOptions(
             criteria = criteria,
-            temperature = temperature,
         )
-
-        const val DEFAULT_TEMPERATURE = 0.5
     }
 
 }
 
 data class BuildableLlmOptions(
     override val criteria: ModelSelectionCriteria = PlatformDefault,
-    override val temperature: Double = 0.0,
+    override val temperature: Double? = null,
     override val frequencyPenalty: Double? = null,
     override val maxTokens: Int? = null,
     override val presencePenalty: Double? = null,
