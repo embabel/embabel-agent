@@ -16,10 +16,10 @@
 package com.embabel.agent.config.models
 
 import com.embabel.agent.common.RetryProperties
-import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.common.ai.model.Llm
-import com.embabel.common.ai.model.PerTokenPricingModel
+import com.embabel.common.ai.model.*
+import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -76,6 +76,7 @@ class OpenAiModels(
                 usdPer1mOutputTokens = 10.0,
             ),
             retryTemplate = properties.retryTemplate(GPT_5),
+            optionsConverter = Gpt5ChatOptionsConverter,
         )
     }
 
@@ -90,6 +91,7 @@ class OpenAiModels(
                 usdPer1mOutputTokens = 2.0,
             ),
             retryTemplate = properties.retryTemplate(GPT_5_MINI),
+            optionsConverter = Gpt5ChatOptionsConverter,
         )
     }
 
@@ -103,6 +105,7 @@ class OpenAiModels(
                 usdPer1mInputTokens = .05,
                 usdPer1mOutputTokens = .40,
             ),
+            optionsConverter = Gpt5ChatOptionsConverter,
             retryTemplate = properties.retryTemplate(GPT_5_NANO),
         )
     }
@@ -176,5 +179,24 @@ class OpenAiModels(
         const val TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
 
         const val DEFAULT_TEXT_EMBEDDING_MODEL = TEXT_EMBEDDING_3_SMALL
+    }
+}
+
+internal object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
+
+    override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
+        if (options.temperature != 1.0) {
+            loggerFor<Gpt5ChatOptionsConverter>().warn(
+                "GPT-5 models do not support temperature settings other than default 1.0. You set {} but it will be ignored.",
+                options.temperature,
+            )
+        }
+        return OpenAiChatOptions.builder()
+            .topP(options.topP)
+            .maxTokens(options.maxTokens)
+            .presencePenalty(options.presencePenalty)
+            .frequencyPenalty(options.frequencyPenalty)
+            .topP(options.topP)
+            .build()
     }
 }
