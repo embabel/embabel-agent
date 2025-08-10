@@ -26,6 +26,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.StringTransformer
+import com.embabel.common.util.loggerFor
 
 /**
  * User-facing interface for executing prompts.
@@ -194,6 +195,8 @@ class Subagent private constructor(
 
 /**
  * User code should always use this interface to execute prompts.
+ * Typically obtained from an [OperationContext] or [ActionContext] parameter,
+ * via [OperationContext.ai]
  * A PromptRunner is immutable once constructed, and has determined
  * LLM and hyperparameters.
  * Thus, a PromptRunner can be reused within an action implementation.
@@ -223,6 +226,13 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
 
     fun withToolGroups(toolGroups: Set<String>): PromptRunner =
         toolGroups.fold(this) { acc, toolGroup -> acc.withToolGroup(toolGroup) }
+
+    /**
+     * Add a set of tool groups to the PromptRunner
+     * @param toolGroups the set of named tool groups to add
+     */
+    fun withTools(vararg toolGroups: String): PromptRunner =
+        withToolGroups(toolGroups.toSet())
 
     fun withToolGroup(toolGroup: ToolGroupRequirement): PromptRunner
 
@@ -273,6 +283,26 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     fun withPromptContributors(promptContributors: List<PromptContributor>): PromptRunner
 
     /**
+     * Add varargs of prompt contributors and contextual prompt elements.
+     */
+    fun withPromptElements(vararg elements: Any): PromptRunner {
+        val promptContributors = elements.filterIsInstance<PromptContributor>()
+        val contextualPromptElements = elements.filterIsInstance<ContextualPromptElement>()
+        val oddOnesOut = elements.filterNot { it is PromptContributor || it is ContextualPromptElement }
+        if (oddOnesOut.isNotEmpty()) {
+            loggerFor<PromptRunner>().warn(
+                "{} arguments to withPromptElements were not prompt contributors or contextual prompt elements and will be ignored: {}",
+                oddOnesOut.size,
+                oddOnesOut.joinToString(
+                    ", ", prefix = "[", postfix = "]"
+                )
+            )
+        }
+        return withPromptContributors(promptContributors)
+            .withContextualPromptContributors(contextualPromptElements)
+    }
+
+    /**
      * Add a prompt contributor that can see context
      */
     fun withContextualPromptContributors(
@@ -284,6 +314,10 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     ): PromptRunner =
         withContextualPromptContributors(listOf(contextualPromptContributor))
 
+    /**
+     * Set whether to generate examples of the output in the prompt
+     * on a per-PromptRunner basis. This overides platform defaults.
+     */
     fun withGenerateExamples(generateExamples: Boolean): PromptRunner
 
 }

@@ -33,6 +33,11 @@ class OperationContextPromptRunnerTest {
     }
 
     @Test
+    @Disabled("test not implemented yet")
+    fun `test withPromptElements`() {
+    }
+
+    @Test
     fun `test evaluateCondition`() {
         val mockOperationContext = mockk<OperationContext>()
         every { mockOperationContext.processContext } returns mockk()
