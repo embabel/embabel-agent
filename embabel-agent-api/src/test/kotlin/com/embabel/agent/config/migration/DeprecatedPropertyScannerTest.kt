@@ -20,28 +20,31 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import io.mockk.*
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.mock.env.MockEnvironment
 import java.util.regex.Pattern
 
 /**
- * Tests for ConditionalPropertyScanner explicit mapping and runtime rule functionality.
+ * Tests for DeprecatedPropertyScanner explicit mapping and runtime rule functionality.
  */
-class ConditionalPropertyScannerTest {
+class DeprecatedPropertyScannerTest {
 
-    private lateinit var scanningConfig: ConditionalPropertyScanningConfig
+    private lateinit var scanningConfig: DeprecatedPropertyScanningConfig
     private lateinit var propertyWarner: SimpleDeprecatedConfigWarner
-    private lateinit var scanner: ConditionalPropertyScanner
-    private lateinit var scanningConfigProvider: ObjectProvider<ConditionalPropertyScanningConfig>
+    private lateinit var scanner: DeprecatedPropertyScanner
+    private lateinit var scanningConfigProvider: ObjectProvider<DeprecatedPropertyScanningConfig>
     private lateinit var propertyWarnerProvider: ObjectProvider<SimpleDeprecatedConfigWarner>
+    private lateinit var environment: MockEnvironment
 
     @BeforeEach
     fun setUp() {
-        scanningConfig = mockk<ConditionalPropertyScanningConfig>()
+        scanningConfig = mockk<DeprecatedPropertyScanningConfig>()
         propertyWarner = mockk<SimpleDeprecatedConfigWarner>()
-        scanningConfigProvider = mockk<ObjectProvider<ConditionalPropertyScanningConfig>>()
+        scanningConfigProvider = mockk<ObjectProvider<DeprecatedPropertyScanningConfig>>()
         propertyWarnerProvider = mockk<ObjectProvider<SimpleDeprecatedConfigWarner>>()
+        environment = MockEnvironment()
 
         // Create scanner with constructor injection
-        scanner = ConditionalPropertyScanner(scanningConfigProvider, propertyWarnerProvider)
+        scanner = DeprecatedPropertyScanner(scanningConfigProvider, propertyWarnerProvider, environment)
     }
 
     @Test
@@ -92,7 +95,7 @@ class ConditionalPropertyScannerTest {
     fun `addMigrationRule should allow runtime rule addition`() {
         // Given
         val initialRuleCount = scanner.getMigrationRules().size
-        val newRule = ConditionalPropertyScanner.PropertyMigrationRule(
+        val newRule = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = Pattern.compile("test\\.([^.]+)\\.property"),
             replacement = "migrated.test.\$1.property",
             description = "Test rule addition"
@@ -110,7 +113,7 @@ class ConditionalPropertyScannerTest {
     @Test
     fun `PropertyMigrationRule should transform properties correctly when used`() {
         // Given - Test pattern-based rules for runtime extensibility
-        val rule = ConditionalPropertyScanner.PropertyMigrationRule(
+        val rule = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = Pattern.compile("custom\\.company\\.([^.]+)\\.config"),
             replacement = "embabel.agent.custom.\$1.config",
             description = "Custom company namespace migration"
@@ -131,7 +134,7 @@ class ConditionalPropertyScannerTest {
     @Test
     fun `PropertyMigrationRule should respect conditions`() {
         // Given
-        val conditionalRule = ConditionalPropertyScanner.PropertyMigrationRule(
+        val conditionalRule = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = Pattern.compile("legacy\\.([^.]+)\\.setting"),
             replacement = "embabel.agent.legacy.\$1.setting",
             description = "Test rule with condition",
@@ -150,7 +153,7 @@ class ConditionalPropertyScannerTest {
     @Test
     fun `runtime rules should be invoked after explicit mappings`() {
         // Given - Add a runtime rule
-        val runtimeRule = ConditionalPropertyScanner.PropertyMigrationRule(
+        val runtimeRule = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = Pattern.compile("runtime\\.([^.]+)\\.test"),
             replacement = "embabel.agent.runtime.\$1.test",
             description = "Runtime extensibility test"
@@ -166,7 +169,7 @@ class ConditionalPropertyScannerTest {
     @Test
     fun `PropertyMigrationRule should handle edge cases`() {
         // Given
-        val rule = ConditionalPropertyScanner.PropertyMigrationRule(
+        val rule = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = Pattern.compile("test\\.(.+)"),
             replacement = "migrated.\$1",
             description = "Test rule"
@@ -188,7 +191,7 @@ class ConditionalPropertyScannerTest {
     @Test
     fun `rule patterns should be correctly escaped for regex`() {
         // Given
-        val dotSensitiveRule = ConditionalPropertyScanner.PropertyMigrationRule(
+        val dotSensitiveRule = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = Pattern.compile("exact\\.match\\.test"),
             replacement = "migrated.exact.match.test",
             description = "Dot escaping test"
@@ -206,13 +209,13 @@ class ConditionalPropertyScannerTest {
     @Test
     fun `multiple runtime rules should be processed in order`() {
         // Given
-        val rule1 = ConditionalPropertyScanner.PropertyMigrationRule(
+        val rule1 = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = Pattern.compile("first\\.(.+)"),
             replacement = "migrated.first.\$1",
             description = "First rule"
         )
 
-        val rule2 = ConditionalPropertyScanner.PropertyMigrationRule(
+        val rule2 = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = Pattern.compile("second\\.(.+)"),
             replacement = "migrated.second.\$1",
             description = "Second rule"

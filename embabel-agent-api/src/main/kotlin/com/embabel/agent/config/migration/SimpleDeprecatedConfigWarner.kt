@@ -35,13 +35,15 @@ import org.springframework.stereotype.Component
 )
 class SimpleDeprecatedConfigWarner(
     private val environment: Environment,
+    private val warningConfig: DeprecatedPropertyWarningConfig
+) {
+
     /**
      * Configuration for individual warning logging behavior.
      * When true, individual warnings are logged immediately.
      * When false, only aggregated summary is logged via logAggregatedSummary().
      */
-    private val enableIndividualLogging: Boolean = false
-) {
+    private val enableIndividualLogging: Boolean = warningConfig.individualLogging
 
     private val warnedProperties = mutableSetOf<String>()
     private val deprecationDetails = mutableMapOf<String, DeprecationInfo>()
@@ -120,6 +122,39 @@ class SimpleDeprecatedConfigWarner(
     }
 
     /**
+     * Issue a warning for deprecated @ConfigurationProperties prefix usage.
+     *
+     * @param className The class containing the deprecated annotation
+     * @param annotationDetails Details about the deprecated @ConfigurationProperties annotation
+     * @param recommendedApproach The recommended replacement approach
+     */
+    fun warnDeprecatedConfigurationProperties(
+        className: String,
+        annotationDetails: String,
+        recommendedApproach: String
+    ) {
+        val warningKey = "CONFIG_PROPS:$className"
+
+        // Rate limiting: only warn once per class per application run
+        if (warningKey in warnedProperties) return
+
+        warnedProperties.add(warningKey)
+        deprecationDetails[warningKey] = DeprecationInfo(
+            type = DeprecationType.CONFIGURATION_PROPERTIES,
+            deprecatedItem = className,
+            recommendedReplacement = recommendedApproach,
+            reason = "@ConfigurationProperties prefix migration"
+        )
+
+        if (enableIndividualLogging) {
+            val message = """
+                |DEPRECATED @CONFIGURATIONPROPERTIES USAGE: Class '$className' uses deprecated @ConfigurationProperties prefix: $annotationDetails. Please migrate to: $recommendedApproach
+                """.trimMargin()
+            logger.warn(message)
+        }
+    }
+
+    /**
      * Issue a warning for deprecated conditional annotation usage.
      *
      * @param className The class containing the deprecated annotation
@@ -167,17 +202,14 @@ class SimpleDeprecatedConfigWarner(
      * Get categorized deprecation information for analysis or reporting.
      */
     fun getDeprecationCategories(): DeprecationCategories {
-        val (properties, profiles, conditionals) = deprecationDetails.values
-            .groupBy { it.type }
-            .let { grouped ->
-                Triple(
-                    grouped[DeprecationType.PROPERTY].orEmpty(),
-                    grouped[DeprecationType.PROFILE].orEmpty(),
-                    grouped[DeprecationType.CONDITIONAL].orEmpty()
-                )
-            }
+        val grouped = deprecationDetails.values.groupBy { it.type }
 
-        return DeprecationCategories(properties, profiles, conditionals)
+        return DeprecationCategories(
+            properties = grouped[DeprecationType.PROPERTY].orEmpty(),
+            profiles = grouped[DeprecationType.PROFILE].orEmpty(),
+            conditionals = grouped[DeprecationType.CONDITIONAL].orEmpty(),
+            configurationProperties = grouped[DeprecationType.CONFIGURATION_PROPERTIES].orEmpty()
+        )
     }
 
     /**
@@ -236,6 +268,7 @@ class SimpleDeprecatedConfigWarner(
             if (categories.properties.isNotEmpty()) add("${categories.properties.size} deprecated properties")
             if (categories.profiles.isNotEmpty()) add("${categories.profiles.size} deprecated profiles")
             if (categories.conditionals.isNotEmpty()) add("${categories.conditionals.size} deprecated conditionals")
+            if (categories.configurationProperties.isNotEmpty()) add("${categories.configurationProperties.size} deprecated @ConfigurationProperties")
         }
 
         append(parts.joinToString(", "))
@@ -253,8 +286,17 @@ class SimpleDeprecatedConfigWarner(
         }
 
         if (categories.conditionals.isNotEmpty()) {
-            append("\n  Conditionals: ")
-            append(categories.conditionals.joinToString(", ") { "${it.deprecatedItem}: @ConditionalOnProperty migration needed" })
+            append("\n  Conditionals:")
+            categories.conditionals.forEach {
+                append("\n    - ${it.deprecatedItem}: @ConditionalOnProperty migration needed")
+            }
+        }
+
+        if (categories.configurationProperties.isNotEmpty()) {
+            append("\n  @ConfigurationProperties:")
+            categories.configurationProperties.forEach {
+                append("\n    - ${it.deprecatedItem}: @ConfigurationProperties prefix migration needed")
+            }
         }
     }
 
@@ -272,7 +314,7 @@ class SimpleDeprecatedConfigWarner(
      * Categories of deprecation types.
      */
     enum class DeprecationType {
-        PROPERTY, PROFILE, CONDITIONAL
+        PROPERTY, PROFILE, CONDITIONAL, CONFIGURATION_PROPERTIES
     }
 
     /**
@@ -281,7 +323,8 @@ class SimpleDeprecatedConfigWarner(
     data class DeprecationCategories(
         val properties: List<DeprecationInfo>,
         val profiles: List<DeprecationInfo>,
-        val conditionals: List<DeprecationInfo>
+        val conditionals: List<DeprecationInfo>,
+        val configurationProperties: List<DeprecationInfo>
     )
 
     companion object {

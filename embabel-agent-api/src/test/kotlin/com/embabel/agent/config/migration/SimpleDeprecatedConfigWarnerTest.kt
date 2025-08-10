@@ -40,8 +40,8 @@ class SimpleDeprecatedConfigWarnerTest {
     @BeforeEach
     fun setUp() {
         environment = MockEnvironment()
-        warner = SimpleDeprecatedConfigWarner(environment, enableIndividualLogging = false)
-        warnerWithLogging = SimpleDeprecatedConfigWarner(environment, enableIndividualLogging = true)
+        warner = SimpleDeprecatedConfigWarner(environment, DeprecatedPropertyWarningConfig(individualLogging = false))
+        warnerWithLogging = SimpleDeprecatedConfigWarner(environment, DeprecatedPropertyWarningConfig(individualLogging = true))
 
         // Set up log capture
         logger = LoggerFactory.getLogger(SimpleDeprecatedConfigWarner::class.java) as Logger

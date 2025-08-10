@@ -18,6 +18,8 @@ package com.embabel.agent.config.migration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Configuration
+import jakarta.annotation.PostConstruct
+import org.slf4j.LoggerFactory
 
 /**
  * Configuration for conditional property scanning during migration.
@@ -25,6 +27,17 @@ import org.springframework.context.annotation.Configuration
  * Controls which packages are scanned for deprecated property in @ConditionalOnProperty annotations.
  * Uses a flexible approach with configurable include/exclude patterns to handle
  * diverse project structures and dependencies.
+ *
+ * ## Spring Boot + Kotlin Binding Pattern Consistency
+ *
+ * **All properties use `var`** to ensure consistency with production requirements:
+ * - **@Configuration + @ConfigurationProperties**: Requires `var` for CGLIB proxy compatibility
+ * - **Complex types (List)**: Need `var` for reliable environment variable binding
+ * - **Scalar types**: Use `var` to maintain pattern consistency and avoid production issues
+ *
+ * This follows the same pattern as `DeprecatedPropertyWarningConfig` which was validated in production.
+ *
+ * @see DeprecatedPropertyWarningConfig for detailed production lesson learned documentation
  */
 @Configuration
 @ConfigurationProperties("embabel.agent.platform.migration.scanning")
@@ -33,7 +46,7 @@ import org.springframework.context.annotation.Configuration
     havingValue = "true",
     matchIfMissing = false
 )
-data class ConditionalPropertyScanningConfig(
+data class DeprecatedPropertyScanningConfig(
     /**
      * Base packages to scan for deprecated conditional annotations.
      * Defaults to actual Embabel packages while excluding framework internals.
@@ -97,7 +110,7 @@ data class ConditionalPropertyScanningConfig(
      *
      * @see PROFILES_MIGRATION_GUIDE.md for additional configuration examples and migration guidance
      */
-    val includePackages: List<String> = listOf(
+    var includePackages: List<String> = listOf(
         "com.embabel.agent",
         "com.embabel.agent.shell"
     ),
@@ -107,32 +120,39 @@ data class ConditionalPropertyScanningConfig(
      * Uses a comprehensive strategy that excludes common framework and library packages
      * while allowing configuration override for custom environments.
      */
-    val excludePackages: List<String> = defaultExcludePackages(),
+    var excludePackages: List<String> = defaultExcludePackages(),
 
     /**
      * Additional user-specific packages to exclude.
      * Allows runtime customization without modifying the default exclusion list.
      */
-    val additionalExcludes: List<String> = emptyList(),
+    var additionalExcludes: List<String> = emptyList(),
 
     /**
      * Whether to use classpath-based detection to automatically exclude JAR-based packages.
      * When enabled, packages from JAR files are automatically excluded from scanning.
      */
-    val autoExcludeJarPackages: Boolean = true,
+    var autoExcludeJarPackages: Boolean = false,
 
     /**
      * Maximum depth for package scanning to prevent excessive recursion.
      */
-    val maxScanDepth: Int = 10,
+    var maxScanDepth: Int = 10,
 
     /**
      * Whether scanning is enabled.
-     * Disabled by default in Iteration 0, should be enabled starting Iteration 1
-     * when users need migration detection for @ConditionalOnProperty annotations.
+     * **Disabled by default** for production safety - migration system is completely dormant.
+     * Set to `true` to activate comprehensive migration detection and warnings.
      */
-    val enabled: Boolean = false
+    var enabled: Boolean = false
 ) {
+
+    private val logger = LoggerFactory.getLogger(DeprecatedPropertyScanningConfig::class.java)
+
+    @PostConstruct
+    fun init() {
+        logger.info("Deprecated property scanning config initialized: enabled=$enabled")
+    }
 
     companion object {
         /**

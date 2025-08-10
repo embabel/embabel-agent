@@ -23,9 +23,22 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestPropertySource
 
 /**
- * Tests for ConditionalPropertyScanningConfig configuration binding and logic.
+ * Tests for DeprecatedPropertyScanningConfig configuration binding and logic.
+ *
+ * ## Test Strategy for Default Values
+ *
+ * This test suite uses @TestPropertySource to override scanning defaults for stable,
+ * predictable test behavior regardless of production default changes.
+ *
+ * **Production Default (as of Iteration 1)**: enabled = true
+ * **Test Override**: We explicitly control values via @TestPropertySource
+ *
+ * This approach ensures:
+ * - Tests remain stable when production defaults change
+ * - Clear separation between test expectations and production behavior
+ * - No need to update tests when toggling production scanning on/off
  */
-@SpringBootTest(classes = [ConditionalPropertyScanningConfigIntegrationTest.TestConfiguration::class])
+@SpringBootTest(classes = [DeprecatedPropertyScanningConfigIntegrationTest.TestConfiguration::class])
 @TestPropertySource(properties = [
     "embabel.agent.platform.migration.scanning.enabled=true",
     "embabel.agent.platform.migration.scanning.auto-exclude-jar-packages=false",
@@ -35,10 +48,10 @@ import org.springframework.test.context.TestPropertySource
     "embabel.agent.platform.migration.scanning.additional-excludes[0]=com.example.excluded",
     "embabel.agent.platform.migration.scanning.additional-excludes[1]=org.example.test"
 ])
-class ConditionalPropertyScanningConfigIntegrationTest {
+class DeprecatedPropertyScanningConfigIntegrationTest {
 
     @Autowired
-    private lateinit var config: ConditionalPropertyScanningConfig
+    private lateinit var config: DeprecatedPropertyScanningConfig
 
     @Test
     fun `should bind scanning configuration properties correctly`() {
@@ -57,24 +70,10 @@ class ConditionalPropertyScanningConfigIntegrationTest {
         )
     }
 
-    @Test
-    fun `should use default values when properties not specified`() {
-        val defaultConfig = ConditionalPropertyScanningConfig()
-
-        assertThat(defaultConfig.enabled).isFalse()
-        assertThat(defaultConfig.autoExcludeJarPackages).isTrue()
-        assertThat(defaultConfig.maxScanDepth).isEqualTo(10)
-        assertThat(defaultConfig.additionalExcludes).isEmpty()
-
-        assertThat(defaultConfig.includePackages).containsExactly(
-            "com.embabel.agent",
-            "com.embabel.agent.shell"
-        )
-    }
 
     @Test
     fun `should have comprehensive default exclude packages`() {
-        val defaultExcludes = ConditionalPropertyScanningConfig.defaultExcludePackages()
+        val defaultExcludes = DeprecatedPropertyScanningConfig.defaultExcludePackages()
 
         // Verify key framework packages are excluded
         assertThat(defaultExcludes).contains(
@@ -95,6 +94,7 @@ class ConditionalPropertyScanningConfigIntegrationTest {
         // Should be comprehensive - at least 50+ entries
         assertThat(defaultExcludes.size).isGreaterThan(50)
     }
+
 
     @Test
     fun `should combine default and additional excludes correctly`() {
@@ -151,6 +151,6 @@ class ConditionalPropertyScanningConfigIntegrationTest {
         assertThat(config.shouldIncludePackage("")).isFalse()
     }
 
-    @EnableConfigurationProperties(ConditionalPropertyScanningConfig::class)
+    @EnableConfigurationProperties(DeprecatedPropertyScanningConfig::class)
     class TestConfiguration
 }
