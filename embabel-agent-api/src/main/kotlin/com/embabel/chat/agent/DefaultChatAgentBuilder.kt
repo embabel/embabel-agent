@@ -16,42 +16,48 @@
 package com.embabel.chat.agent
 
 import com.embabel.agent.api.common.workflow.control.SimpleAgentBuilder
-import com.embabel.agent.config.models.OpenAiModels
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.last
 import com.embabel.agent.prompt.persona.Persona
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.WindowingConversationFormatter
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.loggerFor
 
-class ChatAgentFactory(
+class DefaultChatAgentBuilder(
+    private val templateRenderer: TemplateRenderer,
+    private val llm: LlmOptions,
     private val persona: Persona = K9,
+    private val promptTemplate: String = "chat/default_chat",
 ) {
 
-    fun chatAgent(): Agent =
+    fun build(): Agent =
         SimpleAgentBuilder
             .returning(AssistantMessage::class.java)
             .running { context ->
-                // TODO should arguably use text
+                // TODO should arguably use messages
                 val conversation = context.last<Conversation>()
                     ?: throw IllegalStateException("No conversation found in context")
                 val formattedConversation =
                     conversation.promptContributor(WindowingConversationFormatter(windowSize = 100))
-                val prompt = """
-                ${persona.contribution()}
-                Continue the following conversation:
-
-                $formattedConversation
-            """.trimIndent()
-                loggerFor<Persona>().info("Continuing conversation with prompt:\n{}", prompt)
-                val response = context.ai().withLlm(OpenAiModels.Companion.GPT_41_MINI).generateText(
-                    prompt
+                val prompt = templateRenderer.renderLoadedTemplate(
+                    promptTemplate,
+                    mapOf(
+                        "persona" to persona,
+                        "formattedConversation" to formattedConversation,
+                    )
                 )
+                loggerFor<Persona>().info("Continuing conversation with prompt:\n{}", prompt)
+                val assistantMessageContext = context.ai()
+                    .withLlm(llm)
+                    .withPromptElements(persona)
+                    .generateText(prompt)
                 AssistantMessage(
                     name = persona.name,
-                    content = response,
+                    content = assistantMessageContext,
                 )
             }
-            .buildAgent("Default Agent", description = "Default conversation agent")
+            .buildAgent("Default chat Agent", description = "Default conversation agent")
 }
