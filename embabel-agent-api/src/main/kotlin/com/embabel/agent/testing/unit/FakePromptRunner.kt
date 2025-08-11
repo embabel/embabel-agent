@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.Subagent
 import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.prompt.element.ContextualPromptElement
@@ -178,5 +179,9 @@ data class FakePromptRunner(
 
     override fun withSubagents(vararg subagents: Subagent): PromptRunner {
         TODO("Implement subagent handoff support")
+    }
+
+    override fun withToolGroup(toolGroup: ToolGroup): PromptRunner {
+        TODO("Not yet implemented")
     }
 }

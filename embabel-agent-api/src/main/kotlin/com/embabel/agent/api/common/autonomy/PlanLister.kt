@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common.autonomy
 
+import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.plan.Plan
 
@@ -32,4 +33,10 @@ interface PlanLister {
         processOptions: ProcessOptions,
         bindings: Map<String, Any>,
     ): List<Plan>
+
+    fun achievableGoals(
+        processOptions: ProcessOptions,
+        bindings: Map<String, Any>,
+    ): List<Goal> =
+        achievablePlans(processOptions, bindings).mapNotNull { it.goal as? Goal }
 }

@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetToolCallbacks
@@ -45,7 +46,7 @@ internal data class OperationContextPromptRunner(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
-    private val handoffToolCallbacks: List<ToolCallback> = emptyList(),
+    private val otherToolCallbacks: List<ToolCallback> = emptyList(),
 ) : PromptRunner {
 
     val action = (context as? ActionContext)?.action
@@ -66,7 +67,7 @@ internal data class OperationContextPromptRunner(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                toolCallbacks = safelyGetToolCallbacks(toolObjects) + handoffToolCallbacks,
+                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(
                         context
@@ -90,7 +91,7 @@ internal data class OperationContextPromptRunner(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                toolCallbacks = safelyGetToolCallbacks(toolObjects) + handoffToolCallbacks,
+                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(
                         context
@@ -150,6 +151,9 @@ internal data class OperationContextPromptRunner(
     override fun withToolGroup(toolGroup: ToolGroupRequirement): PromptRunner =
         copy(toolGroups = this.toolGroups + toolGroup)
 
+    override fun withToolGroup(toolGroup: ToolGroup): PromptRunner =
+        copy(otherToolCallbacks = otherToolCallbacks + toolGroup.toolCallbacks)
+
     override fun withToolObject(toolObject: ToolObject): PromptRunner =
         copy(toolObjects = this.toolObjects + toolObject)
 
@@ -161,7 +165,7 @@ internal data class OperationContextPromptRunner(
             applicationName = context.agentPlatform().name,
         )
         return copy(
-            handoffToolCallbacks = this.handoffToolCallbacks + handoffs.toolCallbacks,
+            otherToolCallbacks = this.otherToolCallbacks + handoffs.toolCallbacks,
         )
     }
 
@@ -191,7 +195,7 @@ internal data class OperationContextPromptRunner(
             )
         }
         return copy(
-            handoffToolCallbacks = this.handoffToolCallbacks + newCallbacks,
+            otherToolCallbacks = this.otherToolCallbacks + newCallbacks,
         )
     }
 

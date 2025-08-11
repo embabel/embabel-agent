@@ -136,6 +136,7 @@ class ShellCommands(
             responseGenerator = if (shellProperties.chat.bindConversation) AgentResponseGenerator(
                 agentPlatform = agentPlatform,
                 agent = DefaultChatAgentBuilder(
+                    autonomy = autonomy,
                     persona = K9,
                     templateRenderer = templateRenderer,
                     llm = LlmOptions

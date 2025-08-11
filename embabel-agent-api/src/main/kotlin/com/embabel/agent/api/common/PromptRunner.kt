@@ -18,6 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.annotation.support.AgenticInfo
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.prompt.element.ContextualPromptElement
 import com.embabel.agent.spi.LlmCall
@@ -223,6 +224,11 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      */
     fun withToolGroup(toolGroup: String): PromptRunner =
         withToolGroup(ToolGroupRequirement(toolGroup))
+
+    /**
+     * Allows for dynamic tool groups to be added to the PromptRunner.
+     */
+    fun withToolGroup(toolGroup: ToolGroup): PromptRunner
 
     fun withToolGroups(toolGroups: Set<String>): PromptRunner =
         toolGroups.fold(this) { acc, toolGroup -> acc.withToolGroup(toolGroup) }

@@ -35,10 +35,10 @@ data class GoalToolCallback<I : Any>(
     val textCommunicator: TextCommunicator,
     val objectMapper: ObjectMapper,
     val name: String,
-    val description: String,
+    val description: String = goal.description,
     val goal: Goal,
     val inputType: Class<I>,
-    val listeners: List<AgenticEventListener>,
+    val listeners: List<AgenticEventListener> = emptyList(),
 ) : ToolCallback {
 
     private val logger = LoggerFactory.getLogger(javaClass)

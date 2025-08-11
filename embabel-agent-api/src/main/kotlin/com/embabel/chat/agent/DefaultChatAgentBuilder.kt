@@ -15,18 +15,29 @@
  */
 package com.embabel.chat.agent
 
+import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.DefaultPlanLister
 import com.embabel.agent.api.common.workflow.control.SimpleAgentBuilder
+import com.embabel.agent.common.Constants.EMBABEL_PROVIDER
 import com.embabel.agent.core.Agent
+import com.embabel.agent.core.ToolGroup
+import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.agent.core.last
+import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.prompt.persona.Persona
+import com.embabel.agent.tools.agent.GoalToolCallback
+import com.embabel.agent.tools.agent.PromptedTextCommunicator
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.WindowingConversationFormatter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.loggerFor
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 class DefaultChatAgentBuilder(
+    private val autonomy: Autonomy,
     private val templateRenderer: TemplateRenderer,
     private val llm: LlmOptions,
     private val persona: Persona = K9,
@@ -53,11 +64,42 @@ class DefaultChatAgentBuilder(
                 val assistantMessageContext = context.ai()
                     .withLlm(llm)
                     .withPromptElements(persona)
+                    .withToolGroup(dynamicPerGoalToolGroup(context))
                     .generateText(prompt)
                 AssistantMessage(
                     name = persona.name,
                     content = assistantMessageContext,
                 )
             }
-            .buildAgent("Default chat Agent", description = "Default conversation agent")
+            .buildAgent(
+                name = "Default chat agent",
+                description = "Default conversation agent with persona ${persona.name}",
+            )
+
+    private fun dynamicPerGoalToolGroup(context: OperationContext): ToolGroup {
+        val planLister = DefaultPlanLister(context.agentPlatform())
+        val achievableGoals = planLister.achievableGoals(
+            context.processContext.processOptions,
+            mapOf("it" to UserInput("doesn't matter"))
+        )
+        return ToolGroup(
+            metadata = ToolGroupMetadata(
+                name = "Default chat tools",
+                description = "Default tools for chat agent",
+                role = "chat",
+                provider = EMBABEL_PROVIDER,
+                permissions = emptySet(),
+            ),
+            toolCallbacks = achievableGoals.mapIndexed { i, goal ->
+                GoalToolCallback(
+                    autonomy = autonomy,
+                    name = "tool_$i",
+                    goal = goal,
+                    textCommunicator = PromptedTextCommunicator,
+                    objectMapper = jacksonObjectMapper(),
+                    inputType = UserInput::class.java,
+                )
+            }
+        )
+    }
 }
