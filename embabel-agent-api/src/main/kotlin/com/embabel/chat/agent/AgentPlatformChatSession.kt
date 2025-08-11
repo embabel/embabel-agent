@@ -82,13 +82,15 @@ class AgentPlatformChatSession(
     val processWaitingHandler: ProcessWaitingHandler,
     override val messageListener: MessageListener = MessageListener {},
     val chatConfig: ChatConfig = ChatConfig(),
-    private val responseGenerator: ResponseGenerator = AutonomyResponseGenerator(
+    responseGenerator: ResponseGenerator? = null,
+) : ChatSession {
+
+    private val responseGeneratorToUse = responseGenerator ?: AutonomyResponseGenerator(
         autonomy = autonomy,
         goalChoiceApprover = goalChoiceApprover,
         processWaitingHandler = processWaitingHandler,
         chatConfig = chatConfig,
-    ),
-) : ChatSession {
+    )
 
     private var internalConversation: Conversation = InMemoryConversation()
 
@@ -117,7 +119,7 @@ class AgentPlatformChatSession(
         if (handledCommand != null) {
             messageListener.onMessage(handledCommand)
         } else {
-            responseGenerator.generateResponses(
+            responseGeneratorToUse.generateResponses(
                 userMessage,
                 conversation,
                 processOptions.copy(

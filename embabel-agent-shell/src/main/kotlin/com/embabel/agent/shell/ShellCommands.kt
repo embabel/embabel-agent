@@ -23,7 +23,7 @@ import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.agent.rag.Ingester
 import com.embabel.agent.shell.config.ShellProperties
-import com.embabel.chat.agent.AgentPlatformChatSession
+import com.embabel.chat.agent.*
 import com.embabel.chat.agent.shell.TerminalServicesProcessWaitingHandler
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.util.bold
@@ -45,17 +45,7 @@ import kotlin.system.exitProcess
 data class ShellConfig(
     val lineLength: Int = 140,
     val chat: ChatConfig = ChatConfig(),
-) {
-    /**
-     * Configuration for the chat session
-     * @param confirmGoals Whether to confirm goals with the user before proceeding
-     * @param bindConversation Whether to bind the conversation to the chat session
-     */
-    data class ChatConfig(
-        val confirmGoals: Boolean = true,
-        val bindConversation: Boolean = false,
-    )
-}
+)
 
 
 /**
@@ -140,6 +130,10 @@ class ShellCommands(
             goalChoiceApprover = if (shellProperties.chat.confirmGoals) terminalServices else GoalChoiceApprover.APPROVE_ALL,
             processWaitingHandler = TerminalServicesProcessWaitingHandler(terminalServices),
             chatConfig = shellProperties.chat,
+            responseGenerator = if (shellProperties.chat.bindConversation) AgentResponseGenerator(
+                agentPlatform = agentPlatform,
+                agent = ChatAgentFactory(persona = K9).chatAgent()
+            ) else null,
         )
         return terminalServices.chat(chatSession, colorPalette)
     }
