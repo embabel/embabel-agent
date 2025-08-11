@@ -113,7 +113,6 @@ internal class ChatClientLlmOperations(
             // Using CompletableFuture to implement a timeout since SpringAI's ChatClient
             // does not provide native timeout support.
             val future = CompletableFuture.supplyAsync {
-                Thread.sleep(5_000) //
                 chatClient
                     .prompt(springAiPrompt)
                     .toolCallbacks(interaction.toolCallbacks)
