@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
 import com.embabel.agent.api.common.autonomy.PlanLister
 import com.embabel.agent.api.common.autonomy.ProcessWaitingException
+import com.embabel.agent.config.models.OpenAiModels
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessOptions
@@ -36,6 +37,8 @@ data class ChatConfig(
     val confirmGoals: Boolean = true,
     val bindConversation: Boolean = false,
     val multiGoal: Boolean = false,
+    val model: String = OpenAiModels.GPT_41_MINI,
+    val temperature: Double? = null,
 )
 
 /**

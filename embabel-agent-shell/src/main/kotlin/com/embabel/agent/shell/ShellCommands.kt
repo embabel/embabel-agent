@@ -25,7 +25,9 @@ import com.embabel.agent.rag.Ingester
 import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.chat.agent.*
 import com.embabel.chat.agent.shell.TerminalServicesProcessWaitingHandler
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.bold
 import com.embabel.common.util.color
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -63,6 +65,7 @@ class ShellCommands(
     private val loggingPersonality: LoggingPersonality,
     private val ingester: Ingester,
     private val toolsStats: ToolsStats,
+    private val templateRenderer: TemplateRenderer,
     private val context: ConfigurableApplicationContext,
     private val shellProperties: ShellProperties = ShellProperties(),
 ) {
@@ -132,7 +135,13 @@ class ShellCommands(
             chatConfig = shellProperties.chat,
             responseGenerator = if (shellProperties.chat.bindConversation) AgentResponseGenerator(
                 agentPlatform = agentPlatform,
-                agent = ChatAgentFactory(persona = K9).chatAgent()
+                agent = DefaultChatAgentBuilder(
+                    persona = K9,
+                    templateRenderer = templateRenderer,
+                    llm = LlmOptions
+                        .withModel(shellProperties.chat.model)
+                        .withTemperature(null)
+                ).build()
             ) else null,
         )
         return terminalServices.chat(chatSession, colorPalette)

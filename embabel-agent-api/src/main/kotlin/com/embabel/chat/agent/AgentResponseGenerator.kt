@@ -41,6 +41,7 @@ class AgentResponseGenerator(
 ) : ResponseGenerator {
 
     init {
+        // TODO should check if there is a "chatAgent" deployed
         agentPlatform.deploy(agent)
     }
 
