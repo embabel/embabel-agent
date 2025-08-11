@@ -43,7 +43,9 @@ import org.springframework.stereotype.Service
 import java.lang.reflect.ParameterizedType
 import java.time.Duration
 import java.time.Instant
-
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 /**
  * Properties for the ChatClientLlmOperations operations
  * @param maybePromptTemplate template to use for the "maybe" prompt, which
@@ -54,6 +56,7 @@ import java.time.Instant
 data class LlmOperationsPromptsProperties(
     val maybePromptTemplate: String = "maybe_prompt_contribution",
     val generateExamplesByDefault: Boolean = true,
+    val defaultTimeout: Duration = Duration.ofSeconds(60),
 )
 
 /**
@@ -101,13 +104,26 @@ internal class ChatClientLlmOperations(
         }
 
         val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+        val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<O, DatabindException> {
-            val callResponse = chatClient
-                .prompt(springAiPrompt)
-                // Try to lock to correct overload. Method overloading is evil.
-                .toolCallbacks(interaction.toolCallbacks)
-                .options(chatOptions)
-                .call()
+            val future = CompletableFuture.supplyAsync {
+                chatClient
+                    .prompt(springAiPrompt)
+                    .toolCallbacks(interaction.toolCallbacks)
+                    .options(chatOptions)
+                    .call()
+            }
+            val callResponse = try {
+                future.get(
+                    timeoutMillis,
+                    TimeUnit.MILLISECONDS
+                )
+            } catch (e: TimeoutException) {
+                future.cancel(true)
+                throw RuntimeException("ChatClient call timed out after ${timeoutMillis}ms", e)
+            }
+
             if (outputClass == String::class.java) {
                 val chatResponse = callResponse.chatResponse()
                 chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
@@ -183,25 +199,38 @@ internal class ChatClientLlmOperations(
             outputClass,
         )
         val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+        val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<Result<O>, DatabindException> {
-            val responseEntity: ResponseEntity<ChatResponse, MaybeReturn<*>> = chatClient
-                .prompt(springAiPrompt)
-                .toolCallbacks(interaction.toolCallbacks)
-                .options(chatOptions)
-                .call()
-                .responseEntity<MaybeReturn<*>>(
-                    ExceptionWrappingConverter(
-                        expectedType = MaybeReturn::class.java,
-                        delegate = WithExampleConverter(
-                            delegate = SuppressThinkingConverter(
-                                BeanOutputConverter(typeReference, objectMapper)
-                            ),
-                            outputClass = outputClass as Class<MaybeReturn<*>>,
-                            ifPossible = true,
-                            generateExamples = shouldGenerateExamples(interaction),
+            val future: CompletableFuture<ResponseEntity<ChatResponse, MaybeReturn<*>>> =
+                CompletableFuture.supplyAsync {
+                    chatClient
+                        .prompt(springAiPrompt)
+                        .toolCallbacks(interaction.toolCallbacks)
+                        .options(chatOptions)
+                        .call()
+                        .responseEntity<MaybeReturn<*>>(
+                            ExceptionWrappingConverter(
+                                expectedType = MaybeReturn::class.java,
+                                delegate = WithExampleConverter(
+                                    delegate = SuppressThinkingConverter(
+                                        BeanOutputConverter(typeReference, objectMapper)
+                                    ),
+                                    outputClass = outputClass as Class<MaybeReturn<*>>,
+                                    ifPossible = true,
+                                    generateExamples = shouldGenerateExamples(interaction),
+                                )
+                            )
                         )
-                    )
-                )
+                }
+
+            val responseEntity: ResponseEntity<ChatResponse, MaybeReturn<*>> = try {
+                future.get(timeoutMillis, TimeUnit.MILLISECONDS)
+            } catch (e: TimeoutException) {
+                future.cancel(true)
+                throw RuntimeException("ChatClient call timed out after ${timeoutMillis}ms", e)
+            }
+
             responseEntity.response?.let { recordUsage(llm, it, llmRequestEvent) }
             responseEntity.entity!!.toResult() as Result<O>
         }
