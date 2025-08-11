@@ -46,13 +46,17 @@ class TerminalServices(
     /**
      * Get further input
      */
-    private fun <T> doWithReader(
-        callback: (LineReader) -> T
+    private fun <T> doWithLineReader(
+        callback: (LineReader) -> T,
     ): T {
         val lineReader = LineReaderBuilder.builder()
             .terminal(terminal)
             .build()
         return callback(lineReader)
+    }
+
+    fun print(what: String) {
+        doWithLineReader { it.printAbove(what) }
     }
 
     fun chat(
@@ -62,28 +66,33 @@ class TerminalServices(
         val lineReader = LineReaderBuilder.builder()
             .terminal(terminal)
             .build()
-        lineReader.printAbove("Chat session started. Type 'exit' to end the session.")
+        lineReader.printAbove(
+            """
+            Chat session started. Type 'exit' to end the session.
+            Type /help for available commands.
+            """.trimIndent().color(colorPalette.highlight)
+        )
         while (true) {
             val userInput = lineReader.readLine("You: ".color(colorPalette.highlight))
             if (userInput.equals("exit", ignoreCase = true)) {
                 break
             }
             val userMessage = UserMessage(userInput)
-            chatSession.respond(userMessage) {
-                when (it) {
+            chatSession.respond(userMessage) { message ->
+                when (message) {
                     is UserMessage -> error("User message should not be sent by the assistant")
                     is AgenticResultAssistantMessage -> {
                         val formatted = formatProcessOutput(
-                            result = it.agentProcessExecution,
+                            result = message.agentProcessExecution,
                             colorPalette = colorPalette,
                             objectMapper = objectMapper,
                             lineLength = shellProperties.lineLength,
                         )
-                        lineReader.printAbove("Assistant:\n$formatted")
+                        lineReader.printAbove("${message.sender}:\n$formatted")
                     }
 
                     else -> {
-                        lineReader.printAbove("Assistant: ${it.content.color(colorPalette.color2)}")
+                        lineReader.printAbove("${message.sender}: ${message.content.color(colorPalette.color2)}")
                     }
                 }
             }
@@ -113,7 +122,7 @@ class TerminalServices(
         return awaitableResponse
     }
 
-    fun confirm(message: String) = doWithReader {
+    fun confirm(message: String) = doWithLineReader {
         it.readLine("$message (y/n): ".color(AnsiColor.YELLOW))
             .equals("y", ignoreCase = true)
     }
@@ -134,7 +143,7 @@ class TerminalServices(
         val form = formBindingRequest.payload
         val values = mutableMapOf<String, Any>()
 
-        return doWithReader { lineReader ->
+        return doWithLineReader { lineReader ->
             loggerFor<ShellCommands>().info("Form: ${form.infoString()}")
             lineReader.printAbove(form.title)
 

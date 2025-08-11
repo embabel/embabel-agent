@@ -15,7 +15,10 @@
  */
 package com.embabel.chat.agent
 
-import com.embabel.agent.api.common.autonomy.*
+import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
+import com.embabel.agent.api.common.autonomy.PlanLister
+import com.embabel.agent.api.common.autonomy.ProcessWaitingException
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessOptions
@@ -34,6 +37,15 @@ data class ChatConfig(
     val bindConversation: Boolean = false,
     val multiGoal: Boolean = false,
 )
+
+interface ResponseGenerator {
+    fun generateResponses(
+        message: UserMessage,
+        conversation: Conversation,
+        blackboard: Blackboard,
+        messageListener: MessageListener,
+    )
+}
 
 /**
  * Handles process waiting exceptions in a platform-specific way
@@ -59,6 +71,13 @@ class AgentPlatformChatSession(
     val processOptions: ProcessOptions = ProcessOptions(),
     val processWaitingHandler: ProcessWaitingHandler,
     val chatConfig: ChatConfig = ChatConfig(),
+    private val responseGenerator: ResponseGenerator = AutonomyResponseGenerator(
+        autonomy = autonomy,
+        goalChoiceApprover = goalChoiceApprover,
+        processOptions = processOptions,
+        processWaitingHandler = processWaitingHandler,
+        chatConfig = chatConfig,
+    ),
 ) : ChatSession {
 
     private var internalConversation: Conversation = InMemoryConversation()
@@ -73,63 +92,28 @@ class AgentPlatformChatSession(
         additionalListener: MessageListener?,
     ) {
         internalConversation = conversation.withMessage(userMessage)
-        val assistantMessage = generateResponse(userMessage)
-        internalConversation = conversation.withMessage(assistantMessage)
-        messageListener.onMessage(assistantMessage)
-        additionalListener?.onMessage(assistantMessage)
+        generateResponses(userMessage = userMessage, messageListener = { message ->
+            messageListener.onMessage(message)
+            additionalListener?.onMessage(message)
+        })
     }
 
-    private fun generateResponse(message: UserMessage): AssistantMessage {
-        val handledCommand = handleAsCommand(message)
+
+    private fun generateResponses(
+        userMessage: UserMessage,
+        messageListener: MessageListener,
+    ) {
+        val handledCommand = handleAsCommand(userMessage)
         if (handledCommand != null) {
-            return handledCommand
-        }
-
-        val bindings = buildMap {
-            put("userInput", UserInput(message.content))
-            if (chatConfig.bindConversation)
-                put("conversation", conversation)
-        }
-        try {
-            val dynamicExecutionResult = autonomy.chooseAndAccomplishGoal(
-                // We continue to use the same blackboard.
-                processOptions = processOptionsWithBlackboard(),
-                goalChoiceApprover = goalChoiceApprover,
-                agentScope = autonomy.agentPlatform,
-                bindings = bindings,
-                goalSelectionOptions = GoalSelectionOptions(
-                    multiGoal = chatConfig.multiGoal,
-                ),
-            )
-            val result = dynamicExecutionResult.output
-            // Bind the result to the blackboard.
-            blackboard += result
-            return AgenticResultAssistantMessage(
-                agentProcessExecution = dynamicExecutionResult,
-                content = result.toString(),
-            )
-        } catch (pwe: ProcessWaitingException) {
-            return processWaitingHandler.handleProcessWaitingException(pwe, message.content)
-        } catch (_: NoGoalFound) {
-            return AssistantMessage(
-                content = """|
-                    |I'm sorry Dave. I'm afraid I can't do that.
-                    |
-                    |Things I CAN do:
-                    |${autonomy.agentPlatform.goals.joinToString("\n") { "- ${it.description}" }}
-                """.trimMargin(),
-            )
-        } catch (_: GoalNotApproved) {
-            return AssistantMessage(
-                content = "I obey. That action will not be executed.",
+            messageListener.onMessage(handledCommand)
+        } else {
+            responseGenerator.generateResponses(
+                userMessage,
+                conversation,
+                blackboard,
+                messageListener = messageListener
             )
         }
-    }
-
-    private fun processOptionsWithBlackboard(): ProcessOptions {
-        return processOptions.copy(
-            blackboard = blackboard,
-        )
     }
 
 
@@ -151,7 +135,7 @@ class AgentPlatformChatSession(
 
                 "plans" -> {
                     val plans = planLister.achievablePlans(
-                        processOptionsWithBlackboard(),
+                        processOptions.copy(blackboard = blackboard),
                         mapOf("userInput" to UserInput("won't be used"))
                     )
                     AssistantMessage("Plans:\n\t" + plans.joinToString("\n\t") {

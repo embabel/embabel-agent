@@ -73,7 +73,10 @@ sealed class Message(
     val content: String,
     val name: String? = null,
     override val timestamp: Instant = Instant.now(),
-) : Timestamped
+) : Timestamped {
+
+    val sender: String get() = name ?: role.name.lowercase().replaceFirstChar { it.uppercase() }
+}
 
 /**
  * Message sent by the user.

@@ -17,6 +17,7 @@ package com.embabel.agent.channel
 
 import com.embabel.agent.core.InProcess
 import com.embabel.agent.domain.library.HasContent
+import com.embabel.chat.AgenticResultAssistantMessage
 import com.embabel.chat.AssistantMessage
 import org.slf4j.LoggerFactory
 
@@ -37,6 +38,27 @@ object DevNullOutputChannel : OutputChannel {
     }
 }
 
+object TerminalOutputChannel : OutputChannel {
+
+    private val logger = LoggerFactory.getLogger(javaClass)
+
+    override fun send(event: OutputChannelEvent) {
+        when (event) {
+            is AssistantMessageOutputChannelEvent -> {
+                println("${event.name ?: "Asssistant"}: ${event.content}")
+            }
+
+            is ContentOutputChannelEvent -> {
+                println("Content event: ${event.content}")
+            }
+
+            else -> {
+                logger.warn("Unhandled OutputChannelEvent: $event")
+            }
+        }
+    }
+}
+
 interface OutputChannelEvent : InProcess {
 
     // TODO priority
@@ -49,7 +71,14 @@ class AssistantMessageOutputChannelEvent(
     override val processId: String,
     content: String,
     name: String? = null,
-) : AssistantMessage(content = content, name = name), OutputChannelEvent
+) : AssistantMessage(content = content, name = name), OutputChannelEvent {
+
+    constructor(aram: AgenticResultAssistantMessage) : this(
+        processId = aram.agentProcessExecution.agentProcess.id,
+        content = aram.content,
+        name = aram.name,
+    )
+}
 
 data class ContentOutputChannelEvent(
     override val processId: String,
