@@ -162,10 +162,18 @@ uvx --from git+https://github.com/embabel/project-creator.git project-creator
 Choose Java or Kotlin and specify your project name and package name and you'll have an agent running in under a minute,
 if you already have an `OPENAI_API_KEY` and have Maven installed.
 
-> **📚 For examples and tutorials**, see
-> the [Embabel Agent Examples Repository](https://github.com/embabel/embabel-agent-examples)
+**📚 For examples and tutorials**, see
+the [Embabel Agent Examples Repository](https://github.com/embabel/embabel-agent-examples)
 
-> **🚗 For a realistic example application**, see the [Tripper travel planner agent](https://github.com/embabel/tripper)
+**🚗 For a realistic example application**, see the [Tripper travel planner agent](https://github.com/embabel/tripper)
+
+<img src="images/tripper_output1.jpg" alt="Travel Planner Output" width="600"/>
+
+*AI-generated travel itinerary with detailed recommendations*
+
+<img src="images/tripper_map.jpg" alt="Interactive map" width="600"/>
+
+*Map link included in output*
 
 ## Why Is Embabel Needed?
 
@@ -422,24 +430,9 @@ cd embabel-agent-examples/scripts/kotlin
 
 #### Shell Commands
 
-Type `help` to see available commands. Example:
+Spring Shell is an easy way to interact with the Embabel agent framework, especially during development.
 
-```
-execute "Lynda is a Scorpio, find news for her" -p -r
-```
-
-Options:
-
-- `-p` logs prompts
-- `-r` logs LLM responses
-
-Use `chat` for interactive conversations with agents.
-
-> **Tip:** Spring Shell supports history - type `!!` to repeat the last command
-
-Type `help` to see the available commands.
-
-An example:
+Type `help` to see available commands. Use `execute` or `x` to run an agent:
 
 ```
 execute "Lynda is a Scorpio, find news for her" -p -r
@@ -449,8 +442,13 @@ This will look for an agent, choose the star finder agent and
 run the flow. `-p` will log prompts `-r` will log LLM responses.
 Omit these for less verbose logging.
 
+Options:
+
+- `-p` logs prompts
+- `-r` logs LLM responses
+
 Use the `chat` command to enter an interactive chat with the agent.
-It will retain conversation history, and attempt to run the most appropriate
+It will attempt to run the most appropriate
 agent for each command.
 
 > Spring Shell supports history. Type `!!` to repeat the last command.
@@ -468,17 +466,6 @@ execute "research the recent australian federal election. what is the position o
 # x is a shortcut for execute
 x "fact check the following: holden cars are still made in australia; the koel is a bird native only to australia; fidel castro is justin trudeau's father"
 
-```
-
-Try the [coding agent](https://www.github.com/embabel/embabel-coding-agent) (separate repo) with commands such as:
-
-```
-
-x "explain this project for a five your old"
-
-x "take the StarNewsFinder kotlin example of the agent framework. create a parallel .java package beside its and create a java version of the same agent use the same annotations and other classes. use records for the data classes. make it modern java"
-
-x "consider the StarNewsFinder kotlin class. This is intended as an example. Is there anything you could do to make it simpler? Include suggested API changes. Do not change code"
 ```
 
 ### Bringing in additional LLMs
