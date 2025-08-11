@@ -16,18 +16,17 @@
 package com.embabel.chat.agent
 
 import com.embabel.agent.api.common.autonomy.*
-import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.chat.*
 
 /**
  * Respond to messages by choosing and executing goals using Autonomy.
+ * Based on last user input.
  */
 class AutonomyResponseGenerator(
     private val autonomy: Autonomy,
     private val goalChoiceApprover: GoalChoiceApprover,
-    val processOptions: ProcessOptions = ProcessOptions(),
     val processWaitingHandler: ProcessWaitingHandler,
     val chatConfig: ChatConfig,
 ) : ResponseGenerator {
@@ -35,7 +34,7 @@ class AutonomyResponseGenerator(
     override fun generateResponses(
         message: UserMessage,
         conversation: Conversation,
-        blackboard: Blackboard,
+        processOptions: ProcessOptions,
         messageListener: MessageListener,
     ) {
         val bindings = buildMap {
@@ -46,7 +45,7 @@ class AutonomyResponseGenerator(
         try {
             val dynamicExecutionResult = autonomy.chooseAndAccomplishGoal(
                 // We continue to use the same blackboard.
-                processOptions = processOptions.copy(blackboard = blackboard),
+                processOptions = processOptions,
                 goalChoiceApprover = goalChoiceApprover,
                 agentScope = autonomy.agentPlatform,
                 bindings = bindings,
@@ -56,7 +55,7 @@ class AutonomyResponseGenerator(
             )
             val result = dynamicExecutionResult.output
             // Bind the result to the blackboard.
-            blackboard += result
+            dynamicExecutionResult.agentProcess += result
             messageListener.onMessage(
                 AgenticResultAssistantMessage(
                     agentProcessExecution = dynamicExecutionResult,

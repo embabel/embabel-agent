@@ -38,11 +38,22 @@ data class ChatConfig(
     val multiGoal: Boolean = false,
 )
 
+/**
+ * Generates response(s) in a chat session.
+ */
 interface ResponseGenerator {
+
+    /**
+     * Generate response(s) in this conversation
+     * @param message User message to respond to
+     * @param conversation Current conversation state, including new message
+     * @param processOptions Options for the process, including blackboard
+     * @param messageListener Listener to send created messages to
+     */
     fun generateResponses(
         message: UserMessage,
         conversation: Conversation,
-        blackboard: Blackboard,
+        processOptions: ProcessOptions,
         messageListener: MessageListener,
     )
 }
@@ -67,14 +78,13 @@ class AgentPlatformChatSession(
     private val autonomy: Autonomy,
     private val planLister: PlanLister,
     private val goalChoiceApprover: GoalChoiceApprover,
-    override val messageListener: MessageListener,
     val processOptions: ProcessOptions = ProcessOptions(),
     val processWaitingHandler: ProcessWaitingHandler,
+    override val messageListener: MessageListener = MessageListener {},
     val chatConfig: ChatConfig = ChatConfig(),
     private val responseGenerator: ResponseGenerator = AutonomyResponseGenerator(
         autonomy = autonomy,
         goalChoiceApprover = goalChoiceApprover,
-        processOptions = processOptions,
         processWaitingHandler = processWaitingHandler,
         chatConfig = chatConfig,
     ),
@@ -110,7 +120,9 @@ class AgentPlatformChatSession(
             responseGenerator.generateResponses(
                 userMessage,
                 conversation,
-                blackboard,
+                processOptions.copy(
+                    blackboard = blackboard,
+                ),
                 messageListener = messageListener
             )
         }

@@ -20,6 +20,8 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.DefaultPlanLister
 import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
 import com.embabel.agent.domain.library.Person
+import com.embabel.agent.test.dsl.evenMoreEvilWizard
+import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyAgentProcessRunning
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.MessageSavingMessageListener
 import com.embabel.chat.UserMessage
@@ -28,11 +30,11 @@ import com.embabel.chat.agent.ChatConfig
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
-class LastMessageIntentAgentPlatformChatSessionTest {
+class AutonomyResponseGeneratorTest {
 
     data class LocalPerson(override val name: String) : Person
 
@@ -41,7 +43,10 @@ class LastMessageIntentAgentPlatformChatSessionTest {
         val mockAutonomy = mockk<Autonomy>()
         every { mockAutonomy.agentPlatform } returns mockk()
         val intent = slot<Map<String, Any>>()
+        val agentProcess = dummyAgentProcessRunning(evenMoreEvilWizard())
         val der = mockk<AgentProcessExecution>()
+        every { der.agentProcess } returns agentProcess
+
         val output = LocalPerson("Gordon")
         every { der.output } returns output
 
@@ -58,7 +63,6 @@ class LastMessageIntentAgentPlatformChatSessionTest {
             autonomy = mockAutonomy,
             planLister = DefaultPlanLister(mockk()),
             goalChoiceApprover = GoalChoiceApprover.APPROVE_ALL,
-            messageListener = {},
             processWaitingHandler = mockk(),
             chatConfig = ChatConfig(),
         )
@@ -66,8 +70,8 @@ class LastMessageIntentAgentPlatformChatSessionTest {
         val l = MessageSavingMessageListener()
         chatSession.respond(userMessage, l)
         assertEquals(1, l.messages().size)
-        Assertions.assertTrue(l.messages()[0] is AssistantMessage)
-        Assertions.assertTrue(
+        assertTrue(l.messages()[0] is AssistantMessage, "Should have a new AssistantMessage")
+        assertTrue(
             l.messages()[0].content.contains(output.name),
             "Expected message to contain the name of the output person: got ${l.messages()[0].content}",
         )
