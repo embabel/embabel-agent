@@ -39,6 +39,7 @@ import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.converter.BeanOutputConverter
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.core.ParameterizedTypeReference
+import org.springframework.retry.support.RetrySynchronizationManager
 import org.springframework.stereotype.Service
 import java.lang.reflect.ParameterizedType
 import java.time.Duration
@@ -107,7 +108,12 @@ internal class ChatClientLlmOperations(
         val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
 
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<O, DatabindException> {
+            val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
+
+            // Using CompletableFuture to implement a timeout since SpringAI's ChatClient
+            // does not provide native timeout support.
             val future = CompletableFuture.supplyAsync {
+                Thread.sleep(5_000) //
                 chatClient
                     .prompt(springAiPrompt)
                     .toolCallbacks(interaction.toolCallbacks)
@@ -121,6 +127,7 @@ internal class ChatClientLlmOperations(
                 )
             } catch (e: TimeoutException) {
                 future.cancel(true)
+                logger.warn("LLM {}: attempt {} timed out after {}ms", interaction.id.value, attempt, timeoutMillis)
                 throw RuntimeException("ChatClient call timed out after ${timeoutMillis}ms", e)
             }
 
@@ -202,6 +209,9 @@ internal class ChatClientLlmOperations(
         val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
 
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<Result<O>, DatabindException> {
+            val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
+            // Using CompletableFuture to implement a timeout since SpringAI's ChatClient
+            // does not provide native timeout support.
             val future: CompletableFuture<ResponseEntity<ChatResponse, MaybeReturn<*>>> =
                 CompletableFuture.supplyAsync {
                     chatClient
@@ -228,6 +238,7 @@ internal class ChatClientLlmOperations(
                 future.get(timeoutMillis, TimeUnit.MILLISECONDS)
             } catch (e: TimeoutException) {
                 future.cancel(true)
+                logger.warn("LLM {}: attempt {} timed out after {}ms", interaction.id.value, attempt, timeoutMillis)
                 throw RuntimeException("ChatClient call timed out after ${timeoutMillis}ms", e)
             }
 
