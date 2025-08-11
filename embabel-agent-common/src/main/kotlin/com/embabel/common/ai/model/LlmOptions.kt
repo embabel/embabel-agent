@@ -189,7 +189,11 @@ data class BuildableLlmOptions(
     override val thinking: Thinking? = null,
 ) : LlmOptions {
 
-    fun withTemperature(temperature: Double): BuildableLlmOptions {
+    /**
+     * Create a copy with a default temperature for the LLM.
+     * If null, uses the default temperature for the model.
+     */
+    fun withTemperature(temperature: Double?): BuildableLlmOptions {
         return copy(temperature = temperature)
     }
 
