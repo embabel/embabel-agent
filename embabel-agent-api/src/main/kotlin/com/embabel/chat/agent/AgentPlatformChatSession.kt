@@ -69,17 +69,17 @@ class AgentPlatformChatSession(
         get() = internalConversation
 
     override fun respond(
-        message: UserMessage,
+        userMessage: UserMessage,
         additionalListener: MessageListener?,
     ) {
-        internalConversation = conversation.withMessage(message)
-        val assistantMessage = generateResponse(message)
+        internalConversation = conversation.withMessage(userMessage)
+        val assistantMessage = generateResponse(userMessage)
         internalConversation = conversation.withMessage(assistantMessage)
         messageListener.onMessage(assistantMessage)
         additionalListener?.onMessage(assistantMessage)
     }
 
-    protected fun generateResponse(message: UserMessage): AssistantMessage {
+    private fun generateResponse(message: UserMessage): AssistantMessage {
         val handledCommand = handleAsCommand(message)
         if (handledCommand != null) {
             return handledCommand

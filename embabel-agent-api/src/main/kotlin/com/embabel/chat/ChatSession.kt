@@ -32,9 +32,12 @@ interface ChatSession {
 
     /**
      * Any response messages will be sent to the messageListener
-     * @param message message to send
+     * @param userMessage message to send
      * @param additionalListener any additional listener to send the message to,
      * in addition to the messageListener
      */
-    fun respond(message: UserMessage, additionalListener: MessageListener? = null)
+    fun respond(
+        userMessage: UserMessage,
+        additionalListener: MessageListener? = null,
+    )
 }

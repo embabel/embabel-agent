@@ -15,12 +15,17 @@
  */
 package com.embabel.chat
 
+/**
+ * Listener for messages in a chat session.
+ * Will be called for every message sent in the session,
+ * whether a user message or an assistant message from the system.
+ */
 fun interface MessageListener {
     fun onMessage(message: Message)
 }
 
 class MessageSavingMessageListener(
-    private val messageList: MutableList<Message> = mutableListOf()
+    private val messageList: MutableList<Message> = mutableListOf(),
 ) : MessageListener {
     override fun onMessage(message: Message) {
         messageList.add(message)
