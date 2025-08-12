@@ -19,6 +19,7 @@ import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.ProcessOptions;
 import com.embabel.agent.domain.io.UserInput;
 import com.embabel.agent.testing.integration.IntegrationTestUtils;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -28,25 +29,60 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SimpleAgentBuilderTest {
 
+    record Person(String name, int age) {
+    }
+
     record Age(int years) {
     }
 
-    @Test
-    void testConsensusOfOneSimpleGenerator() {
-        var agent = SimpleAgentBuilder
-                .returning(Age.class)
-                .running(tac -> new Age(55))
-                .buildAgent("name", "description");
-        var ap = IntegrationTestUtils.dummyAgentPlatform();
-        var result = ap.runAgentFrom(
-                agent,
-                ProcessOptions.getDEFAULT(),
-                Map.of("it", new UserInput("input"))
-        );
-        assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
-        assertTrue(result.lastResult() instanceof Age);
-        var age = (Age) result.lastResult();
-        assertEquals(55, age.years(), "Expected age");
+    record Combined(String name, int years) {
     }
 
+    @Nested
+    class Supplier {
+
+        @Test
+        void testConsensusOfOneSimpleGenerator() {
+            var agent = SimpleAgentBuilder
+                    .returning(Age.class)
+                    .running(tac -> new Age(55))
+                    .buildAgent("name", "description");
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.getDEFAULT(),
+                    Map.of("it", new UserInput("input"))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Age);
+            var age = (Age) result.lastResult();
+            assertEquals(55, age.years(), "Expected age");
+        }
+
+    }
+
+    @Nested
+    class ConsumerAndSupplier {
+
+        @Test
+        void testConsensusOfOneSimpleGenerator() {
+            var agent = SimpleAgentBuilder
+                    .returning(Person.class)
+                    .consuming(Combined.class)
+                    .running(tac -> new Person("Geoff", 55))
+                    .buildAgent("name", "description");
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.getDEFAULT(),
+                    Map.of("it", new Combined("James", 55))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Person);
+            var person = (Person) result.lastResult();
+            assertEquals("Geoff", person.name(), "Expected name");
+            assertEquals(55, person.age(), "Expected age");
+        }
+
+    }
 }

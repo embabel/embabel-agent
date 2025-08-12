@@ -89,7 +89,7 @@ data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
     inner class Evaluator(
         private val generator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, RESULT>) -> RESULT,
         private val evaluator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, FEEDBACK>) -> FEEDBACK,
-    ) : WorkflowBuilder<RESULT>(resultClass) {
+    ) : WorkflowBuilder<RESULT>(resultClass, emptyList()) {
 
         /**
          * Define the acceptance criteria for the feedback.
@@ -97,8 +97,8 @@ data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
          */
         fun withAcceptanceCriteria(
             accept: (f: FEEDBACK) -> Boolean,
-        ): Accepter {
-            return Accepter(generator, evaluator, accept)
+        ): Emitter {
+            return Emitter(generator, evaluator, accept)
         }
 
         /**
@@ -111,11 +111,11 @@ data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
         }
     }
 
-    inner class Accepter(
+    inner class Emitter(
         private val generator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, RESULT>) -> RESULT,
         private val evaluator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, FEEDBACK>) -> FEEDBACK,
         private val accept: (f: FEEDBACK) -> Boolean,
-    ) : WorkflowBuilder<RESULT>(resultClass) {
+    ) : WorkflowBuilder<RESULT>(resultClass, emptyList()) {
 
         /**
          * Build the workflow so it can be included in agents

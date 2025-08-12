@@ -18,6 +18,7 @@ package com.embabel.agent.api.common.workflow.loop
 import com.embabel.agent.api.common.InputActionContext
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.workflow.WorkFlowBuilderReturning
+import com.embabel.agent.api.common.workflow.WorkFlowBuilderWithInput
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 
@@ -27,8 +28,9 @@ import com.embabel.agent.api.dsl.AgentScopeBuilder
  */
 data class RepeatUntilBuilder<RESULT : Any>(
     private val resultClass: Class<RESULT>,
+    private val inputClasses: List<Class<out Any>> = emptyList(),
     private val maxIterations: Int = DEFAULT_MAX_ITERATIONS,
-) {
+) : WorkFlowBuilderWithInput {
 
     companion object : WorkFlowBuilderReturning {
 
@@ -41,6 +43,10 @@ data class RepeatUntilBuilder<RESULT : Any>(
         override fun <RESULT : Any> returning(resultClass: Class<RESULT>): RepeatUntilBuilder<RESULT> {
             return RepeatUntilBuilder(resultClass = resultClass)
         }
+    }
+
+    override fun withInput(inputClass: Class<out Any>): RepeatUntilBuilder<RESULT> {
+        return copy(inputClasses = inputClasses + inputClass)
     }
 
     fun withMaxIterations(maxIterations: Int): RepeatUntilBuilder<RESULT> =
@@ -65,15 +71,15 @@ data class RepeatUntilBuilder<RESULT : Any>(
          */
         fun until(
             accept: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
-        ): Accepter {
-            return Accepter(generator, accept)
+        ): Emitter {
+            return Emitter(generator, accept)
         }
     }
 
-    inner class Accepter(
+    inner class Emitter(
         private val generator: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
         private val accept: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
-    ) : WorkflowBuilder<RESULT>(resultClass) {
+    ) : WorkflowBuilder<RESULT>(resultClass, inputClasses) {
 
         /**
          * Build the workflow so it can be included in agents
@@ -84,6 +90,7 @@ data class RepeatUntilBuilder<RESULT : Any>(
                     task = generator,
                     accept = accept,
                     resultClass = resultClass,
+                    inputClasses = inputClasses,
                 )
         }
 

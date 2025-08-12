@@ -81,7 +81,7 @@ class ConsensusBuilder<RESULT : Any>(
     inner class ConsensusSpec(
         private val generators: List<java.util.function.Function<out SupplierActionContext<RESULT>, RESULT>>,
         private val consensusFunction: (TransformationActionContext<ResultList<RESULT>, RESULT>) -> RESULT,
-    ) : WorkflowBuilder<RESULT>(resultClass) {
+    ) : WorkflowBuilder<RESULT>(resultClass, inputClasses = emptyList()) {
 
         override fun build(): AgentScopeBuilder<RESULT> {
             return ScatterGather(maxConcurrency = maxConcurrency)

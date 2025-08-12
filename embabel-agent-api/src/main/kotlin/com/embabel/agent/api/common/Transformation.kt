@@ -21,7 +21,10 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.resultOfType
 import com.embabel.common.core.types.ZeroToOne
 
-fun <I, O : Any> asTransformation(agent: Agent, outputClass: Class<O>) = Transformation<I, O> {
+fun <I, O : Any> asTransformation(
+    agent: Agent,
+    outputClass: Class<O>,
+) = Transformation<I, O> {
     val childAgentProcess = it.agentPlatform().createChildProcess(
         agent = agent,
         parentAgentProcess = it.agentProcess,
@@ -115,7 +118,7 @@ fun <I, O : Any> agentTransformer(
         outputClass = outputClass,
         toolGroups = emptySet(),
     ) {
-        val tf: Transformation<I, O> = asTransformation<I, O>(agent, outputClass)
+        val tf: Transformation<I, O> = asTransformation(agent, outputClass)
         tf.transform(it)
     }
 }

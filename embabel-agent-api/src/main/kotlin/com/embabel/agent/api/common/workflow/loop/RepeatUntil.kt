@@ -21,10 +21,7 @@ import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.SupplierAction
 import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.api.dsl.AgentScopeBuilder
-import com.embabel.agent.core.Action
-import com.embabel.agent.core.ComputedBooleanCondition
-import com.embabel.agent.core.Goal
-import com.embabel.agent.core.last
+import com.embabel.agent.core.*
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
@@ -68,11 +65,13 @@ data class RepeatUntil(
     inline fun <reified RESULT : Any> build(
         noinline task: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
         noinline acceptanceCriteria: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
+        inputClasses: List<Class<Any>> = emptyList(),
     ): AgentScopeBuilder<RESULT> =
         build(
             task = task,
             accept = acceptanceCriteria,
             resultClass = RESULT::class.java,
+            inputClasses = inputClasses,
         )
 
 
@@ -80,6 +79,7 @@ data class RepeatUntil(
         task: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
         accept: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
         resultClass: Class<RESULT>,
+        inputClasses: List<Class<out Any>> = emptyList(),
     ): AgentScopeBuilder<RESULT> {
 
         fun findOrBindResultHistory(context: OperationContext): ResultHistory<RESULT> {
@@ -98,6 +98,7 @@ data class RepeatUntil(
             post = listOf(RESULT_WAS_BOUND_LAST_CONDITION, ACCEPTABLE_CONDITION),
             cost = 0.0,
             value = 0.0,
+            pre = inputClasses.map { IoBinding(type = it).value },
             canRerun = true,
             outputClass = resultClass,
             toolGroups = emptySet(),

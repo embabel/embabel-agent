@@ -28,6 +28,7 @@ import com.embabel.agent.core.ProcessOptions;
 import com.embabel.agent.core.Verbosity;
 import com.embabel.agent.domain.io.UserInput;
 import com.embabel.agent.testing.integration.IntegrationTestUtils;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -36,73 +37,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class RepeatUntilBuilderTest {
 
-    @Test
-    void terminatesItself() {
-        AgentMetadataReader reader = new AgentMetadataReader();
-        var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(new RepeatUntilTerminatesOK());
-        var ap = IntegrationTestUtils.dummyAgentPlatform();
-        var result = ap.runAgentFrom(
-                agent,
-                ProcessOptions.getDEFAULT(),
-                Map.of("it", new UserInput("input"))
-        );
-        assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
-        assertTrue(result.lastResult() instanceof Report);
-        // Doesn't work as it was only bound to subprocess, not the main process
-//        var attemptHistory = result.last(AttemptHistory.class);
-//        assertNotNull(attemptHistory, "Expected AttemptHistory in result: " + result.getObjects());
-//        assertEquals(3, attemptHistory.attempts().size(), "Expected 3 attempts due to max iterations");
+    record Person(String name, int age) {
     }
-
-    @Test
-    void doesNotTerminateItself() {
-        AgentMetadataReader reader = new AgentMetadataReader();
-        var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(new RepeatUntilDoesNotTerminate());
-        var ap = IntegrationTestUtils.dummyAgentPlatform();
-        var result = ap.runAgentFrom(
-                agent,
-                ProcessOptions.getDEFAULT(),
-                Map.of("it", new UserInput("input"))
-        );
-        assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
-        assertTrue(result.lastResult() instanceof Report);
-//        var attemptHistory = result.last(AttemptHistory.class);
-//        assertNotNull(attemptHistory, "Expected AttemptHistory in result: " + result.getObjects());
-//        assertEquals(3, attemptHistory.attempts().size(),
-//                "Expected 3 attempts due to max iterations: " + result.getObjects());
-    }
-
-    @Test
-    void terminatesItselfAgent() {
-        var agent = RepeatUntilAcceptableBuilder
-                .returning(Report.class)
-                .withMaxIterations(3)
-                .repeating(
-                        tac -> {
-                            return new Report("thing-" + tac.getInput().attempts().size());
-                        })
-                .withEvaluator(
-                        ctx -> {
-                            assertNotNull(ctx.getInput().resultToEvaluate(),
-                                    "Last result must be available to evaluator");
-                            return new TextFeedback(0.5, "feedback");
-                        })
-                .withAcceptanceCriteria(f -> true)
-                .buildAgent("myAgent", "This is a very good agent");
-
-        var ap = IntegrationTestUtils.dummyAgentPlatform();
-        var result = ap.runAgentFrom(
-                agent,
-                ProcessOptions.builder()
-                        .verbosity(Verbosity.builder().showPlanning(true).build())
-                        .build(),
-                Map.of("it", new UserInput("input"))
-        );
-        assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
-        assertTrue(result.lastResult() instanceof Report,
-                "Report was bound: " + result.getObjects());
-    }
-
 
     public static class Report {
         private final String content;
@@ -123,53 +59,228 @@ class RepeatUntilBuilderTest {
         }
     }
 
-    @Agent(description = "evaluator test")
-    public static class RepeatUntilTerminatesOK {
+    @Nested
+    class Supplier {
 
-        @AchievesGoal(description = "Creating a report")
-        @Action
-        public Report report(UserInput userInput, ActionContext context) {
-            final int[] count = {0};
-            var eo = RepeatUntilBuilder
+        @Test
+        void terminatesItself() {
+            AgentMetadataReader reader = new AgentMetadataReader();
+            var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(new RepeatUntilTerminatesOK());
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.getDEFAULT(),
+                    Map.of("it", new UserInput("input"))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Report);
+            // Doesn't work as it was only bound to subprocess, not the main process
+//        var attemptHistory = result.last(AttemptHistory.class);
+//        assertNotNull(attemptHistory, "Expected AttemptHistory in result: " + result.getObjects());
+//        assertEquals(3, attemptHistory.attempts().size(), "Expected 3 attempts due to max iterations");
+        }
+
+        @Test
+        void doesNotTerminateItself() {
+            AgentMetadataReader reader = new AgentMetadataReader();
+            var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(new RepeatUntilDoesNotTerminate());
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.getDEFAULT(),
+                    Map.of("it", new UserInput("input"))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Report);
+//        var attemptHistory = result.last(AttemptHistory.class);
+//        assertNotNull(attemptHistory, "Expected AttemptHistory in result: " + result.getObjects());
+//        assertEquals(3, attemptHistory.attempts().size(),
+//                "Expected 3 attempts due to max iterations: " + result.getObjects());
+        }
+
+        @Test
+        void terminatesItselfAgent() {
+            var agent = RepeatUntilAcceptableBuilder
                     .returning(Report.class)
                     .withMaxIterations(3)
                     .repeating(
                             tac -> {
-                                count[0]++;
-                                return new Report("thing-" + count[0]);
+                                return new Report("thing-" + tac.getInput().attempts().size());
+                            })
+                    .withEvaluator(
+                            ctx -> {
+                                assertNotNull(ctx.getInput().resultToEvaluate(),
+                                        "Last result must be available to evaluator");
+                                return new TextFeedback(0.5, "feedback");
+                            })
+                    .withAcceptanceCriteria(f -> true)
+                    .buildAgent("myAgent", "This is a very good agent");
+
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.builder()
+                            .verbosity(Verbosity.builder().showPlanning(true).build())
+                            .build(),
+                    Map.of("it", new UserInput("input"))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Report,
+                    "Report was bound: " + result.getObjects());
+        }
+
+
+        @Agent(description = "evaluator test")
+        public static class RepeatUntilTerminatesOK {
+
+            @AchievesGoal(description = "Creating a report")
+            @Action
+            public Report report(UserInput userInput, ActionContext context) {
+                final int[] count = {0};
+                var eo = RepeatUntilBuilder
+                        .returning(Report.class)
+                        .withMaxIterations(3)
+                        .repeating(
+                                tac -> {
+                                    count[0]++;
+                                    return new Report("thing-" + count[0]);
+                                })
+                        .until(f -> true)
+                        .build();
+                return context.asSubProcess(
+                        Report.class,
+                        eo);
+            }
+
+        }
+
+        @Agent(description = "evaluator test")
+        public static class RepeatUntilDoesNotTerminate {
+
+            @AchievesGoal(description = "Creating a report")
+            @Action
+            public Report report(UserInput userInput, ActionContext context) {
+                final int[] count = {0};
+                var eo = RepeatUntilBuilder
+                        .returning(Report.class)
+                        .withMaxIterations(3)
+                        .repeating(
+                                tac -> {
+                                    count[0]++;
+                                    return new Report("thing-" + count[0]);
+                                })
+                        .until(
+                                ctx -> false)
+                        .build();
+                return context.asSubProcess(
+                        Report.class,
+                        eo);
+            }
+
+        }
+    }
+
+    @Nested
+    class Consumer {
+
+
+        @Test
+        void terminatesItselfRequiresInput() {
+            AgentMetadataReader reader = new AgentMetadataReader();
+            var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(new InvalidRepeatUntilTerminatesOKConsumer());
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            assertThrows(IllegalStateException.class, () -> ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.getDEFAULT(),
+                    Map.of("it", new UserInput("input"))
+            ));
+        }
+
+        @Test
+        void terminatesItselfGivenInputAndValidEnclosingAction() {
+            AgentMetadataReader reader = new AgentMetadataReader();
+            var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(new ValidRepeatUntilTerminatesOKConsumer());
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.getDEFAULT(),
+                    Map.of("it", new UserInput("input"), "person", new Person("John Doe", 30))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Report);
+            assertEquals(((Report) result.lastResult()).getContent(), "John Doe 30",
+                    "Expected Person to be used as input for report creation");
+        }
+
+        @Test
+        void terminatesItselfWithInput() {
+            var agent = RepeatUntilBuilder
+                    .returning(Report.class)
+                    .withInput(Person.class)
+                    .withMaxIterations(3)
+                    .repeating(
+                            tac -> {
+                                var person = tac.last(Person.class);
+                                assertNotNull(person, "Person must be provided as input");
+                                return new Report(person.name + " " + person.age);
                             })
                     .until(f -> true)
-                    .build();
-            return context.asSubProcess(
-                    Report.class,
-                    eo);
+                    .buildAgent("myAgent", "This is a very good agent");
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.getDEFAULT(),
+                    Map.of("it", new UserInput("input"), "person", new Person("John Doe", 30))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Report);
+            assertEquals(((Report) result.lastResult()).getContent(), "John Doe 30",
+                    "Expected Person to be used as input for report creation");
+        }
+
+        @Agent(description = "evaluator test")
+        public static class InvalidRepeatUntilTerminatesOKConsumer {
+
+            @AchievesGoal(description = "Creating a report")
+            @Action
+            public Report report(UserInput userInput, ActionContext context) {
+                return RepeatUntilBuilder
+                        .returning(Report.class)
+                        .withInput(Person.class)
+                        .withMaxIterations(3)
+                        .repeating(
+                                tac -> {
+                                    var person = tac.last(Person.class);
+                                    assertNotNull(person, "Person must be provided as input");
+                                    return new Report(person.name + " " + person.age);
+                                })
+                        .until(f -> true)
+                        .asSubProcess(context);
+            }
+
+        }
+
+        @Agent(description = "evaluator test")
+        public static class ValidRepeatUntilTerminatesOKConsumer {
+
+            @AchievesGoal(description = "Creating a report")
+            @Action
+            public Report report(UserInput userInput, Person definesDependency, ActionContext context) {
+                return RepeatUntilBuilder
+                        .returning(Report.class)
+                        .withInput(Person.class)
+                        .withMaxIterations(3)
+                        .repeating(
+                                tac -> {
+                                    var person = tac.last(Person.class);
+                                    assertNotNull(person, "Person must be provided as input");
+                                    return new Report(person.name + " " + person.age);
+                                })
+                        .until(f -> true)
+                        .asSubProcess(context);
+            }
+
         }
 
     }
-
-    @Agent(description = "evaluator test")
-    public static class RepeatUntilDoesNotTerminate {
-
-        @AchievesGoal(description = "Creating a report")
-        @Action
-        public Report report(UserInput userInput, ActionContext context) {
-            final int[] count = {0};
-            var eo = RepeatUntilBuilder
-                    .returning(Report.class)
-                    .withMaxIterations(3)
-                    .repeating(
-                            tac -> {
-                                count[0]++;
-                                return new Report("thing-" + count[0]);
-                            })
-                    .until(
-                            ctx -> false)
-                    .build();
-            return context.asSubProcess(
-                    Report.class,
-                    eo);
-        }
-
-    }
-
 }

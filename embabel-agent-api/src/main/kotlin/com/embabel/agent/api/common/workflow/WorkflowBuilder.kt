@@ -19,17 +19,39 @@ import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 import com.embabel.agent.common.Constants
 import com.embabel.agent.core.Agent
+import com.embabel.agent.core.IoBinding
 
+/**
+ * Ensure consistent naming convention for workflow builders that return a given result type.
+ */
 interface WorkFlowBuilderReturning {
 
     fun <RESULT : Any> returning(resultClass: Class<RESULT>): Any
 }
 
+interface WorkFlowBuilderWithInput {
+
+    /**
+     * Specify an input class for this workflow agent.
+     */
+    fun withInput(inputClass: Class<out Any>): Any
+}
+
 /**
- * Common base class for building workflows.
+ * Ensure consistent naming convention for workflow builders that consume a given input type.
+ */
+interface WorkFlowBuilderConsuming {
+
+    fun <INPUT : Any> consuming(inputClass: Class<INPUT>): Any
+}
+
+/**
+ * Common base class for building workflows,
+ * ensuring consistent agent construction
  */
 abstract class WorkflowBuilder<RESULT : Any>(
     private val resultClass: Class<RESULT>,
+    private val inputClasses: List<Class<out Any>>,
 ) {
 
     abstract fun build(): AgentScopeBuilder<RESULT>
@@ -59,6 +81,17 @@ abstract class WorkflowBuilder<RESULT : Any>(
     fun asSubProcess(
         context: ActionContext,
     ): RESULT {
+        val preconditions = inputClasses.map { IoBinding(type = it) }.map { it.value }
+        val illegals = preconditions.filter { context.action?.preconditions?.contains(it) != true }
+        if (illegals.isNotEmpty()) {
+            error(
+                """
+                Cannot build a sub-process with input classes not specified as preconditions of enclosing action.
+                Illegal preconditions: ${illegals.joinToString(", ")}
+                Use buildAgent() instead.
+                """.trimIndent()
+            )
+        }
         return build()
             .asSubProcess(context, resultClass)
     }

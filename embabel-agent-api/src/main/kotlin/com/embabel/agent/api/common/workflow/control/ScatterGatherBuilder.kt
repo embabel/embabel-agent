@@ -90,7 +90,7 @@ class ScatterGatherBuilder<ELEMENT : Any, RESULT : Any>(
     inner class ScatterGatherWorkflowBuilder(
         private val generators: List<Function<out SupplierActionContext<ELEMENT>, ELEMENT>>,
         private val consensusFunction: (TransformationActionContext<ResultList<ELEMENT>, RESULT>) -> RESULT,
-    ) : WorkflowBuilder<RESULT>(resultClass) {
+    ) : WorkflowBuilder<RESULT>(resultClass, inputClasses = emptyList()) {
 
         override fun build(): AgentScopeBuilder<RESULT> {
             return ScatterGather(maxConcurrency = maxConcurrency)
