@@ -36,11 +36,11 @@ import kotlin.test.assertEquals
 @AutoConfigureMockMvc(addFilters = false)
 @EnableAutoConfiguration
 class PlatformInfoControllerIntegrationTest(
-    @Autowired
+    @param:Autowired
     private val mockMvc: MockMvc,
-    @Autowired
+    @param:Autowired
     private val objectMapper: ObjectMapper,
-    @Autowired
+    @param:Autowired
     private val agentPlatform: AgentPlatform,
 ) {
 
