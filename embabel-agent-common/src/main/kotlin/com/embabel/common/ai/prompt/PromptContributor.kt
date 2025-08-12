@@ -15,6 +15,8 @@
  */
 package com.embabel.common.ai.prompt
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+
 /**
  * Where should the prompt go?
  * Can be used to map into system messages or other locations.
@@ -60,9 +62,11 @@ interface PromptElement {
      * Role defaults to class simple name.
      * Override for stereotyped roles.
      */
+    @get:JsonIgnore
     val role: String?
         get() = javaClass.simpleName
 
+    @get:JsonIgnore
     val promptContributionLocation: PromptContributionLocation
         get()
         = PromptContributionLocation.BEGINNING
