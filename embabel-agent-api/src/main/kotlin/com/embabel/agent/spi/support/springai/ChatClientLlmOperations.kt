@@ -39,10 +39,15 @@ import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.converter.BeanOutputConverter
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.core.ParameterizedTypeReference
+import org.springframework.retry.support.RetrySynchronizationManager
 import org.springframework.stereotype.Service
 import java.lang.reflect.ParameterizedType
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * Properties for the ChatClientLlmOperations operations
@@ -54,6 +59,7 @@ import java.time.Instant
 data class LlmOperationsPromptsProperties(
     val maybePromptTemplate: String = "maybe_prompt_contribution",
     val generateExamplesByDefault: Boolean = true,
+    val defaultTimeout: Duration = Duration.ofSeconds(60),
 )
 
 /**
@@ -101,13 +107,62 @@ internal class ChatClientLlmOperations(
         }
 
         val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+        val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<O, DatabindException> {
-            val callResponse = chatClient
-                .prompt(springAiPrompt)
-                // Try to lock to correct overload. Method overloading is evil.
-                .toolCallbacks(interaction.toolCallbacks)
-                .options(chatOptions)
-                .call()
+            val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
+
+            val future = CompletableFuture.supplyAsync {
+                chatClient
+                    .prompt(springAiPrompt)
+                    .toolCallbacks(interaction.toolCallbacks)
+                    .options(chatOptions)
+                    .call()
+            }
+
+            val callResponse = try {
+                future.get(timeoutMillis, TimeUnit.MILLISECONDS)
+            } catch (e: TimeoutException) {
+                future.cancel(true)
+                logger.warn(
+                    "LLM {}: attempt {} timed out after {}ms",
+                    interaction.id.value,
+                    attempt,
+                    timeoutMillis
+                )
+                throw RuntimeException(
+                    "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
+                    e
+                )
+            } catch (e: InterruptedException) {
+                future.cancel(true)
+                Thread.currentThread().interrupt()
+                logger.warn("LLM {}: attempt {} was interrupted", interaction.id.value, attempt)
+                throw RuntimeException(
+                    "ChatClient call for interaction ${interaction.id.value} was interrupted",
+                    e
+                )
+            } catch (e: ExecutionException) {
+                future.cancel(true)
+                logger.error(
+                    "LLM {}: attempt {} failed with execution exception",
+                    interaction.id.value,
+                    attempt,
+                    e.cause
+                )
+                when (val cause = e.cause) {
+                    is RuntimeException -> throw cause
+                    is Exception -> throw RuntimeException(
+                        "ChatClient call for interaction ${interaction.id.value} failed",
+                        cause
+                    )
+                    else -> throw RuntimeException(
+                        "ChatClient call for interaction ${interaction.id.value} failed with unknown error",
+                        e
+                    )
+                }
+            }
+
             if (outputClass == String::class.java) {
                 val chatResponse = callResponse.chatResponse()
                 chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
@@ -183,12 +238,72 @@ internal class ChatClientLlmOperations(
             outputClass,
         )
         val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+        val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<Result<O>, DatabindException> {
-            val responseEntity: ResponseEntity<ChatResponse, MaybeReturn<*>> = chatClient
-                .prompt(springAiPrompt)
-                .toolCallbacks(interaction.toolCallbacks)
-                .options(chatOptions)
-                .call()
+            val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
+
+            val callResponse = try {
+                CompletableFuture.supplyAsync {
+                    chatClient
+                        .prompt(springAiPrompt)
+                        .toolCallbacks(interaction.toolCallbacks)
+                        .options(chatOptions)
+                        .call()
+                }
+                    .orTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .exceptionally { throwable ->
+                        when (throwable.cause ?: throwable) {
+                            is TimeoutException -> {
+                                logger.warn(
+                                    "LLM {}: attempt {} timed out after {}ms",
+                                    interaction.id.value,
+                                    attempt,
+                                    timeoutMillis
+                                )
+                                throw RuntimeException(
+                                    "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
+                                    throwable
+                                )
+                            }
+                            is RuntimeException -> {
+                                logger.error(
+                                    "LLM {}: attempt {} failed",
+                                    interaction.id.value,
+                                    attempt,
+                                    throwable.cause ?: throwable
+                                )
+                                throw (throwable.cause as? RuntimeException ?: throwable)
+                            }
+                            else -> {
+                                logger.error(
+                                    "LLM {}: attempt {} failed with unexpected error",
+                                    interaction.id.value,
+                                    attempt,
+                                    throwable.cause ?: throwable
+                                )
+                                throw RuntimeException(
+                                    "ChatClient call for interaction ${interaction.id.value} failed",
+                                    throwable.cause ?: throwable
+                                )
+                            }
+                        }
+                    }
+                    .get()
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                logger.warn(
+                    "LLM {}: attempt {} was interrupted",
+                    interaction.id.value,
+                    attempt
+                )
+                throw RuntimeException(
+                    "ChatClient call for interaction ${interaction.id.value} was interrupted",
+                    e
+                )
+            }
+
+            val responseEntity: ResponseEntity<ChatResponse, MaybeReturn<*>> = callResponse
                 .responseEntity<MaybeReturn<*>>(
                     ExceptionWrappingConverter(
                         expectedType = MaybeReturn::class.java,
@@ -202,6 +317,7 @@ internal class ChatClientLlmOperations(
                         )
                     )
                 )
+
             responseEntity.response?.let { recordUsage(llm, it, llmRequestEvent) }
             responseEntity.entity!!.toResult() as Result<O>
         }
