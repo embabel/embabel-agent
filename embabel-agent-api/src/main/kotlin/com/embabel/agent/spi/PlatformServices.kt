@@ -21,6 +21,7 @@ import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.rag.RagService
+import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.context.ApplicationContext
 
@@ -40,6 +41,7 @@ data class PlatformServices(
     val ragService: RagService,
     val objectMapper: ObjectMapper,
     val outputChannel: OutputChannel,
+    val templateRenderer: TemplateRenderer,
     private val applicationContext: ApplicationContext?,
 ) {
 

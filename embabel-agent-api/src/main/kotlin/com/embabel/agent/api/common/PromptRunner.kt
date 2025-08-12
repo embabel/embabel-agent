@@ -26,6 +26,7 @@ import com.embabel.agent.spi.LlmUse
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
 
@@ -67,12 +68,34 @@ interface PromptRunnerOperations {
         outputClass: Class<T>,
     ): T?
 
+    /**
+     * Use operations from a given template
+     */
+    fun withTemplate(templateName: String): TemplateOperations
+
     fun evaluateCondition(
         condition: String,
         context: String,
         confidenceThreshold: ZeroToOne = 0.8,
     ): Boolean
 
+}
+
+class TemplateOperations(
+    templateName: String,
+    templateRenderer: TemplateRenderer,
+    private val promptRunnerOperations: PromptRunnerOperations,
+) {
+
+    private val compiledTemplate = templateRenderer.compileLoadedTemplate(templateName)
+
+    fun <T> createObject(
+        outputClass: Class<T>,
+        model: Map<String, Any>,
+    ): T = promptRunnerOperations.createObject(
+        prompt = compiledTemplate.render(model = model),
+        outputClass = outputClass,
+    )
 }
 
 /**

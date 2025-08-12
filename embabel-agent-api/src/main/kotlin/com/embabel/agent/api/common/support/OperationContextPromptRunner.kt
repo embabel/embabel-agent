@@ -145,6 +145,14 @@ internal data class OperationContextPromptRunner(
         return determination.result && determination.confidence >= confidenceThreshold
     }
 
+    override fun withTemplate(templateName: String): TemplateOperations {
+        return TemplateOperations(
+            templateName = templateName,
+            promptRunnerOperations = this,
+            templateRenderer = context.agentPlatform().platformServices.templateRenderer,
+        )
+    }
+
     override fun withLlm(llm: LlmOptions): PromptRunner =
         copy(llm = llm)
 

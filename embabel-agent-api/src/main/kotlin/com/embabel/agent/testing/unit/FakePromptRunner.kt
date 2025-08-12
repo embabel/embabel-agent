@@ -15,10 +15,7 @@
  */
 package com.embabel.agent.testing.unit
 
-import com.embabel.agent.api.common.OperationContext
-import com.embabel.agent.api.common.PromptRunner
-import com.embabel.agent.api.common.Subagent
-import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.common.*
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.safelyGetToolCallbacks
@@ -29,6 +26,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import org.slf4j.LoggerFactory
 
 enum class Method {
@@ -172,6 +170,14 @@ data class FakePromptRunner(
             ),
             generateExamples = generateExamples,
         )
+
+    override fun withTemplate(templateName: String): TemplateOperations {
+        return TemplateOperations(
+            templateName,
+            templateRenderer = JinjavaTemplateRenderer(),
+            promptRunnerOperations = this,
+        )
+    }
 
     override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner {
         TODO("Implement handoff support")

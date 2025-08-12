@@ -25,6 +25,7 @@ import com.embabel.agent.rag.RagService
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.testing.integration.DummyObjectCreatingLlmOperations
+import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
@@ -53,6 +54,7 @@ internal class DefaultAgentPlatform(
     private val asyncer: Asyncer,
     private val objectMapper: ObjectMapper,
     private val outputChannel: OutputChannel,
+    private val templateRenderer: TemplateRenderer,
     private val applicationContext: ApplicationContext? = null,
 ) : AgentPlatform {
 
@@ -72,6 +74,7 @@ internal class DefaultAgentPlatform(
         objectMapper = objectMapper,
         applicationContext = applicationContext,
         outputChannel = outputChannel,
+        templateRenderer = templateRenderer,
     )
 
     init {

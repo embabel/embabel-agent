@@ -29,6 +29,7 @@ import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.spi.support.RegistryToolGroupResolver
 import com.embabel.agent.testing.common.EventSavingAgenticEventListener
+import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.util.concurrent.Executors
 
@@ -60,6 +61,7 @@ object IntegrationTestUtils {
             asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),
             objectMapper = jacksonObjectMapper(),
             outputChannel = DevNullOutputChannel,
+            templateRenderer = JinjavaTemplateRenderer(),
         )
     }
 
@@ -76,6 +78,7 @@ object IntegrationTestUtils {
             objectMapper = jacksonObjectMapper(),
             applicationContext = null,
             outputChannel = DevNullOutputChannel,
+            templateRenderer = JinjavaTemplateRenderer(),
         )
     }
 
