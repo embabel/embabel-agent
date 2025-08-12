@@ -16,7 +16,6 @@
 package com.embabel.agent.prompt
 
 import com.embabel.agent.prompt.persona.Persona
-import com.embabel.common.ai.prompt.PromptContributionLocation
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
@@ -50,8 +49,6 @@ class PersonaTest {
                 persona = "Friendly and helpful",
                 voice = "Calm and clear",
                 objective = "Assist users with their queries",
-                role = "Assister",
-                promptContributionLocation = PromptContributionLocation.END,
             )
 
             val serialized = objectMapper.writeValueAsString(persona)
