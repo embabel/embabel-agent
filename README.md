@@ -209,7 +209,122 @@ framework on the JVM will deliver great business value.
 
 ## Show Me The Code
 
-In Kotlin or Java, agent implementation code is intuitive and easy to test.
+In Java or Kotlin, agent implementation code is intuitive and easy to test.
+
+<details open>
+<summary>Java</summary>
+
+```java
+
+@Agent(description = "Find news based on a person's star sign")
+public class StarNewsFinder {
+
+    private final HoroscopeService horoscopeService;
+    private final int storyCount;
+
+    // Services are injected by Spring
+    public StarNewsFinder(
+            HoroscopeService horoscopeService,
+            @Value("${star-news-finder.story.count:5}") int storyCount) {
+        this.horoscopeService = horoscopeService;
+        this.storyCount = storyCount;
+    }
+
+    @Action
+    public StarPerson extractStarPerson(UserInput userInput, OperationContext context) {
+        return context.ai()
+                .withLlm(OpenAiModels.GPT_41)
+                .createObjectIfPossible(
+                        """
+                                Create a person from this user input, extracting their name and star sign:
+                                %s""".formatted(userInput.getContent()),
+                        StarPerson.class
+                );
+    }
+
+    @Action
+    public Horoscope retrieveHoroscope(StarPerson starPerson) {
+        return new Horoscope(horoscopeService.dailyHoroscope(starPerson.sign()));
+    }
+
+    // toolGroups specifies tools that are required for this action to run
+    @Action(toolGroups = {CoreToolGroups.WEB})
+    public RelevantNewsStories findNewsStories(
+            StarPerson person,
+            Horoscope horoscope,
+            OperationContext context) {
+        var prompt = """
+                %s is an astrology believer with the sign %s.
+                Their horoscope for today is:
+                    <horoscope>%s</horoscope>
+                Given this, use web tools and generate search queries
+                to find %d relevant news stories summarize them in a few sentences.
+                Include the URL for each story.
+                Do not look for another horoscope reading or return results directly about astrology;
+                find stories relevant to the reading above.
+                
+                For example:
+                - If the horoscope says that they may
+                want to work on relationships, you could find news stories about
+                novel gifts
+                - If the horoscope says that they may want to work on their career,
+                find news stories about training courses.""".formatted(
+                person.name(), person.sign(), horoscope.summary(), storyCount);
+        return context.ai()
+                .withDefaultLlm()
+                .createObject(prompt, RelevantNewsStories.class);
+    }
+
+    // The @AchievesGoal annotation indicates that completing this action
+    // achieves the given goal, so the agent can be complete
+    @AchievesGoal(
+            description = "Write an amusing writeup for the target person based on their horoscope and current news stories",
+            export = @Export(
+                    remote = true,
+                    name = "starNewsWriteupJava",
+                    startingInputTypes = {StarPerson.class, UserInput.class})
+    )
+    @Action
+    public Writeup writeup(
+            StarPerson person,
+            RelevantNewsStories relevantNewsStories,
+            Horoscope horoscope,
+            OperationContext context) {
+        var llm = LlmOptions
+                .withModel(OpenAiModels.GPT_41_MINI)
+                // High temperature for creativity
+                .withTemperature(0.9);
+
+        var newsItems = relevantNewsStories.getItems().stream()
+                .map(item -> "- " + item.getUrl() + ": " + item.getSummary())
+                .collect(Collectors.joining("\n"));
+
+        var prompt = """
+                Take the following news stories and write up something
+                amusing for the target person.
+                
+                Begin by summarizing their horoscope in a concise, amusing way, then
+                talk about the news. End with a surprising signoff.
+                
+                %s is an astrology believer with the sign %s.
+                Their horoscope for today is:
+                    <horoscope>%s</horoscope>
+                Relevant news stories are:
+                %s
+                
+                Format it as Markdown with links.""".formatted(
+                person.name(), person.sign(), horoscope.summary(), newsItems);
+        return context.ai()
+                .withLlm(llm)
+                .createObject(prompt, Writeup.class);
+    }
+}
+```
+
+</details>
+
+<details>
+<summary>Kotlin</summary>
 
 ```kotlin
 @Agent(description = "Find news based on a person's star sign")
@@ -303,7 +418,61 @@ class StarNewsFinder(
 }
 ```
 
+</details>
+
+
 The following domain classes ensure type safety:
+
+<details open>
+<summary>Java</summary>
+
+```java
+
+@JsonClassDescription("Person with astrology details")
+@JsonDeserialize(as = StarPerson.class)
+public record StarPerson(
+        String name,
+        @JsonPropertyDescription("Star sign") String sign
+) implements Person {
+
+    @JsonCreator
+    public StarPerson(
+            @JsonProperty("name") String name,
+            @JsonProperty("sign") String sign
+    ) {
+        this.name = name;
+        this.sign = sign;
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+}
+
+public record Horoscope(String summary) {
+}
+
+@JsonClassDescription("Writeup relating to a person's horoscope and relevant news")
+public record Writeup(String text) implements HasContent {
+
+    @JsonCreator
+    public Writeup(@JsonProperty("text") String text) {
+        this.text = text;
+    }
+
+    @Override
+    public String getContent() {
+        return text;
+    }
+}
+
+```
+
+</details>
+
+<details>
+<summary>Kotlin</summary>
 
 ```kotlin
 data class RelevantNewsStories(
@@ -328,6 +497,53 @@ data class Horoscope(
 data class FunnyWriteup(
     override val text: String,
 ) : HasContent
+```
+
+</details>
+
+It's easy to unit test your agents to ensure that they correctly execute logic
+and pass the correct prompts and hyperparameters to LLMs. For example:
+
+```java
+public class StarNewsFinderTest {
+
+    @Test
+    void writeupPromptMustContainKeyData() {
+        HoroscopeService horoscopeService = mock(HoroscopeService.class);
+        StarNewsFinder starNewsFinder = new StarNewsFinder(horoscopeService, 5);
+        var context = new FakeOperationContext();
+        context.expectResponse(new com.embabel.example.horoscope.Writeup("Gonna be a good day"));
+
+        NewsStory cockatoos = new NewsStory(
+                "https://fake.com.au",
+                "Cockatoo behavior",
+                "Cockatoos are eating cabbages"
+        );
+
+        NewsStory emus = new NewsStory(
+                "https://morefake.com.au",
+                "Emu movements",
+                "Emus are massing"
+        );
+
+        StarPerson starPerson = new StarPerson("Lynda", "Scorpio");
+        RelevantNewsStories relevantNewsStories = new RelevantNewsStories(Arrays.asList(cockatoos, emus));
+        Horoscope horoscope = new Horoscope("This is a good day for you");
+
+        starNewsFinder.writeup(starPerson, relevantNewsStories, horoscope, context);
+
+        var prompt = context.getLlmInvocations().getFirst().getPrompt();
+        var toolGroups = context.getLlmInvocations().getFirst().getInteraction().getToolGroups();
+
+
+        assertTrue(prompt.contains(starPerson.getName()));
+        assertTrue(prompt.contains(starPerson.sign()));
+        assertTrue(prompt.contains(cockatoos.getSummary()));
+        assertTrue(prompt.contains(emus.getSummary()));
+
+        assertTrue(toolGroups.isEmpty(), "The LLM should not have been given any tool groups");
+    }
+}
 ```
 
 ## Dog Food Policy
