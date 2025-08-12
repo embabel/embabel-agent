@@ -318,19 +318,62 @@ embabel:
 
 ### **Migration Detection**
 
-The framework automatically detects deprecated property usage and provides warnings:
+The framework provides automatic detection of deprecated property usage with production-safe defaults:
 
 ```yaml
-# Optional: Enable detailed scanning for your code
+# Migration system is DISABLED by default for zero production impact
+# Enable only when you need migration guidance:
 embabel:
-  migration:
-    conditional-scanning:
-      enabled: true
-      include-packages:
-        - "com.yourcompany"  # Scan your packages for @ConditionalOnProperty usage
+  agent:
+    platform:
+      migration:
+        scanning:
+          enabled: true                    # Activates comprehensive migration detection
+          include-packages:
+            - "com.yourcompany"            # Scan your packages for deprecated usage
+            - "com.yourthirdparty"         # Include third-party integration packages
+        warnings:
+          enabled: true                    # Automatically enabled when scanning is on
+          individual-logging: true         # Log each deprecated property individually
 ```
 
+**Key Features:**
+- ✅ **Production Safe**: Completely disabled by default (zero overhead)
+- ✅ **Comprehensive**: Detects both `@ConditionalOnProperty` and `@ConfigurationProperties` deprecated usage
+- ✅ **Environment Variables**: Automatically detects deprecated properties from any source
+- ✅ **Verbose Feedback**: Individual warnings plus aggregated summary
+
 **Full Migration Guide**: [PROFILES_MIGRATION_GUIDE.md - Property Namespace Migration](PROFILES_MIGRATION_GUIDE.md#phase-0-platform-property-consolidation)
+
+### **Spring Boot + Kotlin Configuration Patterns**
+
+The framework implements production-validated Spring Boot + Kotlin configuration patterns:
+
+#### **Val vs Var Decision Matrix:**
+| Configuration Pattern | Property Type | Recommendation | Reason |
+|----------------------|--------------|----------------|--------|
+| **Pure `@ConfigurationProperties`** | Scalar (String, Boolean, Int) | ✅ `val` | Constructor binding works perfectly |
+| **`@Configuration` + `@ConfigurationProperties`** | Scalar | ⚠️ `var` | CGLIB proxy requires setters |
+| **Any Pattern** | Complex (List, Map) | ✅ `var` | Environment variable binding needs setters |
+
+#### **Production Lesson Learned:**
+```kotlin
+@Configuration  // 🚨 This annotation forces var usage
+@ConfigurationProperties("app.config")
+data class MyConfig(
+    var enabled: Boolean = false,     // ✅ var required for CGLIB proxying
+    var servers: List<String> = emptyList()  // ✅ var required for complex types
+)
+
+// vs.
+
+@ConfigurationProperties("app.simple") // 🎯 No @Configuration
+data class SimpleConfig(
+    val enabled: Boolean = false      // ✅ val works with constructor binding
+)
+```
+
+**Reference**: See comprehensive analysis in `AgentPlatformPropertiesIntegrationTest`
 
 ## Phase 1: Library-Centric Transformation
 

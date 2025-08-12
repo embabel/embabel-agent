@@ -28,7 +28,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
 import java.time.LocalDate
 
-@ConfigurationProperties(prefix = "embabel.openai")
+@ConfigurationProperties(prefix = "embabel.agent.platform.models.openai")
 data class OpenAiProperties(
     override val maxAttempts: Int = 10,
     override val backoffMillis: Long = 5000L,

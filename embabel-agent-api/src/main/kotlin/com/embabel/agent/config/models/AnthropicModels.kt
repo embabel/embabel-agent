@@ -33,7 +33,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
 import java.time.LocalDate
 
-@ConfigurationProperties(prefix = "embabel.anthropic")
+@ConfigurationProperties(prefix = "embabel.agent.platform.models.anthropic")
 data class AnthropicProperties(
     override val maxAttempts: Int = 10,
     override val backoffMillis: Long = 5000L,

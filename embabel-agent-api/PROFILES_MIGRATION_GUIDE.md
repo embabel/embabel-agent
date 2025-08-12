@@ -125,16 +125,16 @@ embabel:
 
 #### **Environment Variables**
 ```bash
-# Include packages (comma-separated)
-export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES=com.embabel.agent,com.mycorp.custom
+# Production-Safe Defaults (Migration System DISABLED by default):
+export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_ENABLED=false
+export EMBABEL_AGENT_PLATFORM_MIGRATION_WARNINGS_ENABLED=true
+export EMBABEL_AGENT_PLATFORM_MIGRATION_WARNINGS_INDIVIDUAL_LOGGING=true
+export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES=com.embabel.agent,com.embabel.agent.shell
 
-# Additional excludes (comma-separated)  
+# Optional: Customize scanning behavior when enabled
 export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_ADDITIONAL_EXCLUDES=com.noisy.framework,com.slow.scanner
 
-# Control scanning behavior
-export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_AUTO_EXCLUDE_JAR_PACKAGES=false
-
-# Enable for Iteration 1+ migrations (disabled by default in Iteration 0)
+# Enable comprehensive migration detection (opt-in):
 export EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_ENABLED=true
 
 # Disable scanning entirely (e.g., in production)

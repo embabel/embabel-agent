@@ -36,8 +36,8 @@ import org.springframework.test.context.TestPropertySource
 /**
  * Integration tests for the complete platform properties migration system.
  *
- * Tests the interaction between ConditionalPropertyScanningConfig, SimpleDeprecatedConfigWarner,
- * and ConditionalPropertyScanner components working together for platform property migrations.
+ * Tests the interaction between DeprecatedPropertyScanningConfig, SimpleDeprecatedConfigWarner,
+ * and DeprecatedPropertyScanner components working together for platform property migrations.
  */
 @SpringBootTest(classes = [
     PlatformPropertiesMigrationIntegrationTest.TestConfiguration::class
@@ -48,7 +48,7 @@ import org.springframework.test.context.TestPropertySource
     "embabel.agent.platform.migration.scanning.include-packages[0]=com.embabel.agent",
 
     // Set up deprecated properties for testing
-    "embabel.agent.anthropic.max-attempts=15",
+    "embabel.anthropic.max-attempts=15",
     "embabel.agent-platform.ranking.backoff-millis=500",
     "embabel.agent.sse.max-buffer-size=200",
 
@@ -58,13 +58,13 @@ import org.springframework.test.context.TestPropertySource
 class PlatformPropertiesMigrationIntegrationTest {
 
     @Autowired
-    private lateinit var scanningConfig: ConditionalPropertyScanningConfig
+    private lateinit var scanningConfig: DeprecatedPropertyScanningConfig
 
     @Autowired
     private lateinit var propertyWarner: SimpleDeprecatedConfigWarner
 
     @Autowired
-    private lateinit var propertyScanner: ConditionalPropertyScanner
+    private lateinit var propertyScanner: DeprecatedPropertyScanner
 
     private lateinit var listAppender: ListAppender<ILoggingEvent>
     private lateinit var logger: Logger
@@ -99,7 +99,7 @@ class PlatformPropertiesMigrationIntegrationTest {
     fun `should issue warnings for deprecated properties`() {
         // When - manually trigger property warnings (simulating what scanner would do)
         propertyWarner.warnDeprecatedProperty(
-            "embabel.agent.anthropic.max-attempts",
+            "embabel.anthropic.max-attempts",
             "embabel.agent.platform.models.anthropic.max-attempts",
             "Model provider configuration consolidation"
         )
@@ -117,7 +117,7 @@ class PlatformPropertiesMigrationIntegrationTest {
         val messages = listAppender.list.map { it.message }
         assertThat(messages).anySatisfy { message ->
             assertThat(message).contains(
-                "embabel.agent.anthropic.max-attempts",
+                "embabel.anthropic.max-attempts",
                 "embabel.agent.platform.models.anthropic.max-attempts",
                 "15"
             )
@@ -135,9 +135,9 @@ class PlatformPropertiesMigrationIntegrationTest {
     fun `should transform properties using migration rules correctly`() {
         // Given - Test the complete rule transformation pipeline
         val testCases = mapOf(
-            "embabel.agent.anthropic.max-attempts" to "embabel.agent.platform.models.anthropic.max-attempts",
-            "embabel.agent.anthropic.backoff-millis" to "embabel.agent.platform.models.anthropic.backoff-millis",
-            "embabel.agent.openai.max-attempts" to "embabel.agent.platform.models.openai.max-attempts",
+            "embabel.anthropic.max-attempts" to "embabel.agent.platform.models.anthropic.max-attempts",
+            "embabel.anthropic.backoff-millis" to "embabel.agent.platform.models.anthropic.backoff-millis",
+            "embabel.openai.max-attempts" to "embabel.agent.platform.models.openai.max-attempts",
             "embabel.agent-platform.ranking.max-attempts" to "embabel.agent.platform.ranking.max-attempts",
             "embabel.agent-platform.llm-operations.prompts.template" to "embabel.agent.platform.llm-operations.prompts.template"
         )
@@ -202,7 +202,7 @@ class PlatformPropertiesMigrationIntegrationTest {
     fun `should support runtime rule addition`() {
         // Given
         val initialRuleCount = propertyScanner.getMigrationRules().size
-        val customRule = ConditionalPropertyScanner.PropertyMigrationRule(
+        val customRule = DeprecatedPropertyScanner.PropertyMigrationRule(
             pattern = java.util.regex.Pattern.compile("custom\\.([^.]+)\\.config"),
             replacement = "migrated.custom.\$1.config",
             description = "Custom runtime rule"
@@ -223,7 +223,7 @@ class PlatformPropertiesMigrationIntegrationTest {
     fun `should demonstrate complete migration workflow`() {
         // Given - simulate a complete migration scenario
         val deprecatedProperties = mapOf(
-            "embabel.agent.anthropic.max-attempts" to "15",
+            "embabel.anthropic.max-attempts" to "15",
             "embabel.agent-platform.ranking.backoff-millis" to "500",
             "embabel.agent.sse.max-buffer-size" to "200"
         )
@@ -276,10 +276,10 @@ class PlatformPropertiesMigrationIntegrationTest {
             "embabel.agent-platform.llm-operations.prompts.template" to "embabel.agent.platform.llm-operations.prompts.template",
 
             // Model provider configurations
-            "embabel.agent.anthropic.max-attempts" to "embabel.agent.platform.models.anthropic.max-attempts",
-            "embabel.agent.anthropic.backoff-millis" to "embabel.agent.platform.models.anthropic.backoff-millis",
-            "embabel.agent.openai.max-attempts" to "embabel.agent.platform.models.openai.max-attempts",
-            "embabel.agent.openai.backoff-millis" to "embabel.agent.platform.models.openai.backoff-millis",
+            "embabel.anthropic.max-attempts" to "embabel.agent.platform.models.anthropic.max-attempts",
+            "embabel.anthropic.backoff-millis" to "embabel.agent.platform.models.anthropic.backoff-millis",
+            "embabel.openai.max-attempts" to "embabel.agent.platform.models.openai.max-attempts",
+            "embabel.openai.backoff-millis" to "embabel.agent.platform.models.openai.backoff-millis",
 
             // Specific platform features
             "embabel.agent.enable-scanning" to "embabel.agent.platform.scanning.annotation",
@@ -298,18 +298,19 @@ class PlatformPropertiesMigrationIntegrationTest {
     }
 
     @Configuration
-    @EnableConfigurationProperties(ConditionalPropertyScanningConfig::class)
+    @EnableConfigurationProperties(DeprecatedPropertyScanningConfig::class)
     class TestConfiguration {
 
         @Bean
         fun simpleDeprecatedConfigWarner(environment: Environment): SimpleDeprecatedConfigWarner =
-            SimpleDeprecatedConfigWarner(environment, enableIndividualLogging = true)
+            SimpleDeprecatedConfigWarner(environment, DeprecatedPropertyWarningConfig(individualLogging = true))
 
         @Bean
         fun conditionalPropertyScanner(
-            scanningConfigProvider: ObjectProvider<ConditionalPropertyScanningConfig>,
-            propertyWarnerProvider: ObjectProvider<SimpleDeprecatedConfigWarner>
-        ): ConditionalPropertyScanner =
-            ConditionalPropertyScanner(scanningConfigProvider, propertyWarnerProvider)
+            scanningConfigProvider: ObjectProvider<DeprecatedPropertyScanningConfig>,
+            propertyWarnerProvider: ObjectProvider<SimpleDeprecatedConfigWarner>,
+            environment: Environment
+        ): DeprecatedPropertyScanner =
+            DeprecatedPropertyScanner(scanningConfigProvider, propertyWarnerProvider, environment)
     }
 }
