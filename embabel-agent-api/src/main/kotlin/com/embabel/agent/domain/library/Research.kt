@@ -56,13 +56,6 @@ open class ResearchReport(
            |"""
             .trimMargin()
             .indentLines(indent)
+
+    override fun toString(): String = infoString(verbose = false, indent = 0)
 }
-
-open class CompletedResearch(
-    val topic: ResearchTopic,
-    val researchReport: ResearchReport,
-)
-
-open class ResearchResult(
-    val topicResearches: List<CompletedResearch>,
-)

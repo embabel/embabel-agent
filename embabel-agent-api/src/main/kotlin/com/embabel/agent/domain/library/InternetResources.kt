@@ -36,7 +36,12 @@ open class InternetResource(
     override val url: String,
     @get:JsonPropertyDescription("concise summary of the resource")
     override val summary: String,
-) : Page
+) : Page {
+
+    override fun toString(): String {
+        return "InternetResource(url='$url', summary='$summary')"
+    }
+}
 
 interface InternetResources : PromptContributor {
 
