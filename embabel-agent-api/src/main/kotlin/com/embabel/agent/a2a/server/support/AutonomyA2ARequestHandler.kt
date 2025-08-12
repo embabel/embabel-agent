@@ -163,23 +163,34 @@ class AutonomyA2ARequestHandler(
         val emitter = streamingHandler.createStream(streamId)
 
         Thread.startVirtualThread {
+            val taskId = ensureTaskId(params.message.taskId)
+            val contextId = ensureContextId(params.message.contextId)
+            val taskStatusUpdateEventBuilder = TaskStatusUpdateEvent.Builder()
+                .taskId(taskId)
+                .contextId(contextId)
+            val taskBuilder = Task.Builder()
+                .id(taskId)
+                .contextId(contextId)
+
             try {
-                // Send initial status event
+                // Send task submitted
+                val taskSubmitted = taskBuilder
+                    .status(createSubmittedTaskStatus(taskId, contextId))
+                    .history(listOfNotNull(params.message))
+                    .artifacts(emptyList())
+                    .metadata(null)
+                    .build()
+                streamingHandler.sendStreamEvent(streamId, taskSubmitted)
+
+                // Send status before running the agent
                 streamingHandler.sendStreamEvent(
-                    streamId, TaskStatusUpdateEvent.Builder()
-                        .taskId(params.message.taskId)
-                        .contextId(params.message.contextId)
-                        .status(createWorkingTaskStatus(params, "Task started..."))
+                    streamId, taskStatusUpdateEventBuilder
+                        .status(createWorkingTaskStatus(params, "Starting task..."))
                         .build()
                 )
 
-                // Send the received message, if any
-                params.message?.let { userMsg ->
-                    streamingHandler.sendStreamEvent(streamId, userMsg)
-                }
-
                 val intent = params.message?.parts?.filterIsInstance<TextPart>()?.firstOrNull()?.text
-                    ?: "Task ${params.message.taskId}"
+                    ?: "Task ${taskId}"
 
                 // Execute the task using autonomy service
                 val result = autonomy.chooseAndRunAgent(
@@ -190,35 +201,28 @@ class AutonomyA2ARequestHandler(
 
                 // Send intermediate status updates
                 streamingHandler.sendStreamEvent(
-                    streamId, TaskStatusUpdateEvent.Builder()
-                        .taskId(params.message.taskId)
-                        .contextId(ensureContextId(params.message.contextId))
+                    streamId, taskStatusUpdateEventBuilder
                         .status(createWorkingTaskStatus(params, "Processing task..."))
                         .build()
                 )
 
                 // Send result
-                val taskResult = Task.Builder()
-                    .id(params.message.taskId)
-                    .contextId("ctx_${UUID.randomUUID()}")
-                    .status(createCompletedTaskStatus(params))
+                val taskResult = taskBuilder
+                    .status(createCompletedTaskStatus(taskId, contextId))
                     .history(listOfNotNull(params.message))
                     .artifacts(
                         listOf(
                             createResultArtifact(result, params.configuration?.acceptedOutputModes)
                         )
                     )
-                    .metadata(null)
                     .build()
                 streamingHandler.sendStreamEvent(streamId, taskResult)
             } catch (e: Exception) {
                 logger.error("Streaming error", e)
                 try {
                     streamingHandler.sendStreamEvent(
-                        streamId, TaskStatusUpdateEvent.Builder()
-                            .taskId(params.message.taskId)
-                            .contextId(ensureContextId(params.message.contextId))
-                            .status(createFailedTaskStatus(params, e))
+                        streamId, taskStatusUpdateEventBuilder
+                            .status(createFailedTaskStatus(taskId, contextId, e))
                             .build()
                     )
                 } catch (sendError: Exception) {
@@ -246,20 +250,25 @@ class AutonomyA2ARequestHandler(
         TODO()
     }
 
-    private fun createFailedTaskStatus(params: MessageSendParams, e: Exception): TaskStatus = TaskStatus(
+    private fun createFailedTaskStatus(
+        taskId: String,
+        contextId: String,
+        e: Exception
+    ): TaskStatus = TaskStatus(
         TaskState.FAILED,
         Message.Builder()
             .messageId(UUID.randomUUID().toString())
             .role(Message.Role.AGENT)
             .parts(listOf(TextPart("Error: ${e.message}")))
-            .contextId(params.message.contextId)
-            .taskId(params.message.taskId)
+            .contextId(contextId)
+            .taskId(taskId)
             .build(),
         LocalDateTime.now()
     )
 
     private fun createCompletedTaskStatus(
-        params: MessageSendParams,
+        taskId: String,
+        contextId: String,
         textPart: String = "Task completed successfully"
     ): TaskStatus = TaskStatus(
         TaskState.COMPLETED,
@@ -267,8 +276,8 @@ class AutonomyA2ARequestHandler(
             .messageId(UUID.randomUUID().toString())
             .role(Message.Role.AGENT)
             .parts(listOf(TextPart(textPart)))
-            .contextId(params.message.contextId)
-            .taskId(params.message.taskId)
+            .contextId(contextId)
+            .taskId(taskId)
             .build(),
         LocalDateTime.now()
     )
@@ -284,6 +293,22 @@ class AutonomyA2ARequestHandler(
             .parts(listOf(TextPart(textPart)))
             .contextId(params.message.contextId)
             .taskId(params.message.taskId)
+            .build(),
+        LocalDateTime.now()
+    )
+
+    private fun createSubmittedTaskStatus(
+        taskId: String,
+        contextId: String,
+        textPart: String = "Submitted..."
+    ): TaskStatus = TaskStatus(
+        TaskState.SUBMITTED,
+        Message.Builder()
+            .messageId(UUID.randomUUID().toString())
+            .role(Message.Role.AGENT)
+            .parts(listOf(TextPart(textPart)))
+            .contextId(contextId)
+            .taskId(taskId)
             .build(),
         LocalDateTime.now()
     )
