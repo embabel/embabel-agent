@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ✅ Enable Spring Boot's custom converters like %clr -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 🔧 Inject console pattern from application.yml or .properties -->
+    <springProperty name="CONSOLE_PATTERN" source="logging.pattern.console"/>
+
+    <!-- 🖥️ Console Appender -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+                ${CONSOLE_PATTERN:-%clr(%d{HH:mm:ss.SSS}){faint} %clr([%t]){magenta} %clr(%-5level) %clr(%logger{0}){cyan} %clr(-){faint} %msg%n}
+            </pattern>
+        </encoder>
+    </appender>
+
+    <!-- 🔧 Logger Levels -->
+    <logger name="org.springframework.ai.converter.BeanOutputConverter" level="OFF"/>
+    <logger name="com.embabel.agent.core.support.BlackboardWorldStateDeterminer" level="INFO"/>
+    <logger name="com.embabel.agent.api.annotation.support.AgentMetadataReader" level="INFO"/>
+    <logger name="com.embabel.agent.spi.support.LlmRanker" level="INFO"/>
+    <logger name="com.embabel.agent.spi.support.com.embabel.agent.spi.support.springai.ChatClientLlmOperations" level="INFO"/>
+    <logger name="org.springframework.ai.bedrock" level="ERROR"/>
+    <logger name="software.amazon.awssdk" level="ERROR"/>
+
+    <!-- 🔍 Root Logger -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>
+
+
