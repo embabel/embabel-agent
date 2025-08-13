@@ -22,6 +22,7 @@ import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.swagger.v3.oas.annotations.media.Schema
+import java.time.Duration
 
 /**
  * Thinking config. Set on Anthropic models
@@ -86,6 +87,11 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
     val criteria: ModelSelectionCriteria?
 
     val thinking: Thinking?
+
+    /**
+     * Optional timeout for this LLM call. If provided, overrides the default client timeout.
+     */
+    val timeout: Duration?
 
     override fun infoString(
         verbose: Boolean?,
@@ -196,6 +202,7 @@ data class BuildableLlmOptions(
     override val topK: Int? = null,
     override val topP: Double? = null,
     override val thinking: Thinking? = null,
+    override val timeout: Duration? = null,
 ) : LlmOptions {
 
     /**
@@ -236,6 +243,10 @@ data class BuildableLlmOptions(
 
     fun withoutThinking(): BuildableLlmOptions {
         return copy(thinking = Thinking.NONE)
+    }
+
+    fun withTimeout(timeout: Duration): BuildableLlmOptions {
+        return copy(timeout = timeout)
     }
 
 }
