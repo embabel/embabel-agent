@@ -162,6 +162,15 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
             criteria = byRole(role),
         )
 
+        /**
+         * Create an LlmOptions instance that will
+         * select the first available LLM of the given names.
+         */
+        @JvmStatic
+        fun withFirstAvailableLlmOf(vararg names: String): BuildableLlmOptions = BuildableLlmOptions(
+            criteria = FallbackByNameModelSelectionCriteria(names.toList()),
+        )
+
         operator fun invoke(
             criteria: ModelSelectionCriteria,
         ): BuildableLlmOptions = BuildableLlmOptions(
