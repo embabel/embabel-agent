@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
@@ -59,13 +60,15 @@ class FakeConfig {
         FakeConfig::class,
     ]
 )
-class OgmCypherSearchTest(@Autowired private val ogmCypherSearch: OgmCypherSearch)
-    : NeoIntegrationTestSupport() {
+@EnableAutoConfiguration
+class OgmCypherSearchTest(
+    @param:Autowired private val ogmCypherSearch: OgmCypherSearch,
+) : NeoIntegrationTestSupport() {
 
     @Test
-    fun should_query() {
+    fun `should query`() {
         val query = "match (n) return n limit 100"
-        val params : Map<String, *> = emptyMap<String, Any>()
+        val params: Map<String, *> = emptyMap<String, Any>()
         val result = ogmCypherSearch.query("purpose", query, params, null)
         println("Got result: $result")
         assertNotNull(result)
