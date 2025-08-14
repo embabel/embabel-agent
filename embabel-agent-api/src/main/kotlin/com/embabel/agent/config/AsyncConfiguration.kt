@@ -17,6 +17,8 @@ package com.embabel.agent.config
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.spi.support.ExecutorAsyncer
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.util.concurrent.Executor
@@ -25,7 +27,10 @@ import java.util.concurrent.Executor
 class AsyncConfiguration {
 
     @Bean
-    fun asyncer(executor: Executor): Asyncer {
+    fun asyncer(
+        @Qualifier(TaskExecutionAutoConfiguration.APPLICATION_TASK_EXECUTOR_BEAN_NAME)
+        executor: Executor
+    ): Asyncer {
         return ExecutorAsyncer(executor)
     }
 }
