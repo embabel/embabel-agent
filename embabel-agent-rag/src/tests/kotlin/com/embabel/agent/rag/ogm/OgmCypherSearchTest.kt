@@ -2,13 +2,11 @@ package com.embabel.agent.rag.ogm
 
 import com.embabel.agent.rag.TestNeo4jConfig
 import com.embabel.agent.rag.neo.ogm.OgmCypherSearch
-import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.data.neo4j.DataNeo4jTest
 import org.springframework.test.context.ContextConfiguration
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.ser.impl.PropertySerializerMap.emptyMap
 
 
 @DataNeo4jTest
