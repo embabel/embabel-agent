@@ -13,26 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.identity
+package com.embabel.agent.discord
 
-/**
- * Superinterface for all users in the system.
- */
-interface User {
-    val id: String
+import com.embabel.agent.identity.User
+
+data class DiscordUserInfo(
+    val id: String,
+    val username: String,
+    val displayName: String,
+    val discriminator: String,
+    val avatarUrl: String? = null,
+    val isBot: Boolean = false,
+)
+
+interface DiscordUser : User {
+    val discordUser: DiscordUserInfo
 }
 
-interface UserService<U : User> {
-
-    fun findById(id: String): U?
-
-    /**
-     * Add the user to the system.
-     * Default implementation refuses to do so.
-     */
-    fun provisionUser(
-        userInfo: U,
-    ): U {
-        error("User cannot be provisioned: $userInfo")
-    }
-}
+data class DiscordUserImpl(
+    override val id: String,
+    override val discordUser: DiscordUserInfo,
+) : DiscordUser
