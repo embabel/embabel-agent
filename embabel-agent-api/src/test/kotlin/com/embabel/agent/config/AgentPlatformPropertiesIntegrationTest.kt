@@ -74,7 +74,7 @@ import org.springframework.test.context.TestPropertySource
  * 3. Java System properties (System.getProperties())
  * 4. OS environment variables
  * 5. Profile-specific application properties (application-{profile}.yml)
- * 6. Application properties (application.yml)
+ * 6. Application properties (application.yml.unused)
  * 7. @PropertySource annotations
  * 8. Kotlin class defaults (LOWEST)
  * ```

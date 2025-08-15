@@ -227,7 +227,7 @@ Templates are designed for **composition using Spring Boot imports**, not copy-p
 
 ### Development Environment Example
 ```yaml
-# application.yml - Import-based composition
+# application.yml.unused - Import-based composition
 spring:
   config:
     import:
@@ -244,7 +244,7 @@ server:
 
 ### Production Environment Example
 ```yaml
-# application.yml - Import-based composition
+# application.yml.unused - Import-based composition
 spring:
   config:
     import:
@@ -262,7 +262,7 @@ server:
 
 ### Custom Composition Example
 ```yaml
-# application.yml - Mix and match as needed
+# application.yml.unused - Mix and match as needed
 spring:
   config:
     import:

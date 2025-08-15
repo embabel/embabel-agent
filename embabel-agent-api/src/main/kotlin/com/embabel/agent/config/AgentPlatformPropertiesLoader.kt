@@ -57,7 +57,7 @@ import jakarta.annotation.PostConstruct
  * @since 1.x
  */
 @Configuration
-@PropertySource("classpath:agent-platform.properties", "classpath:embabel-agent.properties")
+@PropertySource("classpath:agent-platform.properties", "classpath:agent-application.properties")
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class AgentPlatformPropertiesLoader {
 

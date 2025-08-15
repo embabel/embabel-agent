@@ -4,7 +4,6 @@
     <!-- ✅ Enable Spring Boot's custom converters like %clr -->
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <!-- 🔧 Inject console pattern from application.yml or .properties -->
     <springProperty name="CONSOLE_PATTERN" source="logging.pattern.console"/>
 
     <!-- 🖥️ Console Appender -->

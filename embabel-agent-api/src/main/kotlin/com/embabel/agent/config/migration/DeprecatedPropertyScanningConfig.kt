@@ -76,7 +76,7 @@ data class DeprecatedPropertyScanningConfig(
      * embabel.agent.platform.migration.scanning.auto-exclude-jar-packages=false
      * ```
      *
-     * ### application.yml
+     * ### application.yml.unused
      * ```yaml
      * embabel:
      *   agent:
