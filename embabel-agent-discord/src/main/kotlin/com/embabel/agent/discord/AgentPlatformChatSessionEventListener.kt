@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.discord
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.DefaultPlanLister
 import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
@@ -34,6 +35,7 @@ import org.springframework.stereotype.Component
 class AgentPlatformChatSessionEventListener(
     private val discordSessionService: DiscordSessionService,
     private val autonomy: Autonomy,
+    private val asyncer: Asyncer,
     private val discordConfigProperties: DiscordConfigProperties,
 ) : ListenerAdapter() {
 
@@ -68,12 +70,14 @@ class AgentPlatformChatSessionEventListener(
         // Handle direct message response logic here
         logger.info("Responding to DM from user: ${discordUserSession.user}")
         val chatSession = chatSessionFor(discordUserSession)
-        chatSession.respond(
-            UserMessage(
-                content = event.message.contentRaw,
-            ),
-            ChannelRespondingMessageListener(event),
-        )
+        asyncer.async {
+            chatSession.respond(
+                UserMessage(
+                    content = event.message.contentRaw,
+                ),
+                ChannelRespondingMessageListener(event),
+            )
+        }
     }
 
     private fun chatSessionFor(discordUserSession: DiscordUserSession): AgentPlatformChatSession {
