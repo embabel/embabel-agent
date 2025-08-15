@@ -1,4 +1,4 @@
-package com.embabel.agent.rag
+package com.embabel.test
 
 import org.testcontainers.containers.Neo4jContainer
 
