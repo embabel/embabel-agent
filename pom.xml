@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.embabel.build</groupId>
@@ -29,6 +30,7 @@
         <module>embabel-agent-starters</module>
         <module>embabel-agent-test</module>
         <module>embabel-agent-ux</module>
+        <module>embabel-agent-discord</module>
     </modules>
 
     <scm>
@@ -135,8 +137,8 @@
         </profile>
     </profiles>
 
-    
-   <repositories>
+
+    <repositories>
         <repository>
             <id>embabel-releases</id>
             <url>https://repo.embabel.com/artifactory/libs-release</url>

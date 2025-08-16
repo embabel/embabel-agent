@@ -29,6 +29,7 @@ import com.embabel.agent.event.AgentProcessEvent
 import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.event.ObjectBindingEvent
 import com.embabel.chat.*
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
 
 
@@ -43,7 +44,15 @@ data class ChatConfig(
     val multiGoal: Boolean = false,
     val model: String = OpenAiModels.GPT_41_MINI,
     val temperature: Double? = null,
-)
+) {
+
+    /**
+     * Options for the LLM used in the chat session
+     */
+    val llm: LlmOptions = LlmOptions
+        .withModel(model)
+        .withTemperature(temperature)
+}
 
 /**
  * Generates response(s) in a chat session.

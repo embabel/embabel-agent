@@ -6,6 +6,7 @@
     <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-dependencies/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-dependencies/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-discord/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-docs/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-eval/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-examples/examples-common/src/main/java" charset="UTF-8" />

@@ -20,6 +20,7 @@
         <module name="embabel-movie-example" />
         <module name="embabel-agent-test" />
         <module name="embabel-agent-eval" />
+        <module name="embabel-agent-discord" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>

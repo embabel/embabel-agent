@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/embabel-agent-api/embabel-agent-api.iml" filepath="$PROJECT_DIR$/embabel-agent-api/embabel-agent-api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/embabel-agent-rag/embabel-agent-rag.iml" filepath="$PROJECT_DIR$/embabel-agent-rag/embabel-agent-rag.iml" />
+    </modules>
+  </component>
+</project>
