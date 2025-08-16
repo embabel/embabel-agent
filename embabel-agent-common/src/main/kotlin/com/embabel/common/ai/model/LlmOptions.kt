@@ -20,7 +20,6 @@ import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byRole
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Duration
 
@@ -73,25 +72,74 @@ interface LlmHyperparameters {
 
 /**
  * Portable LLM options.
+ * @param timeout Optional timeout for this LLM call. If provided, overrides the default client timeout.
  */
 @Schema(
     description = "Options for LLM use",
 )
-@JsonDeserialize(`as` = BuildableLlmOptions::class)
-interface LlmOptions : LlmHyperparameters, HasInfoString {
+data class LlmOptions(
+    val modelSelectionCriteria: ModelSelectionCriteria? = null,
+    val model: String? = null,
+    override val temperature: Double? = null,
+    override val frequencyPenalty: Double? = null,
+    override val maxTokens: Int? = null,
+    override val presencePenalty: Double? = null,
+    override val topK: Int? = null,
+    override val topP: Double? = null,
+    val thinking: Thinking? = null,
+    val timeout: Duration? = null,
+) : LlmHyperparameters, HasInfoString {
 
     @get:Schema(
         description = "If provided, custom selection criteria for the LLM to use. If not provided, a default LLM will be used.",
         required = false,
     )
-    val criteria: ModelSelectionCriteria?
-
-    val thinking: Thinking?
+    val criteria: ModelSelectionCriteria
+        get() = modelSelectionCriteria ?: when (model) {
+            null, "default" -> PlatformDefault
+            "auto" -> AutoModelSelectionCriteria
+            else -> byName(model)
+        }
 
     /**
-     * Optional timeout for this LLM call. If provided, overrides the default client timeout.
+     * Create a copy with a default temperature for the LLM.
+     * If null, uses the default temperature for the model.
      */
-    val timeout: Duration?
+    fun withTemperature(temperature: Double?): LlmOptions {
+        return copy(temperature = temperature)
+    }
+
+    fun withMaxTokens(maxTokens: Int): LlmOptions {
+        return copy(maxTokens = maxTokens)
+    }
+
+    fun withTopK(topK: Int): LlmOptions {
+        return copy(topK = topK)
+    }
+
+    fun withTopP(topP: Double): LlmOptions {
+        return copy(topP = topP)
+    }
+
+    fun withFrequencyPenalty(frequencyPenalty: Double): LlmOptions {
+        return copy(frequencyPenalty = frequencyPenalty)
+    }
+
+    fun withPresencePenalty(presencePenalty: Double): LlmOptions {
+        return copy(presencePenalty = presencePenalty)
+    }
+
+    fun withThinking(thinking: Thinking): LlmOptions {
+        return copy(thinking = thinking)
+    }
+
+    fun withoutThinking(): LlmOptions {
+        return copy(thinking = Thinking.NONE)
+    }
+
+    fun withTimeout(timeout: Duration): LlmOptions {
+        return copy(timeout = timeout)
+    }
 
     override fun infoString(
         verbose: Boolean?,
@@ -106,8 +154,8 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
          * Create an LlmOptions instance we can build.
          */
         operator fun invoke(
-        ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = PlatformDefault,
+        ): LlmOptions = LlmOptions(
+            modelSelectionCriteria = PlatformDefault,
         )
 
         /**
@@ -115,13 +163,13 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
          */
         operator fun invoke(
             model: String,
-        ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = ByNameModelSelectionCriteria(model),
+        ): LlmOptions = LlmOptions(
+            modelSelectionCriteria = ByNameModelSelectionCriteria(model),
         )
 
         @JvmStatic
-        fun withDefaults(): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = PlatformDefault,
+        fun withDefaults(): LlmOptions = LlmOptions(
+            modelSelectionCriteria = PlatformDefault,
         )
 
         @Deprecated(
@@ -131,8 +179,8 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
         @JvmStatic
         fun fromModel(
             model: String,
-        ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = byName(model),
+        ): LlmOptions = LlmOptions(
+            modelSelectionCriteria = byName(model),
         )
 
         /**
@@ -142,18 +190,18 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
         @JvmStatic
         fun withModel(
             model: String,
-        ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = byName(model),
+        ): LlmOptions = LlmOptions(
+            modelSelectionCriteria = byName(model),
         )
 
         @JvmStatic
-        fun withDefaultLlm(): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = DefaultModelSelectionCriteria,
+        fun withDefaultLlm(): LlmOptions = LlmOptions(
+            modelSelectionCriteria = DefaultModelSelectionCriteria,
         )
 
         @JvmStatic
-        fun withAutoLlm(): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = AutoModelSelectionCriteria,
+        fun withAutoLlm(): LlmOptions = LlmOptions(
+            modelSelectionCriteria = AutoModelSelectionCriteria,
         )
 
         /**
@@ -164,8 +212,8 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
          * @param role The role for which to select the model.
          */
         @JvmStatic
-        fun withLlmForRole(role: String): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = byRole(role),
+        fun withLlmForRole(role: String): LlmOptions = LlmOptions(
+            modelSelectionCriteria = byRole(role),
         )
 
         /**
@@ -173,80 +221,21 @@ interface LlmOptions : LlmHyperparameters, HasInfoString {
          * select the first available LLM of the given names.
          */
         @JvmStatic
-        fun withFirstAvailableLlmOf(vararg names: String): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = FallbackByNameModelSelectionCriteria(names.toList()),
+        fun withFirstAvailableLlmOf(vararg names: String): LlmOptions = LlmOptions(
+            modelSelectionCriteria = FallbackByNameModelSelectionCriteria(names.toList()),
         )
 
         operator fun invoke(
             criteria: ModelSelectionCriteria,
-        ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = criteria,
+        ): LlmOptions = LlmOptions(
+            modelSelectionCriteria = criteria,
         )
 
         @JvmStatic
         fun fromCriteria(
             criteria: ModelSelectionCriteria,
-        ): BuildableLlmOptions = BuildableLlmOptions(
-            criteria = criteria,
+        ): LlmOptions = LlmOptions(
+            modelSelectionCriteria = criteria,
         )
     }
-
-}
-
-data class BuildableLlmOptions(
-    override val criteria: ModelSelectionCriteria = PlatformDefault,
-    override val temperature: Double? = null,
-    override val frequencyPenalty: Double? = null,
-    override val maxTokens: Int? = null,
-    override val presencePenalty: Double? = null,
-    override val topK: Int? = null,
-    override val topP: Double? = null,
-    override val thinking: Thinking? = null,
-    override val timeout: Duration? = null,
-) : LlmOptions {
-
-    /**
-     * Create a copy with a default temperature for the LLM.
-     * If null, uses the default temperature for the model.
-     */
-    fun withTemperature(temperature: Double?): BuildableLlmOptions {
-        return copy(temperature = temperature)
-    }
-
-    fun withModel(model: String): BuildableLlmOptions {
-        return copy(criteria = criteria)
-    }
-
-    fun withMaxTokens(maxTokens: Int): BuildableLlmOptions {
-        return copy(maxTokens = maxTokens)
-    }
-
-    fun withTopK(topK: Int): BuildableLlmOptions {
-        return copy(topK = topK)
-    }
-
-    fun withTopP(topP: Double): BuildableLlmOptions {
-        return copy(topP = topP)
-    }
-
-    fun withFrequencyPenalty(frequencyPenalty: Double): BuildableLlmOptions {
-        return copy(frequencyPenalty = frequencyPenalty)
-    }
-
-    fun withPresencePenalty(presencePenalty: Double): BuildableLlmOptions {
-        return copy(presencePenalty = presencePenalty)
-    }
-
-    fun withThinking(thinking: Thinking): BuildableLlmOptions {
-        return copy(thinking = thinking)
-    }
-
-    fun withoutThinking(): BuildableLlmOptions {
-        return copy(thinking = Thinking.NONE)
-    }
-
-    fun withTimeout(timeout: Duration): BuildableLlmOptions {
-        return copy(timeout = timeout)
-    }
-
 }

@@ -21,15 +21,15 @@ public class LlmOptionsConstructionTest {
 
     @Test
     void demonstrateJavaConstructionFromModel() {
-        BuildableLlmOptions llmo1 = LlmOptions
-                .fromModel("gpt-4")
+        var llmo1 = LlmOptions
+                .withModel("gpt-4")
                 .withTemperature(0.7)
                 .withMaxTokens(1000);
     }
 
     @Test
     void demonstrateJavaConstructionFromCriteria() {
-        BuildableLlmOptions llmo1 = LlmOptions
+        var llmo1 = LlmOptions
                 .fromCriteria(ModelSelectionCriteria.byRole("best"))
                 .withTemperature(0.7)
                 .withMaxTokens(1000);
@@ -37,7 +37,7 @@ public class LlmOptionsConstructionTest {
 
     @Test
     void demonstrateJavaConstructionFromDefault() {
-        BuildableLlmOptions llmo1 = LlmOptions
+        var llmo1 = LlmOptions
                 .withDefaults()
                 .withTemperature(0.7)
                 .withMaxTokens(1000);
