@@ -20,12 +20,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.ImportRuntimeHints
 import org.springframework.shell.jline.PromptProvider
 
 /**
  * Configuration for shell-specific components
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
+@ImportRuntimeHints(
+    ShellRuntimeHints::class,
+    PersonalityResourcesRuntimeHints::class)
 @EnableConfigurationProperties(ShellProperties::class)
 class ShellConfiguration {
 

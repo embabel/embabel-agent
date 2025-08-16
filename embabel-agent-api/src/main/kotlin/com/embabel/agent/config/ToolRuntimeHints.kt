@@ -15,17 +15,20 @@
  */
 package com.embabel.agent.config
 
-import com.embabel.agent.api.common.Asyncer
-import com.embabel.agent.spi.support.ExecutorAsyncer
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import java.util.concurrent.Executor
+import com.embabel.agent.rag.tools.RagServiceTools
+import org.springframework.aot.hint.MemberCategory
+import org.springframework.aot.hint.RuntimeHints
+import org.springframework.aot.hint.RuntimeHintsRegistrar
 
-@Configuration(proxyBeanMethods=false)
-class AsyncConfiguration {
-
-    @Bean
-    fun asyncer(executor: Executor): Asyncer {
-        return ExecutorAsyncer(executor)
+/**
+ * NOTE: Spring AOT will not pick up the @Tool method if it is not in a concrete class.
+ */
+class ToolRuntimeHints : RuntimeHintsRegistrar {
+    override fun registerHints(hints: RuntimeHints, classLoader: ClassLoader?) {
+        hints.reflection().registerType(
+            RagServiceTools::class.java,
+            MemberCategory.INVOKE_DECLARED_METHODS,
+            MemberCategory.INTROSPECT_PUBLIC_METHODS
+        )
     }
 }
