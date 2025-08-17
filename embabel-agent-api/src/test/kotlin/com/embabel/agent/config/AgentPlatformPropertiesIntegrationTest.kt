@@ -32,6 +32,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
 import org.springframework.core.env.Environment
 import org.springframework.test.context.TestPropertySource
+import org.springframework.test.context.ActiveProfiles
 
 /**
  * Integration tests for AgentPlatformProperties migration from legacy to unified configuration.
@@ -158,6 +159,7 @@ import org.springframework.test.context.TestPropertySource
  * - ✅ Documents Spring Boot + Kotlin integration patterns
  */
 @SpringBootTest(classes = [AgentPlatformPropertiesIntegrationTest.TestConfiguration::class])
+@ActiveProfiles("test") // using FakeAIConfig
 @TestPropertySource(properties = [
     // New AgentPlatformProperties (var properties) - these should always work
     "embabel.agent.platform.name=test-platform",

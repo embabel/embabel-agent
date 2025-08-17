@@ -252,6 +252,8 @@ class DeprecatedPropertyScanner(
         put("embabel.autonomy", "embabel.agent.platform.autonomy")
         put("embabel.sse", "embabel.agent.platform.sse")
         put("embabel.process-id-generation", "embabel.agent.platform.process-id-generation")
+        put("embabel.agent-platform.ranking", "embabel.agent.platform.ranking")
+        put("embabel.agent-platform.scanning", "embabel.agent.platform.scanning")
     }
 
     /**

@@ -96,7 +96,7 @@ com.embabel.agent.shell.config/
   2. **Applied property binding to 8 retry properties** (AnthropicProperties + OpenAiProperties)
   3. **Dual support mechanism** - old properties (application.yml) + new properties (agent-platform.properties) work simultaneously
   4. **Val vs var Spring Boot + Kotlin discovery** - production CGLIB proxy requirements documented
-  5. **Fully functional migration system** - detects 7 deprecated @ConfigurationProperties classes with individual warnings
+  5. **Fully functional migration system** - detects all 9 deprecated @ConfigurationProperties classes with individual warnings
 - **Files Created**: AgentPlatformPropertiesLoader, DeprecatedPropertyScanner, DeprecatedPropertyScanningConfig, DeprecatedPropertyWarningConfig, SimpleDeprecatedConfigWarner + comprehensive test suite
 - **Production Validation**: System works with production-safe defaults (scanning disabled by default, warnings enabled)
 - **Details**: [Appendix B: Iteration 1 Implementation Details](#appendix-b-iteration-1---agent-platform-properties-activation--migration-system)
@@ -109,12 +109,17 @@ com.embabel.agent.shell.config/
   3. **Property Segregation**: Separated platform internals (`agent-platform.properties`) from application config (`agent-application.properties`)
   4. **Constructor Injection Pattern**: Clean dependency management for adapter classes with test utilities
   5. **E2E Migration Testing**: Comprehensive test suite validating both unified and legacy property functionality
+  6. **Complete Namespace Migration**: Fixed scanner detection gaps and migrated remaining embabel.agent-platform.* classes
+  7. **Direct Migration Completion**: RankingProperties and AgentScanningProperties prefix updates (zero deprecated classes remaining)
 - **Files Modified**:
   - `AgentPlatformConfiguration.kt` - Added AgentPlatformProperties to @EnableConfigurationProperties
   - `Autonomy.kt` - Converted to adapter class with migration comments
   - `DefaultAgentProcessIdGenerator.kt` - Converted to adapter class
   - `SseController.kt` - Converted to adapter class
   - `agent-application.properties` - Comprehensive migration documentation with property mappings
+  - `LlmRanker.kt` - Updated @ConfigurationProperties prefix: embabel.agent-platform.ranking → embabel.agent.platform.ranking
+  - `AgentScanningProperties.kt` - Updated @ConfigurationProperties prefix: embabel.agent-platform.scanning → embabel.agent.platform.scanning
+  - `DeprecatedPropertyScanner.kt` - Added missing prefix mappings for complete detection coverage
 - **Test Infrastructure**: 
   - `AgentPlatformTestExtensions.kt` - Extension functions for clean test object creation
   - `AgentPlatformPropertiesIntegrationTest.kt` - E2E testing with expected failure documentation

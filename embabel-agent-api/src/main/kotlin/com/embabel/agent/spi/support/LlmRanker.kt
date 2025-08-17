@@ -35,7 +35,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * @param backoffMultiplier multiplier for backoff time
  * @param backoffMaxInterval maximum backoff time in milliseconds
  */
-@ConfigurationProperties("embabel.agent-platform.ranking")
+@ConfigurationProperties("embabel.agent.platform.ranking")
 data class RankingProperties(
     val llm: String? = null,
     override val maxAttempts: Int = 5,

@@ -25,7 +25,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * from Agent beans
  * @see com.embabel.agent.api.annotation.Agent
  */
-@ConfigurationProperties("embabel.agent-platform.scanning")
+@ConfigurationProperties("embabel.agent.platform.scanning")
 data class AgentScanningProperties(
     val annotation: Boolean = true,
     val bean: Boolean = false,
