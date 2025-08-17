@@ -27,6 +27,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
 import org.springframework.core.env.Environment
@@ -156,10 +157,7 @@ import org.springframework.test.context.TestPropertySource
  * - ✅ Shows property source precedence in action
  * - ✅ Documents Spring Boot + Kotlin integration patterns
  */
-@SpringBootTest(
-    classes = [AgentPlatformPropertiesIntegrationTest.AgentPlatformPropertiesTestConfiguration::class],
-    webEnvironment = SpringBootTest.WebEnvironment.NONE
-)
+@SpringBootTest(classes = [AgentPlatformPropertiesIntegrationTest.TestConfiguration::class])
 @TestPropertySource(properties = [
     // New AgentPlatformProperties (var properties) - these should always work
     "embabel.agent.platform.name=test-platform",
@@ -185,7 +183,7 @@ import org.springframework.test.context.TestPropertySource
     "embabel.agent.platform.test.mock-mode=false",
 
     // Migration scanning config (var properties) - known to work with environment variables
-    "embabel.agent.platform.migration.scanning.enabled=false",  // Disable to avoid duplicate bean conflicts
+    "embabel.agent.platform.migration.scanning.enabled=true",
     "embabel.agent.platform.migration.scanning.include-packages[0]=com.embabel.agent",
     "embabel.agent.platform.migration.scanning.include-packages[1]=com.test.package",
 
@@ -414,41 +412,22 @@ class AgentPlatformPropertiesIntegrationTest {
     }
 
     @EnableConfigurationProperties(
-        AgentPlatformProperties::class
-        // DeprecatedPropertyScanningConfig is already provided by the main application
+        AgentPlatformProperties::class,
+        DeprecatedPropertyScanningConfig::class
     )
-    @TestConfiguration
-    class AgentPlatformPropertiesTestConfiguration {
+    class TestConfiguration {
 
-        /**
-         * Create AutonomyProperties bean for E2E testing of migration.
-         * Tests that the legacy adapter class gets correct values from AgentPlatformProperties.
-         * @Primary overrides the main application @Component bean for testing.
-         */
         @Bean
-        @Primary
         fun autonomyProperties(platformProperties: AgentPlatformProperties): AutonomyProperties {
             return AutonomyProperties(platformProperties)
         }
 
-        /**
-         * Create DefaultProcessIdGeneratorProperties bean for E2E testing of migration.
-         * Tests that the legacy adapter class gets correct values from AgentPlatformProperties.
-         * @Primary overrides the main application @Component bean for testing.
-         */
         @Bean
-        @Primary
         fun defaultProcessIdGeneratorProperties(platformProperties: AgentPlatformProperties): DefaultProcessIdGeneratorProperties {
             return DefaultProcessIdGeneratorProperties(platformProperties)
         }
 
-        /**
-         * Create SseProperties bean for E2E testing of migration.
-         * Tests that the legacy adapter class gets correct values from AgentPlatformProperties.
-         * @Primary overrides the main application @Component bean for testing.
-         */
         @Bean
-        @Primary
         fun sseProperties(platformProperties: AgentPlatformProperties): SseProperties {
             return SseProperties(platformProperties)
         }
