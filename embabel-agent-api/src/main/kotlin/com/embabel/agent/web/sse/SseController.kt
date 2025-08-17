@@ -15,11 +15,13 @@
  */
 package com.embabel.agent.web.sse
 
+import com.embabel.agent.config.AgentPlatformProperties
 import com.embabel.agent.event.AgentProcessEvent
 import com.embabel.agent.event.AgenticEventListener
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE
+import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RestController
@@ -28,12 +30,13 @@ import java.io.IOException
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
-@ConfigurationProperties(prefix = "embabel.sse")
-data class SseProperties(
-    var maxBufferSize: Int = 100,
-    var maxProcessBuffers: Int = 1000
-
-)
+// MIGRATED: @ConfigurationProperties(prefix = "embabel.sse") → AgentPlatformProperties.sse
+// Properties now sourced from embabel.agent.platform.sse.* in agent-platform.properties
+@Component
+class SseProperties(platformProperties: AgentPlatformProperties) {
+    val maxBufferSize: Int = platformProperties.sse.maxBufferSize
+    val maxProcessBuffers: Int = platformProperties.sse.maxProcessBuffers
+}
 
 /**
  * Spring Controller for Server-Sent Events (SSE) streaming of AgentProcessEvents.

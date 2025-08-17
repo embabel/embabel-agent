@@ -22,6 +22,8 @@ import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.spi.Ranking
 import com.embabel.agent.spi.Rankings
 import com.embabel.agent.testing.integration.FakeRanker
+import com.embabel.agent.config.AgentPlatformProperties
+import com.embabel.agent.testing.integration.forAutonomyTesting
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
 import io.mockk.*
@@ -151,7 +153,7 @@ class AutonomyAgentSelectionTest {
         val autonomy = Autonomy(
             agentPlatform = agentPlatform,
             ranker = highScoreRanker,
-            properties = AutonomyProperties(agentConfidenceCutOff = 0.5),
+            properties = forAutonomyTesting(agentConfidenceCutOff = 0.5),
         )
 
         // Execute the real method - no mocking of chooseAndRunAgent
@@ -258,7 +260,7 @@ class AutonomyAgentSelectionTest {
         val autonomy = Autonomy(
             agentPlatform = agentPlatform,
             ranker = lowScoreRanker,
-            properties = AutonomyProperties(agentConfidenceCutOff = 0.5),
+            properties = forAutonomyTesting(agentConfidenceCutOff = 0.5),
         )
 
         // Execute and verify exception is thrown

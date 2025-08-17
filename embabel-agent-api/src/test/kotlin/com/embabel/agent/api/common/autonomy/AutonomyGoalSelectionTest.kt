@@ -22,6 +22,8 @@ import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.spi.Ranking
 import com.embabel.agent.spi.Rankings
 import com.embabel.agent.testing.integration.FakeRanker
+import com.embabel.agent.config.AgentPlatformProperties
+import com.embabel.agent.testing.integration.forAutonomyTesting
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
 import io.mockk.*
@@ -172,7 +174,7 @@ class AutonomyGoalSelectionTest {
         val autonomy = Autonomy(
             agentPlatform = agentPlatform,
             ranker = testRanker,
-            properties = AutonomyProperties(
+            properties = forAutonomyTesting(
                 goalConfidenceCutOff = 0.5,  // Our test goal (0.8) should be above this
                 agentConfidenceCutOff = 0.5
             ),
@@ -328,7 +330,7 @@ class AutonomyGoalSelectionTest {
         val autonomy = Autonomy(
             agentPlatform = agentPlatform,
             ranker = lowScoreRanker,
-            properties = AutonomyProperties(goalConfidenceCutOff = 0.5),
+            properties = forAutonomyTesting(goalConfidenceCutOff = 0.5),
         )
 
         // Execute and verify the exception is thrown

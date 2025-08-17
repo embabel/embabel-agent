@@ -19,14 +19,17 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.spi.AgentProcessIdGenerator
 import com.embabel.common.core.NameGenerator
-import org.springframework.boot.context.properties.ConfigurationProperties
+import com.embabel.agent.config.AgentPlatformProperties
+import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 
-@ConfigurationProperties("embabel.process-id-generation")
-data class DefaultProcessIdGeneratorProperties(
-    val includeVersion: Boolean = false,
-    val includeAgentName: Boolean = false,
-)
+// MIGRATED: @ConfigurationProperties("embabel.process-id-generation") → AgentPlatformProperties.processIdGeneration
+// Properties now sourced from embabel.agent.platform.process-id-generation.* in agent-platform.properties
+@Component
+class DefaultProcessIdGeneratorProperties(platformProperties: AgentPlatformProperties) {
+    val includeVersion: Boolean = platformProperties.processIdGeneration.includeVersion
+    val includeAgentName: Boolean = platformProperties.processIdGeneration.includeAgentName
+}
 
 /**
  * Create an informative process ID for the agent process.

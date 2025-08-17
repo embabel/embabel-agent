@@ -32,7 +32,8 @@ import com.embabel.common.util.loggerFor
 import com.embabel.plan.goap.AStarGoapPlanner
 import com.embabel.plan.goap.ConditionDetermination
 import com.embabel.plan.goap.WorldStateDeterminer
-import org.springframework.boot.context.properties.ConfigurationProperties
+import com.embabel.agent.config.AgentPlatformProperties
+import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 
 
@@ -43,11 +44,13 @@ import org.springframework.stereotype.Service
  * @param agentConfidenceCutOff Agent confidence cut-off, between 0 and 1, which is required
  * to have confidence in executing the most promising agent.
  */
-@ConfigurationProperties("embabel.autonomy")
-data class AutonomyProperties(
-    val goalConfidenceCutOff: ZeroToOne = 0.6,
-    val agentConfidenceCutOff: ZeroToOne = 0.6,
-)
+// MIGRATED: @ConfigurationProperties("embabel.autonomy") → AgentPlatformProperties.autonomy
+// Properties now sourced from embabel.agent.platform.autonomy.* in agent-platform.properties
+@Component
+class AutonomyProperties(platformProperties: AgentPlatformProperties) {
+    val goalConfidenceCutOff: ZeroToOne = platformProperties.autonomy.goalConfidenceCutOff
+    val agentConfidenceCutOff: ZeroToOne = platformProperties.autonomy.agentConfidenceCutOff
+}
 
 /**
  * Can override platform-wide AutonomyProperties
