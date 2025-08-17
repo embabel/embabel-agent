@@ -1044,6 +1044,16 @@ You would need to add Embabel Snapshot Repository to your pom.xml or configure i
         <id>embabel-snapshots</id>
         <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
         <snapshots>
+            <enabled>false</enabled>
+        </snapshots>
+    </repository>
+    <repository>
+        <id>embabel-snapshots</id>
+        <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
+        <releases>
+            <enabled>false</enabled>
+        </releases>
+        <snapshots>
             <enabled>true</enabled>
         </snapshots>
     </repository>
