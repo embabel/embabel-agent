@@ -11,6 +11,10 @@
     <name>Embabel Agent Rag</name>
     <description>Embabel Agent Rag</description>
 
+    <properties>
+        <neo4j-ogm-spring-boot-starter.version>1.3.0</neo4j-ogm-spring-boot-starter.version>
+    </properties>
+
     <dependencies>
         <!-- Main Dependencies -->
         <dependency>
@@ -33,7 +37,7 @@
         <dependency>
             <groupId>org.neo4j</groupId>
             <artifactId>neo4j-ogm-spring-boot-starter</artifactId>
-            <version>1.3.0</version>
+            <version>${neo4j-ogm-spring-boot-starter.version}</version>
         </dependency>
 
         <!-- TODO could move RAG in here and not need this -->
@@ -51,7 +55,6 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>neo4j</artifactId>
-            <version>1.21.3</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
