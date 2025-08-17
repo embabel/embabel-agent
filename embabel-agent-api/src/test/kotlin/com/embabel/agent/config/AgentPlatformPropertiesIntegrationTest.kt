@@ -28,6 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.context.annotation.Primary
 import org.springframework.core.env.Environment
 import org.springframework.test.context.TestPropertySource
 
@@ -422,8 +423,10 @@ class AgentPlatformPropertiesIntegrationTest {
         /**
          * Create AutonomyProperties bean for E2E testing of migration.
          * Tests that the legacy adapter class gets correct values from AgentPlatformProperties.
+         * @Primary overrides the main application @Component bean for testing.
          */
         @Bean
+        @Primary
         fun autonomyProperties(platformProperties: AgentPlatformProperties): AutonomyProperties {
             return AutonomyProperties(platformProperties)
         }
@@ -431,8 +434,10 @@ class AgentPlatformPropertiesIntegrationTest {
         /**
          * Create DefaultProcessIdGeneratorProperties bean for E2E testing of migration.
          * Tests that the legacy adapter class gets correct values from AgentPlatformProperties.
+         * @Primary overrides the main application @Component bean for testing.
          */
         @Bean
+        @Primary
         fun defaultProcessIdGeneratorProperties(platformProperties: AgentPlatformProperties): DefaultProcessIdGeneratorProperties {
             return DefaultProcessIdGeneratorProperties(platformProperties)
         }
@@ -440,8 +445,10 @@ class AgentPlatformPropertiesIntegrationTest {
         /**
          * Create SseProperties bean for E2E testing of migration.
          * Tests that the legacy adapter class gets correct values from AgentPlatformProperties.
+         * @Primary overrides the main application @Component bean for testing.
          */
         @Bean
+        @Primary
         fun sseProperties(platformProperties: AgentPlatformProperties): SseProperties {
             return SseProperties(platformProperties)
         }

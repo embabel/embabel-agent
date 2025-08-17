@@ -70,6 +70,7 @@ class DeprecatedPropertyScannerTest {
         every { scanningConfig.enabled } returns true
         every { scanningConfig.includePackages } returns listOf("com.example.test")
         every { scanningConfig.shouldIncludePackage(any()) } returns true
+        every { propertyWarner.logAggregatedSummary() } just Runs
 
         // When
         scanner.afterSingletonsInstantiated()
@@ -79,6 +80,7 @@ class DeprecatedPropertyScannerTest {
         verify { propertyWarnerProvider.getIfAvailable() }
         verify { scanningConfig.enabled }
         verify(atLeast = 1) { scanningConfig.includePackages }
+        verify { propertyWarner.logAggregatedSummary() }
         // Note: Full scanning behavior would require more complex mocking of Spring's resource resolution
     }
 
