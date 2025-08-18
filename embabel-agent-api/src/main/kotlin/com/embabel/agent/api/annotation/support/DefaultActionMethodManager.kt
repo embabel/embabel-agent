@@ -49,6 +49,7 @@ internal class DefaultActionMethodManager(
         instance: Any,
         toolCallbacksOnInstance: List<ToolCallback>,
     ): Action {
+        requireNonAmbiguousParameters(method)
         val actionAnnotation = method.getAnnotation(com.embabel.agent.api.annotation.Action::class.java)
         val inputClasses = method.parameters
             .map { it.type }
