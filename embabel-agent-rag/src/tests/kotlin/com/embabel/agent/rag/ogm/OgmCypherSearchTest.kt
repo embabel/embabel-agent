@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired
 
 @NeoIntegrationTest
 class OgmCypherSearchTest(
-    @Autowired private var ogmCypherSearch: OgmCypherSearch) {
+    @Autowired private val ogmCypherSearch: OgmCypherSearch) {
 
     @Test
     fun should_query() {

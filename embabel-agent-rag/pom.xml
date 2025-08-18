@@ -57,6 +57,14 @@
             <artifactId>neo4j</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.neo4j.procedure</groupId>
+            <artifactId>apoc-extended</artifactId>
+            <version>5.26.0</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
