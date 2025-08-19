@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable
 import org.neo4j.driver.AuthTokens
 import org.neo4j.driver.Driver
 import org.neo4j.driver.GraphDatabase
@@ -26,6 +27,7 @@ import org.neo4j.driver.Session
 import org.springframework.beans.factory.annotation.Autowired
 import kotlin.test.assertEquals
 
+@DisabledIfEnvironmentVariable(named = "SKIP_TESTCONTAINER_TESTS", matches = "true")
 @NeoIntegrationTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class Neo4jTestContainerTest(
