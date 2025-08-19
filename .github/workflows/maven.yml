@@ -28,11 +28,11 @@ jobs:
           cache: maven
       - name: Configure Testcontainers (Windows)
         if: matrix.os == 'windows-latest'
-        env:
-          SKIP_TESTCONTAINER_TESTS: true  # Do not run TestContainer Tests in Windows Matrix Build.
         run: |
           echo "testcontainers.reuse.enable=true" > $env:USERPROFILE\.testcontainers.properties
       - name: Build and test
+        env:
+          SKIP_TESTCONTAINER_TESTS: true  # Do not run TestContainer Tests in Windows Matrix Build.
         run: mvn -U -B test verify
       - name: Linux-specific setup and SonarCloud analysis
         if: matrix.os == 'ubuntu-latest'
