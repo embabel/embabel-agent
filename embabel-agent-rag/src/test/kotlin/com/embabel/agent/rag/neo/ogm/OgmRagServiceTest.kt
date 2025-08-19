@@ -19,11 +19,13 @@ import com.embabel.agent.rag.RagRequest
 import com.embabel.common.ai.model.Llm
 import com.embabel.test.NeoIntegrationTestSupport
 import io.mockk.every
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import kotlin.test.assertEquals
 
-
+@DisabledIfEnvironmentVariable(named = "SKIP_TESTCONTAINER_TESTS", matches = "true")
 class OgmRagServiceTest(
     @param:Autowired @param:Qualifier("best")
     private val cypherGenerationLlm: Llm,
@@ -56,7 +58,7 @@ class OgmRagServiceTest(
         }
     }
 
-    //    @Test
+    @Test
     fun `should find nothing in empty db`() {
         createVectorIndexes()
         every { cypherGenerationLlm.model.call(any<String>()) } returns "MATCH (n) WHERE n.name CONTAINS 'test' RETURN n"
