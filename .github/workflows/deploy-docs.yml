@@ -106,6 +106,7 @@ jobs:
           gcloud compute ssh ${{ github.event.inputs.vm_instance }} \
             --zone=${{ github.event.inputs.vm_zone }} \
             --command="
+              sudo rm -rf /var/www/html/embabel-agent &&
               sudo mkdir -p /var/www/html/embabel-agent/guide &&
               sudo mkdir -p /var/www/html/embabel-agent/api-docs &&
               sudo cp ~/index.html /var/www/html/embabel-agent/guide/ &&
