@@ -129,6 +129,7 @@
                                 <dir>${project.parent.basedir}/embabel-agent-eval/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-rag/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-shell/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-discord/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-ux/src/main/kotlin</dir>
                             </sourceDirectories>
                             <samples>
