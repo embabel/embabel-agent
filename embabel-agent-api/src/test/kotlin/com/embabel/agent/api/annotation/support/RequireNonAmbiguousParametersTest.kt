@@ -17,10 +17,12 @@ package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.api.annotation.RequireNameMatch
+import com.embabel.agent.core.IoBinding
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Method
+import kotlin.test.assertEquals
 
 class RequireNonAmbiguousParametersTest {
 
@@ -60,6 +62,18 @@ class RequireNonAmbiguousParametersTest {
             @RequireNameMatch c: String,
         ) {
         }
+
+        @Condition
+        fun annotatedWithValue(
+            @RequireNameMatch("bindingX") a: String,
+        ) {
+        }
+
+        @Condition
+        fun annotatedWithoutValue(
+            @RequireNameMatch a: String,
+        ) {
+        }
     }
 
     private fun method(name: String): Method = Demo::class.java.declaredMethods.first { it.name == name }
@@ -96,5 +110,33 @@ class RequireNonAmbiguousParametersTest {
     fun `three parameters same type all annotated`() {
         val m = method("threeSameTypeAllAnnotated")
         assertDoesNotThrow { requireNonAmbiguousParameters(m) }
+    }
+
+    // Tests for getParameterName
+    @Test
+    fun `getParameterName returns annotation value when provided`() {
+        val m = method("annotatedWithValue")
+        val p = m.parameters[0]
+        val ann = p.getAnnotation(RequireNameMatch::class.java)
+        val result = getBindingParameterName(p, ann)
+        assertEquals("bindingX", result)
+    }
+
+    @Test
+    fun `getParameterName returns parameter name when annotation value is blank`() {
+        val m = method("annotatedWithoutValue")
+        val p = m.parameters[0]
+        val ann = p.getAnnotation(RequireNameMatch::class.java)
+        val expected = p.name
+        val result = getBindingParameterName(p, ann)
+        assertEquals(expected, result)
+    }
+
+    @Test
+    fun `getParameterName returns DEFAULT_BINDING when annotation is null`() {
+        val m = method("distinctTypes")
+        val p = m.parameters[0]
+        val result = getBindingParameterName(p, null)
+        assertEquals(IoBinding.DEFAULT_BINDING, result)
     }
 }

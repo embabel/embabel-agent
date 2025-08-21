@@ -310,11 +310,7 @@ class AgentMetadataReader(
                 else -> {
                     val requireNameMatch = parameter.getAnnotation(RequireNameMatch::class.java)
                     val domainTypes = context.agentProcess.agent.jvmTypes.map { it.clazz }
-                    val variable = if (requireNameMatch != null) {
-                        parameter.name
-                    } else {
-                        IoBinding.DEFAULT_BINDING
-                    }
+                    val variable = getBindingParameterName(parameter, requireNameMatch)
                     args += context.getValue(
                         variable = variable,
                         type = parameter.type.name,
