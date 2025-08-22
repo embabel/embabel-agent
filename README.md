@@ -1,5 +1,7 @@
 # Embabel Agent Framework
 
+<img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180">
+
 ![Build](https://github.com/embabel/embabel-agent/actions/workflows/maven.yml/badge.svg)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=embabel_embabel-agent&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=embabel_embabel-agent)
 [![Discord](https://img.shields.io/discord/1277751399261798401?logo=discord)](https://discord.gg/t6bjkyj93q)
@@ -24,11 +26,6 @@
 [![License](https://img.shields.io/github/license/embabel/embabel-agent?style=for-the-badge&logo=apache&color=brightgreen)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Commits](https://img.shields.io/github/commit-activity/m/embabel/embabel-agent.svg?label=commits&style=for-the-badge&logo=git&logoColor=white)](https://github.com/embabel/embabel-agent/pulse)
 
-
-
-
-<img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180">
-
 &nbsp;&nbsp;&nbsp;&nbsp;
 
 Embabel (Em-BAY-bel) is a framework for authoring agentic flows on the JVM that seamlessly mix LLM-prompted interactions
@@ -37,6 +34,8 @@ intelligent path finding towards goals. Written in Kotlin
 but offers a natural usage
 model from Java.
 From the creator of Spring.
+
+&nbsp;
 
 ## Key Concepts
 
