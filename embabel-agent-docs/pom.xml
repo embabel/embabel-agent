@@ -80,6 +80,7 @@
                                 <docinfo>shared</docinfo>
                                 <source-highlighter>rouge</source-highlighter>
                                 <icons>font</icons>
+                                <iconfont-remote>true</iconfont-remote>
                                 <pagenums/>
                                 <toc/>
                                 <idprefix/>
@@ -102,6 +103,8 @@
                                 <icons>font</icons>
                                 <pagenums/>
                                 <toc>left</toc>
+                                <sectanchors>true</sectanchors>
+                                <toclevels>3</toclevels>
                                 <idprefix/>
                                 <idseparator>-</idseparator>
                             </attributes>

@@ -1,0 +1,94 @@
+<!-- src/main/asciidoc/docinfo-footer.html -->
+<script src="https://cdn.jsdelivr.net/npm/@asciidoctor/tabs@1/dist/js/asciidoctor-tabs.js"></script>
+<script>
+    (function () {
+        function initTabs() {
+            var blocks = document.querySelectorAll('.tabs, .dlist.tabs, [data-tabs]');
+            console.log('[tabs] found blocks:', blocks.length, blocks);
+            if (window.AsciidoctorTabs?.enable) {
+                AsciidoctorTabs.enable();
+                console.log('[tabs] enabled via enable()');
+            } else if (window.AsciidoctorTabs?.init) {
+                AsciidoctorTabs.init();
+                console.log('[tabs] enabled via init()');
+            } else {
+                console.warn('[tabs] library not loaded');
+            }
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initTabs);
+        } else {
+            initTabs();
+        }
+    })();
+</script>
+
+<script>
+    (function () {
+        function makeTabs(example) {
+            const dl = example.querySelector('dl');
+            if (!dl) return;
+            const pairs = [];
+            for (let n = dl.firstElementChild; n; n = n.nextElementSibling) {
+                if (n.tagName !== 'DT') continue;
+                const dt = n, dd = dt.nextElementSibling;
+                if (!dd || dd.tagName !== 'DD') continue;
+                pairs.push({ label: dt.textContent.trim(), content: dd.innerHTML });
+            }
+            if (!pairs.length) return;
+
+            const tabset = document.createElement('div');
+            tabset.className = 'adoc-tabset';
+            const tabs = document.createElement('div');
+            tabs.className = 'adoc-tab-headers';
+            const panels = document.createElement('div');
+            panels.className = 'adoc-tab-panels';
+
+            pairs.forEach((p, i) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'adoc-tab' + (i ? '' : ' selected');
+                btn.textContent = p.label;
+                btn.addEventListener('click', () => {
+                    tabs.querySelectorAll('.adoc-tab').forEach(b => b.classList.remove('selected'));
+                    panels.querySelectorAll('.adoc-panel').forEach(pn => pn.classList.remove('active'));
+                    btn.classList.add('selected');
+                    panels.children[i].classList.add('active');
+                });
+                tabs.appendChild(btn);
+
+                const pane = document.createElement('div');
+                pane.className = 'adoc-panel' + (i ? '' : ' active');
+                pane.innerHTML = p.content;
+                panels.appendChild(pane);
+            });
+
+            tabset.appendChild(tabs);
+            tabset.appendChild(panels);
+            const content = example.querySelector('.content') || example;
+            content.innerHTML = '';
+            content.appendChild(tabset);
+        }
+
+        function init() {
+            document.querySelectorAll('.exampleblock.tabs, .openblock.tabs')
+                .forEach(makeTabs);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+</script>
+
+<style>
+    .adoc-tabset{border:1px solid transparent}
+    .adoc-tab-headers{display:flex;gap:.5rem;margin:0 0 .5rem 0;flex-wrap:wrap}
+    .adoc-tab{border:1px solid #444;padding:.35rem .6rem;background:#131313;cursor:pointer}
+    .adoc-tab.selected{border-color:#e11d48}
+    .adoc-tab-panels{border:1px solid #444;background:#131313}
+    .adoc-panel{display:none;padding:1rem}
+    .adoc-panel.active{display:block}
+</style>

@@ -1,0 +1,11 @@
+<script src="https://cdn.jsdelivr.net/npm/@asciidoctor/tabs@1/dist/js/asciidoctor-tabs.js"></script>
+<script>
+    // Initialize tabs after the page is ready
+    window.addEventListener('DOMContentLoaded', function () {
+        if (window.AsciidoctorTabs && AsciidoctorTabs.enable) {
+            AsciidoctorTabs.enable();     // init for current versions
+        } else if (window.AsciidoctorTabs && AsciidoctorTabs.init) {
+            AsciidoctorTabs.init();       // fallback for older builds
+        }
+    });
+</script>

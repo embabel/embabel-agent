@@ -15,10 +15,10 @@
     --link-color: #4da6ff;
     --link-hover-color: #80bfff;
     --heading-color: #63c0f5;
-    --code-bg-color: #2d2d2d;
+    --code-bg-color: #131313;
     --code-text-color: #f8f8f2;
     --quote-bg-color: #2a2a2a;
-    --quote-border-color: #444444;
+    --quote-border-color: #FF4444;
     --table-header-bg: #2d2d2d;
     --table-border-color: #444444;
     --table-alt-bg: #292929;
@@ -27,17 +27,95 @@
     --admonition-important-bg: #663c00;
     --admonition-warning-bg: #7a3300;
     --admonition-caution-bg: #7a0000;
+    --toc-min: 12rem;                     /* smallest TOC */
+    --toc-ideal: 22vw;                    /* preferred responsive TOC */
+    --toc-max: 20rem;                     /* largest TOC */
+    --gutter: clamp(20px, 2vw, 40px);
+    --header-height: 100px;
+    --toc-width: clamp(var(--toc-min), var(--toc-ideal), var(--toc-max));
 }
 
 /* Basic elements */
+/* === Cross-platform system fonts (no imports) === */
 html, body {
-    background-color: var(--bg-color) !important;
-    color: var(--text-color) !important;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol" !important;
     font-weight: 400;
     line-height: 1.6;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;              /* avoid negative tracking for Windows */
 }
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol" !important;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+pre, code, tt {
+    font-family: "SFMono-Regular", "Cascadia Mono", "Consolas",
+    "Liberation Mono", "Menlo", monospace !important;
+    font-weight: 400;
+    font-variant-ligatures: none;   /* avoids distracting ligatures */
+}
+
+/* Optional: slightly crisper type on WebKit/Blink (no effect on Firefox) */
+html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+html, body { height: 100%; margin: 0; }
+body { overflow: hidden; }            /* page itself doesn't scroll */
+
+/* Header (currently hidden) */
+#site-header{
+    position: fixed; inset: 0 0 auto 0;
+    height: var(--header-height);
+    z-index: 1000;
+    display: none;                      /* keep if you don't want it yet */
+    background:#111; color:#fff; padding:0 1rem;
+}
+
+#toc{
+    position: fixed;
+    top: var(--header-height);
+    bottom: 0;
+    left: 0;
+    width: var(--toc-width);           /* responsive */
+    overflow: auto;
+    z-index: 900;
+    background:#0b0b0b; padding:1rem; box-sizing:border-box;
+}
+
+#content{
+    position: fixed;
+    top: var(--header-height);
+    bottom: 0;
+    left: calc(var(--toc-width) + 25px);
+    right: var(--gutter);
+    z-index: 950;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background:#000;
+    padding: 1.25rem 1.5rem;
+    box-sizing: border-box;
+    scrollbar-gutter: stable;
+}
+
+/* Optional: guard against sub-pixel rounding on some zoom levels */
+@media (min-width: 961px){
+    #content{ border-left: 0.01px solid transparent; } /* forces proper stacking in a few browsers */
+}
+
+/* Narrow screens: hide TOC, let content take full width */
+@media (max-width: 960px){
+    #toc{ display:none !important; z-index:-1; }
+    #content{ left: 0; }
+}
+
 
 /* Links */
 a, a:hover, a:focus {
@@ -428,4 +506,376 @@ kbd {
     a, a:visited {
         color: var(--link-color) !important;
     }
+}
+
+/* ==== High-contrast code palette (override safely) ==== */
+:root {
+    /* tweak these with your site colors */
+    --code-fg: #f8f8f2;
+    --code-bg: #1f1f24;      /* a hair lighter than #1e1e1e for separation */
+    --code-border: #3d3d46;
+
+    /* token colors (no “navy”) */
+    --code-kw:   #ff79c6;    /* keywords */
+    --code-str:  #f1fa8c;    /* strings */
+    --code-com:  #8aa0c4;    /* comments (brighter than #6272a4) */
+    --code-num:  #bd93f9;    /* numbers/literals */
+    --code-type: #8be9fd;    /* class/type names */
+    --code-fn:   #50fa7b;    /* function names */
+    --code-meta: #ffb86c;    /* annotations/@meta */
+    --code-var:  #e6e6e6;    /* variables/identifiers */
+}
+
+/* Base code blocks */
+pre,
+.listingblock pre,
+.literalblock pre,
+.sourceblock pre,
+pre code {
+    background: var(--code-bg) !important;
+    color: var(--code-fg) !important;
+    border: 1px solid var(--code-border) !important;
+    border-radius: 6px !important;
+    overflow-x: auto;
+}
+
+/* Inline code */
+code, tt {
+    background: var(--code-bg) !important;
+    color: var(--code-fg) !important;
+    border: 1px solid transparent;
+    padding: 0.15em 0.4em !important;
+    border-radius: 4px !important;
+}
+
+/* ===== highlight.js ===== */
+.hljs, .hljs-subst       { color: var(--code-fg) !important; background: var(--code-bg) !important; }
+.hljs-keyword            { color: var(--code-kw) !important; }
+.hljs-string             { color: var(--code-str) !important; }
+.hljs-number, .hljs-literal { color: var(--code-num) !important; }
+.hljs-type, .hljs-class .hljs-title { color: var(--code-type) !important; }
+.hljs-function .hljs-title { color: var(--code-fn) !important; }
+.hljs-attr, .hljs-params { color: var(--code-meta) !important; }
+.hljs-comment, .hljs-quote { color: var(--code-com) !important; font-style: italic; }
+.hljs-variable, .hljs-name { color: var(--code-var) !important; }
+
+/* ===== Prism ===== */
+.token.keyword     { color: var(--code-kw) !important; }
+.token.string      { color: var(--code-str) !important; }
+.token.number,
+.token.boolean     { color: var(--code-num) !important; }
+.token.class-name,
+.token.type        { color: var(--code-type) !important; }
+.token.function    { color: var(--code-fn) !important; }
+.token.atrule,
+.token.attr-name,
+.token.attr-value  { color: var(--code-meta) !important; }
+.token.comment     { color: var(--code-com) !important; font-style: italic; }
+.token.variable    { color: var(--code-var) !important; }
+
+/* ===== Rouge (default Asciidoctor HTML) ===== */
+.rouge pre, pre.rouge { background: var(--code-bg) !important; color: var(--code-fg) !important; }
+.rouge .k, .rouge .kd, .rouge .kn, .rouge .kr   { color: var(--code-kw) !important; }   /* keywords */
+.rouge .s, .rouge .sb, .rouge .sc, .rouge .s1,
+.rouge .s2, .rouge .sh, .rouge .si, .rouge .sx  { color: var(--code-str) !important; }  /* strings */
+.rouge .c, .rouge .c1, .rouge .cm, .rouge .cp   { color: var(--code-com) !important; font-style: italic; } /* comments */
+.rouge .mi, .rouge .mf, .rouge .mh, .rouge .il  { color: var(--code-num) !important; }  /* numbers */
+.rouge .nc, .rouge .nn, .rouge .no              { color: var(--code-type) !important; } /* classes/types */
+.rouge .nf                                       { color: var(--code-fn) !important; }   /* functions */
+.rouge .na, .rouge .nv, .rouge .vc, .rouge .vg  { color: var(--code-var) !important; }   /* variables */
+.rouge .nd, .rouge .ne, .rouge .nt              { color: var(--code-meta) !important; }  /* meta/attrs */
+
+/* ===== CodeRay (older setups) ===== */
+.CodeRay { background: var(--code-bg) !important; color: var(--code-fg) !important; }
+.CodeRay .kw { color: var(--code-kw) !important; }
+.CodeRay .st { color: var(--code-str) !important; }
+.CodeRay .co { color: var(--code-com) !important; font-style: italic; }
+.CodeRay .i, .CodeRay .fl { color: var(--code-num) !important; }
+.CodeRay .dt, .CodeRay .ty { color: var(--code-type) !important; }
+.CodeRay .fu { color: var(--code-fn) !important; }
+.CodeRay .an, .CodeRay .re { color: var(--code-meta) !important; }
+.CodeRay .iv, .CodeRay .bk { color: var(--code-var) !important; }
+
+/* Ensure links inside code don’t turn “navy” */
+pre a, code a {
+    color: var(--link-color) !important;
+    text-decoration: underline;
+}
+
+/* ===== Operators & Punctuation (fix unreadable braces, = etc.) ===== */
+
+/* highlight.js */
+.hljs-operator,
+.hljs-punctuation {
+    color: var(--code-fg) !important; /* same as base text, but enforced */
+    font-weight: 500;
+}
+
+/* Prism */
+.token.operator,
+.token.punctuation {
+    color: var(--code-fg) !important;
+}
+
+/* Rouge */
+.rouge .o,   /* operators */
+.rouge .p    /* punctuation */
+{
+    color: var(--code-fg) !important;
+    font-weight: 500;
+}
+
+/* CodeRay */
+.CodeRay .op,
+.CodeRay .dl, /* delimiters */
+.CodeRay .sy  /* symbols */
+{
+    color: var(--code-fg) !important;
+    font-weight: 500;
+}
+
+/* ===== Custom Site Palette Overrides ===== */
+:root {
+    --bg-color:       #000000;  /* page background */
+    --text-color:     #f4f4f4;  /* main text (light neutral) */
+    --code-bg:        #161413;  /* code block background */
+    --code-border:    #2a2a2a;  /* subtle border for code */
+
+    /* brand code token colors */
+    --code-color1: #9f77cd; /* purple */
+    --code-color2: #3fd73c; /* green */
+    --code-color3: #596f8c; /* blue-gray */
+    --code-color4: #e9b306; /* amber/yellow */
+    --code-color5: #ef4444; /* red */
+    --code-fg:    #f8f8f2; /* fallback default */
+}
+
+/* Base code block styles */
+pre,
+.listingblock pre,
+.literalblock pre,
+.sourceblock pre,
+pre code {
+    background: var(--code-bg) !important;
+    color: var(--code-fg) !important;
+    border: 1px solid var(--code-border) !important;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+
+/* Inline code */
+code, tt {
+    background: var(--code-bg) !important;
+    color: var(--code-fg) !important;
+    padding: 0.15em 0.4em !important;
+    border-radius: 4px !important;
+}
+
+/* ===== highlight.js / Prism / Rouge / CodeRay token mapping ===== */
+
+/* Keywords, annotations */
+.hljs-keyword,
+.token.keyword,
+.rouge .k,
+.CodeRay .kw {
+    color: var(--code-color1) !important; /* purple */
+}
+
+/* Strings */
+.hljs-string,
+.token.string,
+.rouge .s,
+.CodeRay .st {
+    color: var(--code-color2) !important; /* green */
+}
+
+/* Comments */
+.hljs-comment,
+.token.comment,
+.rouge .c,
+.CodeRay .co {
+    color: var(--code-color3) !important; /* blue-gray */
+    font-style: italic;
+}
+
+/* Numbers, constants, literals */
+.hljs-number,
+.hljs-literal,
+.token.number,
+.token.boolean,
+.rouge .mi,
+.rouge .il,
+.CodeRay .i,
+.CodeRay .fl {
+    color: var(--code-color4) !important; /* amber */
+}
+
+/* Function names, class names, important identifiers */
+.hljs-function .hljs-title,
+.token.function,
+.rouge .nf,
+.CodeRay .fu {
+    color: var(--code-color2) !important; /* green (match strings) */
+    font-weight: 500;
+}
+
+.hljs-type,
+.hljs-class .hljs-title,
+.token.class-name,
+.rouge .nc,
+.CodeRay .ty {
+    color: var(--code-color1) !important; /* purple */
+    font-weight: 500;
+}
+
+/* Rouge keyword variants */
+.rouge .k,   /* general keywords */
+.rouge .kd,  /* declaration keywords: class, var */
+.rouge .kr,  /* reserved keywords: return, public */
+.rouge .kt { /* type keywords */
+    color: #9f77cd !important; /* purple */
+    font-weight: 500;
+}
+
+/* === TOC Tweaks === */
+
+/* Hide the "Table of Contents" heading */
+#toctitle {
+    display: none !important;
+}
+
+/* Base TOC styling */
+#toc {
+    border-right: 1px solid #444;
+    padding: 1rem;
+    background-color: #161413; /* match your code bg or page bg */
+}
+
+#toc a {
+    display: block;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    color: #9f77cd !important; /* purple for links */
+    text-decoration: none;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#toc a:hover {
+    background-color: #2a2a2a;
+    color: #e9b306 !important; /* amber on hover */
+}
+
+/* Highlight the active section */
+#toc li.active > a {
+    background-color: #9f77cd !important; /* purple background */
+    color: #161413 !important;            /* dark text for contrast */
+    font-weight: 600;
+}
+
+#footer, #footer-text { display: none !important; }
+
+/* right gutter for readability */
+:root { --gutter: 20px; }  /* tweak to taste */
+
+#content { padding-right: calc(1.5rem + var(--gutter)); }
+.listingblock,
+/*.literalblock { margin-right: var(--gutter); }*/
+
+/* outer panel */
+.listingblock,
+.literalblock {
+    background: #131313 !important;
+    border: 1px solid #2a2a2a !important;
+    border-radius: 10px;
+    padding: 0.75rem;           /* space around code */
+}
+
+/* remove inner frame to kill the double border */
+.listingblock > .content,
+.literalblock > .content {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* code itself */
+.listingblock pre,
+.literalblock pre,
+pre.highlight {
+    background: #161413 !important;
+    border: 0 !important;       /* inner border gone */
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+}
+
+/* Remove the innermost "rim" on code samples (Spring adds an inset box-shadow) */
+.doc .listingblock pre:not(.highlight),
+.doc .literalblock pre,
+.doc pre.highlight code {
+    box-shadow: none !important;   /* <- this is the culprit */
+    border: 0 !important;
+    outline: 0 !important;
+}
+
+/* Belt-and-suspenders: cover other highlighter wrappers too */
+.highlight, .highlight pre, .highlight code,
+.highlighter-rouge pre, .highlighter-rouge code,
+.rouge pre, .rouge code,
+pre.highlight, pre.highlight code {
+    box-shadow: none !important;
+    border: 0 !important;
+    outline: 0 !important;
+}
+
+/* Keep your desired colors */
+.listingblock pre,
+.literalblock pre,
+pre.highlight,
+pre.highlight code {
+    background: #161413 !important;  /* inner code bg */
+    border-radius: 8px !important;
+}
+
+
+/* Use font icons, not images/labels */
+.admonitionblock .icon img { display: none !important; }
+.admonitionblock .icon i.fa {
+    font-family: "FontAwesome" !important;  /* FA v4 */
+    font-style: normal;
+    font-size: 1.15em;
+    line-height: 1;
+    background: none !important;
+    filter: none !important;
+}
+.admonitionblock .icon i.fa::after { content: none !important; } /* kill "Tip" label overlays */
+
+/* Tidy the icon cell + overall block */
+.admonitionblock > table {
+    background: #131313;                    /* outer panel to match site */
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+}
+.admonitionblock > table td.icon {
+    width: 2.5rem;
+    text-align: center;
+    vertical-align: top;
+    padding: .9rem .5rem .5rem .9rem;
+    background: transparent !important;
+    border: 0 !important;
+}
+
+/* Colors per type */
+.admonitionblock.tip .icon .fa       { color: #3fd73c; }  /* your green */
+.admonitionblock.note .icon .fa      { color: #9f77cd; }  /* your purple */
+.admonitionblock.important .icon .fa { color: #e9b306; }  /* amber */
+.admonitionblock.warning .icon .fa   { color: #ef4444; }  /* red */
+.admonitionblock.caution .icon .fa   { color: #ef4444; }  /* red */
+
+/* Content cell text color stays readable */
+.admonitionblock > table td.content {
+    color: #e8e8e8;
+    border-left: 1px solid #2a2a2a;
+    padding: 1rem 1.25rem;
+    background: transparent;
 }
