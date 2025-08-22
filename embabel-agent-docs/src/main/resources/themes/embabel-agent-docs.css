@@ -17,19 +17,19 @@
     --heading-color: #63c0f5;
     --code-bg-color: #131313;
     --code-text-color: #f8f8f2;
-    --quote-bg-color: #2a2a2a;
-    --quote-border-color: #FF4444;
+    --quote-bg-color: #93c093;
+    --quote-border-color: #444444;
     --table-header-bg: #2d2d2d;
     --table-border-color: #444444;
     --table-alt-bg: #292929;
-    --admonition-note-bg: #264f78;
-    --admonition-tip-bg: #2d632d;
-    --admonition-important-bg: #663c00;
-    --admonition-warning-bg: #7a3300;
-    --admonition-caution-bg: #7a0000;
-    --toc-min: 12rem;                     /* smallest TOC */
-    --toc-ideal: 22vw;                    /* preferred responsive TOC */
-    --toc-max: 20rem;                     /* largest TOC */
+    --admonition-note-bg: #fafafa;
+    --admonition-tip-bg: #fafafa;
+    --admonition-important-bg: #fafafa;
+    --admonition-warning-bg: #fafafa;
+    --admonition-caution-bg: #fafafa;
+    --toc-min: 12rem; /* smallest TOC */
+    --toc-ideal: 22vw; /* preferred responsive TOC */
+    --toc-max: 20rem; /* largest TOC */
     --gutter: clamp(20px, 2vw, 40px);
     --header-height: 100px;
     --toc-width: clamp(var(--toc-min), var(--toc-ideal), var(--toc-max));
@@ -43,7 +43,7 @@ html, body {
     "Segoe UI Emoji", "Segoe UI Symbol" !important;
     font-weight: 400;
     line-height: 1.6;
-    letter-spacing: 0;              /* avoid negative tracking for Windows */
+    letter-spacing: 0; /* avoid negative tracking for Windows */
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -58,7 +58,7 @@ pre, code, tt {
     font-family: "SFMono-Regular", "Cascadia Mono", "Consolas",
     "Liberation Mono", "Menlo", monospace !important;
     font-weight: 400;
-    font-variant-ligatures: none;   /* avoids distracting ligatures */
+    font-variant-ligatures: none; /* avoids distracting ligatures */
 }
 
 /* Optional: slightly crisper type on WebKit/Blink (no effect on Firefox) */
@@ -67,30 +67,43 @@ html {
     text-rendering: optimizeLegibility;
 }
 
-html, body { height: 100%; margin: 0; }
-body { overflow: hidden; }            /* page itself doesn't scroll */
-
-/* Header (currently hidden) */
-#site-header{
-    position: fixed; inset: 0 0 auto 0;
-    height: var(--header-height);
-    z-index: 1000;
-    display: none;                      /* keep if you don't want it yet */
-    background:#111; color:#fff; padding:0 1rem;
+html, body {
+    height: 100%;
+    margin: 0;
 }
 
-#toc{
+body {
+    overflow: hidden;
+}
+
+/* page itself doesn't scroll */
+
+/* Header (currently hidden) */
+#site-header {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: var(--header-height);
+    z-index: 1000;
+    display: none; /* keep if you don't want it yet */
+    background: #111;
+    color: #fff;
+    padding: 0 1rem;
+}
+
+#toc {
     position: fixed;
     top: var(--header-height);
     bottom: 0;
     left: 0;
-    width: var(--toc-width);           /* responsive */
+    width: var(--toc-width); /* responsive */
     overflow: auto;
     z-index: 900;
-    background:#0b0b0b; padding:1rem; box-sizing:border-box;
+    background: #0b0b0b;
+    padding: 1rem;
+    box-sizing: border-box;
 }
 
-#content{
+#content {
     position: fixed;
     top: var(--header-height);
     bottom: 0;
@@ -99,21 +112,31 @@ body { overflow: hidden; }            /* page itself doesn't scroll */
     z-index: 950;
     overflow-y: auto;
     overflow-x: hidden;
-    background:#000;
+    background: #000;
     padding: 1.25rem 1.5rem;
     box-sizing: border-box;
     scrollbar-gutter: stable;
 }
 
 /* Optional: guard against sub-pixel rounding on some zoom levels */
-@media (min-width: 961px){
-    #content{ border-left: 0.01px solid transparent; } /* forces proper stacking in a few browsers */
+@media (min-width: 961px) {
+    #content {
+        border-left: 0.01px solid transparent;
+    }
+
+    /* forces proper stacking in a few browsers */
 }
 
 /* Narrow screens: hide TOC, let content take full width */
-@media (max-width: 960px){
-    #toc{ display:none !important; z-index:-1; }
-    #content{ left: 0; }
+@media (max-width: 960px) {
+    #toc {
+        display: none !important;
+        z-index: -1;
+    }
+
+    #content {
+        left: 0;
+    }
 }
 
 
@@ -206,6 +229,7 @@ table {
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    color: #fafafa;
 }
 
 table thead, table tfoot {
@@ -219,6 +243,12 @@ table tr.even, table tr.alt, table tr:nth-of-type(even) {
 
 table td, table th {
     border-color: var(--table-border-color) !important;
+}
+
+table tr th, table tr td {
+    padding: .5625em .625em;
+    font-size: inherit;
+    color:#fafafa;
 }
 
 /* Blockquotes */
@@ -277,6 +307,7 @@ blockquote::before {
     padding-right: 1.25em;
     border-left: 1px solid #444;
     color: #e0e0e0 !important;
+    background-color: #252525;
 }
 
 .admonitionblock.note > table td.icon {
@@ -302,8 +333,7 @@ blockquote::before {
 /* TOC - standard and left panel */
 #toc, #toc.toc, #content #toc, #toc.toc2, #header .details, .sidebarblock, .listingblock, .literalblock, .imageblock, .tableblock {
     background-color: #252525 !important;
-    border: 1px solid #444 !important;
-    border-radius: 8px;
+    border-right: 1px solid #444 !important;
 }
 
 #toc a, #toc.toc a, #content #toc a, #toc.toc2 a {
@@ -512,18 +542,18 @@ kbd {
 :root {
     /* tweak these with your site colors */
     --code-fg: #f8f8f2;
-    --code-bg: #1f1f24;      /* a hair lighter than #1e1e1e for separation */
+    --code-bg: #1f1f24; /* a hair lighter than #1e1e1e for separation */
     --code-border: #3d3d46;
 
     /* token colors (no “navy”) */
-    --code-kw:   #ff79c6;    /* keywords */
-    --code-str:  #f1fa8c;    /* strings */
-    --code-com:  #8aa0c4;    /* comments (brighter than #6272a4) */
-    --code-num:  #bd93f9;    /* numbers/literals */
-    --code-type: #8be9fd;    /* class/type names */
-    --code-fn:   #50fa7b;    /* function names */
-    --code-meta: #ffb86c;    /* annotations/@meta */
-    --code-var:  #e6e6e6;    /* variables/identifiers */
+    --code-kw: #ff79c6; /* keywords */
+    --code-str: #f1fa8c; /* strings */
+    --code-com: #8aa0c4; /* comments (brighter than #6272a4) */
+    --code-num: #bd93f9; /* numbers/literals */
+    --code-type: #8be9fd; /* class/type names */
+    --code-fn: #50fa7b; /* function names */
+    --code-meta: #ffb86c; /* annotations/@meta */
+    --code-var: #e6e6e6; /* variables/identifiers */
 }
 
 /* Base code blocks */
@@ -549,52 +579,169 @@ code, tt {
 }
 
 /* ===== highlight.js ===== */
-.hljs, .hljs-subst       { color: var(--code-fg) !important; background: var(--code-bg) !important; }
-.hljs-keyword            { color: var(--code-kw) !important; }
-.hljs-string             { color: var(--code-str) !important; }
-.hljs-number, .hljs-literal { color: var(--code-num) !important; }
-.hljs-type, .hljs-class .hljs-title { color: var(--code-type) !important; }
-.hljs-function .hljs-title { color: var(--code-fn) !important; }
-.hljs-attr, .hljs-params { color: var(--code-meta) !important; }
-.hljs-comment, .hljs-quote { color: var(--code-com) !important; font-style: italic; }
-.hljs-variable, .hljs-name { color: var(--code-var) !important; }
+.hljs, .hljs-subst {
+    color: var(--code-fg) !important;
+    background: var(--code-bg) !important;
+}
+
+.hljs-keyword {
+    color: var(--code-kw) !important;
+}
+
+.hljs-string {
+    color: var(--code-str) !important;
+}
+
+.hljs-number, .hljs-literal {
+    color: var(--code-num) !important;
+}
+
+.hljs-type, .hljs-class .hljs-title {
+    color: var(--code-type) !important;
+}
+
+.hljs-function .hljs-title {
+    color: var(--code-fn) !important;
+}
+
+.hljs-attr, .hljs-params {
+    color: var(--code-meta) !important;
+}
+
+.hljs-comment, .hljs-quote {
+    color: var(--code-com) !important;
+    font-style: italic;
+}
+
+.hljs-variable, .hljs-name {
+    color: var(--code-var) !important;
+}
 
 /* ===== Prism ===== */
-.token.keyword     { color: var(--code-kw) !important; }
-.token.string      { color: var(--code-str) !important; }
+.token.keyword {
+    color: var(--code-kw) !important;
+}
+
+.token.string {
+    color: var(--code-str) !important;
+}
+
 .token.number,
-.token.boolean     { color: var(--code-num) !important; }
+.token.boolean {
+    color: var(--code-num) !important;
+}
+
 .token.class-name,
-.token.type        { color: var(--code-type) !important; }
-.token.function    { color: var(--code-fn) !important; }
+.token.type {
+    color: var(--code-type) !important;
+}
+
+.token.function {
+    color: var(--code-fn) !important;
+}
+
 .token.atrule,
 .token.attr-name,
-.token.attr-value  { color: var(--code-meta) !important; }
-.token.comment     { color: var(--code-com) !important; font-style: italic; }
-.token.variable    { color: var(--code-var) !important; }
+.token.attr-value {
+    color: var(--code-meta) !important;
+}
+
+.token.comment {
+    color: var(--code-com) !important;
+    font-style: italic;
+}
+
+.token.variable {
+    color: var(--code-var) !important;
+}
 
 /* ===== Rouge (default Asciidoctor HTML) ===== */
-.rouge pre, pre.rouge { background: var(--code-bg) !important; color: var(--code-fg) !important; }
-.rouge .k, .rouge .kd, .rouge .kn, .rouge .kr   { color: var(--code-kw) !important; }   /* keywords */
+.rouge pre, pre.rouge {
+    background: var(--code-bg) !important;
+    color: var(--code-fg) !important;
+}
+
+.rouge .k, .rouge .kd, .rouge .kn, .rouge .kr {
+    color: var(--code-kw) !important;
+}
+
+/* keywords */
 .rouge .s, .rouge .sb, .rouge .sc, .rouge .s1,
-.rouge .s2, .rouge .sh, .rouge .si, .rouge .sx  { color: var(--code-str) !important; }  /* strings */
-.rouge .c, .rouge .c1, .rouge .cm, .rouge .cp   { color: var(--code-com) !important; font-style: italic; } /* comments */
-.rouge .mi, .rouge .mf, .rouge .mh, .rouge .il  { color: var(--code-num) !important; }  /* numbers */
-.rouge .nc, .rouge .nn, .rouge .no              { color: var(--code-type) !important; } /* classes/types */
-.rouge .nf                                       { color: var(--code-fn) !important; }   /* functions */
-.rouge .na, .rouge .nv, .rouge .vc, .rouge .vg  { color: var(--code-var) !important; }   /* variables */
-.rouge .nd, .rouge .ne, .rouge .nt              { color: var(--code-meta) !important; }  /* meta/attrs */
+.rouge .s2, .rouge .sh, .rouge .si, .rouge .sx {
+    color: var(--code-str) !important;
+}
+
+/* strings */
+.rouge .c, .rouge .c1, .rouge .cm, .rouge .cp {
+    color: var(--code-com) !important;
+    font-style: italic;
+}
+
+/* comments */
+.rouge .mi, .rouge .mf, .rouge .mh, .rouge .il {
+    color: var(--code-num) !important;
+}
+
+/* numbers */
+.rouge .nc, .rouge .nn, .rouge .no, .rogue .nl {
+    color: var(--code-type) !important;
+}
+
+/* classes/types */
+.rouge .nf {
+    color: var(--code-fn) !important;
+}
+
+/* functions */
+.rouge .na, .rouge .nv, .rouge .vc, .rouge .vg {
+    color: var(--code-var) !important;
+}
+
+/* variables */
+.rouge .nd, .rouge .ne, .rouge .nt {
+    color: var(--code-meta) !important;
+}
+
+/* meta/attrs */
 
 /* ===== CodeRay (older setups) ===== */
-.CodeRay { background: var(--code-bg) !important; color: var(--code-fg) !important; }
-.CodeRay .kw { color: var(--code-kw) !important; }
-.CodeRay .st { color: var(--code-str) !important; }
-.CodeRay .co { color: var(--code-com) !important; font-style: italic; }
-.CodeRay .i, .CodeRay .fl { color: var(--code-num) !important; }
-.CodeRay .dt, .CodeRay .ty { color: var(--code-type) !important; }
-.CodeRay .fu { color: var(--code-fn) !important; }
-.CodeRay .an, .CodeRay .re { color: var(--code-meta) !important; }
-.CodeRay .iv, .CodeRay .bk { color: var(--code-var) !important; }
+.CodeRay {
+    background: var(--code-bg) !important;
+    color: var(--code-fg) !important;
+}
+
+.CodeRay .kw {
+    color: var(--code-kw) !important;
+}
+
+.CodeRay .st {
+    color: var(--code-str) !important;
+}
+
+.CodeRay .co {
+    color: var(--code-com) !important;
+    font-style: italic;
+}
+
+.CodeRay .i, .CodeRay .fl {
+    color: var(--code-num) !important;
+}
+
+.CodeRay .dt, .CodeRay .ty {
+    color: var(--code-type) !important;
+}
+
+.CodeRay .fu {
+    color: var(--code-fn) !important;
+}
+
+.CodeRay .an, .CodeRay .re {
+    color: var(--code-meta) !important;
+}
+
+.CodeRay .iv, .CodeRay .bk {
+    color: var(--code-var) !important;
+}
 
 /* Ensure links inside code don’t turn “navy” */
 pre a, code a {
@@ -618,8 +765,8 @@ pre a, code a {
 }
 
 /* Rouge */
-.rouge .o,   /* operators */
-.rouge .p    /* punctuation */
+.rouge .o, /* operators */
+.rouge .p /* punctuation */
 {
     color: var(--code-fg) !important;
     font-weight: 500;
@@ -628,7 +775,7 @@ pre a, code a {
 /* CodeRay */
 .CodeRay .op,
 .CodeRay .dl, /* delimiters */
-.CodeRay .sy  /* symbols */
+.CodeRay .sy /* symbols */
 {
     color: var(--code-fg) !important;
     font-weight: 500;
@@ -636,10 +783,10 @@ pre a, code a {
 
 /* ===== Custom Site Palette Overrides ===== */
 :root {
-    --bg-color:       #000000;  /* page background */
-    --text-color:     #f4f4f4;  /* main text (light neutral) */
-    --code-bg:        #161413;  /* code block background */
-    --code-border:    #2a2a2a;  /* subtle border for code */
+    --bg-color: #000000; /* page background */
+    --text-color: #f4f4f4; /* main text (light neutral) */
+    --code-bg: #161413; /* code block background */
+    --code-border: #2a2a2a; /* subtle border for code */
 
     /* brand code token colors */
     --code-color1: #9f77cd; /* purple */
@@ -647,7 +794,7 @@ pre a, code a {
     --code-color3: #596f8c; /* blue-gray */
     --code-color4: #e9b306; /* amber/yellow */
     --code-color5: #ef4444; /* red */
-    --code-fg:    #f8f8f2; /* fallback default */
+    --code-fg: #f8f8f2; /* fallback default */
 }
 
 /* Base code block styles */
@@ -729,9 +876,9 @@ code, tt {
 }
 
 /* Rouge keyword variants */
-.rouge .k,   /* general keywords */
-.rouge .kd,  /* declaration keywords: class, var */
-.rouge .kr,  /* reserved keywords: return, public */
+.rouge .k, /* general keywords */
+.rouge .kd, /* declaration keywords: class, var */
+.rouge .kr, /* reserved keywords: return, public */
 .rouge .kt { /* type keywords */
     color: #9f77cd !important; /* purple */
     font-weight: 500;
@@ -768,26 +915,35 @@ code, tt {
 /* Highlight the active section */
 #toc li.active > a {
     background-color: #9f77cd !important; /* purple background */
-    color: #161413 !important;            /* dark text for contrast */
+    color: #161413 !important; /* dark text for contrast */
     font-weight: 600;
 }
 
-#footer, #footer-text { display: none !important; }
+#footer, #footer-text {
+    display: none !important;
+}
 
 /* right gutter for readability */
-:root { --gutter: 20px; }  /* tweak to taste */
+:root {
+    --gutter: 20px;
+}
 
-#content { padding-right: calc(1.5rem + var(--gutter)); }
+/* tweak to taste */
+
+#content {
+    padding-right: calc(1.5rem + var(--gutter));
+}
+
 .listingblock,
-/*.literalblock { margin-right: var(--gutter); }*/
+    /*.literalblock { margin-right: var(--gutter); }*/
 
-/* outer panel */
+    /* outer panel */
 .listingblock,
 .literalblock {
     background: #131313 !important;
     border: 1px solid #2a2a2a !important;
     border-radius: 10px;
-    padding: 0.75rem;           /* space around code */
+    padding: 0.75rem; /* space around code */
 }
 
 /* remove inner frame to kill the double border */
@@ -804,7 +960,7 @@ code, tt {
 .literalblock pre,
 pre.highlight {
     background: #161413 !important;
-    border: 0 !important;       /* inner border gone */
+    border: 0 !important; /* inner border gone */
     border-radius: 8px;
     padding: 1rem 1.25rem;
 }
@@ -813,7 +969,7 @@ pre.highlight {
 .doc .listingblock pre:not(.highlight),
 .doc .literalblock pre,
 .doc pre.highlight code {
-    box-shadow: none !important;   /* <- this is the culprit */
+    box-shadow: none !important; /* <- this is the culprit */
     border: 0 !important;
     outline: 0 !important;
 }
@@ -833,49 +989,86 @@ pre.highlight, pre.highlight code {
 .literalblock pre,
 pre.highlight,
 pre.highlight code {
-    background: #161413 !important;  /* inner code bg */
+    background: #161413 !important; /* inner code bg */
     border-radius: 8px !important;
 }
 
 
-/* Use font icons, not images/labels */
-.admonitionblock .icon img { display: none !important; }
-.admonitionblock .icon i.fa {
-    font-family: "FontAwesome" !important;  /* FA v4 */
-    font-style: normal;
-    font-size: 1.15em;
-    line-height: 1;
-    background: none !important;
-    filter: none !important;
-}
-.admonitionblock .icon i.fa::after { content: none !important; } /* kill "Tip" label overlays */
+/*!* Use font icons, not images/labels *!*/
+/*.admonitionblock .icon img { display: none !important; }*/
+/*.admonitionblock .icon i.fa {*/
+/*    font-family: "FontAwesome" !important;  !* FA v4 *!*/
+/*    font-style: normal;*/
+/*    font-size: 1.15em;*/
+/*    line-height: 1;*/
+/*    background: none !important;*/
+/*    filter: none !important;*/
+/*}*/
+/*.admonitionblock .icon i.fa::after { content: none !important; } !* kill "Tip" label overlays *!*/
 
-/* Tidy the icon cell + overall block */
-.admonitionblock > table {
-    background: #131313;                    /* outer panel to match site */
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-}
-.admonitionblock > table td.icon {
-    width: 2.5rem;
-    text-align: center;
-    vertical-align: top;
-    padding: .9rem .5rem .5rem .9rem;
-    background: transparent !important;
-    border: 0 !important;
+/*!* Tidy the icon cell + overall block *!*/
+/*.admonitionblock > table {*/
+/*    background: #131313;                    !* outer panel to match site *!*/
+/*    border: 1px solid #2a2a2a;*/
+/*    border-radius: 10px;*/
+/*}*/
+/*.admonitionblock > table td.icon {*/
+/*    width: 2.5rem;*/
+/*    text-align: center;*/
+/*    vertical-align: top;*/
+/*    padding: .9rem .5rem .5rem .9rem;*/
+/*    background: transparent !important;*/
+/*    border: 0 !important;*/
+/*}*/
+
+/*!* Colors per type *!*/
+/*.admonitionblock.tip .icon .fa       { color: #3fd73c; }  !* your green *!*/
+/*.admonitionblock.note .icon .fa      { color: #9f77cd; }  !* your purple *!*/
+/*.admonitionblock.important .icon .fa { color: #e9b306; }  !* amber *!*/
+/*.admonitionblock.warning .icon .fa   { color: #ef4444; }  !* red *!*/
+/*.admonitionblock.caution .icon .fa   { color: #ef4444; }  !* red *!*/
+
+/*!* Content cell text color stays readable *!*/
+/*.admonitionblock > table td.content {*/
+/*    color: #e8e8e8;*/
+/*    border-left: 1px solid #2a2a2a;*/
+/*    padding: 1rem 1.25rem;*/
+/*    background: transparent;*/
+/*}*/
+
+/* 1) Make sure ALL code has a readable default color on dark bg */
+.listingblock pre,
+.listingblock pre > code,
+.literalblock pre,
+.literalblock pre > code,
+pre.highlight,
+pre.rouge,
+pre.highlight > code,
+pre.rouge > code,
+.highlight code {
+    color: var(--code-text-color) !important;
 }
 
-/* Colors per type */
-.admonitionblock.tip .icon .fa       { color: #3fd73c; }  /* your green */
-.admonitionblock.note .icon .fa      { color: #9f77cd; }  /* your purple */
-.admonitionblock.important .icon .fa { color: #e9b306; }  /* amber */
-.admonitionblock.warning .icon .fa   { color: #ef4444; }  /* red */
-.admonitionblock.caution .icon .fa   { color: #ef4444; }  /* red */
+/* 2) Booleans / null across Rouge class variants + add specificity */
+.listingblock pre .kc, /* Keyword.Constant (often true/false/null) */
+.listingblock pre .no, /* Name.Constant (some lexers) */
+.listingblock pre .l, /* Literal (fallback in a few lexers) */
+.listingblock pre .l-Keyword, /* Some Rouge themes emit subtypes */
+pre.highlight .kc,
+pre.highlight .no,
+pre.highlight .l,
+pre.rouge .kc,
+pre.rouge .no,
+pre.rouge .l {
+    color: var(--code-color5) !important;
+}
 
-/* Content cell text color stays readable */
-.admonitionblock > table td.content {
-    color: #e8e8e8;
-    border-left: 1px solid #2a2a2a;
-    padding: 1rem 1.25rem;
-    background: transparent;
+pre.rouge .nl {
+    color: var(--code-type) !important;
+    font-weight: bold;
+}
+
+colist td {
+    padding: .25em 0;
+    color: #fafafa;
 }
