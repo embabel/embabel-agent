@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/embabel-agent-a2a/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-a2a/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-api/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-code/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-code/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-dependencies/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-dependencies/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-discord/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-discord/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-docs/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-eval/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-eval/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-examples/examples-common/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-examples/examples-dependencies/src/main/java" charset="UTF-8" />
@@ -25,18 +33,27 @@
     <file url="file://$PROJECT_DIR$/embabel-agent-examples/movie/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-examples/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-examples/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-mcpserver/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-mcpserver/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-rag/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-rag/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-shell/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-shell/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starter/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starter/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-bedrock/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-bedrock/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-platform/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-platform/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-platform/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-test/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-test/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-ux/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-ux/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
