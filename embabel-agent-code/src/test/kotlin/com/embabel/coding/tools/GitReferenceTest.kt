@@ -37,7 +37,7 @@ class GitReferenceTest {
             assertTrue(Files.exists(clonedRepo.localPath.resolve(".git")))
 
             // Verify absolute path is returned
-            assertTrue(clonedRepo.root.startsWith("/"))
+            assertTrue(clonedRepo.localPath.isAbsolute)
             assertEquals(clonedRepo.localPath.toAbsolutePath().toString(), clonedRepo.root)
 
             // Verify some expected files exist (Hello-World repo has README)
@@ -162,8 +162,12 @@ class GitReferenceTest {
 
         // Initialize empty git repo
         Git.init().setDirectory(emptyRepo.toFile()).call().use { git ->
-            // Create an empty commit
-            git.commit().setMessage("Initial commit").setAllowEmpty(true).call()
+            // Create an empty commit without signing
+            git.commit()
+                .setMessage("Initial commit")
+                .setAllowEmpty(true)
+                .setSign(false)  // Disable GPG signing for tests
+                .call()
         }
 
         val clonedRepo = ClonedRepository(localPath = emptyRepo, shouldDeleteOnClose = false)
