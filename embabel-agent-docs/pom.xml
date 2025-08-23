@@ -97,6 +97,7 @@
                         <configuration>
                             <backend>html5</backend>
                             <attributes>
+                                <notitle>true</notitle>
                                 <doctype>book</doctype>
                                 <docinfo>shared</docinfo>
                                 <source-highlighter>rouge</source-highlighter>
