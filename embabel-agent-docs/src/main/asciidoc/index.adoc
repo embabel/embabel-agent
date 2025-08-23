@@ -12,7 +12,7 @@ ifndef::imagesdir[]
 :imagesdir: images
 endif::[]
 
-image:common/315px-Meister_der_Weltenchronik_001.jpg[]
+image:common/315px-Meister_der_Weltenchronik_001.png[]
 
 ifdef::backend-html5[]
 
