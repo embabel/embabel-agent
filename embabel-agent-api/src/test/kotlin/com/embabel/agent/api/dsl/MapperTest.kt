@@ -55,29 +55,28 @@ class MapperTest {
     }
 
     @Test
-    @Disabled("this test is disabled because it can cause flaky behavior in CI environments")
     fun `mapAsync should process items concurrently`() = runBlocking {
         val items = (1..100).toList()
         val counter = AtomicInteger(0)
         val processingTracker = Collections.synchronizedList(mutableListOf<Int>())
-
+        val random = Random(System.currentTimeMillis())
         val results = items.mapAsync(context) { item ->
             val currentCount = counter.incrementAndGet()
+            val bias = 1 + ((items.size - item) / 50)   // 1..3
+            val delayMs = random.nextInt(5 * bias, 5 + 5 * bias) //early ones run for longer times 5ms to 10ms, 10ms to 15ms and 15ms to 20ms
+            delay(delayMs.toLong())
             processingTracker.add(currentCount)
-            delay(10)
             item * 2
         }
 
         assertEquals(items.size, results.size)
         assertEquals(items.map { it * 2 }, results)
 
-        // Add safety check for empty list
-        if (processingTracker.size >= 2) {
-            val hasNonSequentialProcessing = processingTracker.zipWithNext().any { (a, b) -> b - a > 1 }
-            assertTrue(hasNonSequentialProcessing, "Processing should be concurrent, not sequential")
-        } else {
-            fail("Processing tracker should contain multiple entries for concurrency verification")
-        }
+        // Verify concurrent processing by checking that some items were processed
+        // while others were still in progress (counter should have jumps)
+        val hasNonSequentialProcessing = processingTracker.zipWithNext().any { (a, b) -> b - a > 1 }
+        assertTrue(hasNonSequentialProcessing, "Processing should be concurrent, not sequential")
+
     }
 
     @Test
