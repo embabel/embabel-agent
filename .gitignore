@@ -6,8 +6,26 @@ embabel-agent-api/src/main/resources/mcp/**
 */*/target/**
 */*/*/target/**
 
+# IDEs and editors
 .junie/
 .idea/workspace.xml
+.vscode
 
 **/*.log
+build.log
+
 .direnv/
+
+# Miscellaneous
+.env
+
+# Mac OSX aux files
+.DS_Store
+**/.DS_Store
+
+# Compiled class files
+*.class
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
