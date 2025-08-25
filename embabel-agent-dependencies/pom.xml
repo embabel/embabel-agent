@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-dependencies-parent</artifactId>
-        <version>0.1.1-SNAPSHOT</version>
+        <version>0.1.1</version>
         <relativePath />
     </parent>
     <groupId>com.embabel.agent</groupId>
