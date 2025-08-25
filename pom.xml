@@ -14,7 +14,7 @@
     <description>Parent POM for Embabel Agent Modules</description>
 
     <properties>
-        <embabel-common.version>0.1.1</embabel-common.version>
+        <embabel-common.version>0.1.2-SNAPSHOT</embabel-common.version>
     </properties>
 
     <modules>
