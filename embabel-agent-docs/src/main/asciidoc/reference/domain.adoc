@@ -76,10 +76,10 @@ Domain objects serve as the bridge between:
 
 ==== Benefits
 
-**Rich Context**: LLMs receive both data structure and behavioral context
-**Encapsulation**: Business logic stays within domain objects where it belongs
-**Reusability**: Domain objects can be used across multiple agents
-**Testability**: Domain logic can be unit tested independently
-**Evolution**: Adding new tools to domain objects extends agent capabilities
+- **Rich Context**: LLMs receive both data structure and behavioral context
+- **Encapsulation**: Business logic stays within domain objects where it belongs
+- **Reusability**: Domain objects can be used across multiple agents
+- **Testability**: Domain logic can be unit tested independently
+- **Evolution**: Adding new tools to domain objects extends agent capabilities
 
 This approach ensures that agents work with meaningful business entities rather than generic data structures, leading to more natural and effective AI interactions.

@@ -520,9 +520,10 @@ kbd {
 }
 
 /* Image borders */
-.imageblock img, .image img {
-    border: 1px solid #444 !important;
+.image img {
+    border: none;
 }
+
 
 /* Print styles - ensure dark theme also works in print */
 @media print {

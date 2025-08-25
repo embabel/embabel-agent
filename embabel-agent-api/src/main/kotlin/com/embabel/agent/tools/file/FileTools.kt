@@ -26,11 +26,10 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.nio.file.FileSystems
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
+import java.nio.file.*
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipInputStream
 
 /**
@@ -100,15 +99,43 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolCa
 
     /**
      * Count the total number of files in the repository (excluding .git directory).
+     * Uses FileVisitor for cross-platform compatibility (Windows and Linux).
      */
     @Tool(description = "Count the number of files in the repository, excluding .git directory")
     fun fileCount(): Int {
         return try {
-            Files.walk(resolvePath(""))
-                .filter { path -> !path.toString().contains("/.git/") && Files.isRegularFile(path) }
-                .count()
-                .toInt()
+            val rootPath = resolvePath("")
+            val fileCount = AtomicInteger(0)
+
+            Files.walkFileTree(rootPath, object : SimpleFileVisitor<Path>() {
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    val dirName = dir.fileName?.toString()
+                    return if (dirName == ".git") {
+                        // Skip entire .git directory and all its contents
+                        FileVisitResult.SKIP_SUBTREE
+                    } else {
+                        FileVisitResult.CONTINUE
+                    }
+                }
+
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    // Only count regular files
+                    if (attrs.isRegularFile) {
+                        fileCount.incrementAndGet()
+                    }
+                    return FileVisitResult.CONTINUE
+                }
+
+                override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                    // Handle permission issues gracefully (common on Windows)
+                    loggerFor<FileReadTools>().warn("Warning: Could not access file: {} ({})", file, exc.message)
+                    return FileVisitResult.CONTINUE
+                }
+            })
+
+            fileCount.get()
         } catch (e: Exception) {
+            loggerFor<FileReadTools>().error("Failed to count files", e)
             0
         }
     }

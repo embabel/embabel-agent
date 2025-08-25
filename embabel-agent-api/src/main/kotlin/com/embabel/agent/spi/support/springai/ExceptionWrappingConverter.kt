@@ -33,7 +33,7 @@ class ExceptionWrappingConverter<T>(
         return try {
             delegate.convert(source)
         } catch (e: Exception) {
-            logger.error("Error converting LLM output: {}", source, e)
+            logger.warn("Error {} converting LLM output: {}", e.message, source)
             throw InvalidLlmReturnFormatException(
                 llmReturn = source,
                 expectedType = expectedType,

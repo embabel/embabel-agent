@@ -23,8 +23,9 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.util.StringTransformer
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.GitAPIException
-import java.nio.file.Files
-import java.nio.file.Path
+import java.io.IOException
+import java.nio.file.*
+import java.nio.file.attribute.BasicFileAttributes
 
 /**
  * Limits for file formats when reading files from a cloned repository.
@@ -69,34 +70,55 @@ data class ClonedRepository(
      * Write all files in the repository to a single string.
      * Only use this for small repositories as it loads everything into memory.
      * Applies file content transformers (like removing Apache license headers).
+     * Uses FileVisitor for cross-platform compatibility.
      */
     fun writeAllFilesToString(): String {
         val result = StringBuilder()
+        val files = mutableListOf<Path>()
+
         try {
-            Files.walk(localPath)
-                .filter { path ->
-                    !path.toString().contains("/.git/") &&
-                            Files.isRegularFile(path)
+            // Use FileVisitor for cross-platform .git exclusion
+            Files.walkFileTree(localPath, object : SimpleFileVisitor<Path>() {
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    val dirName = dir.fileName?.toString()
+                    return if (dirName == ".git") {
+                        FileVisitResult.SKIP_SUBTREE
+                    } else {
+                        FileVisitResult.CONTINUE
+                    }
                 }
-                .sorted()
-                .forEach { path ->
-                    val relativePath = localPath.relativize(path)
-                    val content = try {
-                        if (Files.size(path) > fileFormatLimits.fileSizeLimit) {
-                            "// File too large to read: $relativePath"
-                        } else {
-                            Files.readString(path)
-                        }
+
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    if (attrs.isRegularFile) {
+                        files.add(file)
+                    }
+                    return FileVisitResult.CONTINUE
+                }
+
+                override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                    // Log but continue processing other files
+                    return FileVisitResult.CONTINUE
+                }
+            })
+
+            // Sort files and process them
+            files.sorted().forEach { path ->
+                val relativePath = localPath.relativize(path)
+                val content = try {
+                    if (Files.size(path) > fileFormatLimits.fileSizeLimit) {
+                        "// File too large to read: $relativePath"
+                    } else {
                         val rawContent = Files.readString(path)
                         WellKnownFileContentTransformers.removeApacheLicenseHeader.transform(rawContent)
-                    } catch (e: Exception) {
-                        "// Error reading file: ${e.message}"
                     }
-
-                    result.append("=== $relativePath ===\n")
-                    result.append(content)
-                    result.append("\n\n")
+                } catch (e: Exception) {
+                    "// Error reading file: ${e.message}"
                 }
+
+                result.append("=== $relativePath ===\n")
+                result.append(content)
+                result.append("\n\n")
+            }
         } catch (e: Exception) {
             result.append("Error walking repository: ${e.message}")
         }

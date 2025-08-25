@@ -90,14 +90,10 @@ jobs:
       - name: Deploy to VM with sudo
         run: |
           # Step 1: Copy to user's home directory first
-          gcloud compute scp target/generated-docs/index.html \
-            ${{ github.event.inputs.vm_instance }}:~/index.html \
+          gcloud compute scp --recurse target/generated-docs \
+            ${{ github.event.inputs.vm_instance }}:~/guide \
             --zone=${{ github.event.inputs.vm_zone }}
           
-          gcloud compute scp --recurse target/generated-docs/images \
-            ${{ github.event.inputs.vm_instance }}:~/images \
-            --zone=${{ github.event.inputs.vm_zone }}
-
           gcloud compute scp --recurse target/dokka-aggregate \
             ${{ github.event.inputs.vm_instance }}:~/dokka \
             --zone=${{ github.event.inputs.vm_zone }}          
@@ -109,8 +105,7 @@ jobs:
               sudo rm -rf /var/www/html/embabel-agent &&
               sudo mkdir -p /var/www/html/embabel-agent/guide &&
               sudo mkdir -p /var/www/html/embabel-agent/api-docs &&
-              sudo cp ~/index.html /var/www/html/embabel-agent/guide/ &&
-              sudo cp -r ~/images /var/www/html/embabel-agent/guide &&
+              sudo cp -r ~/guide/*  /var/www/html/embabel-agent/guide &&
               sudo cp -r ~/dokka/*  /var/www/html/embabel-agent/api-docs
               "
 
