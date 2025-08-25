@@ -152,10 +152,13 @@ annotation class Action(
  * Otherwise, it can match the latest ("it") value.
  * Must be combined with the outputBinding method on Action for the action
  * producing the input
+ * @param value The name of the input binding that this parameter should match; "" indicates using the parameter name.
  * @see Action
  * @see IoBinding
  */
 @Target(AnnotationTarget.VALUE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME)
 @MustBeDocumented
-annotation class RequireNameMatch
+annotation class RequireNameMatch (
+    val value: String = ""
+)
