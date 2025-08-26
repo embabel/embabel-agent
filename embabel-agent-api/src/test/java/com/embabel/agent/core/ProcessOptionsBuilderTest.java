@@ -16,8 +16,10 @@
 package com.embabel.agent.core;
 
 import com.embabel.agent.core.support.InMemoryBlackboard;
-import com.embabel.agent.testing.unit.FakeOperationContext;
+import com.embabel.agent.event.AgenticEventListener;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,11 +28,17 @@ class ProcessOptionsBuilderTest {
 
     @Test
     void builder() {
+        var identities = new Identities();
         var blackboard = new InMemoryBlackboard();
+        var listener  = AgenticEventListener.Companion.getDevNull();
 
         var po = ProcessOptions.builder()
+                .identities(identities)
                 .blackboard(blackboard)
                 .test(true)
+                .prune(true)
+                .listener(listener)
+                .listeners(listeners -> assertEquals(List.of(listener), listeners))
                 .verbosity(vb -> vb
                         .showPrompts(true)
                         .showLlmResponses(true)
@@ -45,8 +53,11 @@ class ProcessOptionsBuilderTest {
                 )
                 .build();
 
+        assertEquals(identities, po.getIdentities());
         assertEquals(blackboard, po.getBlackboard());
         assertTrue(po.getTest());
+        assertTrue(po.getPrune());
+        assertEquals(List.of(listener), po.getListeners());
 
         assertTrue(po.getVerbosity().getShowPrompts());
         assertTrue(po.getVerbosity().getShowLlmResponses());
