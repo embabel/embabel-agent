@@ -12,6 +12,7 @@
         <module name="embabel-agent-shell" />
         <module name="embabel-agent-starter-bedrock" />
         <module name="embabel-agent-a2a" />
+        <module name="embabel-agent-lucene" />
         <module name="embabel-agent-autoconfigure" />
         <module name="embabel-agent-rag" />
         <module name="embabel-agent-starter" />
