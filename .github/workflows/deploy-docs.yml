@@ -77,6 +77,22 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: mvn package
 
+      - name: Extract version from pom.xml
+        id: get_version
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Create deployment archive
+        run: |
+          echo "Creating deployment archive at $(date)"
+          # Clean up any stale archive from previous runs
+          rm -f docs-bundle.tar.gz
+          cd target
+          tar -czf ../docs-bundle.tar.gz generated-docs dokka-aggregate
+          echo "Archive created at $(date), size: $(ls -lh ../docs-bundle.tar.gz | awk '{print $5}')"
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
@@ -87,35 +103,57 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy to VM with sudo
+      - name: Deploy archive to VM
         run: |
-          # Step 1: Copy to user's home directory first
-          gcloud compute scp --recurse target/generated-docs \
-            ${{ github.event.inputs.vm_instance }}:~/guide \
-            --zone=${{ github.event.inputs.vm_zone }}
+          echo "Starting deployment at $(date)"
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          echo "Deploying version: $VERSION"
           
-          gcloud compute scp --recurse target/dokka-aggregate \
-            ${{ github.event.inputs.vm_instance }}:~/dokka \
-            --zone=${{ github.event.inputs.vm_zone }}          
+          # Upload the single archive file
+          gcloud compute scp docs-bundle.tar.gz \
+            ${{ github.event.inputs.vm_instance || 'embabel-webserver' }}:~/ \
+            --zone=${{ github.event.inputs.vm_zone || 'us-east1-b' }}
           
-          # Step 2: Move files with sudo via SSH
-          gcloud compute ssh ${{ github.event.inputs.vm_instance }} \
-            --zone=${{ github.event.inputs.vm_zone }} \
+          echo "Archive uploaded at $(date)"
+          
+          # Extract and move files on the VM with versioned directories
+          gcloud compute ssh ${{ github.event.inputs.vm_instance || 'embabel-webserver' }} \
+            --zone=${{ github.event.inputs.vm_zone || 'us-east1-b' }} \
             --command="
-              sudo rm -rf /var/www/html/embabel-agent &&
-              sudo mkdir -p /var/www/html/embabel-agent/guide &&
-              sudo mkdir -p /var/www/html/embabel-agent/api-docs &&
-              sudo cp -r ~/guide/*  /var/www/html/embabel-agent/guide &&
-              sudo cp -r ~/dokka/*  /var/www/html/embabel-agent/api-docs
-              "
+              echo 'Starting extraction and deployment on VM at \$(date)' &&
+              VERSION='$VERSION' &&
+              echo 'Deploying version: $VERSION' &&
+              # Clean up any stale bundles first
+              rm -f ~/docs-bundle.tar.gz &&
+              sudo rm -rf /var/www/html/embabel-agent/guide/\$VERSION &&
+              sudo rm -rf /var/www/html/embabel-agent/api-docs/\$VERSION &&
+              sudo mkdir -p /var/www/html/embabel-agent/guide/\$VERSION &&
+              sudo mkdir -p /var/www/html/embabel-agent/api-docs/\$VERSION &&
+              cd /tmp &&
+              sudo tar -xzf ~/docs-bundle.tar.gz &&
+              sudo cp -r generated-docs/* /var/www/html/embabel-agent/guide/\$VERSION/ &&
+              sudo cp -r dokka-aggregate/* /var/www/html/embabel-agent/api-docs/\$VERSION/ &&
+              rm -f ~/docs-bundle.tar.gz &&
+              sudo rm -rf /tmp/generated-docs /tmp/dokka-aggregate &&
+              echo 'Deployment completed on VM at \$(date)'
+            "
+          
+          echo "Deployment completed at $(date)"
+          
+          # Clean up local bundle
+          rm -f docs-bundle.tar.gz
 
       - name: Verify deployment
         run: |
-          gcloud compute ssh ${{ github.event.inputs.vm_instance }} \
-            --zone=${{ github.event.inputs.vm_zone }} \
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          gcloud compute ssh ${{ github.event.inputs.vm_instance || 'embabel-webserver' }} \
+            --zone=${{ github.event.inputs.vm_zone || 'us-east1-b' }} \
             --command="
-              echo 'Files in target directory:' &&
-              sudo ls -la /var/www/html/embabel-agent/guide/ &&
+              echo 'Deployed version: $VERSION' &&
+              echo 'Files in versioned guide directory:' &&
+              sudo ls -la /var/www/html/embabel-agent/guide/$VERSION/ | head -10 &&
+              echo 'Files in versioned api-docs directory:' &&
+              sudo ls -la /var/www/html/embabel-agent/api-docs/$VERSION/ | head -10 &&
               echo 'Testing web access:' &&
-              curl -I http://localhost/embabel-agent/guide/index.html || echo 'Web server not responding'
+              curl -I http://localhost/embabel-agent/guide/$VERSION/index.html || echo 'Versioned guide not responding'
             "
