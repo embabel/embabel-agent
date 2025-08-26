@@ -123,8 +123,6 @@ jobs:
               echo 'Starting extraction and deployment on VM at \$(date)' &&
               VERSION='$VERSION' &&
               echo 'Deploying version: $VERSION' &&
-              # Clean up any stale bundles first
-              rm -f ~/docs-bundle.tar.gz &&
               sudo rm -rf /var/www/html/embabel-agent/guide/\$VERSION &&
               sudo rm -rf /var/www/html/embabel-agent/api-docs/\$VERSION &&
               sudo mkdir -p /var/www/html/embabel-agent/guide/\$VERSION &&
