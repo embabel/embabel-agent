@@ -14,6 +14,7 @@
         <module>embabel-agent-starter</module>
         <module>embabel-agent-starter-platform</module>
         <module>embabel-agent-starter-bedrock</module>
+        <module>embabel-agent-starter-shell</module>
     </modules>
 
 </project>
