@@ -15,6 +15,7 @@
         <module>embabel-agent-starter-platform</module>
         <module>embabel-agent-starter-bedrock</module>
         <module>embabel-agent-starter-shell</module>
+        <module>embabel-agent-starter-mcpserver</module>
     </modules>
 
 </project>

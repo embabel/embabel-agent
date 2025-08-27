@@ -1,0 +1,2 @@
+# Environment Post Processors
+org.springframework.boot.env.EnvironmentPostProcessor=com.embabel.agent.starter.mcpserver.spi.McpServerEnvironmentPostProcessor
