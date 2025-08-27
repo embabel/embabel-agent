@@ -7,7 +7,7 @@
         <artifactId>embabel-agent-parent</artifactId>
         <version>0.1.2-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-lucene</artifactId>
+    <artifactId>embabel-agent-rag-lucene</artifactId>
     <packaging>jar</packaging>
     <name>Embabel Agent Rag for Lucene</name>
     <description>Embabel Agent Rag for Lucene</description>
@@ -34,26 +34,26 @@
             <artifactId>lucene-core</artifactId>
             <version>9.11.1</version>
         </dependency>
-        
+
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analysis-common</artifactId>
             <version>9.11.1</version>
         </dependency>
-        
+
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queryparser</artifactId>
             <version>9.11.1</version>
         </dependency>
-        
+
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-memory</artifactId>
             <version>9.11.1</version>
         </dependency>
-        
-        
+
+
     </dependencies>
 
     <build>

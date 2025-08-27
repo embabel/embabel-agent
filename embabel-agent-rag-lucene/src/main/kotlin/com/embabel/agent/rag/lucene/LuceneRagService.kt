@@ -37,7 +37,7 @@ import java.io.Closeable
 import kotlin.math.sqrt
 import org.springframework.ai.document.Document as SpringAiDocument
 
-class LuceneRagService(
+class LuceneRagService @JvmOverloads constructor(
     override val name: String = "lucene-rag",
     override val description: String = "In-memory Lucene-based RAG service with hybrid text and vector search capabilities",
     private val embeddingModel: EmbeddingModel? = null,

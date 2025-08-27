@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.rag.RagService
 import com.embabel.common.ai.model.*
 import org.springframework.ai.embedding.EmbeddingModel
 
@@ -27,14 +28,24 @@ typealias Embedding = FloatArray
  */
 interface Ai {
 
+    /**
+     * Return an embedding model with the given name
+     */
     fun withEmbeddingModel(model: String): EmbeddingModel =
         withEmbeddingModel(ModelSelectionCriteria.byName(model))
 
+    /**
+     * Return an embedding model matching the given criteria.
+     */
     fun withEmbeddingModel(criteria: ModelSelectionCriteria): EmbeddingModel
 
     fun withDefaultEmbeddingModel(): EmbeddingModel =
         withEmbeddingModel(DefaultModelSelectionCriteria)
 
+    /**
+     * Return the RagService
+     */
+    fun rag(): RagService
 
     /**
      * Get a configurable PromptRunner for this context using
