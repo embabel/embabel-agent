@@ -130,6 +130,9 @@
                                 <dir>${project.parent.basedir}/embabel-agent-a2a/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-autoconfigure/src/main/java</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-code/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/main/java</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/java</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-eval/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-mcpserver/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-neo/src/main/kotlin</dir>

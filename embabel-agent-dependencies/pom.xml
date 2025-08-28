@@ -13,7 +13,6 @@
     <packaging>pom</packaging>
     <name>Embabel Agent BOM</name>
     <description>Embabel Agent BOM</description>
-
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -31,6 +30,18 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-bedrock-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -99,7 +110,7 @@
                 <artifactId>embabel-agent-discord</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            
+
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-ux</artifactId>

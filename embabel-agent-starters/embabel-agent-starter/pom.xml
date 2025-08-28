@@ -14,7 +14,7 @@
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-autoconfigure</artifactId>
+            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>
