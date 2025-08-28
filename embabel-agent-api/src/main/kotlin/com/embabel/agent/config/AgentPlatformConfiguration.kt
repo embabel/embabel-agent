@@ -135,13 +135,12 @@ import org.springframework.web.client.RestTemplate
         ProcessOptionsOperationScheduler()
 
     /**
-     * Ollama, Docker and Bedrock models won't be loaded unless the profile is set.
+     * Ollama and Docker models won't be loaded unless the profile is set.
      * However, we need to depend on them to make sure any LLMs they
      * might create get injected here
-     * Bedrock Models design patterned after Ollama
      */
     @Bean
-    @DependsOn("ollamaModels", "dockerLocalModels", "bedrockModels")
+    @DependsOn("ollamaModels", "dockerLocalModels")
     fun modelProvider(
         llms: List<Llm>,
         embeddingServices: List<EmbeddingService>,

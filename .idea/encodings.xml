@@ -6,7 +6,10 @@
     <file url="file://$PROJECT_DIR$/embabel-agent-api/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-api/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-autoconfigure/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-code/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-code/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-code/src/main/kotlin" charset="UTF-8" />

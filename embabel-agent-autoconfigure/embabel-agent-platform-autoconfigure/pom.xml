@@ -3,19 +3,19 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.embabel.agent</groupId>
-        <artifactId>embabel-agent-starters</artifactId>
+        <artifactId>embabel-agent-autoconfigure</artifactId>
         <version>0.1.2-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-starter</artifactId>
-    <name>Embabel Agent Starter</name>
-    <description>Embabel Agent Starter. Parent to all starters</description>
+    <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+    <packaging>jar</packaging>
+    <name>Embabel Agent Autoconfiguration platform</name>
+    <description>Spring Boot Auto-Configuration platform for Embabel Agent API</description>
 
-    <!-- includes transitive dependency on agent API module -->
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
-            <version>${project.version}</version>
+            <artifactId>embabel-agent-api</artifactId>
         </dependency>
     </dependencies>
+
 </project>
