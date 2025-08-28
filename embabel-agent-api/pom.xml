@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+F<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
@@ -22,6 +22,16 @@
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-commons</artifactId>
             <version>${spring-boot.version}</version> <!-- Use your preferred version -->
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
         </dependency>
 
         <dependency>
@@ -84,23 +94,10 @@
         </dependency>
 
         <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
-        </dependency>
-
-        <!-- TODO this should go out -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-logging</artifactId>
         </dependency>
 
-
-        <!-- Spring AI -->
-        <!-- https://mvnrepository.com/artifact/org.springframework.ai/spring-ai-vector-store -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-client-chat</artifactId>
