@@ -27,10 +27,14 @@ import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupRequirement
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
+import org.springframework.core.KotlinDetector
 import org.springframework.stereotype.Component
 import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
+import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.kotlinFunction
+import kotlin.reflect.KClass
 
 /**
  * Implementation that creates dummy instances of domain objects to discover tools,
@@ -54,22 +58,47 @@ internal class DefaultActionMethodManager(
         val inputClasses = method.parameters
             .map { it.type }
         val kFunction = method.kotlinFunction
-        val inputs = method.parameters
-            .filterNot {
-                val kFunctionParameter = kFunction?.parameters?.firstOrNull { kfp -> kfp.name == it.name }
+        val inputs = if (KotlinDetector.isKotlinType(method.declaringClass)) {
+            // get parameter name from kotlin class compile
+            kFunction?.valueParameters?.filterNot { kFunctionParameter ->
                 kFunctionParameter?.type?.isMarkedNullable ?: false
-            }
-            .filterNot {
-                OperationContext::class.java.isAssignableFrom(it.type)
-            }
-            .map {
-                val nameMatchAnnotation = it.getAnnotation(RequireNameMatch::class.java)
+            }?.filter {
+                it.type.classifier is KClass<*>
+            }?.filterNot {
+                OperationContext::class.java.isAssignableFrom((it.type.classifier as KClass<*>).java)
+            }?.map {
+                val nameMatchAnnotation = it.findAnnotation<RequireNameMatch>()
+                val name = it.name
                 expandInputBindings(
-                    if (nameMatchAnnotation != null) it.name else IoBinding.Companion.DEFAULT_BINDING,
-                    it.type
-                )
-            }
-            .flatten()
+                    if (nameMatchAnnotation != null && !name.isNullOrEmpty()) name else IoBinding.Companion.DEFAULT_BINDING,
+                    (it.type.classifier as KClass<*>).java)
+            }?.flatten() ?: arrayListOf<IoBinding>()
+        } else {
+            // get parameter name from java class compile
+            method.parameters
+                .filterNot {
+                    val kFunctionParameter = kFunction?.parameters?.firstOrNull { kfp -> kfp.name == it.name }
+                    kFunctionParameter?.type?.isMarkedNullable ?: false
+                }
+                .filterNot {
+                    OperationContext::class.java.isAssignableFrom(it.type)
+                }
+                .map {
+                    val nameMatchAnnotation = it.getAnnotation(RequireNameMatch::class.java)
+                    if (nameMatchAnnotation != null) {
+                        if (!it.isNamePresent) {
+                            throw IllegalArgumentException(
+                                "Name for argument of type [${it.type}] not specified, and parameter name information not available via reflection. Ensure that the compiler uses the '-parameters' flag."
+                                )
+                        } else {
+                            expandInputBindings(it.name, it.type)
+                        }
+                    } else{
+                        expandInputBindings(IoBinding.Companion.DEFAULT_BINDING, it.type)
+                    }
+                }
+                .flatten()
+        }
 
         return MultiTransformationAction(
             name = nameGenerator.generateName(instance, method.name),
@@ -106,38 +135,77 @@ internal class DefaultActionMethodManager(
         val kFunction = method.kotlinFunction
 
         val args = mutableListOf<Any?>()
-        for (parameter in method.parameters) {
-            when {
-                ProcessContext::class.java.isAssignableFrom(parameter.type) -> {
-                    args += actionContext.processContext
-                }
-
-                OperationContext::class.java.isAssignableFrom(parameter.type) -> {
-                    args += actionContext
-                }
-
-                else -> {
-                    val requireNameMatch = parameter.getAnnotation(RequireNameMatch::class.java)
-                    val domainTypes = actionContext.processContext.agentProcess.agent.jvmTypes.map { it.clazz }
-                    val variable = if (requireNameMatch != null) {
-                        parameter.name
-                    } else {
-                        IoBinding.DEFAULT_BINDING
-                    }
-                    val lastArg = actionContext.getValue(
-                        variable = variable,
-                        type = parameter.type.name,
-                        dataDictionary = actionContext.processContext.agentProcess.agent,
-                    )
-                    if (lastArg == null) {
-                        val kParam = kFunction?.parameters?.firstOrNull { kfp -> kfp.name == parameter.name }
-                        val isNullable =
-                            (kParam?.isOptional == true) || (kParam?.type?.isMarkedNullable == true)
-                        if (!isNullable) {
-                            error("Action ${actionContext.action.name}: Internal error. No value found in blackboard for non-nullable parameter ${parameter.name}:${parameter.type.name}")
+        if (KotlinDetector.isKotlinType(method.declaringClass)) {
+            method.kotlinFunction?.valueParameters
+                ?.forEach { kParameter ->
+                    val classifier = kParameter.type.classifier
+                    if (classifier is KClass<*>) {
+                        when {
+                            ProcessContext::class.java.isAssignableFrom(classifier.java) -> {
+                                args += actionContext.processContext
+                            }
+                            OperationContext::class.java.isAssignableFrom(classifier.java) -> {
+                                args += actionContext
+                            }
+                            else -> {
+                                val requireNameMatch = kParameter.findAnnotation<RequireNameMatch>()
+                                val name = kParameter.name
+                                val variable = if (requireNameMatch != null && !name.isNullOrEmpty()) {
+                                    name
+                                } else {
+                                    IoBinding.DEFAULT_BINDING
+                                }
+                                val lastArg = actionContext.getValue(
+                                    variable = variable,
+                                    type = classifier.java.name,
+                                    dataDictionary = actionContext.processContext.agentProcess.agent,
+                                )
+                                if (lastArg == null) {
+                                    val isNullable =
+                                        (kParameter?.isOptional == true) || (kParameter?.type?.isMarkedNullable == true)
+                                    if (!isNullable) {
+                                        error("Action ${actionContext.action.name}: Internal error. No value found in blackboard for non-nullable parameter ${name}:${classifier.java.name}")
+                                    }
+                                }
+                                args += lastArg
+                            }
                         }
                     }
-                    args += lastArg
+                }
+        } else {
+            for (parameter in method.parameters) {
+                when {
+                    ProcessContext::class.java.isAssignableFrom(parameter.type) -> {
+                        args += actionContext.processContext
+                    }
+
+                    OperationContext::class.java.isAssignableFrom(parameter.type) -> {
+                        args += actionContext
+                    }
+
+                    else -> {
+                        val requireNameMatch = parameter.getAnnotation(RequireNameMatch::class.java)
+                        val domainTypes = actionContext.processContext.agentProcess.agent.jvmTypes.map { it.clazz }
+                        val variable = if (requireNameMatch != null) {
+                            parameter.name
+                        } else {
+                            IoBinding.DEFAULT_BINDING
+                        }
+                        val lastArg = actionContext.getValue(
+                            variable = variable,
+                            type = parameter.type.name,
+                            dataDictionary = actionContext.processContext.agentProcess.agent,
+                        )
+                        if (lastArg == null) {
+                            val kParam = kFunction?.parameters?.firstOrNull { kfp -> kfp.name == parameter.name }
+                            val isNullable =
+                                (kParam?.isOptional == true) || (kParam?.type?.isMarkedNullable == true)
+                            if (!isNullable) {
+                                error("Action ${actionContext.action.name}: Internal error. No value found in blackboard for non-nullable parameter ${parameter.name}:${parameter.type.name}")
+                            }
+                        }
+                        args += lastArg
+                    }
                 }
             }
         }
