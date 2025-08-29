@@ -17,7 +17,7 @@
     --heading-color: #63c0f5;
     --code-bg-color: #131313;
     --code-text-color: #f8f8f2;
-    --quote-bg-color: #93c093;
+    --quote-bg-color: #7aa77a;
     --quote-border-color: #444444;
     --table-header-bg: #2d2d2d;
     --table-border-color: #444444;
@@ -96,7 +96,7 @@ body {
     width: var(--toc-width); /* responsive */
     overflow: auto;
     z-index: 900;
-    background: linear-gradient(-45deg, #1a1f2e, #0d0d0d, #1f0d1f, #0d1f0d);
+    background: linear-gradient(-45deg, #1a1f2e, #0d0d0d, #1f0d1f, #0d1f0d) !important;
     background-size: 400% 400%;
     animation: gradientBG 30s ease infinite;
     padding: 1rem;
@@ -292,7 +292,12 @@ blockquote::before {
 }
 
 .exampleblock > .content {
-    background-color: #252525 !important;
+    background: linear-gradient(
+            135deg,
+            #252525 0%,
+            #2e2b38 40%,
+            #2b333d 100%
+    ) !important;
     border: 1px solid #444 !important;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -318,7 +323,11 @@ blockquote::before {
     padding-right: 1.25em;
     border-left: 1px solid #444;
     color: #e0e0e0 !important;
-    background-color: #252525;
+    background: linear-gradient(
+            135deg,
+            #252525 0%,
+            #2a2d33 100%
+    );
 }
 
 .admonitionblock.note > table td.icon {
@@ -582,7 +591,11 @@ pre code {
 
 /* Inline code */
 code, tt {
-    background: var(--code-color1) !important;
+    background: linear-gradient(
+            to bottom,
+            #9f77cd 0%,
+            #7e64a7 100%
+    ) !important;
     color: var(--code-fg) !important;
     border: 0;
     padding: 0.15em 0.4em !important;
@@ -951,9 +964,14 @@ pre code {
     /* outer panel */
 .listingblock,
 .literalblock {
-    background: #131313 !important;
+    background: linear-gradient(
+            135deg,
+            #131313 0%,
+            #181621 40%,   /* faint purple-gray */
+            #161c22 100%   /* faint blue-gray */
+    ) !important;
     border: 1px solid #2a2a2a !important;
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 0.75rem; /* space around code */
 }
 
@@ -1083,3 +1101,5 @@ colist td {
     padding: .25em 0;
     color: #fafafa;
 }
+
+
