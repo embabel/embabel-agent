@@ -99,6 +99,10 @@ The framework automatically provides these tools to the LLM when the action runs
 
 Here's an example from the `StarNewsFinder` agent that demonstrates web tool usage:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // toolGroups specifies tools that are required for this action to run
@@ -121,8 +125,8 @@ public RelevantNewsStories findNewsStories(
 }
 ----
 
-Or in Kotlin:
-
+Kotlin::
++
 [source,kotlin]
 ----
 // toolGroups specifies tools that are required for this action to run
@@ -145,6 +149,7 @@ internal fun findNewsStories(
         """.trimIndent()
     )
 ----
+====
 
 WARNING: (jasper notes) Since we have pretty tabs now, we can merge the above to use them.
 
