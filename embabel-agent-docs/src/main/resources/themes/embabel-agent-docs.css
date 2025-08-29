@@ -581,6 +581,14 @@ code, tt {
     border-radius: 4px !important;
 }
 
+/* Inline code inside a quoteblock */
+.quoteblock code,
+.quoteblock .monospaced {
+    background-color: #4b624b !important;
+    padding: 0.15em 0.3em;
+    border-radius: 3px;
+}
+
 /* ===== highlight.js ===== */
 .hljs, .hljs-subst {
     color: var(--code-fg) !important;
