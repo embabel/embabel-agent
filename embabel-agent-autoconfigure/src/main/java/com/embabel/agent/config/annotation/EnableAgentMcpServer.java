@@ -48,13 +48,9 @@ import java.lang.annotation.Target;
  *     allowed-tools: "*"      # Tool access control (* = all)
  * }</pre>
  *
- * @see EnableAgentShell
- * @see EnableAgents
- * @see AgentPlatform
  * @since 1.0
  * @author Embabel Team
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@AgentPlatform(StartupMode.MCP_SERVER)
 public @interface EnableAgentMcpServer {}
