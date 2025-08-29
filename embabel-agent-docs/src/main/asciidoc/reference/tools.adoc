@@ -19,6 +19,8 @@ Thus tool groups cannot be specified at agent level, but must be specified on in
 
 Tool groups are often backed by MCP.
 
+WARNING: (jasper notes) Let's expand the acronym, then provide a link to a definition. Either a general one, or one that describes MCP in the contet of Embabel.
+
 ===== Configuring Tool Groups with Spring
 
 Embabel uses Spring's `@Configuration` and `@Bean` annotations to expose ToolGroups to the agent platform.
@@ -97,6 +99,10 @@ The framework automatically provides these tools to the LLM when the action runs
 
 Here's an example from the `StarNewsFinder` agent that demonstrates web tool usage:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // toolGroups specifies tools that are required for this action to run
@@ -119,8 +125,8 @@ public RelevantNewsStories findNewsStories(
 }
 ----
 
-Or in Kotlin:
-
+Kotlin::
++
 [source,kotlin]
 ----
 // toolGroups specifies tools that are required for this action to run
@@ -143,6 +149,9 @@ internal fun findNewsStories(
         """.trimIndent()
     )
 ----
+====
+
+WARNING: (jasper notes) Since we have pretty tabs now, we can merge the above to use them.
 
 ===== Key Tool Usage Patterns
 
@@ -157,9 +166,13 @@ Actions can specify multiple tool groups (e.g., `[CoreToolGroups.WEB, CoreToolGr
 The framework automatically makes the specified tools available to the LLM during the action execution.
 Developers don't need to manually manage tool availability - they simply declare what's needed.
 
+WARNING: (jasper notes) Any gotchas to the above in terms of configuration on startup?
+
 **Tool-Aware Prompts:**
 Prompts should explicitly instruct the LLM to use the available tools.
 For example, "use web tools and generate search queries" clearly directs the LLM to utilize the web search capabilities.
+
+WARNING: (jasper notes) Do tools or tool groups also include their own prompt about suitability in a context, input and output types? Eg on langchain they do, and then you prompt to use that tool. Any guidance on how to refer to the tool by name in the prompt?
 
 ===== Using Tools at PromptRunner Level
 
@@ -219,3 +232,5 @@ context.ai()
 ==== Tools on Domain Objects
 
 Important
+
+WARNING: (jasper notes) We covered this earlier. Just link back to it? Or move that section here?
