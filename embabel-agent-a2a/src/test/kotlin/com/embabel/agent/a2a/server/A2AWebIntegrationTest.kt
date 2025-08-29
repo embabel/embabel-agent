@@ -17,12 +17,12 @@ package com.embabel.agent.a2a.server
 
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.core.AgentPlatform
-import com.embabel.agent.e2e.FakeConfig
 import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.test.config.FakeConfig
+import com.embabel.agent.test.example.simple.horoscope.TestHoroscopeService
+import com.embabel.agent.test.example.simple.horoscope.kotlin.TestStarNewsFinder
 import com.embabel.agent.testing.integration.DummyObjectCreatingLlmOperations
 import com.embabel.common.core.types.Semver.Companion.DEFAULT_VERSION
-import com.embabel.example.simple.horoscope.TestHoroscopeService
-import com.embabel.example.simple.horoscope.java.TestStarNewsFinder
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.a2a.spec.AgentCard
 import io.a2a.spec.CancelTaskResponse
@@ -97,12 +97,11 @@ class A2AWebIntegrationTest(
     @BeforeEach
     fun setup() {
         AgentMetadataReader().createAgentScopes(
-            com.embabel.example.simple.horoscope.kotlin.TestStarNewsFinder(
+            TestStarNewsFinder(
                 horoscopeService = horoscopeService,
                 wordCount = 100,
                 storyCount = 5,
             ),
-            TestStarNewsFinder(horoscopeService, 5),
         ).forEach { agentPlatform.deploy(it) }
     }
 
