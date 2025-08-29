@@ -31,6 +31,8 @@ var analyticalOptions = LlmOptions.withModel(OpenAiModels.GPT_4O_MINI)
 All LLM calls in user applications should be made via the `PromptRunner` interface.
 Once created, a `PromptRunner` can run multiple prompts with the same LLM, hyperparameters, tool groups and `PromptContributors`.
 
+WARNING: (jasper notes) Can I inject OperationContext on my agent class, to create a shared prompt-runner?
+
 ===== Getting a PromptRunner
 
 You obtain a `PromptRunner` from an `OperationContext` using the fluent API:
@@ -61,6 +63,8 @@ public Story createStory(UserInput input, OperationContext context) {
 This can cause replanning.
 - `generateText(String)`: Generate simple text response
 
+WARNING: (jasper notes) What happens when create object fails? Reader should know.
+
 TIP: Normally you want to use one of the `createObject` methods to ensure the response is typed correctly.
 
 **Tool and Context Management:**
@@ -68,6 +72,8 @@ TIP: Normally you want to use one of the `createObject` methods to ensure the re
 - `withToolGroup(String)`: Add tool groups for LLM access
 - `withToolObject(Object)`: Add domain objects with @Tool methods
 - `withPromptContributor(PromptContributor)`: Add context contributors
+
+WARNING: (jasper notes) We've already defined what tool objects are, but not tool groups or how they work. Let's add links back to the definition on each builder method. Question: How do we define tools that work on types the user can't control or annotate?
 
 **LLM Configuration:**
 
@@ -109,3 +115,5 @@ var story = context.ai()
 - `withTemplate(String)`: Use Jinja templates for prompts
 - `withSubagents(Subagent...)`: Enable handoffs to other agents
 - `evaluateCondition(String, String)`: Evaluate boolean condition
+
+WARNING: (jasper notes) For each of the above, let's add links to the detailed definition of the feature?
