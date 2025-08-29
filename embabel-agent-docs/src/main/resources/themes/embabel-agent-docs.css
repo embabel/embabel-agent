@@ -96,9 +96,17 @@ body {
     width: var(--toc-width); /* responsive */
     overflow: auto;
     z-index: 900;
-    background: #0b0b0b;
+    background: linear-gradient(-45deg, #1a1f2e, #0d0d0d, #1f0d1f, #0d1f0d);
+    background-size: 400% 400%;
+    animation: gradientBG 30s ease infinite;
     padding: 1rem;
     box-sizing: border-box;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
 }
 
 #content {
