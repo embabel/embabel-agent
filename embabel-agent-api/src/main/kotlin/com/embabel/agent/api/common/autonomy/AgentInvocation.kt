@@ -25,8 +25,8 @@ import java.util.function.Consumer
 /**
  * Defines the contract for invoking an agent.
  *
- * Default instances are created with [AgentInvocation.Companion.create];
- * [AgentInvocation.Companion.builder] allows for customization of the invocation
+ * Default instances are created with [AgentInvocation.create];
+ * [AgentInvocation.builder] allows for customization of the invocation
  * before creation.
  * Once created, [invoke] or [invokeAsync] is used to invoke the agent.
  *
@@ -41,7 +41,10 @@ interface AgentInvocation<T> {
      * @param objs additional input values to add to the blackboard
      * @return the result of type [T] from the agent invocation
      */
-    fun invoke(obj: Any, vararg objs: Any): T
+    fun invoke(
+        obj: Any,
+        vararg objs: Any,
+    ): T
 
     /**
      * Invokes the agent with a map of named inputs.
@@ -58,7 +61,10 @@ interface AgentInvocation<T> {
      * @param objs additional input values to add to the blackboard
      * @return the result of type [T] from the agent invocation
      */
-    fun invokeAsync(obj: Any, vararg objs: Any): CompletableFuture<T>
+    fun invokeAsync(
+        obj: Any,
+        vararg objs: Any,
+    ): CompletableFuture<T>
 
     /**
      * Invokes the agent asynchronously with a map of named inputs.
@@ -79,7 +85,10 @@ interface AgentInvocation<T> {
          * @return a configured [AgentInvocation] that produces values of type [T]
          */
         @JvmStatic
-        fun <T : Any> create(agentPlatform: AgentPlatform, resultType: Class<T>): AgentInvocation<T> {
+        fun <T : Any> create(
+            agentPlatform: AgentPlatform,
+            resultType: Class<T>,
+        ): AgentInvocation<T> {
             return builder(agentPlatform).build(resultType)
         }
 
@@ -163,17 +172,20 @@ interface AgentInvocation<T> {
  * @param T type of result returned by the invocation
  * @return a new [AgentInvocation] producing values of type [T]
  */
-inline fun <reified T : Any> AgentInvocation.Builder.build(): AgentInvocation<T>  {
+inline fun <reified T : Any> AgentInvocation.Builder.build(): AgentInvocation<T> {
     return build(T::class.java)
 }
 
-internal class DefaultAgentInvocation<T : Any> (
+internal class DefaultAgentInvocation<T : Any>(
     private val agentPlatform: AgentPlatform,
     private val processOptions: ProcessOptions,
-    private val resultType: Class<T>
-): AgentInvocation<T> {
+    private val resultType: Class<T>,
+) : AgentInvocation<T> {
 
-    override fun invoke(obj: Any, vararg objs: Any): T {
+    override fun invoke(
+        obj: Any,
+        vararg objs: Any,
+    ): T {
         return invokeAsync(obj, *objs)
             .get()
     }
@@ -183,7 +195,10 @@ internal class DefaultAgentInvocation<T : Any> (
             .get()
     }
 
-    override fun invokeAsync(obj: Any, vararg objs: Any): CompletableFuture<T> {
+    override fun invokeAsync(
+        obj: Any,
+        vararg objs: Any,
+    ): CompletableFuture<T> {
         val agent = findAgentByResultType() ?: error("No agent with outputClass $resultType found.")
         val args = arrayOf(obj, *objs)
 

@@ -17,9 +17,9 @@ package com.embabel.chat
 
 import com.embabel.common.core.MobyNameGenerator
 
-data class InMemoryConversation(
-    override val id: String = MobyNameGenerator.generateName(),
+data class InMemoryConversation @JvmOverloads constructor(
     override val messages: List<Message> = emptyList(),
+    override val id: String = MobyNameGenerator.generateName(),
     private val persistent: Boolean = false,
 ) : Conversation {
 
@@ -30,4 +30,16 @@ data class InMemoryConversation(
     }
 
     override fun persistent(): Boolean = persistent
+
+    companion object {
+
+        @JvmStatic
+        fun withSystemMessage(systemMessage: String): Conversation {
+            return InMemoryConversation().withMessage(
+                SystemMessage(
+                    content = systemMessage,
+                )
+            )
+        }
+    }
 }

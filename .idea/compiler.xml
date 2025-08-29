@@ -12,11 +12,14 @@
         <module name="embabel-agent-shell" />
         <module name="embabel-agent-starter-bedrock" />
         <module name="embabel-agent-a2a" />
+        <module name="embabel-agent-lucene" />
+        <module name="embabel-agent-starter-shell" />
         <module name="embabel-agent-autoconfigure" />
         <module name="embabel-agent-rag" />
         <module name="embabel-agent-starter" />
         <module name="embabel-agent-mcpserver" />
         <module name="embabel-agent-api" />
+        <module name="embabel-agent-starter-mcpserver" />
         <module name="embabel-movie-example" />
         <module name="embabel-agent-code" />
         <module name="embabel-agent-test" />
@@ -29,6 +32,7 @@
       <module name="embabel-agent-docs" target="21" />
       <module name="embabel-agent-example-dependencies" target="1.5" />
       <module name="embabel-agent-example-parent" target="21" />
+      <module name="embabel-agent-rag-lucene" target="21" />
       <module name="embabel-horoscope-example" target="21" />
       <module name="embabel-movie-example" target="21" />
       <module name="example-java-parent" target="21" />

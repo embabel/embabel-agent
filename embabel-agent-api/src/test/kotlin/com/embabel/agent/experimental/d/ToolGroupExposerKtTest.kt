@@ -28,7 +28,10 @@ interface MagicToolsNoArg {
 
     fun absquatulate(): String
 
-    fun absquatulateWithArgs(arg1: String, arg2: Int): String
+    fun absquatulateWithArgs(
+        arg1: String,
+        arg2: Int,
+    ): String
 }
 
 class MagicToolsImpl : MagicToolsNoArg {
@@ -39,7 +42,10 @@ class MagicToolsImpl : MagicToolsNoArg {
     }
 
     @Tool(description = "absquatulateWithArgs")
-    override fun absquatulateWithArgs(arg1: String, arg2: Int): String {
+    override fun absquatulateWithArgs(
+        arg1: String,
+        arg2: Int,
+    ): String {
         return "$arg1 $arg2"
     }
 }
@@ -51,7 +57,7 @@ class ToolGroupExposerKtTest {
 
         @Test
         fun `unrelated interface`() {
-            val toolGroup = ToolCallbackPublisher.Companion()
+            val toolGroup = ToolCallbackPublisher()
             assertThrows<IllegalArgumentException> {
                 exposeAsInterface(toolGroup, MagicToolsNoArg::class.java)
             }
@@ -63,7 +69,7 @@ class ToolGroupExposerKtTest {
 
         @Test
         fun `valid call without args`() {
-            val toolGroup = ToolCallbackPublisher.Companion(
+            val toolGroup = ToolCallbackPublisher(
                 ToolCallbacks.from(MagicToolsImpl()).toList(),
             )
             val magicTool = exposeAsInterface(toolGroup, MagicToolsNoArg::class.java)

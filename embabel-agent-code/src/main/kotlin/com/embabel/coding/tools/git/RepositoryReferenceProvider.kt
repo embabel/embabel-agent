@@ -15,8 +15,10 @@
  */
 package com.embabel.coding.tools.git
 
+import com.embabel.agent.core.AgentProcess
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.GitAPIException
+import org.springframework.ai.tool.annotation.Tool
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -44,6 +46,21 @@ data class RepositoryReferenceProvider(
         return copy(
             fileFormatLimits = this.fileFormatLimits.copy(fileSizeLimit = limit),
         )
+    }
+
+    /**
+     * Will add a reference to the blackboard
+     */
+    @Tool(description = "Clone a Git repository from the given URL to a temporary directory")
+    fun clone(url: String): String {
+        val agentProcess = AgentProcess.get()
+        if (agentProcess == null) {
+            error("No agent process: Cannot add cloned repository to agent process")
+        } else {
+            val clonedRepositoryReference = cloneRepository(url)
+            agentProcess += clonedRepositoryReference
+            return "Cloned repository from $url to ${clonedRepositoryReference.localPath} and added to agent process ${agentProcess.id}"
+        }
     }
 
     /**
@@ -81,6 +98,7 @@ data class RepositoryReferenceProvider(
             }
 
             return ClonedRepositoryReference(
+                url = url,
                 localPath = tempDir,
                 shouldDeleteOnClose = true,
                 fileFormatLimits = fileFormatLimits,
@@ -131,6 +149,7 @@ data class RepositoryReferenceProvider(
         }
 
         return ClonedRepositoryReference(
+            url = url,
             localPath = targetDirectory,
             shouldDeleteOnClose = false,
             fileFormatLimits = fileFormatLimits,

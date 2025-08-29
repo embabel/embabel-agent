@@ -54,7 +54,7 @@ class EmbabelServerGoalsAgentCardHandler(
             .description(agentPlatform.description)
             .url(hostingUrl)
             .provider(AgentProvider("Embabel", "https://embabel.com"))
-            .version(Semver.Companion.DEFAULT_VERSION)
+            .version(Semver.DEFAULT_VERSION)
             .documentationUrl("https://embabel.com/docs")
             .capabilities(
                 AgentCapabilities.Builder()

@@ -45,7 +45,7 @@ class ToolGroupFactory(
             bindings = bindings,
         )
         return ToolGroup(
-            metadata = ToolGroupMetadata.Companion(
+            metadata = ToolGroupMetadata(
                 name = "Default chat tools",
                 description = "Default tools for chat agent",
                 role = "chat",

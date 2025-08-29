@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.domain.library.code
 
-import com.embabel.agent.tools.common.LlmReference
+import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.tools.file.*
 import com.embabel.coding.tools.ci.BuildOptions
 import com.embabel.coding.tools.ci.BuildResult
@@ -56,8 +56,10 @@ open class SoftwareProject @JvmOverloads constructor(
         )
     }
 
-    override val name: String
+    override val name
         get() = root.substringAfterLast('/')
+
+    override val description get() = "Software project at $root${if (url != null) " from $url" else ""} using $tech"
 
     val codingStyle: String
         get() {

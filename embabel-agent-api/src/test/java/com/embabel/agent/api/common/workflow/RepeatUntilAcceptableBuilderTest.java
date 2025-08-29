@@ -71,7 +71,7 @@ class RepeatUntilAcceptableBuilderTest {
         var ap = IntegrationTestUtils.dummyAgentPlatform();
         var result = ap.runAgentFrom(
                 agent,
-                ProcessOptions.Companion.getDEFAULT(),
+                ProcessOptions.getDEFAULT(),
                 Map.of("it", new UserInput("input"))
         );
         assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());

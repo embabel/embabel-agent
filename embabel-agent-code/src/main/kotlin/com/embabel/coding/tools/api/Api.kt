@@ -22,6 +22,7 @@ data class ApiMethod(
     val parameters: List<String>,
     val returnType: String,
     val annotations: List<String> = emptyList(),
+    val comment: String? = null,
 )
 
 data class ApiClass(
@@ -31,8 +32,12 @@ data class ApiClass(
     val methods: List<ApiMethod> = emptyList(),
     val annotations: List<String> = emptyList(),
     val superTypes: List<String> = emptyList(),
+    val comment: String? = null,
 )
 
+/**
+ * Representation of an API with its classes and methods.
+ */
 data class Api(
     override val name: String,
     val classes: List<ApiClass>,

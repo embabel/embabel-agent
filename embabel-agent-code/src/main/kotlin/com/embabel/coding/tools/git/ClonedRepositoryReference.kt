@@ -15,7 +15,7 @@
  */
 package com.embabel.coding.tools.git
 
-import com.embabel.agent.tools.common.LlmReference
+import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.tools.file.DefaultFileReadLog
 import com.embabel.agent.tools.file.FileReadLog
 import com.embabel.agent.tools.file.FileReadTools
@@ -32,11 +32,13 @@ import java.nio.file.attribute.BasicFileAttributes
  * Reference to a cloned Git repository with automatic cleanup capabilities.
  * Exposes LLM tools and ensures proper cleanup on application shutdown.
  *
+ * @param url The URL of the Git repository we cloned
  * @param localPath The local path where the repository is cloned.
  * @param shouldDeleteOnClose If true, the repository will be deleted when closed.
  * @param fileFormatLimits Limits for file processing operations.
  */
 class ClonedRepositoryReference(
+    val url: String,
     val localPath: Path,
     val shouldDeleteOnClose: Boolean = true,
     val fileFormatLimits: FileFormatLimits = FileFormatLimits(),
@@ -44,6 +46,9 @@ class ClonedRepositoryReference(
 
     override val name: String
         get() = root.substringAfterLast('/')
+
+    override val description: String
+        get() = "Cloned Git repository from $url"
 
     override val fileContentTransformers: List<StringTransformer>
         get() = listOf(WellKnownFileContentTransformers.removeApacheLicenseHeader)

@@ -131,7 +131,7 @@ public class TestStarNewsFinder {
             RelevantNewsStories relevantNewsStories,
             Horoscope horoscope,
             OperationContext context) {
-        var llm = LlmOptions.Companion.fromCriteria(ModelSelectionCriteria.getAuto())
+        var llm = LlmOptions.fromCriteria(ModelSelectionCriteria.getAuto())
                 .withTemperature(0.9);
 
         var newsItems = relevantNewsStories.getItems().stream()

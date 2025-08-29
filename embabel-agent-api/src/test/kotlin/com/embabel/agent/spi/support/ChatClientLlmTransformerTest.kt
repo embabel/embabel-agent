@@ -25,6 +25,7 @@ import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.spi.support.springai.MaybeReturn
 import com.embabel.agent.testing.common.EventSavingAgenticEventListener
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
@@ -174,7 +175,7 @@ class ChatClientLlmTransformerTest {
                 JinjavaTemplateRenderer(),
             )
             return transformer.createObject(
-                prompt = "Say hello",
+                messages = listOf(UserMessage("Say hello")),
                 interaction = LlmInteraction(id = InteractionId("test")),
                 agentProcess = mockAgentProcess,
                 action = null,

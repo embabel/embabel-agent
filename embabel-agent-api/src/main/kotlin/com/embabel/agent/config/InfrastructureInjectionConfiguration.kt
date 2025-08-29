@@ -16,10 +16,12 @@
 package com.embabel.agent.config
 
 import com.embabel.agent.api.common.Ai
+import com.embabel.agent.api.common.AiBuilder
 import com.embabel.agent.api.common.ExecutingOperationContext
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.Verbosity
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Scope
@@ -34,29 +36,42 @@ class InfrastructureInjectionConfiguration {
     @Bean
     @Scope("prototype")
     fun executingOperationContextFactory(agentPlatform: AgentPlatform): ExecutingOperationContext {
-        val processOptions = ProcessOptions()
-        val callingClassName = findFirstUserClass()
-        val agentForIdOnly = agent(
-            name = callingClassName,
-            description = "Empty agent for operation context injection into $callingClassName",
-        ) {
-            // No actions, just a placeholder
-        }
-        return ExecutingOperationContext(
-            name = callingClassName,
-            agentProcess = agentPlatform.createAgentProcess(
-                agentForIdOnly,
-                processOptions = processOptions,
-                bindings = emptyMap(),
-            ),
-        )
+        return createExecutingOperationContext(agentPlatform, ProcessOptions())
     }
 
     @Bean
     @Scope("prototype")
     fun aiFactory(agentPlatform: AgentPlatform): Ai {
-        return executingOperationContextFactory(agentPlatform).ai()
+        return createExecutingOperationContext(agentPlatform, ProcessOptions()).ai()
     }
+
+    @Bean
+    @Scope("prototype")
+    fun aiBuilderFactory(agentPlatform: AgentPlatform): AiBuilder {
+        return AiBuilderImpl(agentPlatform, ProcessOptions(verbosity = Verbosity(debug = true)))
+    }
+
+}
+
+private fun createExecutingOperationContext(
+    agentPlatform: AgentPlatform,
+    processOptions: ProcessOptions,
+): ExecutingOperationContext {
+    val callingClassName = findFirstUserClass()
+    val agentForIdOnly = agent(
+        name = callingClassName,
+        description = "Empty agent for operation context injection into $callingClassName",
+    ) {
+        // No actions, just a placeholder
+    }
+    return ExecutingOperationContext(
+        name = callingClassName,
+        agentProcess = agentPlatform.createAgentProcess(
+            agentForIdOnly,
+            processOptions = processOptions,
+            bindings = emptyMap(),
+        ),
+    )
 }
 
 private fun findFirstUserClass(): String {
@@ -71,4 +86,24 @@ private fun findFirstUserClass(): String {
         ?.className
         ?.substringAfterLast(".")
         ?: "Unknown"
+}
+
+private data class AiBuilderImpl(
+    val agentPlatform: AgentPlatform,
+    val processOptions: ProcessOptions,
+) : AiBuilder {
+
+    override val showPrompts: Boolean
+        get() = processOptions.verbosity.showPrompts
+
+    override val showLlmResponses: Boolean
+        get() = processOptions.verbosity.showLlmResponses
+
+    override fun ai(): Ai = createExecutingOperationContext(agentPlatform, processOptions).ai()
+
+    override fun withShowPrompts(show: Boolean): AiBuilder =
+        copy(processOptions = processOptions.copy(verbosity = processOptions.verbosity.copy(showPrompts = show)))
+
+    override fun withShowLlmResponses(show: Boolean): AiBuilder =
+        copy(processOptions = processOptions.copy(verbosity = processOptions.verbosity.copy(showLlmResponses = show)))
 }

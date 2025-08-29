@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-build-parent</artifactId>
-        <version>0.1.1</version>
+        <version>0.1.2-SNAPSHOT</version>
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-parent</artifactId>
@@ -27,6 +27,7 @@
         <module>embabel-agent-eval</module>
         <module>embabel-agent-mcpserver</module>
         <module>embabel-agent-rag</module>
+        <module>embabel-agent-rag-lucene</module>
         <module>embabel-agent-shell</module>
         <module>embabel-agent-starters</module>
         <module>embabel-agent-test</module>

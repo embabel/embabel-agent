@@ -15,6 +15,10 @@
  */
 package com.embabel.chat
 
+/**
+ * Format a conversation into a String for inclusion in a prompt.
+ * Note that we often prefer to use messages.
+ */
 fun interface ConversationFormatter {
 
     fun format(conversation: Conversation): String
@@ -34,7 +38,7 @@ object SimpleMessageFormatter : MessageFormatter {
 /**
  * Conversation formatter that shows the last `windowSize` messages
  */
-class WindowingConversationFormatter(
+class WindowingConversationFormatter @JvmOverloads constructor(
     private val messageFormatter: MessageFormatter = SimpleMessageFormatter,
     private val windowSize: Int = 100,
 ) : ConversationFormatter {

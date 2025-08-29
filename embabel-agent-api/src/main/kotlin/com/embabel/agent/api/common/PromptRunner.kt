@@ -28,9 +28,9 @@ import com.embabel.chat.Message
 import com.embabel.chat.SystemMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.core.types.NamedAndDescribed
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.TemplateRenderer
-import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
 import org.jetbrains.annotations.ApiStatus
 
@@ -80,6 +80,9 @@ interface PromptRunnerOperations {
         outputClass: Class<T>,
     ): T
 
+    /**
+     * Respond in a conversation
+     */
     fun respond(
         messages: List<Message>,
     ): AssistantMessage =
@@ -132,6 +135,8 @@ class TemplateOperations(
 
     /**
      * Respond in the conversation using the template as system prompt.
+     * @param conversation the conversation so far
+     * @param model the model to render the system prompt template with
      */
     fun respondWithSystemPrompt(
         conversation: Conversation,
@@ -146,51 +151,18 @@ class TemplateOperations(
 }
 
 /**
- * Holds an annotated tool object.
- * Adds a naming strategy and a filter to the object.
- * @param obj the object the tool annotations are on
- * @param namingStrategy the naming strategy to use for the tool object's methods
- * @param filter a filter to apply to the tool object's methods
+ * A Reference exposes tools and is a prompt contributor.
+ * The prompt contribution might describe how to use the tools
+ * or can include relevant information directly.
+ * Consider, for example, a reference to an API which is so small it's
+ * included in the prompt, versus a large API which must be
+ * accessed via tools.
+ * The reference name is used in a strategy for tool naming, so should be fairly short.
+ * Description may be more verbose.
+ * If you want a custom naming strategy, use a ToolObject directly,
+ * and add the PromptContributor separately.
  */
-data class ToolObject(
-    val obj: Any,
-    val namingStrategy: StringTransformer = StringTransformer.IDENTITY,
-    val filter: (String) -> Boolean = { true },
-) {
-
-    init {
-        if (obj is Iterable<*>) {
-            throw IllegalArgumentException("Internal error: ToolObject cannot be an Iterable. Offending object: $obj")
-        }
-    }
-
-    constructor (
-        obj: Any,
-    ) : this(
-        obj = obj,
-        namingStrategy = StringTransformer.IDENTITY,
-        filter = { true },
-    )
-
-    fun withNamingStrategy(
-        namingStrategy: StringTransformer,
-    ): ToolObject = copy(namingStrategy = namingStrategy)
-
-    fun withFilter(
-        filter: (String) -> Boolean,
-    ): ToolObject = copy(filter = filter)
-
-    companion object {
-
-        fun from(o: Any): ToolObject = o as? ToolObject
-            ?: ToolObject(
-                obj = o,
-                namingStrategy = StringTransformer.IDENTITY,
-                filter = { true },
-            )
-
-    }
-}
+interface LlmReference : NamedAndDescribed, PromptContributor
 
 /**
  * Define a handoff to a subagent.
@@ -269,7 +241,9 @@ class Subagent private constructor(
  * Typically obtained from an [OperationContext] or [ActionContext] parameter,
  * via [OperationContext.ai]
  * A PromptRunner is immutable once constructed, and has determined
- * LLM and hyperparameters.
+ * LLM and hyperparameters. Use the "with" methods to evolve
+ * the state to your desired configuration before executing createObject,
+ * generateText or other LLM invocation methods.
  * Thus, a PromptRunner can be reused within an action implementation.
  * A contextual facade to LlmOperations.
  * @see com.embabel.agent.spi.LlmOperations
@@ -333,6 +307,35 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         toolObject: ToolObject,
     ): PromptRunner
 
+    fun withToolObjects(vararg toolObjects: Any?): PromptRunner =
+        toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
+
+    /**
+     * Add a reference which provides tools and prompt contribution.
+     */
+    fun withReference(reference: LlmReference): PromptRunner {
+        val safePrefix = reference.name.replace(Regex("[^a-zA-Z0-9 ]"), "_")
+        val toolObject = ToolObject(
+            obj = reference,
+            namingStrategy = { toolName -> "${safePrefix}_$toolName" },
+        )
+        return withToolObject(toolObject)
+            .withPromptContributor(reference)
+    }
+
+    /**
+     * Add a list of references which provide tools and prompt contributions.
+     */
+    fun withReferences(references: List<LlmReference>): PromptRunner {
+        return references.fold(this) { acc, reference -> acc.withReference(reference) }
+    }
+
+    /**
+     * Add varargs of references which provide tools and prompt contributions.
+     */
+    fun withReferences(vararg references: LlmReference): PromptRunner =
+        withReferences(references.toList())
+
     /**
      * Add a list of handoffs to agents on this platform
      * @param outputTypes the types of objects that can result from output flow
@@ -351,7 +354,16 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     ): PromptRunner
 
     /**
-     * Add a prompt contributor
+     * Add a system prompt
+     */
+    fun withSystemPrompt(systemPrompt: String): PromptRunner =
+        withPromptContributor(
+            PromptContributor.fixed(systemPrompt)
+        )
+
+    /**
+     * Add a prompt contributor that can add to the prompt.
+     * Facilitates reuse of prompt elements.
      * @param promptContributor
      * @return PromptRunner instance with the added PromptContributor
      */

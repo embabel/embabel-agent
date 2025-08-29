@@ -87,7 +87,7 @@ class WithExampleConverter<T>(
 
         // Generate a dummy example instance of the output type using lorem ipsum values for strings
         // The output is always a dummy instance of the most specific output class, even if it was a interface
-        val example = DummyInstanceCreator.Companion.LoremIpsum.createDummyInstance(outputClassToUse)
+        val example = DummyInstanceCreator.LoremIpsum.createDummyInstance(outputClassToUse)
         return if (ifPossible) {
             // If possible, show both a success and a failure example using a wrapper structure.
             // The MaybeReturn class is assumed to be a generic wrapper for success/failure outputs.

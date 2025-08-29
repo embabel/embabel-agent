@@ -35,6 +35,7 @@
     <file url="file://$PROJECT_DIR$/embabel-agent-examples/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-mcpserver/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-mcpserver/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-rag-lucene/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-rag/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-rag/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-shell/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
@@ -44,9 +45,11 @@
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-bedrock/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-bedrock/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-mcpserver/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-platform/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-platform/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-platform/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter-shell/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter/embabel-agent-code/src/main/kotlin" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/embabel-agent-starter/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embabel-agent-starters/src/main/java" charset="UTF-8" />

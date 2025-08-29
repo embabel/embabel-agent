@@ -59,7 +59,7 @@ class DefaultProcessCallbackTools(
         """.trimIndent()
         val formDataObject = autonomy.agentPlatform.platformServices.llmOperations.doTransform(
             prompt = prompt,
-            LlmInteraction.Companion.using(LlmOptions.Companion(criteria = ModelSelectionCriteria.Companion.Auto)),
+            LlmInteraction.Companion.using(LlmOptions.Companion(criteria = ModelSelectionCriteria.Auto)),
             outputClass = formBindingRequest.outputClass,
             null,
         )
@@ -72,7 +72,7 @@ class DefaultProcessCallbackTools(
         }
         // Resume the agent process with the form data
         agentProcess.run()
-        val ape = AgentProcessExecution.Companion.fromProcessStatus(formData, agentProcess)
+        val ape = AgentProcessExecution.fromProcessStatus(formData, agentProcess)
         return textCommunicator.communicateResult(ape)
     }
 
@@ -102,7 +102,7 @@ class DefaultProcessCallbackTools(
         }
         // Resume the agent process with the form data
         agentProcess.run()
-        val ape = AgentProcessExecution.Companion.fromProcessStatus(confirmationRequest.payload, agentProcess)
+        val ape = AgentProcessExecution.fromProcessStatus(confirmationRequest.payload, agentProcess)
         return textCommunicator.communicateResult(ape)
     }
 }

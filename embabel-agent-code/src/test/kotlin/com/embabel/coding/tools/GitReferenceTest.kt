@@ -173,7 +173,7 @@ class GitReferenceTest {
                 .call()
         }
 
-        val clonedRepo = ClonedRepositoryReference(localPath = emptyRepo, shouldDeleteOnClose = false)
+        val clonedRepo = ClonedRepositoryReference(url = "1", localPath = emptyRepo, shouldDeleteOnClose = false)
 
         val content = clonedRepo.writeAllFilesToString()
         // Should handle empty repository without errors
@@ -187,6 +187,7 @@ class GitReferenceTest {
         Files.writeString(testDir.resolve("test-file.txt"), "test content")
 
         val clonedRepo = ClonedRepositoryReference(
+            url = "x",
             localPath = testDir,
             shouldDeleteOnClose = true
         )
@@ -212,6 +213,7 @@ class GitReferenceTest {
         Files.writeString(testDir.resolve("test-file.txt"), "test content")
 
         val clonedRepo = ClonedRepositoryReference(
+            url = "y",
             localPath = testDir,
             shouldDeleteOnClose = false
         )
@@ -230,9 +232,10 @@ class GitReferenceTest {
         val testDir = tempDir.resolve("test-repo")
         Files.createDirectories(testDir)
 
-        val repo1 = ClonedRepositoryReference(testDir, shouldDeleteOnClose = false)
-        val repo2 = ClonedRepositoryReference(testDir, shouldDeleteOnClose = true)  // Different cleanup behavior
-        val repo3 = ClonedRepositoryReference(tempDir.resolve("other-repo"), shouldDeleteOnClose = false)
+        val repo1 = ClonedRepositoryReference(url = "foo1", testDir, shouldDeleteOnClose = false)
+        val repo2 =
+            ClonedRepositoryReference(url = "foo2", testDir, shouldDeleteOnClose = true)  // Different cleanup behavior
+        val repo3 = ClonedRepositoryReference(url = "foo3", tempDir.resolve("other-repo"), shouldDeleteOnClose = false)
 
         // Same path should be equal regardless of other properties
         assertEquals(repo1, repo2)

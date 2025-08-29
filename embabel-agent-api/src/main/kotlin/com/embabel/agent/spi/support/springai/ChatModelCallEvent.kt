@@ -29,6 +29,5 @@ class ChatModelCallEvent<O> internal constructor(
     val outputClass: Class<O>,
     val interaction: LlmInteraction,
     val llm: Llm,
-    val prompt: String,
     val springAiPrompt: Prompt,
 ) : AbstractAgentProcessEvent(agentProcess)

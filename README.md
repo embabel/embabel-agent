@@ -547,7 +547,7 @@ public class StarNewsFinderTest {
 
 ## Dog Food Policy
 
-We believe that all aspects of software development can and should
+We believe that all aspects of software development and business can and should
 be greatly accelerated through the use of AI agents. The ultimate decision
 makers remain human, but they can and should be greatly augmented.
 
@@ -557,17 +557,18 @@ makers remain human, but they can and should be greatly augmented.
 
 Our key principles:
 
-1. **We will use AI agents to help every aspect of the project:** coding, documentation, producing marketing copy etc.
+1. **We will use AI agents to help every aspect of the project:** coding, documentation, community management, producing
+   marketing copy etc.
    Any
    human performing a task should ask why it cannot be automated, and strive toward maximum automation.
 2. **Developers retain ultimate control.** Developers are responsible for guiding agents toward the solution and
    iterating
    as necessary. A developer who commits or merges an agent contribution
    is responsible for ensuring that it meets the project coding standards, which are
-   independent of the use of agents. For example, code must be human readable.
-3. **We will use only open source agents built on the Embabel platform,** and contribute any improvements. While
-   commercial coding agents
-   may be more advanced, we believe that our
+   independent of the use of agents. For example, code must be human-readable.
+3. **We will favour open source agents built on the Embabel platform,** and contribute improvements. While
+   commercial agents
+   may be more advanced in some areas, we believe that our
    platform is the best general solution for automation and by dogfooding we will improve it fastest.
    By open sourcing agents used on our open source projects, we will maximize benefit to the community.
 4. **We will prioritize agents that help accelerate our progress.** Per the flight safety advice to fit your own mask
@@ -576,6 +577,11 @@ Our key principles:
    project velocity.
 
 Developers must carefully read all code they commit and improve generated code if possible.
+
+> Coding agents are a special case. While the `embabel-agent-code` submodule offers support for project modification
+> that is useful for project bootstrapping, coding agents are the most mature of commercial agents, and their vendors
+> are
+> heavily subsidising their users, making it economically irrational to insist on our own platform.
 
 ## Getting Started
 

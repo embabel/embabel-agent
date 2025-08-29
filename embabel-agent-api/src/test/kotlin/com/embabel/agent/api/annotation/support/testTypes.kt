@@ -194,6 +194,16 @@ class OneOperationContextConditionOnly {
 }
 
 @AgentCapabilities
+class OneOperationContextAiOnly {
+
+    @Condition(cost = .5)
+    fun condition1(operationContext: OperationContext): Boolean {
+        return true
+    }
+
+}
+
+@AgentCapabilities
 class ConditionFromBlackboard {
 
     @Condition
@@ -616,6 +626,20 @@ class FromPersonUsesObjectToolsViaContext {
         context: ActionContext,
     ): UserInput {
         return context.promptRunner(toolObjects = listOf(ToolObject(FunnyTool()))).createObject("Create a UserInput")
+    }
+}
+
+@AgentCapabilities
+class FromPersonUsesObjectToolsViaAi {
+
+    @Action
+    fun fromPerson(
+        person: PersonWithReverseTool,
+        ai: Ai,
+    ): UserInput {
+        return ai.withDefaultLlm()
+            .withToolObjects(ToolObject(FunnyTool()))
+            .createObject("Create a UserInput")
     }
 }
 

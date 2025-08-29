@@ -29,6 +29,7 @@ import com.embabel.agent.tools.agent.AgentToolCallback
 import com.embabel.agent.tools.agent.Handoffs
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
 import com.embabel.chat.Message
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
@@ -53,7 +54,7 @@ internal data class OperationContextPromptRunner(
     val action = (context as? ActionContext)?.action
 
     private fun idForPrompt(
-        prompt: String,
+        messages: List<Message>,
         outputClass: Class<*>,
     ): InteractionId {
         return InteractionId("${context.operation.name}-${outputClass.name}")
@@ -62,9 +63,17 @@ internal data class OperationContextPromptRunner(
     override fun <T> createObject(
         prompt: String,
         outputClass: Class<T>,
+    ): T = createObject(
+        messages = listOf(UserMessage(prompt)),
+        outputClass = outputClass,
+    )
+
+    override fun <T> createObject(
+        messages: List<Message>,
+        outputClass: Class<T>,
     ): T {
         return context.processContext.createObject(
-            prompt = prompt,
+            messages = messages,
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
@@ -74,7 +83,7 @@ internal data class OperationContextPromptRunner(
                         context
                     )
                 },
-                id = idForPrompt(prompt, outputClass),
+                id = idForPrompt(messages, outputClass),
                 generateExamples = generateExamples,
             ),
             outputClass = outputClass,
@@ -98,7 +107,7 @@ internal data class OperationContextPromptRunner(
                         context
                     )
                 },
-                id = idForPrompt(prompt, outputClass),
+                id = idForPrompt(listOf(UserMessage(prompt)), outputClass),
                 generateExamples = generateExamples,
             ),
             outputClass = outputClass,
@@ -114,30 +123,6 @@ internal data class OperationContextPromptRunner(
             )
         }
         return result.getOrNull()
-    }
-
-    override fun <T> createObject(
-        messages: List<Message>,
-        outputClass: Class<T>,
-    ): T {
-        val interaction = LlmInteraction(
-            llm = llm,
-            toolGroups = this.toolGroups + toolGroups,
-            toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
-            promptContributors = promptContributors + contextualPromptContributors.map {
-                it.toPromptContributor(
-                    context
-                )
-            },
-            id = idForPrompt(messages.lastOrNull()?.content ?: "messages", outputClass),
-            generateExamples = generateExamples,
-        )
-        return context.processContext.doTransform(
-            messages = messages,
-            interaction = interaction,
-            outputClass = outputClass,
-            llmRequestEvent = null,
-        )
     }
 
     override fun evaluateCondition(

@@ -18,6 +18,8 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.core.Operation
 import com.embabel.agent.experimental.primitive.Determination
+import com.embabel.chat.Message
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.every
 import io.mockk.mockk
@@ -51,7 +53,8 @@ class OperationContextPromptRunnerTest {
                 null
             )
         } answers {
-            val prompt = firstArg<String>()
+            val messages = firstArg<List<Message>>()
+            val prompt = (messages[0] as UserMessage).content
             assertTrue(prompt.contains("Evaluate this condition"), "Prompt didn't contain evaluate: $prompt")
             Determination(
                 result = true,

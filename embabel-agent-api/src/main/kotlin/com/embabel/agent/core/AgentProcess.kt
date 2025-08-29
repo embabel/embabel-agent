@@ -151,6 +151,28 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
             ?: error("No result of type ${outputClass.name} found in process status")
     }
 
+    companion object {
+        private val threadLocalAgentProcess = ThreadLocal<AgentProcess>()
+
+        internal fun set(agentProcess: AgentProcess) {
+            threadLocalAgentProcess.set(agentProcess)
+        }
+
+        internal fun remove() {
+            threadLocalAgentProcess.remove()
+        }
+
+        /**
+         * Get the current agent process for this thread, if any.
+         * This can only be relied on during tool calls.
+         */
+        @JvmStatic
+        fun get(): AgentProcess? {
+            return threadLocalAgentProcess.get()?.let { return it }
+        }
+
+    }
+
 }
 
 /**

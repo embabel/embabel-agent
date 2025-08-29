@@ -725,6 +725,11 @@ class AgentMetadataReaderActionTest {
         }
 
         @Test
+        fun `prompt action invocation with tool object passed in via ai`() {
+            testToolsAreExposed(FromPersonUsesObjectToolsViaAi(), expectedToolCount = 2)
+        }
+
+        @Test
         fun `prompt action invocation with tool object passed in via using with renaming`() {
             val toolCallbacks =
                 testToolsAreExposed(FromPersonUsesObjectToolsViaUsingWithRenaming(), expectedToolCount = 2)

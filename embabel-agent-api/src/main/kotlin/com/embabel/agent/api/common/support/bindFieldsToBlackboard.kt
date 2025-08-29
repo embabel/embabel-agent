@@ -41,7 +41,7 @@ fun destructureAndBindIfNecessary(
 private fun SomeOf.bindFieldsToBlackboard(
     name: String,
     blackboard: Blackboard,
-    logger: Logger
+    logger: Logger,
 ) {
     javaClass.declaredFields
         .filter { !it.isSynthetic && !Modifier.isStatic(it.modifiers) }
@@ -49,7 +49,7 @@ private fun SomeOf.bindFieldsToBlackboard(
             field.setAccessible(true)
             val fieldValue = field.get(this)
             if (fieldValue != null) {
-                val bindingName = IoBinding.Companion.DEFAULT_BINDING // field.name
+                val bindingName = IoBinding.DEFAULT_BINDING // field.name
                 blackboard[bindingName] = fieldValue
                 logger.info(
                     "Binding output element of composite action {}: {} to {}",

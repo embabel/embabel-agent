@@ -16,7 +16,7 @@
 package com.embabel.agent.e2e
 
 import com.embabel.agent.api.common.Ai
-import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.api.common.AiBuilder
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -27,11 +27,22 @@ import kotlin.test.assertNotNull
 
 @Component
 class TakesAi(
-    private val ai: Ai,
+    val ai: Ai,
 ) {
 
     fun myMethod() {
         assertNotNull(ai.withAutoLlm())
+    }
+
+}
+
+@Component
+class TakesAiFactory(
+    private val aiBuilder: AiBuilder,
+) {
+
+    fun myMethod() {
+        assertNotNull(aiBuilder.ai().withAutoLlm())
     }
 
 }
@@ -46,11 +57,21 @@ class TakesAi(
 )
 class AiInjectionIntegrationTest(
     @param:Autowired
-    private val agentPlatform: AgentPlatform,
+    private val takesAi: TakesAi,
+    @param:Autowired
+    private val takesAiFactory: TakesAiFactory,
 ) {
 
     @Test
     fun `test can inject Ai into action`() {
+        assertNotNull(takesAi.ai, "Ai should be injected")
+        assertNotNull(takesAi.myMethod())
+        val text = takesAi.ai.withAutoLlm().generateText("some text")
+        assertNotNull(text)
+    }
 
+    @Test
+    fun `test can inject AiFactory into action`() {
+        assertNotNull(takesAiFactory.myMethod(), "Ai should be injected")
     }
 }
