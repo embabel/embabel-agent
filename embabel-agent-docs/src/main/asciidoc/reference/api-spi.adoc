@@ -6,3 +6,5 @@ The API is the public interface that users interact with, while the SPI (Service
 
 IMPORTANT: Application code should only depend on the API, not the SPI.
 The SPI is subject to change and should not be used in production code.
+
+WARNING: (jasper notes) How can users tell the difference? What _is_ the clear distinction?

@@ -230,6 +230,11 @@ table {
     color: #fafafa;
 }
 
+table.grid-all > * > tr > * {
+    border-width: 1px;
+    color: #fafafa;
+}
+
 table thead, table tfoot {
     background-color: var(--table-header-bg) !important;
     font-weight: 600;
@@ -331,7 +336,6 @@ blockquote::before {
 /* TOC - standard and left panel */
 #toc, #toc.toc, #content #toc, #toc.toc2, #header .details, .sidebarblock, .listingblock, .literalblock, .imageblock, .tableblock {
     background-color: #252525 !important;
-    border-right: 1px solid #444 !important;
 }
 
 #toc a, #toc.toc a, #content #toc a, #toc.toc2 a {
@@ -570,9 +574,9 @@ pre code {
 
 /* Inline code */
 code, tt {
-    background: var(--code-bg) !important;
+    background: var(--code-color1) !important;
     color: var(--code-fg) !important;
-    border: 1px solid transparent;
+    border: 0;
     padding: 0.15em 0.4em !important;
     border-radius: 4px !important;
 }
@@ -807,14 +811,6 @@ pre code {
     border: 1px solid var(--code-border) !important;
     border-radius: 6px;
     overflow-x: auto;
-}
-
-/* Inline code */
-code, tt {
-    background: var(--code-bg) !important;
-    color: var(--code-fg) !important;
-    padding: 0.15em 0.4em !important;
-    border-radius: 4px !important;
 }
 
 /* ===== highlight.js / Prism / Rouge / CodeRay token mapping ===== */
