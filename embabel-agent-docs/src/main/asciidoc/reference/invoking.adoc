@@ -290,3 +290,4 @@ class TripPlanningController(
 
 IMPORTANT: Agents can also be exposed as MCP servers and consumed from tools like Claude Desktop.
 
+WARNING: (jasper notes) What do the keys in the Map.of("foo" to bar) do? For the point above about MCP servers, let's link to where we can read about it? (Even if stubbed for now).

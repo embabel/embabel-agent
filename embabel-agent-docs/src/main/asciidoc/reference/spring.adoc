@@ -1,8 +1,20 @@
 [[reference.profiles]]
 === Embabel and Spring
 
-Embabel embraces Spring.
+Embabel embraces https://spring.io/projects/spring-framework[Spring].
+Spring was revolutionary when it arrived, and two decades on it still defines how most JVM applications are built.
+Whether you know Spring from years of Java or Kotlin development, or you’re arriving from Python or another ecosystem, it’s worth noting that Embabel was spearheaded by the creator of Spring himself: the noteworthy Rod Johnson.
 
-It is built on Spring AI, and leverages Spring for configuration and management.
+Embabel is built on https://spring.io/projects/spring-ai[Spring AI], and leverages Spring for configuration and management.
 
-We recommend using Spring Boot for building Embabel applications, as it provides a familiar environment for most Java developers.
+We recommend using https://spring.io/projects/spring-boot[Spring Boot] for building Embabel applications.
+Not only does it provide a familiar environment for JVM developers, its philosophy is highly relevant for anyone aiming to craft a production-grade agentic application.
+
+The foundation of the Spring framework is:
+
+* Composability via discreet, fit-for-purpose reusable units, with dependency injection.
+* Cross-cutting abstractions — such as transaction management and security — via aspect-oriented programming (AOP).
+
+This same foundation makes it possible to craft agentic applications that are composable, testable, and built on enterprise-grade service abstractions.
+With ~70% of production applications deployed on the JVM, Embabel can bring AI super-powers to existing systems — extending their value rather than replacing them.
+In this way, Embabel applies the Spring philosophy so that agentic applications are not just clever demos, but truly production-ready systems.

@@ -61,12 +61,17 @@ The planning process:
 This creates a dynamic **OODA loop** (Observe-Orient-Decide-Act):
 - **Observe**: Check current blackboard state and action results - **Orient**: Understand what has changed since the last planning cycle - **Decide**: Formulate or update the plan based on new information - **Act**: Execute the next planned action
 
+WARNING: (jasper notes) A diagram showing two ticks() in an ooda loop might be helpful here?
+
 The replanning approach allows agents to:
 
 - Adapt to unexpected action results
 - Handle dynamic environments where conditions change
 - Recover from partial failures
 - Take advantage of new opportunities that arise
+
+WARNING: (jasper notes) A showing a goal and steps hitting dead-end and replanning would be helpful here.
+
 
 ==== Blackboard
 
@@ -108,6 +113,8 @@ val verified = blackboard.getCondition("userVerified")
 3. **State Evolution**: Blackboard accumulates objects representing the evolving state
 4. **Planning Input**: Current blackboard state informs the next planning cycle
 5. **Result Extraction**: Final results are retrieved from blackboard upon completion
+
+WARNING: (jasper notes) What will we do with all of the folks who have anaemic domain objects, and perform orchestration on them via services. Can we bring in services as tools as well?
 
 The blackboard enables:
 
