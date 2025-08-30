@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.test.example.simple.horoscope.kotlin
+package com.embabel.agent.a2a.example.simple.horoscope.kotlin
 
-import com.embabel.agent.test.example.simple.horoscope.TestHoroscopeService
+import com.embabel.agent.a2a.example.simple.horoscope.TestHoroscopeService
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
