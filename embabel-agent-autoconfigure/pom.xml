@@ -46,6 +46,12 @@
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-shell</artifactId>
         </dependency>
+
+        <!-- Move this one to a dedicated starter once ready-->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-a2a</artifactId>
+        </dependency>
     </dependencies>
 
 </project>
