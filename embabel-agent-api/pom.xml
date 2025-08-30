@@ -88,11 +88,7 @@
             <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
         </dependency>
 
-        <!-- TODO this should go out -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-logging</artifactId>
@@ -142,7 +138,6 @@
             <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-kotlin</artifactId>
         </dependency>
-
         <dependency>
             <groupId>info.schnatterer.moby-names-generator</groupId>
             <artifactId>moby-names-generator</artifactId>
