@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.starter.shell.spi;
 
-import com.embabel.agent.config.annotation.EnableAgentShell;
 import com.embabel.agent.starter.shell.AgentShellStarterProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,21 +23,14 @@ import org.springframework.boot.context.properties.bind.BindException;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
-import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
- * Environment post-processor that configures shell mode early in the Spring Boot lifecycle.
- *
- * <p>This processor detects the presence of {@link EnableAgentShell} annotation and automatically
- * configures the application for interactive shell operation. It sets the web application type to
- * NONE and configures Spring Shell properties to provide an optimal command-line experience.
- *
+ * Environment post-processor that configures shell mode early in the Spring Boot lifecycle.*
  * <p>The processor runs early in the Spring Boot lifecycle to ensure shell configuration is
  * applied before the application context is initialized, preventing conflicts with web server
  * startup when operating in shell mode.
@@ -65,47 +57,12 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        if (!isShellModeEnabled(application)) {
-            logger.debug("Shell mode not enabled - @EnableAgentShell annotation not found on any source class");
-            return;
-        }
-
-        logger.debug("Shell mode detected - applying shell environment configuration");
+       logger.debug("Shell mode detected - applying shell environment configuration");
 
         ShellConfiguration shellConfig = resolveShellConfiguration(environment);
         applyShellConfiguration(environment, shellConfig);
 
         logger.debug("Shell environment configuration applied successfully");
-    }
-
-    /**
-     * Determines if shell mode is enabled by checking for the EnableAgentShell annotation
-     * on any of the application's source classes.
-     *
-     * @param application the Spring application
-     * @return true if shell mode is enabled, false otherwise
-     */
-    private boolean isShellModeEnabled(SpringApplication application) {
-        Set<Object> sources = application.getAllSources();
-        if (sources == null || sources.isEmpty()) {
-            logger.debug("No application sources found");
-            return false;
-        }
-
-        return sources.stream()
-                .filter(source -> source instanceof Class<?>)
-                .map(source -> (Class<?>) source)
-                .anyMatch(this::hasEnableAgentShellAnnotation);
-    }
-
-    /**
-     * Checks if a class has the EnableAgentShell annotation.
-     *
-     * @param clazz the class to check
-     * @return true if the annotation is present
-     */
-    private boolean hasEnableAgentShellAnnotation(Class<?> clazz) {
-        return AnnotationUtils.findAnnotation(clazz, EnableAgentShell.class) != null;
     }
 
     /**

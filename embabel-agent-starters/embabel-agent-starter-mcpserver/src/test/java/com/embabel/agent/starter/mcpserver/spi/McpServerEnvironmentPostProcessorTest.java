@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.starter.mcpserver.spi;
 
-import com.embabel.agent.config.annotation.EnableAgentMcpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -52,7 +51,7 @@ class McpServerEnvironmentPostProcessorTest {
     private McpServerEnvironmentPostProcessor processor;
 
     @Test
-    void shouldSkipProcessingWhenNoEnableAgentMcpServerAnnotation() {
+    void shouldContinueProcessingWhenNoEnableAgentMcpServerAnnotation() {
         // Given
         processor = new McpServerEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
@@ -64,11 +63,11 @@ class McpServerEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        verify(propertySources, never()).addFirst(any());
+        verify(propertySources, atLeastOnce()).addFirst(any());
     }
 
     @Test
-    void shouldSkipProcessingWhenSourcesIsEmpty() {
+    void shouldNotSkipProcessingWhenSourcesIsEmpty() {
         // Given
         processor = new McpServerEnvironmentPostProcessor();
         when(application.getAllSources()).thenReturn(Collections.emptySet());
@@ -78,11 +77,11 @@ class McpServerEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        verify(propertySources, never()).addFirst(any());
+        verify(propertySources, atLeastOnce()).addFirst(any());
     }
 
     @Test
-    void shouldSkipProcessingWhenSourcesIsNull() {
+    void shouldNotSkipProcessingWhenSourcesIsNull() {
         // Given
         processor = new McpServerEnvironmentPostProcessor();
         when(application.getAllSources()).thenReturn(null);
@@ -92,7 +91,7 @@ class McpServerEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then - should not throw exception and should skip processing
-        verify(propertySources, never()).addFirst(any());
+        verify(propertySources, atLeastOnce()).addFirst(any());
     }
 
     @Test
@@ -100,7 +99,7 @@ class McpServerEnvironmentPostProcessorTest {
         // Given
         processor = new McpServerEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -117,7 +116,7 @@ class McpServerEnvironmentPostProcessorTest {
         processor = new McpServerEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
         sources.add(String.class); // Not annotated
-        sources.add(TestClassWithAnnotation.class); // Annotated
+        sources.add(TestClass.class); // Annotated
         sources.add(Integer.class); // Not annotated
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
@@ -143,8 +142,8 @@ class McpServerEnvironmentPostProcessorTest {
         // Given
         processor = new McpServerEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
-        sources.add(AnotherTestClassWithAnnotation.class);
+        sources.add(TestClass.class);
+        sources.add(AnotherTestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -160,7 +159,7 @@ class McpServerEnvironmentPostProcessorTest {
         // Given
         processor = new McpServerEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -178,7 +177,7 @@ class McpServerEnvironmentPostProcessorTest {
     }
 
     @Test
-    void shouldSkipProcessingWithNonClassSources() {
+    void shouldNotSkipProcessingWithNonClassSources() {
         // Given
         processor = new McpServerEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
@@ -191,7 +190,7 @@ class McpServerEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        verify(propertySources, never()).addFirst(any());
+        verify(propertySources, atLeastOnce()).addFirst(any());
     }
 
     @Test
@@ -200,7 +199,7 @@ class McpServerEnvironmentPostProcessorTest {
         processor = new McpServerEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
         sources.add("string-source");
-        sources.add(TestClassWithAnnotation.class); // This one has annotation
+        sources.add(TestClass.class); // This one has annotation
         sources.add(42);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
@@ -213,11 +212,9 @@ class McpServerEnvironmentPostProcessorTest {
     }
 
     // Test classes with the required annotation
-    @EnableAgentMcpServer
-    static class TestClassWithAnnotation {
+    static class TestClass {
     }
 
-    @EnableAgentMcpServer
-    static class AnotherTestClassWithAnnotation {
+    static class AnotherTestClass {
     }
 }

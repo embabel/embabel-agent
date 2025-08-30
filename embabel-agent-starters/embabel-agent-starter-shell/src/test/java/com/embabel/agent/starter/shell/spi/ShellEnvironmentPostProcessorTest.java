@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.starter.shell.spi;
 
-import com.embabel.agent.config.annotation.EnableAgentShell;
 import com.embabel.agent.starter.shell.AgentShellStarterProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +67,7 @@ class ShellEnvironmentPostProcessorTest {
     }
 
     @Test
-    void shouldSkipProcessingWhenNoEnableAgentShellAnnotation() {
+    void shouldContinueProcessingWhenNoEnableAgentShellAnnotation() {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
@@ -80,11 +79,11 @@ class ShellEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        verify(propertySources, never()).addFirst(any());
+        verify(propertySources, atLeastOnce()).addFirst(any());
     }
 
     @Test
-    void shouldSkipProcessingWhenSourcesIsEmpty() {
+    void shouldNotSkipProcessingWhenSourcesIsEmpty() {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         when(application.getAllSources()).thenReturn(Collections.emptySet());
@@ -94,11 +93,11 @@ class ShellEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        verify(propertySources, never()).addFirst(any());
+        verify(propertySources, atLeastOnce()).addFirst(any());
     }
 
     @Test
-    void shouldSkipProcessingWhenSourcesIsNull() {
+    void shouldNotSkipProcessingWhenSourcesIsNull() {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         when(application.getAllSources()).thenReturn(null);
@@ -108,7 +107,7 @@ class ShellEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then - should not throw exception and should skip processing
-        verify(propertySources, never()).addFirst(any());
+        verify(propertySources, atLeastOnce()).addFirst(any());
     }
 
     @Test
@@ -116,7 +115,7 @@ class ShellEnvironmentPostProcessorTest {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -148,7 +147,7 @@ class ShellEnvironmentPostProcessorTest {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -179,7 +178,7 @@ class ShellEnvironmentPostProcessorTest {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -205,7 +204,7 @@ class ShellEnvironmentPostProcessorTest {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -231,7 +230,7 @@ class ShellEnvironmentPostProcessorTest {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -277,7 +276,7 @@ class ShellEnvironmentPostProcessorTest {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -319,7 +318,7 @@ class ShellEnvironmentPostProcessorTest {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
+        sources.add(TestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -359,7 +358,7 @@ class ShellEnvironmentPostProcessorTest {
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
         sources.add(String.class); // Not annotated
-        sources.add(TestClassWithAnnotation.class); // Annotated
+        sources.add(TestClass.class); // Annotated
         sources.add(Integer.class); // Not annotated
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
@@ -401,8 +400,8 @@ class ShellEnvironmentPostProcessorTest {
         // Given
         processor = new ShellEnvironmentPostProcessor();
         Set<Object> sources = new HashSet<>();
-        sources.add(TestClassWithAnnotation.class);
-        sources.add(AnotherTestClassWithAnnotation.class);
+        sources.add(TestClass.class);
+        sources.add(AnotherTestClass.class);
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
@@ -440,11 +439,9 @@ class ShellEnvironmentPostProcessorTest {
     }
 
     // Test classes with the required annotation
-    @EnableAgentShell
-    static class TestClassWithAnnotation {
+    static class TestClass {
     }
 
-    @EnableAgentShell
-    static class AnotherTestClassWithAnnotation {
+    static class AnotherTestClass {
     }
 }
