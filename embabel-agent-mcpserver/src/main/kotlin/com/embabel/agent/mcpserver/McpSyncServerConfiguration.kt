@@ -26,7 +26,6 @@ import org.springframework.ai.tool.ToolCallbackProvider
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration

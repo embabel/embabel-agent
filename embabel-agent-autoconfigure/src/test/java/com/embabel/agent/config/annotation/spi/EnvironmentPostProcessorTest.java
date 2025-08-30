@@ -144,7 +144,6 @@ class EnvironmentPostProcessorTest {
         System.setProperty("spring.profiles.active", "existing,profiles");
 
         @EnableAgents(loggingTheme = LoggingThemes.STAR_WARS)
-        @EnableAgentShell
         class TestApp {
         }
         when(application.getAllSources()).thenReturn(Set.of(TestApp.class));

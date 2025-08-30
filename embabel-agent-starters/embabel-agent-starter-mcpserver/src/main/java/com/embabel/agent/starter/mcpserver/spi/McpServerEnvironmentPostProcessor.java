@@ -24,7 +24,6 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Environment post-processor that enables MCP server functionality early in the Spring Boot lifecycle.
