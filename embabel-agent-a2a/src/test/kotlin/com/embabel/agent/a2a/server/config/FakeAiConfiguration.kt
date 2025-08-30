@@ -13,69 +13,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.test.config
+package com.embabel.agent.a2a.server.config
 
-import com.embabel.agent.test.example.simple.horoscope.TestHoroscopeService
-import com.embabel.agent.spi.Ranking
-import com.embabel.agent.spi.Rankings
-import com.embabel.agent.testing.integration.FakeRanker
+import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.testing.integration.DummyObjectCreatingLlmOperations
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.Llm
-import com.embabel.common.core.types.Described
-import com.embabel.common.core.types.Named
-import org.junit.jupiter.api.Assertions.fail
+import org.mockito.Mockito.mock
+import org.slf4j.LoggerFactory
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
-import org.springframework.ai.chat.model.ChatModel
-import org.springframework.ai.embedding.EmbeddingModel
-import org.mockito.Mockito.mock
+import org.springframework.context.annotation.Profile
 
+
+@Profile(value = ["test", "a2a"])
 @TestConfiguration
-class FakeConfig {
+class FakeAiConfiguration {
 
-    @Bean
-    @Primary
-    fun fakeHoroscopeService() = TestHoroscopeService {
-        """
-            |On Monday, try to avoid being eaten by wolves            .
-        """.trimMargin()
-    }
+    private val logger = LoggerFactory.getLogger(FakeAiConfiguration::class.java)
 
-    @Bean
-    @Primary
-    fun fakeRanker() = object : FakeRanker {
-
-        override fun <T> rank(
-            description: String,
-            userInput: String,
-            rankables: Collection<T>,
-        ): Rankings<T> where T : Named, T : Described {
-            when (description) {
-                "agent" -> {
-                    val a = rankables.firstOrNull { it.name.contains("Star") } ?: fail { "No agent with Star found" }
-                    return Rankings(
-                        rankings = listOf(Ranking(a, 0.9))
-                    )
-                }
-
-                "goal" -> {
-                    val g =
-                        rankables.firstOrNull { it.description.contains("horoscope") } ?: fail("No goal with horoscope")
-                    return Rankings(
-                        rankings = listOf(Ranking(g, 0.9))
-                    )
-                }
-
-                else -> throw IllegalArgumentException("Unknown description $description")
-            }
-        }
+    init {
+        logger.info("Using fake AI configuration for A2A.")
     }
 
     /**
+     * Mock LLM operations bean for testing purposes.
+     */
+    @Bean
+    @Primary
+    fun llmOperations(): LlmOperations = DummyObjectCreatingLlmOperations.LoremIpsum
+
+    /**
      * Mock bean to satisfy the dependency requirement for bedrockModels
-     * This prevents the application context from failing to start in tests
      */
     @Bean(name = ["bedrockModels"])
     fun bedrockModels(): Any = Any()

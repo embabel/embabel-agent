@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.test.example.simple.horoscope
+package com.embabel.agent.a2a.example.simple.horoscope
 
 fun interface TestHoroscopeService {
 
