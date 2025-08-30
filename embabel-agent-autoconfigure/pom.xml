@@ -33,6 +33,13 @@
             <artifactId>spring-ai-starter-model-bedrock-converse</artifactId>
             <optional>false</optional>
         </dependency>
+
+        <!-- Move this one to a dedicated starter once ready-->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-a2a</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>
