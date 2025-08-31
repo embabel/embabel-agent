@@ -179,8 +179,6 @@ internal fun findNewsStories(
 ----
 ====
 
-WARNING: (jasper notes) Since we have pretty tabs now, we can merge the above to use them.
-
 ===== Key Tool Usage Patterns
 
 **Tool Group Declaration:**

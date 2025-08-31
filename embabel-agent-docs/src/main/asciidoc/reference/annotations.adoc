@@ -40,7 +40,7 @@ The `@Condition` annotation is used to mark methods that evaluate conditions.
 They can take an `OperationContext` parameter to access the blackboard and other infrastructure.
 If they take domain object parameters, the condition will automatically be false until suitable instances are available.
 
-> NOTE: Condition methods should not have side effects--for example, on the blackboard.
+> Condition methods should not have side effects--for example, on the blackboard.
 This is important because they may be called multiple times.
 
 WARNING: (jasper notes) Provide a simple illustrative example with story-telling and supporting code example.
