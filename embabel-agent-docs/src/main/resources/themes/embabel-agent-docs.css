@@ -17,16 +17,16 @@
     --heading-color: #63c0f5;
     --code-bg-color: #131313;
     --code-text-color: #f8f8f2;
-    --quote-bg-color: #7aa77a;
+    --quote-bg-color: #e0e0e0;
     --quote-border-color: #444444;
     --table-header-bg: #2d2d2d;
     --table-border-color: #444444;
     --table-alt-bg: #292929;
-    --admonition-note-bg: #fafafa;
-    --admonition-tip-bg: #fafafa;
-    --admonition-important-bg: #fafafa;
-    --admonition-warning-bg: #fafafa;
-    --admonition-caution-bg: #fafafa;
+    --admonition-note-bg: #e0e0e0;
+    --admonition-tip-bg: #e0e0e0;
+    --admonition-important-bg: #e0e0e0;
+    --admonition-warning-bg: #e0e0e0;
+    --admonition-caution-bg: #e0e0e0;
     --toc-min: 12rem; /* smallest TOC */
     --toc-ideal: 22vw; /* preferred responsive TOC */
     --toc-max: 20rem; /* largest TOC */
@@ -249,7 +249,7 @@ table thead, table tfoot {
 }
 
 table tr.even, table tr.alt, table tr:nth-of-type(even) {
-    background-color: var(--table-alt-bg) !important;
+    background: none;
 }
 
 table td, table th {
@@ -264,7 +264,8 @@ table tr th, table tr td {
 
 /* Blockquotes */
 blockquote, .quoteblock {
-    background-color: var(--quote-bg-color) !important;
+    background-color: var(--quote-bg-color);
+    /*color: #e0e0e0;*/
     border-left: 4px solid var(--quote-border-color) !important;
     font-style: italic;
     position: relative;
@@ -326,8 +327,9 @@ blockquote::before {
     background: linear-gradient(
             135deg,
             #252525 0%,
-            #2a2d33 100%
-    );
+            #2e2b38 40%,
+            #2b333d 100%
+    ) !important;
 }
 
 .admonitionblock.note > table td.icon {
@@ -1103,3 +1105,5 @@ colist td {
 }
 
 
+.admonitionblock td.icon [class^="fa icon-"]{font-size:2.5em;text-shadow: none;cursor:default}
+.admonitionblock td.icon .icon-warning::before{content:"\f071";color:#e44d26}
