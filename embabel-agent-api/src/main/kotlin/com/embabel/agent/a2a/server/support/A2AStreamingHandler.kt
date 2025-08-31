@@ -63,15 +63,9 @@ class A2AStreamingHandler(
             activeStreams.remove(streamId)
         }
 
-        // Send initial connection established event
-        try {
-            emitter.send(SseEmitter.event()
-                .name("connected")
-                .data(mapOf("streamId" to streamId))
-            )
-        } catch (e: Exception) {
-            logger.error("Error sending initial event", e)
-            emitter.completeWithError(e)
+        emitter.onError { throwable ->
+            logger.error("Stream error for streamId: {}", streamId, throwable)
+            activeStreams.remove(streamId)
         }
 
         return emitter
@@ -88,49 +82,15 @@ class A2AStreamingHandler(
 
         try {
             val eventData = when (event) {
-                is Message -> {
-                    SseEmitter.event()
-                        .name("message")
-                        .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON)
-                }
-                is Task -> {
-                    SseEmitter.event()
-                        .name("task")
-                        .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON)
-                }
-                is TaskStatusUpdateEvent -> {
-                    SseEmitter.event()
-                        .name("task-update")
-                        .data(
-                            objectMapper.writeValueAsString(
-                                SendStreamingMessageResponse(
-                                    "2.0",
-                                    streamId,
-                                    event,
-                                    null
-                                )
-                            ), MediaType.APPLICATION_JSON
-                        )
-                }
-                is TaskArtifactUpdateEvent -> {
-                    SseEmitter.event()
-                        .name("task-update")
-                        .data(
-                            objectMapper.writeValueAsString(
-                                SendStreamingMessageResponse(
-                                    "2.0",
-                                    streamId,
-                                    event,
-                                    null
-                                )
-                            ), MediaType.APPLICATION_JSON
-                        )
+                is Message, is Task, is TaskArtifactUpdateEvent, is TaskStatusUpdateEvent -> {
+                    createEventData(streamId, event)
                 }
             }
             emitter.send(eventData)
         } catch (e: Exception) {
-            logger.error("Error sending stream event", e)
-            emitter.completeWithError(e)
+            logger.error("Error sending stream event to streamId: {}", streamId, e)
+            val emitter = activeStreams.remove(streamId)
+            emitter?.completeWithError(e)
         }
     }
 
@@ -142,16 +102,48 @@ class A2AStreamingHandler(
         emitter?.complete()
     }
 
+    private fun createEventData(streamId: String, event: StreamingEventKind): SseEmitter.SseEventBuilder {
+        val eventName = when (event) {
+            is Message -> "message"
+            is Task -> "task"
+            is TaskStatusUpdateEvent, is TaskArtifactUpdateEvent -> "task-update"
+        }
+
+        val response = SendStreamingMessageResponse(
+            "2.0",
+            streamId,
+            event,
+            null
+        )
+
+        return SseEmitter.event()
+            .name(eventName)
+            .data(objectMapper.writeValueAsString(response), MediaType.APPLICATION_JSON)
+    }
+
     /**
      * Shuts down the streaming handler
      */
     fun shutdown() {
+        logger.info("Shutting down, closing {} active streams", activeStreams.size)
+
+        activeStreams.values.forEach { emitter ->
+            try {
+                emitter.complete()
+            } catch (e: Exception) {
+                logger.warn("Error completing emitter during shutdown", e)
+            }
+        }
+        activeStreams.clear()
+
         scheduler.shutdown()
         try {
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                logger.warn("Scheduler did not terminate gracefully, forcing shutdown")
                 scheduler.shutdownNow()
             }
         } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
             scheduler.shutdownNow()
         }
     }
