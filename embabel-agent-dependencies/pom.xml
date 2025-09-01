@@ -48,7 +48,13 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-rag</artifactId>
+                <artifactId>embabel-agent-rag-neo</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-rag-lucene</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.embabel.agent</groupId>
-        <artifactId>embabel-agent-parent</artifactId>
+        <artifactId>embabel-agent-rag</artifactId>
         <version>0.1.2-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-rag-lucene</artifactId>
@@ -13,46 +13,34 @@
     <description>Embabel Agent Rag for Lucene</description>
 
     <properties>
+        <lucene.version>9.11.1</lucene.version>
     </properties>
 
     <dependencies>
-        <!-- Main Dependencies -->
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
         <!-- Lucene Dependencies -->
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
-            <version>9.11.1</version>
+            <version>${lucene.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analysis-common</artifactId>
-            <version>9.11.1</version>
+            <version>${lucene.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queryparser</artifactId>
-            <version>9.11.1</version>
+            <version>${lucene.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-memory</artifactId>
-            <version>9.11.1</version>
+            <version>${lucene.version}</version>
         </dependency>
-
 
     </dependencies>
 
