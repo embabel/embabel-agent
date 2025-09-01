@@ -128,6 +128,68 @@ data class ProcessControl(
 
     fun withEarlyTerminationPolicy(earlyTerminationPolicy: EarlyTerminationPolicy): ProcessControl =
         this.copy(earlyTerminationPolicy = earlyTerminationPolicy)
+
+    companion object {
+
+        /**
+         * Obtain a new [Builder] to for [ProcessControl].
+         *
+         * @param earlyTerminationPolicy the early termination policy to use
+         * @return a builder through which you can set process control options
+         */
+        @JvmStatic
+        fun builder(earlyTerminationPolicy: EarlyTerminationPolicy): Builder {
+            return Builder(earlyTerminationPolicy)
+        }
+    }
+
+    /**
+     * Nested builder for [ProcessControl] objects.
+     */
+    class Builder internal constructor(earlyTerminationPolicy: EarlyTerminationPolicy) {
+
+        private var processControl = ProcessControl(earlyTerminationPolicy = earlyTerminationPolicy)
+
+        /**
+         * Sets the delay for tools.
+         * @param delay the new delay
+         * @return this [Builder]
+         */
+        fun toolDelay(delay: Delay) : Builder {
+            this.processControl = processControl.copy(toolDelay = delay)
+            return this
+        }
+
+        /**
+         * Sets the delay for operations.
+         * @param delay the new delay
+         * @return this [Builder]
+         */
+        fun operationDelay(delay: Delay) : Builder {
+            this.processControl = processControl.copy(operationDelay = delay)
+            return this
+        }
+
+        /**
+         * Sets the early termination policy.
+         * @param terminationPolicy the new termination policy
+         * @return this [Builder]
+         */
+        fun earlyTerminationPolicy(terminationPolicy: EarlyTerminationPolicy): Builder {
+            this.processControl = processControl.copy(earlyTerminationPolicy = terminationPolicy)
+            return this
+        }
+
+        /**
+         * Build the [ProcessControl].
+         * @return a newly built [ProcessControl]
+         */
+        fun build(): ProcessControl {
+            return this.processControl
+        }
+
+    }
+
 }
 
 /**
@@ -399,6 +461,19 @@ data class ProcessOptions(
          */
         fun control(control: ProcessControl): Builder {
             this.processOptions = processOptions.copy(control = control)
+            return this
+        }
+
+        /**
+         * Configure process control setting via a nested builder.
+         * @param consumer a function that takes a [ProcessControl.Builder]
+         * @return this [Builder]
+         */
+        fun control(consumer: Consumer<ProcessControl.Builder>): Builder {
+            val controlBuilder = ProcessControl.builder(
+                this.processOptions.budget.earlyTerminationPolicy())
+            consumer.accept(controlBuilder)
+            this.processOptions = processOptions.copy(control = controlBuilder.build())
             return this
         }
 
