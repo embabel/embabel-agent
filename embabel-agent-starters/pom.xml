@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>0.1.1-SNAPSHOT</version>
+        <version>0.1.2-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-starters</artifactId>
     <packaging>pom</packaging>
@@ -14,6 +14,8 @@
         <module>embabel-agent-starter</module>
         <module>embabel-agent-starter-platform</module>
         <module>embabel-agent-starter-bedrock</module>
+        <module>embabel-agent-starter-shell</module>
+        <module>embabel-agent-starter-mcpserver</module>
     </modules>
 
 </project>

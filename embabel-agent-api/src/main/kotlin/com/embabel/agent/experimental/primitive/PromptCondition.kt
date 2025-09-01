@@ -20,6 +20,7 @@ import com.embabel.agent.core.Condition
 import com.embabel.agent.spi.InteractionId
 import com.embabel.agent.spi.LlmCall
 import com.embabel.agent.spi.LlmInteraction
+import com.embabel.chat.UserMessage
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.plan.goap.ConditionDetermination
 import com.fasterxml.jackson.annotation.JsonClassDescription
@@ -61,7 +62,7 @@ data class PromptCondition(
             id = InteractionId("condition-$name")
         )
         val determination = context.processContext.platformServices.llmOperations.createObject(
-            prompt = prompt,
+            messages = listOf(UserMessage(prompt)),
             interaction = interaction,
             outputClass = Determination::class.java,
             agentProcess = context.processContext.agentProcess,

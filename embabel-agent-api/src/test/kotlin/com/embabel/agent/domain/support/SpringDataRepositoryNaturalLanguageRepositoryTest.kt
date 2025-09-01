@@ -17,10 +17,10 @@ package com.embabel.agent.domain.support
 
 import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.common.PromptRunner
-import com.embabel.agent.domain.persistence.FindEntitiesRequest
-import com.embabel.agent.domain.persistence.support.FinderInvocation
-import com.embabel.agent.domain.persistence.support.FinderInvocations
-import com.embabel.agent.domain.persistence.support.naturalLanguageRepository
+import com.embabel.agent.experimental.domain.persistence.FindEntitiesRequest
+import com.embabel.agent.experimental.domain.persistence.support.FinderInvocation
+import com.embabel.agent.experimental.domain.persistence.support.FinderInvocations
+import com.embabel.agent.experimental.domain.persistence.support.naturalLanguageRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -30,7 +30,11 @@ import org.springframework.data.repository.CrudRepository
 import java.util.*
 import kotlin.test.assertTrue
 
-data class Thing(val name: String, val description: String, val count: Int = 0)
+data class Thing(
+    val name: String,
+    val description: String,
+    val count: Int = 0,
+)
 
 interface ThingRepository : CrudRepository<Thing, String> {
 
@@ -38,9 +42,15 @@ interface ThingRepository : CrudRepository<Thing, String> {
 
     fun findByDescription(description: String): Optional<Thing>
 
-    fun findByNameAndDescription(name: String, description: String): Thing?
+    fun findByNameAndDescription(
+        name: String,
+        description: String,
+    ): Thing?
 
-    fun findByNameAndCount(name: String, count: Int): Thing?
+    fun findByNameAndCount(
+        name: String,
+        count: Int,
+    ): Thing?
 }
 
 class SpringDataRepositoryNaturalLanguageRepositoryTest {

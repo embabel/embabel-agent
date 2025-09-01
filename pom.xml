@@ -5,23 +5,24 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-build-parent</artifactId>
-        <version>0.1.1-SNAPSHOT</version>
+        <version>0.1.2-SNAPSHOT</version>
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-parent</artifactId>
-    <version>0.1.1-SNAPSHOT</version>
+    <version>0.1.2-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Embabel Agent Parent</name>
     <description>Parent POM for Embabel Agent Modules</description>
 
     <properties>
-        <embabel-common.version>0.1.1-SNAPSHOT</embabel-common.version>
+        <embabel-common.version>0.1.2-SNAPSHOT</embabel-common.version>
     </properties>
 
     <modules>
         <module>embabel-agent-api</module>
         <module>embabel-agent-a2a</module>
         <module>embabel-agent-autoconfigure</module>
+        <module>embabel-agent-code</module>
         <module>embabel-agent-dependencies</module>
         <module>embabel-agent-eval</module>
         <module>embabel-agent-mcpserver</module>
@@ -77,6 +78,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <!--
+        https://mvnrepository.com/artifact/org.jetbrains/annotations
+        For Experimental annotation
+        -->
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>26.0.2</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>

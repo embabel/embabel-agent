@@ -77,7 +77,7 @@ class AgentPlatformChatSessionEventListener(
         asyncer.async {
             chatSession.respond(
                 userMessage = UserMessage(content = event.message.contentRaw),
-                additionalListener = ChannelRespondingMessageListener(event),
+                messageListener = ChannelRespondingMessageListener(event),
             )
         }
     }
@@ -87,7 +87,6 @@ class AgentPlatformChatSessionEventListener(
             AgentPlatformChatSession(
                 planLister = DefaultPlanLister(autonomy.agentPlatform),
                 processOptions = ProcessOptions(),
-                messageListener = {},
                 responseGenerator = AgentResponseGenerator(
                     agentPlatform = autonomy.agentPlatform,
                     agent = DefaultChatAgentBuilder(

@@ -22,6 +22,8 @@ import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.ToolDecorator
+import com.embabel.chat.Message
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.time
 import org.slf4j.Logger
@@ -49,7 +51,7 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): String = createObject(
-        prompt = prompt,
+        messages = listOf(UserMessage(prompt)),
         interaction = interaction,
         outputClass = String::class.java,
         agentProcess = agentProcess,
@@ -57,22 +59,22 @@ abstract class AbstractLlmOperations(
     )
 
     final override fun <O> createObject(
-        prompt: String,
+        messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
         agentProcess: AgentProcess,
         action: Action?,
     ): O {
-        val (allToolCallbacks, literalPrompt, llmRequestEvent) = setup(
+        val (allToolCallbacks, llmRequestEvent) = setup(
             agentProcess = agentProcess,
             interaction = interaction,
             action = action,
-            prompt = prompt,
+            messages = messages,
             outputClass = outputClass,
         )
         val (response, ms) = time {
             doTransform(
-                prompt = literalPrompt,
+                messages = messages,
                 interaction = interaction.copy(toolCallbacks = allToolCallbacks.map {
                     toolDecorator.decorate(
                         tool = it,
@@ -102,11 +104,11 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<O> {
-        val (allToolCallbacks, prompt, llmRequestEvent) = setup<O>(
+        val (allToolCallbacks, llmRequestEvent) = setup(
             agentProcess = agentProcess,
             interaction = interaction,
             action = action,
-            prompt = prompt,
+            messages = listOf(UserMessage(prompt)),
             outputClass = outputClass,
         )
         val (response, ms) = time {
@@ -158,9 +160,9 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         interaction: LlmInteraction,
         action: Action?,
-        prompt: String,
+        messages: List<Message>,
         outputClass: Class<O>,
-    ): Triple<Collection<ToolCallback>, String, LlmRequestEvent<O>> {
+    ): Pair<Collection<ToolCallback>, LlmRequestEvent<O>> {
         val toolGroupResolver = agentProcess.processContext.platformServices.agentPlatform.toolGroupResolver
         val allToolCallbacks =
             interaction.resolveToolCallbacks(
@@ -174,7 +176,7 @@ abstract class AbstractLlmOperations(
                 toolCallbacks = allToolCallbacks,
             ),
             llm = chooseLlm(llmOptions = interaction.llm),
-            prompt = prompt,
+            messages = messages,
         )
         agentProcess.processContext.onProcessEvent(
             llmRequestEvent
@@ -183,6 +185,6 @@ abstract class AbstractLlmOperations(
             "Expanded toolCallbacks from {}: {}",
             llmRequestEvent.interaction.toolCallbacks.map { it.toolDefinition.name() },
             allToolCallbacks.map { it.toolDefinition.name() })
-        return Triple(allToolCallbacks, prompt, llmRequestEvent)
+        return Pair(allToolCallbacks, llmRequestEvent)
     }
 }

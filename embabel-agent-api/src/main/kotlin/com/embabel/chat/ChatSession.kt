@@ -21,25 +21,19 @@ package com.embabel.chat
 interface ChatSession {
 
     /**
-     * Conversation history
+     * Conversation history. Kept up to date.
      */
     val conversation: Conversation
-
-    /**
-     * Listener that will always be active
-     */
-    val messageListener: MessageListener
 
     /**
      * Update the conversation with a new message
      * and respond to it.
      * Any response messages will be sent to the messageListener
      * @param userMessage message to send
-     * @param additionalListener any additional listener to send the message to,
-     * in addition to the messageListener
+     * @param messageListener listener to send messages to
      */
     fun respond(
         userMessage: UserMessage,
-        additionalListener: MessageListener? = null,
+        messageListener: MessageListener,
     )
 }

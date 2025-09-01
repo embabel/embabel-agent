@@ -62,7 +62,6 @@ class AutonomyResponseGeneratorTest {
         } returns der
         val chatSession = AgentPlatformChatSession(
             planLister = DefaultPlanLister(mockk()),
-            messageListener = {},
             responseGenerator = AutonomyResponseGenerator(
                 autonomy = mockAutonomy,
                 goalChoiceApprover = GoalChoiceApprover.APPROVE_ALL,

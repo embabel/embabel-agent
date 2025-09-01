@@ -73,7 +73,7 @@ x "fact check the following: holden cars are still made in australia"
 ==== Implementing Your Own Shell Commands
 
 Particularly during development, you may want to implement your own shell commands to try agents or flows.
-Simply write a Spring Shell component and Sprig will inject it and register it automatically.
+Simply write a Spring Shell component and Spring will inject it and register it automatically.
 
 For example, you can inject the `AgentPlatform` and use it to invoke agents directly, as in this code from the examples repository:
 

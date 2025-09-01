@@ -6,5 +6,24 @@ In practice, this is just about any LLM.
 
 ==== Choosing an LLM
 
-Embabel encourages intent
+Embabel encourages you to think about LLM choice for every LLM invocation.
+The `PromptRunner` interface makes this easy.
+Because Embabel enables you to break agentic flows up into multiple action steps, each step can use a smaller, focused prompt with fewer tools.
+This means it may be able to use a smaller LLM.
+
+Considerations:
+
+- **Consider the complexity of the return type you expect** from the LLM.
+This is typically a good proxy for determining required LLM quality.
+A small LLM is likely to struggle with a deeply nested return structure.
+- **Consider the nature of the task.** LLMs have different strengths; review any available documentation.
+You don't necessarily need a huge, expensive model that is good at nearly everything, at the cost of your wallet and the environment.
+- **Consider the sophistication of tool calling required**.
+Simple tool calls are fine, but complex orchestration is another indicator you'll need a strong LLM.
+(It may also be an indication that you should create a more sophisticated flow using Embabel GOAP.)
+- **Consider trying a local LLM** running under Ollama or Docker.
+
+TIP: Trial and error is your friend.
+Embabel makes it easy to switch LLMs; try the cheapest thing that could work and switch if it doesn't.
+
 

@@ -57,7 +57,7 @@ This enables nice-to-have parameters that are not required for the action to run
 
 NOTE: Domain objects drive planning, specifying the preconditions to an action.
 
-The `ActionContext` subtype can be used in action methods.
+The `ActionContext` or `ExecutingOperationContext` subtype can be used in action methods.
 It adds `asSubProcess` methods that can be used to run other agents in subprocesses.
 This is an important element of composition.
 

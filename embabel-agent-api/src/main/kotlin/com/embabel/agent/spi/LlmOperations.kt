@@ -190,7 +190,7 @@ interface LlmOperations {
 
     /**
      * Create an output object, in the context of an AgentProcess.
-     * @param prompt Function to generate the prompt from the input object
+     * @param messages messages
      * @param interaction Llm options and tool callbacks to use, plus unique identifier
      * @param outputClass Class of the output object
      * @param agentProcess Agent process we are running within
@@ -198,7 +198,7 @@ interface LlmOperations {
      * @throws InvalidLlmReturnFormatException if the LLM returns an object of the wrong type
      */
     fun <O> createObject(
-        prompt: String,
+        messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
         agentProcess: AgentProcess,

@@ -383,6 +383,87 @@ class FileReadToolsTest {
             assertTrue(fileReadTools.getPathsAccessed().isEmpty(), "Writing a directory should not count")
         }
     }
+
+    @Nested
+    inner class FileCount {
+
+        @BeforeEach
+        fun setupFiles() {
+            // Create directory structure
+            Files.createDirectories(tempDir.resolve("dir1"))
+            Files.createDirectories(tempDir.resolve(Paths.get("dir2", "subdir")))
+            Files.createDirectories(tempDir.resolve(".git"))
+            Files.createDirectories(tempDir.resolve(Paths.get(".git", "objects")))
+
+            // Create regular files
+            Files.writeString(tempDir.resolve("file1.txt"), "content1")
+            Files.writeString(tempDir.resolve("file2.md"), "content2")
+            Files.writeString(tempDir.resolve(Paths.get("dir1", "file3.txt")), "content3")
+            Files.writeString(tempDir.resolve(Paths.get("dir2", "file4.txt")), "content4")
+            Files.writeString(tempDir.resolve(Paths.get("dir2", "subdir", "file5.txt")), "content5")
+
+            // Create files in .git directory that should be excluded
+            Files.writeString(tempDir.resolve(Paths.get(".git", "config")), "git config")
+            Files.writeString(tempDir.resolve(Paths.get(".git", "objects", "abc123")), "git object")
+        }
+
+        @Test
+        fun `should count all files excluding git directory`() {
+            val count = fileReadTools.fileCount()
+
+            // Should count: file1.txt, file2.md, dir1/file3.txt, dir2/file4.txt, dir2/subdir/file5.txt
+            // Should exclude: .git/config, .git/objects/abc123
+            assertEquals(5, count)
+        }
+
+        @Test
+        fun `should return 0 for empty directory`(@TempDir emptyDir: Path) {
+            val emptyFileReadTools = FileTools.readOnly(emptyDir.toString())
+
+            val count = emptyFileReadTools.fileCount()
+
+            assertEquals(0, count)
+        }
+
+        @Test
+        fun `should handle directory with only git files`(@TempDir gitOnlyDir: Path) {
+            // Create only .git directory and files
+            Files.createDirectories(gitOnlyDir.resolve(".git"))
+            Files.writeString(gitOnlyDir.resolve(Paths.get(".git", "config")), "git config")
+
+            val gitOnlyFileReadTools = FileTools.readOnly(gitOnlyDir.toString())
+
+            val count = gitOnlyFileReadTools.fileCount()
+
+            assertEquals(0, count)
+        }
+
+        @Test
+        fun `should handle deeply nested directories`() {
+            // Create deeply nested structure
+            val deepPath = Paths.get("level1", "level2", "level3", "level4")
+            Files.createDirectories(tempDir.resolve(deepPath))
+            Files.writeString(tempDir.resolve(deepPath.resolve("deep-file.txt")), "deep content")
+
+            val count = fileReadTools.fileCount()
+
+            // Original 5 files plus the new deep file
+            assertEquals(6, count)
+        }
+
+        @Test
+        fun `should exclude git directory regardless of location`() {
+            // Create .git directory in subdirectory
+            Files.createDirectories(tempDir.resolve(Paths.get("subproject", ".git")))
+            Files.writeString(tempDir.resolve(Paths.get("subproject", ".git", "config")), "subproject git config")
+            Files.writeString(tempDir.resolve(Paths.get("subproject", "README.md")), "subproject readme")
+
+            val count = fileReadTools.fileCount()
+
+            // Original 5 files plus subproject/README.md (but not the .git/config)
+            assertEquals(6, count)
+        }
+    }
 }
 
 private fun List<String>.toPaths(): List<Path> = map { Paths.get(it) }

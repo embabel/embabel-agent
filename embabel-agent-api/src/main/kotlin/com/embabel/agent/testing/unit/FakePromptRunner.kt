@@ -20,6 +20,9 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.prompt.element.ContextualPromptElement
+import com.embabel.agent.rag.RagService
+import com.embabel.agent.rag.tools.RagOptions
+import com.embabel.agent.rag.tools.RagServiceTools
 import com.embabel.agent.spi.InteractionId
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.chat.Message
@@ -28,6 +31,7 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
 
 enum class Method {
@@ -187,6 +191,12 @@ data class FakePromptRunner(
         )
     }
 
+    override fun withRagTools(options: RagOptions): PromptRunner {
+        logger.warn("RAG tools not implemented in FakePromptRunner")
+        return this.withToolObject(RagServiceTools.create(RagService.empty(), RagOptions()))
+
+    }
+
     override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner {
         TODO("Implement handoff support")
     }
@@ -197,5 +207,9 @@ data class FakePromptRunner(
 
     override fun withToolGroup(toolGroup: ToolGroup): PromptRunner {
         TODO("Not yet implemented")
+    }
+
+    override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
+        return PromptRunnerObjectCreator(this, outputClass, jacksonObjectMapper())
     }
 }

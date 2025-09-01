@@ -41,6 +41,7 @@ class FakeRagService : RagService {
 
     override fun search(ragRequest: RagRequest): RagResponse {
         return RagResponse(
+            request = ragRequest,
             service = name,
             results = emptyList(),
         )

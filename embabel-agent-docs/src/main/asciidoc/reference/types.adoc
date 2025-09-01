@@ -74,6 +74,36 @@ TIP: Normally you want to use one of the `createObject` methods to ensure the re
 - `withLlm(LlmOptions)`: Use specific LLM configuration
 - `withGenerateExamples(Boolean)`: Control example generation
 
+**Returning a Specific Type**
+
+- `creating(Class<T>)`: Go into the `ObjectCreator` fluent API for returning a particular type.
+
+For example:
+
+[source,java]
+----
+var story = context.ai()
+    .withDefaultLlm()
+    .withToolGroup(CoreToolGroups.WEB)
+    .creating(Story.class)
+    .fromPrompt("Create a story about: " + input.getContent());
+----
+
+The main reason to do this is to add strongly typed examples for https://www.promptingguide.ai/techniques/fewshot[few-shot prompting].
+For example:
+
+[source,java]
+----
+var story = context.ai()
+    .withDefaultLlm()
+    .withToolGroup(CoreToolGroups.WEB)
+    .withExample("A children's story", new Story("Once upon a time...")) // <1>
+    .creating(Story.class)
+    .fromPrompt("Create a story about: " + input.getContent());
+----
+
+<1> **Example**: The example will be included in the prompt in JSON format to guide the LLM.
+
 **Advanced Features:**
 
 - `withTemplate(String)`: Use Jinja templates for prompts

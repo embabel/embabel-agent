@@ -21,40 +21,17 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Enables an Embabel Agent application to run as a Model Context Protocol (MCP) server.
- *
- * <p>This annotation configures your Spring Boot application to expose agents as
- * MCP-compatible tools that can be consumed by AI assistants like Claude Desktop,
- * IDEs with MCP support, or other MCP-compliant clients.
- *
- * <h3>What This Annotation Provides:</h3>
- * <ul>
- *   <li>Activates the "mcp-server" Spring profile</li>
- *   <li>Configures JSON-RPC server for MCP protocol communication</li>
- *   <li>Auto-discovers and exposes {@code @Agent} annotated classes as MCP tools</li>
- *   <li>Sets up security boundaries and sandboxing for tool execution</li>
- *   <li>Enables MCP protocol handlers and message routing</li>
- * </ul>
- *
- * <h3>Configuration Properties:</h3>
- * <p>When this annotation is active, the following properties can be configured:
- * <pre>{@code
- * # application.yml
- * mcp:
- *   server:
- *     port: 3000              # MCP server port (default: 3000)
- *     timeout: 30000          # Request timeout in ms (default: 30s)
- *     max-connections: 10     # Max concurrent connections
- *     allowed-tools: "*"      # Tool access control (* = all)
- * }</pre>
- *
- * @see EnableAgentShell
- * @see EnableAgents
- * @see AgentPlatform
- * @since 1.0
- * @author Embabel Team
+ * @deprecated This annotation is deprecated in favor of embabel-agent-starter-mcpserver dependency.
+ * <p>
+ * <b>Migration paths:</b>
+ * <br>If using embabel-agent-starter: Replace with embabel-agent-starter-mcpserver
+ * <br>Remove this @EnableAgentMcpServer annotation from your application class
+ * <p>
+ * Agent Mcp Server capabilities will be auto-discovered through convention.
+ * <p>
+ * This annotation will be removed in version 0.2.0.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@AgentPlatform(StartupMode.MCP_SERVER)
+@Deprecated(since = "0.1.2", forRemoval = true)
 public @interface EnableAgentMcpServer {}

@@ -37,6 +37,7 @@ class ConsensusRagService(
         }
         // TODO Count and commend duplicates
         return RagResponse(
+            request = ragRequest,
             service = name,
             results = allResults,
         )

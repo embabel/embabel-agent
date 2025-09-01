@@ -36,13 +36,25 @@ class AgentMetadataReaderConditionsTest {
     }
 
     @Test
-    fun `one condition taking ProcessContext`() {
+    fun `one condition taking OperationContext`() {
         val reader = AgentMetadataReader()
         val metadata = reader.createAgentMetadata(OneOperationContextConditionOnly())
         assertNotNull(metadata)
         assertEquals(1, metadata!!.conditions.size)
         assertEquals(
             "${OneOperationContextConditionOnly::class.java.name}.condition1",
+            metadata.conditions.first().name
+        )
+    }
+
+    @Test
+    fun `one condition taking Ai`() {
+        val reader = AgentMetadataReader()
+        val metadata = reader.createAgentMetadata(OneOperationContextAiOnly())
+        assertNotNull(metadata)
+        assertEquals(1, metadata!!.conditions.size)
+        assertEquals(
+            "${OneOperationContextAiOnly::class.java.name}.condition1",
             metadata.conditions.first().name
         )
     }

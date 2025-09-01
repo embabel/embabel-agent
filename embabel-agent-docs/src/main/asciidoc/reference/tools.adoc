@@ -1,12 +1,40 @@
 [[reference.tools]]
 === Tools
 
-Tools are passed to LLMs to allow them to perform actions.
+Tools can be passed to LLMs to allow them to perform actions.
 
 Embabel provides tools to LLMs in several ways:
 
-* At action or `PromptRunner` level, from a tool group.
+* At action or `PromptRunner` level, from a tool group or _tool instance_.
+A tool instance is an object with `@Tool` methods.
 * At domain object level via `@Tool` methods authored by the application developer.
+
+==== Implementing Tool Instances
+
+Classes implementing tools can be stateful.
+They are often domain objects.
+
+Return type restrictions: TODO
+
+Method parameter restrictions: TODO
+
+You can obtain the current `AgentProcess` in a Tool method implementation via `AgentProcess.get()`.
+This enables tools to bind to the `AgentProcess`, making objects available to other actions.
+For example:
+
+[source,java]
+----
+@Tool(description="My Tool")
+String bindCustomer(Long id) {
+    var customer = customerRepository.findById(id);
+    var agentProcess = AgentProcess.get();
+    if (agentProcess != null) {
+        agentProcess.addObject(customer);
+        return "Customer bound to blackboard";
+    }
+    return "No agent process: Unable to bind customer";
+}
+----
 
 ==== Tool Groups
 

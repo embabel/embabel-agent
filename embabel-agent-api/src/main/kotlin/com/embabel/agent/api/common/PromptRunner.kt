@@ -21,86 +21,16 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.prompt.element.ContextualPromptElement
+import com.embabel.agent.rag.tools.RagOptions
 import com.embabel.agent.spi.LlmUse
-import com.embabel.chat.AssistantMessage
-import com.embabel.chat.Conversation
-import com.embabel.chat.Message
-import com.embabel.chat.SystemMessage
+import com.embabel.chat.*
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
-import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.ai.prompt.PromptElement
 import com.embabel.common.textio.template.TemplateRenderer
-import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
-
-/**
- * User-facing interface for executing prompts.
- */
-interface PromptRunnerOperations {
-
-    /**
-     * Generate text
-     */
-    infix fun generateText(prompt: String): String =
-        createObject(
-            prompt = prompt,
-            outputClass = String::class.java,
-        )
-
-    /**
-     * Create an object of the given type using the given prompt and LLM options from context
-     * (process context or implementing class).
-     * Prompts are typically created within the scope of an
-     * @Action method that provides access to
-     * domain object instances, offering type safety.
-     */
-    fun <T> createObject(
-        prompt: String,
-        outputClass: Class<T>,
-    ): T
-
-    /**
-     * Try to create an object of the given type using the given prompt and LLM options from context
-     * (process context or implementing class).
-     * Prompt is typically created within the scope of an
-     * @Action method that provides access to
-     * domain object instances, offering type safety.
-     */
-    fun <T> createObjectIfPossible(
-        prompt: String,
-        outputClass: Class<T>,
-    ): T?
-
-    /**
-     * Create an object from messages
-     */
-    fun <T> createObject(
-        messages: List<Message>,
-        outputClass: Class<T>,
-    ): T
-
-    fun respond(
-        messages: List<Message>,
-    ): AssistantMessage =
-        AssistantMessage(
-            createObject(
-                messages = messages,
-                outputClass = String::class.java,
-            )
-        )
-
-    /**
-     * Use operations from a given template
-     */
-    fun withTemplate(templateName: String): TemplateOperations
-
-    fun evaluateCondition(
-        condition: String,
-        context: String,
-        confidenceThreshold: ZeroToOne = 0.8,
-    ): Boolean
-
-}
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.jetbrains.annotations.ApiStatus
 
 /**
  * Llm operations based on a compiled template.
@@ -131,6 +61,8 @@ class TemplateOperations(
 
     /**
      * Respond in the conversation using the template as system prompt.
+     * @param conversation the conversation so far
+     * @param model the model to render the system prompt template with
      */
     fun respondWithSystemPrompt(
         conversation: Conversation,
@@ -142,53 +74,6 @@ class TemplateOperations(
             )
         ) + conversation.messages
     )
-}
-
-/**
- * Holds an annotated tool object.
- * Adds a naming strategy and a filter to the object.
- * @param obj the object the tool annotations are on
- * @param namingStrategy the naming strategy to use for the tool object's methods
- * @param filter a filter to apply to the tool object's methods
- */
-data class ToolObject(
-    val obj: Any,
-    val namingStrategy: StringTransformer = StringTransformer.IDENTITY,
-    val filter: (String) -> Boolean = { true },
-) {
-
-    init {
-        if (obj is Iterable<*>) {
-            throw IllegalArgumentException("Internal error: ToolObject cannot be an Iterable. Offending object: $obj")
-        }
-    }
-
-    constructor (
-        obj: Any,
-    ) : this(
-        obj = obj,
-        namingStrategy = StringTransformer.IDENTITY,
-        filter = { true },
-    )
-
-    fun withNamingStrategy(
-        namingStrategy: StringTransformer,
-    ): ToolObject = copy(namingStrategy = namingStrategy)
-
-    fun withFilter(
-        filter: (String) -> Boolean,
-    ): ToolObject = copy(filter = filter)
-
-    companion object {
-
-        fun from(o: Any): ToolObject = o as? ToolObject
-            ?: ToolObject(
-                obj = o,
-                namingStrategy = StringTransformer.IDENTITY,
-                filter = { true },
-            )
-
-    }
 }
 
 /**
@@ -268,7 +153,9 @@ class Subagent private constructor(
  * Typically obtained from an [OperationContext] or [ActionContext] parameter,
  * via [OperationContext.ai]
  * A PromptRunner is immutable once constructed, and has determined
- * LLM and hyperparameters.
+ * LLM and hyperparameters. Use the "with" methods to evolve
+ * the state to your desired configuration before executing createObject,
+ * generateText or other LLM invocation methods.
  * Thus, a PromptRunner can be reused within an action implementation.
  * A contextual facade to LlmOperations.
  * @see com.embabel.agent.spi.LlmOperations
@@ -279,7 +166,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * Additional objects with @Tool annotation for use in this PromptRunner
      */
     val toolObjects: List<ToolObject>
-
 
     /**
      * Specify an LLM for the PromptRunner
@@ -332,10 +218,46 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         toolObject: ToolObject,
     ): PromptRunner
 
+    fun withToolObjects(vararg toolObjects: Any?): PromptRunner =
+        toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
+
+    /**
+     * Add tools for RAG. Will use platform RagService
+     * @param options options for the RAG tools. Control similarity threshold, topK, labels, and response formatting.
+     */
+    fun withRagTools(options: RagOptions): PromptRunner
+
+    /**
+     * Add a reference which provides tools and prompt contribution.
+     */
+    fun withReference(reference: LlmReference): PromptRunner {
+        val safePrefix = reference.name.replace(Regex("[^a-zA-Z0-9 ]"), "_")
+        val toolObject = ToolObject(
+            obj = reference,
+            namingStrategy = { toolName -> "${safePrefix}_$toolName" },
+        )
+        return withToolObject(toolObject)
+            .withPromptContributor(reference)
+    }
+
+    /**
+     * Add a list of references which provide tools and prompt contributions.
+     */
+    fun withReferences(references: List<LlmReference>): PromptRunner {
+        return references.fold(this) { acc, reference -> acc.withReference(reference) }
+    }
+
+    /**
+     * Add varargs of references which provide tools and prompt contributions.
+     */
+    fun withReferences(vararg references: LlmReference): PromptRunner =
+        withReferences(references.toList())
+
     /**
      * Add a list of handoffs to agents on this platform
      * @param outputTypes the types of objects that can result from output flow
      */
+    @ApiStatus.Experimental
     fun withHandoffs(
         vararg outputTypes: Class<*>,
     ): PromptRunner
@@ -343,12 +265,22 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     /**
      * Add a list of subagents to hand off to.
      */
+    @ApiStatus.Experimental
     fun withSubagents(
         vararg subagents: Subagent,
     ): PromptRunner
 
     /**
-     * Add a prompt contributor
+     * Add a system prompt
+     */
+    fun withSystemPrompt(systemPrompt: String): PromptRunner =
+        withPromptContributor(
+            PromptContributor.fixed(systemPrompt)
+        )
+
+    /**
+     * Add a prompt contributor that can add to the prompt.
+     * Facilitates reuse of prompt elements.
      * @param promptContributor
      * @return PromptRunner instance with the added PromptContributor
      */
@@ -360,7 +292,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     /**
      * Add varargs of prompt contributors and contextual prompt elements.
      */
-    fun withPromptElements(vararg elements: Any): PromptRunner {
+    fun withPromptElements(vararg elements: PromptElement): PromptRunner {
         val promptContributors = elements.filterIsInstance<PromptContributor>()
         val contextualPromptElements = elements.filterIsInstance<ContextualPromptElement>()
         val oddOnesOut = elements.filterNot { it is PromptContributor || it is ContextualPromptElement }
@@ -394,6 +326,80 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * on a per-PromptRunner basis. This overrides platform defaults.
      */
     fun withGenerateExamples(generateExamples: Boolean): PromptRunner
+
+    /**
+     * Create an object creator for the given output class.
+     * Allows setting strongly typed examples.
+     */
+    fun <T> creating(outputClass: Class<T>): ObjectCreator<T>
+
+}
+
+/**
+ * Create an object of the given type from a prompt or messages.
+ * Allows setting strongly typed examples.
+ */
+interface ObjectCreator<T> {
+
+    /**
+     * Add an example of the desired output to the prompt.
+     * This will be included in JSON.
+     */
+    fun withExample(
+        description: String,
+        value: T,
+    ): ObjectCreator<T>
+
+    /**
+     * Create an object of the given type using the given prompt and LLM options from context
+     * (process context or implementing class).
+     * Prompts are typically created within the scope of an
+     * @Action method that provides access to
+     * domain object instances, offering type safety.
+     */
+    fun fromPrompt(
+        prompt: String,
+    ): T = fromMessages(
+        messages = listOf(UserMessage(prompt)),
+    )
+
+    /**
+     * Create an object from messages
+     */
+    fun fromMessages(
+        messages: List<Message>,
+    ): T
+
+}
+
+internal data class PromptRunnerObjectCreator<T>(
+    internal val promptRunner: PromptRunner,
+    internal val outputClass: Class<T>,
+    private val objectMapper: ObjectMapper,
+) : ObjectCreator<T> {
+
+    override fun withExample(
+        description: String,
+        value: T,
+    ): ObjectCreator<T> {
+        return copy(
+            promptRunner = promptRunner.withPromptContributor(
+                PromptContributor.fixed(
+                    """
+                        Example: $description
+                        ${objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(value)}
+                        """.trimIndent()
+                )
+            )
+        )
+    }
+
+    override fun fromMessages(messages: List<Message>): T {
+        return promptRunner.createObject(
+            messages = messages,
+            outputClass = outputClass,
+        )
+    }
 
 }
 

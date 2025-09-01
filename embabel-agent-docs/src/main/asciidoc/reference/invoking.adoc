@@ -54,7 +54,7 @@ Java::
 [source,java]
 ----
 // Simple invocation with explicit result type
-AgentInvocation<TravelPlan> invocation = 
+var invocation =
     AgentInvocation.create(agentPlatform, TravelPlan.class);
 
 TravelPlan plan = invocation.invoke(travelRequest);
@@ -95,7 +95,7 @@ Java::
 +
 [source,java]
 ----
-AgentInvocation<TravelPlan> invocation = 
+var invocation =
     AgentInvocation.builder(agentPlatform)
         .options(options -> options
             .verbosity(verbosity -> verbosity

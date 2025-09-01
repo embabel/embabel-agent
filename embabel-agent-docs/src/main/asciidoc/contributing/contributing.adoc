@@ -3,10 +3,35 @@
 :sectids:
 :sectanchors:
 
-We welcome contributions to the Embabel project!
+Open source is a wonderful thing.
+We welcome contributions to the Embabel project.
 
 How to contribute:
 
 - Familiarize yourself with the project by reading the documentation.
-- Familiarize yourself with the issue tracker
+- Familiarize yourself with the issue tracker and open pull requests to ensure you're not duplicating something.
+- Sign your commits
 - Join the Embabel community on Discord at https://discord.gg/t6bjkyj93q.
+
+Contributions are not limited to code.
+You can also help by:
+
+- Improving the documentation
+- Reporting bugs
+- Suggesting new features
+- Engaging with the community on Discord
+- Creating examples and other materials
+- Talking about Embabel at meetups and conferences
+- Posting about Embabel on social media
+
+When contributing code, **do** augment your productivity using coding agents and LLMs, but avoid these pitfalls:
+
+- **Excessive LLM comments that add no value**.
+Code should be self-documenting.
+Comments are for things that are non-obvious.
+- **Bloated PR descriptions and other content.**
+
+Nothing personal, but such contributions will automatically be rejected.
+
+IMPORTANT: You must understand anything you contribute.
+

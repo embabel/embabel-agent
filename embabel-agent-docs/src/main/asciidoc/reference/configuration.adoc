@@ -1,6 +1,8 @@
 [[reference.configuration]]
 === Configuration
 
+==== Enabling Embabel
+
 Annotate your Spring Boot application class to get agentic behavior.
 
 Example:
@@ -29,4 +31,432 @@ This is optional.
 `@EnableAgents` enables the agent framework.
 It allows you to specify a logging theme (optional) and well-known sources of local models and MCP tools.
 In this case we're using Docker as a source of local models and MCP tools.
+
+==== Configuration Properties
+
+The following table lists all available configuration properties in Embabel Agent Platform.
+Properties are organized by their configuration prefix and include default values where applicable.
+They can be set via `application.properties`, `application.yml`, profile-specific configuration files or environment variables, as per standard Spring configuration practices.
+
+===== Platform Configuration
+
+From `AgentPlatformProperties` - unified configuration for all agent platform properties.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.name`
+|String
+|`embabel-default`
+|Core platform identity name
+
+|`embabel.agent.platform.description`
+|String
+|`Embabel Default Agent Platform`
+|Platform description
+
+|===
+
+===== Agent Scanning
+
+From `AgentPlatformProperties.ScanningConfig` - configures scanning of the classpath for agents.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.scanning.annotation`
+|Boolean
+|`true`
+|Whether to auto register beans with @Agent and @Agentic annotation
+
+|`embabel.agent.platform.scanning.bean`
+|Boolean
+|`false`
+|Whether to auto register as agents Spring beans of type `Agent`
+
+|===
+
+===== Ranking Configuration
+
+From `AgentPlatformProperties.RankingConfig` - configures ranking of agents and goals based on user input when the platform should choose the agent or goal.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.ranking.llm`
+|String
+|`null`
+|Name of the LLM to use for ranking, or null to use auto selection
+
+|`embabel.agent.platform.ranking.max-attempts`
+|Int
+|`5`
+|Maximum number of attempts to retry ranking
+
+|`embabel.agent.platform.ranking.backoff-millis`
+|Long
+|`100`
+|Initial backoff time in milliseconds
+
+|`embabel.agent.platform.ranking.backoff-multiplier`
+|Double
+|`5.0`
+|Multiplier for backoff time
+
+|`embabel.agent.platform.ranking.backoff-max-interval`
+|Long
+|`180000`
+|Maximum backoff time in milliseconds
+
+|===
+
+===== LLM Operations
+
+From `AgentPlatformProperties.LlmOperationsConfig` - configuration for LLM operations including prompts and data binding.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.llm-operations.prompts.maybe-prompt-template`
+|String
+|`maybe_prompt_contribution`
+|Template for "maybe" prompt, enabling failure result when LLM lacks information
+
+|`embabel.agent.platform.llm-operations.prompts.generate-examples-by-default`
+|Boolean
+|`true`
+|Whether to generate examples by default
+
+|`embabel.agent.platform.llm-operations.data-binding.max-attempts`
+|Int
+|`10`
+|Maximum retry attempts for data binding
+
+|`embabel.agent.platform.llm-operations.data-binding.fixed-backoff-millis`
+|Long
+|`30`
+|Fixed backoff time in milliseconds between retries
+
+|===
+
+===== Process ID Generation
+
+From `AgentPlatformProperties.ProcessIdGenerationConfig` - configuration for process ID generation.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.process-id-generation.include-version`
+|Boolean
+|`false`
+|Whether to include version in process ID generation
+
+|`embabel.agent.platform.process-id-generation.include-agent-name`
+|Boolean
+|`false`
+|Whether to include agent name in process ID generation
+
+|===
+
+===== Autonomy Configuration
+
+From `AgentPlatformProperties.AutonomyConfig` - configures thresholds for agent and goal selection.
+Certainty below thresholds will result in failure to choose an agent or goal.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.autonomy.agent-confidence-cut-off`
+|Double
+|`0.6`
+|Confidence threshold for agent operations
+
+|`embabel.agent.platform.autonomy.goal-confidence-cut-off`
+|Double
+|`0.6`
+|Confidence threshold for goal achievement
+
+|===
+
+===== Model Provider Configuration
+
+From `AgentPlatformProperties.ModelsConfig` - model provider integration configurations.
+
+====== Anthropic
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.models.anthropic.max-attempts`
+|Int
+|`10`
+|Maximum retry attempts
+
+|`embabel.agent.platform.models.anthropic.backoff-millis`
+|Long
+|`5000`
+|Initial backoff time in milliseconds
+
+|`embabel.agent.platform.models.anthropic.backoff-multiplier`
+|Double
+|`5.0`
+|Backoff multiplier
+
+|`embabel.agent.platform.models.anthropic.backoff-max-interval`
+|Long
+|`180000`
+|Maximum backoff interval in milliseconds
+
+|===
+
+====== OpenAI
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.models.openai.max-attempts`
+|Int
+|`10`
+|Maximum retry attempts
+
+|`embabel.agent.platform.models.openai.backoff-millis`
+|Long
+|`5000`
+|Initial backoff time in milliseconds
+
+|`embabel.agent.platform.models.openai.backoff-multiplier`
+|Double
+|`5.0`
+|Backoff multiplier
+
+|`embabel.agent.platform.models.openai.backoff-max-interval`
+|Long
+|`180000`
+|Maximum backoff interval in milliseconds
+
+|===
+
+===== Server-Sent Events
+
+From `AgentPlatformProperties.SseConfig` - server-sent events configuration.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.sse.max-buffer-size`
+|Int
+|`100`
+|Maximum buffer size for SSE
+
+|`embabel.agent.platform.sse.max-process-buffers`
+|Int
+|`1000`
+|Maximum number of process buffers
+
+|===
+
+===== Test Configuration
+
+From `AgentPlatformProperties.TestConfig` - test configuration.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.test.mock-mode`
+|Boolean
+|`true`
+|Whether to enable mock mode for testing
+
+|===
+
+===== Process Repository Configuration
+
+From `ProcessRepositoryProperties` - configuration for the agent process repository.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.process-repository.window-size`
+|Int
+|`1000`
+|Maximum number of agent processes to keep in memory when using default `InMemoryAgentProcessRepository`. When exceeded, oldest processes are evicted.
+
+|===
+
+===== Standalone LLM Configuration
+
+====== LLM Operations Prompts
+
+From `LlmOperationsPromptsProperties` - properties for ChatClientLlmOperations operations.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.llm-operations.prompts.maybe-prompt-template`
+|String
+|`maybe_prompt_contribution`
+|Template to use for the "maybe" prompt, which can enable a failure result if the LLM does not have enough information to create the desired output structure
+
+|`embabel.llm-operations.prompts.generate-examples-by-default`
+|Boolean
+|`true`
+|Whether to generate examples by default
+
+|`embabel.llm-operations.prompts.default-timeout`
+|Duration
+|`60s`
+|Default timeout for operations
+
+|===
+
+====== LLM Data Binding
+
+From `LlmDataBindingProperties` - data binding properties with retry configuration for LLM operations.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.llm-operations.data-binding.max-attempts`
+|Int
+|`10`
+|Maximum retry attempts for data binding
+
+|`embabel.llm-operations.data-binding.fixed-backoff-millis`
+|Long
+|`30`
+|Fixed backoff time in milliseconds between retries
+
+|===
+
+===== Additional Model Providers
+
+====== AWS Bedrock
+
+From `BedrockProperties` - AWS Bedrock model configuration properties.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.models.bedrock.models`
+|List
+|`[]`
+|List of Bedrock models to configure
+
+|`embabel.models.bedrock.models[].name`
+|String
+|`""`
+|Model name
+
+|`embabel.models.bedrock.models[].knowledge-cutoff`
+|String
+|`""`
+|Knowledge cutoff date
+
+|`embabel.models.bedrock.models[].input-price`
+|Double
+|`0.0`
+|Input token price
+
+|`embabel.models.bedrock.models[].output-price`
+|Double
+|`0.0`
+|Output token price
+
+|===
+
+====== Docker Local Models
+
+From `DockerProperties` - configuration for Docker local models (OpenAI-compatible).
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.docker.models.base-url`
+|String
+|`http://localhost:12434/engines`
+|Base URL for Docker model endpoint
+
+|`embabel.docker.models.max-attempts`
+|Int
+|`10`
+|Maximum retry attempts
+
+|`embabel.docker.models.backoff-millis`
+|Long
+|`2000`
+|Initial backoff time in milliseconds
+
+|`embabel.docker.models.backoff-multiplier`
+|Double
+|`5.0`
+|Backoff multiplier
+
+|`embabel.docker.models.backoff-max-interval`
+|Long
+|`180000`
+|Maximum backoff interval in milliseconds
+
+|===
+
+===== Migration Support
+
+From `DeprecatedPropertyScanningConfig` and `DeprecatedPropertyWarningConfig` - configuration for migrating from older versions of Embabel.
+
+NOTE: These properties will be removed before Embabel 1.0.0 release.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.migration.scanning.enabled`
+|Boolean
+|`false`
+|Whether deprecated property scanning is enabled (disabled by default for production safety)
+
+|`embabel.agent.platform.migration.scanning.include-packages`
+|List<String>
+|`["com.embabel.agent", "com.embabel.agent.shell"]`
+|Base packages to scan for deprecated conditional annotations
+
+|`embabel.agent.platform.migration.scanning.exclude-packages`
+|List<String>
+|Extensive default list
+|Package prefixes to exclude from scanning
+
+|`embabel.agent.platform.migration.scanning.additional-excludes`
+|List<String>
+|`[]`
+|Additional user-specific packages to exclude
+
+|`embabel.agent.platform.migration.scanning.auto-exclude-jar-packages`
+|Boolean
+|`false`
+|Whether to automatically exclude JAR-based packages using classpath detection
+
+|`embabel.agent.platform.migration.scanning.max-scan-depth`
+|Int
+|`10`
+|Maximum depth for package scanning
+
+|`embabel.agent.platform.migration.warnings.individual-logging`
+|Boolean
+|`true`
+|Whether to enable individual warning logging. When false, only aggregated summary is logged
+
+|===
 

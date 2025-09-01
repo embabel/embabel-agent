@@ -18,6 +18,7 @@ package com.embabel.agent.event
 import com.embabel.agent.core.*
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatModelCallEvent
+import com.embabel.chat.Message
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.Timed
@@ -179,7 +180,7 @@ class LlmRequestEvent<O>(
     val outputClass: Class<O>,
     val interaction: LlmInteraction,
     val llm: Llm,
-    val prompt: String,
+    val messages: List<Message>,
 ) : AbstractAgentProcessEvent(agentProcess) {
 
     /**
@@ -191,7 +192,6 @@ class LlmRequestEvent<O>(
             outputClass = outputClass,
             interaction = interaction,
             llm = llm,
-            prompt = prompt,
             springAiPrompt = springAiPrompt
         )
     }
@@ -221,7 +221,7 @@ class LlmRequestEvent<O>(
     }
 
     override fun toString(): String {
-        return "LlmRequestEvent(outputClass=$outputClass, interaction=$interaction, prompt='$prompt')"
+        return "LlmRequestEvent(outputClass=$outputClass, interaction=$interaction, messages=$messages)"
     }
 }
 

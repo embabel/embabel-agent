@@ -47,3 +47,16 @@ interface DataFlowStep : AgentSystemStep {
     val outputs: Set<IoBinding>
 
 }
+
+/**
+ * Access to agent infrastructure via injected parameter.
+ */
+interface InjectedType : Operation {
+
+    companion object {
+        fun named(name: String): InjectedType = object : InjectedType {
+            override val name: String = name
+        }
+    }
+
+}

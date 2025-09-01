@@ -70,13 +70,13 @@ open class DummyObjectCreatingLlmOperations(
     }
 
     override fun <O> createObject(
-        prompt: String,
+        messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
         agentProcess: AgentProcess,
         action: Action?,
     ): O = doTransform(
-        prompt = prompt,
+        messages = messages,
         interaction = interaction,
         outputClass = outputClass,
         llmRequestEvent = null,

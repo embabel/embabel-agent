@@ -50,6 +50,7 @@ class SpringVectorStoreRagService(
             .build()
         val results: List<Document> = vectorStore.similaritySearch(searchRequest)!!
         return RagResponse(
+            request = ragRequest,
             service = name,
             results = results.map { it ->
                 DocumentSimilarityResult(

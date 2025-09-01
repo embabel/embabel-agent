@@ -4,12 +4,12 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-dependencies-parent</artifactId>
-        <version>0.1.1-SNAPSHOT</version>
+        <version>0.1.1</version>
         <relativePath />
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-dependencies</artifactId>
-    <version>0.1.1-SNAPSHOT</version>
+    <version>0.1.2-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Embabel Agent BOM</name>
     <description>Embabel Agent BOM</description>
@@ -48,7 +48,13 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-rag</artifactId>
+                <artifactId>embabel-agent-rag-neo</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-rag-lucene</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -67,6 +73,18 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-starter-bedrock</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-mcpserver</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-shell</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

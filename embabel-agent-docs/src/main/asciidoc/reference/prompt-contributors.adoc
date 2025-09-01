@@ -1,2 +1,114 @@
 [[reference.prompt-contributors]]
-=== Prompt Contributors
+=== Structured Prompt Elements
+
+Embabel provides a number of ways to structure and manage prompt content.
+
+**Prompt contributors** are a fundamental way to structure and inject content into LLM prompts.
+You don't need to use them--you can simply build your prompts as strings--but they can be useful to achieve consistency and reuse across multiple actions or even across multiple agents using the same domain objects.
+
+Prompt contributors implement the `PromptContributor` interface and provide text that gets included in the final prompt sent to the LLM.
+By default the text will be included in the system prompt message.
+
+==== The `PromptContributor` Interface and `LlmReference` Subinterface
+
+All prompt contributors implement the `PromptContributor` interface with a `contribution()` method that returns a string to be included in the prompt.
+
+Add `PromptContributor` instances to a `PromptRunner` using the `withPromptContributor()` method.
+
+A subinterface of `PromptContributor` is `LlmReference`.
+
+An `LlmReference` is a prompt contributor that can also provide tools via annotated `@Tool` methods.
+So that tool naming can be disambiguated, an `LlmReference` must also include name and description metadata.
+
+Add `LlmReference` instances to a `PromptRunner` using the `withReference()` method.
+
+Use `LlmReference` if:
+
+- You want to provide both prompt content and tools from the same object
+- You want to provide specific instructions on how to use these tools, beyond the individual tool descriptions
+- Your data may be best exposed as either prompt content or tools, depending on the context.
+For example, if you have a list of 10 items you might just put in the prompt and say "Here are all the items: ...".
+If you have a list of 10,000 objects, you would include advice to use the tools to query them.
+
+==== Built-in Convenience Classes
+
+Embabel provides several convenience classes that implement `PromptContributor` for common use cases.
+These are optional utilities - you can always implement the interface directly for custom needs.
+
+===== Persona
+
+The `Persona` class provides a structured way to define an AI agent's personality and behavior:
+
+[source,kotlin]
+----
+val persona = Persona.create(
+    name = "Alex the Analyst",
+    persona = "A detail-oriented data analyst with expertise in financial markets",
+    voice = "Professional yet approachable, uses clear explanations",
+    objective = "Help users understand complex financial data through clear analysis"
+)
+----
+
+This generates a prompt contribution like:
+
+----
+You are Alex the Analyst.
+Your persona: A detail-oriented data analyst with expertise in financial markets.
+Your objective is Help users understand complex financial data through clear analysis.
+Your voice: Professional yet approachable, uses clear explanations.
+----
+
+===== RoleGoalBackstory
+
+The `RoleGoalBackstory` class follows the Crew AI pattern and is included for users migrating from that framework:
+
+[source,java]
+----
+var agent = RoleGoalBackstory.withRole("Senior Software Engineer")
+    .andGoal("Write clean, maintainable code")
+    .andBackstory("10+ years experience in enterprise software development")
+----
+
+This generates:
+
+----
+Role: Senior Software Engineer
+Goal: Write clean, maintainable code
+Backstory: 10+ years experience in enterprise software development
+----
+
+==== Custom PromptContributor Implementations
+
+You can create custom prompt contributors by implementing the interface directly.
+This gives you complete control over the prompt content:
+
+[source,kotlin]
+----
+class CustomSystemPrompt(private val systemName: String) : PromptContributor {
+    override fun contribution(): String {
+        return "System: $systemName - Current time: ${LocalDateTime.now()}"
+    }
+}
+
+class ConditionalPrompt(
+    private val condition: () -> Boolean,
+    private val trueContent: String,
+    private val falseContent: String
+) : PromptContributor {
+    override fun contribution(): String {
+        return if (condition()) trueContent else falseContent
+    }
+}
+----
+
+==== Examples from embabel-agent-examples
+
+The https://github.com/embabel/embabel-agent-examples[embabel-agent-examples] repository demonstrates various agent development patterns and Spring Boot integration approaches for building AI agents with Embabel.
+
+==== Best Practices
+
+* Keep prompt contributors focused and single-purpose
+* Use the convenience classes (`Persona`, `RoleGoalBackstory`) when they fit your needs
+* Implement custom `PromptContributor` classes for domain-specific requirements
+* Consider using dynamic contributors for context-dependent content
+* Test your prompt contributions to ensure they produce the desired LLM behavior

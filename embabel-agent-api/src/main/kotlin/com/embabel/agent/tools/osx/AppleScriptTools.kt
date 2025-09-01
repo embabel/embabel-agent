@@ -45,11 +45,10 @@ class AppleScriptTools : SelfToolGroup {
         get() = setOf(ToolGroupPermission.HOST_ACCESS)
 
     @Tool(description = "Run AppleScript command")
-    fun runAppleScript(script: String) {
+    fun runAppleScript(script: String): String {
         val runtime = Runtime.getRuntime()
         val process = runtime.exec(arrayOf("osascript", "-e", script))
-        // You can handle output/errors if needed
         val exitCode = process.waitFor()
-        println("Script executed with exit code: $exitCode")
+        return "Script executed with exit code: $exitCode"
     }
 }

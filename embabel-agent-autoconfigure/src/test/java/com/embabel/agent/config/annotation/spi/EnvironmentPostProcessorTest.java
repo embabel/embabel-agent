@@ -74,21 +74,6 @@ class EnvironmentPostProcessorTest {
     }
 
     @Test
-    void testAgentPlatformAnnotation() {
-        // Given
-        @AgentPlatform("shell")
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles()).containsExactly(StartupMode.SHELL);
-    }
-
-    @Test
     void testEnableAgentsWithLoggingTheme() {
         // Given
         @EnableAgents(loggingTheme = "starwars")
@@ -136,7 +121,6 @@ class EnvironmentPostProcessorTest {
     @Test
     void testCombinedAnnotations() {
         // Given
-        @EnableAgentShell
         @EnableAgents(
                 loggingTheme = LoggingThemes.STAR_WARS,
                 localModels = {LocalModels.OLLAMA},
@@ -151,28 +135,7 @@ class EnvironmentPostProcessorTest {
 
         // Then
         assertThat(getAddedProfiles())
-                .containsExactlyInAnyOrder(StartupMode.SHELL, LoggingThemes.STAR_WARS, LocalModels.OLLAMA, McpServers.DOCKER_DESKTOP);
-    }
-
-    @Test
-    void testShellModeAfterEnableAgents() {
-        // Given
-        @EnableAgents(
-                loggingTheme = LoggingThemes.STAR_WARS,
-                localModels = {LocalModels.OLLAMA},
-                mcpServers = {McpServers.DOCKER_DESKTOP}
-        )
-        @EnableAgentShell
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles())
-                .containsExactlyInAnyOrder(StartupMode.SHELL, LoggingThemes.STAR_WARS, LocalModels.OLLAMA, McpServers.DOCKER_DESKTOP);
+                .containsExactlyInAnyOrder(LoggingThemes.STAR_WARS, LocalModels.OLLAMA, McpServers.DOCKER_DESKTOP);
     }
 
     @Test
@@ -181,7 +144,6 @@ class EnvironmentPostProcessorTest {
         System.setProperty("spring.profiles.active", "existing,profiles");
 
         @EnableAgents(loggingTheme = LoggingThemes.STAR_WARS)
-        @EnableAgentShell
         class TestApp {
         }
         when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
@@ -190,7 +152,7 @@ class EnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(getAddedProfiles()).containsExactlyInAnyOrder("existing", "profiles", LoggingThemes.STAR_WARS, StartupMode.SHELL);
+        assertThat(getAddedProfiles()).containsExactlyInAnyOrder("existing", "profiles", LoggingThemes.STAR_WARS);
 
     }
 

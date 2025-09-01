@@ -3,10 +3,6 @@
 
 Embabel embraces Spring.
 
-It is built on Spring AI, and leverages Spring Boot for configuration and management.
+It is built on Spring AI, and leverages Spring for configuration and management.
 
-==== Spring profiles
-
-Embabel makes extensive use of Spring profiles.
-
-YML file
+We recommend using Spring Boot for building Embabel applications, as it provides a familiar environment for most Java developers.

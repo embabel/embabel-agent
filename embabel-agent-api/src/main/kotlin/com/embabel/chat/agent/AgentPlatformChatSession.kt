@@ -88,7 +88,6 @@ interface ProcessWaitingHandler {
 class AgentPlatformChatSession(
     private val planLister: PlanLister,
     val processOptions: ProcessOptions = ProcessOptions(),
-    override val messageListener: MessageListener,
     val responseGenerator: ResponseGenerator,
 ) : ChatSession {
 
@@ -101,12 +100,11 @@ class AgentPlatformChatSession(
 
     override fun respond(
         userMessage: UserMessage,
-        additionalListener: MessageListener?,
+        messageListener: MessageListener,
     ) {
         internalConversation = conversation.withMessage(userMessage)
         generateResponses(userMessage = userMessage, messageListener = { message ->
             messageListener.onMessage(message)
-            additionalListener?.onMessage(message)
         })
     }
 

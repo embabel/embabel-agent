@@ -15,25 +15,70 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.config.ProcessRepositoryProperties
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.AgentProcessRepository
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 /**
- * Naive in-memory implementation of [AgentProcessRepository].
+ * In-memory implementation of [AgentProcessRepository] with configurable window size
+ * to prevent memory overflow by evicting the oldest entries when the limit is reached.
  */
-class InMemoryAgentProcessRepository : AgentProcessRepository {
+class InMemoryAgentProcessRepository(
+    private val properties: ProcessRepositoryProperties = ProcessRepositoryProperties(),
+) : AgentProcessRepository {
 
     private val map: ConcurrentHashMap<String, AgentProcess> = ConcurrentHashMap()
+    private val accessOrder: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
+    private val lock = ReentrantReadWriteLock()
 
-    override fun findById(id: String): AgentProcess? = map[id]
+    override fun findById(id: String): AgentProcess? = lock.read {
+        map[id]
+    }
 
-    override fun save(agentProcess: AgentProcess): AgentProcess {
-        map[agentProcess.id] = agentProcess
-        return agentProcess
+    override fun save(agentProcess: AgentProcess): AgentProcess = lock.write {
+        val processId = agentProcess.id
+
+        // If this process already exists, remove it from access order to re-add at end
+        if (map.containsKey(processId)) {
+            accessOrder.remove(processId)
+        }
+
+        map[processId] = agentProcess
+        accessOrder.offer(processId)
+
+        while (map.size > properties.windowSize) {
+            val oldestId = accessOrder.poll()
+            if (oldestId != null) {
+                map.remove(oldestId)
+            }
+        }
+
+        agentProcess
     }
 
     override fun delete(agentProcess: AgentProcess) {
-        map -= agentProcess.id
+        lock.write {
+            val processId = agentProcess.id
+            map.remove(processId)
+            accessOrder.remove(processId)
+        }
+    }
+
+    /**
+     * Get current size of the repository for testing purposes.
+     */
+    fun size(): Int = lock.read { map.size }
+
+    /**
+     * Clear all entries from the repository for testing purposes.
+     */
+    fun clear() = lock.write {
+        map.clear()
+        accessOrder.clear()
     }
 }

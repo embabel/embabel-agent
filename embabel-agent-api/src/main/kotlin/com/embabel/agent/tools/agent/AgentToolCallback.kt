@@ -21,7 +21,6 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Verbosity
-import com.embabel.agent.spi.support.springai.AgentProcessBindingToolCallback
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ToolContext
@@ -63,7 +62,7 @@ data class AgentToolCallback<I : Any>(
         toolInput: String,
         toolContext: ToolContext?,
     ): String {
-        val parentAgentProcess = AgentProcessBindingToolCallback.agentProcess()
+        val parentAgentProcess = AgentProcess.get()
         logger.info("Calling tool {} with input {}", this.agent.name, toolInput)
         val verbosity = Verbosity(
             showPrompts = true,

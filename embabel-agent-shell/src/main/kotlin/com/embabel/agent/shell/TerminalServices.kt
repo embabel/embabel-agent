@@ -18,6 +18,7 @@ package com.embabel.agent.shell
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.hitl.*
 import com.embabel.agent.event.logging.personality.ColorPalette
+import com.embabel.agent.event.logging.personality.DefaultColorPalette
 import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.chat.AgenticResultAssistantMessage
 import com.embabel.chat.ChatSession
@@ -59,15 +60,18 @@ class TerminalServices(
         doWithLineReader { it.printAbove(what) }
     }
 
+    @JvmOverloads
     fun chat(
         chatSession: ChatSession,
-        colorPalette: ColorPalette,
+        welcome: String? = null,
+        colorPalette: ColorPalette = DefaultColorPalette(),
     ): String {
         val lineReader = LineReaderBuilder.builder()
             .terminal(terminal)
             .build()
         lineReader.printAbove(
-            """
+            (welcome?.let { it + "\n" } ?: "") +
+                    """
             Chat session started. Type 'exit' to end the session.
             Type /help for available commands.
             """.trimIndent().color(colorPalette.highlight)

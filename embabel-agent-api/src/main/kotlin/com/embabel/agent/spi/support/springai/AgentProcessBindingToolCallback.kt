@@ -30,26 +30,17 @@ class AgentProcessBindingToolCallback(
     override fun getToolDefinition(): ToolDefinition = delegate.toolDefinition
 
     override fun call(toolInput: String): String {
-        val previousValue = threadLocalAgentProcess.get()
+        val previousValue = AgentProcess.get()
         try {
-            threadLocalAgentProcess.set(agentProcess)
+            AgentProcess.set(agentProcess)
             return delegate.call(toolInput)
         } finally {
             // Restore previous value (or remove if it was null)
             if (previousValue != null) {
-                threadLocalAgentProcess.set(previousValue)
+                AgentProcess.set(previousValue)
             } else {
-                threadLocalAgentProcess.remove()
+                AgentProcess.remove()
             }
         }
-    }
-
-    companion object {
-        private val threadLocalAgentProcess = ThreadLocal<AgentProcess>()
-
-        fun agentProcess(): AgentProcess? {
-            return threadLocalAgentProcess.get()?.let { return it }
-        }
-
     }
 }

@@ -75,7 +75,10 @@ interface NavigableRagService : RagService {
     /**
      * Explore the graph of retrievable objects around the given retrievable object.
      */
-    fun explore(retrievable: Retrievable, explorationRequest: ExplorationRequest): Retrievable
+    fun explore(
+        retrievable: Retrievable,
+        explorationRequest: ExplorationRequest,
+    ): Retrievable
 }
 
 
@@ -84,7 +87,11 @@ interface NavigableRagService : RagService {
  */
 interface RepositoryRagService : RagService {
 
-    fun findById(id: String, label: String, explorationRequest: ExplorationRequest): EntityData?
+    fun findById(
+        id: String,
+        label: String,
+        explorationRequest: ExplorationRequest,
+    ): EntityData?
 
     fun save(entityData: EntityData): EntityData
 }
@@ -96,6 +103,7 @@ private data class EmptyRagService(
 
     override fun search(ragRequest: RagRequest): RagResponse {
         return RagResponse(
+            request = ragRequest,
             service = name,
             results = emptyList(),
         )

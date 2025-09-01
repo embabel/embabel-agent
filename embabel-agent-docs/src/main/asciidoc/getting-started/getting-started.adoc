@@ -7,4 +7,6 @@ include::quickstart.adoc[]
 
 include::installing.adoc[]
 include::running.adoc[]
+
+include::a-little-ai.adoc[]
 include::first-agent.adoc[]

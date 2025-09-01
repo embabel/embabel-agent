@@ -28,13 +28,6 @@ object CoreToolGroups {
         role = WEB,
     )
 
-    const val RAG = "rag"
-
-    val RAG_DESCRIPTION = ToolGroupDescription(
-        description = "RAG query tools",
-        role = RAG,
-    )
-
     const val MATH = "math"
 
     val MATH_DESCRIPTION = ToolGroupDescription(

@@ -17,6 +17,7 @@ package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.annotation.AwaitableResponseException
 import com.embabel.agent.api.annotation.RequireNameMatch
+import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.MultiTransformationAction
@@ -59,7 +60,9 @@ internal class DefaultActionMethodManager(
                 kFunctionParameter?.type?.isMarkedNullable ?: false
             }
             .filterNot {
-                OperationContext::class.java.isAssignableFrom(it.type)
+                OperationContext::class.java.isAssignableFrom(it.type) ||
+                        ProcessContext::class.java.isAssignableFrom(it.type) ||
+                        Ai::class.java.isAssignableFrom(it.type)
             }
             .map {
                 val nameMatchAnnotation = it.getAnnotation(RequireNameMatch::class.java)
@@ -113,6 +116,10 @@ internal class DefaultActionMethodManager(
 
                 OperationContext::class.java.isAssignableFrom(parameter.type) -> {
                     args += actionContext
+                }
+
+                Ai::class.java.isAssignableFrom(parameter.type) -> {
+                    args += actionContext.ai()
                 }
 
                 else -> {

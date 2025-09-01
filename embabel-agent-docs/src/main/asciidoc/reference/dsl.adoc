@@ -10,6 +10,7 @@ This is useful for workflows where you want an atomic action that is complete in
 There are a number of standard workflows, constructed by builders, that meet common requirements.
 These can be used to create agents that will be exposed as Spring beans, or within `@Action` methods within other agents.
 All are type safe.
+As far as possible, they use consistent APIs.
 
 - `SimpleAgentBuilder`: The simplest agent, with no preconditions or postconditions.
 - `ScatterGatherBuilder`: Fork join pattern for parallel processing.
@@ -23,12 +24,17 @@ Creating a simple agent:
 [source,java]
 ----
 var agent = SimpleAgentBuilder
-    .returning(Joke.class)
-    .running(tac -> tac.ai()
+    .returning(Joke.class) // <1>
+    .running(tac -> tac.ai() // <2>
         .withDefaultLlm()
         .createObject("Tell me a joke", Joke.class))
-    .buildAgent("joker", "This is guaranteed to return a dreadful joke");
+    .buildAgent("joker", "This is guaranteed to return a dreadful joke"); // <3>
 ----
+
+<1> Specify the return type.
+<2> specify the action to run.
+Takes a `SupplierActionContext<RESULT>` `OperationContext` parameter allowing access to the current `AgentProcess`.
+<3> Build an agent with the given name and description.
 
 A more complex example:
 
@@ -41,14 +47,24 @@ FactChecks runAndConsolidateFactChecks(
     var llmFactChecks = properties.models().stream()
             .flatMap(model -> factCheckWithSingleLlm(model, distinctFactualAssertions, context))
             .toList();
-    return ScatterGatherBuilder
-            .returning(FactChecks.class)
-            .fromElements(FactCheck.class)
-            .generatedBy(llmFactChecks)
-            .consolidatedBy(this::reconcileFactChecks)
-            .asSubProcess(context);
+    return ScatterGatherBuilder // <1>
+            .returning(FactChecks.class) // <2>
+            .fromElements(FactCheck.class) // <3>
+            .generatedBy(llmFactChecks) // <4>
+            .consolidatedBy(this::reconcileFactChecks) // <5>
+            .asSubProcess(context); // <6>
     }
 ----
+
+<1> Start building a scatter gather agent.
+<2> Specify the return type of the overall agent.
+<3> Specify the type of elements to be gathered.
+<4> Specify the list of functions to run in parallel, each generating an element, here of type `FactCheck`.
+<5> Specify a function to consolidate the results.
+In this case it will take a list of `FactCheck` and return a `FactCheck` and return a `FactChecks` object.
+<6> Build and run the agent as a subprocess of the current process.
+This is an alternative to `asAgent` shown in the `SimpleAgentBuilder` example.
+The API is consistent.
 
 ==== Registering `Agent` beans
 

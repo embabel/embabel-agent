@@ -34,4 +34,7 @@ include::testing.adoc[]
 include::architecture.adoc[]
 
 include::troubleshooting.adoc[]
+include::migrating.adoc[]
+
+include::api-evolution.adoc[]
 

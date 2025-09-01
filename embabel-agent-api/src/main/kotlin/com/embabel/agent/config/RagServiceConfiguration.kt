@@ -15,18 +15,12 @@
  */
 package com.embabel.agent.config
 
-import com.embabel.agent.common.Constants
-import com.embabel.agent.core.CoreToolGroups.RAG_DESCRIPTION
-import com.embabel.agent.core.ToolGroup
-import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.agent.rag.Ingester
 import com.embabel.agent.rag.RagService
 import com.embabel.agent.rag.WritableRagService
 import com.embabel.agent.rag.support.ConsensusRagService
 import com.embabel.agent.rag.support.MultiIngester
 import com.embabel.agent.rag.support.SpringVectorStoreRagService
-import com.embabel.agent.rag.tools.RagServiceTools
-import com.embabel.common.core.types.Semver
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -50,25 +44,6 @@ class RagServiceConfiguration {
         ragServices: List<RagService>,
     ): WritableRagService {
         return ConsensusRagService(ragServices)
-    }
-
-    /**
-     * Default RAG tool group
-     */
-    @Bean
-    fun ragToolGroup(ragService: RagService): ToolGroup {
-        return ToolGroup(
-            metadata = ToolGroupMetadata(
-                description = RAG_DESCRIPTION,
-                name = "rag",
-                provider = Constants.EMBABEL_PROVIDER,
-                version = Semver(0, 1, 0),
-                permissions = setOf(),
-            ),
-            toolCallbacks = RagServiceTools(
-                ragService = ragService,
-            ).toolCallbacks,
-        )
     }
 
     @Bean

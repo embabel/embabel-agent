@@ -19,6 +19,7 @@ import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.MagicVictim
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.InMemoryBlackboard
+import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.every
 import io.mockk.mockk
@@ -65,7 +66,7 @@ class PromptTransformerKtTest {
                     MagicVictim::class.java.name
                 )
             } returns magicVictim
-            val promptSlot = slot<String>()
+            val promptSlot = slot<List<Message>>()
             every {
                 processContext.createObject(
                     capture(promptSlot),

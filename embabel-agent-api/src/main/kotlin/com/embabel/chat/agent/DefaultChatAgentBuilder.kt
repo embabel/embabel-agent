@@ -25,7 +25,7 @@ import com.embabel.agent.domain.library.HasContent
 import com.embabel.agent.event.AgentProcessEvent
 import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.prompt.persona.Persona
-import com.embabel.agent.tools.agent.ToolGroupFactory
+import com.embabel.agent.tools.agent.AchievableGoalsToolGroupFactory
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
@@ -93,7 +93,7 @@ class DefaultChatAgentBuilder(
     private val blackboardFormatter: BlackboardFormatter = DefaultBlackboardFormatter(),
 ) {
 
-    private val toolGroupFactory = ToolGroupFactory(autonomy)
+    private val achievableGoalsToolGroupFactory = AchievableGoalsToolGroupFactory(autonomy)
 
     fun build(): Agent =
         SimpleAgentBuilder
@@ -115,7 +115,7 @@ class DefaultChatAgentBuilder(
                     .withLlm(llm)
                     .withPromptElements(persona)
                     .withToolGroup(
-                        toolGroupFactory.achievableGoalsToolGroup(
+                        achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
                             context = context,
                             bindings = mapOf("it" to UserInput("doesn't matter")),
                             listeners = listOf(object : AgenticEventListener {

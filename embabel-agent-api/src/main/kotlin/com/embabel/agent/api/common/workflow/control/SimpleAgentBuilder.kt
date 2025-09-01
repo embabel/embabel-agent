@@ -47,6 +47,10 @@ data class SimpleAgentBuilder<RESULT : Any>(
         override fun <RESULT : Any> returning(resultClass: Class<RESULT>): SimpleAgentBuilder<RESULT> {
             return SimpleAgentBuilder(resultClass)
         }
+
+        inline operator fun <reified RESULT : Any> invoke(): SimpleAgentBuilder<RESULT> {
+            return returning(RESULT::class.java)
+        }
     }
 
     override fun withInput(inputClass: Class<out Any>): SimpleAgentBuilder<RESULT> {

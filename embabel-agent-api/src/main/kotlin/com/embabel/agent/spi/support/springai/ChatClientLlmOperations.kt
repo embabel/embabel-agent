@@ -23,6 +23,7 @@ import com.embabel.agent.spi.LlmCall
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.LlmDataBindingProperties
+import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
@@ -38,7 +39,6 @@ import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.converter.BeanOutputConverter
-import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.retry.support.RetrySynchronizationManager
 import org.springframework.stereotype.Service
@@ -49,19 +49,6 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-
-/**
- * Properties for the ChatClientLlmOperations operations
- * @param maybePromptTemplate template to use for the "maybe" prompt, which
- *  * can enable a failure result if the LLM does not have enough information to
- *  * create the desired output structure.
- */
-@ConfigurationProperties(prefix = "embabel.llm-operations.prompts")
-data class LlmOperationsPromptsProperties(
-    val maybePromptTemplate: String = "maybe_prompt_contribution",
-    val generateExamplesByDefault: Boolean = true,
-    val defaultTimeout: Duration = Duration.ofSeconds(60),
-)
 
 /**
  * LlmOperations implementation that uses the Spring AI ChatClient

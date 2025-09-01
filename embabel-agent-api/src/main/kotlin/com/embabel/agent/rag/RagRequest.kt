@@ -15,10 +15,8 @@
  */
 package com.embabel.agent.rag
 
-import com.embabel.common.core.types.SimilarityResult
-import com.embabel.common.core.types.TextSimilaritySearchRequest
-import com.embabel.common.core.types.Timestamped
-import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.core.types.*
+import org.jetbrains.annotations.ApiStatus
 import java.time.Instant
 
 /**
@@ -27,6 +25,8 @@ import java.time.Instant
  * Results are not necessarily chunks, but can be entities.
  */
 interface RagResponse : Timestamped {
+
+    val request: RagRequest
 
     /**
      * RAG service that produced this result
@@ -38,10 +38,12 @@ interface RagResponse : Timestamped {
     companion object {
 
         operator fun invoke(
+            request: RagRequest,
             service: String,
             results: List<SimilarityResult<out Retrievable>>,
         ): RagResponse {
             return DefaultRagResponse(
+                request = request,
                 service = service,
                 results = results,
             )
@@ -50,25 +52,31 @@ interface RagResponse : Timestamped {
     }
 }
 
-data class DefaultRagResponse(
+data class DefaultRagResponse @JvmOverloads constructor(
+    override val request: RagRequest,
     override val service: String,
     override val results: List<SimilarityResult<out Retrievable>>,
-    override val timestamp: Instant,
-) : RagResponse {
+    override val timestamp: Instant = Instant.now(),
+) : RagResponse
 
-    /**
-     * For use from Java
-     */
-    constructor (
-        service: String,
-        results: List<SimilarityResult<out Retrievable>>,
-    ) : this(
-        service = service,
-        results = results,
-        timestamp = Instant.now(),
-    )
+/**
+ * Narrowing of RagRequest
+ */
+interface RagRequestRefinement : SimilarityCutoff {
+
+    @get:ApiStatus.Experimental
+    val labels: Set<String>
+
+    fun toRequest(query: String): RagRequest {
+        return RagRequest(
+            query = query,
+            similarityThreshold = similarityThreshold,
+            topK = topK,
+            labels = labels,
+        )
+    }
+
 }
-
 
 /**
  * RAG request.
@@ -83,8 +91,9 @@ data class RagRequest(
     override val query: String,
     override val similarityThreshold: ZeroToOne = .8,
     override val topK: Int = 8,
-    val labels: Set<String> = emptySet(),
-) : TextSimilaritySearchRequest {
+    override val labels: Set<String> = emptySet(),
+    override val timestamp: Instant = Instant.now(),
+) : TextSimilaritySearchRequest, RagRequestRefinement, Timestamped {
 
     fun withSimilarityThreshold(threshold: ZeroToOne): RagRequest {
         return this.copy(similarityThreshold = threshold)
@@ -94,6 +103,7 @@ data class RagRequest(
         return this.copy(topK = topK)
     }
 
+    @ApiStatus.Experimental
     fun matchingLabels(vararg labels: String): RagRequest {
         return this.copy(labels = this.labels + labels)
     }

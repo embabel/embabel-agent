@@ -1,0 +1,209 @@
+<script>
+    (function () {
+        // ---- Helpers -------------------------------------------------------------
+        function $(sel, root = document) { return root.querySelector(sel); }
+        function $all(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
+        function uid(prefix = 'tab') { return prefix + '-' + Math.random().toString(36).slice(2, 9); }
+
+        function activate(tabBtn, set, pushHash) {
+            const buttons = $all('[role="tab"]', set.tablist);
+            const panels  = $all('[role="tabpanel"]', set.container);
+
+            buttons.forEach(b => {
+                const selected = b === tabBtn;
+                b.setAttribute('aria-selected', selected ? 'true' : 'false');
+                b.tabIndex = selected ? 0 : -1;
+                b.classList.toggle('is-selected', selected);
+            });
+
+            panels.forEach(p => {
+                const show = p.id === tabBtn.getAttribute('aria-controls');
+                p.hidden = !show;
+                p.classList.toggle('is-active', show);
+            });
+
+            if (pushHash && tabBtn.dataset.hash) {
+                // update URL hash without jumping
+                const { href } = window.location;
+                const hashIdx = href.indexOf('#');
+                const base = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+                history.replaceState(null, '', base + '#' + tabBtn.dataset.hash);
+            }
+        }
+
+        function onKeydown(e, set) {
+            const keys = ['ArrowLeft','ArrowRight','Home','End'];
+            if (!keys.includes(e.key)) return;
+            e.preventDefault();
+
+            const tabs = $all('[role="tab"]', set.tablist);
+            const current = document.activeElement;
+            let idx = tabs.indexOf(current);
+            if (idx < 0) return;
+
+            if (e.key === 'ArrowRight') idx = (idx + 1) % tabs.length;
+            else if (e.key === 'ArrowLeft') idx = (idx - 1 + tabs.length) % tabs.length;
+            else if (e.key === 'Home') idx = 0;
+            else if (e.key === 'End') idx = tabs.length - 1;
+
+            tabs[idx].focus();
+            tabs[idx].click();
+        }
+
+        // ---- Build one tabset from a DL -----------------------------------------
+        function buildTabset(container) {
+            const dl = container.querySelector('.dlist > dl') || container.querySelector('dl');
+            if (!dl) return;
+
+            // Collect (label, contentNode) pairs
+            const pairs = [];
+            for (let n = dl.firstElementChild; n; n = n.nextElementSibling) {
+                if (n.tagName !== 'DT') continue;
+                const dt = n;
+                const dd = dt.nextElementSibling;
+                if (!dd || dd.tagName !== 'DD') continue;
+                pairs.push({ label: dt.textContent.trim(), contentNode: dd });
+            }
+            if (!pairs.length) return;
+
+            // Create shell
+            const tabset   = document.createElement('div');
+            tabset.className = 'adoc-tabset';
+            const tablist  = document.createElement('div');
+            tablist.className = 'adoc-tab-headers';
+            tablist.setAttribute('role', 'tablist');
+
+            const panels   = document.createElement('div');
+            panels.className = 'adoc-tab-panels';
+
+            // Build tabs & panels
+            pairs.forEach((pair, i) => {
+                const tabId = uid('tab');
+                const panelId = uid('panel');
+
+                // Button
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'adoc-tab' + (i === 0 ? ' is-selected' : '');
+                btn.setAttribute('role', 'tab');
+                btn.setAttribute('aria-controls', panelId);
+                btn.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+                btn.id = tabId;
+                btn.tabIndex = i === 0 ? 0 : -1;
+                btn.textContent = pair.label;
+
+                // Optional: make a nice hash based on label (safe-ish)
+                btn.dataset.hash = (container.id || uid('set')) + '-' + pair.label
+                    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g,'');
+
+                btn.addEventListener('click', () => activate(btn, { tablist, container: tabset }, true));
+                tablist.appendChild(btn);
+
+                // Panel
+                const panel = document.createElement('div');
+                panel.className = 'adoc-panel' + (i === 0 ? ' is-active' : '');
+                panel.setAttribute('role', 'tabpanel');
+                panel.setAttribute('aria-labelledby', tabId);
+                panel.id = panelId;
+                panel.hidden = i !== 0;
+
+                // Move the original DD’s children into the panel (preserve code blocks, etc.)
+                while (pair.contentNode.firstChild) {
+                    panel.appendChild(pair.contentNode.firstChild);
+                }
+                panels.appendChild(panel);
+            });
+
+            // Replace original content
+            dl.remove(); // drop the DL
+            tabset.appendChild(tablist);
+            tabset.appendChild(panels);
+
+            // Insert into the “content” wrapper if present (Asciidoctor example/open blocks)
+            const target = container.querySelector('.content') || container;
+            target.innerHTML = '';
+            target.appendChild(tabset);
+
+            // Keyboard nav
+            tablist.addEventListener('keydown', (e) => onKeydown(e, { tablist }));
+            return { tablist, container: tabset };
+        }
+
+        function initTabs() {
+            // Prefer explicit .tabs, but also fall back to any example/open block that contains a DL with DTs
+            const explicit = Array.from(document.querySelectorAll('.exampleblock.tabs, .openblock.tabs, [data-tabs]'));
+            const fallback = Array.from(document.querySelectorAll('.exampleblock, .openblock'))
+                .filter(b => !explicit.includes(b) && (b.querySelector('.dlist > dl dt') || b.querySelector('dl dt')));
+            const blocks = [...explicit, ...fallback];
+
+            console.log('[tabs] candidates:', blocks.length, blocks);
+            blocks.forEach(buildTabset);
+
+            // Deep-linking
+            const h = location.hash ? location.hash.slice(1) : '';
+            if (h) {
+                const btn = document.querySelector('.adoc-tab[data-hash="' + CSS.escape(h) + '"]');
+                if (btn) btn.click();
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initTabs);
+        } else {
+            initTabs();
+        }
+    })();
+</script>
+
+<style>
+    /* Wrapper */
+    .adoc-tabset {
+        background: transparent;   /* no background */
+        border: none;              /* no border */
+        padding-top: 0.25rem;
+    }
+
+    /* Header row */
+    .adoc-tab-headers {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem;
+        padding: .25rem .5rem 0;
+    }
+
+    /* Base tab style: inherit default document colors */
+    .adoc-tab {
+        background: transparent;   /* inherit doc background */
+        color: inherit;            /* inherit doc text color */
+        padding: .4rem .8rem;
+        border: none;              /* no border */
+        border-radius: 0;          /* square edges */
+        cursor: pointer;
+    }
+
+    /* Selected tab: --code-color4 background, black text */
+    .adoc-tab.is-selected {
+        background: var(--code-color4);
+        color: #000;
+        font-weight: 600;
+    }
+
+    /* Panels */
+    .adoc-tab-panels {
+        background: transparent;
+        padding: 1rem 0;
+    }
+    .adoc-panel {
+        display: none;
+    }
+    .adoc-panel.is-active {
+        display: block;
+    }
+
+    /* Accessibility: focus outline */
+    .adoc-tab:focus {
+        outline: 2px solid #888;
+        outline-offset: 2px;
+    }
+
+</style>

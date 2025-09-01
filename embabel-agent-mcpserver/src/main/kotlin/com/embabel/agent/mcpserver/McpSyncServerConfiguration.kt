@@ -25,7 +25,7 @@ import org.springframework.ai.mcp.McpToolUtils
 import org.springframework.ai.tool.ToolCallbackProvider
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -59,7 +59,7 @@ internal class BannerTool {
  * Configures MCP sync server. Exposes a limited number of tools.
  */
 @Configuration
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.ANY)
+@ConditionalOnProperty(value = ["embabel.agent.mcpserver.enabled"], havingValue = "true", matchIfMissing = false)
 class McpSyncServerConfiguration(
     private val applicationContext: ConfigurableApplicationContext,
 ) {

@@ -19,7 +19,9 @@ class SimpleRagRagResponseFormatterTest {
     @Test
     fun chunksOnly() {
         val results = RagResponse(
-            service = "test", results = listOf(
+            request = RagRequest("any query at all"),
+            service = "test",
+            results = listOf(
                 DocumentSimilarityResult(
                     Document("foo"),
                     1.0,

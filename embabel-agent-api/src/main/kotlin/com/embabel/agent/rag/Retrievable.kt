@@ -15,9 +15,8 @@
  */
 package com.embabel.agent.rag
 
+import com.embabel.agent.api.common.Embedding
 import com.embabel.common.core.types.HasInfoString
-
-typealias Embedding = FloatArray
 
 /**
  * Embedded object instance.

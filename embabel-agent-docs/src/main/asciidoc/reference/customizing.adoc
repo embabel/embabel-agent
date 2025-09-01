@@ -39,8 +39,21 @@ class CustomOpenAiCompatibleModels(
 
 ==== Adding embedding models
 
-==== Configuration via `application.yml`
+Embedding models can also be added as beans of type `EmbeddingService`.
+
+==== Configuration via `application.properties` or `application.yml`
+
+You can specify Spring configuration, your own configuration and Embabel configuration in the regular Spring configuration files.
+Profile usage will work as expected.
 
 ==== Customizing logging
+
+You can customize logging as in any Spring application.
+
+For example, in `application.properties` you can set properties like:
+
+```properties
+logging.level.com.embabel.agent.a2a=DEBUG
+```
 
 

@@ -19,13 +19,14 @@ import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.StableIdentified
+import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Timestamped
 import java.time.Instant
 
 /**
  * Conversation shim for agent system
  */
-interface Conversation : StableIdentified {
+interface Conversation : StableIdentified, HasInfoString {
 
     val messages: List<Message>
 
@@ -40,7 +41,12 @@ interface Conversation : StableIdentified {
         conversationFormatter: ConversationFormatter = WindowingConversationFormatter(),
     ) = PromptContributor.dynamic({ "Conversation so far:\n" + conversationFormatter.format(this) })
 
-
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        return promptContributor().contribution()
+    }
 }
 
 /**
@@ -74,7 +80,7 @@ sealed class Message(
  * @param content Content of the message
  * @param name Name of the user, if available
  */
-class UserMessage(
+class UserMessage @JvmOverloads constructor(
     content: String,
     name: String? = null,
     override val timestamp: Instant = Instant.now(),
@@ -85,13 +91,13 @@ class UserMessage(
  * @param content Content of the message
  * @param name Name of the assistant, if available
  */
-open class AssistantMessage(
+open class AssistantMessage @JvmOverloads constructor(
     content: String,
     name: String? = null,
     override val timestamp: Instant = Instant.now(),
 ) : Message(role = Role.ASSISTANT, content = content, name = name, timestamp = timestamp)
 
-class SystemMessage(
+class SystemMessage @JvmOverloads constructor(
     content: String,
     override val timestamp: Instant = Instant.now(),
 ) : Message(role = Role.SYSTEM, content = content, name = null, timestamp = timestamp)

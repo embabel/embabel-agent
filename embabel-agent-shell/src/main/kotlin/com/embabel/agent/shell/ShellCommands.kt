@@ -22,6 +22,7 @@ import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
 import com.embabel.agent.rag.Ingester
+import com.embabel.agent.rag.RagRequest
 import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.chat.agent.*
 import com.embabel.chat.agent.shell.TerminalServicesProcessWaitingHandler
@@ -129,7 +130,6 @@ class ShellCommands(
             if (shellProperties.chat.confirmGoals) terminalServices else GoalChoiceApprover.APPROVE_ALL
 
         val chatSession = AgentPlatformChatSession(
-            messageListener = { },
             planLister = planLister,
             processOptions = processOptions,
             responseGenerator = if (shellProperties.chat.bindConversation) AgentResponseGenerator(
@@ -148,7 +148,7 @@ class ShellCommands(
                 chatConfig = shellProperties.chat,
             ),
         )
-        return terminalServices.chat(chatSession, colorPalette)
+        return terminalServices.chat(chatSession = chatSession, welcome = null, colorPalette = colorPalette)
     }
 
     @ShellMethod("List agents")
@@ -251,6 +251,16 @@ class ShellCommands(
     @ShellMethod("List available rag services")
     fun ragService(): String =
         autonomy.agentPlatform.platformServices.ragService.infoString(verbose = true)
+
+    @ShellMethod("Perform a RAG query")
+    fun rag(
+        @ShellOption(help = "Rag query") query: String,
+    ): String {
+        val ragRequest = RagRequest(query = query, similarityThreshold = 0.0)
+        val ragResponse = autonomy.agentPlatform.platformServices.ragService.search(ragRequest)
+        logger.info("RAG response: {}", ragResponse)
+        return ragResponse.results.joinToString("\n") { it.toString() }
+    }
 
     @ShellMethod("ingest")
     fun ingest(

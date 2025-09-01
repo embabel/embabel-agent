@@ -173,4 +173,8 @@ open class Animal(
     val name: String,
 ) : Organism
 
-class Dog(name: String) : Animal(name)
+class Dog(name: String) : Animal(name) {
+    override fun toString(): String {
+        return "Dog(name='$name')"
+    }
+}

@@ -21,6 +21,7 @@ import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.rag.RagService
+import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.context.ApplicationContext
@@ -51,5 +52,12 @@ data class PlatformServices(
             throw IllegalStateException("Application context is not available, cannot retrieve Autonomy bean.")
         }
         return applicationContext.getBean(Autonomy::class.java)
+    }
+
+    fun modelProvider(): ModelProvider {
+        if (applicationContext == null) {
+            throw IllegalStateException("Application context is not available, cannot retrieve ModelProvider bean.")
+        }
+        return applicationContext.getBean(ModelProvider::class.java)
     }
 }

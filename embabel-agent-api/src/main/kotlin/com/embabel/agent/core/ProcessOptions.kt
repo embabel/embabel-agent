@@ -19,15 +19,20 @@ import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.identity.User
 import java.util.function.Consumer
 
+interface LlmVerbosity {
+    val showPrompts: Boolean
+    val showLlmResponses: Boolean
+}
+
 /**
  * Controls log output.
  */
 data class Verbosity(
-    val showPrompts: Boolean = false,
-    val showLlmResponses: Boolean = false,
+    override val showPrompts: Boolean = false,
+    override val showLlmResponses: Boolean = false,
     val debug: Boolean = false,
     val showPlanning: Boolean = false,
-) {
+) : LlmVerbosity {
     val showLongPlans: Boolean get() = showPlanning || debug || showLlmResponses || showPrompts
 
     companion object {
@@ -285,7 +290,7 @@ data class ProcessOptions(
      */
     class Builder internal constructor() {
 
-        private var processOptions = ProcessOptions.DEFAULT
+        private var processOptions = DEFAULT
 
         /**
          * Set the context identifier to use for the invocation. Can be null.
@@ -297,6 +302,16 @@ data class ProcessOptions(
         @JvmName("contextId")
         fun contextId(contextId: ContextId?): Builder {
             this.processOptions = processOptions.copy(contextId = contextId)
+            return this
+        }
+
+        /**
+         * Sets the identities associated with the process.
+         * @param identities the identities
+         * @return this [Builder]
+         */
+        fun identities(identities: Identities): Builder {
+            this.processOptions = processOptions.copy(identities = identities)
             return this
         }
 
@@ -384,6 +399,40 @@ data class ProcessOptions(
          */
         fun control(control: ProcessControl): Builder {
             this.processOptions = processOptions.copy(control = control)
+            return this
+        }
+
+        /**
+         * Whether to prune the agent to only relevant actions
+         * @param prune true to prune the agent to only relevant actions
+         * @return this [Builder]
+         */
+        fun prune(prune: Boolean): Builder {
+            this.processOptions = processOptions.copy(prune = prune)
+            return this
+        }
+
+        /**
+         * Add a listener to the list of [AgenticEventListener]s.
+         * @param listener the listener to add
+         * @return this [Builder]
+         */
+        fun listener(listener: AgenticEventListener): Builder {
+            val listeners = this.processOptions.listeners + listener
+            this.processOptions = processOptions.copy(listeners = listeners)
+            return this
+        }
+
+        /**
+         * Manipulate the listeners with the given consumer.
+         * The list provided to the consumer can be used to remove listeners, change ordering, etc.
+         * @param listener the listener to add
+         * @return this [Builder]
+         */
+        fun listeners(consumer: Consumer<List<AgenticEventListener>>): Builder {
+            val listeners = this.processOptions.listeners.toMutableList()
+            consumer.accept(listeners)
+            this.processOptions = processOptions.copy(listeners = listeners)
             return this
         }
 

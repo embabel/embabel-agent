@@ -20,7 +20,7 @@ include::design/design.adoc[]
 
 include::contributing/contributing.adoc[]
 
-include::roadmap/roadmap.adoc[]
+// include::roadmap/roadmap.adoc[]
 
 include::resources/resources.adoc[]
 

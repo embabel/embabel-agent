@@ -1,4 +1,74 @@
 [[reference.troubleshooting]]
 === Troubleshooting
 
-Test
+This section covers common issues you might encounter when developing with Embabel and provides practical solutions.
+
+==== Common Problems and Solutions
+
+[cols="2,3,1",options="header"]
+|===
+|Problem |Solution |Related Docs
+
+|**Compilation Error**
+|Check that you're using the correct version of Embabel in your Maven or Gradle dependencies. You may be using an API from a later version (even a snapshot). Version mismatches between different Embabel modules can cause compilation issues. Ensure all `com.embabel.agent` artifacts use the same version, unless you're following a specific example that does otherwise.
+|<<reference.configuration,Configuration>>
+
+|**Don't Know How to Invoke Your Agent**
+|Look at examples of processing `UserInput` in the documentation. Study `AgentInvocation` patterns to understand how to trigger your agent flows. The key is understanding how to provide the initial input that your agent expects.
+|<<reference.invoking,Invoking Agents>>
+
+|**Agent Flow Not Completing**
+|This usually indicates a data flow problem. First, understand Embabel's type-driven data flow concepts - review how input/output types create dependencies between actions. Then write an integration test to verify your flow works end-to-end. Familiarize yourself with Embabel's GOAP planning concept.
+|<<overview.concepts,Data Flow Concepts>>
+
+|**LLM Prompts Look Wrong or Have Incorrect Hyperparameters**
+|Write unit tests to capture and verify the exact prompts being sent to your LLM. This allows you to see the actual prompt content and tune temperature, model selection, and other parameters. Unit testing is the best way to debug LLM interactions.
+|<<reference.testing,Testing>>
+
+|**Agent Gets Stuck in Planning**
+|Check that all your actions have clear input/output type signatures. Missing or circular dependencies in your type flow can prevent the planner from finding a valid path to the goal. Review your `@Action` method signatures. Look at the log output from the planner for clues. Set your `ProcessOptions.verbosity` to show planning.
+|<<overview.concepts,Type-Driven Flow>>
+
+|**Tools Not Available to Agent**
+|Ensure you've specified the correct `toolGroups` in your `@Action` annotation. Tools must be explicitly declared for the action to access them. Check that required tool groups are available in your environment.
+|<<reference.tools,Tools>>
+
+|**Agent Runs But Produces Poor Results**
+|Review your prompt engineering and persona configuration. Consider adjusting LLM temperature, model selection, and context provided to actions. Write tests to capture actual vs expected outputs.
+|<<reference.testing,Testing>>, <<reference.llms,LLM Configuration>>
+
+|**You're Struggling to Express What You Want in a Plan**
+|Familiarize yourself with custom conditions for complex flow control. For common behavior patterns, consider using atomic actions with Embabel's typesafe custom builders such as `ScatterGatherBuilder` and `RepeatUntilBuilder` instead of trying to express everything through individual actions.
+|<<reference.dsl,DSL and Builders>>
+
+|**Your Agent Has No Goals and Cannot Execute**
+|Look at the `@AchievesGoal` annotation and ensure your terminal action is annotated with it. Every agent needs at least one action marked with `@AchievesGoal` to define what constitutes completion of the agent's work.
+|<<reference.annotations,Annotations>>
+
+|**Your Agent Isn't Visible to an MCP Client Like Claude Desktop**
+|Ensure that your `@AchievesGoal` annotation includes `@Export(remote=true)`. This makes your agent available for remote invocation through MCP (Model Context Protocol) clients.
+|<<reference.annotations,Annotations>>, <<reference.integrations,Integrations>>
+
+|**Your Agent Can't Use Upstream MCP Tools and You're Seeing Errors in Logs About Possible Misconfiguration**
+|Check that your Docker configuration is correct if using the default Docker MCP Gateway. Verify that Docker containers are running and accessible. For other MCP configurations, ensure your Spring AI MCP client configuration is correct. See the Spring AI MCP client documentation for detailed setup instructions.
+|https://docs.spring.io/spring-ai/reference/api/mcp/mcp-client-boot-starter-docs.html[Spring AI MCP Client]
+|===
+
+==== Debugging Strategies
+
+===== Enable Debug Logging
+
+Customize Embabel logging in `application.yml` or `application.properties` to see detailed agent execution.
+For example:
+
+[source,yaml]
+----
+logging:
+  level:
+    com.embabel.agent: DEBUG
+----
+
+==== Getting Help
+
+The Embabel community is active and helpful.
+Join our https://discord.gg/t6bjkyj93q[Discord] server to ask questions and share experiences.

@@ -25,19 +25,6 @@ Here's a unit test from the http://github.com/embabel/java-agent-template[Java A
 
 [source,java]
 ----
-package com.embabel.template.agent;
-
-import com.embabel.agent.domain.io.UserInput;
-import com.embabel.agent.testing.unit.FakeOperationContext;
-import com.embabel.agent.testing.unit.FakePromptRunner;
-import com.embabel.agent.testing.unit.UnitTestUtils;
-import org.junit.jupiter.api.Test;
-
-import java.time.Instant;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 class WriteAndReviewAgentTest {
     
     @Test
@@ -80,17 +67,6 @@ Here's the unit test from the http://github.com/embabel/kotlin-agent-template[Ko
 
 [source,kotlin]
 ----
-package com.embabel.template.agent
-
-import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.testing.unit.FakeOperationContext
-import com.embabel.agent.testing.unit.FakePromptRunner
-import com.embabel.agent.testing.unit.LlmInvocation
-import com.embabel.agent.testing.unit.UnitTestUtils.captureLlmCall
-import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Test
-import java.time.Instant
-
 /**
  * Unit tests for the WriteAndReviewAgent class.
  * Tests the agent's ability to craft and review stories based on user input.
@@ -173,8 +149,8 @@ internal class WriteAndReviewAgentTest {
 @Test
 void shouldHandleMultipleLlmInteractions() {
     // Arrange
-    UserInput input = new UserInput("Write about space exploration");
-    Story story = new Story("The astronaut gazed at Earth...");
+    var input = new UserInput("Write about space exploration");
+    var story = new Story("The astronaut gazed at Earth...");
     ReviewedStory review = new ReviewedStory("Compelling narrative with vivid imagery.");
     
     // Set up expected responses in order
@@ -194,12 +170,62 @@ void shouldHandleMultipleLlmInteractions() {
     assertEquals(2, invocations.size());
     
     // Verify first call (writer)
-    LlmInvocation writerCall = invocations.get(0);
+    var writerCall = invocations.get(0);
     assertEquals(0.8, writerCall.getInteraction().getLlm().getTemperature(), 0.01);
     
     // Verify second call (reviewer)
     var reviewerCall = invocations.get(1);
     assertEquals(0.2, reviewerCall.getInteraction().getLlm().getTemperature(), 0.01);
+}
+----
+
+You can also use Mockito or mockk directory.
+Consider this component, using direct injection of `Ai`:
+
+[source,java]
+----
+@Component
+public record InjectedComponent(Ai ai) {
+
+    public record Joke(String leadup, String punchline) {
+    }
+
+    public String tellJokeAbout(String topic) {
+        return ai
+                .withDefaultLlm()
+                .generateText("Tell me a joke about " + topic);
+    }
+}
+----
+
+A unit test using Mockito to verify prompt and hyperparameters:
+
+[source,java]
+----
+class InjectedComponentTest {
+
+    @Test
+    void testTellJokeAbout() {
+        var mockAi = Mockito.mock(Ai.class);
+        var mockPromptRunner = Mockito.mock(PromptRunner.class);
+
+        var prompt = "Tell me a joke about frogs";
+        // Yep, an LLM came up with this joke.
+        var terribleJoke = """
+                Why don't frogs ever pay for drinks?
+                Because they always have a tadpole in their wallet!
+                """;
+        when(mockAi.withDefaultLlm()).thenReturn(mockPromptRunner);
+        when(mockPromptRunner.generateText(prompt)).thenReturn(terribleJoke);
+
+        var injectedComponent = new InjectedComponent(mockAi);
+        var joke = injectedComponent.tellJokeAbout("frogs");
+
+        assertEquals(terribleJoke, joke);
+        Mockito.verify(mockAi).withDefaultLlm();
+        Mockito.verify(mockPromptRunner).generateText(prompt);
+    }
+
 }
 ----
 
@@ -225,12 +251,11 @@ Embabel provides `EmbabelMockitoIntegrationTest` as a base class that simplifies
 
 [source,java]
 ----
+
 /**
- * Use framework superclass to test the complete workflow of writing and reviewing a story.
- * This will run under Spring Boot against an AgentPlatform instance
- * that has loaded all our agents.
- */
-class StoryWriterIntegrationTest extends EmbabelMockitoIntegrationTest {
+* Use framework superclass to test the complete workflow of writing and reviewing a story.
+* This will run under Spring Boot against an AgentPlatform instance * that has loaded all our agents.
+*/ class StoryWriterIntegrationTest extends EmbabelMockitoIntegrationTest {
 
     @Test
     void shouldExecuteCompleteWorkflow() {

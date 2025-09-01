@@ -1,4 +1,17 @@
 [[reference.flow]]
+=== Invoking an Agent
+
+Agents can be invoked programmatically or via user input.
+
+See <<Invoking Embabel Agents>> for details on programmatic invocation.
+Programmatic invocation typically involves structured types other than user input.
+
+In the case of user input, an LLM will choose the appropriate agent via the `Autonomy` class.
+Behavior varies depending on configuration:
+
+- In closed mode, the LLM will select the agent based on the user input and the available agents in the system.
+- In open mode, the LLM will select the goal based on the user input and then assemble an agent that can achieve that goal from the present world state.
+
 === Agent Process Flow
 
 When an agent is invoked, Embabel creates an `AgentProcess` with a unique identifier that manages the complete execution lifecycle.

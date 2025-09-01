@@ -48,14 +48,14 @@ object IntegrationTestUtils {
     ): AgentPlatform {
         return DefaultAgentPlatform(
             llmOperations = llmOperations ?: DummyObjectCreatingLlmOperations.LoremIpsum,
-            eventListener = AgenticEventListener.Companion.from(
+            eventListener = AgenticEventListener.from(
                 listOfNotNull(
                     EventSavingAgenticEventListener(),
                     listener
                 )
             ),
             toolGroupResolver = toolGroupResolver ?: RegistryToolGroupResolver("empty", emptyList()),
-            ragService = ragService ?: RagService.Companion.empty(),
+            ragService = ragService ?: RagService.empty(),
             name = "dummy-agent-platform",
             description = "Dummy Agent Platform for Integration Testing",
             asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),

@@ -15,15 +15,12 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.core.support.SerializableAction
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
 import com.embabel.common.util.indentLines
 import com.embabel.common.util.loggerFor
 import com.embabel.plan.goap.EffectSpec
 import com.embabel.plan.goap.GoapAction
-import com.fasterxml.jackson.annotation.JsonSubTypes
-import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 
 /**
@@ -35,12 +32,6 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
  * representation such as YML.
  * @qos Quality of Service. Governs retry policy
  */
-@JsonTypeInfo(
-    use = JsonTypeInfo.Id.DEDUCTION,
-)
-@JsonSubTypes(
-    JsonSubTypes.Type(value = SerializableAction::class),
-)
 interface Action : DataFlowStep, GoapAction, ActionRunner, DataDictionary, ToolGroupConsumer {
 
     override val cost: ZeroToOne get() = 0.0

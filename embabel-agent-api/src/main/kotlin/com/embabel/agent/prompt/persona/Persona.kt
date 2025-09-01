@@ -16,19 +16,17 @@
 package com.embabel.agent.prompt.persona
 
 import com.embabel.common.ai.prompt.PromptContributor
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 /**
  * A way to structure LLM responses, by grounding them
  * in a personality.
  */
-@JsonDeserialize(`as` = PersonaImpl::class)
-interface Persona : PromptContributor {
-
-    val name: String
-    val persona: String
-    val voice: String
-    val objective: String
+data class Persona(
+    val name: String,
+    val persona: String,
+    val voice: String,
+    val objective: String,
+) : PromptContributor {
 
     override fun contribution(): String {
         return """
@@ -38,44 +36,4 @@ interface Persona : PromptContributor {
             Your voice: $voice.
         """.trimIndent()
     }
-
-    companion object {
-
-        @JvmStatic
-        fun create(
-            name: String,
-            persona: String,
-            voice: String,
-            objective: String,
-        ): Persona {
-            return PersonaImpl(
-                name = name,
-                persona = persona,
-                voice = voice,
-                objective = objective,
-            )
-        }
-
-        operator fun invoke(
-            name: String,
-            persona: String,
-            voice: String,
-            objective: String,
-        ): Persona {
-            return PersonaImpl(
-                name = name, persona = persona,
-                voice = voice,
-                objective = objective,
-            )
-        }
-
-    }
-
 }
-
-private data class PersonaImpl(
-    override val name: String,
-    override val persona: String,
-    override val voice: String,
-    override val objective: String,
-) : Persona
