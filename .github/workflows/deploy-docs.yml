@@ -7,11 +7,6 @@
 name: Publish Docs
 
 on:
-  push:
-    branches:
-      - 'main'
-    tags:
-      - 'v*'
   workflow_dispatch:  # Enables manual triggering
     inputs:
       environment:
