@@ -37,9 +37,9 @@ jobs:
         run: mvn -U -B test verify
       - name: Linux-specific setup and SonarCloud analysis
         if: |
-         matrix.os == 'ubuntu-latest' &&
-         (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) &&
-         secrets.SONAR_TOKEN != ''
+          matrix.os == 'ubuntu-latest' &&
+          (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) &&
+          secrets.SONAR_TOKEN != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
