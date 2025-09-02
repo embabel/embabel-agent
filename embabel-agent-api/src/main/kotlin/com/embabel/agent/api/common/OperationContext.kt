@@ -220,7 +220,7 @@ class SupplierActionContext<O>(
 
 }
 
-private class OperationContextAi(
+internal class OperationContextAi(
     private val context: OperationContext,
 ) : Ai {
 
@@ -236,5 +236,10 @@ private class OperationContextAi(
 
     override fun rag(): RagService {
         return context.processContext.platformServices.ragService
+    }
+
+    override fun rag(service: String): RagService {
+        return context.processContext.platformServices.ragService(service)
+            ?: error("No RAG service found with name $service")
     }
 }

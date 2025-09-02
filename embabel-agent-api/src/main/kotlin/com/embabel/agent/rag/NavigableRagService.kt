@@ -17,6 +17,8 @@ package com.embabel.agent.rag
 
 import org.jetbrains.annotations.ApiStatus
 
+sealed interface ExplorationRequest
+
 data class DepthExplorationRequest(
     val depth: Int,
 ) : ExplorationRequest

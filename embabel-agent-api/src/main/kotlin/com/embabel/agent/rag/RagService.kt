@@ -57,8 +57,6 @@ interface RagService : Described, HasInfoString {
     }
 }
 
-sealed interface ExplorationRequest
-
 
 private data class EmptyRagService(
     override val name: String,

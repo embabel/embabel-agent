@@ -44,9 +44,15 @@ interface Ai {
         withEmbeddingModel(DefaultModelSelectionCriteria)
 
     /**
-     * Return the RagService
+     * Return the default RagService
      */
     fun rag(): RagService
+
+    /**
+     * Return the RagService for the given service name
+     * or throw an exception if not found.
+     */
+    fun rag(service: String): RagService
 
     /**
      * Get a configurable PromptRunner for this context using
