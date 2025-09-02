@@ -70,11 +70,13 @@ class TemplateOperations(
     /**
      * Respond in the conversation using the rendered template as system prompt.
      * @param conversation the conversation so far
-     * @param model the model to render the system prompt template with
+     * @param model the model to render the system prompt template with.
+     * Defaults to the empty map (which is appropriate for static templates)
      */
+    @JvmOverloads
     fun respondWithSystemPrompt(
         conversation: Conversation,
-        model: Map<String, Any>,
+        model: Map<String, Any> = emptyMap(),
     ): AssistantMessage = promptRunnerOperations.respond(
         listOf(
             SystemMessage(
