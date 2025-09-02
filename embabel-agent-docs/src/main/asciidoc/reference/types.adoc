@@ -31,8 +31,6 @@ var analyticalOptions = LlmOptions.withModel(OpenAiModels.GPT_4O_MINI)
 All LLM calls in user applications should be made via the `PromptRunner` interface.
 Once created, a `PromptRunner` can run multiple prompts with the same LLM, hyperparameters, tool groups and `PromptContributors`.
 
-WARNING: (jasper notes) Can I inject OperationContext on my agent class, to create a shared prompt-runner?
-
 ===== Getting a PromptRunner
 
 You obtain a `PromptRunner` from an `OperationContext` using the fluent API:
