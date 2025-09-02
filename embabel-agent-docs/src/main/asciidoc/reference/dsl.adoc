@@ -66,17 +66,12 @@ In this case it will take a list of `FactCheck` and return a `FactCheck` and ret
 This is an alternative to `asAgent` shown in the `SimpleAgentBuilder` example.
 The API is consistent.
 
-WARNING: (jasper notes) Let's link to the fact-check example's README.md? This let's the reader deeply understand the above, and run the example.
+INFO: (jasper notes) Let's link to the fact-check example's README.md? This let's the reader deeply understand the above, and run the example.
 
 
 ==== Registering `Agent` beans
 
-Whereas the `@Agent` annotation causes a class to be picked up immediately by Spring, with the DSL you'll need an extra step to register an agent with Spring.
-
-WARNING: (jasper notes) What's the step? Let's show it.
-
-
-Any bean of `Agent` type results in auto registration.
+Whereas the `@Agent` annotation causes a class to be picked up immediately by Spring, with the DSL you'll need an extra step to register an agent with Spring. As shown in the example below, any `@Bean` of `Agent` type results auto registration, just like declaring a class annotated with `@Agent` does. 
 
 [source,kotlin]
 ----
