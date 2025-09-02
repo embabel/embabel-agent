@@ -130,8 +130,11 @@
                                 <dir>${project.parent.basedir}/embabel-agent-api/src/main/java</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-a2a/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-autoconfigure/src/main/java</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-code/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-eval/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-rag/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-mcpserver/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-neo/src/main/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-lucene/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-shell/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-discord/src/main/kotlin</dir>
                                 <dir>${project.parent.basedir}/embabel-agent-ux/src/main/kotlin</dir>

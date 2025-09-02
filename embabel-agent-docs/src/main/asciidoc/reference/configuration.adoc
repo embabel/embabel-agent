@@ -10,7 +10,6 @@ Example:
 [source,java]
 ----
 @SpringBootApplication
-@EnableAgentShell
 @EnableAgents(
     loggingTheme = LoggingThemes.STAR_WARS,
     localModels = { "docker" },
@@ -25,9 +24,6 @@ class MyAgentApplication {
 
 This is a normal Spring Boot application class.
 You can add other Spring Boot annotations as needed.
-`@EnableAgentShell` enables the agent shell, which allows you to interact with agents via a command line interface.
-This is optional.
-
 `@EnableAgents` enables the agent framework.
 It allows you to specify a logging theme (optional) and well-known sources of local models and MCP tools.
 In this case we're using Docker as a source of local models and MCP tools.

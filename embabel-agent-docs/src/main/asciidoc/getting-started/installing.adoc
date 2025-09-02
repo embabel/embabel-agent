@@ -5,7 +5,51 @@ The easiest way to get started with Embabel Agent is to add the Spring Boot star
 
 ==== Maven
 
-Add the Embabel Agent Spring Boot starter to your `pom.xml`:
+Add the appropriate Embabel Agent Spring Boot starter to your `pom.xml` depending on your application type:
+
+===== Shell Starter
+Starts the application in console mode with an interactive shell powered by Embabel.
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-shell</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+
+*Features:*
+
+* ✅ Interactive command-line interface
+* ✅ Agent discovery and registration
+* ✅ Human-in-the-loop capabilities
+* ✅ Progress tracking and logging
+* ✅ Development-friendly error handling
+
+===== MCP Server Starter
+Starts the application with HTTP listener where agents are autodiscovered and registered as MCP servers, available for integration via SSE protocol.
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-mcpserver</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+
+*Features:*
+
+* ☑️ MCP protocol server implementation
+* ☑️ Tool registration and discovery
+* ☑️ JSON-RPC communication via SSE (Server-Sent Events)
+* ☑️ Integration with MCP-compatible clients
+* ☑️ Security and sandboxing
+
+===== Basic Agent Platform Starter
+Initializes Embabel Agent Platform in the Spring Container. Platform beans are available via Spring Dependency Injection mechanism.
+Application startup mode (web, console, microservice, etc.) is determined by the Application Designer.
 
 [source,xml]
 ----
@@ -15,6 +59,15 @@ Add the Embabel Agent Spring Boot starter to your `pom.xml`:
     <version>${embabel-agent.version}</version>
 </dependency>
 ----
+
+*Features:*
+
+* ✔️ Application decides on startup mode (console, web application, etc)
+* ✔️ Agent discovery and registration
+* ✔️ Agent Platform beans available via Dependency Injection mechanism
+* ✔️ Progress tracking and logging
+* ✔️ Development-friendly error handling
+
 
 You'll also need to add the Embabel repository to your `pom.xml`:
 
@@ -80,12 +133,12 @@ repositories {
 }
 ----
 
-Add the Embabel Agent starter dependency:
+Add the Embabel Agent starter dependency of choice:
 
 [source,kotlin]
 ----
 dependencies {
-    implementation("com.embabel.agent:embabel-agent-starter:${embabel-agent.version}")
+    implementation("com.embabel.agent:embabel-agent-starter-shell:${embabel-agent.version}")
 }
 ----
 
@@ -116,7 +169,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.embabel.agent:embabel-agent-starter:${embabel-agent.version}'
+    implementation 'com.embabel.agent:embabel-agent-starter-shell:${embabel-agent.version}'
 }
 ----
 
