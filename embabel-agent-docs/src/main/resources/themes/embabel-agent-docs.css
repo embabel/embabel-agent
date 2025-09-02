@@ -353,8 +353,17 @@ blockquote::before {
 }
 
 /* TOC - standard and left panel */
-#toc, #toc.toc, #content #toc, #toc.toc2, #header .details, .sidebarblock, .listingblock, .literalblock, .imageblock, .tableblock {
+#toc, #toc.toc, #content #toc, #toc.toc2, #header .details, .sidebarblock, .listingblock, .literalblock, .imageblock {
     background-color: #252525 !important;
+}
+
+.tableblock {
+    background: linear-gradient(
+            135deg,
+            #2a2a2a 0%,
+            #2f2c3a 40%,
+            #2c333a 100%
+    ) !important;
 }
 
 #toc a, #toc.toc a, #content #toc a, #toc.toc2 a {
@@ -969,8 +978,8 @@ pre code {
     background: linear-gradient(
             135deg,
             #131313 0%,
-            #181621 40%,   /* faint purple-gray */
-            #161c22 100%   /* faint blue-gray */
+            #181621 40%,
+            #161c22 100%
     ) !important;
     border: 1px solid #2a2a2a !important;
     border-radius: 8px;
