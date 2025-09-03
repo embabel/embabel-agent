@@ -15,8 +15,6 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.core.ContextId
-
 /**
  * A chatbot can conduct multiple chat sessions,
  * each identified by a contextId.
@@ -26,7 +24,7 @@ interface Chatbot {
     fun createSession(systemMessage: String? = null): ChatSession
 
     /**
-     * Get a chat session.
+     * Get a chat session by conversation id.
      */
-    fun session(contextId: ContextId): ChatSession?
+    fun findSession(conversationId: String): ChatSession?
 }

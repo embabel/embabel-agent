@@ -17,7 +17,6 @@ package com.embabel.chat
 
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.core.Agent
-import com.embabel.agent.core.ContextId
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.spi.ContextRepository
 import com.embabel.chat.agent.DefaultChatAgentBuilder
@@ -45,8 +44,8 @@ class GoalAwareChatbot(
         return session
     }
 
-    override fun session(contextId: ContextId): ChatSession? {
-        return contextRepository.findById(contextId.value)?.let { context ->
+    override fun findSession(conversationId: String): ChatSession? {
+        return contextRepository.findById(conversationId)?.let { context ->
             val conversation = context.last(Conversation::class.java)
                 ?: error("Conversation not found in context ${context.id}")
             SimpleChatSession(_conversation = conversation)
