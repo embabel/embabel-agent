@@ -20,7 +20,7 @@ package com.embabel.agent.config.annotation;
  */
 public class McpServers {
 
-    public static final String DOCKER = "docker";
+    public static final String DOCKER = "docker-ce";
 
     public static final String DOCKER_DESKTOP = "docker-desktop";
 }
