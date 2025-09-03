@@ -18,9 +18,12 @@ spring:
                 - -i
                 - --rm
                 - -e
+                - BRAVE_MCP_TRANSPORT
+                - -e
                 - BRAVE_API_KEY
                 - mcp/brave-search
               env:
+                BRAVE_MCP_TRANSPORT: "stdio"
                 BRAVE_API_KEY: ${BRAVE_API_KEY}
             fetch-mcp:
               command: docker
