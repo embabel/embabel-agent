@@ -13,6 +13,7 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     
     strategy:
       matrix:
@@ -46,3 +47,23 @@ jobs:
           
           # Run SonarCloud analysis
           mvn -P jacoco-code-coverage -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=embabel_embabel-agent
+  
+  build-fork: #for public forks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      - name: Build and test
+        run: |
+          # Configure Testcontainers for Linux
+          mkdir -p /home/runner
+          echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
+          # Build without Sonar Cloud
+          mvn -U -B test verify
