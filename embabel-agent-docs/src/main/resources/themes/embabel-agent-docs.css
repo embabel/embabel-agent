@@ -788,7 +788,7 @@ code, tt {
 
 /* Ensure links inside code don’t turn “navy” */
 pre a, code a {
-    color: var(--link-color) !important;
+    color: #fafafa !important;
     text-decoration: underline;
 }
 
@@ -1116,3 +1116,15 @@ colist td {
 
 .admonitionblock td.icon [class^="fa icon-"]{font-size:2.5em;text-shadow: none;cursor:default}
 .admonitionblock td.icon .icon-warning::before{content:"\f071";color:#e44d26}
+
+.tableblock td:nth-child(1) {
+    max-width: 25%;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+pre code a {
+    color: #ffffff;   /* your desired link color */
+    text-decoration: underline; /* optional */
+}
+
