@@ -16,6 +16,7 @@
 package com.embabel.agent.rag
 
 import com.embabel.common.core.types.SimilarityResult
+import com.embabel.common.core.types.ZeroToOne
 import java.time.Instant
 
 /**
@@ -30,5 +31,49 @@ data class RagResponse(
     val request: RagRequest,
     val service: String,
     val results: List<SimilarityResult<out Retrievable>>,
+    val enhancement: RagResponseEnhancement? = null,
+    val qualityMetrics: QualityMetrics? = null,
+
     val timestamp: Instant = Instant.now(),
 )
+
+/**
+ * RAGAS quality metrics
+ * @param faithfulness Content grounded in retrieved docs
+ * @param answerRelevancy Response relevance to query
+ * @param contextPrecision Relevant chunks ranked higher
+ * @param contextRecall All relevant info retrieved
+ * @param contextRelevancy Retrieved chunks are relevant
+ */
+data class QualityMetrics(
+    val faithfulness: ZeroToOne,
+    val answerRelevancy: ZeroToOne,
+    val contextPrecision: ZeroToOne,
+    val contextRecall: ZeroToOne,
+    val contextRelevancy: ZeroToOne,
+    val overallScore: ZeroToOne = computeRAGASScore(
+        faithfulness,
+        answerRelevancy,
+        contextPrecision,
+        contextRecall,
+        contextRelevancy,
+    ),
+)
+
+fun computeRAGASScore(
+    faithfulness: Double,
+    answerRelevancy: Double,
+    contextPrecision: Double,
+    contextRecall: Double,
+    contextRelevancy: Double,
+): Double {
+    // RAGAS uses harmonic mean to penalize any single poor metric
+    val values = listOf(faithfulness, answerRelevancy, contextPrecision, contextRecall, contextRelevancy)
+    return harmonicMean(values)
+}
+
+private fun harmonicMean(values: List<Double>): Double {
+    val validValues = values.filter { it > 0.0 }
+    if (validValues.isEmpty()) return 0.0
+    return validValues.size / validValues.sumOf { 1.0 / it }
+}
