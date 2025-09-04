@@ -23,6 +23,7 @@ import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.prompt.element.ContextualPromptElement
+import com.embabel.agent.rag.pipeline.PipelinedRagService
 import com.embabel.agent.rag.tools.RagOptions
 import com.embabel.agent.rag.tools.RagServiceSearchTools
 import com.embabel.agent.spi.InteractionId
@@ -174,9 +175,14 @@ internal data class OperationContextPromptRunner(
         if (toolObjects.map { it.obj }
                 .any { it is RagServiceSearchTools && it.options.service == options.service }
         ) error("Cannot add Rag Tools against service '${options.service ?: "DEFAULT"}' twice")
-        val ragService =
+        val underlyingRagService =
             context.agentPlatform().platformServices.ragService(options.service)
                 ?: error("No RAG service named '${options.service}' available")
+        val ragService = PipelinedRagService(
+            delegate = underlyingRagService,
+            operationContext = context,
+            llm = options.llm,
+        )
         val namingStrategy: StringTransformer = if (options.service == null) {
             StringTransformer.IDENTITY
         } else {

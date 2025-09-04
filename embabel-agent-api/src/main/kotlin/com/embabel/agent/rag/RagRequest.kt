@@ -30,6 +30,8 @@ interface RagRequestRefinement : SimilarityCutoff {
     @get:ApiStatus.Experimental
     val labels: Set<String>
 
+    val compressionConfig: CompressionConfig
+
     /**
      * Create a RagRequest from this refinement and a query.
      */
@@ -39,10 +41,15 @@ interface RagRequestRefinement : SimilarityCutoff {
             similarityThreshold = similarityThreshold,
             topK = topK,
             labels = labels,
+            compressionConfig = compressionConfig,
         )
     }
 
 }
+
+data class CompressionConfig(
+    val enabled: Boolean = true,
+)
 
 /**
  * RAG request.
@@ -57,6 +64,7 @@ data class RagRequest(
     override val query: String,
     override val similarityThreshold: ZeroToOne = .8,
     override val topK: Int = 8,
+    override val compressionConfig: CompressionConfig = CompressionConfig(),
     override val labels: Set<String> = emptySet(),
     override val timestamp: Instant = Instant.now(),
 ) : TextSimilaritySearchRequest, RagRequestRefinement, Timestamped {
@@ -67,6 +75,10 @@ data class RagRequest(
 
     fun withTopK(topK: Int): RagRequest {
         return this.copy(topK = topK)
+    }
+
+    fun withCompression(compressionConfig: CompressionConfig): RagRequest {
+        return this.copy(compressionConfig = compressionConfig)
     }
 
     @ApiStatus.Experimental

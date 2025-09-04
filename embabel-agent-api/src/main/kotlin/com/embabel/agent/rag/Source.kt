@@ -43,6 +43,13 @@ interface Chunk : Source {
 
     override fun embeddableValue(): String = text
 
+    fun transform(transformed: String): Chunk =
+        ChunkImpl(
+            id = this.id,
+            text = transformed,
+            metadata = this.metadata,
+        )
+
     companion object {
 
         operator fun invoke(
