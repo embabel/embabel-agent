@@ -45,6 +45,8 @@ class PipelinedRagService(
                     // TODO hardcoded concurrency
                     add(PromptedContextualCompressionEnhancer(operationContext, llm, 15))
                 }
+                // Add reranking enhancer for improved result relevance
+                add(RerankingEnhancer(operationContext, llm))
             }
         )
         val enhanced = pipeline.enhance(initialResponse)

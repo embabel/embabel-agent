@@ -10,7 +10,8 @@
       "Read(/Users/rjohnson/dev/embabel.com/embabel-agent-examples/examples-java/src/main/java/com/embabel/example/pydantic/banksupport/**)",
       "Bash(mvn test-compile:*)",
       "Bash(mvn test:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(mvn:*)"
     ],
     "deny": [],
     "ask": []

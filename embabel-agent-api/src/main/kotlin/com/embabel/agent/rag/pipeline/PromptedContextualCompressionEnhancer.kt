@@ -20,6 +20,14 @@ import com.embabel.agent.rag.*
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 
+// TODO could we not compress all chunks together?
+
+// What about the concept of adding notes to the context
+// Keep them fixed size
+
+// Also memory of user - Note that memory is not something we normally care about
+// Maintain several named notes. They can be persisted
+
 /**
  *  Question-aware compression using an LLM call.
  *  Instantiated per operation
