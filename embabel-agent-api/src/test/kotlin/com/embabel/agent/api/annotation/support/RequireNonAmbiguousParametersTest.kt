@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Method
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class RequireNonAmbiguousParametersTest {
 
@@ -118,7 +119,7 @@ class RequireNonAmbiguousParametersTest {
         val m = method("annotatedWithValue")
         val p = m.parameters[0]
         val ann = p.getAnnotation(RequireNameMatch::class.java)
-        val result = getBindingParameterName(p, ann)
+        val result = getBindingParameterName(p.name, ann)
         assertEquals("bindingX", result)
     }
 
@@ -128,15 +129,24 @@ class RequireNonAmbiguousParametersTest {
         val p = m.parameters[0]
         val ann = p.getAnnotation(RequireNameMatch::class.java)
         val expected = p.name
-        val result = getBindingParameterName(p, ann)
+        val result = getBindingParameterName(p.name, ann)
         assertEquals(expected, result)
+    }
+
+    @Test
+    fun `getParameterName returns null parameter name when parameter name is null`() {
+        val m = method("annotatedWithoutValue")
+        val p = m.parameters[0]
+        val ann = p.getAnnotation(RequireNameMatch::class.java)
+        val result = getBindingParameterName(null, ann)
+        assertNull(result)
     }
 
     @Test
     fun `getParameterName returns DEFAULT_BINDING when annotation is null`() {
         val m = method("distinctTypes")
         val p = m.parameters[0]
-        val result = getBindingParameterName(p, null)
+        val result = getBindingParameterName(p.name, null)
         assertEquals(IoBinding.DEFAULT_BINDING, result)
     }
 }

@@ -23,13 +23,21 @@ import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.MultiTransformationAction
 import com.embabel.agent.api.common.support.expandInputBindings
 import com.embabel.agent.core.Action
+import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupRequirement
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
+import org.springframework.core.KotlinDetector
 import org.springframework.stereotype.Component
 import org.springframework.util.ReflectionUtils
+import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
+import kotlin.reflect.KClass
+import kotlin.reflect.KFunction
+import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.valueParameters
+import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.kotlinFunction
 
 /**
@@ -53,25 +61,12 @@ internal class DefaultActionMethodManager(
         val actionAnnotation = method.getAnnotation(com.embabel.agent.api.annotation.Action::class.java)
         val inputClasses = method.parameters
             .map { it.type }
-        val kFunction = method.kotlinFunction
-        val inputs = method.parameters
-            .filterNot {
-                val kFunctionParameter = kFunction?.parameters?.firstOrNull { kfp -> kfp.name == it.name }
-                kFunctionParameter?.type?.isMarkedNullable ?: false
-            }
-            .filterNot {
-                OperationContext::class.java.isAssignableFrom(it.type) ||
-                        ProcessContext::class.java.isAssignableFrom(it.type) ||
-                        Ai::class.java.isAssignableFrom(it.type)
-            }
-            .map {
-                val nameMatchAnnotation = it.getAnnotation(RequireNameMatch::class.java)
-                expandInputBindings(
-                    getBindingParameterName(it, nameMatchAnnotation),
-                    it.type
-                )
-            }
-            .flatten()
+        val inputs = if (KotlinDetector.isKotlinReflectPresent()) {
+            val kFunction = method.kotlinFunction
+            if (kFunction != null) kotlinReflectInputs(kFunction) else javaReflectInputs(method)
+        } else {
+            javaReflectInputs(method)
+        }
 
         return MultiTransformationAction(
             name = nameGenerator.generateName(instance, method.name),
@@ -98,44 +93,102 @@ internal class DefaultActionMethodManager(
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
+    private fun kotlinReflectInputs(
+        kFunction: KFunction<*>,
+    ): List<IoBinding> {
+        return kFunction.valueParameters.filter {
+            if (it.type.isMarkedNullable) return@filter false
+            val klass = it.type.classifier as? KClass<*> ?: return@filter false
+            !isDefaultParameterType(klass.java)
+        }.map {
+            val nameMatchAnnotation = it.findAnnotation<RequireNameMatch>()
+            val name = getBindingParameterName(it.name, nameMatchAnnotation) ?: throw IllegalArgumentException(
+                "Name for argument of type [${it.type}] not specified, and parameter name information not " +
+                        "available via reflection. Ensure that the compiler uses the '-parameters' flag."
+            )
+
+            expandInputBindings(
+                name,
+                (it.type.classifier as KClass<*>).java
+            )
+        }.flatten()
+    }
+
+    private fun javaReflectInputs(
+        method: Method,
+    ): List<IoBinding> {
+        return method.parameters
+            .filterNot {
+                isDefaultParameterType(it.type)
+            }
+            .map {
+                val nameMatchAnnotation = it.getAnnotation(RequireNameMatch::class.java)
+                val parameterName = if (it.isNamePresent) it.name else null
+                val name =
+                    getBindingParameterName(parameterName, nameMatchAnnotation) ?: throw IllegalArgumentException(
+                        "Name for argument of type [${it.type}] not specified, and parameter name information not " +
+                                "available via reflection. Ensure that the kotlinc compiler uses the '-java-parameters' flag, " +
+                                "and that the javac compiler uses the '-parameters' flag."
+                    )
+
+                expandInputBindings(
+                    name,
+                    it.type
+                )
+            }
+            .flatten()
+    }
+
+    private fun isDefaultParameterType(clazz: Class<*>): Boolean {
+        return OperationContext::class.java.isAssignableFrom(clazz) ||
+                ProcessContext::class.java.isAssignableFrom(clazz) ||
+                Ai::class.java.isAssignableFrom(clazz)
+    }
+
     override fun <O> invokeActionMethod(
         method: Method,
         instance: Any,
         actionContext: TransformationActionContext<List<Any>, O>,
     ): O {
         logger.debug("Invoking action method {} with payload {}", method.name, actionContext.input)
-        val kFunction = method.kotlinFunction
+        val result = if (KotlinDetector.isKotlinReflectPresent()) {
+            val kFunction = method.kotlinFunction
+            if (kFunction != null) invokeActionMethodKotlinReflect(kFunction, instance, actionContext)
+            else invokeActionMethodJavaReflect(method, instance, actionContext)
+        } else {
+            invokeActionMethodJavaReflect(method, instance, actionContext)
+        }
+        logger.debug(
+            "Result of invoking action method {} was {}: payload {}",
+            method.name,
+            result,
+            actionContext.input
+        )
+        return result
+    }
 
-        val args = mutableListOf<Any?>()
-        for (parameter in method.parameters) {
-            when {
-                ProcessContext::class.java.isAssignableFrom(parameter.type) -> {
-                    args += actionContext.processContext
-                }
-
-                OperationContext::class.java.isAssignableFrom(parameter.type) -> {
-                    args += actionContext
-                }
-
-                Ai::class.java.isAssignableFrom(parameter.type) -> {
-                    args += actionContext.ai()
-                }
-
-                else -> {
-                    val requireNameMatch = parameter.getAnnotation(RequireNameMatch::class.java)
-                    val variable = getBindingParameterName(parameter, requireNameMatch)
+    private fun <O> invokeActionMethodKotlinReflect(
+        kFunction: KFunction<*>,
+        instance: Any,
+        actionContext: TransformationActionContext<List<Any>, O>,
+    ): O {
+        val args = mutableListOf<Any?>(instance)
+        for (parameter in kFunction.valueParameters) {
+            val classifier = parameter.type.classifier
+            if (classifier is KClass<*>) {
+                if (!handleDefaultParameter(args, classifier.java, actionContext)) {
+                    val requireNameMatch = parameter.findAnnotation<RequireNameMatch>()
+                    val variable = getBindingParameterName(parameter.name, requireNameMatch)
+                        ?: error("Parameter name should be available")
                     val lastArg = actionContext.getValue(
                         variable = variable,
-                        type = parameter.type.name,
+                        type = classifier.java.name,
                         dataDictionary = actionContext.processContext.agentProcess.agent,
                     )
                     if (lastArg == null) {
-                        val kParam = kFunction?.parameters?.firstOrNull { kfp -> kfp.name == parameter.name }
-                        val isNullable =
-                            (kParam?.isOptional == true) || (kParam?.type?.isMarkedNullable == true)
+                        val isNullable = parameter.isOptional || parameter.type.isMarkedNullable
                         if (!isNullable) {
-                            error("Action ${actionContext.action.name}: Internal error. No value found in blackboard for non-nullable parameter ${parameter.name}:${parameter.type.name}")
+                            error("Action ${actionContext.action.name}: Internal error. No value found in blackboard for non-nullable parameter ${parameter.name}:${classifier.java.name}")
                         }
                     }
                     args += lastArg
@@ -144,33 +197,95 @@ internal class DefaultActionMethodManager(
         }
 
         val result = try {
+            try {
+                kFunction.isAccessible = true
+                kFunction.call(*args.toTypedArray())
+            } catch (ite: InvocationTargetException) {
+                ReflectionUtils.handleInvocationTargetException(ite)
+            }
+        } catch (awe: AwaitableResponseException) {
+            handleAwaitableResponseException(instance.javaClass.name, kFunction.name, awe)
+        } catch (t: Throwable) {
+            handleThrowable(instance.javaClass.name, kFunction.name, t)
+        }
+        return result as O
+    }
+
+    private fun <O> invokeActionMethodJavaReflect(
+        method: Method,
+        instance: Any,
+        actionContext: TransformationActionContext<List<Any>, O>,
+    ): O {
+        val args = mutableListOf<Any?>()
+        for (parameter in method.parameters) {
+            if (!handleDefaultParameter(args, parameter.type, actionContext)) {
+                val requireNameMatch = parameter.getAnnotation(RequireNameMatch::class.java)
+                val variable = getBindingParameterName(parameter.name, requireNameMatch)
+                    ?: error("Parameter name should be available")
+                val lastArg = actionContext.getValue(
+                    variable = variable,
+                    type = parameter.type.name,
+                    dataDictionary = actionContext.processContext.agentProcess.agent,
+                )
+                args += lastArg
+            }
+        }
+
+        val result = try {
             method.trySetAccessible()
             ReflectionUtils.invokeMethod(method, instance, *args.toTypedArray())
         } catch (awe: AwaitableResponseException) {
-            // This is not a failure, but will drive transition to a wait state
-            logger.info(
-                "Action method {}.{} entering wait state: {}",
-                instance.javaClass.name,
-                method.name,
-                awe.message,
-            )
-            throw awe
+            handleAwaitableResponseException(instance.javaClass.name, method.name, awe)
         } catch (t: Throwable) {
-            logger.warn(
-                "Error invoking action method {}.{}: {}",
-                instance.javaClass.name,
-                method.name,
-                t.message,
-            )
-            throw t
+            handleThrowable(instance.javaClass.name, method.name, t)
         }
-        logger.debug(
-            "Result of invoking action method {} was {}: payload {}",
-            method.name,
-            result,
-            actionContext.input
-        )
         return result as O
+    }
+
+    private fun handleDefaultParameter(
+        args: MutableList<Any?>,
+        type: Class<*>,
+        actionContext: TransformationActionContext<List<Any>, *>
+    ): Boolean {
+        if (ProcessContext::class.java.isAssignableFrom(type)) {
+            args += actionContext.processContext
+            return true
+        } else if (OperationContext::class.java.isAssignableFrom(type)) {
+            args += actionContext
+            return true
+        } else if (Ai::class.java.isAssignableFrom(type)) {
+            args += actionContext.ai()
+            return true
+        } else return false
+    }
+
+    private fun handleAwaitableResponseException(
+        instanceName: String,
+        methodName: String,
+        awe: AwaitableResponseException
+    ) {
+        // This is not a failure, but will drive transition to a wait state
+        logger.info(
+            "Action method {}.{} entering wait state: {}",
+            instanceName,
+            methodName,
+            awe.message,
+        )
+        throw awe
+    }
+
+    private fun handleThrowable(
+        instanceName: String,
+        methodName: String,
+        t: Throwable
+    ) {
+        logger.warn(
+            "Error invoking action method {}.{}: {}",
+            instanceName,
+            methodName,
+            t.message,
+        )
+        throw t
     }
 
 }

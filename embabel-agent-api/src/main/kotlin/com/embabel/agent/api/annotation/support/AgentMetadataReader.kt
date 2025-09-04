@@ -310,7 +310,8 @@ class AgentMetadataReader(
                 else -> {
                     val requireNameMatch = parameter.getAnnotation(RequireNameMatch::class.java)
                     val domainTypes = context.agentProcess.agent.jvmTypes.map { it.clazz }
-                    val variable = getBindingParameterName(parameter, requireNameMatch)
+                    val variable = getBindingParameterName(parameter.name, requireNameMatch)
+                        ?: error("Parameter name should be available")
                     args += context.getValue(
                         variable = variable,
                         type = parameter.type.name,
