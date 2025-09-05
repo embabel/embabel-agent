@@ -21,9 +21,11 @@ import com.embabel.agent.rag.ContentElement
 /**
  * Implemented by services that can retrieve Chunks by id.
  */
-interface ContextElementRepository {
+interface ContentElementRepository {
 
     fun findChunksById(chunkIds: List<String>): List<Chunk>
 
     fun findById(id: String): ContentElement?
+
+    fun save(element: ContentElement): ContentElement
 }

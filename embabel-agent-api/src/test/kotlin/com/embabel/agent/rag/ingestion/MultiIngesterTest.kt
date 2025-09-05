@@ -19,11 +19,12 @@ import com.embabel.agent.rag.WritableRagService
 import io.mockk.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.document.Document
 import org.springframework.ai.transformer.splitter.TextSplitter
-import java.util.UUID
+import java.util.*
 
 class MultiIngesterTest {
 
@@ -41,6 +42,12 @@ class MultiIngesterTest {
         every { mockRagService2.name } returns "rag-service-2"
         every { mockRagService1.write(any()) } just Runs
         every { mockRagService2.write(any()) } just Runs
+    }
+
+    @Disabled("Implement tests")
+    @Nested
+    inner class WriteContentTests {
+        // Placeholder for future tests of writeContent if needed
     }
 
 
@@ -308,14 +315,22 @@ class MultiIngesterTest {
         fun `test complete workflow with realistic document scenario`() {
             // Create realistic document chunks as they would come from a splitter
             val chunks = listOf(
-                Document("# Introduction\nThis is a comprehensive document about testing.",
-                        mapOf("id" to UUID.randomUUID().toString(), "type" to "header")),
-                Document("## Section 1\nContent for section 1 with important information.",
-                        mapOf("id" to UUID.randomUUID().toString(), "type" to "section")),
-                Document("## Section 2\nMore content with different topics and details.",
-                        mapOf("id" to UUID.randomUUID().toString(), "type" to "section")),
-                Document("## Conclusion\nFinal thoughts and summary of the document.",
-                        mapOf("id" to UUID.randomUUID().toString(), "type" to "conclusion"))
+                Document(
+                    "# Introduction\nThis is a comprehensive document about testing.",
+                    mapOf("id" to UUID.randomUUID().toString(), "type" to "header")
+                ),
+                Document(
+                    "## Section 1\nContent for section 1 with important information.",
+                    mapOf("id" to UUID.randomUUID().toString(), "type" to "section")
+                ),
+                Document(
+                    "## Section 2\nMore content with different topics and details.",
+                    mapOf("id" to UUID.randomUUID().toString(), "type" to "section")
+                ),
+                Document(
+                    "## Conclusion\nFinal thoughts and summary of the document.",
+                    mapOf("id" to UUID.randomUUID().toString(), "type" to "conclusion")
+                )
             )
 
             val multiIngester = MultiIngester(listOf(mockRagService1, mockRagService2))

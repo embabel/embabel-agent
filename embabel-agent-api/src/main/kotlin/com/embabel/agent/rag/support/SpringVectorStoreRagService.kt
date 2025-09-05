@@ -15,10 +15,7 @@
  */
 package com.embabel.agent.rag.support
 
-import com.embabel.agent.rag.Chunk
-import com.embabel.agent.rag.RagRequest
-import com.embabel.agent.rag.RagResponse
-import com.embabel.agent.rag.WritableRagService
+import com.embabel.agent.rag.*
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
@@ -64,6 +61,10 @@ class SpringVectorStoreRagService(
     override fun accept(documents: List<Document>) {
         logger.info("Writing ${documents.size} documents into Spring vector store")
         vectorStore.accept(documents)
+    }
+
+    override fun writeContent(root: MaterializedContentRoot): List<String> {
+        TODO("Not yet implemented")
     }
 
     override fun infoString(

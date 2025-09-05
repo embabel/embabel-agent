@@ -40,26 +40,52 @@ interface HierarchicalContentElement : ContentElement {
 
 }
 
-data class ContentRoot(
-    override val id: String,
-    override val url: String? = null,
-    val title: String,
-    override val metadata: Map<String, Any?> = emptyMap(),
-) : HierarchicalContentElement {
-    override val parentId: String? = null
+interface ContentRoot : HierarchicalContentElement {
+    val title: String
+    override val parentId get() = null
 }
 
-interface Section : HierarchicalContentElement {
+sealed interface Section : HierarchicalContentElement {
     val title: String
 }
 
-data class ContainerSection(
+interface MaterializedSection : Section
+
+interface ContainerSection : Section
+
+interface MaterializedContainerSection : Section {
+
+    val children: List<MaterializedSection>
+
+    fun descendants(): List<MaterializedSection> =
+        children + children.filterIsInstance<MaterializedContainerSection>().flatMap { containerChild ->
+            containerChild.descendants()
+        }
+
+    fun leaves(): List<LeafSection> =
+        children.filterIsInstance<LeafSection>() +
+                children.filterIsInstance<MaterializedContainerSection>().flatMap { containerChild ->
+                    containerChild.leaves()
+                }
+}
+
+data class DefaultMaterializedContainerSection(
     override val id: String,
     override val url: String? = null,
     override val title: String,
+    override val children: List<MaterializedSection>,
     override val parentId: String? = null,
     override val metadata: Map<String, Any?> = emptyMap(),
-) : Section
+) : ContainerSection, MaterializedContainerSection
+
+data class MaterializedContentRoot(
+    override val id: String,
+    override val url: String? = null,
+    override val title: String,
+    override val children: List<MaterializedSection>,
+    override val metadata: Map<String, Any?> = emptyMap(),
+) : MaterializedContainerSection, ContentRoot
+
 
 data class LeafSection(
     override val id: String,
@@ -68,7 +94,7 @@ data class LeafSection(
     override val content: String,
     override val parentId: String? = null,
     override val metadata: Map<String, Any?> = emptyMap(),
-) : Section, HasContent
+) : MaterializedSection, HasContent
 
 /**
  * Traditional RAG. Text chunk
