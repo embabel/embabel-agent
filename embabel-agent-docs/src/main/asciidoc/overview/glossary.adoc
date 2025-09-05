@@ -1,0 +1,56 @@
+== Glossary
+
+Before we begin, in this glossary we'll explain some terms that may be new if you're taking your first steps as
+an applied AI software developer. It is assumed that you already know what a large language model (LLM) is from an
+end-user's point of view.
+
+NOTE: You may skim or skip this section if you're already a seasoned agentic AI engineer.
+
+[[agent]]
+Agent::
+    An Agent in the Embabel framework is a self-contained component that bundles together domain logic, AI capabilities,
+and tool usage to achieve a specific goal on behalf of the user.
++
+Inside, it exposes multiple `@Action` methods, each representing discrete steps the agent can take. Actions depend on
+typically structured (sometimes natural language) input. The input is used to perform tasks on behalf of the user -
+executing domain code, calling AI models or even calling other agents as a sub-process.
++
+When an AI model is called it may be given access to tools that expand its capabilities in order to achieve a goal.
+The output is a new type, representing a transformation of the input, however during execution one or more side-effects
+can occur. An example of side effects might be new records stored in a database, orders placed on an e-commerce site
+and so on.
+
+[[tools]]
+Tools::
+Tools extend the raw capabilities of an LLM by letting it interact with the outside world.
+On its own, a language model can only generate responses from its training data and context window, which risks
+producing inaccurate or “hallucinated” answers.
++
+While tool usage is inspired by an technique known as *ReAct* (Reason + Act), which itself builds on *Chain of Thought*
+reasoning, most recent LLMs allow specifying tools specifically instead of relying on prompt engineering techniques.
++
+When tools are present, the LLM interprets the user request, plans steps, and then delegates certain tasks to tools in a loop. This
+lets the model alternate between reasoning (“what needs to be done?”) and acting (“which tool can do it?”).
++
+**Benefits of tools include:**
++
+* The ability to answer questions or perform tasks beyond what the LLM was trained on, by delegating to domain-specific
+or external systems.
+* Producing useful *side effects*, such as creating database records, generating visualizations, booking flights, or
+invoking any process the system designer provides.
++
+In short, tools are one way to bridge the gap between *text prediction* and *real-world action*, turning an LLM into a
+practical agent capable of both reasoning and execution. In Embabel many tools are bound domain objects.
+
+MCP::
+Model Context Protocol <<mcp,(MCP)>> is a standardized way of hosting and sharing tools.
+Unlike plain tools, which are usually wired directly into one agent or app, an MCP Server makes tools discoverable and
+reusable across models and runtimes they can be registered system-wide or at runtime, and invoked through a common
+protocol. Embabel can both consume and publish such tools for systems integration.
+
+[[dice]]
+Domain Integrated Context Engineering (DICE)::
+Enhances context engineering by grounding both LLM inputs and outputs in typed domain objects.
+Instead of untyped prompts, context is structured with business-aware models that provide precision, testability,
+and seamless integration with existing systems. DICE transforms context into a re-usable, inspectable, and reliably
+manipulable artifact.

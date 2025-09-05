@@ -56,22 +56,18 @@ public Story createStory(UserInput input, OperationContext context) {
 
 **Core Object Creation:**
 
-- `createObject(String, Class<T>)`: Create a typed object from a prompt
+- `createObject(String, Class<T>)`: Create a typed object from a prompt, otherwise throw an exception. An exception triggers retry. If retry fails repeatedly, re-planning occurs.
 - `createObjectIfPossible(String, Class<T>)`: Try to create an object, return null on failure.
 This can cause replanning.
 - `generateText(String)`: Generate simple text response
-
-WARNING: (jasper notes) What happens when create object fails? Reader should know.
 
 TIP: Normally you want to use one of the `createObject` methods to ensure the response is typed correctly.
 
 **Tool and Context Management:**
 
-- `withToolGroup(String)`: Add tool groups for LLM access
-- `withToolObject(Object)`: Add domain objects with @Tool methods
-- `withPromptContributor(PromptContributor)`: Add context contributors
-
-WARNING: (jasper notes) We've already defined what tool objects are, but not tool groups or how they work. Let's add links back to the definition on each builder method. Question: How do we define tools that work on types the user can't control or annotate?
+- `withToolGroup(String)`: Add <<tool-groups, tool groups>> for LLM access
+- `withToolObject(Object)`: Add domain objects with <<reference.tools, @Tool>> methods
+- `withPromptContributor(PromptContributor)`: Add <<reference.prompt-contributors, context>> contributors
 
 **LLM Configuration:**
 
@@ -110,7 +106,7 @@ var story = context.ai()
 
 **Advanced Features:**
 
-- `withTemplate(String)`: Use Jinja templates for prompts
+- `withTemplate(String)`: Use <<reference.templates, Jinja>> templates for prompts
 - `withSubagents(Subagent...)`: Enable handoffs to other agents
 - `evaluateCondition(String, String)`: Evaluate boolean condition
 

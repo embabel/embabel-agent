@@ -114,8 +114,6 @@ val verified = blackboard.getCondition("userVerified")
 4. **Planning Input**: Current blackboard state informs the next planning cycle
 5. **Result Extraction**: Final results are retrieved from blackboard upon completion
 
-WARNING: (jasper notes) What will we do with all of the folks who have anaemic domain objects, and perform orchestration on them via services. Can we bring in services as tools as well?
-
 The blackboard enables:
 
 - **Loose Coupling**: Actions don't need direct references to each other
