@@ -16,9 +16,12 @@
 package com.embabel.agent.config
 
 import com.embabel.agent.rag.RagService
+import com.embabel.agent.rag.RagServiceEnhancer
 import com.embabel.agent.rag.WritableRagService
 import com.embabel.agent.rag.ingestion.Ingester
 import com.embabel.agent.rag.ingestion.MultiIngester
+import com.embabel.agent.rag.pipeline.PipelinedRagServiceEnhancer
+import com.embabel.agent.rag.pipeline.RagEnhancerProperties
 import com.embabel.agent.rag.support.ConsensusRagService
 import com.embabel.agent.rag.support.SpringVectorStoreRagService
 import org.springframework.ai.vectorstore.VectorStore
@@ -44,6 +47,12 @@ class RagServiceConfiguration {
         ragServices: List<RagService>,
     ): RagService {
         return ConsensusRagService(ragServices)
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(RagServiceEnhancer::class)
+    fun ragServiceEnhancer(properties: RagEnhancerProperties): RagServiceEnhancer {
+        return PipelinedRagServiceEnhancer(properties)
     }
 
     @Bean

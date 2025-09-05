@@ -23,7 +23,6 @@ import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.prompt.element.ContextualPromptElement
-import com.embabel.agent.rag.pipeline.PipelinedRagService
 import com.embabel.agent.rag.tools.RagOptions
 import com.embabel.agent.rag.tools.RagServiceSearchTools
 import com.embabel.agent.spi.InteractionId
@@ -178,11 +177,11 @@ internal data class OperationContextPromptRunner(
         val underlyingRagService =
             context.agentPlatform().platformServices.ragService(options.service)
                 ?: error("No RAG service named '${options.service}' available")
-        val ragService = PipelinedRagService(
-            delegate = underlyingRagService,
-            operationContext = context,
-            llm = options.llm,
-        )
+        val ragService = context.agentPlatform().platformServices.ragServiceEnhancer()
+            .create(
+                delegate = underlyingRagService,
+                operationContext = context,
+            )
         val namingStrategy: StringTransformer = if (options.service == null) {
             StringTransformer.IDENTITY
         } else {

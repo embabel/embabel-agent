@@ -23,6 +23,7 @@ import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.rag.RagRequest
 import com.embabel.agent.rag.RagResponse
 import com.embabel.agent.rag.RagService
+import com.embabel.agent.rag.pipeline.PipelinedRagServiceEnhancer
 import com.embabel.agent.rag.tools.RagOptions
 import com.embabel.agent.rag.tools.RagServiceSearchTools
 import com.embabel.agent.spi.PlatformServices
@@ -362,6 +363,7 @@ class OperationContextPromptRunnerTest {
             every { mockContext.agentPlatform() } returns mockAgentPlatform
             every { mockAgentPlatform.platformServices } returns mockPlatformServices
             every { mockPlatformServices.ragService("foo") } returns mockRagService
+            every { mockPlatformServices.ragServiceEnhancer() } returns PipelinedRagServiceEnhancer()
 
             val ragOptions = RagOptions().withService("foo")
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockContext)
@@ -576,6 +578,7 @@ class OperationContextPromptRunnerTest {
             every { mockContext.agentPlatform() } returns mockAgentPlatform
             every { mockAgentPlatform.platformServices } returns mockPlatformServices
             every { mockPlatformServices.ragService(null) } returns mockRagService
+            every { mockPlatformServices.ragServiceEnhancer() } returns PipelinedRagServiceEnhancer()
 
             val mockRagResponse = RagResponse(RagRequest("test"), "test-service", emptyList())
             every { mockRagService.search(any()) } returns mockRagResponse

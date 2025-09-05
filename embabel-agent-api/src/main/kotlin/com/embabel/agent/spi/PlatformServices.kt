@@ -21,6 +21,7 @@ import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.rag.RagService
+import com.embabel.agent.rag.RagServiceEnhancer
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -74,5 +75,12 @@ data class PlatformServices(
         }
         val services = applicationContext.getBeansOfType(RagService::class.java)
         return services.values.firstOrNull { it.name == serviceName }
+    }
+
+    fun ragServiceEnhancer(): RagServiceEnhancer {
+        if (applicationContext == null) {
+            throw IllegalStateException("Application context is not available, cannot retrieve RagServiceEnhancer bean.")
+        }
+        return applicationContext.getBean(RagServiceEnhancer::class.java)
     }
 }

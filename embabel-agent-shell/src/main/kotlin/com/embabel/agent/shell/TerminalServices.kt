@@ -30,6 +30,7 @@ import com.embabel.ux.form.Button
 import com.embabel.ux.form.FormSubmission
 import com.embabel.ux.form.TextField
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.apache.commons.text.WordUtils
 import org.jline.reader.LineReader
 import org.jline.reader.LineReaderBuilder
 import org.jline.terminal.Terminal
@@ -96,7 +97,11 @@ class TerminalServices(
                     }
 
                     else -> {
-                        lineReader.printAbove("${message.sender}: ${message.content.color(colorPalette.color2)}")
+                        val formattedResponse = WordUtils.wrap(
+                            "${message.sender}: ${message.content.color(colorPalette.color2)}",
+                            shellProperties.lineLength,
+                        )
+                        lineReader.printAbove(formattedResponse)
                     }
                 }
             }
