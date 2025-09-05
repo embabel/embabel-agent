@@ -93,7 +93,9 @@ class HierarchicalContentReader {
         metadata: Metadata = Metadata(),
     ): MaterializedContentRoot {
         val resource: Resource = DefaultResourceLoader().getResource(resourcePath)
-        return parseContent(resource.inputStream, metadata, resource.uri.toString())
+        return resource.inputStream.use { inputStream ->
+            parseContent(inputStream, metadata, resource.uri.toString())
+        }
     }
 
     /**
@@ -467,9 +469,9 @@ class HierarchicalContentReader {
                 return null
             }
 
-            // Use file:// protocol for local files as expected by Spring Resource
-            val resourcePath = "file://" + fileTools.resolvePath(filePath).toAbsolutePath()
-            val result = parseResource(resourcePath)
+            // Use file URI for local files - convert to proper URI format
+            val fileUri = fileTools.resolvePath(filePath).toUri().toString()
+            val result = parseResource(fileUri)
 
             logger.info(
                 "Successfully parsed file '{}' - {} sections extracted",
