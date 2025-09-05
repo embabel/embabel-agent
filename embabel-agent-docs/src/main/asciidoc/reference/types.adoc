@@ -110,4 +110,4 @@ var story = context.ai()
 - `withSubagents(Subagent...)`: Enable handoffs to other agents
 - `evaluateCondition(String, String)`: Evaluate boolean condition
 
-WARNING: (jasper notes) For each of the above, let's add links to the detailed definition of the feature?
+// TODO: (jasper notes) Add links to subagent and evaluateCondition
