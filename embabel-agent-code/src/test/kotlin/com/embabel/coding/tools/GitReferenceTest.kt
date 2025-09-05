@@ -19,15 +19,27 @@ import com.embabel.coding.tools.git.ClonedRepositoryReference
 import com.embabel.coding.tools.git.RepositoryReferenceProvider
 import com.embabel.common.util.loggerFor
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.storage.file.WindowCacheConfig
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GitReferenceTest {
 
     private val repositoryReferenceProvider = RepositoryReferenceProvider()
+
+    @BeforeAll
+    fun disableMmap() {
+        WindowCacheConfig().apply {
+            isPackedGitMMAP = false
+        }.install()
+    }
+
 
     @Test
     fun `clone public repository to temporary directory`() {
