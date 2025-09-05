@@ -16,13 +16,14 @@
 package com.embabel.agent.rag.ingestion
 
 import com.embabel.agent.rag.Chunk
+import com.embabel.agent.rag.ContentElement
 
 /**
  * Implemented by services that can retrieve Chunks by id.
  */
-interface ChunkRepository {
+interface ContextElementRepository {
 
     fun findChunksById(chunkIds: List<String>): List<Chunk>
 
-    fun findAll(): List<Chunk>
+    fun findById(id: String): ContentElement?
 }

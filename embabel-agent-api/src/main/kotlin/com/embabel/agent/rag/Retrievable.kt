@@ -17,6 +17,7 @@ package com.embabel.agent.rag
 
 import com.embabel.agent.api.common.Embedding
 import com.embabel.common.core.types.HasInfoString
+import org.jetbrains.annotations.ApiStatus
 
 /**
  * Embedded object instance.
@@ -28,15 +29,18 @@ interface Embedded {
 }
 
 
-/**
- * A Retrievable object instance is a chunk or an entity
- * It has a stable id.
- */
-interface Retrievable : HasInfoString {
+interface ContentElement {
 
     val id: String
 
     val metadata: Map<String, Any?>
+}
+
+/**
+ * A Retrievable object instance is a chunk or an entity
+ * It has a stable id.
+ */
+interface Retrievable : HasInfoString, ContentElement {
 
     /**
      * Embedding value of this retrievable object.
@@ -47,6 +51,7 @@ interface Retrievable : HasInfoString {
      * Neighbors of this retrievable object.
      * Allows navigation of a graph
      */
+    @get:ApiStatus.Experimental
     val neighbors: Map<String, Collection<Retrievable>> get() = mapOf()
 
 }

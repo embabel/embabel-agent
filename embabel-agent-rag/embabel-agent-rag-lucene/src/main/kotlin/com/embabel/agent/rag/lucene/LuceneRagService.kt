@@ -15,11 +15,8 @@
  */
 package com.embabel.agent.rag.lucene
 
-import com.embabel.agent.rag.Chunk
-import com.embabel.agent.rag.RagRequest
-import com.embabel.agent.rag.RagResponse
-import com.embabel.agent.rag.WritableRagService
-import com.embabel.agent.rag.ingestion.ChunkRepository
+import com.embabel.agent.rag.*
+import com.embabel.agent.rag.ingestion.ContextElementRepository
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.util.indent
 import org.apache.lucene.analysis.standard.StandardAnalyzer
@@ -48,7 +45,7 @@ class LuceneRagService @JvmOverloads constructor(
     override val description: String,
     private val embeddingModel: EmbeddingModel? = null,
     private val vectorWeight: Double = 0.5, // Balance between text and vector similarity
-) : WritableRagService, ChunkRepository, Closeable {
+) : WritableRagService, ContextElementRepository, Closeable {
 
     private val logger = LoggerFactory.getLogger(LuceneRagService::class.java)
 
@@ -82,7 +79,11 @@ class LuceneRagService @JvmOverloads constructor(
         return foundChunks
     }
 
-    override fun findAll(): List<Chunk> {
+    override fun findById(id: String): ContentElement? {
+        return chunkStorage[id]
+    }
+
+    fun findAll(): List<Chunk> {
         logger.debug("Retrieving all chunks from storage")
         val allChunks = chunkStorage.values.toList()
         logger.debug("Retrieved {} chunks from storage", allChunks.size)
