@@ -30,7 +30,7 @@ Defaults to false.
 - `toolGroups`: Named tool groups the action requires.
 - `toolGroupRequirements`: Tool group requirements with QoS constraints.
 
-WARNING: (jasper notes) Need to document examples of pre, post, canRerun, cost, etc. Either here or provide links. Also brief code example is useful here.
+//TODO: (jasper notes) Provide links to detailed docs for pre, post, canRerun, cost, etc. Also brief code example is useful here.
 
 ==== The `@Condition` annotation
 
@@ -41,7 +41,7 @@ If they take domain object parameters, the condition will automatically be false
 > Condition methods should not have side effects--for example, on the blackboard.
 This is important because they may be called multiple times.
 
-WARNING: (jasper notes) Provide a simple illustrative example with story-telling and supporting code example.
+//TODO (jasper notes) Provide a simple illustrative example with story-telling and supporting code example.
 
 ==== Parameters
 
@@ -61,8 +61,6 @@ This enables nice-to-have parameters that are not required for the action to run
 
 NOTE: Domain objects drive planning, specifying the preconditions to an action.
 
-WARNING: (jasper notes) What about user input? Is it considered infra, domain or neither? Can we ask for more user input at different points or only ever at the start?
-
 The `ActionContext` or `ExecutingOperationContext` subtype can be used in action methods.
 It adds `asSubProcess` methods that can be used to run other agents in subprocesses.
 This is an important element of composition.
@@ -72,9 +70,9 @@ Use `OperationContext` unless you are creating a subprocess.
 
 ==== Binding by name
 
-The `@RequireNameMatch` annotation can be used to bind parameters by name.
+The `@RequireNameMatch` annotation can be used to <<reference.binding, bind parameters by name>>.
 
-WARNING: (jasper notes) Provide an illustrative code example here.
+//TODO: (jasper notes) Provide an illustrative code example here.
 
 ==== Handling of return types
 
@@ -84,7 +82,7 @@ Nullable return types are allowed.
 Returning null will trigger replanning.
 There may or not be an alternative path from that point, but it won't be what the planner was trying to achieve.
 
-WARNING: (jasper notes) A diagram showing this would be super cool here.
+//TODO: (jasper notes) A diagram showing this would be super cool here.
 
 There is a special case where the return type can essentially be a union type, where the action method can return one ore more of several types.
 This is achieved by a return type implementing the `SomeOf` tag interface.
@@ -139,7 +137,7 @@ The `@AchievesGoal` annotation can be added to an `@Action` method to indicate t
 If an annotated agent class implements the `StuckHandler` interface, it can handle situations where an action is stuck itself.
 For example, it can add data to the blackboard.
 
-WARNING: (jasper notes) In addition to the code-sample, let's add some possible real-world illustrative example reasons for being stuck, and how having an unstuck handler helps. We may refer to a sample app, or use a purely imagined case. As there are two possibilities for code, perhaps we can include one case where we REPLAN and one where there is no solution.
+//TODO: (japer notes) Provide concrete examples of when StuckHandler is useful.
 
 Example:
 
@@ -175,8 +173,6 @@ class SelfUnstickingAgent : StuckHandler {
 
 An `@Action` method can invoke another agent process.
 This is often done to use a stereotyped process that is composed using the DSL.
-
-WARNING: (jasper notes) Can we include a concrete illustrative example? The reader can then come up with their own based on this.
 
 Use the `ActionContext.asSubProcess` method to create a sub-process from the action context.
 
