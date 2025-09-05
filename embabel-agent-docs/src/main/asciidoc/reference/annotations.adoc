@@ -14,8 +14,6 @@ It will also be registered with the agent framework, so it can be used in agent 
 You must provide the `description` parameter, which is a human-readable description of the agent.
 This is particularly important as it may be used by the LLM in agent selection.
 
-WARNING: (jasper notes) Firstly because variations differ, and secondly because the audience is new to this topic: This is a good place to define what _we_ consider an agent. Include concrete example of how they are helpful. For complete-ness also provide a brief code example.
-
 ==== The `@Action` annotation
 
 The `@Action` annotation is used to mark methods that perform actions within an agent.
@@ -88,7 +86,7 @@ There may or not be an alternative path from that point, but it won't be what th
 
 WARNING: (jasper notes) A diagram showing this would be super cool here.
 
-There is a special case where the return type can essentially be a union type, where the action method can return one of several types.
+There is a special case where the return type can essentially be a union type, where the action method can return one ore more of several types.
 This is achieved by a return type implementing the `SomeOf` tag interface.
 Implementations of this interface can have multiple nullable fields.
 Any non-null values will be bound to the blackboard, and the postconditions of the action will include all possible fields of the return type.
@@ -121,10 +119,9 @@ class ReturnsFrogOrDog {
 ----
 
 This enables routing scenarios in an elegant manner.
-Multiple fields of the `SomeOf` instance may be non-null and this is not an error.
-It may enable the most appropriate routing.
 
-WARNING: (jasper notes) The example above says its the result is one of several types. But it can also be several of many too, right?
+TIP: Multiple fields of the `SomeOf` instance may be non-null and this is not an error.
+It may enable the most appropriate routing.
 
 ==== Action method implementation
 
@@ -136,8 +133,6 @@ The only special thing about it is its ability to use the `OperationContext` par
 ==== The `@AchievesGoal` annotation
 
 The `@AchievesGoal` annotation can be added to an `@Action` method to indicate that the completion of the action achieves a specific goal.
-
-WARNING: (jasper notes) How does goal achievement effect agentic flow? Let's give an example.
 
 ==== Implementing the `StuckHandler` interface
 

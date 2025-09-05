@@ -3,6 +3,19 @@
 :sectids:
 :sectanchors:
 
+Agentic AI is the use of large language (and other multi-modal) models not just to generate text, but to act as
+reasoning, goal-driven agents that can plan, call tools, and adapt their actions to deliver outcomes.
+
+The JVM is a compelling platform for this because its strong type safety provides guardrails for integrating LLM-driven
+behaviors with real systems. Because so many production applications already run on the JVM it is the natural place to
+embed AI.
+
+While Agentic AI has been hyped, much of it has lived in academic demos with little practical value; by integrating
+directly into legacy and enterprise JVM applications, we can unlock AI capabilities without rewriting core systems or
+tearing down a factory to install new machinery.
+
+include::glossary.adoc[]
+
 include::agent-framework.adoc[]
 
 include::why-embabel.adoc[]
