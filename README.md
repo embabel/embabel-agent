@@ -1086,6 +1086,7 @@ This file also informs coding agent behavior.
   not be implemented.
 - README badges come from [here](https://github.com/Ileriayo/markdown-badges)
   and [here](https://home.aveek.io/GitHub-Profile-Badges/).
+- Don't forget to join [Discord](https://discord.gg/t6bjkyj93q) to collaborate with the Embabel community. It is a good place to receive support, showcase your work, discuss ideas and connect with like-minded people. 
 
 ## Star history
 
