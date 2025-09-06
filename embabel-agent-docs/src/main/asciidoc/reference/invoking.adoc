@@ -288,5 +288,4 @@ class TripPlanningController(
 - **Resource Cleanup**: Removes completed jobs from memory
 - **Process Options**: Configures verbosity and debugging for production use
 
-IMPORTANT: Agents can also be exposed as MCP servers and consumed from tools like Claude Desktop.
-
+IMPORTANT: Agents can also be exposed as <<mcp, MCP>> servers and consumed from tools like Claude Desktop.

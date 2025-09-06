@@ -30,14 +30,18 @@ Defaults to false.
 - `toolGroups`: Named tool groups the action requires.
 - `toolGroupRequirements`: Tool group requirements with QoS constraints.
 
+//TODO: (jasper notes) Provide links to detailed docs for pre, post, canRerun, cost, etc. Also brief code example is useful here.
+
 ==== The `@Condition` annotation
 
 The `@Condition` annotation is used to mark methods that evaluate conditions.
 They can take an `OperationContext` parameter to access the blackboard and other infrastructure.
 If they take domain object parameters, the condition will automatically be false until suitable instances are available.
 
-> NOTE: Condition methods should not have side effects--for example, on the blackboard.
+> Condition methods should not have side effects--for example, on the blackboard.
 This is important because they may be called multiple times.
+
+//TODO (jasper notes) Provide a simple illustrative example with story-telling and supporting code example.
 
 ==== Parameters
 
@@ -66,7 +70,9 @@ Use `OperationContext` unless you are creating a subprocess.
 
 ==== Binding by name
 
-The `@RequireNameMatch` annotation can be used to bind parameters by name.
+The `@RequireNameMatch` annotation can be used to <<reference.binding, bind parameters by name>>.
+
+//TODO: (jasper notes) Provide an illustrative code example here.
 
 ==== Handling of return types
 
@@ -76,7 +82,9 @@ Nullable return types are allowed.
 Returning null will trigger replanning.
 There may or not be an alternative path from that point, but it won't be what the planner was trying to achieve.
 
-There is a special case where the return type can essentially be a union type, where the action method can return one of several types.
+//TODO: (jasper notes) A diagram showing this would be super cool here.
+
+There is a special case where the return type can essentially be a union type, where the action method can return one ore more of several types.
 This is achieved by a return type implementing the `SomeOf` tag interface.
 Implementations of this interface can have multiple nullable fields.
 Any non-null values will be bound to the blackboard, and the postconditions of the action will include all possible fields of the return type.
@@ -109,7 +117,8 @@ class ReturnsFrogOrDog {
 ----
 
 This enables routing scenarios in an elegant manner.
-Multiple fields of the `SomeOf` instance may be non-null and this is not an error.
+
+TIP: Multiple fields of the `SomeOf` instance may be non-null and this is not an error.
 It may enable the most appropriate routing.
 
 ==== Action method implementation
@@ -127,6 +136,8 @@ The `@AchievesGoal` annotation can be added to an `@Action` method to indicate t
 
 If an annotated agent class implements the `StuckHandler` interface, it can handle situations where an action is stuck itself.
 For example, it can add data to the blackboard.
+
+//TODO: (japer notes) Provide concrete examples of when StuckHandler is useful.
 
 Example:
 

@@ -17,16 +17,16 @@
     --heading-color: #63c0f5;
     --code-bg-color: #131313;
     --code-text-color: #f8f8f2;
-    --quote-bg-color: #93c093;
+    --quote-bg-color: #e0e0e0;
     --quote-border-color: #444444;
     --table-header-bg: #2d2d2d;
     --table-border-color: #444444;
     --table-alt-bg: #292929;
-    --admonition-note-bg: #fafafa;
-    --admonition-tip-bg: #fafafa;
-    --admonition-important-bg: #fafafa;
-    --admonition-warning-bg: #fafafa;
-    --admonition-caution-bg: #fafafa;
+    --admonition-note-bg: #e0e0e0;
+    --admonition-tip-bg: #e0e0e0;
+    --admonition-important-bg: #e0e0e0;
+    --admonition-warning-bg: #e0e0e0;
+    --admonition-caution-bg: #e0e0e0;
     --toc-min: 12rem; /* smallest TOC */
     --toc-ideal: 22vw; /* preferred responsive TOC */
     --toc-max: 20rem; /* largest TOC */
@@ -96,9 +96,17 @@ body {
     width: var(--toc-width); /* responsive */
     overflow: auto;
     z-index: 900;
-    background: #0b0b0b;
+    background: linear-gradient(-45deg, #1a1f2e, #0d0d0d, #1f0d1f, #0d1f0d) !important;
+    background-size: 400% 400%;
+    animation: gradientBG 30s ease infinite;
     padding: 1rem;
     box-sizing: border-box;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
 }
 
 #content {
@@ -230,13 +238,18 @@ table {
     color: #fafafa;
 }
 
+table.grid-all > * > tr > * {
+    border-width: 1px;
+    color: #fafafa;
+}
+
 table thead, table tfoot {
     background-color: var(--table-header-bg) !important;
     font-weight: 600;
 }
 
 table tr.even, table tr.alt, table tr:nth-of-type(even) {
-    background-color: var(--table-alt-bg) !important;
+    background: none;
 }
 
 table td, table th {
@@ -251,7 +264,8 @@ table tr th, table tr td {
 
 /* Blockquotes */
 blockquote, .quoteblock {
-    background-color: var(--quote-bg-color) !important;
+    background-color: var(--quote-bg-color);
+    /*color: #e0e0e0;*/
     border-left: 4px solid var(--quote-border-color) !important;
     font-style: italic;
     position: relative;
@@ -279,7 +293,12 @@ blockquote::before {
 }
 
 .exampleblock > .content {
-    background-color: #252525 !important;
+    background: linear-gradient(
+            135deg,
+            #252525 0%,
+            #2e2b38 40%,
+            #2b333d 100%
+    ) !important;
     border: 1px solid #444 !important;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -305,7 +324,12 @@ blockquote::before {
     padding-right: 1.25em;
     border-left: 1px solid #444;
     color: #e0e0e0 !important;
-    background-color: #252525;
+    background: linear-gradient(
+            135deg,
+            #252525 0%,
+            #2e2b38 40%,
+            #2b333d 100%
+    ) !important;
 }
 
 .admonitionblock.note > table td.icon {
@@ -329,9 +353,17 @@ blockquote::before {
 }
 
 /* TOC - standard and left panel */
-#toc, #toc.toc, #content #toc, #toc.toc2, #header .details, .sidebarblock, .listingblock, .literalblock, .imageblock, .tableblock {
+#toc, #toc.toc, #content #toc, #toc.toc2, #header .details, .sidebarblock, .listingblock, .literalblock, .imageblock {
     background-color: #252525 !important;
-    border-right: 1px solid #444 !important;
+}
+
+.tableblock {
+    background: linear-gradient(
+            135deg,
+            #2a2a2a 0%,
+            #2f2c3a 40%,
+            #2c333a 100%
+    ) !important;
 }
 
 #toc a, #toc.toc a, #content #toc a, #toc.toc2 a {
@@ -570,11 +602,23 @@ pre code {
 
 /* Inline code */
 code, tt {
-    background: var(--code-bg) !important;
+    background: linear-gradient(
+            to bottom,
+            #9f77cd 0%,
+            #7e64a7 100%
+    ) !important;
     color: var(--code-fg) !important;
-    border: 1px solid transparent;
+    border: 0;
     padding: 0.15em 0.4em !important;
     border-radius: 4px !important;
+}
+
+/* Inline code inside a quoteblock */
+.quoteblock code,
+.quoteblock .monospaced {
+    background-color: #4b624b !important;
+    padding: 0.15em 0.3em;
+    border-radius: 3px;
 }
 
 /* ===== highlight.js ===== */
@@ -744,7 +788,7 @@ code, tt {
 
 /* Ensure links inside code don’t turn “navy” */
 pre a, code a {
-    color: var(--link-color) !important;
+    color: #fafafa !important;
     text-decoration: underline;
 }
 
@@ -807,14 +851,6 @@ pre code {
     border: 1px solid var(--code-border) !important;
     border-radius: 6px;
     overflow-x: auto;
-}
-
-/* Inline code */
-code, tt {
-    background: var(--code-bg) !important;
-    color: var(--code-fg) !important;
-    padding: 0.15em 0.4em !important;
-    border-radius: 4px !important;
 }
 
 /* ===== highlight.js / Prism / Rouge / CodeRay token mapping ===== */
@@ -939,9 +975,14 @@ code, tt {
     /* outer panel */
 .listingblock,
 .literalblock {
-    background: #131313 !important;
+    background: linear-gradient(
+            135deg,
+            #131313 0%,
+            #181621 40%,
+            #161c22 100%
+    ) !important;
     border: 1px solid #2a2a2a !important;
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 0.75rem; /* space around code */
 }
 
@@ -1071,3 +1112,19 @@ colist td {
     padding: .25em 0;
     color: #fafafa;
 }
+
+
+.admonitionblock td.icon [class^="fa icon-"]{font-size:2.5em;text-shadow: none;cursor:default}
+.admonitionblock td.icon .icon-warning::before{content:"\f071";color:#e44d26}
+
+.tableblock td:nth-child(1) {
+    max-width: 25%;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+pre code a {
+    color: #ffffff;   /* your desired link color */
+    text-decoration: underline; /* optional */
+}
+

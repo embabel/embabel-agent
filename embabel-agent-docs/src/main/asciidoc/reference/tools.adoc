@@ -36,6 +36,7 @@ String bindCustomer(Long id) {
 }
 ----
 
+[[tool-groups]]
 ==== Tool Groups
 
 Embabel introduces the concept of a *tool group*.
@@ -45,7 +46,7 @@ For example, we don't ask for Brave or Google web search: we ask for "web" tools
 TIP: Tools use should be focused.
 Thus tool groups cannot be specified at agent level, but must be specified on individual actions.
 
-Tool groups are often backed by MCP.
+Tool groups are often backed by <<mcp,MCP>>.
 
 ===== Configuring Tool Groups with Spring
 
@@ -125,6 +126,10 @@ The framework automatically provides these tools to the LLM when the action runs
 
 Here's an example from the `StarNewsFinder` agent that demonstrates web tool usage:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // toolGroups specifies tools that are required for this action to run
@@ -147,8 +152,8 @@ public RelevantNewsStories findNewsStories(
 }
 ----
 
-Or in Kotlin:
-
+Kotlin::
++
 [source,kotlin]
 ----
 // toolGroups specifies tools that are required for this action to run
@@ -171,6 +176,7 @@ internal fun findNewsStories(
         """.trimIndent()
     )
 ----
+====
 
 ===== Key Tool Usage Patterns
 

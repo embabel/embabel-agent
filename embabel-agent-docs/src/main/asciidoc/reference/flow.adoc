@@ -61,12 +61,17 @@ The planning process:
 This creates a dynamic **OODA loop** (Observe-Orient-Decide-Act):
 - **Observe**: Check current blackboard state and action results - **Orient**: Understand what has changed since the last planning cycle - **Decide**: Formulate or update the plan based on new information - **Act**: Execute the next planned action
 
+//TODO: (jasper notes) A diagram showing two ticks() in an ooda loop might be helpful here?
+
 The replanning approach allows agents to:
 
 - Adapt to unexpected action results
 - Handle dynamic environments where conditions change
 - Recover from partial failures
 - Take advantage of new opportunities that arise
+
+//TODO: (jasper notes) Diagram showing a dead-end and replanning would be helpful here.
+
 
 ==== Blackboard
 
@@ -116,3 +121,25 @@ The blackboard enables:
 - **State Persistence**: Complete execution history is maintained
 - **Debugging Support**: Full visibility into state evolution for troubleshooting
 
+[[reference.binding]]
+==== Binding
+
+By default items in the blackboard are matched by type. When there are multiple candidates the most recent one is provided.
+It is also possible to assign a keyed name to blackboard items. Example:
+
+    @Action
+    public Person extractPerson(UserInput userInput, OperationContext context) {
+        PersonImpl maybeAPerson = context.promptRunner().withLlm(LlmOptions.fromModel(OpenAiModels.GPT_41)).createObjectIfPossible(
+                """
+                        Create a person from this user input, extracting their name:
+                        %s""".formatted(userInput.getContent()),
+                PersonImpl.class
+        );
+        if (maybeAPerson != null) {
+            context.bind("user", maybeAPerson);
+        }
+        return maybeAPerson;
+    }
+
+
+TIP: When routing flows by type, the name is not important, but for reference the default name is 'it'.

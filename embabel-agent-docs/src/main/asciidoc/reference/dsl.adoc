@@ -66,11 +66,12 @@ In this case it will take a list of `FactCheck` and return a `FactCheck` and ret
 This is an alternative to `asAgent` shown in the `SimpleAgentBuilder` example.
 The API is consistent.
 
+NOTE: If you wish to experiment, the https://github.com/embabel/embabel-agent-examples[embabel-agent-examples] repository includes the https://github.com/embabel/embabel-agent-examples/blob/main/examples-java/src/main/java/com/embabel/example/factchecker/FactChecker.java[fact checker] shown above.
+
+
 ==== Registering `Agent` beans
 
-Whereas the `@Agent` annotation causes a class to be picked up immediately by Spring, with the DSL you'll need an extra step to register an agent with Spring.
-
-Any bean of `Agent` type results in auto registration.
+Whereas the `@Agent` annotation causes a class to be picked up immediately by Spring, with the DSL you'll need an extra step to register an agent with Spring. As shown in the example below, any `@Bean` of `Agent` type results auto registration, just like declaring a class annotated with `@Agent` does.
 
 [source,kotlin]
 ----

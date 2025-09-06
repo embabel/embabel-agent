@@ -9,8 +9,8 @@ We welcome contributions to the Embabel project.
 How to contribute:
 
 - Familiarize yourself with the project by reading the documentation.
-- Familiarize yourself with the issue tracker and open pull requests to ensure you're not duplicating something.
-- Sign your commits
+- Familiarize yourself with the https://github.com/embabel/embabel-agent/issues/[issue tracker] and open pull requests to ensure you're not duplicating something.
+- https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits[Sign your commits]
 - Join the Embabel community on Discord at https://discord.gg/t6bjkyj93q.
 
 Contributions are not limited to code.

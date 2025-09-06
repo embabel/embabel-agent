@@ -9,6 +9,8 @@ You don't need to use them--you can simply build your prompts as strings--but th
 Prompt contributors implement the `PromptContributor` interface and provide text that gets included in the final prompt sent to the LLM.
 By default the text will be included in the system prompt message.
 
+//TODO: (jasper notes) A diagram here showing a prompt and the injection of the contribution(s)
+
 ==== The `PromptContributor` Interface and `LlmReference` Subinterface
 
 All prompt contributors implement the `PromptContributor` interface with a `contribution()` method that returns a string to be included in the prompt.

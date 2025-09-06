@@ -4,5 +4,5 @@
 Embabel makes a clean distinction between its API and SPI.
 The API is the public interface that users interact with, while the SPI (Service Provider Interface) is intended for developers who want to extend or customize the behavior of Embabel, or platform providers.
 
-IMPORTANT: Application code should only depend on the API, not the SPI.
+IMPORTANT: Application code should only depend on the API (com.embabel.agent.api.*) not the SPI.
 The SPI is subject to change and should not be used in production code.
