@@ -135,13 +135,19 @@ class OperationContextAiTest {
             val mockRagService = mockk<RagService>()
             val serviceName = "custom-rag-service"
 
-            every { mockContext.processContext.platformServices.ragService(any(), serviceName) } returns mockRagService
+            every {
+                mockContext.processContext.platformServices.ragService(
+                    any(),
+                    serviceName,
+                    any()
+                )
+            } returns mockRagService
 
             val ai = createOperationContextAi(mockContext)
             val result = ai.rag(serviceName)
 
             assertEquals(mockRagService, result, "Named RAG service not returned correctly")
-            verify { mockContext.processContext.platformServices.ragService(any(), serviceName) }
+            verify { mockContext.processContext.platformServices.ragService(any(), serviceName, any()) }
         }
 
         @Test
@@ -149,7 +155,7 @@ class OperationContextAiTest {
             val mockContext = createMockOperationContext()
             val serviceName = "non-existent-rag-service"
 
-            every { mockContext.processContext.platformServices.ragService(any(), serviceName) } returns null
+            every { mockContext.processContext.platformServices.ragService(any(), serviceName, any()) } returns null
 
             val ai = createOperationContextAi(mockContext)
 
@@ -158,7 +164,7 @@ class OperationContextAiTest {
             }
 
             assertEquals("No RAG service found with name $serviceName", exception.message)
-            verify { mockContext.processContext.platformServices.ragService(any(), serviceName) }
+            verify { mockContext.processContext.platformServices.ragService(any(), serviceName, any()) }
         }
     }
 

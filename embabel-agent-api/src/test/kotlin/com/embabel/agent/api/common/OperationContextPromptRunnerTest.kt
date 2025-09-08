@@ -328,7 +328,7 @@ class OperationContextPromptRunnerTest {
 
             every { mockContext.agentPlatform() } returns mockAgentPlatform
             every { mockAgentPlatform.platformServices } returns mockPlatformServices
-            every { mockPlatformServices.ragService(any(), null) } returns mockRagService
+            every { mockPlatformServices.ragService(any(), null, any()) } returns mockRagService
 
             val ragOptions = RagOptions()
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockContext)
@@ -361,7 +361,7 @@ class OperationContextPromptRunnerTest {
 
             every { mockContext.agentPlatform() } returns mockAgentPlatform
             every { mockAgentPlatform.platformServices } returns mockPlatformServices
-            every { mockPlatformServices.ragService(any(), "foo") } returns mockRagService
+            every { mockPlatformServices.ragService(any(), "foo", any()) } returns mockRagService
 //            every { mockPlatformServices.ragServiceEnhancer() } returns PipelinedRagServiceEnhancer()
 
             val ragOptions = RagOptions().withService("foo")
@@ -576,7 +576,7 @@ class OperationContextPromptRunnerTest {
 
             every { mockContext.agentPlatform() } returns mockAgentPlatform
             every { mockAgentPlatform.platformServices } returns mockPlatformServices
-            every { mockPlatformServices.ragService(any(), null) } returns mockRagService
+            every { mockPlatformServices.ragService(any(), null, any()) } returns mockRagService
 //            every { mockPlatformServices.ragServiceEnhancer() } returns PipelinedRagServiceEnhancer()
 
             val mockRagResponse = RagResponse(RagRequest("test"), "test-service", emptyList())

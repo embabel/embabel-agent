@@ -25,17 +25,6 @@ import io.swagger.v3.oas.annotations.media.Schema
 interface RetrievableEntity : Retrievable {
 
     /**
-     * Labels of the entity. In Neo, this might include multiple labels.
-     * In a relational database, this might be a single table name.
-     */
-    @get:Schema(
-        description = "Labels of the entity. In Neo, this might include multiple labels. In a relational database, this might be a single table name.",
-        example = "[\"Person\", \"Customer\"]",
-        required = true,
-    )
-    val labels: Set<String>
-
-    /**
      * EmbeddableValue defaults to infoString
      */
     override fun embeddableValue(): String {
@@ -62,8 +51,11 @@ interface EntityData : RetrievableEntity, Described {
     )
     val properties: Map<String, Any>
 
-    override fun infoString(verbose: Boolean?, indent: Int): String {
-        val labelsString = labels.joinToString(":")
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
+        val labelsString = labels().joinToString(":")
         return "(${labelsString} id='$id')".indent(indent)
     }
 

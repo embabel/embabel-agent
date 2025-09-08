@@ -21,7 +21,7 @@ package com.embabel.agent.rag.schema
 interface SchemaResolver {
 
     /**
-     * Infer the schema of the knowledge graph.
+     * Resolve the schema of the knowledge graph, if possible
      */
-    fun getSchema(name: String): KnowledgeGraphSchema
+    fun getSchema(name: String): KnowledgeGraphSchema?
 }

@@ -16,6 +16,7 @@
 package com.embabel.agent.rag
 
 import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.event.RagEventListener
 
 interface RagServiceEnhancer {
 
@@ -25,5 +26,6 @@ interface RagServiceEnhancer {
     fun create(
         operationContext: OperationContext,
         delegate: RagService,
+        listener: RagEventListener,
     ): RagService
 }

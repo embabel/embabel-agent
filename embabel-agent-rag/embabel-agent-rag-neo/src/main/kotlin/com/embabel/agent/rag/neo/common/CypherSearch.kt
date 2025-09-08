@@ -72,6 +72,11 @@ interface CypherSearch {
         logger: Logger?,
     ): List<SimilarityResult<out MappedEntity>>
 
+    fun queryForInt(
+        query: String,
+        params: Map<String, *> = emptyMap<String, String>(),
+    ): Int
+
     fun query(
         purpose: String,
         query: String,

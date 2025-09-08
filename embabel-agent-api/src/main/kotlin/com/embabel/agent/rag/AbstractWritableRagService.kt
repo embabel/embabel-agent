@@ -17,6 +17,7 @@ package com.embabel.agent.rag
 
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.ingestion.ContentElementRepository
+import com.embabel.agent.rag.ingestion.MaterializedDocument
 
 /**
  * Convenience base class for WritableRagService implementations.
@@ -29,7 +30,7 @@ abstract class AbstractWritableRagService : WritableRagService, ContentElementRe
      * The database only needs to store each descendant and link by id,
      * rather than otherwise consider the entire structure.
      */
-    final override fun writeContent(root: MaterializedContentRoot): List<String> {
+    final override fun writeContent(root: MaterializedDocument): List<String> {
         val chunker = ContentChunker(maxChunkSize = 5000, overlapSize = 200, minChunkSize = 1500)
         val chunks = chunker.chunk(root)
         save(root)
@@ -46,7 +47,7 @@ abstract class AbstractWritableRagService : WritableRagService, ContentElementRe
      * For example, in a graph database, create relationships between documents, sections, and chunks
      * based on their ids.
      */
-    protected abstract fun createRelationships(root: MaterializedContentRoot)
+    protected abstract fun createRelationships(root: MaterializedDocument)
 
     protected abstract fun commit()
 

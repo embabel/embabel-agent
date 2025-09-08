@@ -54,6 +54,10 @@ interface Chunk : Source, HierarchicalContentElement {
         )
     }
 
+    override fun labels(): Set<String> {
+        return super<Source>.labels() + super<HierarchicalContentElement>.labels() + setOf("Chunk")
+    }
+
     fun transform(transformed: String): Chunk =
         ChunkImpl(
             id = this.id,

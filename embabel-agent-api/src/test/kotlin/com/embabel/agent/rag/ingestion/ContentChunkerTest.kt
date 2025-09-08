@@ -16,7 +16,6 @@
 package com.embabel.agent.rag.ingestion
 
 import com.embabel.agent.rag.LeafSection
-import com.embabel.agent.rag.MaterializedContentRoot
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -37,7 +36,7 @@ class ContentChunkerTest {
             text = "This is a brief overview section."
         )
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "container-1",
             title = "Small Document",
             children = listOf(leaf1, leaf2),
@@ -87,7 +86,7 @@ class ContentChunkerTest {
             metadata = mapOf("category" to "long")
         )
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "container-2",
             title = "Mixed Document",
             children = listOf(smallLeaf, largeLeaf),
@@ -123,7 +122,7 @@ class ContentChunkerTest {
 
     @Test
     fun `test empty container handling`() {
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "empty-container",
             title = "Empty Document",
             children = emptyList()
@@ -158,7 +157,7 @@ class ContentChunkerTest {
             text = "Content for section C."
         )
 
-        val rootContainer = MaterializedContentRoot(
+        val rootContainer = MaterializedDocument(
             id = "root-1",
             title = "Multi-Section Document",
             children = listOf(leaf1, leaf2, leaf3)
@@ -179,7 +178,7 @@ class ContentChunkerTest {
 
     @Test
     fun `test multiple containers processing`() {
-        val container1 = MaterializedContentRoot(
+        val container1 = MaterializedDocument(
             id = "container-1",
             title = "Document 1",
             children = listOf(
@@ -187,7 +186,7 @@ class ContentChunkerTest {
             )
         )
 
-        val container2 = MaterializedContentRoot(
+        val container2 = MaterializedDocument(
             id = "container-2",
             title = "Document 2",
             children = listOf(
@@ -226,7 +225,7 @@ class ContentChunkerTest {
             text = content
         )
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "custom-container",
             title = "Custom Config Test",
             children = listOf(largeLeaf)
@@ -276,7 +275,7 @@ class ContentChunkerTest {
             metadata = mapOf("author" to "Jane", "type" to "body")
         )
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "metadata-container",
             title = "Metadata Test",
             children = listOf(leaf1, leaf2),
@@ -309,7 +308,7 @@ class ContentChunkerTest {
             text = longContent
         )
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "sentence-container",
             title = "Sentence Boundary Test",
             children = listOf(largeLeaf)
@@ -351,7 +350,7 @@ class ContentChunkerTest {
             text = mediumContent
         )
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "medium-container",
             title = "Medium Document",
             children = listOf(leaf)
@@ -402,7 +401,7 @@ class ContentChunkerTest {
             text = largeContent
         )
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "large-container",
             title = "Large Document",
             children = listOf(leaf)
@@ -452,7 +451,7 @@ class ContentChunkerTest {
         val totalContentLength = leaves.sumOf { it.content.length }
         println("Total content length for multiple leaves: $totalContentLength")
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "multi-medium-container",
             title = "Multiple Medium Sections",
             children = leaves
@@ -494,7 +493,7 @@ class ContentChunkerTest {
         val totalLength = leaves.sumOf { it.content.length + it.title.length + 1 } // +1 for newline after title
         println("Total combined length: $totalLength")
 
-        val container = MaterializedContentRoot(
+        val container = MaterializedDocument(
             id = "over-chunk-test",
             title = "Should Be One Chunk",
             children = leaves

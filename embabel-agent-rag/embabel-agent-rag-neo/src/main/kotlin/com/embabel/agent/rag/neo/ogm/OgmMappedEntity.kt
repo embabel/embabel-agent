@@ -28,9 +28,8 @@ abstract class OgmMappedEntity(
     override val id: String,
 ) : MappedEntity {
 
-    // TODO what about inheritance?
-    override val labels: Set<String>
-        get() = setOf(javaClass.simpleName)
+    override fun labels() =
+        setOf(javaClass.simpleName) + super.labels()
 
     override val metadata: Map<String, Any?>
         get() = emptyMap()

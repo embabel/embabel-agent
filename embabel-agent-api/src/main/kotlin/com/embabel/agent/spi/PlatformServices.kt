@@ -21,6 +21,7 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.event.AgenticEventListener
+import com.embabel.agent.event.RagEventListener
 import com.embabel.agent.rag.RagService
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
@@ -76,6 +77,7 @@ interface PlatformServices {
     fun ragService(
         context: OperationContext,
         serviceName: String?,
+        listener: RagEventListener,
     ): RagService?
 
     fun withEventListener(agenticEventListener: AgenticEventListener): PlatformServices

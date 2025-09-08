@@ -15,6 +15,7 @@
  */
 package com.embabel.chat
 
+import com.embabel.agent.identity.User
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
@@ -51,14 +52,17 @@ abstract class InMemoryChatbot(
      * @param systemMessage Optional system message to initialize the session with
      * @return A new [ChatSession] instance
      */
-    final override fun createSession(systemMessage: String?): ChatSession {
+    final override fun createSession(
+        user: User?,
+        systemMessage: String?,
+    ): ChatSession {
         return lock.write {
             // Check if we need to evict sessions before adding the new one
             if (sessions.size >= maxSessions) {
                 evictOldestSessions()
             }
 
-            val session = doCreateSession(systemMessage)
+            val session = doCreateSession(user = user, systemMessage = systemMessage)
             val conversationId = session.conversation.id
 
             if (sessions.containsKey(conversationId)) {
@@ -77,7 +81,10 @@ abstract class InMemoryChatbot(
      * @param systemMessage Optional system message to initialize the session with
      * @return A new [ChatSession] instance
      */
-    protected abstract fun doCreateSession(systemMessage: String?): ChatSession
+    protected abstract fun doCreateSession(
+        user: User?,
+        systemMessage: String?,
+    ): ChatSession
 
     /**
      * Finds an existing chat session by its conversation ID.

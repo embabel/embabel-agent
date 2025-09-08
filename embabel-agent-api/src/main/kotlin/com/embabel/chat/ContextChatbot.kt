@@ -16,6 +16,7 @@
 package com.embabel.chat
 
 import com.embabel.agent.core.Context
+import com.embabel.agent.identity.User
 import com.embabel.agent.spi.ContextRepository
 
 
@@ -39,7 +40,10 @@ class ContextChatbot(
         ): ChatSession
     }
 
-    override fun createSession(systemMessage: String?): ChatSession {
+    override fun createSession(
+        user: User?,
+        systemMessage: String?,
+    ): ChatSession {
         val context = contextRepository.create()
         val conversation = InMemoryConversation(id = context.id)
         context.addObject(conversation)

@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.rag
 
+import com.embabel.agent.rag.ingestion.DefaultMaterializedContainerSection
+import com.embabel.agent.rag.ingestion.MaterializedDocument
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -129,7 +131,7 @@ class ContentElementPropertiesToPersistTest {
             text = "Child content"
         )
 
-        val contentRoot = MaterializedContentRoot(
+        val contentRoot = MaterializedDocument(
             id = "root-1",
             uri = "http://example.com/document",
             title = "Document Title",

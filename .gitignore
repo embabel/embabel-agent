@@ -5,6 +5,8 @@ embabel-agent-api/src/main/resources/mcp/**
 
 *.iml
 
+.claude
+
 
 /target/**
 */target/**

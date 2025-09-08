@@ -178,4 +178,19 @@ class OgmCypherSearch(
         return result
     }
 
+    override fun queryForInt(
+        query: String,
+        params: Map<String, *>,
+    ): Int {
+        val cypher = if (query.contains(" ")) query else queryResolver.resolve(query)!!
+        val result = currentSession().query(cypher, params)
+        val singleRow = result.singleOrNull() ?: return 0
+        val firstValue = singleRow.values.firstOrNull() ?: return 0
+        return when (firstValue) {
+            is Int -> firstValue
+            is Long -> firstValue.toInt()
+            is Double -> firstValue.toInt()
+            else -> 0
+        }
+    }
 }

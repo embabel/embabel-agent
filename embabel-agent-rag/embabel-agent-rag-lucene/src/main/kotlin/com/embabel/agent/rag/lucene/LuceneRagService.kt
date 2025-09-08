@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.lucene
 
 import com.embabel.agent.rag.*
+import com.embabel.agent.rag.ingestion.MaterializedDocument
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.util.indent
 import org.apache.lucene.analysis.standard.StandardAnalyzer
@@ -86,7 +87,7 @@ class LuceneRagService @JvmOverloads constructor(
         return element
     }
 
-    override fun createRelationships(root: MaterializedContentRoot) {
+    override fun createRelationships(root: MaterializedDocument) {
         // No op here
     }
 

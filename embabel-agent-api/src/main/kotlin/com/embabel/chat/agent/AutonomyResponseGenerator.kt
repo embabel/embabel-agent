@@ -44,7 +44,8 @@ class AutonomyResponseGenerator(
             messageListener.onMessage(
                 AssistantMessage(
                     content = "I'm not sure what to respond to",
-                )
+                ),
+                conversation,
             )
             return
         }
@@ -72,11 +73,11 @@ class AutonomyResponseGenerator(
                 AgenticResultAssistantMessage(
                     agentProcessExecution = dynamicExecutionResult,
                     content = result.toString(),
-                )
+                ), conversation
             )
         } catch (pwe: ProcessWaitingException) {
             val assistantMessage = processWaitingHandler.handleProcessWaitingException(pwe, userMessage.content)
-            messageListener.onMessage(assistantMessage)
+            messageListener.onMessage(assistantMessage, conversation)
         } catch (_: NoGoalFound) {
             messageListener.onMessage(
                 AssistantMessage(
@@ -86,13 +87,14 @@ class AutonomyResponseGenerator(
                     |Things I CAN do:
                     |${autonomy.agentPlatform.goals.joinToString("\n") { "- ${it.description}" }}
                 """.trimMargin(),
-                )
+                ),
+                conversation
             )
         } catch (_: GoalNotApproved) {
             messageListener.onMessage(
                 AssistantMessage(
                     content = "I obey. That action will not be executed.",
-                )
+                ), conversation
             )
         }
     }

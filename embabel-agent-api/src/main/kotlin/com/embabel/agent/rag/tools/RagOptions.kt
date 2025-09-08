@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.tools
 
+import com.embabel.agent.event.RagEventListener
 import com.embabel.agent.rag.CompressionConfig
 import com.embabel.agent.rag.RagRequestRefinement
 import com.embabel.agent.rag.RagResponseFormatter
@@ -39,6 +40,7 @@ data class RagOptions @JvmOverloads constructor(
     override val labels: Set<String> = emptySet(),
     val ragResponseFormatter: RagResponseFormatter = SimpleRagResponseFormatter,
     val service: String? = null,
+    val listener: RagEventListener = RagEventListener.NOOP,
 ) : RagRequestRefinement {
 
     fun withSimilarityThreshold(similarityThreshold: ZeroToOne): RagOptions {
@@ -47,6 +49,10 @@ data class RagOptions @JvmOverloads constructor(
 
     fun withTopK(topK: Int): RagOptions {
         return copy(topK = topK)
+    }
+
+    fun withListener(listener: RagEventListener): RagOptions {
+        return copy(listener = this.listener + listener)
     }
 
     fun withCompressionConfig(compressionConfig: CompressionConfig): RagOptions {

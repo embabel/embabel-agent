@@ -263,6 +263,23 @@ class ApiReferenceTest {
         }
 
         @Test
+        fun `should find existing class by FQN ignoring case`() {
+            val apiRef = ApiReference("small", smallApi)
+            val signature = apiRef.findClassSignatureByFqn("com.example.service.USersErvice")
+
+            assertTrue(
+                signature.contains("com.example.service.UserService"),
+                "Should return correct signature: had [$signature]",
+            )
+            assertTrue(signature.contains("Service for managing users"))
+            assertTrue(signature.contains("extends/implements: BaseService, UserOperations"))
+            assertTrue(signature.contains("getName(): String @GetMapping"))
+            assertTrue(signature.contains("setName(String name): void"))
+            assertTrue(signature.contains("Gets the name of the user"))
+        }
+
+
+        @Test
         fun `should find interface class correctly`() {
             val apiRef = ApiReference("small", smallApi)
             val signature = apiRef.findClassSignatureByFqn("com.example.repository.UserRepository")
@@ -376,11 +393,38 @@ class ApiReferenceTest {
         }
 
         @Test
-        fun `should be case sensitive`() {
+        fun `should be case insensitive`() {
             val apiRef = ApiReference("small", smallApi)
             val signature = apiRef.findClassSignatureBySimpleName("userservice")
 
-            assertEquals("Class not found: userservice", signature)
+            assertTrue(signature.contains("com.example.service.UserService"))
+            assertTrue(signature.contains("Service for managing users"))
+        }
+
+        @Test
+        fun `should find class with mixed case simple name`() {
+            val apiRef = ApiReference("small", smallApi)
+            val signature = apiRef.findClassSignatureBySimpleName("USERcontroller")
+
+            assertTrue(signature.contains("com.example.controller.UserController"))
+        }
+
+        @Test
+        fun `should find class with all caps simple name`() {
+            val apiRef = ApiReference("small", smallApi)
+            val signature = apiRef.findClassSignatureBySimpleName("USERREPOSITORY")
+
+            assertTrue(signature.contains("com.example.repository.UserRepository (interface)"))
+            assertTrue(signature.contains("Repository for user data"))
+        }
+
+        @Test
+        fun `should find class with all lowercase simple name`() {
+            val apiRef = ApiReference("small", smallApi)
+            val signature = apiRef.findClassSignatureBySimpleName("userstatus")
+
+            assertTrue(signature.contains("com.example.model.UserStatus (enum)"))
+            assertTrue(signature.contains("User status enumeration"))
         }
     }
 

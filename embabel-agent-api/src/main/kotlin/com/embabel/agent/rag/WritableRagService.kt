@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag
 
+import com.embabel.agent.rag.ingestion.MaterializedDocument
 import org.springframework.ai.document.DocumentWriter
 
 /**
@@ -26,5 +27,5 @@ interface WritableRagService : RagService, DocumentWriter {
      * Write the given content root and its children to the underlying store.
      * @return list of chunk ids
      */
-    fun writeContent(root: MaterializedContentRoot): List<String>
+    fun writeContent(root: MaterializedDocument): List<String>
 }

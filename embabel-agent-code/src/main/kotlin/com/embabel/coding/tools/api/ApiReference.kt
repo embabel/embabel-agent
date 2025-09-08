@@ -60,13 +60,22 @@ class ApiReference(
 
     @Tool(description = "find the signature of a class by FQN")
     fun findClassSignatureByFqn(fqn: String): String {
-        val clazz = api.classes.find { "${it.packageName}.${it.name}" == fqn }
-        return clazz?.let { formatClass(it) } ?: "Class not found: $fqn"
+        val classes = api.classes.filter { it.fqn().equals(fqn, ignoreCase = true) }
+        return if (classes.isEmpty()) {
+            "Class not found: $fqn"
+        } else if (classes.size > 1) {
+            """
+                Multiple classes found with FQN '$fqn'!!
+                ${classes.joinToString { formatClass(it) }}
+            """.trimIndent()
+        } else {
+            formatClass(classes.first())
+        }
     }
 
     @Tool(description = "find the signature of a class by simple name")
     fun findClassSignatureBySimpleName(simpleName: String): String {
-        val matchingClasses = api.classes.filter { it.name == simpleName }
+        val matchingClasses = api.classes.filter { it.name.equals(simpleName, ignoreCase = true) }
 
         return when (matchingClasses.size) {
             0 -> "Class not found: $simpleName"

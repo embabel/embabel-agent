@@ -21,13 +21,28 @@ package com.embabel.chat
  * whether a user message or an assistant message from the system.
  */
 fun interface MessageListener {
-    fun onMessage(message: Message)
+
+    /**
+     * Called when a message is sent in the conversation.
+     * @param message Message. It's possible the message isn't in the conversation: for example
+     * if it's a diagnostic message. If it should be in the conversation, the message will have been added
+     * @param conversation conversation. This is messages the users should see and
+     * which will be used for context in future messages.
+     */
+    fun onMessage(
+        message: Message,
+        conversation: Conversation,
+    )
 }
 
 class MessageSavingMessageListener(
     private val messageList: MutableList<Message> = mutableListOf(),
 ) : MessageListener {
-    override fun onMessage(message: Message) {
+
+    override fun onMessage(
+        message: Message,
+        conversation: Conversation,
+    ) {
         messageList.add(message)
     }
 

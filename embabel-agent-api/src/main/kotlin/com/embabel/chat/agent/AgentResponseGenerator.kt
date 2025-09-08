@@ -46,7 +46,7 @@ class AgentResponseGenerator(
             .options(processOptions)
             .build(AssistantMessage::class.java)
         val message = invocation.invoke(conversation)
-        messageListener.onMessage(message)
+        messageListener.onMessage(message, conversation)
     }
 
 }

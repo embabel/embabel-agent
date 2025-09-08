@@ -18,6 +18,7 @@ package com.embabel.chat
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.identity.User
 import com.embabel.agent.spi.ContextRepository
 import com.embabel.chat.agent.DefaultChatAgentBuilder
 import com.embabel.common.ai.model.LlmOptions
@@ -35,12 +36,15 @@ class GoalAwareChatbot(
         autonomy = autonomy,
     ).build()
 
-    override fun createSession(systemMessage: String?): ChatSession {
+    override fun createSession(
+        user: User?,
+        systemMessage: String?,
+    ): ChatSession {
         val context = contextRepository.create()
         val conversation = InMemoryConversation(id = context.id)
         context.addObject(conversation)
         contextRepository.save(context)
-        val session = SimpleChatSession(conversation)
+        val session = SimpleChatSession(user = user, conversation = conversation)
         return session
     }
 
@@ -48,14 +52,15 @@ class GoalAwareChatbot(
         return contextRepository.findById(conversationId)?.let { context ->
             val conversation = context.last(Conversation::class.java)
                 ?: error("Conversation not found in context ${context.id}")
-            SimpleChatSession(conversation)
+            val user = context.last(User::class.java)
+            SimpleChatSession(user = user, conversation = conversation)
         }
     }
 
     internal inner class SimpleChatSession(
+        override val user: User?,
         override val conversation: Conversation,
     ) : ChatSession {
-
 
         override fun respond(
             userMessage: UserMessage,
@@ -70,7 +75,7 @@ class GoalAwareChatbot(
             val assistantMessage = agentProcess.lastResult() as? AssistantMessage
                 ?: AssistantMessage("Internal error: Agent did not return an AssistantMessage")
             conversation.addMessage(assistantMessage)
-            messageListener.onMessage(assistantMessage)
+            messageListener.onMessage(assistantMessage, conversation)
         }
     }
 }

@@ -34,6 +34,13 @@ interface RagService : Described, HasInfoString {
     val name: String
 
     /**
+     * Provision this rag service if necessary
+     */
+    fun provision() {
+        // Default no-op
+    }
+
+    /**
      * Make a RAG request
      */
     fun search(ragRequest: RagRequest): RagResponse

@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common
 
 import com.embabel.agent.core.LlmVerbosity
+import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.rag.RagService
 import com.embabel.common.ai.model.*
 import org.springframework.ai.embedding.EmbeddingModel
@@ -102,11 +103,18 @@ interface Ai {
 }
 
 /**
- * Can be injected into components
+ * Builder that can be injected into components
+ * to obtain Ai instances.
+ * Use when you want custom configuration.
  */
 interface AiBuilder : LlmVerbosity {
 
+    /**
+     * Build an Ai instance according to the configuration.
+     */
     fun ai(): Ai
+
+    fun withProcessOptions(options: ProcessOptions): AiBuilder
 
     fun withShowPrompts(show: Boolean): AiBuilder
 

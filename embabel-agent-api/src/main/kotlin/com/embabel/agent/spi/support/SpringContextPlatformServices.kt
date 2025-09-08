@@ -21,6 +21,7 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.event.AgenticEventListener
+import com.embabel.agent.event.RagEventListener
 import com.embabel.agent.rag.RagService
 import com.embabel.agent.rag.RagServiceEnhancer
 import com.embabel.agent.spi.LlmOperations
@@ -76,6 +77,7 @@ data class SpringContextPlatformServices(
     override fun ragService(
         context: OperationContext,
         serviceName: String?,
+        listener: RagEventListener,
     ): RagService? {
         if (applicationContext == null) {
             throw IllegalStateException("Application context is not available, cannot retrieve RagService beans.")
@@ -92,6 +94,7 @@ data class SpringContextPlatformServices(
             ?.create(
                 delegate = delegate,
                 operationContext = context,
+                listener = listener,
             ) ?: run {
             logger.info("No RagServiceEnhancer configured, using RagService {} directly", delegate.name)
             delegate

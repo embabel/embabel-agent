@@ -93,6 +93,9 @@ private data class AiBuilderImpl(
     val processOptions: ProcessOptions,
 ) : AiBuilder {
 
+    override fun withProcessOptions(options: ProcessOptions): AiBuilder =
+        copy(processOptions = options)
+
     override val showPrompts: Boolean
         get() = processOptions.verbosity.showPrompts
 

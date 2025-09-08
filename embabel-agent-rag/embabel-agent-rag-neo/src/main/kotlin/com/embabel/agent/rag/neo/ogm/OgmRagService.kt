@@ -16,15 +16,19 @@
 package com.embabel.agent.rag.neo.ogm
 
 import com.embabel.agent.rag.*
+import com.embabel.agent.rag.ingestion.DefaultMaterializedContainerSection
+import com.embabel.agent.rag.ingestion.MaterializedDocument
 import com.embabel.agent.rag.neo.common.CypherQuery
 import com.embabel.agent.rag.schema.SchemaResolver
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
+import org.neo4j.ogm.session.SessionFactory
 import org.slf4j.LoggerFactory
 import org.springframework.ai.document.Document
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.support.TransactionTemplate
 
 
@@ -37,6 +41,7 @@ class OgmRagService(
     private val modelProvider: ModelProvider,
     private val ogmCypherSearch: OgmCypherSearch,
     private val schemaResolver: SchemaResolver,
+    private val sessionFactory: SessionFactory,
     platformTransactionManager: PlatformTransactionManager,
     private val properties: NeoRagServiceProperties = NeoRagServiceProperties(),
 ) : AbstractWritableRagService() {
@@ -45,6 +50,7 @@ class OgmRagService(
 
     private val readonlyTransactionTemplate = TransactionTemplate(platformTransactionManager).apply {
         isReadOnly = true
+        propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRED
     }
 
     override val name = properties.name
@@ -53,6 +59,14 @@ class OgmRagService(
 
     private val embeddingService = modelProvider.getEmbeddingService(DefaultModelSelectionCriteria)
 
+    override fun provision() {
+        logger.info("Provisioning OgmRagService with properties {}", properties)
+        // TODO do we want this on ContentElement?
+        createVectorIndex(properties.contentElementIndex, "Chunk")
+        createVectorIndex(properties.entityIndex, properties.entityNodeName)
+        logger.info("Provisioned OgmRagService")
+    }
+
     override fun findChunksById(chunkIds: List<String>): List<Chunk> {
         val session = ogmCypherSearch.currentSession()
         val rows = session.query(
@@ -60,7 +74,7 @@ class OgmRagService(
             mapOf("ids" to chunkIds),
             true,
         )
-        // TODO inefficient
+        // TODO inefficient: Filter in DB
         return rows.map(::rowToContentElement).filterIsInstance<Chunk>()
     }
 
@@ -69,19 +83,12 @@ class OgmRagService(
     }
 
     override fun save(element: ContentElement): ContentElement {
-        val labels = setOf("ContentElement") + when (element) {
-            is Chunk -> setOf("Chunk")
-            is LeafSection -> setOf("Section", "LeafSection")
-            is ContentRoot -> setOf("Document")
-            is Section -> setOf("Section")
-            else -> emptySet()
-        }
         ogmCypherSearch.query(
-            "Save an element with labels ${labels.joinToString(",")}",
+            "Save an element with labels ${element.labels().joinToString(",")}",
             query = "save_content_element",
             params = mapOf(
                 "id" to element.id,
-                "labels" to labels,
+                "labels" to element.labels(),
                 "properties" to element.propertiesToPersist(),
             )
         )
@@ -98,7 +105,7 @@ class OgmRagService(
     }
 
     private fun cypherContentElementQuery(whereClause: String): String =
-        "MATCH (c:ContentElement) $whereClause RETURN c.id AS id, c.text AS text, c.metadata.source as metadata_source, labels(c) as labels"
+        "MATCH (c:ContentElement) $whereClause RETURN c.id AS id, c.text AS text, c.parentId as parentId, c.metadata.source as metadata_source, labels(c) as labels"
 
 
     private fun rowToContentElement(row: Map<String, Any?>): ContentElement {
@@ -109,10 +116,11 @@ class OgmRagService(
             return Chunk(
                 id = row["id"] as String,
                 text = row["text"] as String,
+                parentId = row["parentId"] as String,
                 metadata = metadata,
             )
         if (labels.contains("Document"))
-            return MaterializedContentRoot(
+            return MaterializedDocument(
                 id = row["id"] as String,
                 title = row["id"] as String,
                 children = emptyList(),
@@ -123,12 +131,14 @@ class OgmRagService(
                 id = row["id"] as String,
                 title = row["id"] as String,
                 text = row["text"] as String,
+                parentId = row["parentId"] as String,
                 metadata = metadata,
             )
         if (labels.contains("Section"))
             return DefaultMaterializedContainerSection(
                 id = row["id"] as String,
                 title = row["id"] as String,
+                parentId = row["parentId"] as String?,
                 // TODO we don't care about this
                 children = emptyList(),
                 metadata = metadata,
@@ -164,9 +174,9 @@ class OgmRagService(
             params = params,
         )
         val propertiesSet = result.queryStatistics().propertiesSet
-        if (propertiesSet < 1) {
+        if (propertiesSet != 1) {
             logger.warn(
-                "Expected to set at least 1 embedding property, but set: {}. chunkId={}, cypher={}",
+                "Expected to set 1 embedding property, but set: {}. chunkId={}, cypher={}",
                 propertiesSet,
                 retrievable.id,
                 cypher,
@@ -174,7 +184,7 @@ class OgmRagService(
         }
     }
 
-    override fun createRelationships(root: MaterializedContentRoot) {
+    override fun createRelationships(root: MaterializedDocument) {
         ogmCypherSearch.query(
             "Create relationships for root ${root.id}",
             query = "create_content_element_relationships",
@@ -189,37 +199,40 @@ class OgmRagService(
     }
 
     override fun search(ragRequest: RagRequest): RagResponse {
+        val embedding = embeddingService.model.embed(ragRequest.query)
+
         // TODO this is wrong. Need a better way of determining the schema.
         val schema = schemaResolver.getSchema("default")
 
-        val embedding = embeddingService.model.embed(ragRequest.query)
-        val cypherRagQueryGenerator = SchemaDrivenCypherRagQueryGenerator(
-            modelProvider,
-            schema,
-        )
-        val cypher = cypherRagQueryGenerator.generateQuery(
-            request = ragRequest,
-        )
-        logger.info("Generated Cypher query: $cypher")
+        if (schema !== null) {
+            val cypherRagQueryGenerator = SchemaDrivenCypherRagQueryGenerator(
+                modelProvider,
+                schema,
+            )
+            val cypher = cypherRagQueryGenerator.generateQuery(
+                request = ragRequest,
+            )
+            logger.info("Generated Cypher query: $cypher")
 
-        val cypherResults = readonlyTransactionTemplate.execute { executeGeneratedQuery(cypher) } ?: Result.failure(
-            IllegalStateException("Transaction failed or returned null while executing Cypher query: $cypher")
-        )
-        if (cypherResults.isSuccess) {
-            val results = cypherResults.getOrThrow()
-            if (results.isNotEmpty()) {
-                logger.info("Cypher query executed successfully, results: {}", results)
-                return RagResponse(
-                    request = ragRequest,
-                    service = this.name,
-                    results = results.map {
-                        // Most similar as we found them by a query
-                        SimpleSimilaritySearchResult(
-                            it,
-                            score = 1.0,
-                        )
-                    },
-                )
+            val cypherResults = readonlyTransactionTemplate.execute { executeGeneratedQuery(cypher) } ?: Result.failure(
+                IllegalStateException("Transaction failed or returned null while executing Cypher query: $cypher")
+            )
+            if (cypherResults.isSuccess) {
+                val results = cypherResults.getOrThrow()
+                if (results.isNotEmpty()) {
+                    logger.info("Cypher query executed successfully, results: {}", results)
+                    return RagResponse(
+                        request = ragRequest,
+                        service = this.name,
+                        results = results.map {
+                            // Most similar as we found them by a query
+                            SimpleSimilaritySearchResult(
+                                it,
+                                score = 1.0,
+                            )
+                        },
+                    )
+                }
             }
         }
 
@@ -237,10 +250,10 @@ class OgmRagService(
                 "searchChunks",
                 query = "chunk_vector_search",
                 params = mapOf(
-                    "vectorIndex" to properties.vectorIndex,
+                    "vectorIndex" to properties.contentElementIndex,
                     "queryVector" to embedding,
-                    "topK" to 2,
-                    "similarityThreshold" to 0.0,
+                    "topK" to ragRequest.topK,
+                    "similarityThreshold" to ragRequest.similarityThreshold,
                 ),
                 logger = logger,
             )
@@ -248,6 +261,7 @@ class OgmRagService(
                 purpose = "searchMappedEntities",
                 query = "entity_vector_search",
                 params = mapOf(
+                    "index" to properties.entityIndex,
                     "queryVector" to embedding,
                     "topK" to ragRequest.topK,
                     "similarityThreshold" to ragRequest.similarityThreshold,
@@ -297,5 +311,20 @@ class OgmRagService(
                 verbose
             )
         }"
+    }
+
+    private fun createVectorIndex(
+        name: String,
+        on: String,
+    ) {
+        sessionFactory.openSession().query(
+            """
+            CREATE VECTOR INDEX `$name` IF NOT EXISTS
+            FOR (n:$on) ON (n.embedding)
+            OPTIONS {indexConfig: {
+            `vector.dimensions`: ${embeddingService.model.dimensions()},
+            `vector.similarity_function`: 'cosine'
+            }}""", emptyMap<String, Any>()
+        )
     }
 }

@@ -27,7 +27,7 @@ interface NamedEntityData : EntityData, Named {
         verbose: Boolean?,
         indent: Int,
     ): String {
-        val labelsString = labels.joinToString(":")
+        val labelsString = labels().joinToString(":")
         return "(${labelsString} id='$id', name=$name)".indent(indent)
     }
 }
@@ -37,7 +37,7 @@ data class SimpleNamedEntityData(
     override val uri: String? = null,
     override val name: String,
     override val description: String,
-    override val labels: Set<String>,
+    val labels: Set<String>,
     override val properties: Map<String, Any>,
     override val metadata: Map<String, Any?> = emptyMap(),
 ) : NamedEntityData {
@@ -45,5 +45,7 @@ data class SimpleNamedEntityData(
     override fun embeddableValue(): String {
         return "$name: $description"
     }
+
+    override fun labels() = labels + super.labels()
 
 }

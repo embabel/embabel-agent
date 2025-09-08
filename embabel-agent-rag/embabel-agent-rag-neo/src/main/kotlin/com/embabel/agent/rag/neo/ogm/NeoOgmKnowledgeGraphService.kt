@@ -42,7 +42,7 @@ class NeoOgmKnowledgeGraphService(
     private val embeddingService = modelProvider.getEmbeddingService(DefaultModelSelectionCriteria)
 
     // TODO is not using name
-    override fun getSchema(name: String): KnowledgeGraphSchema {
+    override fun getSchema(name: String): KnowledgeGraphSchema? {
         val metadata = sessionFactory.metaData()
         val relationships = mutableListOf<RelationshipDefinition>()
         val entityDefinitions = metadata.persistentEntities()
@@ -72,6 +72,10 @@ class NeoOgmKnowledgeGraphService(
                 }
                 entityDefinition
             }
+        if (entityDefinitions.size == 2 && relationships.isEmpty()) {
+            // Special case of superclasses only
+            return null
+        }
         return KnowledgeGraphSchema(
             entities = entityDefinitions,
             relationships = relationships,
@@ -89,7 +93,7 @@ class NeoOgmKnowledgeGraphService(
             "basisId" to basis.id,
             "properties" to entity.properties,
             "chunkNodeName" to properties.chunkNodeName,
-            "entityLabels" to entity.labels + properties.entityNodeName,
+            "entityLabels" to entity.labels() + properties.entityNodeName,
         )
         val result = ogmCypherSearch.query(
             purpose = "Merge entity",
@@ -121,7 +125,7 @@ class NeoOgmKnowledgeGraphService(
     ) {
         val embedding = embeddingService.model.embed(entity.embeddableValue())
         val cypher = """
-                MERGE (n:${entity.labels.joinToString(":")} {id: ${'$'}entityId})
+                MERGE (n:${entity.labels().joinToString(":")} {id: ${'$'}entityId})
                 SET n.embedding = ${'$'}embedding
                 RETURN COUNT(n) as nodesUpdated
                """.trimIndent()

@@ -20,12 +20,21 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 /**
  * @param chunkNodeName the name of the node representing a chunk in the knowledge graph
  * @param entityNodeName the name of a node representing an entity in the knowledge graph
+ * @param packages the packages to scan for Neo4j OGM entities. Defaults to none
  */
 @ConfigurationProperties(prefix = "embabel.agent.rag.neo")
 data class NeoRagServiceProperties(
-    val chunkNodeName: String = "Document",
+    val uri: String = "bolt://localhost:7687",
+    val username: String = "neo4j",
+    internal val password: String = "brahmsian",
+
+    val chunkNodeName: String = "Chunk",
     val entityNodeName: String = "Entity",
     val name: String = "OgmRagService",
     val description: String = "RAG service using Neo4j OGM for querying and embedding",
-    val vectorIndex: String = "spring-ai-document-index",
+    val contentElementIndex: String = "embabel-content-index",
+    val entityIndex: String = "embabel-entity-index",
+
+    // Empty packages causes a strange failure within Neo4j OGM
+    val packages: List<String> = listOf("not.a.real.package"),
 )

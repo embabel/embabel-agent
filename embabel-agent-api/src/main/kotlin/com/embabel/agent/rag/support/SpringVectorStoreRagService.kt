@@ -15,7 +15,11 @@
  */
 package com.embabel.agent.rag.support
 
-import com.embabel.agent.rag.*
+import com.embabel.agent.rag.Chunk
+import com.embabel.agent.rag.RagRequest
+import com.embabel.agent.rag.RagResponse
+import com.embabel.agent.rag.WritableRagService
+import com.embabel.agent.rag.ingestion.MaterializedDocument
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
@@ -65,7 +69,7 @@ class SpringVectorStoreRagService(
         vectorStore.accept(documents)
     }
 
-    override fun writeContent(root: MaterializedContentRoot): List<String> {
+    override fun writeContent(root: MaterializedDocument): List<String> {
         TODO("Not yet implemented")
     }
 

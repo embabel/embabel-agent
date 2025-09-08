@@ -16,7 +16,6 @@
 package com.embabel.agent.rag.ingestion
 
 import com.embabel.agent.rag.LeafSection
-import com.embabel.agent.rag.MaterializedContentRoot
 import com.embabel.agent.tools.file.FileReadTools
 import org.apache.tika.exception.ZeroByteFileException
 import org.apache.tika.metadata.Metadata
@@ -66,7 +65,7 @@ data class DirectoryParsingResult(
     val filesProcessed: Int,
     val filesSkipped: Int,
     val filesErrored: Int,
-    val contentRoots: List<MaterializedContentRoot>,
+    val contentRoots: List<MaterializedDocument>,
     val processingTime: Duration,
     val errors: List<String>,
 ) {
@@ -91,7 +90,7 @@ class HierarchicalContentReader {
     fun parseResource(
         resourcePath: String,
         metadata: Metadata = Metadata(),
-    ): MaterializedContentRoot {
+    ): MaterializedDocument {
         val resource: Resource = DefaultResourceLoader().getResource(resourcePath)
         return resource.inputStream.use { inputStream ->
             parseContent(inputStream, metadata, resource.uri.toString())
@@ -104,7 +103,7 @@ class HierarchicalContentReader {
     fun parseFile(
         file: File,
         url: String? = null,
-    ): MaterializedContentRoot {
+    ): MaterializedDocument {
         logger.debug("Parsing file: {}", file.absolutePath)
 
         val metadata = org.apache.tika.metadata.Metadata()
@@ -122,7 +121,7 @@ class HierarchicalContentReader {
         inputStream: InputStream,
         metadata: Metadata = Metadata(),
         url: String? = null,
-    ): MaterializedContentRoot {
+    ): MaterializedDocument {
         val handler = BodyContentHandler(-1) // No limit on content size
         val parseContext = ParseContext()
 
@@ -170,7 +169,7 @@ class HierarchicalContentReader {
         content: String,
         metadata: Metadata,
         url: String?,
-    ): MaterializedContentRoot {
+    ): MaterializedDocument {
         val lines = content.lines()
         val leafSections = mutableListOf<LeafSection>()
         val currentSection = StringBuilder()
@@ -262,7 +261,7 @@ class HierarchicalContentReader {
         val documentTitle =
             extractTitle(lines, metadata) ?: metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY) ?: "Document"
 
-        return MaterializedContentRoot(
+        return MaterializedDocument(
             id = rootId,
             uri = url,
             title = documentTitle,
@@ -278,7 +277,7 @@ class HierarchicalContentReader {
         content: String,
         metadata: Metadata,
         url: String?,
-    ): MaterializedContentRoot {
+    ): MaterializedDocument {
         // For HTML, we'll use a simplified approach similar to markdown
         // In a full implementation, you might want to use JSoup or similar
         val cleanContent = content
@@ -296,7 +295,7 @@ class HierarchicalContentReader {
         content: String,
         metadata: Metadata,
         url: String?,
-    ): MaterializedContentRoot {
+    ): MaterializedDocument {
         if (content.isBlank()) {
             return createEmptyContentRoot(metadata, url)
         }
@@ -312,7 +311,7 @@ class HierarchicalContentReader {
             metadata = metadata
         )
 
-        return MaterializedContentRoot(
+        return MaterializedDocument(
             id = rootId,
             uri = url,
             title = title,
@@ -376,8 +375,8 @@ class HierarchicalContentReader {
     private fun createEmptyContentRoot(
         metadata: Metadata,
         url: String?,
-    ): MaterializedContentRoot {
-        return MaterializedContentRoot(
+    ): MaterializedDocument {
+        return MaterializedDocument(
             id = UUID.randomUUID().toString(),
             uri = url,
             title = metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY) ?: "Empty Document",
@@ -390,7 +389,7 @@ class HierarchicalContentReader {
         errorMessage: String,
         metadata: Metadata,
         url: String?,
-    ): MaterializedContentRoot {
+    ): MaterializedDocument {
         val rootId = UUID.randomUUID().toString()
         val errorSection = LeafSection(
             id = UUID.randomUUID().toString(),
@@ -401,7 +400,7 @@ class HierarchicalContentReader {
             metadata = extractMetadataMap(metadata) + mapOf("error" to errorMessage)
         )
 
-        return MaterializedContentRoot(
+        return MaterializedDocument(
             id = rootId,
             uri = url,
             title = "Parse Error",
@@ -458,7 +457,7 @@ class HierarchicalContentReader {
     fun parseFile(
         fileTools: FileReadTools,
         filePath: String,
-    ): MaterializedContentRoot? {
+    ): MaterializedDocument? {
         return try {
             logger.debug("Parsing single file: {}", filePath)
 
@@ -581,7 +580,7 @@ class HierarchicalContentReader {
         var filesProcessed = 0
         var filesSkipped = 0
         var filesErrored = 0
-        val contentRoots = mutableListOf<MaterializedContentRoot>()
+        val contentRoots = mutableListOf<MaterializedDocument>()
         val errors = mutableListOf<String>()
 
         logger.info("Processing {} files for parsing", files.size)

@@ -15,7 +15,10 @@
  */
 package com.embabel.agent.rag.pipeline
 
+import com.embabel.agent.event.RagEventListener
 import com.embabel.agent.rag.*
+import com.embabel.agent.rag.pipeline.event.EnhancementCompletedRagPipelineEvent
+import com.embabel.agent.rag.pipeline.event.EnhancementStartingRagPipelineEvent
 import org.slf4j.LoggerFactory
 
 /**
@@ -31,6 +34,7 @@ data class AdaptivePipelineRagResponseEnhancer @JvmOverloads constructor(
     val adaptiveExecution: Boolean = true,
     val qualityThreshold: Double = 0.7,
     val maxLatencyMs: Long = 5000,
+    val listener: RagEventListener,
 ) : RagResponseEnhancer {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -69,6 +73,7 @@ data class AdaptivePipelineRagResponseEnhancer @JvmOverloads constructor(
                 enhancer.name, current.service, current.results.size,
             )
             val enhancementStart = System.currentTimeMillis()
+            listener.onRagEvent(EnhancementStartingRagPipelineEvent(current, enhancer.name))
             current = enhancer.enhance(current).copy(
                 enhancement = RagResponseEnhancement(
                     enhancer = enhancer,
@@ -80,6 +85,7 @@ data class AdaptivePipelineRagResponseEnhancer @JvmOverloads constructor(
                     //  current.results.sumOf { it.match.length / 4 } // Rough token estimate
                 )
             )
+            listener.onRagEvent(EnhancementCompletedRagPipelineEvent(current, enhancer.name))
         }
 
         return current

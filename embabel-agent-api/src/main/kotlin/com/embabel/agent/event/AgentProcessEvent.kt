@@ -282,3 +282,11 @@ class ProgressUpdateEvent(
 class ProcessKilledEvent(
     agentProcess: AgentProcess,
 ) : AbstractAgentProcessEvent(agentProcess)
+
+/**
+ * Any RAG event that occurs within an agent process
+ */
+class AgentProcessRagEvent(
+    agentProcess: AgentProcess,
+    val ragEvent: RagEvent,
+) : AbstractAgentProcessEvent(agentProcess)

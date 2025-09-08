@@ -15,11 +15,18 @@
  */
 package com.embabel.chat
 
+import com.embabel.agent.identity.User
+
 /**
  * Simplest possible conversation session implementation
  * Responsible for keeping its conversation up to date
  */
 interface ChatSession {
+
+    /**
+     * The Embabel User if known, null if not.
+     */
+    val user: User?
 
     /**
      * Conversation history. Kept up to date.

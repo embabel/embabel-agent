@@ -15,13 +15,23 @@
  */
 package com.embabel.chat
 
+import com.embabel.agent.identity.User
+
 /**
  * A chatbot can conduct multiple chat sessions,
  * each identified by a contextId.
  */
 interface Chatbot {
 
-    fun createSession(systemMessage: String? = null): ChatSession
+    /**
+     * Create a new chat session.
+     * If user is provided, the session will be associated with that user.
+     * Optionally, a system message can be provided to set the context for the session.
+     */
+    fun createSession(
+        user: User?,
+        systemMessage: String? = null,
+    ): ChatSession
 
     /**
      * Get a chat session by conversation id.

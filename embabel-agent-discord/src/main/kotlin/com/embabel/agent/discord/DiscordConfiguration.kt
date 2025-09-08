@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.discord
 
-import com.embabel.chat.agent.ChatConfig
 import com.embabel.common.util.trim
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
@@ -30,11 +29,14 @@ import org.springframework.context.annotation.Configuration
 @ConfigurationProperties(prefix = "embabel.discord")
 data class DiscordConfigProperties(
     val token: String? = null,
-    val chatConfig: ChatConfig = ChatConfig(),
 )
 
 const val TOKEN_KEY = "embabel.discord.token"
 
+/**
+ * Adds all event listeners defined in the context to JDA builder
+ * and starts the bot if token is provided.
+ */
 @Configuration
 class DiscordConfiguration(
     private val properties: DiscordConfigProperties,
@@ -59,13 +61,17 @@ class DiscordConfiguration(
         name = [TOKEN_KEY],
     )
     fun jda(
-        eventListener: EventListener,
+        eventListeners: List<EventListener>,
     ): JDA {
-        logger.info("Starting Discord bot with token: ${trim(properties.token, max = 20, keepRight = 6)}")
+        logger.info(
+            "Starting Discord bot with {} JDA listeners and token {}",
+            eventListeners.size,
+            trim(properties.token, max = 20, keepRight = 6),
+        )
         return JDABuilder
             .createDefault(properties.token)
             .enableIntents(GatewayIntent.MESSAGE_CONTENT)
-            .addEventListeners(eventListener)
+            .addEventListeners(*eventListeners.toTypedArray())
             .build()
             .awaitReady()
     }

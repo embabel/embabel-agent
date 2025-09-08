@@ -33,7 +33,9 @@ data class DiscordUserSession(
     val sessionData: MutableMap<String, Any> = mutableMapOf(),
 )
 
-
+/**
+ * Service to manage Discord user sessions.
+ */
 @Service
 class DiscordSessionService {
 

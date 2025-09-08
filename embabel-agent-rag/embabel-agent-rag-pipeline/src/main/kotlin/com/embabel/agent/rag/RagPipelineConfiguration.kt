@@ -25,7 +25,7 @@ class RagPipelineConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(RagServiceEnhancer::class)
-    fun ragServiceEnhancer(properties: RagEnhancerProperties): RagServiceEnhancer {
+    fun ragServiceEnhancer(properties: RagServiceEnhancerProperties): RagServiceEnhancer {
         return PipelinedRagServiceEnhancer(properties)
     }
 }

@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 import com.embabel.agent.core.*
 import com.embabel.agent.event.AgenticEventListener
+import com.embabel.agent.event.RagEventListener
 import com.embabel.agent.prompt.element.ContextualPromptElement
 import com.embabel.agent.rag.RagService
 import com.embabel.common.ai.model.LlmOptions
@@ -239,7 +240,7 @@ internal class OperationContextAi(
     }
 
     override fun rag(service: String): RagService {
-        return context.processContext.platformServices.ragService(context, service)
+        return context.processContext.platformServices.ragService(context, service, RagEventListener.NOOP)
             ?: error("No RAG service found with name $service")
     }
 }

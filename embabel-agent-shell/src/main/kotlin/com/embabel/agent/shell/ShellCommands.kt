@@ -130,6 +130,7 @@ class ShellCommands(
             if (shellProperties.chat.confirmGoals) terminalServices else GoalChoiceApprover.APPROVE_ALL
 
         val chatSession = AgentPlatformChatSession(
+            user = null,
             planLister = planLister,
             processOptions = processOptions,
             responseGenerator = if (shellProperties.chat.bindConversation) AgentResponseGenerator(

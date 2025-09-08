@@ -33,7 +33,10 @@ data class ApiClass(
     val annotations: List<String> = emptyList(),
     val superTypes: List<String> = emptyList(),
     val comment: String? = null,
-)
+) {
+
+    fun fqn() = "$packageName.$name"
+}
 
 /**
  * Representation of an API with its classes and methods.

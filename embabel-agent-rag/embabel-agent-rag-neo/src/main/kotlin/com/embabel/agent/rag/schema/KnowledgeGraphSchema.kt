@@ -37,7 +37,10 @@ data class EntityDefinition(
 
     val type get() = labels.firstOrNull() ?: ENTITY_LABEL
 
-    override fun infoString(verbose: Boolean?, indent: Int): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return """
             EntityDefinition(type='$type', description='$description', labels=$labels, properties=${properties.size})
         """.trimIndent()
@@ -60,7 +63,10 @@ data class RelationshipDefinition(
     val cardinality: Cardinality = Cardinality.ONE,
 ) : HasInfoString {
 
-    override fun infoString(verbose: Boolean?, indent: Int): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return """
             RelationshipDefinition(sourceEntity='$sourceLabel', targetEntity='$targetLabel', type='$type', cardinality=$cardinality, description='$description')
         """.trimIndent()
@@ -80,12 +86,15 @@ data class KnowledgeGraphSchema(
      */
     fun possibleRelationshipsBetween(entities: List<EntityData>): List<RelationshipDefinition> {
         return relationships.filter { relationship ->
-            entities.any { it.labels.contains(relationship.sourceLabel) } &&
-                    entities.any { it.labels.contains(relationship.targetLabel) }
+            entities.any { it.labels().contains(relationship.sourceLabel) } &&
+                    entities.any { it.labels().contains(relationship.targetLabel) }
         }
     }
 
-    override fun infoString(verbose: Boolean?, indent: Int): String {
+    override fun infoString(
+        verbose: Boolean?,
+        indent: Int,
+    ): String {
         return """
             |Schema with ${entities.size} entities and ${relationships.size} relationships:
             |Entities:

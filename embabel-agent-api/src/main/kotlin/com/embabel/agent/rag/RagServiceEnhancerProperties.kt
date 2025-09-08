@@ -19,8 +19,8 @@ import com.embabel.common.ai.model.LlmOptions
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties(prefix = "embabel.agent.rag")
-data class RagEnhancerProperties(
-    val compressionLlm: LlmOptions = LlmOptions.Companion.withAutoLlm(),
-    val rerankingLlm: LlmOptions = LlmOptions.Companion.withAutoLlm(),
+data class RagServiceEnhancerProperties(
+    val compressionLlm: LlmOptions = LlmOptions.withAutoLlm(),
+    val rerankingLlm: LlmOptions = LlmOptions.withAutoLlm(),
     val maxConcurrency: Int = 12,
 )
