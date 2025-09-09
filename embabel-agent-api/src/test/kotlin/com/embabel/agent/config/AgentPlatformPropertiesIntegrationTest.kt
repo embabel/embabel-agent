@@ -27,9 +27,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.ComponentScan
-import org.springframework.context.annotation.Import
-import org.springframework.context.annotation.Primary
 import org.springframework.core.env.Environment
 import org.springframework.test.context.TestPropertySource
 import org.springframework.test.context.ActiveProfiles
@@ -188,6 +185,7 @@ import org.springframework.test.context.ActiveProfiles
     "embabel.agent.platform.migration.scanning.enabled=true",
     "embabel.agent.platform.migration.scanning.include-packages[0]=com.embabel.agent",
     "embabel.agent.platform.migration.scanning.include-packages[1]=com.test.package",
+    "embabel.agent.platform.migration.warnings.enabled=true",
 
     // Legacy properties for val/var investigation (using @TestPropertySource instead of env vars)
     "embabel.autonomy.agent-confidence-cut-off=0.95",

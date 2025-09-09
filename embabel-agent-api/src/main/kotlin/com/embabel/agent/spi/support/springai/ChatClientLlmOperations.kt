@@ -39,9 +39,11 @@ import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.converter.BeanOutputConverter
+import org.springframework.context.ApplicationContext
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.retry.support.RetrySynchronizationManager
 import org.springframework.stereotype.Service
+import jakarta.annotation.PostConstruct
 import java.lang.reflect.ParameterizedType
 import java.time.Duration
 import java.time.Instant
@@ -64,11 +66,37 @@ internal class ChatClientLlmOperations(
     modelProvider: ModelProvider,
     toolDecorator: ToolDecorator,
     private val templateRenderer: TemplateRenderer,
-    autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     private val dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
     private val llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
+    private val applicationContext: ApplicationContext? = null,
+    autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     private val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
 ) : AbstractLlmOperations(toolDecorator, modelProvider, autoLlmSelectionCriteriaResolver) {
+
+    @PostConstruct
+    private fun logPropertyConfiguration() {
+        val dataBindingFromContext = applicationContext?.runCatching {
+            getBeansOfType(LlmDataBindingProperties::class.java).values.firstOrNull()
+        }?.getOrNull()
+
+        val promptsFromContext = applicationContext?.runCatching {
+            getBeansOfType(LlmOperationsPromptsProperties::class.java).values.firstOrNull()
+        }?.getOrNull()
+
+        if (dataBindingFromContext === dataBindingProperties) {
+            logger.info("LLM Data Binding: Using Spring-managed properties")
+        } else {
+            logger.warn("LLM Data Binding: Using fallback defaults")
+        }
+
+        if (promptsFromContext === llmOperationsPromptsProperties) {
+            logger.info("LLM Prompts: Using Spring-managed properties")
+        } else {
+            logger.warn("LLM Prompts: Using fallback defaults")
+        }
+
+        logger.info("Current LLM settings: maxAttempts=${dataBindingProperties.maxAttempts}, fixedBackoffMillis=${dataBindingProperties.fixedBackoffMillis}ms, timeout=${llmOperationsPromptsProperties.defaultTimeout.seconds}s")
+    }
 
     @Suppress("UNCHECKED_CAST")
     override fun <O> doTransform(

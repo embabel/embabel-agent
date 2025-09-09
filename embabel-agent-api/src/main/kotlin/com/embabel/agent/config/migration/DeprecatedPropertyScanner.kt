@@ -249,6 +249,8 @@ class DeprecatedPropertyScanner(
         put("embabel.anthropic", "embabel.agent.platform.models.anthropic")
         put("embabel.openai", "embabel.agent.platform.models.openai")
         put("embabel.llm-operations", "embabel.agent.platform.llm-operations")
+        put("embabel.llm-operations.data-binding", "embabel.agent.platform.llm-operations.data-binding")
+        put("embabel.llm-operations.prompts", "embabel.agent.platform.llm-operations.prompts")
         put("embabel.autonomy", "embabel.agent.platform.autonomy")
         put("embabel.sse", "embabel.agent.platform.sse")
         put("embabel.process-id-generation", "embabel.agent.platform.process-id-generation")
