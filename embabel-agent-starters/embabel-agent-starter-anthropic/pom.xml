@@ -3,24 +3,18 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.embabel.agent</groupId>
-        <artifactId>embabel-agent-autoconfigure</artifactId>
+        <artifactId>embabel-agent-starters</artifactId>
         <version>0.1.3-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+    <artifactId>embabel-agent-starter-anthropic</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent Autoconfiguration Platform</name>
-    <description>Spring Boot Auto-Configuration platform for Embabel Agent API</description>
+    <name>Embabel Agent Anthropic Starter</name>
+    <description>Embabel Agent Anthropic Starter</description>
 
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-api</artifactId>
-        </dependency>
-
-        <!-- Move this one to a dedicated starter once ready-->
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-a2a</artifactId>
+            <artifactId>embabel-agent-anthropic-autoconfigure</artifactId>
         </dependency>
     </dependencies>
 

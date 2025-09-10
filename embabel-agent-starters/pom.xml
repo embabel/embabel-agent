@@ -10,12 +10,15 @@
     <packaging>pom</packaging>
     <name>Embabel Agent Starters</name>
     <description>Embabel Agent Starters</description>
+    
     <modules>
         <module>embabel-agent-starter</module>
         <module>embabel-agent-starter-platform</module>
-        <module>embabel-agent-starter-bedrock</module>
         <module>embabel-agent-starter-shell</module>
         <module>embabel-agent-starter-mcpserver</module>
+        <module>embabel-agent-starter-bedrock</module>
+        <module>embabel-agent-starter-openai</module>
+        <module>embabel-agent-starter-anthropic</module>
     </modules>
 
 </project>

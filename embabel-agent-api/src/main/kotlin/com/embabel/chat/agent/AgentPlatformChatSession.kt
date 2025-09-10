@@ -17,7 +17,6 @@ package com.embabel.chat.agent
 
 import com.embabel.agent.api.common.autonomy.PlanLister
 import com.embabel.agent.api.common.autonomy.ProcessWaitingException
-import com.embabel.agent.config.models.OpenAiModels
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessOptions
@@ -41,7 +40,7 @@ data class ChatConfig(
     val confirmGoals: Boolean = true,
     val bindConversation: Boolean = false,
     val multiGoal: Boolean = false,
-    val model: String = OpenAiModels.GPT_41_MINI,
+    val model: String = "claude-3-7-sonnet-latest",
     val temperature: Double? = null,
 ) {
 

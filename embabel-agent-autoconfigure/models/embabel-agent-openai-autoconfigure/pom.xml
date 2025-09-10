@@ -8,30 +8,31 @@
         <version>0.1.3-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
-    <artifactId>embabel-agent-bedrock</artifactId>
+    <artifactId>embabel-agent-openai-autoconfigure</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent Autoconfiguration Models Bedrock AI</name>
-    <description>Bedrock models Auto-Configuration for Embabel Agent API</description>
+    <name>Embabel Agent Autoconfiguration Models OpenAI</name>
+    <description>OpenAI models Auto-Configuration for Embabel Agent API</description>
 
     <dependencies>
+
+        <dependency>
+            <groupId>com.embabel.common</groupId>
+            <artifactId>embabel-common-ai</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.common</groupId>
+            <artifactId>embabel-common-util</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-api</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-bedrock</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-bedrock-converse</artifactId>
+            <artifactId>spring-ai-openai</artifactId>
         </dependency>
 
         <dependency>
@@ -40,4 +41,5 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
 </project>

@@ -38,7 +38,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.DependsOn
 import org.springframework.context.annotation.Primary
 import org.springframework.web.client.RestTemplate
 
@@ -142,7 +141,6 @@ import org.springframework.web.client.RestTemplate
      * might create get injected here
      */
     @Bean
-    @DependsOn("ollamaModels", "dockerLocalModels")
     fun modelProvider(
         llms: List<Llm>,
         embeddingServices: List<EmbeddingService>,
