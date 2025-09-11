@@ -1044,11 +1044,13 @@ Binary Packages are located in Embabel Maven Repository.
 You would need to add Embabel Snapshot Repository to your pom.xml or configure in settings.xml
 
 ```xml
-
 <repositories>
     <repository>
-        <id>embabel-snapshots</id>
-        <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
+        <id>embabel-releases</id>
+        <url>https://repo.embabel.com/artifactory/libs-release</url>
+        <releases>
+            <enabled>true</enabled>
+        </releases>
         <snapshots>
             <enabled>false</enabled>
         </snapshots>
