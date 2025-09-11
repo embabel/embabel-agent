@@ -17,6 +17,7 @@ package com.embabel.agent.config.annotation.spi;
 
 import com.embabel.agent.config.annotation.AgentPlatform;
 import com.embabel.agent.config.annotation.EnableAgents;
+import com.embabel.common.util.WinUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,6 +87,15 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
     private final Logger logger = LoggerFactory.getLogger(EnvironmentPostProcessor.class);
 
     private static final String SPRING_PROFILES_ACTIVE = "spring.profiles.active";
+
+    static {
+        if (WinUtils.IS_OS_WINDOWS()) {
+            // Set console to UTF-8 on Windows and optimize font for Unicode display
+            // This is necessary to display non-ASCII characters correctly
+            WinUtils.CHCP_TO_UTF8();
+            WinUtils.SETUP_OPTIMAL_CONSOLE();
+        }
+    }
 
     /**
      * Post-processes the environment to activate profiles based on agent annotations.

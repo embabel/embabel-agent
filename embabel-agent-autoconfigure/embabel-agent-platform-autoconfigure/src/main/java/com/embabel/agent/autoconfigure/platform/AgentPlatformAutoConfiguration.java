@@ -34,12 +34,14 @@ import org.springframework.context.annotation.Import;
 @AutoConfiguration
 @ConfigurationPropertiesScan(
         basePackages = {
-                "com.embabel.agent"
+                "com.embabel.agent",
+                "com.embabel.example"
         }
 )
 @ComponentScan(
         basePackages = {
-                "com.embabel.agent"
+                "com.embabel.agent",
+                "com.embabel.example"
         }
 )
 @ConditionalOnClass({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
