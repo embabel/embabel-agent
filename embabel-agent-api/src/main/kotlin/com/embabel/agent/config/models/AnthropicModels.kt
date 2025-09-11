@@ -15,122 +15,11 @@
  */
 package com.embabel.agent.config.models
 
-import com.embabel.agent.common.RetryProperties
-import com.embabel.common.ai.model.Llm
-import com.embabel.common.ai.model.LlmOptions
-import com.embabel.common.ai.model.OptionsConverter
-import com.embabel.common.ai.model.PerTokenPricingModel
-import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
-import org.slf4j.LoggerFactory
-import org.springframework.ai.anthropic.AnthropicChatModel
-import org.springframework.ai.anthropic.AnthropicChatOptions
-import org.springframework.ai.anthropic.api.AnthropicApi
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Profile
-import java.time.LocalDate
-
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.anthropic")
-data class AnthropicProperties(
-    override val maxAttempts: Int = 10,
-    override val backoffMillis: Long = 5000L,
-    override val backoffMultiplier: Double = 5.0,
-    override val backoffMaxInterval: Long = 180000L,
-) : RetryProperties
-
-
-@Configuration
-@ConditionalOnProperty("ANTHROPIC_API_KEY")
-@Profile("!test")
-@ExcludeFromJacocoGeneratedReport(reason = "Anthropic configuration can't be unit tested")
-class AnthropicModels(
-    @param:Value("\${ANTHROPIC_BASE_URL:}")
-    private val baseUrl: String,
-    @param:Value("\${ANTHROPIC_API_KEY}")
-    private val apiKey: String,
-    private val properties: AnthropicProperties,
-) {
-    private val logger = LoggerFactory.getLogger(AnthropicModels::class.java)
-
-    init {
-        logger.info("Anthropic models are available: {}", properties)
-    }
-
-    @Bean
-    fun claudeOpus4(): Llm {
-        return anthropicLlmOf(
-            CLAUDE_40_OPUS,
-            knowledgeCutoffDate = LocalDate.of(2025, 3, 31),
-        )
-            .copy(
-                pricingModel = PerTokenPricingModel(
-                    usdPer1mInputTokens = 15.0,
-                    usdPer1mOutputTokens = 75.0,
-                )
-            )
-    }
-
-    @Bean
-    fun claudeSonnet(): Llm {
-        return anthropicLlmOf(
-            CLAUDE_37_SONNET,
-            knowledgeCutoffDate = LocalDate.of(2024, 10, 31),
-        )
-            .copy(
-                pricingModel = PerTokenPricingModel(
-                    usdPer1mInputTokens = 3.0,
-                    usdPer1mOutputTokens = 15.0,
-                )
-            )
-    }
-
-    @Bean
-    fun claudeHaiku(): Llm = anthropicLlmOf(
-        CLAUDE_35_HAIKU,
-        knowledgeCutoffDate = LocalDate.of(2024, 10, 22),
-    )
-        .copy(
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = .80,
-                usdPer1mOutputTokens = 4.0,
-            )
-        )
-
-    private fun anthropicLlmOf(
-        name: String,
-        knowledgeCutoffDate: LocalDate?,
-    ): Llm {
-        val chatModel = AnthropicChatModel
-            .builder()
-            .defaultOptions(
-                AnthropicChatOptions.builder()
-                    .model(name)
-                    .build()
-            )
-            .anthropicApi(createAnthropicApi())
-            .retryTemplate(properties.retryTemplate("anthropic-$name"))
-            .build()
-        return Llm(
-            name = name,
-            model = chatModel,
-            provider = PROVIDER,
-            optionsConverter = AnthropicOptionsConverter,
-            knowledgeCutoffDate = knowledgeCutoffDate,
-        )
-    }
-
-    private fun createAnthropicApi(): AnthropicApi {
-        val builder = AnthropicApi.builder().apiKey(apiKey)
-        if (baseUrl.isNotBlank()) {
-            logger.info("Using custom Anthropic base URL: {}", baseUrl)
-            builder.baseUrl(baseUrl)
-        }
-        return builder.build()
-    }
-
+/**
+ * Provides constants for Anthropic AI model identifiers.
+ * This class contains the latest model versions for Claude AI models offered by Anthropic.
+ */
+class AnthropicModels {
 
     companion object {
 
@@ -142,32 +31,4 @@ class AnthropicModels(
 
         const val PROVIDER = "Anthropic"
     }
-
-}
-
-object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
-
-    /**
-     * Anthropic's default is too low and results in truncated responses.
-     */
-    const val DEFAULT_MAX_TOKENS = 8192
-
-    override fun convertOptions(options: LlmOptions): AnthropicChatOptions =
-        AnthropicChatOptions.builder()
-            .temperature(options.temperature)
-            .topP(options.topP)
-            .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
-            .thinking(
-                if (options.thinking?.enabled == true) AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                    AnthropicApi.ThinkingType.ENABLED,
-                    options.thinking!!.tokenBudget,
-                ) else AnthropicApi.ChatCompletionRequest.ThinkingConfig(
-                    AnthropicApi.ThinkingType.DISABLED,
-                    null,
-                )
-            )
-//            .presencePenalty(options.presencePenalty)
-//            .frequencyPenalty(options.frequencyPenalty)
-            .topP(options.topP)
-            .build()
 }

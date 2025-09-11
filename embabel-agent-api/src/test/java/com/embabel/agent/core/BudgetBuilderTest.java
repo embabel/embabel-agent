@@ -17,9 +17,7 @@ package com.embabel.agent.core;
 
 import org.junit.jupiter.api.Test;
 
-import static org.codehaus.groovy.tools.shell.util.Preferences.verbosity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BudgetBuilderTest {
 

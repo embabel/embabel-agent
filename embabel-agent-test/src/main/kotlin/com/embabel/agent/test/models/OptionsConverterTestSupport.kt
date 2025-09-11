@@ -13,13 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models
+package com.embabel.agent.test.models
 
-import org.springframework.ai.ollama.api.OllamaOptions
+import com.embabel.common.ai.model.OptionsConverter
+import org.junit.jupiter.api.Test
+import org.springframework.ai.chat.prompt.ChatOptions
 
-class OllamaOptionsConverterTest : OptionsConverterTestSupport<OllamaOptions>(
-    optionsConverter = OllamaOptionsConverter
+abstract class OptionsConverterTestSupport<O : ChatOptions>(
+    protected val optionsConverter: OptionsConverter<O>
 ) {
 
-
+    @Test
+    fun `should preserve core values`() {
+        checkOptionsConverterPreservesCoreValues(optionsConverter)
+    }
 }
