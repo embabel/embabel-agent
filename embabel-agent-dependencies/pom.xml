@@ -28,6 +28,12 @@
                 <version>${project.version}</version>
             </dependency>
 
+           <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-code</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-autoconfigure</artifactId>
@@ -79,6 +85,12 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-rag-lucene</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-rag-tika</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
