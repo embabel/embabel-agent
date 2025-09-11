@@ -27,6 +27,7 @@
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
