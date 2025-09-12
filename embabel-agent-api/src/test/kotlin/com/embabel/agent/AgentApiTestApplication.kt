@@ -32,4 +32,4 @@ import org.springframework.context.annotation.ComponentScan
         "com.embabel.example",
     ]
 )
-class TestApplication {}
+class AgentApiTestApplication {}
