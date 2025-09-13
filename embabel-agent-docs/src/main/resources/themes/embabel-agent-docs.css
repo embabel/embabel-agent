@@ -33,6 +33,7 @@
     --gutter: clamp(20px, 2vw, 40px);
     --header-height: 50px;
     --toc-width: clamp(var(--toc-min), var(--toc-ideal), var(--toc-max));
+    --navbar-height: 56px;
 }
 
 /* Basic elements */
@@ -142,6 +143,10 @@ body {
 
     #content {
         left: 0;
+    }
+
+    .navbar {
+        padding-left: 0 !important;
     }
 }
 
