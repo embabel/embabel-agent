@@ -18,45 +18,50 @@ package com.embabel.agent.rag.support
 import com.embabel.agent.rag.RagRequest
 import com.embabel.agent.rag.RagResponse
 import com.embabel.agent.rag.RagService
+import com.embabel.agent.rag.Retrievable
 import org.slf4j.LoggerFactory
 
 /**
- * Rag service that combines multiple RagServices and returns the best results
+ * Rag service that combines multiple RagFacets and returns the best results
  */
-class ConsensusRagService(
-    private val ragServices: List<RagService>,
+class FacetedRagService(
+    facets: List<RagFacet<out Retrievable>>,
+    facetProviders: List<RagFacetProvider>,
 ) : RagService {
 
-    private val logger = LoggerFactory.getLogger(ConsensusRagService::class.java)
+    private val logger = LoggerFactory.getLogger(FacetedRagService::class.java)
+
+    val ragFacets = facets.toList() + facetProviders.flatMap { it.facets() }
+
+    init {
+        logger.info("Discovered {} RagFacets:", ragFacets.size)
+    }
 
     override val name: String
-        get() = "sources: " + ragServices.joinToString(" & ") { it.name }
+        get() = "facets: " + ragFacets.joinToString(" & ") { it.name }
 
     override fun search(ragRequest: RagRequest): RagResponse {
-        val allResults = ragServices.flatMap { ragService ->
-            ragService.search(ragRequest).results
+        // TODO could parallelize
+        val allResults = ragFacets.flatMap { facet ->
+            facet.search(ragRequest).results
         }
-        // TODO Count and commend duplicates
         val ragResponse = RagResponse(
             request = ragRequest,
             service = name,
-            results = allResults,
+            results = allResults.distinctBy { it.match.id },
         )
         logger.debug("RagResponse: {}", ragResponse)
         return ragResponse
     }
 
     override val description: String
-        get() = ragServices.joinToString(" & ") { "[" + it.description + "]" }
+        get() = name
 
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
     ): String =
-        if (ragServices.isEmpty()) "No RAG services" else
-            "Consensus of ${
-                ragServices.joinToString(",") {
-                    it.infoString(verbose = verbose, indent = 1)
-                }
-            }"
+        if (ragFacets.isEmpty()) "No RagFacets" else
+            "Composite of $description"
+
 }

@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.ingestion
 
-import com.embabel.agent.rag.WritableRagService
+import com.embabel.agent.rag.WritableStore
 import org.slf4j.LoggerFactory
 import org.springframework.ai.document.Document
 import org.springframework.ai.reader.TextReader
@@ -23,11 +23,11 @@ import org.springframework.ai.transformer.splitter.TextSplitter
 import org.springframework.ai.transformer.splitter.TokenTextSplitter
 
 /**
- * Write to all RAG services that implement [com.embabel.agent.rag.WritableRagService].
+ * Write to all RAG services that implement [com.embabel.agent.rag.WritableStore].
  * Users can override the [org.springframework.ai.transformer.splitter.TextSplitter] to control how text is split into documents.
  */
 class MultiIngester(
-    override val ragServices: List<WritableRagService>,
+    override val stores: List<WritableStore>,
     val splitter: TextSplitter = TokenTextSplitter(),
 ) : Ingester {
 
@@ -37,19 +37,19 @@ class MultiIngester(
         logger.info(
             "{} with {} writable rag services: Using text splitter {}",
             javaClass.simpleName,
-            ragServices.size,
+            stores.size,
             splitter,
         )
     }
 
-    override fun active(): Boolean = ragServices.isNotEmpty()
+    override fun active(): Boolean = stores.isNotEmpty()
 
     override fun ingest(resourcePath: String): IngestionResult {
         val sourceDocs = TextReader(resourcePath).get()
         val documents = splitter.split(sourceDocs)
         logger.info(
             "Split {} source documents at {} into {} indexable chunks: Will write to {} writable rag services",
-            sourceDocs.size, resourcePath, documents.size, ragServices.size
+            sourceDocs.size, resourcePath, documents.size, stores.size
         )
         logger.debug("Documents: {}", documents.joinToString("\n"))
         return writeToStores(documents)
@@ -60,7 +60,7 @@ class MultiIngester(
     }
 
     private fun writeToStores(documents: List<Document>): IngestionResult {
-        val storesWrittenTo = ragServices
+        val storesWrittenTo = stores
             .map {
                 it.write(documents)
                 it.name
@@ -75,10 +75,10 @@ class MultiIngester(
         verbose: Boolean?,
         indent: Int,
     ): String =
-        if (ragServices.isEmpty()) "No RAG services" else
+        if (stores.isEmpty()) "No RAG services" else
             "${javaClass.simpleName} of ${
-                ragServices.joinToString(",") {
-                    it.infoString(verbose = verbose, indent = 1)
+                stores.joinToString(",") {
+                    it.name
                 }
             }"
 }

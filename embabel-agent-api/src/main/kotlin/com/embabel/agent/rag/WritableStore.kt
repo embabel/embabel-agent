@@ -16,12 +16,13 @@
 package com.embabel.agent.rag
 
 import com.embabel.agent.rag.ingestion.MaterializedDocument
+import com.embabel.common.core.types.Named
 import org.springframework.ai.document.DocumentWriter
 
 /**
  * RagService that can accept documents
  */
-interface WritableRagService : RagService, DocumentWriter {
+interface WritableStore : DocumentWriter, Named {
 
     /**
      * Write the given content root and its children to the underlying store.

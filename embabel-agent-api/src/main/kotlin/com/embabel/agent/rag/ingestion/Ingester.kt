@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.ingestion
 
-import com.embabel.agent.rag.WritableRagService
+import com.embabel.agent.rag.WritableStore
 import com.embabel.common.core.types.HasInfoString
 import org.springframework.ai.document.DocumentWriter
 
@@ -38,7 +38,7 @@ interface Ingester : DocumentWriter, HasInfoString {
      */
     fun active(): Boolean
 
-    val ragServices: List<WritableRagService>
+    val stores: List<WritableStore>
 
     /**
      * Ingest the resource at the given path.

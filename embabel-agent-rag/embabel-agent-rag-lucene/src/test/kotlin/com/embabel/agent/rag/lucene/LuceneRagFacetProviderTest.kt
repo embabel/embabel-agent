@@ -16,25 +16,27 @@
 package com.embabel.agent.rag.lucene
 
 import com.embabel.agent.rag.RagRequest
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 import org.springframework.ai.document.Document
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.embedding.EmbeddingRequest
 import org.springframework.ai.embedding.EmbeddingResponse
 
-class LuceneRagServiceTest {
+class LuceneRagFacetProviderTest {
 
-    private lateinit var ragService: LuceneRagService
-    private lateinit var ragServiceWithEmbedding: LuceneRagService
+    private lateinit var ragService: LuceneRagFacetProvider
+    private lateinit var ragServiceWithEmbedding: LuceneRagFacetProvider
     private val mockEmbeddingModel = MockEmbeddingModel()
 
     @BeforeEach
     fun setUp() {
-        ragService = LuceneRagService(name = "lucene-rag", description = "Test Lucene RAG Service")
-        ragServiceWithEmbedding = LuceneRagService(
+        ragService = LuceneRagFacetProvider(name = "lucene-rag")
+        ragServiceWithEmbedding = LuceneRagFacetProvider(
             name = "hybrid-lucene-rag",
-            description = "Hybrid Lucene RAG Service with Embeddings",
             embeddingModel = mockEmbeddingModel,
             vectorWeight = 0.5
         )
@@ -51,7 +53,7 @@ class LuceneRagServiceTest {
         val request = RagRequest.query("test query")
         val response = ragService.search(request)
 
-        assertEquals("lucene-rag", response.service)
+        assertEquals("lucene-rag", response.facetName)
         assertTrue(response.results.isEmpty())
     }
 
@@ -70,7 +72,7 @@ class LuceneRagServiceTest {
         val request = RagRequest.query("machine learning")
         val response = ragService.search(request)
 
-        assertEquals("lucene-rag", response.service)
+        assertEquals("lucene-rag", response.facetName)
         assertTrue(response.results.isNotEmpty())
 
         // Should find the most relevant document first
@@ -207,7 +209,7 @@ class LuceneRagServiceTest {
             .withSimilarityThreshold(0.0)
         val response = ragServiceWithEmbedding.search(request)
 
-        assertEquals("hybrid-lucene-rag", response.service)
+        assertEquals("hybrid-lucene-rag", response.facetName)
         assertTrue(response.results.isNotEmpty())
 
         // Should find AI/ML related documents with higher scores due to hybrid search
@@ -220,9 +222,8 @@ class LuceneRagServiceTest {
 
     @Test
     fun `should weight vector similarity appropriately`() {
-        val ragServiceHighVector = LuceneRagService(
+        val ragServiceHighVector = LuceneRagFacetProvider(
             name = "high-vector-weight",
-            description = "RAG with high vector weight",
             embeddingModel = mockEmbeddingModel,
             vectorWeight = 0.9 // High vector weight
         )
@@ -519,9 +520,11 @@ class LuceneRagServiceTest {
 
             val writerThread = Thread {
                 repeat(50) { i ->
-                    ragService.accept(listOf(
-                        Document("writer-$i", "Writer doc $i", emptyMap<String, Any>())
-                    ))
+                    ragService.accept(
+                        listOf(
+                            Document("writer-$i", "Writer doc $i", emptyMap<String, Any>())
+                        )
+                    )
                 }
             }
 

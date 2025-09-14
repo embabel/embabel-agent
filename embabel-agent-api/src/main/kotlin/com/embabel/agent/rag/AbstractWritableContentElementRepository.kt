@@ -21,9 +21,9 @@ import com.embabel.agent.rag.ingestion.MaterializedDocument
 /**
  * Convenience base class for WritableRagService implementations.
  */
-abstract class AbstractRepositoryRagService(
+abstract class AbstractWritableContentElementRepository(
     private val chunkerConfig: ContentChunker.Config,
-) : RepositoryRagService {
+) : WritableContentElementRepository {
 
     /**
      * Will call save on the root and all descendants.

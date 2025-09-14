@@ -15,10 +15,7 @@
  */
 package com.embabel.agent.rag.support
 
-import com.embabel.agent.rag.Chunk
-import com.embabel.agent.rag.RagRequest
-import com.embabel.agent.rag.RagResponse
-import com.embabel.agent.rag.WritableRagService
+import com.embabel.agent.rag.*
 import com.embabel.agent.rag.ingestion.MaterializedDocument
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.ZeroToOne
@@ -37,7 +34,7 @@ import org.springframework.ai.vectorstore.VectorStore
 class SpringVectorStoreRagService(
     private val vectorStore: VectorStore,
     override val description: String,
-) : WritableRagService {
+) : WritableStore, RagService {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 

@@ -16,10 +16,13 @@
 package com.embabel.agent.config
 
 import com.embabel.agent.rag.RagService
-import com.embabel.agent.rag.WritableRagService
+import com.embabel.agent.rag.Retrievable
+import com.embabel.agent.rag.WritableStore
 import com.embabel.agent.rag.ingestion.Ingester
 import com.embabel.agent.rag.ingestion.MultiIngester
-import com.embabel.agent.rag.support.ConsensusRagService
+import com.embabel.agent.rag.support.FacetedRagService
+import com.embabel.agent.rag.support.RagFacet
+import com.embabel.agent.rag.support.RagFacetProvider
 import com.embabel.agent.rag.support.SpringVectorStoreRagService
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -41,15 +44,16 @@ class RagServiceConfiguration {
     @Bean
     @Primary
     fun consensusRagService(
-        ragServices: List<RagService>,
+        facets: List<RagFacet<out Retrievable>>,
+        facetProviders: List<RagFacetProvider>,
     ): RagService {
-        return ConsensusRagService(ragServices)
+        return FacetedRagService(facets = facets, facetProviders = facetProviders)
     }
 
     @Bean
     @Primary
     fun ingester(
-        ragServices: List<WritableRagService>,
+        ragServices: List<WritableStore>,
     ): Ingester {
         return MultiIngester(ragServices)
     }

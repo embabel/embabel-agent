@@ -18,6 +18,11 @@ package com.embabel.agent.rag.lucene
 import com.embabel.agent.rag.*
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.ingestion.MaterializedDocument
+import com.embabel.agent.rag.support.FunctionRagFacet
+import com.embabel.agent.rag.support.RagFacet
+import com.embabel.agent.rag.support.RagFacetProvider
+import com.embabel.agent.rag.support.RagFacetResults
+import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.util.indent
 import org.apache.lucene.analysis.standard.StandardAnalyzer
@@ -41,15 +46,14 @@ import org.springframework.ai.document.Document as SpringAiDocument
  * LuceneRagService with optional vector search support via an EmbeddingModel.
  * Works in memory. Be careful if loading excessive content!
  */
-class LuceneRagService @JvmOverloads constructor(
+class LuceneRagFacetProvider @JvmOverloads constructor(
     override val name: String,
-    override val description: String,
     private val embeddingModel: EmbeddingModel? = null,
     private val vectorWeight: Double = 0.5, // Balance between text and vector similarity
     chunkerConfig: ContentChunker.Config = ContentChunker.DefaultConfig(),
-) : AbstractRepositoryRagService(chunkerConfig), Closeable {
+) : RagFacetProvider, AbstractWritableContentElementRepository(chunkerConfig), HasInfoString, Closeable {
 
-    private val logger = LoggerFactory.getLogger(LuceneRagService::class.java)
+    private val logger = LoggerFactory.getLogger(LuceneRagFacetProvider::class.java)
 
     init {
 
@@ -68,6 +72,15 @@ class LuceneRagService @JvmOverloads constructor(
     private var directoryReader: DirectoryReader? = null
 
     private val contentElementStorage = ConcurrentHashMap<String, ContentElement>()
+
+    override fun facets(): List<RagFacet<out Retrievable>> {
+        return listOf(
+            FunctionRagFacet(
+                name = "chunks",
+                searchFunction = ::search,
+            )
+        )
+    }
 
     override fun findChunksById(chunkIds: List<String>): List<Chunk> {
         logger.debug("Finding chunks by IDs: {}", chunkIds)
@@ -104,12 +117,11 @@ class LuceneRagService @JvmOverloads constructor(
         return allChunks
     }
 
-    override fun search(ragRequest: RagRequest): RagResponse {
+    fun search(ragRequest: RagRequest): RagFacetResults<Chunk> {
         refreshReaderIfNeeded()
 
-        val reader = directoryReader ?: return RagResponse(
-            request = ragRequest,
-            service = name,
+        val reader = directoryReader ?: return RagFacetResults(
+            facetName = name,
             results = emptyList()
         )
 
@@ -131,9 +143,8 @@ class LuceneRagService @JvmOverloads constructor(
             .take(ragRequest.topK)
             .sortedByDescending { it.score }
 
-        return RagResponse(
-            request = ragRequest,
-            service = name,
+        return RagFacetResults(
+            facetName = name,
             results = filteredResults
         )
     }

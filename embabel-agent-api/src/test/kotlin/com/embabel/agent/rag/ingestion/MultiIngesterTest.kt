@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.ingestion
 
-import com.embabel.agent.rag.WritableRagService
+import com.embabel.agent.rag.WritableStore
 import io.mockk.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -28,20 +28,20 @@ import java.util.*
 
 class MultiIngesterTest {
 
-    private lateinit var mockRagService1: WritableRagService
-    private lateinit var mockRagService2: WritableRagService
+    private lateinit var mockWritableStore1: WritableStore
+    private lateinit var mockWritableStore2: WritableStore
     private lateinit var mockTextSplitter: TextSplitter
 
     @BeforeEach
     fun setup() {
-        mockRagService1 = mockk()
-        mockRagService2 = mockk()
+        mockWritableStore1 = mockk()
+        mockWritableStore2 = mockk()
         mockTextSplitter = mockk()
 
-        every { mockRagService1.name } returns "rag-service-1"
-        every { mockRagService2.name } returns "rag-service-2"
-        every { mockRagService1.write(any()) } just Runs
-        every { mockRagService2.write(any()) } just Runs
+        every { mockWritableStore1.name } returns "rag-service-1"
+        every { mockWritableStore2.name } returns "rag-service-2"
+        every { mockWritableStore1.write(any()) } just Runs
+        every { mockWritableStore2.write(any()) } just Runs
     }
 
     @Disabled("Implement tests")
@@ -59,38 +59,38 @@ class MultiIngesterTest {
             val multiIngester = MultiIngester(emptyList())
 
             assertFalse(multiIngester.active(), "Should not be active with empty rag services")
-            assertTrue(multiIngester.ragServices.isEmpty(), "Should have empty rag services list")
+            assertTrue(multiIngester.stores.isEmpty(), "Should have empty rag services list")
         }
 
         @Test
         fun `test constructor with single rag service`() {
-            val multiIngester = MultiIngester(listOf(mockRagService1))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1))
 
             assertTrue(multiIngester.active(), "Should be active with one rag service")
-            assertEquals(1, multiIngester.ragServices.size, "Should have one rag service")
-            assertEquals(mockRagService1, multiIngester.ragServices[0], "Should contain the correct rag service")
+            assertEquals(1, multiIngester.stores.size, "Should have one rag service")
+            assertEquals(mockWritableStore1, multiIngester.stores[0], "Should contain the correct rag service")
         }
 
         @Test
         fun `test constructor with multiple rag services`() {
-            val multiIngester = MultiIngester(listOf(mockRagService1, mockRagService2))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1, mockWritableStore2))
 
             assertTrue(multiIngester.active(), "Should be active with multiple rag services")
-            assertEquals(2, multiIngester.ragServices.size, "Should have two rag services")
-            assertTrue(multiIngester.ragServices.contains(mockRagService1), "Should contain first rag service")
-            assertTrue(multiIngester.ragServices.contains(mockRagService2), "Should contain second rag service")
+            assertEquals(2, multiIngester.stores.size, "Should have two rag services")
+            assertTrue(multiIngester.stores.contains(mockWritableStore1), "Should contain first rag service")
+            assertTrue(multiIngester.stores.contains(mockWritableStore2), "Should contain second rag service")
         }
 
         @Test
         fun `test constructor with custom text splitter`() {
-            val multiIngester = MultiIngester(listOf(mockRagService1), mockTextSplitter)
+            val multiIngester = MultiIngester(listOf(mockWritableStore1), mockTextSplitter)
 
             assertEquals(mockTextSplitter, multiIngester.splitter, "Should use custom text splitter")
         }
 
         @Test
         fun `test constructor with default text splitter`() {
-            val multiIngester = MultiIngester(listOf(mockRagService1))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1))
 
             assertNotNull(multiIngester.splitter, "Should have a default text splitter")
             // Default is TokenTextSplitter - we can't easily test the exact type without reflection
@@ -109,14 +109,14 @@ class MultiIngesterTest {
 
         @Test
         fun `test active returns true with rag services`() {
-            val multiIngester = MultiIngester(listOf(mockRagService1))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1))
 
             assertTrue(multiIngester.active(), "Should be active with rag services")
         }
 
         @Test
         fun `test active returns true with multiple rag services`() {
-            val multiIngester = MultiIngester(listOf(mockRagService1, mockRagService2))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1, mockWritableStore2))
 
             assertTrue(multiIngester.active(), "Should be active with multiple rag services")
         }
@@ -132,13 +132,13 @@ class MultiIngesterTest {
             val doc2 = Document("for ingestion.", mapOf("id" to "chunk-2"))
             val documents = listOf(doc1, doc2)
 
-            val multiIngester = MultiIngester(listOf(mockRagService1, mockRagService2))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1, mockWritableStore2))
 
             val result = multiIngester.accept(documents)
 
             // Verify services were called with the documents
-            verify { mockRagService1.write(documents) }
-            verify { mockRagService2.write(documents) }
+            verify { mockWritableStore1.write(documents) }
+            verify { mockWritableStore2.write(documents) }
         }
 
         @Test
@@ -159,30 +159,30 @@ class MultiIngesterTest {
                 Document("Chunk $it content", mapOf("id" to "chunk-$it"))
             }
 
-            val multiIngester = MultiIngester(listOf(mockRagService1))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1))
 
             multiIngester.accept(documents)
 
-            verify { mockRagService1.write(documents) }
+            verify { mockWritableStore1.write(documents) }
         }
 
         @Test
         fun `test accept with empty document list`() {
-            val multiIngester = MultiIngester(listOf(mockRagService1))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1))
 
             multiIngester.accept(emptyList())
 
-            verify { mockRagService1.write(emptyList()) }
+            verify { mockWritableStore1.write(emptyList()) }
         }
 
         @Test
         fun `test accept with single document`() {
             val document = Document("Single document", mapOf("id" to "single"))
-            val multiIngester = MultiIngester(listOf(mockRagService1))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1))
 
             multiIngester.accept(listOf(document))
 
-            verify { mockRagService1.write(listOf(document)) }
+            verify { mockWritableStore1.write(listOf(document)) }
         }
 
         @Test
@@ -194,12 +194,12 @@ class MultiIngesterTest {
                 Document("{\"key\": \"value\"}", mapOf("type" to "json", "id" to "json-1"))
             )
 
-            val multiIngester = MultiIngester(listOf(mockRagService1, mockRagService2))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1, mockWritableStore2))
 
             multiIngester.accept(documents)
 
-            verify { mockRagService1.write(documents) }
-            verify { mockRagService2.write(documents) }
+            verify { mockWritableStore1.write(documents) }
+            verify { mockWritableStore2.write(documents) }
         }
     }
 
@@ -210,15 +210,15 @@ class MultiIngesterTest {
         @Test
         fun `test accept throws exception when rag service fails`() {
             val document = Document("Test content", mapOf("id" to "test-1"))
-            every { mockRagService1.write(any()) } throws RuntimeException("Write failed")
+            every { mockWritableStore1.write(any()) } throws RuntimeException("Write failed")
 
-            val multiIngester = MultiIngester(listOf(mockRagService1))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1))
 
             assertThrows(RuntimeException::class.java) {
                 multiIngester.accept(listOf(document))
             }
 
-            verify { mockRagService1.write(listOf(document)) }
+            verify { mockWritableStore1.write(listOf(document)) }
         }
 
         @Test
@@ -226,18 +226,18 @@ class MultiIngesterTest {
             val documents = listOf(Document("Test content", mapOf("id" to "test-1")))
 
             // Make first service throw exception
-            every { mockRagService1.write(any()) } throws RuntimeException("Service 1 failed")
-            every { mockRagService2.write(any()) } just Runs
+            every { mockWritableStore1.write(any()) } throws RuntimeException("Service 1 failed")
+            every { mockWritableStore2.write(any()) } just Runs
 
-            val multiIngester = MultiIngester(listOf(mockRagService1, mockRagService2))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1, mockWritableStore2))
 
             assertThrows(RuntimeException::class.java) {
                 multiIngester.accept(documents)
             }
 
-            verify { mockRagService1.write(documents) }
+            verify { mockWritableStore1.write(documents) }
             // Second service should not be called due to exception in first
-            verify(exactly = 0) { mockRagService2.write(any()) }
+            verify(exactly = 0) { mockWritableStore2.write(any()) }
         }
     }
 
@@ -253,59 +253,6 @@ class MultiIngesterTest {
             assertEquals("No RAG services", infoString, "Should indicate no RAG services")
         }
 
-        @Test
-        fun `test infoString with single rag service`() {
-            every { mockRagService1.infoString(verbose = false, indent = 1) } returns "RagService1Info"
-
-            val multiIngester = MultiIngester(listOf(mockRagService1))
-
-            val infoString = multiIngester.infoString(verbose = false, indent = 0)
-
-            assertTrue(infoString.contains("MultiIngester"), "Should contain class name")
-            assertTrue(infoString.contains("RagService1Info"), "Should contain service info")
-
-            verify { mockRagService1.infoString(verbose = false, indent = 1) }
-        }
-
-        @Test
-        fun `test infoString with multiple rag services`() {
-            every { mockRagService1.infoString(verbose = false, indent = 1) } returns "Service1"
-            every { mockRagService2.infoString(verbose = false, indent = 1) } returns "Service2"
-
-            val multiIngester = MultiIngester(listOf(mockRagService1, mockRagService2))
-
-            val infoString = multiIngester.infoString(verbose = false, indent = 0)
-
-            assertTrue(infoString.contains("MultiIngester"), "Should contain class name")
-            assertTrue(infoString.contains("Service1"), "Should contain first service info")
-            assertTrue(infoString.contains("Service2"), "Should contain second service info")
-            assertTrue(infoString.contains(","), "Should separate services with comma")
-        }
-
-        @Test
-        fun `test infoString with verbose flag`() {
-            every { mockRagService1.infoString(verbose = true, indent = 1) } returns "DetailedService1Info"
-
-            val multiIngester = MultiIngester(listOf(mockRagService1))
-
-            val infoString = multiIngester.infoString(verbose = true, indent = 0)
-
-            assertTrue(infoString.contains("DetailedService1Info"), "Should contain detailed service info")
-
-            verify { mockRagService1.infoString(verbose = true, indent = 1) }
-        }
-
-        @Test
-        fun `test infoString with different indent levels`() {
-            every { mockRagService1.infoString(verbose = false, indent = 1) } returns "IndentedServiceInfo"
-
-            val multiIngester = MultiIngester(listOf(mockRagService1))
-
-            multiIngester.infoString(verbose = false, indent = 2)
-
-            // Verify that indent + 1 is passed to services
-            verify { mockRagService1.infoString(verbose = false, indent = 1) }
-        }
     }
 
     @Nested
@@ -333,20 +280,20 @@ class MultiIngesterTest {
                 )
             )
 
-            val multiIngester = MultiIngester(listOf(mockRagService1, mockRagService2))
+            val multiIngester = MultiIngester(listOf(mockWritableStore1, mockWritableStore2))
 
             multiIngester.accept(chunks)
 
             // Verify both services received all chunks
-            verify { mockRagService1.write(chunks) }
-            verify { mockRagService2.write(chunks) }
+            verify { mockWritableStore1.write(chunks) }
+            verify { mockWritableStore2.write(chunks) }
         }
 
         @Test
         fun `test workflow with mixed service types and configurations`() {
             // Create additional mock services with different characteristics
-            val mockVectorService = mockk<WritableRagService>()
-            val mockGraphService = mockk<WritableRagService>()
+            val mockVectorService = mockk<WritableStore>()
+            val mockGraphService = mockk<WritableStore>()
 
             every { mockVectorService.name } returns "vector-store"
             every { mockGraphService.name } returns "knowledge-graph"
@@ -357,13 +304,13 @@ class MultiIngesterTest {
             val documents = listOf(chunk)
 
             val multiIngester = MultiIngester(
-                listOf(mockRagService1, mockVectorService, mockGraphService)
+                listOf(mockWritableStore1, mockVectorService, mockGraphService)
             )
 
             multiIngester.accept(documents)
 
             // Verify all services were called
-            verify { mockRagService1.write(documents) }
+            verify { mockWritableStore1.write(documents) }
             verify { mockVectorService.write(documents) }
             verify { mockGraphService.write(documents) }
         }
@@ -372,7 +319,7 @@ class MultiIngesterTest {
         fun `test performance characteristics with large number of services`() {
             // Create multiple mock services
             val services = (1..10).map { index ->
-                mockk<WritableRagService>().also { service ->
+                mockk<WritableStore>().also { service ->
                     every { service.name } returns "service-$index"
                     every { service.write(any()) } just Runs
                 }

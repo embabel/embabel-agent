@@ -16,7 +16,7 @@
 package com.embabel.test
 
 import com.embabel.agent.rag.neo.ogm.OgmCypherSearch
-import com.embabel.agent.rag.neo.ogm.OgmRagService
+import com.embabel.agent.rag.neo.ogm.OgmRagFacetProvider
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.neo4j.driver.AuthTokens
 import org.neo4j.driver.Driver
@@ -51,7 +51,7 @@ open class NeoIntegrationTestSupport {
     protected var applicationContext: ApplicationContext? = null
 
     @Autowired
-    protected var _ragService: OgmRagService? = null
+    protected var _ragService: OgmRagFacetProvider? = null
 
     @Autowired
     var testContainer: Neo4jTestContainer? = null
@@ -62,7 +62,7 @@ open class NeoIntegrationTestSupport {
         AuthTokens.basic("neo4j", testContainer!!.adminPassword)
     )
 
-    val ragService: OgmRagService get() = _ragService!!
+    val ragService: OgmRagFacetProvider get() = _ragService!!
 
     val ogmCypherSearch: OgmCypherSearch get() = _cypherSearch!!
 

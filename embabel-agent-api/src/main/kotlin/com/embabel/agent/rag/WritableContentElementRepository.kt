@@ -20,4 +20,13 @@ import com.embabel.agent.rag.ingestion.ContentElementRepository
 /**
  * WritableRagService that also allows us to load and save ContentElements.
  */
-interface RepositoryRagService : WritableRagService, ContentElementRepository
+interface WritableContentElementRepository : WritableStore, ContentElementRepository {
+
+    /**
+     * Provision this rag service if necessary
+     */
+    fun provision() {
+        // Default no-op
+    }
+
+}

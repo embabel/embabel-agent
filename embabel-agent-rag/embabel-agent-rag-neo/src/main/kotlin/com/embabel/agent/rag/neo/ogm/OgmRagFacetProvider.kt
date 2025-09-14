@@ -20,6 +20,10 @@ import com.embabel.agent.rag.ingestion.DefaultMaterializedContainerSection
 import com.embabel.agent.rag.ingestion.MaterializedDocument
 import com.embabel.agent.rag.neo.common.CypherQuery
 import com.embabel.agent.rag.schema.SchemaResolver
+import com.embabel.agent.rag.support.FunctionRagFacet
+import com.embabel.agent.rag.support.RagFacet
+import com.embabel.agent.rag.support.RagFacetProvider
+import com.embabel.agent.rag.support.RagFacetResults
 import com.embabel.common.ai.model.DefaultModelSelectionCriteria
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.types.SimilarityResult
@@ -38,16 +42,16 @@ import org.springframework.transaction.support.TransactionTemplate
  * Requires a Neo4j OGM PlatformTransactionManager to be configured in the Spring context.
  */
 @Service
-class OgmRagService(
+class OgmRagFacetProvider(
     private val modelProvider: ModelProvider,
     private val ogmCypherSearch: OgmCypherSearch,
     private val schemaResolver: SchemaResolver,
     private val sessionFactory: SessionFactory,
     platformTransactionManager: PlatformTransactionManager,
     private val properties: NeoRagServiceProperties,
-) : AbstractRepositoryRagService(properties) {
+) : AbstractWritableContentElementRepository(properties), RagFacetProvider {
 
-    private val logger = LoggerFactory.getLogger(OgmRagService::class.java)
+    private val logger = LoggerFactory.getLogger(OgmRagFacetProvider::class.java)
 
     private val readonlyTransactionTemplate = TransactionTemplate(platformTransactionManager).apply {
         isReadOnly = true
@@ -56,7 +60,6 @@ class OgmRagService(
 
     override val name = properties.name
 
-    override val description = properties.description
 
     private val embeddingService = modelProvider.getEmbeddingService(DefaultModelSelectionCriteria)
 
@@ -208,7 +211,16 @@ class OgmRagService(
         TODO("Not yet implemented")
     }
 
-    override fun search(ragRequest: RagRequest): RagResponse {
+    override fun facets(): List<RagFacet<out Retrievable>> {
+        return listOf(
+            FunctionRagFacet(
+                name = "OgmRagService",
+                searchFunction = ::search,
+            )
+        )
+    }
+
+    fun search(ragRequest: RagRequest): RagFacetResults<Retrievable> {
         val embedding = embeddingService.model.embed(ragRequest.query)
         val allResults = mutableListOf<SimilarityResult<out Retrievable>>()
 
@@ -288,20 +300,18 @@ class OgmRagService(
             }
 
             // TODO should reward multiple matches
-            val mergedResults = allResults
+            val mergedResults: List<SimilarityResult<out Retrievable>> = allResults
                 .distinctBy { it.match.id }
                 .sortedByDescending { it.score }
                 .take(ragRequest.topK)
-            RagResponse(
-                request = ragRequest,
-                service = this.name,
+            RagFacetResults(
+                facetName = this.name,
                 results = mergedResults,
             )
         } ?: run {
             logger.error("Transaction failed or returned null, returning empty RagResponse")
-            RagResponse(
-                request = ragRequest,
-                service = this.name,
+            RagFacetResults(
+                facetName = this.name,
                 results = emptyList(),
             )
         }
@@ -362,17 +372,6 @@ class OgmRagService(
             logger.error("Error executing generated query: $query", e)
             return Result.failure(e)
         }
-    }
-
-    override fun infoString(
-        verbose: Boolean?,
-        indent: Int,
-    ): String {
-        return "OgmRagService: name=$name, description=$description, embeddingService=${
-            embeddingService.infoString(
-                verbose
-            )
-        }"
     }
 
     private fun createVectorIndex(
