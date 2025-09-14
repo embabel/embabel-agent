@@ -53,9 +53,8 @@ data class AgenticInfo(
 ) {
 
     // Unwrap proxy to get target class for annotation lookups
-    private val targetType: Class<*> = if (Proxy.isProxyClass(type) ||
-                                           type.name.contains("CGLIB") ||
-                                           type.name.contains("\$Proxy")) {
+    private val targetType: Class<*> = if (ClassUtils.isCglibProxyClass(type) ||
+                                           Proxy.isProxyClass(type)) {
         ClassUtils.getUserClass(type)
     } else {
         type
