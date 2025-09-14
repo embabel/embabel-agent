@@ -36,8 +36,10 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
 import org.springframework.context.support.StaticApplicationContext
 import org.springframework.stereotype.Service
+import org.springframework.util.ClassUtils
 import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import com.embabel.agent.core.Action as CoreAction
 import com.embabel.agent.core.Agent as CoreAgent
 import com.embabel.agent.core.Condition as CoreCondition
@@ -51,8 +53,10 @@ data class AgenticInfo(
 ) {
 
     // Unwrap proxy to get target class for annotation lookups
-    private val targetType: Class<*> = if (type.name.contains("\$Proxy") || type.name.contains("CGLIB")) {
-        type.superclass ?: type
+    private val targetType: Class<*> = if (Proxy.isProxyClass(type) ||
+                                           type.name.contains("CGLIB") ||
+                                           type.name.contains("\$Proxy")) {
+        ClassUtils.getUserClass(type)
     } else {
         type
     }
