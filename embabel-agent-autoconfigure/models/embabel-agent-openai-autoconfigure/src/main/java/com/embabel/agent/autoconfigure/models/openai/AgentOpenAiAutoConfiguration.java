@@ -15,11 +15,9 @@
  */
 package com.embabel.agent.autoconfigure.models.openai;
 
-import com.embabel.agent.config.models.OpenAiModels;
 import com.embabel.agent.config.models.openai.OpenAiModelsConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.context.annotation.Import;
 
 /**
@@ -27,17 +25,13 @@ import org.springframework.context.annotation.Import;
  * <p>
  * This class serves as a Spring Boot autoconfiguration entry point that:
  * - Scans for configuration properties in the "com.embabel.agent" package
- * - Imports the {@link OpenAiModels} configuration to register OpenAI model beans
+ * - Imports the {@link OpenAiModelsConfig} configuration to register OpenAI model beans
  * <p>
  * The configuration is automatically activated when the OpenAI models
  * dependencies are present on the classpath.
  */
 @AutoConfiguration
-@ConfigurationPropertiesScan(
-        basePackages = {
-                "com.embabel.agent"
-        }
-)
+@AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
 @Import(OpenAiModelsConfig.class)
 public class AgentOpenAiAutoConfiguration {
 }

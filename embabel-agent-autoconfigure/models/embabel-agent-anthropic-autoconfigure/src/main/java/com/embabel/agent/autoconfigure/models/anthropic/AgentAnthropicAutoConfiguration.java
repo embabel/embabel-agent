@@ -17,7 +17,7 @@ package com.embabel.agent.autoconfigure.models.anthropic;
 
 import com.embabel.agent.config.models.anthropic.AnthropicModelsConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.context.annotation.Import;
 
 /**
@@ -31,11 +31,7 @@ import org.springframework.context.annotation.Import;
  * dependencies are present on the classpath.
  */
 @AutoConfiguration
-@ConfigurationPropertiesScan(
-        basePackages = {
-                "com.embabel.agent"
-        }
-)
+@AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
 @Import(AnthropicModelsConfig.class)
 public class AgentAnthropicAutoConfiguration {
 }
