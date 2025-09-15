@@ -3,38 +3,38 @@
 :sectids:
 :sectanchors:
 
-include::flow.adoc[]
-include::steps.adoc[]
-include::domain.adoc[]
-include::configuration.adoc[]
-include::annotations.adoc[]
-include::dsl.adoc[]
-include::types.adoc[]
-include::tools.adoc[]
-include::prompt-contributors.adoc[]
-include::templates.adoc[]
+include::flow/page.adoc[]
+include::steps/page.adoc[]
+include::domain/page.adoc[]
+include::configuration/page.adoc[]
+include::annotations/page.adoc[]
+include::dsl/page.adoc[]
+include::types/page.adoc[]
+include::tools/page.adoc[]
+include::prompt-contributors/page.adoc[]
+include::templates/page.adoc[]
 
-include::agent-process.adoc[]
-include::agent-platform.adoc[]
+include::agent-process/page.adoc[]
+include::agent-platform/page.adoc[]
 
-include::invoking.adoc[]
+include::invoking/page.adoc[]
 
-include::api-spi.adoc[]
+include::api-spi/page.adoc[]
 
-include::spring.adoc[]
+include::spring/page.adoc[]
 
-include::llms.adoc[]
+include::llms/page.adoc[]
 
-include::customizing.adoc[]
+include::customizing/page.adoc[]
 
-include::integrations.adoc[]
+include::integrations/page.adoc[]
 
-include::testing.adoc[]
+include::testing/page.adoc[]
 
-include::architecture.adoc[]
+include::architecture/page.adoc[]
 
-include::troubleshooting.adoc[]
-include::migrating.adoc[]
+include::troubleshooting/page.adoc[]
+include::migrating/page.adoc[]
 
-include::api-evolution.adoc[]
+include::api-evolution/page.adoc[]
 

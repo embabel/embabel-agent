@@ -3,9 +3,9 @@ ifndef::imagesdir[]
 :imagesdir: images
 endif::[]
 
-include::overview/overview.adoc[]
+include::overview/page.adoc[]
 
-include::getting-started/getting-started.adoc[]
+include::getting-started/page.adoc[]
 
 include::reference/reference.adoc[]
 
@@ -16,14 +16,14 @@ include::reference/reference.adoc[]
 
 // include::examples/examples-guide.adoc[]
 
-include::design/design.adoc[]
+include::design/page.adoc[]
 
-include::contributing/contributing.adoc[]
+include::contributing/page.adoc[]
 
 // include::roadmap/roadmap.adoc[]
 
-include::resources/resources.adoc[]
+include::resources/page.adoc[]
 
 == APPENDIX
 
-include::appendix/astar-goap-planner.adoc[]
+include::appendix/page.adoc[]

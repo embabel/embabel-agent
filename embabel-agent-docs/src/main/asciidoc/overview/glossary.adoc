@@ -1,4 +1,4 @@
-== Glossary
+=== Glossary
 
 Before we begin, in this glossary we'll explain some terms that may be new if you're taking your first steps as
 an applied AI software developer. It is assumed that you already know what a large language model (LLM) is from an
