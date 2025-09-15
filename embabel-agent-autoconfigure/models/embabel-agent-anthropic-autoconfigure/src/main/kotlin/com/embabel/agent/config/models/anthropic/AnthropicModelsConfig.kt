@@ -62,7 +62,7 @@ class AnthropicModelsConfig(
     private val apiKey: String,
     private val properties: AnthropicProperties,
 ) {
-    private val logger = LoggerFactory.getLogger(AnthropicModels::class.java)
+    private val logger = LoggerFactory.getLogger(AnthropicModelsConfig::class.java)
 
     init {
         logger.info("Anthropic models are available: {}", properties)
