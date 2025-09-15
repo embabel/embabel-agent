@@ -23,31 +23,19 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 
 /**
  * Bootstraps Agent Platform Configuration, Tools Configuration, and Rag Service Configuration
  */
 @AutoConfiguration
-@ConfigurationPropertiesScan(
-        basePackages = {
-                "com.embabel.agent",
-                "com.embabel.example"
-        }
-)
-@ComponentScan(
-        basePackages = {
-                "com.embabel.agent",
-                "com.embabel.example"
-        }
-)
-@ConditionalOnClass({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
-@Import({AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
+@Import({ScanConfiguration.class, AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
 public class AgentPlatformAutoConfiguration {
-    final private Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
+    final private static Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
+
+    static {
+        logger.info("AgentPlatformAutoConfiguration has been initialized.");
+    }
 
     @PostConstruct
     public void logEvent() {

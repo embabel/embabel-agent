@@ -55,7 +55,7 @@ import java.lang.annotation.Target;
  * @see AgentPlatform
  * @see EnableAgentShell
  * @see EnableAgentMcpServer
- * @since 1.0
+ * @since 0.1.0
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
@@ -107,6 +107,7 @@ public @interface EnableAgents {
      *
      * @return array of local model provider identifiers
      */
+    @Deprecated(since = "0.1.3", forRemoval = true)
     String[] localModels() default {};
 
     /**

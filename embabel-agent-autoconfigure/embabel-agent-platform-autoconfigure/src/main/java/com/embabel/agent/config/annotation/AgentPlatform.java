@@ -122,17 +122,7 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@ConfigurationPropertiesScan(
-        basePackages = {
-                "com.embabel.agent"
-        }
-)
-@ComponentScan(
-        basePackages = {
-                "com.embabel.agent.autoconfigure"
-        }
-)
-@ImportAutoConfiguration(classes = {AgentPlatformAutoConfiguration.class})
+@Deprecated(since = "0.1.3", forRemoval = true)
 public @interface AgentPlatform {
     /**
      * Specifies the platform profiles to activate.
