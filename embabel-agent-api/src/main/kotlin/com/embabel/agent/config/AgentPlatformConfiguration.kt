@@ -34,6 +34,7 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -52,7 +53,7 @@ import org.springframework.web.client.RestTemplate
     ProcessRepositoryProperties::class,
     RagServiceEnhancerProperties::class,
 )
-/*internal*/ class AgentPlatformConfiguration(
+class AgentPlatformConfiguration(
 ) {
 
     /**
@@ -137,12 +138,26 @@ import org.springframework.web.client.RestTemplate
         ProcessOptionsOperationScheduler()
 
     /**
-     * Ollama and Docker models won't be loaded unless the profile is set.
-     * However, we need to depend on them to make sure any LLMs they
-     * might create get injected here
+     * Docker models won't be loaded unless the profile is set
+     * Ollama models won't be loaded unless starter-ollama is referenced.
      */
+    @Bean(name = ["modelProvider"])
+    @ConditionalOnBean(name = ["ollamaModelsConfig"])
+    @Primary
+    @DependsOn("dockerLocalModels", "ollamaModelsConfig")
+    fun modelProviderWithOllama(
+        llms: List<Llm>,
+        embeddingServices: List<EmbeddingService>,
+        properties: ConfigurableModelProviderProperties,
+    ): ModelProvider = ConfigurableModelProvider(
+        llms = llms,
+        embeddingServices = embeddingServices,
+        properties = properties,
+    )
+
     @Bean
-    @DependsOn("ollamaModels", "dockerLocalModels")
+    @ConditionalOnMissingBean(name = ["modelProvider"])
+    @DependsOn("dockerLocalModels")
     fun modelProvider(
         llms: List<Llm>,
         embeddingServices: List<EmbeddingService>,
