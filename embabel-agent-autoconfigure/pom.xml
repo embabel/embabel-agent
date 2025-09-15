@@ -20,6 +20,7 @@
         <module>models/embabel-agent-bedrock-autoconfigure</module>
         <module>models/embabel-agent-openai-autoconfigure</module>
         <module>models/embabel-agent-anthropic-autoconfigure</module>
+        <module>models/embabel-agent-ollama-autoconfigure</module>
     </modules>
 
     <build>

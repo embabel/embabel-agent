@@ -19,6 +19,7 @@
         <module>embabel-agent-starter-bedrock</module>
         <module>embabel-agent-starter-openai</module>
         <module>embabel-agent-starter-anthropic</module>
+        <module>embabel-agent-starter-ollama</module>
     </modules>
 
 </project>
