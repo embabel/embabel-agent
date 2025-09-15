@@ -14,6 +14,10 @@
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-openai-autoconfigure</artifactId>
         </dependency>
     </dependencies>
