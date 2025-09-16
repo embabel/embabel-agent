@@ -163,6 +163,6 @@ object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
                     null,
                 )
             )
-            .topP(options.topP)
+            .topK(options.topK)
             .build()
 }

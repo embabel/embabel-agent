@@ -40,7 +40,7 @@ import org.springframework.context.annotation.Import;
 @AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
 @Import(OllamaModelsConfig.class)
 public class AgentOllamaAutoConfiguration {
-    final private static Logger logger = LoggerFactory.getLogger(AgentOllamaAutoConfiguration.class);
+    private static final Logger logger = LoggerFactory.getLogger(AgentOllamaAutoConfiguration.class);
 
     @PostConstruct
     public void logEvent() {
