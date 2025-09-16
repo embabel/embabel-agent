@@ -183,7 +183,7 @@ internal object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
             .maxTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
-            .topP(options.topP)
+//            .topP(options.topP)
             .build()
     }
 }

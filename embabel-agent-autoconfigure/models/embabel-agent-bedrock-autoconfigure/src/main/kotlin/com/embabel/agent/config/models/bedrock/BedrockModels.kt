@@ -260,7 +260,7 @@ object BedrockOptionsConverter : OptionsConverter<ToolCallingChatOptions> {
             .maxTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
-            .topP(options.topP)
+            .topK(options.topK)
             .build()
 }
 

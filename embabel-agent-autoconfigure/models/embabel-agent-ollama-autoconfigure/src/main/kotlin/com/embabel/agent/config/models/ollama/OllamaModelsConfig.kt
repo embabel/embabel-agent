@@ -185,6 +185,6 @@ object OllamaOptionsConverter : OptionsConverter<OllamaOptions> {
             .topP(options.topP)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
-            .topP(options.topP)
+            .topK(options.topK)
             .build()
 }
