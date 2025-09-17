@@ -21,6 +21,7 @@
     <logger name="com.embabel.agent.api.annotation.support.AgentMetadataReader" level="INFO"/>
     <logger name="com.embabel.agent.spi.support.LlmRanker" level="INFO"/>
     <logger name="com.embabel.agent.spi.support.com.embabel.agent.spi.support.springai.ChatClientLlmOperations" level="INFO"/>
+    <logger name="org.jline" level="ERROR"/>
 
     <!-- 🔍 Root Logger -->
     <root level="INFO">
