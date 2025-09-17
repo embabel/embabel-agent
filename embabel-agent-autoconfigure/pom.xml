@@ -10,17 +10,14 @@
     <packaging>pom</packaging>
     <name>Embabel Agent Autoconfigurations</name>
     <description>Spring Boot Auto-Configurations for Embabel Agent API</description>
-    <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-    </properties>
-
+    
     <modules>
         <module>embabel-agent-platform-autoconfigure</module>
         <module>models/embabel-agent-bedrock-autoconfigure</module>
         <module>models/embabel-agent-openai-autoconfigure</module>
         <module>models/embabel-agent-anthropic-autoconfigure</module>
         <module>models/embabel-agent-ollama-autoconfigure</module>
+        <module>models/embabel-agent-dockermodels-autoconfigure</module>
     </modules>
 
     <build>

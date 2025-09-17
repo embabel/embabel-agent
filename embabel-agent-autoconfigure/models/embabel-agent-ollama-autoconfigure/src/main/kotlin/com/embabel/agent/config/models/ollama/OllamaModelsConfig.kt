@@ -27,7 +27,6 @@ import org.springframework.ai.ollama.api.OllamaApi
 import org.springframework.ai.ollama.api.OllamaOptions
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
-import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
@@ -90,13 +89,12 @@ class OllamaModelsConfig(
 
 
     @PostConstruct
-    fun registerModels(): String {
+    fun registerModels() {
         logger.info("Ollama models will be discovered at {}", baseUrl)
 
         val models = loadModels()
         if (models.isEmpty()) {
             logger.warn("No Ollama models discovered. Check Ollama server configuration.")
-            return "No Ollama models discovered"
         } else {
             logger.info("Discovered Ollama models: {}", models.map { it.name })
         }
@@ -128,8 +126,6 @@ class OllamaModelsConfig(
                 logger.error("Failed to register Ollama model {}: {}", model.name, e.message)
             }
         }
-
-        return "Ollama models registered: ${models.map { it.name }}"
     }
 
     private fun ollamaLlmOf(name: String): Llm {

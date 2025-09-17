@@ -41,6 +41,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
 import org.springframework.context.annotation.Primary
+import org.springframework.core.annotation.Order
 import org.springframework.web.client.RestTemplate
 
 /**
@@ -142,9 +143,36 @@ class AgentPlatformConfiguration(
      * Ollama models won't be loaded unless starter-ollama is referenced.
      */
     @Bean(name = ["modelProvider"])
+    @ConditionalOnBean(name = ["ollamaModelsConfig", "dockerLocalModelsConfig"])
+    @DependsOn("dockerLocalModelsConfig", "ollamaModelsConfig")
+    fun modelProviderWithDockerAndOllama(
+        llms: List<Llm>,
+        embeddingServices: List<EmbeddingService>,
+        properties: ConfigurableModelProviderProperties,
+    ): ModelProvider = ConfigurableModelProvider(
+        llms = llms,
+        embeddingServices = embeddingServices,
+        properties = properties,
+    )
+
+    @Bean(name = ["modelProvider"])
+    @ConditionalOnMissingBean(name = ["modelProvider"])
+    @ConditionalOnBean(name = ["dockerLocalModelsConfig"])
+    @DependsOn("dockerLocalModelsConfig")
+    fun modelProviderWithDocker(
+        llms: List<Llm>,
+        embeddingServices: List<EmbeddingService>,
+        properties: ConfigurableModelProviderProperties,
+    ): ModelProvider = ConfigurableModelProvider(
+        llms = llms,
+        embeddingServices = embeddingServices,
+        properties = properties,
+    )
+
+    @Bean(name = ["modelProvider"])
+    @ConditionalOnMissingBean(name = ["modelProvider"])
     @ConditionalOnBean(name = ["ollamaModelsConfig"])
-    @Primary
-    @DependsOn("dockerLocalModels", "ollamaModelsConfig")
+    @DependsOn("ollamaModelsConfig")
     fun modelProviderWithOllama(
         llms: List<Llm>,
         embeddingServices: List<EmbeddingService>,
@@ -155,9 +183,8 @@ class AgentPlatformConfiguration(
         properties = properties,
     )
 
-    @Bean
+    @Bean(name = ["modelProvider"])
     @ConditionalOnMissingBean(name = ["modelProvider"])
-    @DependsOn("dockerLocalModels")
     fun modelProvider(
         llms: List<Llm>,
         embeddingServices: List<EmbeddingService>,

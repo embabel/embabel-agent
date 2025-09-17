@@ -13,34 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.autoconfigure.models.ollama;
+package com.embabel.agent.autoconfigure.models.docker;
 
-import com.embabel.agent.config.models.ollama.OllamaModelsConfig;
+import com.embabel.agent.config.models.docker.DockerLocalModelsConfig;
+import com.embabel.agent.config.models.docker.DockerProperties;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
-import org.springframework.boot.autoconfigure.AutoConfigureOrder;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
 
 /**
- * Autoconfiguration for Ollama AI models in the Embabel Agent system.
+ * Autoconfiguration for Docker AI models in the Embabel Agent system.
  * <p>
  * This class serves as a Spring Boot autoconfiguration entry point that:
  * - Scans for configuration properties in the "com.embabel.agent" package
- * - Imports the [Ollama] configuration to register  model beans
+ * - Imports the [Docker] configuration to register model beans
  * <p>
- * The configuration is automatically activated
+ * The configuration is activated by starter dependencies that include Docker model support.
  */
 @AutoConfiguration
 @AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
-@Import(OllamaModelsConfig.class)
-public class AgentOllamaAutoConfiguration {
-    private static final Logger logger = LoggerFactory.getLogger(AgentOllamaAutoConfiguration.class);
+@Import(DockerLocalModelsConfig.class)
+public class AgentDockerModelsAutoConfiguration {
+    private static final Logger logger = LoggerFactory.getLogger(AgentDockerModelsAutoConfiguration.class);
 
     @PostConstruct
     public void logEvent() {
