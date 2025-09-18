@@ -36,7 +36,7 @@ String bindCustomer(Long id) {
 }
 ----
 
-[[tool-groups]]
+[[reference.tools__tool-groups]]
 ==== Tool Groups
 
 Embabel introduces the concept of a *tool group*.
@@ -46,7 +46,7 @@ For example, we don't ask for Brave or Google web search: we ask for "web" tools
 TIP: Tools use should be focused.
 Thus tool groups cannot be specified at agent level, but must be specified on individual actions.
 
-Tool groups are often backed by <<mcp,MCP>>.
+Tool groups are often backed by <<reference.integrations__mcp,MCP>>.
 
 ===== Configuring Tool Groups with Spring
 
@@ -59,7 +59,7 @@ The framework provides a default `ToolGroupsConfiguration` that demonstrates how
 class ToolGroupsConfiguration(
     private val mcpSyncClients: List<McpSyncClient>,
 ) {
-    
+
     @Bean
     fun mathToolGroup() = MathTools()
 
@@ -73,7 +73,7 @@ class ToolGroupsConfiguration(
             clients = mcpSyncClients,
             filter = {
                 // Only expose specific web tools, exclude rate-limited ones
-                (it.toolDefinition.name().contains("brave") || 
+                (it.toolDefinition.name().contains("brave") ||
                  it.toolDefinition.name().contains("fetch")) &&
                 !it.toolDefinition.name().contains("brave_local_search")
             }
@@ -104,12 +104,12 @@ Applications can implement their own `@Configuration` classes to expose custom t
 ----
 @Configuration
 public class MyToolGroupsConfiguration {
-    
+
     @Bean
     public ToolGroup databaseToolsGroup(DataSource dataSource) {
         return new DatabaseToolGroup(dataSource);
     }
-    
+
     @Bean
     public ToolGroup emailToolsGroup(EmailService emailService) {
         return new EmailToolGroup(emailService);
@@ -205,7 +205,7 @@ Instead of declaring tools at the action level, you can also specify tools direc
 context.promptRunner().withToolGroup(CoreToolGroups.WEB).create(
     """
     Given the topic, generate a detailed report using web research.
-    
+
     # Topic
     ${reportRequest.topic}
     """.trimIndent()

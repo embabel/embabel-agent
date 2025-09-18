@@ -1,4 +1,4 @@
-[[agent.resources]]
+[[resources]]
 == Resources
 :sectids:
 :sectanchors:
@@ -18,9 +18,9 @@ Discusses the long-term goals and strategic direction of the project.
 - https://www.baeldung.com/java-embabel-agent-framework[Creating an AI Agent in Java Using Embabel Agent Framework] by Baeldung - A nice introductory example, in Java.
 - https://jettro.dev/building-agents-with-embabel-a-hands-on-introduction-4f96d2edeac0[Building Agents With Embabel: A Hands-On Introduction] by Jettro Coenradie - An excellent Java tutorial.
 
-==== https://github.com/embabel/embabel-agent-examples[Embabel Agent Examples Repository]
+==== Embabel Agent Examples Repository
 
-Comprehensive collection of example agents demonstrating different aspects of the framework:
+The https://github.com/embabel/embabel-agent-examples[Examples Repository] is a comprehensive collection of example agents demonstrating different aspects of the framework:
 
 - **Beginner Examples**: Simple horoscope agents showing basic concepts
 - **Intermediate Examples**: Multi-LLM research agents with self-improvement
@@ -29,9 +29,9 @@ Comprehensive collection of example agents demonstrating different aspects of th
 
 Perfect starting point for learning Embabel development with hands-on examples.
 
-==== https://github.com/embabel/java-agent-template[Java Agent Template]
+==== Java Agent Template
 
-Template repository for creating new Java-based Embabel agents.
+https://github.com/embabel/java-agent-template[Template repository] for creating new Java-based Embabel agents.
 Includes:
 
 - Pre-configured project structure
@@ -39,15 +39,15 @@ Includes:
 - Build scripts and Docker configuration
 - Getting started documentation
 
-==== https://github.com/embabel/kotlin-agent-template[Kotlin Agent Template]
+==== Kotlin Agent Template
 
-Template repository for Kotlin-based agent development with similar features to the Java template but using idiomatic Kotlin patterns.
+https://github.com/embabel/kotlin-agent-template[Template repository] for Kotlin-based agent development with similar features to the Java template but using idiomatic Kotlin patterns.
 
 === Sophisticated Example: Tripper Travel Planner
 
-==== https://github.com/embabel/tripper[Tripper - AI-Powered Travel Planning Agent]
+==== Tripper - AI-Powered Travel Planning Agent
 
-A production-quality example demonstrating advanced Embabel capabilities:
+https://github.com/embabel/tripper[Tripper] is a production-quality example demonstrating advanced Embabel capabilities:
 
 **Features:**
 
@@ -73,30 +73,26 @@ A production-quality example demonstrating advanced Embabel capabilities:
 
 === Goal-Oriented Action Planning (GOAP)
 
-==== https://medium.com/@vedantchaudhari/goal-oriented-action-planning-34035ed40d0b[Goal Oriented Action Planning]
-
-Introduction to GOAP, the planning algorithm used by Embabel.
+- Here's an https://medium.com/@vedantchaudhari/goal-oriented-action-planning-34035ed40d0b[Introduction to GOAP], the planning algorithm used by Embabel.
 Explains the core concepts and why GOAP is effective for AI agent planning.
 
-==== https://research.nvidia.com/labs/lpr/slm-agents/[Small Language Model Agents - NVIDIA Research]
+==== Small Language Model Agents - NVIDIA Research
 
-Research paper discussing the division between "code agency" and "LLM agency" - concepts that inform Embabel's architecture.
+- This https://research.nvidia.com/labs/lpr/slm-agents/[Research paper] discusses the division between "code agency" and "LLM agency" - concepts that inform Embabel's architecture.
 
-==== https://en.wikipedia.org/wiki/OODA_loop[OODA Loop - Wikipedia]
+==== OODA Loop - Wikipedia
 
-Background on the Observe-Orient-Decide-Act loop that underlies Embabel's replanning approach.
+Here's a https://en.wikipedia.org/wiki/OODA_loop[Background] on the Observe-Orient-Decide-Act loop that underlies Embabel's replanning approach.
 
 === Domain-Driven Design
 
-==== https://martinfowler.com/bliki/DomainDrivenDesign.html[Domain-Driven Design - Martin Fowler]
+- Martin Fowler's https://martinfowler.com/bliki/DomainDrivenDesign.html[Foundational concepts of Domain-Driven Design] provides a good summary of Embabel's approach to domain modeling.
 
-Foundational concepts of Domain-Driven Design that inform Embabel's approach to domain modeling.
+==== Domain-Driven Design: Tackling Complexity in the Heart of Software
 
-==== https://www.amazon.com/Domain-Driven-Design-Tackling-Complexity-Software/dp/0321125215[Domain-Driven Design: Tackling Complexity in the Heart of Software]
-
-Eric Evans' seminal book on DDD principles.
+- Eric Evans' https://www.amazon.com/Domain-Driven-Design-Tackling-Complexity-Software/dp/0321125215[seminal book] on DDD principles.
 Essential reading for understanding how to model complex domains effectively.
 
-==== https://www.infoq.com/articles/ddd-contextual-validation/[DDD and Contextual Validation]
+==== DDD and Contextual Validation
 
-Advanced DDD concepts relevant to building sophisticated domain models for AI agents.
+- https://www.infoq.com/articles/ddd-contextual-validation/[Advanced DDD concepts] relevant to building sophisticated domain models for AI agents.

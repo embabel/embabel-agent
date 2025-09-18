@@ -1,4 +1,4 @@
-[[overview.concepts]]
+[[overview__concepts]]
 === Core Concepts
 
 Agent frameworks break up tasks into separate smaller interactions, making LLM use more predictable and focused.
@@ -78,7 +78,7 @@ public class StarNewsFinder {
             Write something amusing for %s based on their horoscope and these news stories.
             Format as Markdown with links.
             """.formatted(person.name());
-            
+
         return context.ai().withLlm(llm).createObject(prompt, Writeup.class);  // <16>
     }
 }

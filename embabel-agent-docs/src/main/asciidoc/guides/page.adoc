@@ -1,9 +1,9 @@
-[[examples.guide]]
-== Examples
+[[guides]]
+== Guides
 :sectids:
 :sectanchors:
 
 The following chapters are dedicated to _Agent Examples_.
 
-include::horoscope.adoc[]
-include::movie.adoc[]
+include::horoscope/page.adoc[]
+include::movies/page.adoc[]

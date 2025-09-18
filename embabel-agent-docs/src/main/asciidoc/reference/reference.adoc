@@ -1,4 +1,4 @@
-[[agent.reference]]
+[[reference__reference]]
 == Reference
 :sectids:
 :sectanchors:

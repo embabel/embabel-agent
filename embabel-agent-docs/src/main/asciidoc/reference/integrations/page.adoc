@@ -1,7 +1,7 @@
 [[reference.integrations]]
 === Integrations
 
-[[mcp]]
+[[reference.integrations__mcp]]
 ==== Model Context Protocol (MCP)
 
 ===== Consuming
@@ -10,5 +10,5 @@
 ===== Publishing
 
 
-[[a2a]]
+[[reference.integrations__a2a]]
 ==== A2A

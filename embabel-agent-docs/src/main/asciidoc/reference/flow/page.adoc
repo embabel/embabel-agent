@@ -121,7 +121,7 @@ The blackboard enables:
 - **State Persistence**: Complete execution history is maintained
 - **Debugging Support**: Full visibility into state evolution for troubleshooting
 
-[[reference.binding]]
+[[reference.flow__binding]]
 ==== Binding
 
 By default items in the blackboard are matched by type. When there are multiple candidates the most recent one is provided.

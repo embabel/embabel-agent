@@ -14,9 +14,9 @@ include::reference/reference.adoc[]
 
 // include::eval/eval-guide.adoc[]
 
-// include::examples/examples-guide.adoc[]
+// include::examples/page.adoc[]
 
-include::design/page.adoc[]
+include::agent-design/page.adoc[]
 
 include::contributing/page.adoc[]
 

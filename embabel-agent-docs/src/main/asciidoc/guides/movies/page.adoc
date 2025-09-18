@@ -1,2 +1,2 @@
-[[example.movie]]
+[[guies.movies]]
 === Movie Example

@@ -65,7 +65,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Type-safe invocation with inferred result type
-val invocation: AgentInvocation<TravelPlan> = 
+val invocation: AgentInvocation<TravelPlan> =
     AgentInvocation.create(agentPlatform)
 
 val plan = invocation.invoke(travelRequest)
@@ -119,7 +119,7 @@ val processOptions = ProcessOptions(
     )
 )
 
-val invocation: AgentInvocation<TravelPlan> = 
+val invocation: AgentInvocation<TravelPlan> =
     AgentInvocation.builder(agentPlatform)
         .options(processOptions)
         .build()
@@ -164,9 +164,9 @@ Here's how `AgentInvocation` is used in the http://github.com/embabel/tripper[Tr
 class TripPlanningController(
     private val agentPlatform: AgentPlatform
 ) {
-    
+
     private val activeJobs = ConcurrentHashMap<String, CompletableFuture<TripPlan>>()
-    
+
     @PostMapping("/plan-trip")
     fun planTrip(
         @ModelAttribute tripRequest: TripRequest,
@@ -174,7 +174,7 @@ class TripPlanningController(
     ): String {
         // Generate unique job ID for tracking
         val jobId = UUID.randomUUID().toString()
-        
+
         // Create agent invocation with custom options
         val invocation: AgentInvocation<TripPlan> = AgentInvocation.builder(agentPlatform)
             .options { options ->
@@ -185,11 +185,11 @@ class TripPlanningController(
                 }
             }
             .build()
-        
+
         // Start async agent execution
         val future = invocation.invokeAsync(tripRequest)
         activeJobs[jobId] = future
-        
+
         // Set up completion handler
         future.whenComplete { result, throwable ->
             if (throwable != null) {
@@ -198,26 +198,26 @@ class TripPlanningController(
                 logger.info("Trip planning completed for job $jobId")
             }
         }
-        
+
         model.addAttribute("jobId", jobId)
         model.addAttribute("tripRequest", tripRequest)
-        
+
         // Return htmx template that will poll for results
         return "trip-planning-progress"
     }
-    
+
     @GetMapping("/trip-status/{jobId}")
     @ResponseBody
     fun getTripStatus(@PathVariable jobId: String): ResponseEntity<Map<String, Any>> {
         val future = activeJobs[jobId]
             ?: return ResponseEntity.notFound().build()
-        
+
         return when {
             future.isDone -> {
                 try {
                     val tripPlan = future.get()
                     activeJobs.remove(jobId)
-                    
+
                     ResponseEntity.ok(mapOf(
                         "status" to "completed",
                         "result" to tripPlan,
@@ -243,7 +243,7 @@ class TripPlanningController(
             }
         }
     }
-    
+
     @GetMapping("/trip-result/{jobId}")
     fun showTripResult(
         @PathVariable jobId: String,
@@ -252,16 +252,16 @@ class TripPlanningController(
         // Retrieve completed result from cache or database
         val tripPlan = tripResultCache[jobId]
             ?: return "redirect:/error"
-        
+
         model.addAttribute("tripPlan", tripPlan)
         return "trip-result"
     }
-    
+
     @DeleteMapping("/cancel-trip/{jobId}")
     @ResponseBody
     fun cancelTrip(@PathVariable jobId: String): ResponseEntity<Map<String, String>> {
         val future = activeJobs[jobId]
-        
+
         return if (future != null && !future.isDone) {
             future.cancel(true)
             activeJobs.remove(jobId)
@@ -271,7 +271,7 @@ class TripPlanningController(
                 .body(mapOf("error" to "Job not found or already completed"))
         }
     }
-    
+
     companion object {
         private val logger = LoggerFactory.getLogger(TripPlanningController::class.java)
         private val tripResultCache = ConcurrentHashMap<String, TripPlan>()
@@ -288,4 +288,4 @@ class TripPlanningController(
 - **Resource Cleanup**: Removes completed jobs from memory
 - **Process Options**: Configures verbosity and debugging for production use
 
-IMPORTANT: Agents can also be exposed as <<mcp, MCP>> servers and consumed from tools like Claude Desktop.
+IMPORTANT: Agents can also be exposed as <<reference.integrations__mcp, MCP>> servers and consumed from tools like Claude Desktop.

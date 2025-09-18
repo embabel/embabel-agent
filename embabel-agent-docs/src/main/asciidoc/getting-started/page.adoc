@@ -3,10 +3,8 @@
 :sectids:
 :sectanchors:
 
-include::quickstart.adoc[]
-
-include::installing.adoc[]
-include::running.adoc[]
-
-include::a-little-ai.adoc[]
-include::first-agent.adoc[]
+include::quickstart/page.adoc[]
+include::installing/page.adoc[]
+include::running/page.adoc[]
+include::a-little-ai/page.adoc[]
+include::first-agent/page.adoc[]

@@ -1,4 +1,4 @@
-[[reference.types-runner]]
+[[reference.types]]
 === Core Types
 
 ==== LlmOptions
@@ -41,13 +41,13 @@ You obtain a `PromptRunner` from an `OperationContext` using the fluent API:
 public Story createStory(UserInput input, OperationContext context) {
     // Get PromptRunner with default LLM
     var runner = context.ai().withDefaultLlm();
-    
+
     // Get PromptRunner with specific LLM options
     var customRunner = context.ai().withLlm(
         LlmOptions.withModel(OpenAiModels.GPT_4O_MINI)
             .withTemperature(0.8)
     );
-    
+
     return customRunner.createObject("Write a story about: " + input.getContent(), Story.class);
 }
 ----
@@ -65,7 +65,7 @@ TIP: Normally you want to use one of the `createObject` methods to ensure the re
 
 **Tool and Context Management:**
 
-- `withToolGroup(String)`: Add <<tool-groups, tool groups>> for LLM access
+- `withToolGroup(String)`: Add <<reference.tools__tool-groups, tool groups>> for LLM access
 - `withToolObject(Object)`: Add domain objects with <<reference.tools, @Tool>> methods
 - `withPromptContributor(PromptContributor)`: Add <<reference.prompt-contributors, context>> contributors
 

@@ -70,7 +70,7 @@ Use `OperationContext` unless you are creating a subprocess.
 
 ==== Binding by name
 
-The `@RequireNameMatch` annotation can be used to <<reference.binding, bind parameters by name>>.
+The `@RequireNameMatch` annotation can be used to <<reference.flow__binding, bind parameters by name>>.
 
 //TODO: (jasper notes) Provide an illustrative code example here.
 

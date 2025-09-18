@@ -6,7 +6,7 @@ end-user's point of view.
 
 NOTE: You may skim or skip this section if you're already a seasoned agentic AI engineer.
 
-[[agent]]
+[[overview__agent]]
 Agent::
     An Agent in the Embabel framework is a self-contained component that bundles together domain logic, AI capabilities,
 and tool usage to achieve a specific goal on behalf of the user.
@@ -20,7 +20,7 @@ The output is a new type, representing a transformation of the input, however du
 can occur. An example of side effects might be new records stored in a database, orders placed on an e-commerce site
 and so on.
 
-[[tools]]
+[[overview__tools]]
 Tools::
 Tools extend the raw capabilities of an LLM by letting it interact with the outside world.
 On its own, a language model can only generate responses from its training data and context window, which risks
@@ -43,12 +43,12 @@ In short, tools are one way to bridge the gap between *text prediction* and *rea
 practical agent capable of both reasoning and execution. In Embabel many tools are bound domain objects.
 
 MCP::
-Model Context Protocol <<mcp,(MCP)>> is a standardized way of hosting and sharing tools.
+Model Context Protocol <<reference.integrations__mcp,(MCP)>> is a standardized way of hosting and sharing tools.
 Unlike plain tools, which are usually wired directly into one agent or app, an MCP Server makes tools discoverable and
 reusable across models and runtimes they can be registered system-wide or at runtime, and invoked through a common
 protocol. Embabel can both consume and publish such tools for systems integration.
 
-[[dice]]
+[[overview__dice]]
 Domain Integrated Context Engineering (DICE)::
 Enhances context engineering by grounding both LLM inputs and outputs in typed domain objects.
 Instead of untyped prompts, context is structured with business-aware models that provide precision, testability,

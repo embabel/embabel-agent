@@ -1,4 +1,4 @@
-[[appendix.astar-goap-planner]]
+[[appendix__astar-goap-planner]]
 
 == Planning Module
 

@@ -20,7 +20,7 @@ public class Customer {
         return loyaltyLevel.calculateDiscount(orders.size());
     }
 
-    @Tool(description = "Check if customer is eligible for premium service")  
+    @Tool(description = "Check if customer is eligible for premium service")
     public boolean isPremiumEligible() {
         return orders.stream()
             .mapToDouble(Order::getTotal)
@@ -53,12 +53,12 @@ Domain objects can be used naturally in action methods, combining LLM interactio
 public Recommendation generateRecommendation(Customer customer, OperationContext context) {
     // LLM has access to customer.getLoyaltyDiscount() and customer.isPremiumEligible()
     // as tools, plus the customer object structure
-    
+
     String prompt = String.format(
         "Generate a personalized recommendation for %s based on their profile",
         customer.getName()
     );
-    
+
     return context.ai()
         .withDefaultLlm()
         .createObject(prompt, Recommendation.class);

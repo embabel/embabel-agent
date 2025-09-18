@@ -1,4 +1,4 @@
-[[agent.design]]
+[[agent-design]]
 == Design Considerations
 
 Embabel is designed to give you the ability to determine the correct balance between LLM autonomy and control from code.

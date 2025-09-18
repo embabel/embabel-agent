@@ -1,4 +1,4 @@
-[[reference.profiles]]
+[[reference.spring]]
 === Embabel and Spring
 
 Embabel embraces https://spring.io/projects/spring-framework[Spring].
