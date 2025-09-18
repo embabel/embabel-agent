@@ -52,8 +52,8 @@ Reference
 
 ### In this grouping:
 
-    Each group is a separate page on the site, eg hub.emababel.org/intro and hub.embabel.org/reference
-    Links inside these separate pages are fragments.
+* Each group is a separate page on the site, eg hub.emababel.org/intro and hub.embabel.org/reference
+* Links inside these separate pages are fragments.
 
 We need a way to for links to work in this format, without breaking anything in normal asciidoc. Therefore:
 
