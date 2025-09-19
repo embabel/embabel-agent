@@ -18,6 +18,7 @@
         <module>models/embabel-agent-anthropic-autoconfigure</module>
         <module>models/embabel-agent-ollama-autoconfigure</module>
         <module>models/embabel-agent-dockermodels-autoconfigure</module>
+        <module>models/embabel-agent-deepseek-autoconfigure</module>
     </modules>
 
     <build>
