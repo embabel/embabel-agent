@@ -6,10 +6,16 @@
         <artifactId>embabel-agent-parent</artifactId>
         <version>0.1.3-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-test</artifactId>
-    <packaging>jar</packaging>
-    <name>Embabel Agent Test</name>
-    <description>Test Support Framework for Agent API(s)</description>
+    <artifactId>embabel-agent-test-support</artifactId>
+    <packaging>pom</packaging>
+    <name>Embabel Agent Test Support</name>
+    <description>Embabel Agent Test Support for Agent API(s)</description>
+
+
+    <modules>
+        <module>embabel-agent-test</module>
+        <module>embabel-agent-test-internal</module>
+    </modules>
 
     <dependencies>
         <!-- Main Dependencies -->

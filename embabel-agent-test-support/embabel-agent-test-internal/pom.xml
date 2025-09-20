@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.embabel.agent</groupId>
+        <artifactId>embabel-agent-test-support</artifactId>
+        <version>0.1.3-SNAPSHOT</version>
+    </parent>
+    <artifactId>embabel-agent-test-internal</artifactId>
+    <packaging>jar</packaging>
+    <name>Embabel Agent Internal Test Framework</name>
+    <description>Test Support Framework internal Modules</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-test</artifactId>
+        </dependency>
+    </dependencies> 
+
+</project>

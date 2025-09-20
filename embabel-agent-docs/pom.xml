@@ -142,7 +142,7 @@
                             </sourceDirectories>
                             <samples>
                                 <dir>${project.parent.basedir}/embabel-agent-api/src/test/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-test/src/test/kotlin</dir>
+                                <dir>${project.parent.basedir}/embabel-agent-test-support/embabel-agent-test/src/test/kotlin</dir>
                             </samples>
                             <!-- Platform settings -->
                             <platform>jvm</platform>

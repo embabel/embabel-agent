@@ -8,8 +8,8 @@
     </parent>
     <artifactId>embabel-agent-code</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent coding domain library</name>
-    <description>Embabel coding domain library</description>
+    <name>Embabel Agent Coding Domain Library</name>
+    <description>Embabel Coding Domain Library</description>
 
     <dependencies>
         <!-- Main Dependencies -->
@@ -48,7 +48,7 @@
         <!-- Test Dependencies -->
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test</artifactId>
+            <artifactId>embabel-agent-test-internal</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

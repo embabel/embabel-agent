@@ -28,7 +28,7 @@
         <module>embabel-agent-rag</module>
         <module>embabel-agent-shell</module>
         <module>embabel-agent-starters</module>
-        <module>embabel-agent-test</module>
+        <module>embabel-agent-test-support</module>
         <module>embabel-agent-ux</module>
         <module>embabel-agent-discord</module>
     </modules>
