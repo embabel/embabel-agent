@@ -17,6 +17,7 @@
         <asciidoctorj.version>3.0.0</asciidoctorj.version>
         <asciidoctorj.diagram.version>3.0.1</asciidoctorj.diagram.version>
         <jruby.version>9.2.17.0</jruby.version>
+        <maven.resources.plugin.version>3.3.1</maven.resources.plugin.version>
         <agent-api.version>${project.parent.version}</agent-api.version>
     </properties>
 
@@ -108,6 +109,31 @@
                                 <idprefix />
                                 <idseparator>-</idseparator>
                             </attributes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>${maven.resources.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>copy-additional-css</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-docs</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>src/main/resources/themes</directory>
+                                    <includes>
+                                        <include>theme-extensions.css</include>
+                                    </includes>
+                                </resource>
+                            </resources>
                         </configuration>
                     </execution>
                 </executions>
