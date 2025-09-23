@@ -107,6 +107,40 @@ interface Blackboard : Bindable, MayHaveLastResult, HasInfoString {
     operator fun get(name: String): Any?
 
     /**
+     * Indicates whether this blackboard contains a variable.
+     */
+    fun hasValue(
+        variable: String = IoBinding.DEFAULT_BINDING,
+        type: String,
+        dataDictionary: DataDictionary,
+    ): Boolean {
+        val bound = this[variable]
+        if (bound != null && satisfiesType(bound, type)) {
+            return true
+        }
+
+        val aggregationClass = dataDictionary.jvmTypes.map { it.clazz }.filter {
+            Aggregation::class.java.isAssignableFrom(it)
+        }.find { it.simpleName == type }
+        if (aggregationClass != null) {
+            val aggregationInstance = aggregationFromBlackboard(
+                this,
+                aggregationClass.kotlin as KClass<Aggregation>,
+            )
+            if (aggregationInstance != null) {
+                return true;
+            }
+        }
+
+        if (variable != IoBinding.DEFAULT_BINDING) {
+            // Must be precisely bound
+            return false
+        }
+        val last = objects.lastOrNull { satisfiesType(boundInstance = it, type) }
+        return last != null
+    }
+
+    /**
      * Resolve the value of a variable, if it is set.
      * Resolve superclasses
      * For example, getValue("it", "Animal") will match a Dog if Dog extends Animal

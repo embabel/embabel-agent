@@ -271,6 +271,13 @@ class AgentMetadataReaderActionTest {
         every { mockPlatformServices.llmOperations } returns mockk()
         every { mockPlatformServices.eventListener } returns DevNull
         val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
+        every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+            blackboard.hasValue(
+                firstArg(),
+                secondArg(),
+                thirdArg(),
+            )
+        }
         every { mockAgentProcess.getValue(any(), any(), any()) } answers {
             blackboard.getValue(
                 firstArg(),
@@ -361,6 +368,13 @@ class AgentMetadataReaderActionTest {
         every { mockPlatformServices.llmOperations } returns mockk()
         every { mockPlatformServices.eventListener } returns DevNull
         val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
+        every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+            blackboard.hasValue(
+                firstArg(),
+                secondArg(),
+                thirdArg(),
+            )
+        }
         every { mockAgentProcess.getValue(any(), any(), any()) } answers {
             blackboard.getValue(
                 firstArg(),
@@ -450,6 +464,13 @@ class AgentMetadataReaderActionTest {
         every { mockPlatformServices.llmOperations } returns mockk()
         every { mockPlatformServices.eventListener } returns DevNull
         val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
+        every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+            blackboard.hasValue(
+                firstArg(),
+                secondArg(),
+                thirdArg(),
+            )
+        }
         every { mockAgentProcess.getValue(any(), any(), any()) } answers {
             blackboard.getValue(
                 firstArg(),
@@ -495,6 +516,13 @@ class AgentMetadataReaderActionTest {
         val blackboard = InMemoryBlackboard()
         blackboard += UserInput("John Doe")
         blackboard += ("task" to Task("task"))
+        every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+            blackboard.hasValue(
+                firstArg(),
+                secondArg(),
+                thirdArg(),
+            )
+        }
         every { mockAgentProcess.getValue(any(), any(), any()) } answers {
             blackboard.getValue(
                 firstArg(),
@@ -540,6 +568,13 @@ class AgentMetadataReaderActionTest {
         val blackboard = InMemoryBlackboard()
         blackboard += UserInput("John Doe")
         blackboard += ("task" to Task("task"))
+        every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+            blackboard.hasValue(
+                firstArg(),
+                secondArg(),
+                thirdArg(),
+            )
+        }
         every { mockAgentProcess.getValue(any(), any(), any()) } answers {
             blackboard.getValue(
                 firstArg(),
@@ -662,6 +697,13 @@ class AgentMetadataReaderActionTest {
             every { mockPlatformServices.outputChannel } returns DevNullOutputChannel
 
             val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
+            every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+                blackboard.hasValue(
+                    firstArg(),
+                    secondArg(),
+                    thirdArg(),
+                )
+            }
             every { mockAgentProcess.getValue(any(), any(), any()) } answers {
                 blackboard.getValue(
                     firstArg(),
@@ -717,6 +759,13 @@ class AgentMetadataReaderActionTest {
             every { mockPlatformServices.eventListener } returns DevNull
             every { mockPlatformServices.outputChannel } returns DevNullOutputChannel
             val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
+            every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+                blackboard.hasValue(
+                    firstArg(),
+                    secondArg(),
+                    thirdArg(),
+                )
+            }
             every { mockAgentProcess.getValue(any(), any(), any()) } answers {
                 blackboard.getValue(
                     firstArg(),
@@ -837,6 +886,13 @@ class AgentMetadataReaderActionTest {
             every { mockPlatformServices.outputChannel } returns DevNullOutputChannel
 
             val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, PersonWithReverseTool("John Doe"))
+            every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+                blackboard.hasValue(
+                    firstArg(),
+                    secondArg(),
+                    thirdArg(),
+                )
+            }
             every { mockAgentProcess.getValue(any(), any(), any()) } answers {
                 blackboard.getValue(
                     firstArg(),
@@ -896,6 +952,13 @@ class AgentMetadataReaderActionTest {
             every { mockPlatformServices.eventListener } returns DevNull
             every { mockPlatformServices.outputChannel } returns DevNullOutputChannel
             val blackboard = InMemoryBlackboard().bind(IoBinding.DEFAULT_BINDING, UserInput("John Doe"))
+            every { mockAgentProcess.hasValue(any(), any(), any()) } answers {
+                blackboard.hasValue(
+                    firstArg(),
+                    secondArg(),
+                    thirdArg(),
+                )
+            }
             every { mockAgentProcess.getValue(any(), any(), any()) } answers {
                 blackboard.getValue(
                     firstArg(),
