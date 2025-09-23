@@ -14,7 +14,7 @@
     <dependencies>
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-starter</artifactId>
+            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
         </dependency>
 
         <dependency>

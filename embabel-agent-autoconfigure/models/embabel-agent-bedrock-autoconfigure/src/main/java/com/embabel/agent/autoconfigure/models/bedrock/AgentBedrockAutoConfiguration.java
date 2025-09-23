@@ -15,13 +15,11 @@
  */
 package com.embabel.agent.autoconfigure.models.bedrock;
 
-import com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration;
 import com.embabel.agent.config.models.bedrock.BedrockModels;
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi;
 import org.springframework.ai.bedrock.converse.BedrockProxyChatModel;
 import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.ComponentScan;
@@ -48,6 +46,5 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
         CohereEmbeddingBedrockApi.class,
         BedrockModels.class})
 @Import(BedrockModels.class)
-@ImportAutoConfiguration(AgentPlatformAutoConfiguration.class)
 public class AgentBedrockAutoConfiguration {
 }
