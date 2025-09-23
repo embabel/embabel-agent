@@ -78,5 +78,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 @AgentPlatform(BedrockModels.BEDROCK_PROFILE)
+@Deprecated(since = "0.1.3", forRemoval = true)
 public @interface EnableAgentBedrock {
 }
