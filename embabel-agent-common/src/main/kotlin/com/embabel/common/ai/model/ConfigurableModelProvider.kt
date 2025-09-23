@@ -22,22 +22,26 @@ import org.springframework.validation.annotation.Validated
 
 /**
  * Configuration properties for the model provider
- * @param llms Map of role to LLM name. Each entry will require an
- * LLM to be registered with the same name. May not include the default LLM.
- * @param embeddingServices: As with LLMs: map of role to embedding service name.
- * May not include the default embedding service.
- * @param defaultLlm Default LLM name. Must be an LLM name. It's good practice to override this
- * in configuration.
- * @param defaultEmbeddingModel Default embedding model name. Must be an embedding model name.
- * Need not be set, in which case it defaults to null.
  */
-@ConfigurationProperties("embabel.models")
 @Validated
+@ConfigurationProperties("embabel.models")
 data class ConfigurableModelProviderProperties(
-    val llms: Map<String, String> = emptyMap(),
-    val embeddingServices: Map<String, String> = emptyMap(),
-    val defaultLlm: String = "gpt-4.1-mini",
-    val defaultEmbeddingModel: String? = null,
+    /**
+     *  Map of role to LLM name. Each entry will require an LLM to be registered with the same name. May not include the default LLM.
+     */
+    var llms: Map<String, String> = emptyMap(),
+    /**
+     * Map of role to embedding service name. May not include the default embedding service.
+     */
+    var embeddingServices: Map<String, String> = emptyMap(),
+    /**
+     * Default LLM name. Must be an LLM name. It's good practice to override this in configuration.
+     */
+    var defaultLlm: String = "gpt-4.1-mini",
+    /**
+     *  Default embedding model name. Must be an embedding model name. Need not be set, in which case it defaults to null.
+     */
+    var defaultEmbeddingModel: String? = null,
 ) {
 
     fun allWellKnownLlmNames(): Set<String> {
