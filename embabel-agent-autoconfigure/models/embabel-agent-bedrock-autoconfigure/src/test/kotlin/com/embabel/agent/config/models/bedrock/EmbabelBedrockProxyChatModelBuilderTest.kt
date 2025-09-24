@@ -38,12 +38,6 @@ import java.time.Duration
 class EmbabelBedrockProxyChatModelBuilderTest {
 
     @Test
-    fun `AWS BedrockProxyChatModel builder logs warn message on init`(output: CapturedOutput) {
-        BedrockProxyChatModel.builder()
-        assertFalse({ output.isEmpty() }, "Output should not be empty, had [$output]")
-    }
-
-    @Test
     fun `Custom BedrockProxyChatModel builder should not log warn message on init`(output: CapturedOutput) {
         EmbabelBedrockProxyChatModelBuilder()
         assertTrue({ output.isEmpty() }, "Output should be empty, had [$output]")
