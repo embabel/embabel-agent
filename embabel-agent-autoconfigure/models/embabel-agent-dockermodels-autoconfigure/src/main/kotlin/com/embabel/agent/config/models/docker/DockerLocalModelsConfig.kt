@@ -31,6 +31,7 @@ import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.ai.openai.api.OpenAiApi
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.http.MediaType
@@ -38,13 +39,28 @@ import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
 
 @ConfigurationProperties(prefix = "embabel.docker.models")
-data class DockerProperties(
-    val baseUrl: String = "http://localhost:12434/engines",
-    override val maxAttempts: Int = 10,
-    override val backoffMillis: Long = 2000L,
-    override val backoffMultiplier: Double = 5.0,
-    override val backoffMaxInterval: Long = 180000L,
-) : RetryProperties
+class DockerProperties : RetryProperties {
+    /**
+     * The base url for docker
+     */
+    var baseUrl: String = "http://localhost:12434/engines"
+    /**
+     *  Maximum number of attempts.
+     */
+    override var maxAttempts: Int = 10
+    /**
+     * Initial backoff interval (in milliseconds).
+     */
+    override var backoffMillis: Long = 5000L
+    /**
+     * Backoff interval multiplier.
+     */
+    override var backoffMultiplier: Double = 5.0
+    /**
+     * Maximum backoff interval (in milliseconds).
+     */
+    override var backoffMaxInterval: Long = 180000L
+}
 
 /**
  * Docker local models
@@ -54,7 +70,8 @@ data class DockerProperties(
  * http://localhost:12434/engines/v1/models (assuming default port).
  */
 @ExcludeFromJacocoGeneratedReport(reason = "Docker model configuration can't be unit tested")
-@Configuration
+@Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(DockerProperties::class)
 class DockerLocalModelsConfig(
     private val dockerProperties: DockerProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,

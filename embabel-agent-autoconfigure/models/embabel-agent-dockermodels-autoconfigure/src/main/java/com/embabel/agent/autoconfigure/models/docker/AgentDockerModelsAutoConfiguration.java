@@ -16,13 +16,11 @@
 package com.embabel.agent.autoconfigure.models.docker;
 
 import com.embabel.agent.config.models.docker.DockerLocalModelsConfig;
-import com.embabel.agent.config.models.docker.DockerProperties;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
 
 /**

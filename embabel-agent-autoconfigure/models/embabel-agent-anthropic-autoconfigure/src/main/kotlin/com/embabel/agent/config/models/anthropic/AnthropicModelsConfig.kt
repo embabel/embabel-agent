@@ -40,12 +40,27 @@ import java.time.LocalDate
  * when calling Anthropic APIs.
  */
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.anthropic")
-data class AnthropicProperties(
-    override val maxAttempts: Int = 10,
-    override val backoffMillis: Long = 5000L,
-    override val backoffMultiplier: Double = 5.0,
-    override val backoffMaxInterval: Long = 180000L,
-) : RetryProperties
+class AnthropicProperties : RetryProperties {
+    /**
+     *  Maximum number of attempts.
+     */
+    override var maxAttempts: Int = 10
+
+    /**
+     * Initial backoff interval (in milliseconds).
+     */
+    override var backoffMillis: Long = 5000L
+
+    /**
+     * Backoff interval multiplier.
+     */
+    override var backoffMultiplier: Double = 5.0
+
+    /**
+     * Maximum backoff interval (in milliseconds).
+     */
+    override var backoffMaxInterval: Long = 180000L
+}
 
 
 /**
@@ -53,7 +68,7 @@ data class AnthropicProperties(
  * This class provides beans for various Claude models (Opus, Sonnet, Haiku)
  * and handles the creation of Anthropic API clients with proper authentication.
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @ExcludeFromJacocoGeneratedReport(reason = "Anthropic configuration can't be unit tested")
 class AnthropicModelsConfig(
     @param:Value("\${ANTHROPIC_BASE_URL:}")

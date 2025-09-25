@@ -36,12 +36,27 @@ import java.time.LocalDate
  * prefix embabel.agent.platform.models.openai.
  */
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.openai")
-data class OpenAiProperties(
-    override val maxAttempts: Int = 10,
-    override val backoffMillis: Long = 5000L,
-    override val backoffMultiplier: Double = 5.0,
-    override val backoffMaxInterval: Long = 180000L,
-) : RetryProperties
+class OpenAiProperties : RetryProperties {
+    /**
+     *  Maximum number of attempts.
+     */
+    override var maxAttempts: Int = 10
+
+    /**
+     * Initial backoff interval (in milliseconds).
+     */
+    override var backoffMillis: Long = 5000L
+
+    /**
+     * Backoff interval multiplier.
+     */
+    override var backoffMultiplier: Double = 5.0
+
+    /**
+     * Maximum backoff interval (in milliseconds).
+     */
+    override var backoffMaxInterval: Long = 180000L
+}
 
 /**
  * Configuration for well-known OpenAI language and embedding models.
