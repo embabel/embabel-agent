@@ -72,6 +72,9 @@ interface LlmHyperparameters {
 
 /**
  * Portable LLM options.
+ * @param modelSelectionCriteria explicit model selection criteria. If provided, overrides model and role.
+ * @param model Optional model name to use. If provided, specifies an LLM by name. Takes precedence over role.
+ * @param role Optional role to use for model selection. If provided, and model is not specified, used to find an LLM by role
  * @param timeout Optional timeout for this LLM call. If provided, overrides the default client timeout.
  */
 @Schema(
@@ -80,6 +83,7 @@ interface LlmHyperparameters {
 data class LlmOptions(
     val modelSelectionCriteria: ModelSelectionCriteria? = null,
     val model: String? = null,
+    val role: String? = null,
     override val temperature: Double? = null,
     override val frequencyPenalty: Double? = null,
     override val maxTokens: Int? = null,
@@ -95,11 +99,18 @@ data class LlmOptions(
         required = false,
     )
     val criteria: ModelSelectionCriteria
-        get() = modelSelectionCriteria ?: when (model) {
-            null, "default" -> PlatformDefault
-            "auto" -> AutoModelSelectionCriteria
-            else -> byName(model)
-        }
+        get() =
+            modelSelectionCriteria ?: when (model) {
+                null -> null
+                "default" -> PlatformDefault
+                "auto" -> AutoModelSelectionCriteria
+                else -> byName(model)
+            } ?: when (role) {
+                null -> null
+                "default" -> PlatformDefault
+                "auto" -> AutoModelSelectionCriteria
+                else -> byRole(role)
+            } ?: PlatformDefault
 
     /**
      * Create a copy with a default temperature for the LLM.
