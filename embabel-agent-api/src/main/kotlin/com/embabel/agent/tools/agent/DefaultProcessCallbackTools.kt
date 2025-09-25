@@ -17,6 +17,7 @@ package com.embabel.agent.tools.agent
 
 import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.common.autonomy.ProcessWaitingException
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.hitl.ConfirmationResponse
 import com.embabel.agent.core.hitl.FormBindingRequest
@@ -72,8 +73,14 @@ class DefaultProcessCallbackTools(
         }
         // Resume the agent process with the form data
         agentProcess.run()
-        val ape = AgentProcessExecution.fromProcessStatus(formData, agentProcess)
-        return textCommunicator.communicateResult(ape)
+        try{
+            val ape = AgentProcessExecution.fromProcessStatus(formData, agentProcess)
+            return textCommunicator.communicateResult(ape)
+        } catch (pwe: ProcessWaitingException) {
+            val response = textCommunicator.communicateAwaitable(agentProcess.agent, pwe)
+            logger.info("Returning waiting response:\n$response")
+            return response
+        }
     }
 
     @Tool(
@@ -102,7 +109,13 @@ class DefaultProcessCallbackTools(
         }
         // Resume the agent process with the form data
         agentProcess.run()
-        val ape = AgentProcessExecution.fromProcessStatus(confirmationRequest.payload, agentProcess)
-        return textCommunicator.communicateResult(ape)
+        try{
+            val ape = AgentProcessExecution.fromProcessStatus(confirmationRequest.payload, agentProcess)
+            return textCommunicator.communicateResult(ape)
+        } catch (pwe: ProcessWaitingException) {
+            val response = textCommunicator.communicateAwaitable(agentProcess.agent, pwe)
+            logger.info("Returning waiting response:\n$response")
+            return response
+        }
     }
 }
