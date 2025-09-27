@@ -1,0 +1,25 @@
+name: Dependabot Insights
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+permissions:
+  contents: read
+  security-events: read  # Required to access Dependabot alerts
+
+jobs:
+  generate-insights:
+    name: Generate Dependabot Insights
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup GitHub CLI
+        uses: cli/gh-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run alert grouping script
+        run: .github/scripts/dependabot-group-alerts.sh
