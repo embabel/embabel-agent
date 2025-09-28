@@ -26,4 +26,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         
-        run: mvn clean -U -DskipTests=true deploy
+        run: mvn -U -DskipTests=true clean deploy
