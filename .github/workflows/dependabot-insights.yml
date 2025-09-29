@@ -24,7 +24,7 @@ jobs:
       - name: Authenticate GitHub CLI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh auth login --with-token <<< "$GH_TOKEN"
+        run: gh auth status
 
       - name: Verify GitHub CLI Auth
         run: gh auth status
