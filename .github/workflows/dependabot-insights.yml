@@ -5,7 +5,7 @@ on:
 
 permissions:
   contents: read
-  security-events: read  # Required to access Dependabot alerts
+  security-events: read  # Required to access Dependabot alerts     
 
 jobs:
   generate-insights:
