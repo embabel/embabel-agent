@@ -23,7 +23,7 @@ jobs:
       
       - name: Run alert grouping script
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_TOKEN }}
         run: |
           bash .github/scripts/dependabot-group-alerts.sh
 
