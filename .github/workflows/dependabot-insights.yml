@@ -25,5 +25,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.DEPENDABOT_TOKEN }}
         run: |
+          export GH_TOKEN="$GH_TOKEN"
           bash .github/scripts/dependabot-group-alerts.sh
 
