@@ -1,4 +1,4 @@
-Oname: Dependabot Insights
+name: Dependabot Insights
 
 on:
   workflow_dispatch:  # Manual trigger only
