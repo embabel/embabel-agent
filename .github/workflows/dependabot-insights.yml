@@ -22,4 +22,8 @@ jobs:
           sudo apt install -y gh
       
       - name: Run alert grouping script
-        run: .github/scripts/dependabot-group-alerts.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash .github/scripts/dependabot-group-alerts.sh
+
