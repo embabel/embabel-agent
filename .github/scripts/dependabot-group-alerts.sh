@@ -8,7 +8,7 @@ gh api repos/"$GITHUB_REPOSITORY"/dependabot/alerts \
   --paginate \
   --jq '.' > alerts.json
 
-# Group and format alerts
+# Group and format security alerts
 cat alerts.json | jq -s '
   add
   | group_by([.dependency.package.name, .security_advisory.ghsa_id])
