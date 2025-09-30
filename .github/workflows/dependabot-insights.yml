@@ -20,14 +20,6 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y gh
-
-      - name: Authenticate GitHub CLI
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh auth login --with-token --hostname github.com
-
-      - name: Verify GitHub CLI Auth
-        run: gh auth status
-
+      
       - name: Run alert grouping script
         run: .github/scripts/dependabot-group-alerts.sh
