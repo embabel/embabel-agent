@@ -1,4 +1,4 @@
-name: Dependabot Insights
+Oname: Dependabot Insights
 
 on:
   workflow_dispatch:  # Manual trigger only
@@ -23,8 +23,7 @@ jobs:
       
       - name: Run alert grouping script
         env:
-          GH_TOKEN: ${{ secrets.DEPENDABOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_REPO_TOKEN }}
         run: |
-          export GH_TOKEN="${{ secrets.DEPENDABOT_TOKEN }}"  # ✅ Injects secret directly
           bash .github/scripts/dependabot-group-alerts.sh
 
