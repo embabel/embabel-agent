@@ -21,11 +21,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * Configuration properties for the agent process repository.
  */
 @ConfigurationProperties("embabel.agent.platform.context-repository")
-data class ContextRepositoryProperties(
+class ContextRepositoryProperties {
     /**
      * Maximum number of contexts to keep in memory.
      * When this limit is exceeded, the oldest processes will be evicted.
      * Default is 1000.
      */
-    val windowSize: Int = 1000,
-)
+    var windowSize: Int = 1000
+
+    companion object {
+        operator fun invoke(windowSize: Int): ContextRepositoryProperties =
+            ContextRepositoryProperties().apply { this.windowSize = windowSize }
+    }
+}

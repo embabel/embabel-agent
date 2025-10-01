@@ -33,11 +33,11 @@ fun forAutonomyTesting(
     agentConfidenceCutOff: Double? = null,
     goalConfidenceCutOff: Double? = null
 ): AutonomyProperties {
-    val autonomyConfig = AgentPlatformProperties.AutonomyConfig(
-        agentConfidenceCutOff = agentConfidenceCutOff ?: 0.6,
-        goalConfidenceCutOff = goalConfidenceCutOff ?: 0.6
-    )
-    val testPlatformProperties = AgentPlatformProperties(autonomy = autonomyConfig)
+    val autonomyConfig = AgentPlatformProperties.AutonomyConfig()
+    autonomyConfig.agentConfidenceCutOff = agentConfidenceCutOff ?: 0.6
+    autonomyConfig.goalConfidenceCutOff = goalConfidenceCutOff ?: 0.6
+    val testPlatformProperties = AgentPlatformProperties()
+    testPlatformProperties.autonomy = autonomyConfig
     return AutonomyProperties(testPlatformProperties)
 }
 
@@ -49,10 +49,10 @@ fun forProcessIdGenerationTesting(
     includeAgentName: Boolean? = null,
     includeVersion: Boolean? = null
 ): DefaultProcessIdGeneratorProperties {
-    val processIdConfig = AgentPlatformProperties.ProcessIdGenerationConfig(
-        includeAgentName = includeAgentName ?: false,
-        includeVersion = includeVersion ?: false
-    )
-    val testPlatformProperties = AgentPlatformProperties(processIdGeneration = processIdConfig)
+    val processIdConfig = AgentPlatformProperties.ProcessIdGenerationConfig()
+    processIdConfig.includeAgentName = includeAgentName ?: false
+    processIdConfig.includeVersion = includeVersion ?: false
+    val testPlatformProperties = AgentPlatformProperties()
+    testPlatformProperties.processIdGeneration = processIdConfig
     return DefaultProcessIdGeneratorProperties(testPlatformProperties)
 }

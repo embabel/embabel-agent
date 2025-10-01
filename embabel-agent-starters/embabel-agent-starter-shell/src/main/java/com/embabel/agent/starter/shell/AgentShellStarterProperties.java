@@ -38,8 +38,8 @@ import javax.validation.constraints.Pattern;
  *
  * @since 1.1
  */
-@ConfigurationProperties(prefix = "embabel.agent.shell")
 @Validated
+@ConfigurationProperties(prefix = "embabel.agent.shell")
 public class AgentShellStarterProperties {
 
     /**

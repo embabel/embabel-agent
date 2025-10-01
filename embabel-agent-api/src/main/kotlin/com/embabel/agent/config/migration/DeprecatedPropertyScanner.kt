@@ -238,6 +238,18 @@ class DeprecatedPropertyScanner(
         put("embabel.openai.backoff-millis", "embabel.agent.platform.models.openai.backoff-millis")
         put("embabel.openai.backoff-multiplier", "embabel.agent.platform.models.openai.backoff-multiplier")
         put("embabel.openai.backoff-max-interval", "embabel.agent.platform.models.openai.backoff-max-interval")
+        put("embabel.docker.models.max-attempts", "embabel.agent.platform.models.docker.max-attempts")
+        put("embabel.docker.models.backoff-millis", "embabel.agent.platform.models.docker.backoff-millis")
+        put("embabel.docker.models.backoff-multiplier", "embabel.agent.platform.models.docker.backoff-multiplier")
+        put("embabel.docker.models.backoff-max-interval", "embabel.agent.platform.models.docker.backoff-max-interval")
+        put("embabel.docker.models.base-url", "embabel.agent.models.docker.base-url")
+        put("embabel.models.bedrock.models.name", "embabel.agent.models.bedrock.models.name")
+        put("embabel.models.bedrock.models.knowledge-cutoff", "embabel.agent.models.bedrock.models.knowledge-cutoff")
+        put("embabel.models.bedrock.models.input-price", "embabel.agent.models.bedrock.models.input-price")
+        put("embabel.models.bedrock.models.output-price", "embabel.agent.models.bedrock.models.output-price")
+
+        // discord prefix
+        put("embabel.discord.token", "embabel.agent.discord.token")
 
         // Specific platform feature migrations
         put("embabel.agent.enable-scanning", "embabel.agent.platform.scanning.annotation")

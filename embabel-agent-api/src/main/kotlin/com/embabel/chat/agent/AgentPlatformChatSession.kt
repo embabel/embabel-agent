@@ -39,13 +39,12 @@ import com.embabel.common.util.loggerFor
  * @param confirmGoals Whether to confirm goals with the user before proceeding
  * @param bindConversation Whether to bind the conversation to the chat session
  */
-data class ChatConfig(
-    val confirmGoals: Boolean = true,
-    val bindConversation: Boolean = false,
-    val multiGoal: Boolean = false,
-    val model: String = OpenAiModels.GPT_41_MINI,
-    val temperature: Double? = null,
-) {
+class ChatConfig {
+    var confirmGoals: Boolean = true
+    var bindConversation: Boolean = false
+    var multiGoal: Boolean = false
+    var model: String = OpenAiModels.GPT_41_MINI
+    var temperature: Double? = null
 
     /**
      * Options for the LLM used in the chat session

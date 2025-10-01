@@ -24,9 +24,9 @@ import java.time.Duration
  *  * can enable a failure result if the LLM does not have enough information to
  *  * create the desired output structure.
  */
-@ConfigurationProperties(prefix = "embabel.llm-operations.prompts")
-data class LlmOperationsPromptsProperties(
-    val maybePromptTemplate: String = "maybe_prompt_contribution",
-    val generateExamplesByDefault: Boolean = true,
-    val defaultTimeout: Duration = Duration.ofSeconds(60),
-)
+@ConfigurationProperties(prefix = "embabel.agent.platform.llm-operations.prompts")
+class LlmOperationsPromptsProperties {
+    var maybePromptTemplate: String = "maybe_prompt_contribution"
+    var generateExamplesByDefault: Boolean = true
+    var defaultTimeout: Duration = Duration.ofSeconds(60)
+}

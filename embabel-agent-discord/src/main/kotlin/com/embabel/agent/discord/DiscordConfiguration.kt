@@ -26,12 +26,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
-@ConfigurationProperties(prefix = "embabel.discord")
-data class DiscordConfigProperties(
-    val token: String? = null,
-)
+@ConfigurationProperties(prefix = "embabel.agent.discord")
+class DiscordConfigProperties {
+    var token: String? = null
+}
 
-const val TOKEN_KEY = "embabel.discord.token"
+const val TOKEN_KEY = "embabel.agent.discord.token"
 
 /**
  * Adds all event listeners defined in the context to JDA builder

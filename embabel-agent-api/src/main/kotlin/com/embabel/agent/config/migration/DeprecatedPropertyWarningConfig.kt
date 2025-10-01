@@ -69,7 +69,7 @@ import org.springframework.context.annotation.Configuration
     havingValue = "true",
     matchIfMissing = true
 )
-data class DeprecatedPropertyWarningConfig(
+class DeprecatedPropertyWarningConfig {
     /**
      * Whether to enable individual warning logging.
      * **Enabled by default** for maximum visibility during migration periods.
@@ -77,4 +77,12 @@ data class DeprecatedPropertyWarningConfig(
      * When false, only aggregated summary is logged.
      */
     var individualLogging: Boolean = true
-)
+
+    companion object {
+        operator fun invoke(individualLogging: Boolean): DeprecatedPropertyWarningConfig {
+            return DeprecatedPropertyWarningConfig().apply {
+                this.individualLogging = individualLogging
+            }
+        }
+    }
+}

@@ -52,7 +52,7 @@ import software.amazon.awssdk.regions.providers.AwsRegionProvider
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
 
-@ConfigurationProperties(prefix = "embabel.models.bedrock")
+@ConfigurationProperties(prefix = "embabel.agent.models.bedrock")
 class BedrockProperties {
     /**
      * List of LLM provider by Bedrock
@@ -61,7 +61,7 @@ class BedrockProperties {
     var models: List<BedrockModelProperties> = emptyList()
 }
 
-@ConfigurationProperties(prefix = "embabel.models.bedrock.models")
+@ConfigurationProperties(prefix = "embabel.agent.models.bedrock.models")
 class BedrockModelProperties {
     /**
      * Name of the LLM, such as "gpt-3.5-turbo"

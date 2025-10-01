@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory
     havingValue = "true",
     matchIfMissing = false
 )
-data class DeprecatedPropertyScanningConfig(
+class DeprecatedPropertyScanningConfig {
     /**
      * Base packages to scan for deprecated conditional annotations.
      * Defaults to actual Embabel packages while excluding framework internals.
@@ -113,31 +113,31 @@ data class DeprecatedPropertyScanningConfig(
     var includePackages: List<String> = listOf(
         "com.embabel.agent",
         "com.embabel.agent.shell"
-    ),
+    )
 
     /**
      * Package prefixes to exclude from scanning.
      * Uses a comprehensive strategy that excludes common framework and library packages
      * while allowing configuration override for custom environments.
      */
-    var excludePackages: List<String> = defaultExcludePackages(),
+    var excludePackages: List<String> = defaultExcludePackages()
 
     /**
      * Additional user-specific packages to exclude.
      * Allows runtime customization without modifying the default exclusion list.
      */
-    var additionalExcludes: List<String> = emptyList(),
+    var additionalExcludes: List<String> = emptyList()
 
     /**
      * Whether to use classpath-based detection to automatically exclude JAR-based packages.
      * When enabled, packages from JAR files are automatically excluded from scanning.
      */
-    var autoExcludeJarPackages: Boolean = false,
+    var autoExcludeJarPackages: Boolean = false
 
     /**
      * Maximum depth for package scanning to prevent excessive recursion.
      */
-    var maxScanDepth: Int = 10,
+    var maxScanDepth: Int = 10
 
     /**
      * Whether scanning is enabled.
@@ -145,7 +145,6 @@ data class DeprecatedPropertyScanningConfig(
      * Set to `true` to activate comprehensive migration detection and warnings.
      */
     var enabled: Boolean = false
-) {
 
     private val logger = LoggerFactory.getLogger(DeprecatedPropertyScanningConfig::class.java)
 

@@ -24,22 +24,22 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * @param ogmPackages the packages to scan for Neo4j OGM entities. Defaults to none
  */
 @ConfigurationProperties(prefix = "embabel.agent.rag.neo")
-data class NeoRagServiceProperties(
-    val uri: String = "bolt://localhost:7687",
-    val username: String = "neo4j",
-    internal val password: String,
+class NeoRagServiceProperties : ContentChunker.Config {
+    var uri: String = "bolt://localhost:7687"
+    var username: String = "neo4j"
+    internal var password: String = ""
 
-    val chunkNodeName: String = "Chunk",
-    val entityNodeName: String = "Entity",
-    val name: String = "OgmRagService",
-    val description: String = "RAG service using Neo4j OGM for querying and embedding",
-    val contentElementIndex: String = "embabel-content-index",
-    val entityIndex: String = "embabel-entity-index",
-    val contentElementFullTextIndex: String = "embabel-content-fulltext-index",
-    val entityFullTextIndex: String = "embabel-entity-fulltext-index",
+    var chunkNodeName: String = "Chunk"
+    var entityNodeName: String = "Entity"
+    var name: String = "OgmRagService"
+    var description: String = "RAG service using Neo4j OGM for querying and embedding"
+    var contentElementIndex: String = "embabel-content-index"
+    var entityIndex: String = "embabel-entity-index"
+    var contentElementFullTextIndex: String = "embabel-content-fulltext-index"
+    var entityFullTextIndex: String = "embabel-entity-fulltext-index"
 
     // Empty packages causes a strange failure within Neo4j OGM
-    val ogmPackages: List<String> = listOf("not.a.real.package"),
-    override val maxChunkSize: Int = 1500,
-    override val overlapSize: Int = 200,
-) : ContentChunker.Config
+    var ogmPackages: List<String> = listOf("not.a.real.package")
+    override var maxChunkSize: Int = 1500
+    override var overlapSize: Int = 200
+}

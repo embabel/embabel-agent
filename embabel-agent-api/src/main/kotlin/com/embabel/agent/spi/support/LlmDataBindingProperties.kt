@@ -28,12 +28,12 @@ import java.time.Duration
  * We want to be more forgiving with data binding. This
  * can be important for smaller models.
  */
-@ConfigurationProperties(prefix = "embabel.llm-operations.data-binding")
-data class LlmDataBindingProperties(
-    override val maxAttempts: Int = 10,
-    val fixedBackoffMillis: Long = 30L,
-) : RetryTemplateProvider {
+@ConfigurationProperties(prefix = "embabel.agent.platform.llm-operations.data-binding")
+class LlmDataBindingProperties : RetryTemplateProvider {
     private val logger = LoggerFactory.getLogger(LlmDataBindingProperties::class.java)
+
+    override var maxAttempts: Int = 10
+    var fixedBackoffMillis: Long = 30L
 
     override fun retryTemplate(name: String): RetryTemplate {
         return RetryTemplate.builder()

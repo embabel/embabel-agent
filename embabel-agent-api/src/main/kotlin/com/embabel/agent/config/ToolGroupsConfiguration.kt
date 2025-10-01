@@ -49,11 +49,11 @@ data class GroupConfig(
  * @param excludes list of tool names to exclude from all tool groups
  */
 @ConfigurationProperties(prefix = "embabel.agent.platform.tools")
-data class ToolGroupsProperties(
-    val includes: Map<String, GroupConfig> = emptyMap(),
-    val excludes: List<String> = emptyList(),
-    val version: String = Semver().value,
-)
+class ToolGroupsProperties {
+    var includes: Map<String, GroupConfig> = emptyMap()
+    var excludes: List<String> = emptyList()
+    var version: String = Semver().value
+}
 
 @Configuration
 @EnableConfigurationProperties(
