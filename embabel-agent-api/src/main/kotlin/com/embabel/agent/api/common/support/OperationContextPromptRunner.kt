@@ -23,10 +23,6 @@ import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.prompt.element.ContextualPromptElement
-import com.embabel.agent.rag.PromptRunnerRagResponseSummarizer
-import com.embabel.agent.rag.tools.DualShotRagServiceSearchTools
-import com.embabel.agent.rag.tools.RagOptions
-import com.embabel.agent.rag.tools.SingleShotRagServiceSearchTools
 import com.embabel.agent.spi.InteractionId
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.tools.agent.AgentToolCallback
@@ -37,7 +33,6 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
-import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.tool.ToolCallback
 
@@ -172,54 +167,6 @@ internal data class OperationContextPromptRunner(
 
     override fun withToolObject(toolObject: ToolObject): PromptRunner =
         copy(toolObjects = this.toolObjects + toolObject)
-
-    override fun withRag(options: RagOptions): PromptRunner {
-        if (toolObjects.map { it.obj }
-                .any { it is SingleShotRagServiceSearchTools && it.options.service == options.service }
-        ) error("Cannot add Rag Tools against service '${options.service ?: "DEFAULT"}' twice")
-        val ragService =
-            context.agentPlatform().platformServices.ragService(context, options.service, options.listener)
-                ?: error("No RAG service named '${options.service}' available")
-
-        val namingStrategy: StringTransformer = if (options.service == null) {
-            StringTransformer.IDENTITY
-        } else {
-            StringTransformer { s -> "${options.service}-$s" }
-        }
-        val toolInstance = if (options.dualShot != null) {
-            DualShotRagServiceSearchTools(
-                ragService = ragService,
-                options = options,
-                summarizer = PromptRunnerRagResponseSummarizer(this, options)
-            )
-        } else {
-            SingleShotRagServiceSearchTools(
-                ragService = ragService,
-                options = options,
-            )
-        }
-        val withTools = withToolObject(
-            ToolObject(
-                obj = toolInstance,
-                namingStrategy = namingStrategy,
-            )
-        )
-        val systemPrompt = """|
-            |You have access to RAG search tools to help you answer questions
-            |about ${ragService.description}
-            """.trimMargin()
-        return if (options.service == null) {
-            // Default service, no need to explain
-            withTools.withSystemPrompt(systemPrompt)
-        } else {
-            withTools.withSystemPrompt(
-                """|
-                    |$systemPrompt
-                    |The tools are prefixed with ${ragService.name}
-                    """.trimMargin()
-            )
-        }
-    }
 
     override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner {
         val handoffs = Handoffs(

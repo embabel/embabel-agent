@@ -20,10 +20,8 @@ import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 import com.embabel.agent.core.*
 import com.embabel.agent.event.AgenticEventListener
-import com.embabel.agent.event.RagEventListener
 import com.embabel.agent.identity.User
 import com.embabel.agent.prompt.element.ContextualPromptElement
-import com.embabel.agent.rag.RagService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.prompt.CurrentDate
@@ -239,10 +237,5 @@ internal class OperationContextAi(
 
     override fun withLlm(llm: LlmOptions): PromptRunner {
         return context.promptRunner().withLlm(llm)
-    }
-
-    override fun rag(service: String?): RagService {
-        return context.processContext.platformServices.ragService(context, service, RagEventListener.NOOP)
-            ?: error("No RAG service found with name $service")
     }
 }

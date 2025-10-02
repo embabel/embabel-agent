@@ -43,9 +43,14 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * Create a tool object for this reference.
      */
     fun toolObject(): ToolObject = ToolObject(
-        obj = this,
+        obj = toolInstance(),
         namingStrategy = { toolName -> "${toolPrefix()}_$toolName" },
     )
+
+    /**
+     * Return the instance of the tool object. Defaults to this
+     */
+    fun toolInstance(): Any = this
 
     override fun contribution(): String {
         return """|
