@@ -24,6 +24,7 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.document.MetadataMode
 import org.springframework.ai.model.NoopApiKey
 import org.springframework.ai.model.SimpleApiKey
+import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.OpenAiEmbeddingModel
@@ -31,6 +32,8 @@ import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.ai.openai.api.OpenAiApi
 import org.springframework.ai.retry.RetryUtils
 import org.springframework.retry.support.RetryTemplate
+import org.springframework.web.client.RestClient
+import org.springframework.web.reactive.function.client.WebClient
 import java.time.LocalDate
 
 /**
@@ -75,6 +78,15 @@ open class OpenAiCompatibleModelFactory(
             loggerFor<OpenAiModels>().info("Using custom OpenAI embeddings path: {}", embeddingsPath)
             builder.embeddingsPath(embeddingsPath)
         }
+
+        //add observation registry to rest and web client builders
+        builder
+            .restClientBuilder(RestClient.builder()
+                .observationRegistry(observationRegistry))
+        builder
+            .webClientBuilder(WebClient.builder()
+                .observationRegistry(observationRegistry))
+
         return builder.build()
     }
 
@@ -125,6 +137,10 @@ open class OpenAiCompatibleModelFactory(
                     .model(model)
                     .build()
             )
+            .toolCallingManager(
+                ToolCallingManager.builder()
+                    .observationRegistry(observationRegistry)
+                    .build())
             .openAiApi(openAiApi)
             .retryTemplate(retryTemplate)
             .observationRegistry(
