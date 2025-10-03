@@ -25,7 +25,10 @@ import java.time.Instant
 open class ResearchTopic(
     @get:JsonPropertyDescription("topic to research") val topic: String,
     @get:JsonPropertyDescription("specific questions") val questions: List<String>,
-)
+) {
+
+    override fun toString(): String = "ResearchTopic(topic='$topic', questions=$questions)"
+}
 
 open class ResearchTopics(
     val topics: List<ResearchTopic>,

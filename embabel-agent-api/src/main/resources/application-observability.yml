@@ -1,37 +1,23 @@
+# Observability configuration for Spring AI with tracing and logging
+# This is a concern of the application, not the library and will be removed in future versions
 spring:
   ai:
     chat:
+      client:
+        observations:
+          log-prompt: false             # Enable ChatClient prompt logging
       observations:
-        enabled: true
-        log-prompt: true
-        log-completion: true
-        include-completion: true
-        include-prompt: true
-        include-error-logging: true
-    client:
-      observations:
-        log-prompt: true
-        log-completion: true
+        log-prompt: false               # Enable ChatModel prompt logging
+        log-completion: false           # Enable ChatModel response logging
+        include-error-logging: true     # Include error details
+# Observability and tracing configuration
 management:
   tracing:
     enabled: true
     sampling:
-      probability: 1.0
-  endpoints:
-    web:
-      exposure:
-        include: "*"
-  endpoint:
-    env:
-      show-values: always
-      show-details: always
-    health:
-      show-details: always
-  observations:
-    enabled: true
-    web:
-      response:
-        enabled: true
+      probability: 1.0                 # Sample 100% of traces (use 0.1 for production)
+
+  # Zipkin configuration
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans

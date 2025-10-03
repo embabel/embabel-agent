@@ -21,7 +21,10 @@ import org.junit.jupiter.api.Test
 
 class JvmTypeTest {
 
-    class Dog
+    class Dog(
+        val name: String,
+        val breed: String,
+    )
 
     @JsonClassDescription("A feline creature")
     class Cat
@@ -38,6 +41,14 @@ class JvmTypeTest {
         val type = JvmType(Cat::class.java)
         assertEquals(Cat::class.java.name, type.name)
         assertEquals("Cat: A feline creature", type.description)
+    }
+
+    @Test
+    fun `should list properties`() {
+        val type = JvmType(Dog::class.java)
+        assertEquals(2, type.properties.size)
+        assertEquals("name", type.properties[0].name)
+        assertEquals("breed", type.properties[1].name)
     }
 
 }

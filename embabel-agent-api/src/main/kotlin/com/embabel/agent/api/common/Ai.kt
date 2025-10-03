@@ -17,7 +17,6 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.core.LlmVerbosity
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.agent.rag.RagService
 import com.embabel.common.ai.model.*
 import org.springframework.ai.embedding.EmbeddingModel
 
@@ -43,19 +42,6 @@ interface Ai {
 
     fun withDefaultEmbeddingModel(): EmbeddingModel =
         withEmbeddingModel(DefaultModelSelectionCriteria)
-
-    /**
-     * Return the default RagService, appropriately configured for this context
-     */
-    fun rag(): RagService = rag(null)
-
-    /**
-     * Return the RagService for the given service name
-     * appropriately configured for this context,
-     * or throw an exception if not found.
-     * @param service the service name, or null for default
-     */
-    fun rag(service: String?): RagService
 
     /**
      * Get a configurable PromptRunner for this context using

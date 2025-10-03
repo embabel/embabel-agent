@@ -21,7 +21,6 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.prompt.element.ContextualPromptElement
-import com.embabel.agent.rag.tools.RagOptions
 import com.embabel.agent.spi.LlmUse
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -173,13 +172,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
 
     fun withToolObjects(vararg toolObjects: Any?): PromptRunner =
         toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
-
-    /**
-     * Add tools for RAG. Will use platform RagService
-     * @param options options for the RAG tools. Control similarity threshold, topK, labels, and response formatting.
-     */
-    @ApiStatus.Experimental
-    fun withRag(options: RagOptions): PromptRunner
 
     /**
      * Add a reference which provides tools and prompt contribution.

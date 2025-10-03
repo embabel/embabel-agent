@@ -18,7 +18,6 @@ package com.embabel.agent.api.common
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Operation
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.rag.RagService
 import com.embabel.agent.spi.PlatformServices
 import com.embabel.common.ai.model.*
 import io.mockk.every
@@ -109,68 +108,6 @@ class OperationContextAiTest {
 
             assertEquals(mockEmbeddingModel, result, "Default embedding model not returned correctly")
             verify { mockModelProvider.getEmbeddingService(DefaultModelSelectionCriteria) }
-        }
-    }
-
-    @Nested
-    inner class RagServiceTests {
-
-        @Test
-        fun `test rag with no parameters`() {
-            val mockContext = createMockOperationContext()
-            val mockRagService = mockk<RagService>()
-
-            every {
-                mockContext.processContext.platformServices.ragService(
-                    mockContext,
-                    null,
-                    any()
-                )
-            } returns mockRagService
-
-            val ai = createOperationContextAi(mockContext)
-            val result = ai.rag()
-
-            assertEquals(mockRagService, result, "RAG service not returned correctly")
-            verify { mockContext.processContext.platformServices.ragService(mockContext, null, any()) }
-        }
-
-        @Test
-        fun `test rag with service name when service exists`() {
-            val mockContext = createMockOperationContext()
-            val mockRagService = mockk<RagService>()
-            val serviceName = "custom-rag-service"
-
-            every {
-                mockContext.processContext.platformServices.ragService(
-                    any(),
-                    serviceName,
-                    any()
-                )
-            } returns mockRagService
-
-            val ai = createOperationContextAi(mockContext)
-            val result = ai.rag(serviceName)
-
-            assertEquals(mockRagService, result, "Named RAG service not returned correctly")
-            verify { mockContext.processContext.platformServices.ragService(any(), serviceName, any()) }
-        }
-
-        @Test
-        fun `test rag with service name when service does not exist`() {
-            val mockContext = createMockOperationContext()
-            val serviceName = "non-existent-rag-service"
-
-            every { mockContext.processContext.platformServices.ragService(any(), serviceName, any()) } returns null
-
-            val ai = createOperationContextAi(mockContext)
-
-            val exception = assertThrows(IllegalStateException::class.java) {
-                ai.rag(serviceName)
-            }
-
-            assertEquals("No RAG service found with name $serviceName", exception.message)
-            verify { mockContext.processContext.platformServices.ragService(any(), serviceName, any()) }
         }
     }
 
@@ -365,25 +302,5 @@ class OperationContextAiTest {
             assertTrue(ai is OperationContextAi, "AI should be instance of OperationContextAi")
         }
 
-        @Test
-        fun `test multiple calls to same method return consistent results`() {
-            val mockContext = createMockOperationContext()
-            val mockRagService = mockk<RagService>()
-
-            every {
-                mockContext.processContext.platformServices.ragService(
-                    mockContext,
-                    null,
-                    any()
-                )
-            } returns mockRagService
-
-            val ai = createOperationContextAi(mockContext)
-            val result1 = ai.rag()
-            val result2 = ai.rag()
-
-            assertEquals(result1, result2, "Multiple calls to rag() should return same service")
-            verify(exactly = 2) { mockContext.processContext.platformServices.ragService(mockContext, null, any()) }
-        }
     }
 }

@@ -32,9 +32,11 @@ import com.fasterxml.jackson.databind.DatabindException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ResponseEntity
+import org.springframework.ai.chat.client.observation.DefaultChatClientObservationConvention
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
@@ -71,6 +73,7 @@ internal class ChatClientLlmOperations(
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     private val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+    private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : AbstractLlmOperations(toolDecorator, modelProvider, autoLlmSelectionCriteriaResolver) {
 
     @PostConstruct
@@ -368,7 +371,7 @@ internal class ChatClientLlmOperations(
         llm: Llm,
     ): ChatClient {
         return ChatClient
-            .builder(llm.model)
+            .builder(llm.model, observationRegistry, DefaultChatClientObservationConvention(),)
             .build()
     }
 

@@ -26,7 +26,13 @@ import com.fasterxml.jackson.annotation.JsonClassDescription
  * Type known to the Embabel agent platform.
  * May be backed by a domain object or by a map.
  */
-sealed interface DomainType : HasInfoString, NamedAndDescribed
+sealed interface DomainType : HasInfoString, NamedAndDescribed {
+
+    /**
+     * Exposed even for JvmTypes, for consistency
+     */
+    val properties: List<PropertyDefinition>
+}
 
 /**
  * Simple data type
@@ -34,7 +40,7 @@ sealed interface DomainType : HasInfoString, NamedAndDescribed
 data class DynamicType(
     override val name: String,
     override val description: String = name,
-    val properties: List<PropertyDefinition> = emptyList(),
+    override val properties: List<PropertyDefinition> = emptyList(),
 ) : DomainType {
 
     fun withProperty(
@@ -81,6 +87,17 @@ data class JvmType(
                 "${clazz.simpleName}: ${ann.value}"
             } else {
                 clazz.name
+            }
+        }
+
+    override val properties: List<PropertyDefinition>
+        get() {
+            return clazz.declaredFields.map {
+                PropertyDefinition(
+                    name = it.name,
+                    type = it.type.simpleName,
+                    description = null,
+                )
             }
         }
 
