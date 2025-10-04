@@ -34,6 +34,7 @@ jobs:
       - name: Build and test
         env:
           SKIP_TESTCONTAINER_TESTS: true  # Do not run TestContainer Tests in Windows Matrix Build.
+          MAVEN_OPTS: "-Djgit.fs.cache.enabled=false"
         run: mvn -U -B test verify
       - name: Linux-specific setup and SonarCloud analysis
         if: matrix.os == 'ubuntu-latest'
