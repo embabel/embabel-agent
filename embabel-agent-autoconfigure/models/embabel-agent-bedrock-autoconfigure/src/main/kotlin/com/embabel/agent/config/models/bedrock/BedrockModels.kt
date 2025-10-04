@@ -204,6 +204,8 @@ class BedrockModels(
         .timeout(connectionProperties.timeout)
         .defaultOptions(ToolCallingChatOptions.builder().model(model).build())
         .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+        .toolCallingManager(ToolCallingManager.builder()
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }).build())
         .bedrockRuntimeClient(bedrockRuntimeClient.getIfAvailable())
         .bedrockRuntimeAsyncClient(bedrockRuntimeAsyncClient.getIfAvailable())
         .build()
