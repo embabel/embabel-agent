@@ -4,9 +4,8 @@ set -euo pipefail
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is not set}"
 
 # Fetch alerts using GitHub CLI
-gh api repos/"$GITHUB_REPOSITORY"/dependabot/alerts \
+gh api repos/"$GITHUB_REPOSITORY"/dependabot/alerts?state=open \
   --paginate \
-  --field state=open \
   --jq '.' > alerts.json
 
 # Group and format security alerts
