@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.rag.RagService
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
@@ -28,7 +27,6 @@ import org.springframework.ai.tool.annotation.ToolParam
  * The LLM needs to provide only the search query.
  */
 class SingleShotRagServiceSearchTools(
-    val ragService: RagService,
     val options: RagOptions,
 ) {
 
@@ -39,7 +37,7 @@ class SingleShotRagServiceSearchTools(
         )
         query: String,
     ): String {
-        val ragResponse = ragService.search(options.toRequest(query))
+        val ragResponse = options.ragService.search(options.toRequest(query))
         val asString = options.ragResponseFormatter.format(ragResponse)
         loggerFor<SingleShotRagServiceSearchTools>().debug("RagResponse for query [{}]:\n{}", query, asString)
         return asString

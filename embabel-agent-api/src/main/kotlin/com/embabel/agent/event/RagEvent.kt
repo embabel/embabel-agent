@@ -57,6 +57,8 @@ fun interface RagEventListener {
     }
 
     companion object {
+
+        @JvmStatic
         val NOOP = RagEventListener {
         }
     }

@@ -21,7 +21,6 @@ import com.embabel.agent.core.*
 import com.embabel.agent.event.AgentDeploymentEvent
 import com.embabel.agent.event.AgentProcessCreationEvent
 import com.embabel.agent.event.AgenticEventListener
-import com.embabel.agent.rag.RagService
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.spi.support.InMemoryContextRepository
@@ -49,7 +48,6 @@ internal class DefaultAgentPlatform(
     private val contextRepository: ContextRepository = InMemoryContextRepository(),
     private val agentProcessRepository: AgentProcessRepository = InMemoryAgentProcessRepository(),
     private val operationScheduler: OperationScheduler = OperationScheduler.PRONTO,
-    private val ragService: RagService,
     private val asyncer: Asyncer,
     private val objectMapper: ObjectMapper,
     private val outputChannel: OutputChannel,
@@ -68,7 +66,6 @@ internal class DefaultAgentPlatform(
         agentPlatform = this,
         eventListener = eventListener,
         operationScheduler = operationScheduler,
-        defaultRagService = ragService,
         asyncer = asyncer,
         objectMapper = objectMapper,
         applicationContext = applicationContext,

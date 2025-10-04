@@ -21,7 +21,6 @@ import com.embabel.agent.core.support.DefaultAgentPlatform
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.core.support.SimpleAgentProcess
 import com.embabel.agent.event.AgenticEventListener
-import com.embabel.agent.rag.RagService
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.PlatformServices
@@ -45,7 +44,6 @@ object IntegrationTestUtils {
         llmOperations: LlmOperations? = null,
         listener: AgenticEventListener? = null,
         toolGroupResolver: ToolGroupResolver? = null,
-        ragService: RagService? = null,
     ): AgentPlatform {
         return DefaultAgentPlatform(
             llmOperations = llmOperations ?: DummyObjectCreatingLlmOperations.LoremIpsum,
@@ -56,7 +54,6 @@ object IntegrationTestUtils {
                 )
             ),
             toolGroupResolver = toolGroupResolver ?: RegistryToolGroupResolver("empty", emptyList()),
-            ragService = ragService ?: RagService.empty(),
             name = "dummy-agent-platform",
             description = "Dummy Agent Platform for Integration Testing",
             asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),
@@ -74,7 +71,6 @@ object IntegrationTestUtils {
             llmOperations = DummyObjectCreatingLlmOperations.LoremIpsum,
             eventListener = eventListener ?: EventSavingAgenticEventListener(),
             operationScheduler = OperationScheduler.PRONTO,
-            defaultRagService = RagService.empty(),
             asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),
             objectMapper = jacksonObjectMapper(),
             applicationContext = null,

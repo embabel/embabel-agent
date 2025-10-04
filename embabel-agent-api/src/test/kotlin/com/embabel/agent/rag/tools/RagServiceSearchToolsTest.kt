@@ -30,11 +30,10 @@ class RagServiceSearchToolsTest {
     @Test
     fun `should create RagServiceTools`() {
         val mockRagService = mockk<RagService>()
-        val options = RagOptions()
+        val options = RagOptions(mockRagService)
 
-        val ragTools = SingleShotRagServiceSearchTools(mockRagService, options)
+        val ragTools = SingleShotRagServiceSearchTools(options)
 
-        assertEquals(mockRagService, ragTools.ragService)
         assertEquals(options, ragTools.options)
         assertEquals(SimpleRagResponseFormatter, ragTools.options.ragResponseFormatter)
     }
@@ -42,8 +41,8 @@ class RagServiceSearchToolsTest {
     @Test
     fun `should search with default options`() {
         val mockRagService = mockk<RagService>()
-        val options = RagOptions()
-        val ragTools = SingleShotRagServiceSearchTools(mockRagService, options)
+        val options = RagOptions(mockRagService)
+        val ragTools = SingleShotRagServiceSearchTools(options)
 
         val mockChunk = mockk<Chunk>()
         every { mockChunk.text } returns "Test chunk content"
@@ -66,8 +65,8 @@ class RagServiceSearchToolsTest {
     @Test
     fun `should search with empty results`() {
         val mockRagService = mockk<RagService>()
-        val options = RagOptions()
-        val ragTools = SingleShotRagServiceSearchTools(mockRagService, options)
+        val options = RagOptions(mockRagService)
+        val ragTools = SingleShotRagServiceSearchTools(options)
 
         val mockResponse = RagResponse(RagRequest("test query"), "test-service", emptyList())
         every { mockRagService.search(any()) } returns mockResponse
@@ -83,11 +82,12 @@ class RagServiceSearchToolsTest {
         val entitySearch = EntitySearch(setOf("label1", "label2"))
         val mockRagService = mockk<RagService>()
         val options = RagOptions(
+            ragService = mockRagService,
             similarityThreshold = 0.8,
             topK = 5,
             entitySearch = entitySearch,
         )
-        val ragTools = SingleShotRagServiceSearchTools(mockRagService, options)
+        val ragTools = SingleShotRagServiceSearchTools(options)
 
         val mockResponse = RagResponse(RagRequest("test query"), "test-service", emptyList())
         every { mockRagService.search(any()) } returns mockResponse
@@ -106,7 +106,8 @@ class RagServiceSearchToolsTest {
 
     @Test
     fun `should create default RagServiceToolsOptions`() {
-        val options = RagOptions()
+        val mockRagService = mockk<RagService>()
+        val options = RagOptions(mockRagService)
 
         assertEquals(0.7, options.similarityThreshold.toDouble(), 0.001)
         assertEquals(8, options.topK)
@@ -116,9 +117,11 @@ class RagServiceSearchToolsTest {
 
     @Test
     fun `should create RagServiceToolsOptions with custom values`() {
+        val mockRagService = mockk<RagService>()
         val entitySearch = EntitySearch(setOf("custom-label"))
         val customFormatter = mockk<RagResponseFormatter>()
         val options = RagOptions(
+            ragService = mockRagService,
             similarityThreshold = 0.9,
             topK = 10,
             entitySearch = entitySearch,
@@ -133,7 +136,8 @@ class RagServiceSearchToolsTest {
 
     @Test
     fun `should update similarityThreshold using withSimilarityThreshold`() {
-        val options = RagOptions()
+        val mockRagService = mockk<RagService>()
+        val options = RagOptions(mockRagService)
         val newThreshold = 0.9
 
         val updatedOptions = options.withSimilarityThreshold(newThreshold)
@@ -146,7 +150,8 @@ class RagServiceSearchToolsTest {
 
     @Test
     fun `should update topK using withTopK`() {
-        val options = RagOptions()
+        val mockRagService = mockk<RagService>()
+        val options = RagOptions(mockRagService)
         val newTopK = 15
 
         val updatedOptions = options.withTopK(newTopK)
@@ -159,7 +164,8 @@ class RagServiceSearchToolsTest {
 
     @Test
     fun `should chain option modifications`() {
-        val options = RagOptions()
+        val mockRagService = mockk<RagService>()
+        val options = RagOptions(mockRagService)
 
         val updatedOptions = options
             .withSimilarityThreshold(0.95)
@@ -174,8 +180,8 @@ class RagServiceSearchToolsTest {
     fun `should use custom formatter when provided in options`() {
         val mockRagService = mockk<RagService>()
         val customFormatter = mockk<RagResponseFormatter>()
-        val options = RagOptions(ragResponseFormatter = customFormatter)
-        val ragTools = SingleShotRagServiceSearchTools(mockRagService, options)
+        val options = RagOptions(mockRagService, ragResponseFormatter = customFormatter)
+        val ragTools = SingleShotRagServiceSearchTools(options)
 
         val mockResponse = RagResponse(RagRequest("test query"), "test-service", emptyList())
         every { mockRagService.search(any()) } returns mockResponse
@@ -190,8 +196,8 @@ class RagServiceSearchToolsTest {
     @Test
     fun `should handle multiple search results with different types`() {
         val mockRagService = mockk<RagService>()
-        val options = RagOptions()
-        val ragTools = SingleShotRagServiceSearchTools(mockRagService, options)
+        val options = RagOptions(mockRagService)
+        val ragTools = SingleShotRagServiceSearchTools(options)
 
         val mockChunk1 = mockk<Chunk>()
         every { mockChunk1.text } returns "First chunk"
@@ -221,6 +227,7 @@ class RagServiceSearchToolsTest {
     @Test
     fun `should validate RagServiceToolsOptions implements RagRequestRefinement`() {
         val options = RagOptions(
+            ragService = mockk<RagService>(),
             similarityThreshold = 0.85,
             topK = 12,
             entitySearch = EntitySearch(setOf("test-label"))
