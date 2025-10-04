@@ -5,7 +5,7 @@ set -euo pipefail
 
 # Fetch alerts using GitHub CLI
 gh api repos/"$GITHUB_REPOSITORY"/dependabot/alerts \
-  --paginate \    
+  --paginate \
   --field state=open \
   --jq '.' > alerts.json
 
