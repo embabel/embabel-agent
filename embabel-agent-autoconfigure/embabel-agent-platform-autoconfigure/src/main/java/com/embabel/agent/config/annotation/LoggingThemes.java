@@ -32,4 +32,11 @@ public class LoggingThemes {
      */
     public static final String SEVERANCE = "severance";
 
+    /**
+     * loggingTheme value for logging messages inspired by "Colossus: The Forbin Project"
+     * Action will be taken!
+     * <a href="https://www.imdb.com/title/tt0064177/">Colossus on IMDB</a>
+     */
+    public static final String COLOSSUS = "colossus";
+
 }

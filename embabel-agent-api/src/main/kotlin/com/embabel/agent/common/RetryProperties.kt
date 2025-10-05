@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.common
 
+import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.isRateLimitError
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.retry.TransientAiException
@@ -53,8 +54,17 @@ interface RetryProperties : RetryTemplateProvider {
                 override fun <T, E : Throwable> onError(
                     context: RetryContext,
                     callback: RetryCallback<T, E>,
-                    throwable: Throwable
+                    throwable: Throwable,
                 ) {
+                    if (isRateLimitError(throwable)) {
+                        loggerFor<RetryProperties>().info(
+                            "🔒 LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
+                            name,
+                            context.retryCount,
+                            if (retryPolicy.maxAttempts > 0) retryPolicy.maxAttempts else "unknown",
+                        )
+                        return
+                    }
                     loggerFor<RetryProperties>().info(
                         "Operation $name: Retry error. Retry count: ${context.retryCount}",
                         throwable,
@@ -81,7 +91,10 @@ private class SpringAiRetryPolicy(
         // No cleanup needed for this implementation
     }
 
-    override fun registerThrowable(context: RetryContext?, throwable: Throwable?) {
+    override fun registerThrowable(
+        context: RetryContext?,
+        throwable: Throwable?,
+    ) {
         if (context is RetryContextSupport && throwable != null) {
             context.registerThrowable(throwable)
         }

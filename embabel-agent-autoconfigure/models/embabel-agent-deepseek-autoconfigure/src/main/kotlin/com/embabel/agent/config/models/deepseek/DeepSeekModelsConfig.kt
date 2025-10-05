@@ -21,14 +21,19 @@ import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
+import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.deepseek.DeepSeekChatModel
 import org.springframework.ai.deepseek.DeepSeekChatOptions
 import org.springframework.ai.deepseek.api.DeepSeekApi
+import org.springframework.ai.model.tool.ToolCallingManager
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.web.client.RestClient
+import org.springframework.web.reactive.function.client.WebClient
 import java.time.LocalDate
 
 /**
@@ -73,6 +78,7 @@ class DeepSeekModelsConfig(
     @param:Value("\${DEEPSEEK_API_KEY}")
     private val apiKey: String,
     private val properties: DeepSeekProperties,
+    private val observationRegistry: ObjectProvider<ObservationRegistry>,
 ) {
     private val logger = LoggerFactory.getLogger(DeepSeekModelsConfig::class.java)
 
@@ -118,6 +124,10 @@ class DeepSeekModelsConfig(
     ): Llm {
         val chatModel = DeepSeekChatModel
             .builder()
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            .toolCallingManager(ToolCallingManager.builder()
+                .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                .build())
             .defaultOptions(
                 DeepSeekChatOptions.builder()
                     .model(name)
@@ -142,7 +152,12 @@ class DeepSeekModelsConfig(
             logger.info("Using custom DeepSeek base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
         }
-        return builder.build()
+        return builder
+            .restClientBuilder(RestClient.builder()
+                .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
+            .webClientBuilder(WebClient.builder()
+                .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
+            .build()
     }
 }
 

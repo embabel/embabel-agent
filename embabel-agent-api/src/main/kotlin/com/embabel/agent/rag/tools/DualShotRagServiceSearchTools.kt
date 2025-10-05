@@ -18,7 +18,6 @@ package com.embabel.agent.rag.tools
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.rag.RagResponse
 import com.embabel.agent.rag.RagResponseSummarizer
-import com.embabel.agent.rag.RagService
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
@@ -31,7 +30,6 @@ import org.springframework.ai.tool.annotation.ToolParam
  * The LLM needs to provide only the search query.
  */
 class DualShotRagServiceSearchTools(
-    val ragService: RagService,
     val options: RagOptions,
     val summarizer: RagResponseSummarizer,
 ) {
@@ -43,7 +41,7 @@ class DualShotRagServiceSearchTools(
         )
         query: String,
     ): String {
-        val ragResponse = ragService.search(options.toRequest(query))
+        val ragResponse = options.ragService.search(options.toRequest(query))
         val agentProcess = AgentProcess.get()
         if (agentProcess == null) {
             return "RagResponse for query [$query]:\n${options.ragResponseFormatter.format(ragResponse)}"

@@ -17,7 +17,6 @@ package com.embabel.agent.autoconfigure.platform;
 
 
 import com.embabel.agent.config.AgentPlatformConfiguration;
-import com.embabel.agent.config.RagServiceConfiguration;
 import com.embabel.agent.config.ToolGroupsConfiguration;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -29,7 +28,7 @@ import org.springframework.context.annotation.Import;
  * Bootstraps Agent Platform Configuration, Tools Configuration, and Rag Service Configuration
  */
 @AutoConfiguration
-@Import({ScanConfiguration.class, AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, RagServiceConfiguration.class})
+@Import({ScanConfiguration.class, AgentPlatformConfiguration.class, ToolGroupsConfiguration.class,})
 public class AgentPlatformAutoConfiguration {
     final private static Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
 

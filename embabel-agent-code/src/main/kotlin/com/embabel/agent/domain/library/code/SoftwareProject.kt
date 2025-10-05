@@ -29,6 +29,9 @@ import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
 
 /**
+ * Represents a software project that supports CI
+ * and git
+ *
  * Open to allow extension
  */
 @JsonClassDescription("Analysis of a technology project")
@@ -43,12 +46,13 @@ open class SoftwareProject @JvmOverloads constructor(
         """.trimIndent(),
     @get:JsonPropertyDescription("Build command, such as 'mvn clean test'")
     val buildCommand: String = "mvn clean test",
+    val streamOutput: Boolean = false,
     val wasCreated: Boolean = false,
 ) : LlmReference, FileTools, SymbolSearch, GitOperations, FileChangeLog by DefaultFileChangeLog(), FileReadLog by DefaultFileReadLog() {
 
     init {
         if (!exists()) {
-            error("Directory does not exist")
+            error("Directory '$root' does not exist")
         }
         loggerFor<SoftwareProject>().info(
             "Software project tools: ${
@@ -112,12 +116,12 @@ open class SoftwareProject @JvmOverloads constructor(
 
     @Tool(description = "Build the project using the given command in the root")
     fun build(command: String): String {
-        val br = ci.buildAndParse(BuildOptions(command, true))
+        val br = ci.buildAndParse(BuildOptions(command, streamOutput = streamOutput))
         return br.relevantOutput()
     }
 
     fun build(): BuildResult {
-        return ci.buildAndParse(BuildOptions(buildCommand, true))
+        return ci.buildAndParse(BuildOptions(buildCommand, streamOutput = streamOutput))
     }
 
     override fun toString(): String {

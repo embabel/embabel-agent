@@ -16,7 +16,6 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.common.LlmReference
-import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.rag.PromptRunnerRagResponseSummarizer
 
@@ -26,24 +25,18 @@ import com.embabel.agent.rag.PromptRunnerRagResponseSummarizer
 class RagReference(
     override val name: String,
     override val description: String,
-    val context: OperationContext,
     val options: RagOptions,
-    private val summarizerPromptRunner: PromptRunner = context.ai().withAutoLlm(),
+    private val summarizerPromptRunner: PromptRunner,
 ) : LlmReference {
 
     private val toolInstance: Any = run {
-        val ragService =
-            context.agentPlatform().platformServices.ragService(context, options.service, options.listener)
-                ?: error("No RAG service named '${options.service}' available")
         if (options.dualShot != null) {
             DualShotRagServiceSearchTools(
-                ragService = ragService,
                 options = options,
                 summarizer = PromptRunnerRagResponseSummarizer(summarizerPromptRunner, options)
             )
         } else {
             SingleShotRagServiceSearchTools(
-                ragService = ragService,
                 options = options,
             )
         }

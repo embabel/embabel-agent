@@ -22,14 +22,18 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
+import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
 import org.springframework.ai.anthropic.api.AnthropicApi
+import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.web.client.RestClient
+import org.springframework.web.reactive.function.client.WebClient
 import java.time.LocalDate
 
 
@@ -76,6 +80,7 @@ class AnthropicModelsConfig(
     @param:Value("\${ANTHROPIC_API_KEY}")
     private val apiKey: String,
     private val properties: AnthropicProperties,
+    private val observationRegistry: ObservationRegistry,
 ) {
     private val logger = LoggerFactory.getLogger(AnthropicModelsConfig::class.java)
 
@@ -135,8 +140,14 @@ class AnthropicModelsConfig(
                     .build()
             )
             .anthropicApi(createAnthropicApi())
+            .toolCallingManager(
+                ToolCallingManager.builder()
+                    .observationRegistry(observationRegistry)
+                    .build())
             .retryTemplate(properties.retryTemplate("anthropic-$name"))
+            .observationRegistry(observationRegistry)
             .build()
+
         return Llm(
             name = name,
             model = chatModel,
@@ -152,6 +163,14 @@ class AnthropicModelsConfig(
             logger.info("Using custom Anthropic base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
         }
+        //add observation registry to rest and web client builders
+        builder
+            .restClientBuilder(RestClient.builder()
+                .observationRegistry(observationRegistry))
+        builder
+            .webClientBuilder(WebClient.builder()
+                .observationRegistry(observationRegistry))
+
         return builder.build()
     }
 

@@ -16,14 +16,10 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.Asyncer
-import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.event.AgenticEventListener
-import com.embabel.agent.event.RagEventListener
-import com.embabel.agent.rag.RagService
-import com.embabel.agent.rag.RagServiceEnhancer
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.PlatformServices
@@ -31,7 +27,6 @@ import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
-import org.springframework.beans.BeansException
 import org.springframework.context.ApplicationContext
 
 data class SpringContextPlatformServices(
@@ -40,7 +35,6 @@ data class SpringContextPlatformServices(
     override val eventListener: AgenticEventListener,
     override val operationScheduler: OperationScheduler,
     override val asyncer: Asyncer,
-    private val defaultRagService: RagService,
     override val objectMapper: ObjectMapper,
     override val outputChannel: OutputChannel,
     override val templateRenderer: TemplateRenderer,
@@ -70,47 +64,4 @@ data class SpringContextPlatformServices(
         return applicationContext.getBean(ModelProvider::class.java)
     }
 
-    /**
-     * Create a RagService with the given name, or the default if no name is given.
-     * Enhance if necessary
-     */
-    override fun ragService(
-        context: OperationContext,
-        serviceName: String?,
-        listener: RagEventListener,
-    ): RagService? {
-        if (applicationContext == null) {
-            throw IllegalStateException("Application context is not available, cannot retrieve RagService beans.")
-        }
-
-        val delegate = if (serviceName.isNullOrBlank()) {
-            defaultRagService
-        } else {
-            val services = applicationContext.getBeansOfType(RagService::class.java)
-            services.values.first { it.name == serviceName } ?: return null
-        }
-
-        val ragService = ragServiceEnhancer()
-            ?.create(
-                delegate = delegate,
-                operationContext = context,
-                listener = listener,
-            ) ?: run {
-            logger.info("No RagServiceEnhancer configured, using RagService {} directly", delegate.name)
-            delegate
-        }
-        logger.info(
-            "Using RAG service {}",
-            ragService.infoString(verbose = context.processContext.processOptions.verbosity.debug)
-        )
-        return ragService
-    }
-
-    private fun ragServiceEnhancer(): RagServiceEnhancer? {
-        return try {
-            applicationContext?.getBean(RagServiceEnhancer::class.java)
-        } catch (_: BeansException) {
-            null
-        }
-    }
 }

@@ -19,18 +19,22 @@ import com.embabel.agent.config.models.OllamaModels
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.fasterxml.jackson.annotation.JsonProperty
+import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
+import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.ollama.OllamaChatModel
 import org.springframework.ai.ollama.OllamaEmbeddingModel
 import org.springframework.ai.ollama.api.OllamaApi
 import org.springframework.ai.ollama.api.OllamaOptions
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
+import org.springframework.web.reactive.function.client.WebClient
 
 /**
  * Load Ollama local models, both LLMs and embedding models.
@@ -44,6 +48,7 @@ class OllamaModelsConfig(
     private val baseUrl: String,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val properties: ConfigurableModelProviderProperties,
+    private val observationRegistry: ObjectProvider<ObservationRegistry>,
 ) {
     private val logger = LoggerFactory.getLogger(OllamaModelsConfig::class.java)
 
@@ -133,11 +138,21 @@ class OllamaModelsConfig(
             .ollamaApi(
                 OllamaApi.builder()
                     .baseUrl(baseUrl)
+                    .restClientBuilder(RestClient.builder()
+                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
+                    .webClientBuilder(WebClient.builder()
+                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
                     .build()
             )
             .defaultOptions(
                 OllamaOptions.builder()
                     .model(name)
+                    .build()
+            )
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            .toolCallingManager(
+                ToolCallingManager.builder()
+                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     .build()
             )
             .build()
@@ -157,6 +172,10 @@ class OllamaModelsConfig(
             .ollamaApi(
                 OllamaApi.builder()
                     .baseUrl(baseUrl)
+                    .restClientBuilder(RestClient.builder()
+                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
+                    .webClientBuilder(WebClient.builder()
+                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
                     .build()
             )
             .defaultOptions(

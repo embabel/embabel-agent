@@ -207,7 +207,6 @@ class Ci(
                         }
                     }
                 } else {
-                    // Original behavior - just capture the output
                     val output = process.inputStream.bufferedReader().use { it.readText() }
                     outputBuilder.append(output)
                 }
@@ -216,8 +215,10 @@ class Ci(
                 val output = outputBuilder.toString()
 
                 return if (exitCode == 0) {
+                    logger.info("✅ Build command <{}> in root directory {}", buildOptions.buildCommand, root)
                     "Command executed successfully:\n$output"
                 } else {
+                    logger.info("❌ Build command <{}> in root directory {}", buildOptions.buildCommand, root)
                     "Command failed with exit code $exitCode:\n$output"
                 }
             }

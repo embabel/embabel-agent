@@ -45,7 +45,6 @@ class DefaultAgentPlatformTest {
             mockk(relaxed = true),
             l,
             contextRepository = contextRepository,
-            ragService = mockk(),
             asyncer = mockk(),
             objectMapper = mockk(),
             outputChannel = DevNullOutputChannel,

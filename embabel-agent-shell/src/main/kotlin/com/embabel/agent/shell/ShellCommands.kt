@@ -21,13 +21,11 @@ import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
-import com.embabel.agent.rag.ingestion.Ingester
 import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.chat.agent.*
 import com.embabel.chat.agent.shell.TerminalServicesProcessWaitingHandler
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
-import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.bold
 import com.embabel.common.util.color
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -63,9 +61,7 @@ class ShellCommands(
     private val objectMapper: ObjectMapper,
     private val colorPalette: ColorPalette,
     private val loggingPersonality: LoggingPersonality,
-    private val ingester: Ingester,
     private val toolsStats: ToolsStats,
-    private val templateRenderer: TemplateRenderer,
     private val context: ConfigurableApplicationContext,
     private val shellProperties: ShellProperties = ShellProperties(),
 ) {
@@ -249,29 +245,6 @@ class ShellCommands(
     fun models(): String =
         modelProvider.infoString(true)
 
-    @ShellMethod("ingest")
-    fun ingest(
-        @ShellOption(
-            value = ["-u", "--u"],
-            help = "File to ingest. Spring resource path or URL",
-        ) url: String,
-    ): String {
-        if (!ingester.active()) {
-            return "Cannot ingest: ${ingester.infoString(verbose = true)}"
-        }
-        return try {
-            val ingestionResult = ingester.ingest(url)
-            if (ingestionResult.success()) {
-                "Ingested $url as ${ingestionResult.documentsWritten} documents to ${ingestionResult.storesWrittenTo} stores"
-            } else {
-                "Could not process ingestion."
-            }
-        } catch (e: Exception) {
-            logger.error("Failed to ingest $url: ${e.message}", e)
-            "Failed to ingest $url: ${e.message}"
-        }
-    }
-
     @ShellMethod("Show options")
     fun showOptions(): String {
         // Don't show the blackboard as it's long
@@ -407,7 +380,7 @@ class ShellCommands(
                     processOptions = processOptions,
                     goalChoiceApprover = GoalChoiceApprover.APPROVE_ALL,
                     agentScope = agentPlatform,
-                    bindings = mapOf(IoBinding.DEFAULT_BINDING to UserInput(intent)),
+                    bindings = mapOf("userInput" to UserInput(intent)),
                     goalSelectionOptions = GoalSelectionOptions(),
                 )
             } else {

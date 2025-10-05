@@ -66,13 +66,6 @@ class LlmDataBindingProperties : RetryTemplateProvider {
             .build()
     }
 
-    private fun isRateLimitError(t: Throwable): Boolean {
-        val message = t.message?.lowercase() ?: return false
-        return RATE_LIMIT_PATTERNS.any { pattern ->
-            message.contains(pattern)
-        }
-    }
-
     companion object {
         private val RATE_LIMIT_PATTERNS = listOf(
             "rate limit",
@@ -81,5 +74,12 @@ class LlmDataBindingProperties : RetryTemplateProvider {
             "rate-limited",
             "429",
         )
+
+        fun isRateLimitError(t: Throwable): Boolean {
+            val message = t.message?.lowercase() ?: return false
+            return RATE_LIMIT_PATTERNS.any { pattern ->
+                message.contains(pattern)
+            }
+        }
     }
 }

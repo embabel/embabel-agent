@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.event.RagEventListener
 import com.embabel.agent.rag.*
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.ZeroToOne
@@ -27,15 +26,16 @@ data class DualShotConfig(
 
 /**
  * Operations for RAG use as an LLM tool. Options are immutable and stable.
+ * @param ragService the RagService to use for retrieval
  * @param similarityThreshold minimum similarity threshold for results (0.0 to 1.0)
  * @param topK maximum number of results to return
  * returned. If set, only the given entities will be searched for.
  * @param ragResponseFormatter formatter to convert RagResponse to String
- * @param service optional name of the RAG service to use. If null, the default service will be used.
  * @param dualShot whether to use dual-shot RAG,
  * where the first tool returns a summary and the second tool returns detailed results.
  */
 data class RagOptions @JvmOverloads constructor(
+    val ragService: RagService,
     override val similarityThreshold: ZeroToOne = 0.7,
     override val topK: Int = 8,
     override val hyDE: HyDE? = null,
@@ -45,8 +45,6 @@ data class RagOptions @JvmOverloads constructor(
     override val contentElementSearch: ContentElementSearch = ContentElementSearch.CHUNKS_ONLY,
     override val entitySearch: EntitySearch? = null,
     val ragResponseFormatter: RagResponseFormatter = SimpleRagResponseFormatter,
-    val service: String? = null,
-    val listener: RagEventListener = RagEventListener.NOOP,
     val dualShot: DualShotConfig? = null,
 ) : RagRequestRefinement<RagOptions> {
 
@@ -76,17 +74,6 @@ data class RagOptions @JvmOverloads constructor(
 
     override fun withEntitySearch(entitySearch: EntitySearch): RagOptions {
         return copy(entitySearch = entitySearch)
-    }
-
-    /**
-     * Return an instance using the given Rag service name.
-     */
-    fun withService(service: String): RagOptions {
-        return copy(service = service)
-    }
-
-    fun withListener(listener: RagEventListener): RagOptions {
-        return copy(listener = this.listener + listener)
     }
 
     fun withDualShot(dualShot: DualShotConfig): RagOptions {
