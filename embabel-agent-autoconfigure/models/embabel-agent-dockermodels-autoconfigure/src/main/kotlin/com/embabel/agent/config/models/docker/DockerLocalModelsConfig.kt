@@ -20,15 +20,18 @@ import com.embabel.agent.config.models.DockerLocalModels.Companion.PROVIDER
 import com.embabel.agent.config.models.OpenAiChatOptionsConverter
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
+import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.ai.document.MetadataMode
 import org.springframework.ai.model.NoopApiKey
+import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.ai.openai.api.OpenAiApi
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -37,6 +40,7 @@ import org.springframework.core.env.Environment
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
+import org.springframework.web.reactive.function.client.WebClient
 
 
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.docker")
@@ -89,8 +93,8 @@ class DockerLocalModelsConfig(
     private val dockerRetryProperties: DockerRetryProperties,
     private val dockerConnectionProperties: DockerConnectionProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
-    private val environment: Environment,
     private val properties: ConfigurableModelProviderProperties,
+    private val observationRegistry: ObjectProvider<ObservationRegistry>,
 ) {
     private val logger = LoggerFactory.getLogger(DockerLocalModelsConfig::class.java)
 
@@ -195,8 +199,16 @@ class DockerLocalModelsConfig(
                 OpenAiApi.Builder()
                     .baseUrl(dockerConnectionProperties.baseUrl)
                     .apiKey(NoopApiKey())
+                    .restClientBuilder(RestClient.builder()
+                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
+                    .webClientBuilder(WebClient.builder()
+                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
                     .build()
             )
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            .toolCallingManager(ToolCallingManager.builder()
+                .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                    .build())
             .defaultOptions(
                 OpenAiChatOptions.builder()
                     .model(model.id)
