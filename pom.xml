@@ -15,6 +15,8 @@
 
     <properties>
         <embabel-common.version>0.1.4-SNAPSHOT</embabel-common.version>
+        <!-- Netty version for security vulnerability fixes - duplicate from build-dependencies -->
+        <netty.version>4.1.125.Final</netty.version>
     </properties>
 
     <modules>
@@ -64,6 +66,22 @@
                 <groupId>com.embabel.common</groupId>
                 <artifactId>embabel-common-test-dependencies</artifactId>
                 <version>${embabel-common.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Netty Version Upgrades - Security Vulnerability Fixes -->
+            <!-- 
+              Force safe netty versions to fix multiple CVEs:
+              - CVE-2025-58057 (GHSA-3p8m-j85q-pgmj): DoS via zip bomb in netty-codec
+              - CVE-2025-58056 (GHSA-fghv-69vj-qj49): Request smuggling in netty-codec-http  
+              - CVE-2025-59340 (GHSA-prj3-ccx8-p6x4): MadeYouReset HTTP/2 DDoS in netty-codec-http2
+              
+              Added to common parent to override all transitive netty dependencies across all modules.
+            -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>${netty.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
