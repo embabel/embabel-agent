@@ -65,8 +65,9 @@ interface PatternSearch : DirectoryBased {
             .toList()
 
         loggerFor<PatternSearch>().info(
-            "Scanning {} files for regex pattern '{}'...",
+            "Scanning {} files found using glob '{}' for regex pattern '{}'...",
             allFiles.size,
+            globPattern,
             pattern.pattern
         )
 
@@ -104,13 +105,16 @@ interface PatternSearch : DirectoryBased {
         val file: File,
         val relativePath: String,
         val matchedLine: Int,
-        val contextLines: List<String>
+        val contextLines: List<String>,
     )
 
     /**
      * Scans a single file for the pattern
      */
-    private fun scanFile(file: File, pattern: Regex): PatternMatch? {
+    private fun scanFile(
+        file: File,
+        pattern: Regex,
+    ): PatternMatch? {
         try {
             val lines = file.readLines()
 
@@ -153,7 +157,10 @@ interface PatternSearch : DirectoryBased {
      * @param globPattern The glob pattern to match against
      * @return true if the path matches the pattern
      */
-    fun matchesGlob(path: String, globPattern: String): Boolean {
+    fun matchesGlob(
+        path: String,
+        globPattern: String,
+    ): Boolean {
         val pathParts = path.replace("\\", "/").split("/")
         val patternParts = globPattern.replace("\\", "/").split("/")
 
