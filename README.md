@@ -4,6 +4,7 @@
 
 [![Docs](https://img.shields.io/badge/docs-live-brightgreen)](https://docs.embabel.com/embabel-agent/guide/0.1.2-SNAPSHOT/)
 ![Build](https://github.com/embabel/embabel-agent/actions/workflows/maven.yml/badge.svg)
+[![YourKit](https://img.shields.io/badge/Profiling-YourKit-blue)](https://www.yourkit.com/)
 [![JProfiler](https://img.shields.io/badge/Profiled%20with-JProfiler-blue)](https://www.ej-technologies.com/products/jprofiler/overview.html)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=embabel_embabel-agent&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=embabel_embabel-agent)
 [![Discord](https://img.shields.io/discord/1277751399261798401?logo=discord)](https://discord.gg/t6bjkyj93q)
