@@ -19,7 +19,7 @@ import com.embabel.agent.rag.*
 import com.embabel.agent.rag.ingestion.DefaultMaterializedContainerSection
 import com.embabel.agent.rag.ingestion.MaterializedDocument
 import com.embabel.common.ai.model.Llm
-import com.embabel.test.NeoIntegrationTestSupport
+import com.embabel.agent.rag.neo.support.NeoIntegrationTestSupport
 import io.mockk.every
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled

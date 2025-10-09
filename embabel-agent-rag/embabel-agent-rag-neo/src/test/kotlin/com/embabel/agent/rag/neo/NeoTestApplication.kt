@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.test
+package com.embabel.agent.rag.neo
 
 import com.embabel.agent.config.AgentPlatformConfiguration
 import com.embabel.agent.config.models.DockerLocalModels
@@ -30,8 +30,10 @@ import org.springframework.boot.autoconfigure.web.reactive.WebFluxAutoConfigurat
 import org.springframework.boot.autoconfigure.web.reactive.error.ErrorWebFluxAutoConfiguration
 import org.springframework.boot.autoconfigure.websocket.reactive.WebSocketReactiveAutoConfiguration
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
+import com.embabel.agent.rag.neo.support.Neo4jTestContainer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.ComponentScan
+import org.springframework.context.annotation.FilterType
 import org.springframework.context.annotation.Import
 import org.springframework.data.neo4j.annotation.EnableNeo4jAuditing
 import org.springframework.data.neo4j.repository.config.EnableNeo4jRepositories
@@ -49,15 +51,18 @@ import org.springframework.test.context.ActiveProfiles
 @EnableNeo4jRepositories(basePackages = ["com.embabel"])
 @EnableNeo4jAuditing
 @ConfigurationPropertiesScan(basePackages = ["com.embabel"])
-@ComponentScan(basePackages = ["com.embabel"])
+@ComponentScan(
+    basePackages = ["com.embabel"],
+    excludeFilters = [ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = [com.embabel.common.test.ai.config.FakeAiConfiguration::class])]
+)
 @ActiveProfiles("test")
-@Import(AgentPlatformConfiguration::class, OllamaModels::class, DockerLocalModels::class)
-open class TestApplication {
+@Import(AgentPlatformConfiguration::class, OllamaModels::class, DockerLocalModels::class, com.embabel.agent.rag.neo.config.NeoFakeAiConfiguration::class)
+open class NeoTestApplication {
 
     companion object {
         @JvmStatic
         fun main(args: Array<String>) {
-            SpringApplication.run(TestApplication::class.java, *args)
+            SpringApplication.run(NeoTestApplication::class.java, *args)
         }
     }
 

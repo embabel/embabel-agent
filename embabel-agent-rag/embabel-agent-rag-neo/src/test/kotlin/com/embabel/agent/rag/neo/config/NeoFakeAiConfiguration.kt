@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.test
+package com.embabel.agent.rag.neo.config
 
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.EmbeddingService
@@ -32,9 +32,9 @@ import org.springframework.test.context.TestPropertySource
  */
 @Configuration
 @Profile("test")
-internal class FakeAiConfiguration {
+internal class NeoFakeAiConfiguration {
 
-    private val logger = LoggerFactory.getLogger(FakeAiConfiguration::class.java)
+    private val logger = LoggerFactory.getLogger(NeoFakeAiConfiguration::class.java)
 
     init {
         logger.info("Using fake AI configuration")
@@ -64,7 +64,7 @@ internal class FakeAiConfiguration {
     fun embedding(): EmbeddingService {
         return EmbeddingService(
             name = "test",
-            model = FakeEmbeddingModel(),
+            model = com.embabel.common.test.ai.FakeEmbeddingModel(),
             provider = "hello",
         )
     }

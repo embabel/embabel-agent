@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.test
+package com.embabel.agent.rag.neo
 
+import com.embabel.agent.rag.neo.support.NeoIntegrationTest
+import com.embabel.agent.rag.neo.support.Neo4jTestContainer
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -30,7 +32,7 @@ import kotlin.test.assertEquals
 @DisabledIfEnvironmentVariable(named = "SKIP_TESTCONTAINER_TESTS", matches = "true")
 @NeoIntegrationTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class Neo4jTestContainerTest(
+class NeoTestContainerTest(
     @param:Autowired private val testContainer: Neo4jTestContainer,
 ) {
 

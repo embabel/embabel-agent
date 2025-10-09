@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.test
+package com.embabel.agent.rag.neo.support
 
 import com.embabel.agent.rag.neo.ogm.OgmCypherSearch
 import com.embabel.agent.rag.neo.ogm.OgmRagFacetProvider

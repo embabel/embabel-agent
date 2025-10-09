@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.test
+package com.embabel.agent.rag.neo.support
 
+import com.embabel.agent.rag.neo.NeoTestApplication
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.autoconfigure.data.neo4j.AutoConfigureDataNeo4j
 import org.springframework.boot.test.context.SpringBootTest
@@ -25,7 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 /**
  * Stereotype annotation for Spring integration test using Neo
  */
-@SpringBootTest(classes = [TestApplication::class])
+@SpringBootTest(classes = [NeoTestApplication::class])
 @AutoConfigureDataNeo4j
 @EnableAutoConfiguration
 @Testcontainers

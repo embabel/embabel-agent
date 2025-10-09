@@ -16,7 +16,7 @@
 package com.embabel.agent.rag.ogm
 
 import com.embabel.agent.rag.neo.ogm.OgmCypherSearch
-import com.embabel.test.NeoIntegrationTest
+import com.embabel.agent.rag.neo.support.NeoIntegrationTest
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable
