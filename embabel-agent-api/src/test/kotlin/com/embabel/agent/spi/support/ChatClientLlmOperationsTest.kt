@@ -16,9 +16,9 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.annotation.support.Wumpus
+import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.spi.InteractionId
 import com.embabel.agent.spi.InvalidLlmReturnFormatException
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.LlmOperations

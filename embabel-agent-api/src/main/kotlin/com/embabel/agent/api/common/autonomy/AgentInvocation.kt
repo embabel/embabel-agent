@@ -227,7 +227,7 @@ internal class DefaultAgentInvocation<T : Any>(
     private fun findAgentByResultType(): Agent? =
         agentPlatform.agents().find { agent ->
             agent.goals.any { goal ->
-                goal.outputClass?.let(resultType::isAssignableFrom) ?: false
+                goal.outputType?.isAssignableTo(resultType) == true
             }
         }
 

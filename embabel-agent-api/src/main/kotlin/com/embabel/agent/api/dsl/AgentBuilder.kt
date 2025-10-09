@@ -228,7 +228,7 @@ class AgentBuilder(
                 name = name,
                 description = description,
                 inputs = inputs,
-                outputClass = satisfiedBy?.java,
+                outputType = satisfiedBy?.java?.let { javaClass -> JvmType(javaClass) },
                 pre = pre.map { it.name }.toSet(),
                 value = value,
                 export = export,

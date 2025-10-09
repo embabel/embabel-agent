@@ -86,6 +86,7 @@ class RerankingEnhancer(
         val rerankingResponse = operationContext
             .ai()
             .withLlm(llm)
+            .withId("reranking")
             .createObject(
                 prompt = """
                 You are a relevance scoring expert. You evaluate how well search results match a query.
@@ -95,7 +96,6 @@ class RerankingEnhancer(
                 Return a JSON object with a "scores" array containing relevance scores from 0.0 to 1.0 for each result in order.
                 """.trimIndent(),
                 outputClass = RerankingResponse::class.java,
-                interactionId = "reranking",
             )
 
         val relevanceScores = rerankingResponse.scores

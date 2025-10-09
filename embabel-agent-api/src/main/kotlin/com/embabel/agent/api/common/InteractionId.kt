@@ -13,25 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.identity
+package com.embabel.agent.api.common
 
 /**
- * Superinterface for all users in the system.
- * displayName and username properties can default to id
- * if an implementation doesn't know how to populate them,
- * but they allow consistent experience.
+ * All prompt interactions through the platform need a unique id
+ * This allows LLM interactions to be optimized by an AgentPlatform
  */
-interface User {
+@JvmInline
+value class InteractionId(val value: String) {
 
-    /**
-     * User's id in this system. Embabel-owned, stable.
-     * Additional keys will be added for other systems like Discord
-     */
-    val id: String
-
-    val displayName: String
-
-    val username: String
-
-    val email: String?
+    override fun toString(): String = value
 }

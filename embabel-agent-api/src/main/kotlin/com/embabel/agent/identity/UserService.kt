@@ -13,29 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.tools.publish
+package com.embabel.agent.identity
 
-data class PublishedLocation(
-    val url: String,
-)
+interface UserService<U : User> {
 
-data class PublicationResponse(
-    val resources: List<PublishedLocation>,
-)
-
-data class FilePublication(
-    val fileName: String,
-    val content: String,
-)
-
-data class PublicationRequest(
-    val publications: List<FilePublication>,
-)
-
-interface Publisher {
+    fun findById(id: String): U?
 
     /**
-     * Publish resources at the given location
+     * Add the user to the system.
+     * Default implementation refuses to do so.
      */
-    fun publish(request: PublicationRequest): PublicationResponse
+    fun provisionUser(
+        userInfo: U,
+    ): U {
+        error("User cannot be provisioned: $userInfo")
+    }
 }

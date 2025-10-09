@@ -38,7 +38,7 @@ class Handoffs(
         get() = goalToolCallbackPublisher.goalTools(remoteOnly = false, listeners = emptyList())
             .filter { goalToolCallback ->
                 outputTypes.any { outputType ->
-                    goalToolCallback.goal.outputClass?.isAssignableFrom(outputType) == true
+                    goalToolCallback.goal.outputType?.isAssignableFrom(outputType) == true
                 }
             }
 

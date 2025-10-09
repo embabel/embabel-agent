@@ -20,6 +20,7 @@ import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.annotation.Condition;
 import com.embabel.agent.api.common.OperationContext;
+import com.embabel.agent.api.common.PlatformServices;
 import com.embabel.agent.channel.DevNullOutputChannel;
 import com.embabel.agent.core.ActionStatusCode;
 import com.embabel.agent.core.AgentProcessStatusCode;
@@ -27,7 +28,6 @@ import com.embabel.agent.core.ProcessContext;
 import com.embabel.agent.core.ProcessOptions;
 import com.embabel.agent.core.support.InMemoryBlackboard;
 import com.embabel.agent.core.support.SimpleAgentProcess;
-import com.embabel.agent.spi.PlatformServices;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

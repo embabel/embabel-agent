@@ -37,28 +37,22 @@ class TemplateOperations(
      * Create an object of the given type using the given model to render the template
      * and LLM options from context
      */
-    @JvmOverloads
     fun <T> createObject(
         outputClass: Class<T>,
         model: Map<String, Any>,
-        interactionId: String? = null,
     ): T = promptRunnerOperations.createObject(
         prompt = compiledTemplate.render(model = model),
         outputClass = outputClass,
-        interactionId = interactionId,
     )
 
     /**
      * Generate text using the given model to render the template
      * and LLM options from context
      */
-    @JvmOverloads
     fun generateText(
         model: Map<String, Any>,
-        interactionId: String? = null,
     ): String = promptRunnerOperations.generateText(
         prompt = compiledTemplate.render(model = model),
-        interactionId = interactionId,
     )
 
     /**
@@ -71,13 +65,11 @@ class TemplateOperations(
     fun respondWithSystemPrompt(
         conversation: Conversation,
         model: Map<String, Any> = emptyMap(),
-        interactionId: String? = null,
     ): AssistantMessage = promptRunnerOperations.respond(
         messages = listOf(
             SystemMessage(
                 content = compiledTemplate.render(model = model)
             )
         ) + conversation.messages,
-        interactionId = interactionId,
     )
 }

@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi
 
+import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.core.*
 import com.embabel.agent.event.LlmRequestEvent
 import com.embabel.agent.prompt.element.ContextualPromptElement
@@ -27,16 +28,6 @@ import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import org.springframework.ai.tool.ToolCallback
-
-/**
- * All prompt interactions through the platform need a unique id
- * This allows LLM interactions to be optimized by an AgentPlatform
- */
-@JvmInline
-value class InteractionId(val value: String) {
-
-    override fun toString(): String = value
-}
 
 /**
  * Spec for calling an LLM. Optional LlmOptions,

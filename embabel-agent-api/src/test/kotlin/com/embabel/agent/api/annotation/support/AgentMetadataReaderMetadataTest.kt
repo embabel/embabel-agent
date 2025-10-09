@@ -18,6 +18,7 @@ package com.embabel.agent.api.annotation.support
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.dsl.Frog
+import com.embabel.agent.core.JvmType
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.support.containsAll
 import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyAgentPlatform
@@ -133,7 +134,7 @@ class AgentMetadataReaderMetadataTest {
             assertEquals(1, metadata!!.goals.size)
             val action = metadata.actions.single()
             val g = metadata.goals.single()
-            assertEquals(PersonWithReverseTool::class.java, g.outputClass)
+            assertEquals(PersonWithReverseTool::class.java, (g.outputType as JvmType).clazz)
             assertEquals("Creating a person", g.description)
             val expected = mapOf(
                 "it:${PersonWithReverseTool::class.qualifiedName}" to ConditionDetermination.TRUE,

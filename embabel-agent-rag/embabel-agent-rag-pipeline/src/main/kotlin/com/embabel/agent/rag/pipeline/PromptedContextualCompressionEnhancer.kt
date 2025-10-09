@@ -124,6 +124,7 @@ class PromptedContextualCompressionEnhancer(
         return operationContext
             .ai()
             .withLlm(llm)
+            .withId(name)
             .creating(CompressionResult::class.java)
             .withExample(
                 "relevant content", CompressionResult(
@@ -135,10 +136,7 @@ class PromptedContextualCompressionEnhancer(
                     irrelevant = true,
                 )
             )
-            .fromPrompt(
-                prompt = prompt,
-                interactionId = name,
-            )
+            .fromPrompt(prompt = prompt)
             .also {
                 if (it.irrelevant) {
                     logger.debug(

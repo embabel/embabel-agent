@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.common.RetryProperties
 import com.embabel.agent.spi.*
 import com.embabel.common.ai.model.LlmOptions
@@ -68,7 +69,7 @@ internal class LlmRanker(
     override fun <T> rank(
         description: String,
         userInput: String,
-        rankables: Collection<T>
+        rankables: Collection<T>,
     ): Rankings<T> where T : Named, T : Described {
         if (rankables.isEmpty()) {
             return Rankings(emptyList())

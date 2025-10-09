@@ -46,21 +46,8 @@ interface ObjectCreator<T> {
      */
     fun fromPrompt(
         prompt: String,
-    ): T = fromPrompt(prompt, null)
-
-    fun fromPrompt(
-        prompt: String,
-        interactionId: String?,
     ): T = fromMessages(
         messages = listOf(UserMessage(prompt)),
-        interactionId = interactionId,
-    )
-
-    fun fromMessages(
-        messages: List<Message>,
-    ): T = fromMessages(
-        messages = messages,
-        interactionId = null,
     )
 
     /**
@@ -68,7 +55,6 @@ interface ObjectCreator<T> {
      */
     fun fromMessages(
         messages: List<Message>,
-        interactionId: String?,
     ): T
 
 }
@@ -99,12 +85,10 @@ internal data class PromptRunnerObjectCreator<T>(
 
     override fun fromMessages(
         messages: List<Message>,
-        interactionId: String?,
     ): T {
         return promptRunner.createObject(
             messages = messages,
             outputClass = outputClass,
-            interactionId = interactionId,
         )
     }
 

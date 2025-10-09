@@ -13,13 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi
+package com.embabel.agent.api.common
 
-import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.event.AgenticEventListener
+import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.spi.OperationScheduler
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper

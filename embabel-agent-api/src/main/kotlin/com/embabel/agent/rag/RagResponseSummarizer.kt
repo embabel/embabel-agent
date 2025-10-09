@@ -29,6 +29,7 @@ class PromptRunnerRagResponseSummarizer(
 
     override fun summarize(ragResponse: RagResponse): String {
         return promptRunner
+            .withId("summarizer")
             .generateText(
                 prompt = """
                 Summarize the following information provided as context to answer a question.
@@ -38,7 +39,6 @@ class PromptRunnerRagResponseSummarizer(
                 ${options.ragResponseFormatter.format(ragResponse)}
                 </context>
             """.trimIndent(),
-                interactionId = "summarize",
             )
     }
 }

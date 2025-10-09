@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.annotation.support
 
+import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.SnakeMeal
 import com.embabel.agent.channel.DevNullOutputChannel
@@ -26,7 +27,6 @@ import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.event.AgenticEventListener.Companion.DevNull
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.LlmOperations
-import com.embabel.agent.spi.PlatformServices
 import com.embabel.agent.support.Dog
 import com.embabel.agent.testing.integration.IntegrationTestUtils
 import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyAgentProcessRunning

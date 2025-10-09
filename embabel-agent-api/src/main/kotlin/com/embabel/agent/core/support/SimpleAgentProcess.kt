@@ -15,10 +15,10 @@
  */
 package com.embabel.agent.core.support
 
+import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.core.*
 import com.embabel.agent.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.event.GoalAchievedEvent
-import com.embabel.agent.spi.PlatformServices
 import com.embabel.common.util.indentLines
 import com.embabel.plan.WorldState
 import com.embabel.plan.goap.AStarGoapPlanner
@@ -61,15 +61,15 @@ internal class SimpleAgentProcess(
         if (plan == null) {
             logger.info(
                 "❌ Process $id stuck\n" +
-                """|No plan from:
+                        """|No plan from:
                    |${worldState.infoString(verbose = true, indent = 1)}
                    |in:
                    |${agent.planningSystem.infoString(verbose = true, 1)}
                    |context:
                    |${blackboard.infoString(true, 1)}
                    |"""
-                    .trimMargin()
-                    .indentLines(1)
+                            .trimMargin()
+                            .indentLines(1)
             )
             setStatus(AgentProcessStatusCode.STUCK)
             return this

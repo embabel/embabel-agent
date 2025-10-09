@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.api.common.autonomy
 
-import com.embabel.agent.config.AgentPlatformProperties
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.testing.integration.IntegrationTestUtils
@@ -117,7 +116,7 @@ class AutonomyActionLeakageTest {
             description = "Test goal 1",
             value = 0.8,
             pre = setOf(condition1.name),
-            outputClass = null,
+            outputType = null,
         )
 
         val goal2 = Goal(
@@ -125,7 +124,7 @@ class AutonomyActionLeakageTest {
             description = "Test goal 2",
             value = 0.8,
             pre = setOf(condition2.name),
-            outputClass = null,
+            outputType = null,
         )
 
         // Create action1 that satisfies goal1
@@ -289,7 +288,7 @@ class AutonomyActionLeakageTest {
             description = "Agent1 goal 1",
             value = 0.8,
             pre = setOf(condition1.name),
-            outputClass = null,
+            outputType = null,
         )
 
         val goal2 = Goal(
@@ -297,7 +296,7 @@ class AutonomyActionLeakageTest {
             description = "Agent1 goal 2",
             value = 0.8,
             pre = setOf(condition2.name),
-            outputClass = null,
+            outputType = null,
         )
 
         // Agent2 conditions and goals
@@ -318,7 +317,7 @@ class AutonomyActionLeakageTest {
             description = "Agent2 goal 1",
             value = 0.8,
             pre = setOf(condition3.name),
-            outputClass = null,
+            outputType = null,
         )
 
         val goal4 = Goal(
@@ -326,7 +325,7 @@ class AutonomyActionLeakageTest {
             description = "Agent2 goal 2",
             value = 0.8,
             pre = setOf(condition4.name),
-            outputClass = null,
+            outputType = null,
         )
 
         // Create Agent1 actions

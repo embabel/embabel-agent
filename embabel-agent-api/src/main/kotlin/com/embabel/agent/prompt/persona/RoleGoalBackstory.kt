@@ -18,8 +18,8 @@ package com.embabel.agent.prompt.persona
 import com.embabel.common.ai.prompt.PromptContributor
 
 /**
- * Crew AI style backstory prompt.
- * Included for users migrating from Crew AI.
+ * CrewAI style backstory prompt.
+ * Included for users migrating from CrewAI.
  * In Embabel, such structures aren't core to the framework,
  * but merely a PromptContributor that can be used
  * in any action implementation.

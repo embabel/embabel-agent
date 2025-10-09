@@ -20,7 +20,6 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.prompt.element.ContextualPromptElement
-import com.embabel.agent.spi.InteractionId
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
@@ -59,6 +58,10 @@ data class FakePromptRunner(
 
     init {
         logger.info("Fake prompt runner created: ${hashCode()}")
+    }
+
+    override fun withInteractionId(interactionId: InteractionId): PromptRunner {
+        TODO("Not yet implemented")
     }
 
     /**
@@ -102,7 +105,6 @@ data class FakePromptRunner(
     override fun <T> createObject(
         prompt: String,
         outputClass: Class<T>,
-        interactionId: String?,
     ): T {
         _llmInvocations += LlmInvocation(
             interaction = createLlmInteraction(),
@@ -127,7 +129,6 @@ data class FakePromptRunner(
     override fun <T> createObject(
         messages: List<Message>,
         outputClass: Class<T>,
-        interactionId: String?,
     ): T {
         return createObject(prompt = messages.joinToString(), outputClass = outputClass)
     }

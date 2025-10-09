@@ -120,6 +120,16 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     val toolObjects: List<ToolObject>
 
     /**
+     * Set an interaction id for this prompt runner.
+     */
+    fun withInteractionId(interactionId: InteractionId): PromptRunner
+
+    /**
+     * Set the interaction id for this prompt runner.
+     */
+    fun withId(id: String) = withInteractionId(InteractionId(id))
+
+    /**
      * Specify an LLM for the PromptRunner
      */
     fun withLlm(llm: LlmOptions): PromptRunner
