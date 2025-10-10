@@ -17,6 +17,7 @@ package com.embabel.agent.testing.integration
 
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.channel.DevNullOutputChannel
+import com.embabel.agent.config.AgentPlatformProperties.ProcessType
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.DefaultAgentPlatform
 import com.embabel.agent.core.support.InMemoryBlackboard
@@ -56,6 +57,7 @@ object IntegrationTestUtils {
             toolGroupResolver = toolGroupResolver ?: RegistryToolGroupResolver("empty", emptyList()),
             name = "dummy-agent-platform",
             description = "Dummy Agent Platform for Integration Testing",
+            processType = ProcessType.SIMPLE,
             asyncer = ExecutorAsyncer(Executors.newSingleThreadExecutor()),
             objectMapper = jacksonObjectMapper(),
             outputChannel = DevNullOutputChannel,

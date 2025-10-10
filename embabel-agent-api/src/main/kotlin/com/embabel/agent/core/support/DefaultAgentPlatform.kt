@@ -17,6 +17,7 @@ package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.channel.OutputChannel
+import com.embabel.agent.config.AgentPlatformProperties
 import com.embabel.agent.core.*
 import com.embabel.agent.event.AgentDeploymentEvent
 import com.embabel.agent.event.AgentProcessCreationEvent
@@ -30,17 +31,20 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationContext
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
-internal class DefaultAgentPlatform(
-    @param:Value("\${embabel.agent-platform.name:default-agent-platform}")
+open class DefaultAgentPlatform(
+    @param:Value("\${embabel.agent.platform.name:default-agent-platform}")
     override val name: String,
-    @param:Value("\${embabel.agent-platform.description:Default Agent Platform}")
+    @param:Value("\${embabel.agent.platform.description:Default Agent Platform}")
     override val description: String,
+    @param:Value("\${embabel.agent.platform.process-type:SIMPLE}")
+    val processType: AgentPlatformProperties.ProcessType,
     private val llmOperations: LlmOperations,
     override val toolGroupResolver: ToolGroupResolver,
     private val eventListener: AgenticEventListener,
@@ -54,6 +58,9 @@ internal class DefaultAgentPlatform(
     private val templateRenderer: TemplateRenderer,
     private val applicationContext: ApplicationContext? = null,
 ) : AgentPlatform {
+
+    @Autowired(required = false)
+    private var callbacks: List<AgentProcessCallback> = emptyList()
 
     private val logger = LoggerFactory.getLogger(DefaultAgentPlatform::class.java)
 
@@ -161,14 +168,25 @@ internal class DefaultAgentPlatform(
         val blackboard = createBlackboard(processOptions, id)
         blackboard.bindAll(bindings)
 
-        val agentProcess = SimpleAgentProcess(
-            agent = agent,
-            platformServices = platformServices,
-            blackboard = blackboard,
-            id = id,
-            parentId = null,
-            processOptions = processOptions,
-        )
+        val agentProcess = when (processType) {
+            AgentPlatformProperties.ProcessType.SIMPLE -> SimpleAgentProcess(
+                agent = agent,
+                platformServices = platformServices,
+                blackboard = blackboard,
+                id = id,
+                parentId = null,
+                processOptions = processOptions,
+            )
+            AgentPlatformProperties.ProcessType.CONCURRENT -> ConcurrentAgentProcess(
+                agent = agent,
+                platformServices = platformServices,
+                blackboard = blackboard,
+                id = id,
+                parentId = null,
+                processOptions = processOptions,
+                callbacks = callbacks,
+            )
+        }
         logger.debug("🚀 Creating process {}", agentProcess.id)
         agentProcessRepository.save(agentProcess)
         eventListener.onProcessEvent(AgentProcessCreationEvent(agentProcess))
