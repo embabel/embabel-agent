@@ -45,13 +45,22 @@ data class GroupConfig(
 
 /**
  * Configuration for ToolGroups when MCP is available
- * @param includes map of tool group names to list of tool names to include
- * @param excludes list of tool names to exclude from all tool groups
  */
 @ConfigurationProperties(prefix = "embabel.agent.platform.tools")
 class ToolGroupsProperties {
+    /**
+     * Map of tool group names to list of tool names to include
+     */
     var includes: Map<String, GroupConfig> = emptyMap()
+
+    /**
+     * List of tool names to exclude from all tool groups
+     */
     var excludes: List<String> = emptyList()
+
+    /**
+     * The version of tool groups
+     */
     var version: String = Semver().value
 }
 

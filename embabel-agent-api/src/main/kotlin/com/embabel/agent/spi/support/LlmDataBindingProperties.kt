@@ -32,7 +32,14 @@ import java.time.Duration
 class LlmDataBindingProperties : RetryTemplateProvider {
     private val logger = LoggerFactory.getLogger(LlmDataBindingProperties::class.java)
 
+    /**
+     * Maximum retry attempts for data binding
+     */
     override var maxAttempts: Int = 10
+
+    /**
+     * Fixed backoff time in milliseconds between retries
+     */
     var fixedBackoffMillis: Long = 30L
 
     override fun retryTemplate(name: String): RetryTemplate {

@@ -55,7 +55,7 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
 @ConfigurationProperties(prefix = "embabel.agent.models.bedrock")
 class BedrockProperties {
     /**
-     * List of LLM provider by Bedrock
+     * List of Bedrock models to configure
      */
     @NestedConfigurationProperty
     var models: List<BedrockModelProperties> = emptyList()
@@ -69,10 +69,18 @@ class BedrockModelProperties {
     var name: String = ""
 
     /**
-     * model's knowledge cutoff date
+     * Model's knowledge cutoff date
      */
     var knowledgeCutoff: String = ""
+
+    /**
+     * Input token price
+     */
     var inputPrice: Double = 0.0
+
+    /**
+     * Output token price
+     */
     var outputPrice: Double = 0.0
 }
 

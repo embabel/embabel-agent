@@ -36,7 +36,6 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration
-import org.springframework.core.env.Environment
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
@@ -70,7 +69,7 @@ class DockerRetryProperties : RetryProperties {
 @ConfigurationProperties(prefix = "embabel.agent.models.docker")
 class DockerConnectionProperties {
     /**
-     * The base url for docker
+     * Base URL for Docker model endpoint
      */
     var baseUrl: String = "http://localhost:12434/engines"
 }

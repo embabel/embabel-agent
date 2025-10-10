@@ -20,13 +20,21 @@ import java.time.Duration
 
 /**
  * Properties for the ChatClientLlmOperations operations
- * @param maybePromptTemplate template to use for the "maybe" prompt, which
- *  * can enable a failure result if the LLM does not have enough information to
- *  * create the desired output structure.
  */
 @ConfigurationProperties(prefix = "embabel.agent.platform.llm-operations.prompts")
 class LlmOperationsPromptsProperties {
+    /**
+     * Template to use for the "maybe" prompt, which can enable a failure result if the LLM does not have enough information to create the desired output structure
+     */
     var maybePromptTemplate: String = "maybe_prompt_contribution"
+
+    /**
+     * Whether to generate examples by default
+     */
     var generateExamplesByDefault: Boolean = true
+
+    /**
+     * Default timeout for operations
+     */
     var defaultTimeout: Duration = Duration.ofSeconds(60)
 }

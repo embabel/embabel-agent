@@ -222,6 +222,9 @@ class DeprecatedPropertyScanner(
         put("embabel.llm-operations.data-binding.max-attempts", "embabel.agent.platform.llm-operations.data-binding.max-attempts")
         put("embabel.llm-operations.data-binding.fixed-backoff-millis", "embabel.agent.platform.llm-operations.data-binding.fixed-backoff-millis")
         put("embabel.llm-operations.prompts.template", "embabel.agent.platform.llm-operations.prompts.template")
+        put("embabel.llm-operations.prompts.maybe-prompt-template", "embabel.agent.platform.llm-operations.prompts.maybe-prompt-template")
+        put("embabel.llm-operations.prompts.generate-examples-by-default", "embabel.agent.platform.llm-operations.prompts.generate-examples-by-default")
+        put("embabel.llm-operations.prompts.default-timeout", "embabel.agent.platform.llm-operations.prompts.default-timeout")
         put("embabel.autonomy.agent-confidence-cut-off", "embabel.agent.platform.autonomy.agent-confidence-cut-off")
         put("embabel.autonomy.goal-confidence-cut-off", "embabel.agent.platform.autonomy.goal-confidence-cut-off")
         put("embabel.sse.max-buffer-size", "embabel.agent.platform.sse.max-buffer-size")
@@ -248,8 +251,16 @@ class DeprecatedPropertyScanner(
         put("embabel.models.bedrock.models.input-price", "embabel.agent.models.bedrock.models.input-price")
         put("embabel.models.bedrock.models.output-price", "embabel.agent.models.bedrock.models.output-price")
 
-        // discord prefix
+        // Discord configurations
         put("embabel.discord.token", "embabel.agent.discord.token")
+
+        // Shell configurations
+        put("embabel.shell.line-length", "embabel.agent.shell.line-length")
+        put("embabel.shell.chat.bind-conversation", "embabel.agent.shell.chat.bind-conversation")
+        put("embabel.shell.chat.model", "embabel.agent.shell.chat.model")
+        put("embabel.shell.chat.confirm-goals", "embabel.agent.shell.chat.confirm-goals")
+        put("embabel.shell.chat.multi-goal", "embabel.agent.shell.chat.multi-goal")
+        put("embabel.shell.chat.temperature", "embabel.agent.shell.chat.temperature")
 
         // Specific platform feature migrations
         put("embabel.agent.enable-scanning", "embabel.agent.platform.scanning.annotation")
@@ -260,6 +271,8 @@ class DeprecatedPropertyScanner(
         // @ConfigurationProperties prefix migrations
         put("embabel.anthropic", "embabel.agent.platform.models.anthropic")
         put("embabel.openai", "embabel.agent.platform.models.openai")
+        put("embabel.docker.models", "embabel.agent.platform.models.docker")
+        put("embabel.models.bedrock", "embabel.agent.models.bedrock")
         put("embabel.llm-operations", "embabel.agent.platform.llm-operations")
         put("embabel.llm-operations.data-binding", "embabel.agent.platform.llm-operations.data-binding")
         put("embabel.llm-operations.prompts", "embabel.agent.platform.llm-operations.prompts")
@@ -268,6 +281,7 @@ class DeprecatedPropertyScanner(
         put("embabel.process-id-generation", "embabel.agent.platform.process-id-generation")
         put("embabel.agent-platform.ranking", "embabel.agent.platform.ranking")
         put("embabel.agent-platform.scanning", "embabel.agent.platform.scanning")
+        put("embabel.shell", "embabel.agent.shell")
     }
 
     /**
