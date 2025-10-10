@@ -17,9 +17,10 @@ package com.embabel.agent.mcpserver.async.support
 
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.core.Goal
+import com.embabel.agent.mcpserver.async.McpAsyncPromptFactory
 import com.embabel.agent.mcpserver.async.McpAsyncPromptPublisher
 import com.embabel.agent.mcpserver.sync.McpPromptPublisher
-import com.embabel.agent.mcpserver.sync.support.McpPromptFactory
+import com.embabel.agent.mcpserver.sync.McpPromptFactory
 import com.embabel.common.util.indent
 import io.modelcontextprotocol.server.McpServerFeatures
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty

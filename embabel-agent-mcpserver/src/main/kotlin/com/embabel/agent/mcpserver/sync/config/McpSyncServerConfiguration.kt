@@ -15,160 +15,79 @@
  */
 package com.embabel.agent.mcpserver.sync.config
 
-import com.embabel.agent.event.logging.LoggingPersonality.Companion.BANNER_WIDTH
-import com.embabel.agent.mcpserver.support.toolNames
+import com.embabel.agent.mcpserver.*
+import com.embabel.agent.mcpserver.domain.McpExecutionMode
 import com.embabel.agent.mcpserver.sync.McpPromptPublisher
 import com.embabel.agent.mcpserver.sync.McpResourcePublisher
-import com.embabel.agent.mcpserver.McpToolExportCallbackPublisher
-import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
-import io.modelcontextprotocol.server.McpServerFeatures
+import com.embabel.agent.mcpserver.sync.SyncServerStrategy
 import io.modelcontextprotocol.server.McpSyncServer
-import org.apache.catalina.util.ServerInfo
-import org.slf4j.LoggerFactory
 import org.springframework.ai.mcp.McpToolUtils
 import org.springframework.ai.tool.ToolCallbackProvider
-import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
 import org.springframework.context.ConfigurableApplicationContext
-import org.springframework.context.annotation.*
-import org.springframework.context.event.EventListener
-import org.springframework.core.type.AnnotatedTypeMetadata
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Conditional
+import org.springframework.context.annotation.Configuration
+
 
 /**
- * Provides a hello banner for the MCP server.
+ * Condition classes for determining which configuration to activate.
  */
-internal class McpSyncBanner {
-
-    @Tool(
-        description = "Display a Embabel welcome banner with server information"
-    )
-    fun helloBanner(): Map<String, Any> {
-        val separator = "~".repeat(HELLO_BANNER_WIDTH)
-        return mapOf(
-            "type" to "banner",
-            "lines" to listOf(
-                separator,
-                "Embabel Agent MCP Sync Server",
-                "Server info: ${ServerInfo.getServerInfo()}",
-                "Java info: ${System.getProperty("java.runtime.version")}",
-                separator
-            )
-        )
-    }
-
-    companion object {
-        private const val HELLO_BANNER_WIDTH = 50
-    }
-}
-
-/**
- * Condition that checks if MCP server is enabled and of type SYNC.
- */
-class McpSyncServerCondition : Condition {
-    override fun matches(context: ConditionContext, metadata: AnnotatedTypeMetadata): Boolean {
+class McpSyncServerCondition : org.springframework.context.annotation.Condition {
+    override fun matches(
+        context: org.springframework.context.annotation.ConditionContext,
+        metadata: org.springframework.core.type.AnnotatedTypeMetadata
+    ): Boolean {
         val environment = context.environment
         val enabled = environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false)
         val type = environment.getProperty("embabel.agent.mcpserver.type", "SYNC")
-
         return enabled && type == "SYNC"
     }
 }
 
 /**
- * Configures MCP sync server. Exposes a limited number of tools.
+ * Sync server configuration using template method pattern.
+ * Eliminates duplication while providing sync-specific implementations.
  */
 @Configuration
 @Conditional(McpSyncServerCondition::class)
 class McpSyncServerConfiguration(
-    private val applicationContext: ConfigurableApplicationContext,
-) {
+    applicationContext: ConfigurableApplicationContext
+) : AbstractMcpServerConfiguration(applicationContext) {
 
-    private val logger = LoggerFactory.getLogger(McpSyncServerConfiguration::class.java)
+    private val serverInfo = ServerInfoFactory.create(McpExecutionMode.SYNC)
 
-    /**
-     * Currently MCP Server is configured by AutoConfiguration, which requires
-     * at least one ToolCallbackProvider bean to be present in the context in order
-     * to build it with Tools Capability.
-     *
-     * Provides a simple banner tool callback to display a welcome message.
-     */
     @Bean
-    fun helloBannerCallback(): ToolCallbackProvider {
-        return MethodToolCallbackProvider.builder().toolObjects(McpSyncBanner()).build()
+    fun syncBannerCallback(): ToolCallbackProvider = createBannerTool()
+
+    override fun createServerStrategy(): McpServerStrategy {
+        val syncServer = applicationContext.getBean(McpSyncServer::class.java)
+        return SyncServerStrategy(syncServer)
     }
 
-    /**
-     * Configures and initializes MCP server tool callbacks, prompts and resources when the agent scanning process completes.
-     *
-     * This event-driven approach ensures that all tool callbacks are properly registered only after
-     * the application context is fully initialized and all agent beans have been processed and deployed.
-     * Without this synchronization, the MCP server might start without access to all available tools.
-     */
-    @EventListener(AgentScanningBeanPostProcessorEvent::class)
-    fun exposeMcpFunctionality() {
-        val mcpSyncServer = applicationContext.getBean(McpSyncServer::class.java)
-        exposeMcpTools(mcpSyncServer)
-        exposeMcpPrompts(mcpSyncServer)
-        exposeMcpResources(mcpSyncServer)
+    override fun createBannerTool(): ToolCallbackProvider {
+        return MethodToolCallbackProvider.builder()
+            .toolObjects(UnifiedBannerTool(serverInfo))
+            .build()
     }
 
-    private fun exposeMcpResources(mcpSyncServer: McpSyncServer) {
-        val mcpResourcePublishers =
-            applicationContext.getBeansOfType(McpResourcePublisher::class.java).values.toList()
-        val allResources = mcpResourcePublishers.flatMap { it.resources() }
-        logger.info(
-            "Exposing a total of {} MCP server resources:\n\t{}",
-            allResources.size,
-            allResources.joinToString("\n\t") { "${it.resource.name}: ${it.resource.description}" }
-        )
-        for (resource in allResources) {
-            mcpSyncServer.addResource(resource)
-        }
+    override fun getToolPublishers(): List<McpToolExportCallbackPublisher> {
+        return applicationContext.getBeansOfType(McpToolExportCallbackPublisher::class.java).values.toList()
     }
 
-    private fun exposeMcpTools(mcpSyncServer: McpSyncServer) {
-        val mcpToolExportCallbackPublishers =
-            applicationContext.getBeansOfType(McpToolExportCallbackPublisher::class.java).values.toList()
-        val allToolCallbacks = mcpToolExportCallbackPublishers.flatMap { it.toolCallbacks }
-        val separator = "~ MCP " + "~".repeat(BANNER_WIDTH - 6)
-        logger.info(
-            "\n${separator}\n{} MCP tool exporters: {}\nExposing a total of {} MCP server tools:\n\t{}\n${separator}",
-            mcpToolExportCallbackPublishers.size,
-            mcpToolExportCallbackPublishers.map { it.infoString(verbose = true) },
-            allToolCallbacks.size,
-            allToolCallbacks.joinToString(
-                "\n\t"
-            ) { "${it.toolDefinition.name()}: ${it.toolDefinition.description()}" }
-        )
-
-        val toolsToRemove = mcpSyncServer.toolNames()
-            .filter { it != "helloBanner" } // keep the hello banner tool
-        logger.info(
-            "Removing {} tools from MCP server: {}", toolsToRemove.size,
-            toolsToRemove.joinToString(", "),
-        )
-        for (tool in toolsToRemove) {
-            mcpSyncServer.removeTool(tool)
-        }
-
-        val agentTools = McpToolUtils.toSyncToolSpecification(allToolCallbacks)
-        for (agentTool in agentTools) {
-            mcpSyncServer.addTool(agentTool)
-        }
+    override fun getResourcePublishers(): List<McpResourcePublisher> {
+        return applicationContext.getBeansOfType(McpResourcePublisher::class.java).values.toList()
     }
 
-    private fun exposeMcpPrompts(mcpSyncServer: McpSyncServer) {
-        val mcpPromptPublishers =
-            applicationContext.getBeansOfType(McpPromptPublisher::class.java).values.toList()
-        val allPrompts = mcpPromptPublishers.flatMap { it.prompts() }
-        logger.info(
-            "Exposing a total of {} MCP server prompts:\n\t{}",
-            allPrompts.size,
-            allPrompts.joinToString("\n\t") { "${it.prompt.name}: ${it.prompt.description}" }
-        )
-        for (prompts in allPrompts) {
-            mcpSyncServer.addPrompt(prompts)
-        }
+    override fun getPromptPublishers(): List<McpPromptPublisher> {
+        return applicationContext.getBeansOfType(McpPromptPublisher::class.java).values.toList()
     }
 
+    override fun convertToToolSpecifications(toolCallbacks: List<Any>): List<Any> {
+        // Cast to the expected ToolCallback type for McpToolUtils
+        val callbacks = toolCallbacks.filterIsInstance<org.springframework.ai.tool.ToolCallback>()
+        return McpToolUtils.toSyncToolSpecification(callbacks)
+    }
+
+    override fun getExecutionMode(): String = "SYNC"
 }

@@ -16,7 +16,7 @@
 package com.embabel.agent.mcpserver.sync
 
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.mcpserver.sync.support.McpPromptFactory
+import com.embabel.agent.mcpserver.sync.McpPromptFactory
 import com.embabel.common.core.types.NamedAndDescribed
 import io.mockk.mockk
 import io.modelcontextprotocol.spec.McpSchema

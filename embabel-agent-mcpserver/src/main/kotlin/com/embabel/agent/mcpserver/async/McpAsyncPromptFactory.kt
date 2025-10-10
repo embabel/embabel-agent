@@ -13,19 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.mcpserver.async.support
+package com.embabel.agent.mcpserver.async
 
 import com.embabel.agent.mcpserver.support.argumentsFromType
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
 import com.embabel.common.core.types.Timestamped
-import com.embabel.common.util.NameUtils
-import com.fasterxml.jackson.annotation.JsonPropertyDescription
 import io.modelcontextprotocol.server.McpServerFeatures
 import io.modelcontextprotocol.spec.McpSchema
-import org.springframework.util.ReflectionUtils
 import reactor.core.publisher.Mono
-import java.lang.reflect.Method
 
 /**
  * Create Prompt specifications for the MCP server.
@@ -58,7 +54,8 @@ class McpAsyncPromptFactory(
                 argumentsFromType(excludedInterfaces, inputType),
             )
         ) { asyncServerExchange, getPromptRequest ->
-            Mono.just(McpSchema.GetPromptResult(
+            Mono.just(
+                McpSchema.GetPromptResult(
                 "$name-result",
                 listOf(
                     McpSchema.PromptMessage(
