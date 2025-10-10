@@ -17,6 +17,7 @@ package com.embabel.agent.core.support
 
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.channel.DevNullOutputChannel
+import com.embabel.agent.config.AgentPlatformProperties.ProcessType
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Context
 import com.embabel.agent.core.ContextId
@@ -41,6 +42,7 @@ class DefaultAgentPlatformTest {
         return DefaultAgentPlatform(
             "name",
             "description",
+            processType = ProcessType.SIMPLE,
             mockk(),
             mockk(relaxed = true),
             l,

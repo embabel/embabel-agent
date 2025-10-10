@@ -34,6 +34,7 @@ class AgentPlatformProperties {
      */
     var name: String = "embabel-default"
     var description: String = "Embabel Default Agent Platform"
+    var processType: ProcessType = ProcessType.SIMPLE
 
     /**
      * Platform behavior configurations
@@ -54,6 +55,14 @@ class AgentPlatformProperties {
     var sse: SseConfig = SseConfig()
     @field:NestedConfigurationProperty
     var test: TestConfig = TestConfig()
+
+    /**
+     * Agent Process Type
+     */
+    enum class ProcessType {
+        SIMPLE,
+        CONCURRENT
+    }
 
     /**
      * Agent scanning configuration
