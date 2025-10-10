@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.mcpserver
+package com.embabel.agent.mcpserver.sync
 
 import com.embabel.common.core.types.HasInfoString
 import io.modelcontextprotocol.server.McpServerFeatures
 
-interface McpResourcePublisher : HasInfoString {
+interface McpPromptPublisher : HasInfoString {
 
-    fun resources(): List<McpServerFeatures.SyncResourceSpecification>
+    fun prompts(): List<McpServerFeatures.SyncPromptSpecification>
 
 }

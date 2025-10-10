@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.mcpserver.support
+package com.embabel.agent.mcpserver.sync.support
 
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.event.AgentProcessEvent
@@ -32,13 +32,19 @@ import org.springframework.ai.chat.model.ToolContext
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
 
 /**
- * Implementation of [com.embabel.agent.mcpserver.McpToolExportCallbackPublisher] that delegates to
- * a [com.embabel.agent.tools.agent.PerGoalToolCallbackFactory].
+ * Implementation of [McpToolExportCallbackPublisher] that delegates to
+ * a [PerGoalToolCallbackFactory].
  */
 @Service
+@ConditionalOnProperty(
+    value = ["embabel.agent.mcpserver.type"],
+    havingValue = "SYNC",
+    matchIfMissing = true,
+)
 class PerGoalMcpToolExportCallbackPublisher(
     autonomy: Autonomy,
     private val mcpSyncServer: McpSyncServer,

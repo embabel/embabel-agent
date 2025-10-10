@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.mcpserver
+package com.embabel.agent.mcpserver.sync
 
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.mcpserver.support.McpPromptFactory
+import com.embabel.agent.mcpserver.sync.support.McpPromptFactory
 import com.embabel.common.core.types.NamedAndDescribed
 import io.mockk.mockk
 import io.modelcontextprotocol.spec.McpSchema

@@ -13,9 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.mcpserver
+package com.embabel.agent.mcpserver.sync.config
 
 import com.embabel.agent.event.logging.LoggingPersonality.Companion.BANNER_WIDTH
+import com.embabel.agent.mcpserver.support.toolNames
+import com.embabel.agent.mcpserver.sync.McpPromptPublisher
+import com.embabel.agent.mcpserver.sync.McpResourcePublisher
+import com.embabel.agent.mcpserver.McpToolExportCallbackPublisher
 import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
 import io.modelcontextprotocol.server.McpServerFeatures
 import io.modelcontextprotocol.server.McpSyncServer
@@ -25,28 +29,31 @@ import org.springframework.ai.mcp.McpToolUtils
 import org.springframework.ai.tool.ToolCallbackProvider
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.ConfigurableApplicationContext
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.*
 import org.springframework.context.event.EventListener
-
+import org.springframework.core.type.AnnotatedTypeMetadata
 
 /**
  * Provides a hello banner for the MCP server.
  */
-internal class BannerTool {
+internal class McpSyncBanner {
 
     @Tool(
-        description = "Display a welcome banner with server information"
+        description = "Display a Embabel welcome banner with server information"
     )
-    fun helloBanner(): String {
+    fun helloBanner(): Map<String, Any> {
         val separator = "~".repeat(HELLO_BANNER_WIDTH)
-        return "\n${separator}\n" +
-                "Embabel Agent MCP server\n" +
-                "Server info: ${ServerInfo.getServerInfo()}\n" +
-                "Java info: ${System.getProperty("java.runtime.version")}\n" +
-                "${separator}\n"
+        return mapOf(
+            "type" to "banner",
+            "lines" to listOf(
+                separator,
+                "Embabel Agent MCP Sync Server",
+                "Server info: ${ServerInfo.getServerInfo()}",
+                "Java info: ${System.getProperty("java.runtime.version")}",
+                separator
+            )
+        )
     }
 
     companion object {
@@ -54,12 +61,24 @@ internal class BannerTool {
     }
 }
 
+/**
+ * Condition that checks if MCP server is enabled and of type SYNC.
+ */
+class McpSyncServerCondition : Condition {
+    override fun matches(context: ConditionContext, metadata: AnnotatedTypeMetadata): Boolean {
+        val environment = context.environment
+        val enabled = environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false)
+        val type = environment.getProperty("embabel.agent.mcpserver.type", "SYNC")
+
+        return enabled && type == "SYNC"
+    }
+}
 
 /**
  * Configures MCP sync server. Exposes a limited number of tools.
  */
 @Configuration
-@ConditionalOnProperty(value = ["embabel.agent.mcpserver.enabled"], havingValue = "true", matchIfMissing = false)
+@Conditional(McpSyncServerCondition::class)
 class McpSyncServerConfiguration(
     private val applicationContext: ConfigurableApplicationContext,
 ) {
@@ -75,7 +94,7 @@ class McpSyncServerConfiguration(
      */
     @Bean
     fun helloBannerCallback(): ToolCallbackProvider {
-        return MethodToolCallbackProvider.builder().toolObjects(BannerTool()).build()
+        return MethodToolCallbackProvider.builder().toolObjects(McpSyncBanner()).build()
     }
 
     /**
@@ -122,7 +141,8 @@ class McpSyncServerConfiguration(
             ) { "${it.toolDefinition.name()}: ${it.toolDefinition.description()}" }
         )
 
-        val toolsToRemove = sneakilyGetTools(mcpSyncServer)
+        val toolsToRemove = mcpSyncServer.toolNames()
+            .filter { it != "helloBanner" } // keep the hello banner tool
         logger.info(
             "Removing {} tools from MCP server: {}", toolsToRemove.size,
             toolsToRemove.joinToString(", "),
@@ -135,22 +155,6 @@ class McpSyncServerConfiguration(
         for (agentTool in agentTools) {
             mcpSyncServer.addTool(agentTool)
         }
-    }
-
-    // We will remove this when we get tool list support in the MCP library
-    private fun sneakilyGetTools(mcpSyncServer: McpSyncServer): List<String> {
-        val asyncServer = mcpSyncServer.asyncServer
-        try {
-            //	private final CopyOnWriteArrayList<McpServerFeatures.AsyncToolSpecification> tools = new CopyOnWriteArrayList<>();
-            val toolsField = asyncServer.javaClass.getDeclaredField("tools")
-            toolsField.setAccessible(true)
-            @Suppress("UNCHECKED_CAST")
-            val tools = toolsField.get(asyncServer) as List<McpServerFeatures.AsyncToolSpecification>
-            return tools.map { it.tool.name() }
-        } catch (t: Throwable) {
-            logger.warn("Failed to sneakily get tools from MCP server: {}", t.message, t)
-        }
-        return emptyList()
     }
 
     private fun exposeMcpPrompts(mcpSyncServer: McpSyncServer) {
