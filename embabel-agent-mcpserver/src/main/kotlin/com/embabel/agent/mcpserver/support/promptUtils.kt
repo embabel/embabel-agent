@@ -22,6 +22,50 @@ import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
 
 /**
+ * Maps Java primitive and common types to their Kotlin equivalents for better readability
+ */
+private fun getKotlinTypeName(javaType: Class<*>): String {
+    return when (javaType) {
+        java.lang.Integer::class.java, Integer.TYPE -> "Int"
+        java.lang.Long::class.java, java.lang.Long.TYPE -> "Long"
+        java.lang.Double::class.java, java.lang.Double.TYPE -> "Double"
+        java.lang.Float::class.java, java.lang.Float.TYPE -> "Float"
+        java.lang.Boolean::class.java, java.lang.Boolean.TYPE -> "Boolean"
+        java.lang.String::class.java -> "String"
+        else -> javaType.simpleName
+    }
+}
+
+/**
+ * Gets the JsonPropertyDescription annotation value from field or constructor parameter
+ */
+private fun getPropertyDescription(field: java.lang.reflect.Field, type: Class<*>): String? {
+    // First try to get from field annotation
+    field.getAnnotation(JsonPropertyDescription::class.java)?.let {
+        return it.value
+    }
+
+    // For Kotlin data classes, try to get from constructor parameter
+    try {
+        val constructors = type.declaredConstructors
+        for (constructor in constructors) {
+            val parameters = constructor.parameters
+            for (param in parameters) {
+                if (param.name == field.name) {
+                    param.getAnnotation(JsonPropertyDescription::class.java)?.let {
+                        return it.value
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        // If reflection fails, continue without constructor parameter annotation
+    }
+
+    return null
+}
+
+/**
  * Extracts MCP prompt arguments from a given type,
  * excluding fields that match methods in the excluded interfaces.
  */
@@ -38,9 +82,18 @@ internal fun argumentsFromType(excludedInterfaces: Set<Class<*>>, type: Class<*>
             return@doWithFields
         }
         val name = field.name
-        val description = field.getAnnotation(JsonPropertyDescription::class.java)?.value ?: name
-        val descriptionWithType = "$description: ${field.type.simpleName}"
-        args.add(McpSchema.PromptArgument(name, descriptionWithType, true))
+        val propertyDescription = getPropertyDescription(field, type)
+
+        // Get the Kotlin-friendly type name
+        val typeName = getKotlinTypeName(field.type)
+
+        val description = if (propertyDescription != null) {
+            "$propertyDescription: $typeName"
+        } else {
+            "$name: $typeName"
+        }
+
+        args.add(McpSchema.PromptArgument(name, description, true))
     }
     return args
 }
