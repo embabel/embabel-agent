@@ -24,6 +24,7 @@ private val logger = LoggerFactory.getLogger(McpAsyncServer::class.java)
 
 /**
  * Sneakily get the names of the tools registered with the given MCP async server.
+ *
  * This uses reflection to access the private `tools` field of the MCP async server.
  * If this fails, an empty list is returned and a warning is logged.
  */
@@ -40,9 +41,10 @@ fun McpAsyncServer.toolNames(): List<String> {
 }
 
 /**
- * Sneakily get the names of the tools registered with the given MCP sync server.
- * This uses reflection to access the private `asyncServer` field of the MCP sync server,
- * and then accesses the private `tools` field of the MCP async server.
- * If this fails, an empty list is returned and a warning is logged.
+ * Retrieves the names of tools registered with this MCP sync server.
+ *
+ * Delegates to the underlying async server's `toolNames()` extension.
+ *
+ * @return a list of tool names registered with the async server
  */
 fun McpSyncServer.toolNames(): List<String> = this.asyncServer.toolNames()

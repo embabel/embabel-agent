@@ -18,18 +18,18 @@ package com.embabel.agent.mcpserver.async
 import com.embabel.common.core.types.HasInfoString
 import io.modelcontextprotocol.server.McpServerFeatures
 
-
 /**
- * Publisher interface for async MCP prompts.
- * Like a modern prompt designer who can create and serve multiple prompt templates
- * concurrently without blocking the system.
+ * Defines an async prompt publisher for MCP servers.
+ *
+ * Implementations provide a list of async prompt specifications
+ * for use in asynchronous prompt export operations.
  */
 interface McpAsyncPromptPublisher : HasInfoString {
 
     /**
-     * Returns async prompt specifications.
-     * Think of this as a concurrent prompt template system that can handle
-     * multiple prompt requests simultaneously.
+     * Returns the list of async prompt specifications available from this publisher.
+     *
+     * @return a list of `McpServerFeatures.AsyncPromptSpecification` instances
      */
     fun prompts(): List<McpServerFeatures.AsyncPromptSpecification>
 }

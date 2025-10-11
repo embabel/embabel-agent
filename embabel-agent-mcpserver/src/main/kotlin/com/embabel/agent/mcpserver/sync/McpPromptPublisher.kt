@@ -18,8 +18,19 @@ package com.embabel.agent.mcpserver.sync
 import com.embabel.common.core.types.HasInfoString
 import io.modelcontextprotocol.server.McpServerFeatures
 
+/**
+ * Publishes prompt specifications for the MCP sync server.
+ *
+ * Implementations provide a list of prompt specifications that can be registered
+ * with the server. Extends [HasInfoString] for informational purposes.
+ */
 interface McpPromptPublisher : HasInfoString {
 
+    /**
+     * Returns a list of synchronous prompt specifications to be published.
+     *
+     * @return a list of [McpServerFeatures.SyncPromptSpecification] objects
+     */
     fun prompts(): List<McpServerFeatures.SyncPromptSpecification>
 
 }

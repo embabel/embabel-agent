@@ -19,15 +19,17 @@ import com.embabel.common.core.types.HasInfoString
 import io.modelcontextprotocol.server.McpServerFeatures
 
 /**
- * Publisher interface for async MCP resources.
- * Like a modern resource manager who can handle multiple resource requests
- * concurrently without blocking operations.
+ * Defines an async resource publisher for MCP servers.
+ *
+ * Implementations provide a list of async resource specifications
+ * for use in asynchronous resource export operations.
  */
 interface McpAsyncResourcePublisher : HasInfoString {
 
     /**
-     * Alternative method for simple cases that return a list.
-     * Like a batch resource provider that loads all resources at once but asynchronously.
+     * Returns the list of async resource specifications available from this publisher.
+     *
+     * @return a list of `McpServerFeatures.AsyncResourceSpecification` instances
      */
     fun resources(): List<McpServerFeatures.AsyncResourceSpecification>
 }

@@ -21,14 +21,20 @@ import com.embabel.agent.mcpserver.domain.ToolSpecification
 import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallbackProvider
+import org.springframework.ai.tool.annotation.Tool
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.event.EventListener
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 
 /**
- * Abstract base configuration that implements the template method pattern.
- * Eliminates duplication between sync and async configurations.
+ * Abstract base configuration for MCP server modes (sync/async).
+ *
+ * Implements the template method pattern to share initialization logic
+ * between sync and async server configurations. Handles tool, resource,
+ * and prompt exposure, and provides hooks for subclass customization.
+ *
+ * @property applicationContext the Spring application context
  */
 abstract class AbstractMcpServerConfiguration(
     protected val applicationContext: ConfigurableApplicationContext
@@ -37,8 +43,10 @@ abstract class AbstractMcpServerConfiguration(
     protected val logger = LoggerFactory.getLogger(this::class.java)
 
     /**
-     * Template method that defines the initialization sequence.
-     * Subclasses implement specific steps while common logic is shared.
+     * Event listener that triggers MCP server initialization after agent scanning.
+     *
+     * Initializes the server by exposing tools, resources, and prompts
+     * using the strategy provided by the subclass.
      */
     @EventListener(AgentScanningBeanPostProcessorEvent::class)
     fun exposeMcpFunctionality() {
@@ -62,7 +70,10 @@ abstract class AbstractMcpServerConfiguration(
     }
 
     /**
-     * Template method for server initialization sequence.
+     * Initializes the MCP server by cleaning up tools and exposing new ones.
+     *
+     * @param strategy the server strategy for sync or async mode
+     * @return a [Mono] signaling completion
      */
     private fun initializeServer(strategy: McpServerStrategy): Mono<Void> {
         return cleanupExistingTools(strategy)
@@ -72,7 +83,10 @@ abstract class AbstractMcpServerConfiguration(
     }
 
     /**
-     * Remove existing tools except those that should be preserved.
+     * Removes existing tools except those that should be preserved.
+     *
+     * @param strategy the server strategy
+     * @return a [Mono] signaling completion
      */
     private fun cleanupExistingTools(strategy: McpServerStrategy): Mono<Void> {
         val toolRegistry = strategy.getToolRegistry()
@@ -97,7 +111,10 @@ abstract class AbstractMcpServerConfiguration(
     }
 
     /**
-     * Expose application tools to MCP server.
+     * Exposes application tools to the MCP server.
+     *
+     * @param strategy the server strategy
+     * @return a [Mono] signaling completion
      */
     private fun exposeTools(strategy: McpServerStrategy): Mono<Void> {
         val toolPublishers = getToolPublishers()
@@ -120,7 +137,10 @@ abstract class AbstractMcpServerConfiguration(
     }
 
     /**
-     * Expose application resources to MCP server.
+     * Exposes application resources to the MCP server.
+     *
+     * @param strategy the server strategy
+     * @return a [Mono] signaling completion
      */
     private fun exposeResources(strategy: McpServerStrategy): Mono<Void> {
         val resourcePublishers = getResourcePublishers()
@@ -149,7 +169,10 @@ abstract class AbstractMcpServerConfiguration(
     }
 
     /**
-     * Expose application prompts to MCP server.
+     * Exposes application prompts to the MCP server.
+     *
+     * @param strategy the server strategy
+     * @return a [Mono] signaling completion
      */
     private fun exposePrompts(strategy: McpServerStrategy): Mono<Void> {
         val promptPublishers = getPromptPublishers()
@@ -177,20 +200,77 @@ abstract class AbstractMcpServerConfiguration(
             .then()
     }
 
-    // Abstract methods that subclasses must implement
+    /**
+     * Creates the server strategy for sync or async mode.
+     *
+     * @return a [McpServerStrategy] instance
+     */
     abstract fun createServerStrategy(): McpServerStrategy
+
+    /**
+     * Creates the banner tool callback provider.
+     *
+     * @return a [ToolCallbackProvider] instance
+     */
     abstract fun createBannerTool(): ToolCallbackProvider
+
+    /**
+     * Retrieves all tool publishers registered in the application context.
+     *
+     * @return a list of [McpToolExportCallbackPublisher] beans
+     */
     abstract fun getToolPublishers(): List<McpToolExportCallbackPublisher>
+
+    /**
+     * Retrieves all resource publishers registered in the application context.
+     *
+     * @return a list of resource publisher beans (sync or async)
+     */
     abstract fun getResourcePublishers(): List<Any> // Can be sync or async publishers
+
+    /**
+     * Retrieves all prompt publishers registered in the application context.
+     *
+     * @return a list of prompt publisher beans (sync or async)
+     */
     abstract fun getPromptPublishers(): List<Any> // Can be sync or async publishers
+
+    /**
+     * Converts tool callback objects to tool specifications for the server.
+     *
+     * @param toolCallbacks a list of tool callback objects
+     * @return a list of tool specifications
+     */
     abstract fun convertToToolSpecifications(toolCallbacks: List<Any>): List<Any>
 
-    // Hook methods with default implementations
+    /**
+     * Determines if a tool should be preserved during cleanup.
+     *
+     * @param toolName the name of the tool
+     * @return `true` if the tool should be preserved, otherwise `false`
+     */
     protected open fun shouldPreserveTool(toolName: String): Boolean = toolName == "helloBanner"
+
+    /**
+     * Creates a log separator string for initialization logs.
+     *
+     * @return a separator string
+     */
     protected open fun createLogSeparator(): String = "~ MCP ${getExecutionMode()} " + "~".repeat(40)
+
+    /**
+     * Returns the execution mode for this configuration.
+     *
+     * @return the execution mode string
+     */
     protected abstract fun getExecutionMode(): String
 
-    // Helper methods for logging
+    /**
+     * Helper to extract the tool name from a specification.
+     *
+     * @param toolSpec the tool specification object
+     * @return the tool name or "Unknown Tool"
+     */
     private fun getToolName(toolSpec: Any): String {
         return when (toolSpec) {
             is ToolSpecification<*> -> toolSpec.toolName()
@@ -198,6 +278,12 @@ abstract class AbstractMcpServerConfiguration(
         }
     }
 
+    /**
+     * Helper to extract the resource name from a specification.
+     *
+     * @param resourceSpec the resource specification object
+     * @return the resource name or "Unknown Resource"
+     */
     private fun getResourceName(resourceSpec: Any): String {
         return when (resourceSpec) {
             is io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification -> resourceSpec.resource()
@@ -210,6 +296,12 @@ abstract class AbstractMcpServerConfiguration(
         }
     }
 
+    /**
+     * Helper to extract the prompt name from a specification.
+     *
+     * @param promptSpec the prompt specification object
+     * @return the prompt name or "Unknown Prompt"
+     */
     private fun getPromptName(promptSpec: Any): String {
         return when (promptSpec) {
             is io.modelcontextprotocol.server.McpServerFeatures.SyncPromptSpecification -> promptSpec.prompt().name()
@@ -220,11 +312,20 @@ abstract class AbstractMcpServerConfiguration(
 }
 
 /**
- * Unified banner tool that works for both sync and async modes.
+ * Unified banner tool for displaying server information.
+ *
+ * Works for both sync and async server modes.
+ *
+ * @property serverInfo information about the current server instance
  */
 class UnifiedBannerTool(private val serverInfo: ServerInfo) {
 
-    @org.springframework.ai.tool.annotation.Tool(
+    /**
+     * Displays a welcome banner with server information.
+     *
+     * @return a map containing banner details
+     */
+    @Tool(
         description = "Display a welcome banner with server information"
     )
     fun helloBanner(): Map<String, Any> {
@@ -237,7 +338,7 @@ class UnifiedBannerTool(private val serverInfo: ServerInfo) {
 }
 
 /**
- * Factory for creating server information.
+ * Factory for creating [ServerInfo] instances.
  */
 object ServerInfoFactory {
     fun create(mode: McpExecutionMode): ServerInfo {

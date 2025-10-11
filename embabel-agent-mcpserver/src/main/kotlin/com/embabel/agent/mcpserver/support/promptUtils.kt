@@ -22,7 +22,12 @@ import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
 
 /**
- * Maps Java primitive and common types to their Kotlin equivalents for better readability
+ * Returns the Kotlin type name for a given Java type.
+ *
+ * Maps common Java types to their Kotlin equivalents.
+ *
+ * @param javaType the Java class to map
+ * @return the Kotlin type name as a string
  */
 private fun getKotlinTypeName(javaType: Class<*>): String {
     return when (javaType) {
@@ -37,7 +42,13 @@ private fun getKotlinTypeName(javaType: Class<*>): String {
 }
 
 /**
- * Gets the JsonPropertyDescription annotation value from field or constructor parameter
+ * Retrieves the value of the `JsonPropertyDescription` annotation from a field or its constructor parameter.
+ *
+ * Attempts to get the annotation from the field first, then from the constructor parameter for Kotlin data classes.
+ *
+ * @param field the field to inspect
+ * @param type the class type containing the field
+ * @return the annotation value if present, otherwise null
  */
 private fun getPropertyDescription(field: java.lang.reflect.Field, type: Class<*>): String? {
     // First try to get from field annotation
@@ -66,8 +77,14 @@ private fun getPropertyDescription(field: java.lang.reflect.Field, type: Class<*
 }
 
 /**
- * Extracts MCP prompt arguments from a given type,
- * excluding fields that match methods in the excluded interfaces.
+ * Extracts MCP prompt arguments from a given type, excluding fields that match methods in the excluded interfaces.
+ *
+ * Iterates over the fields of the provided type, skipping synthetic fields and those matching excluded interface methods.
+ * Builds a list of `McpSchema.PromptArgument` with name, description, and required flag.
+ *
+ * @param excludedInterfaces set of interfaces whose methods' property names should be excluded
+ * @param type the class type to extract arguments from
+ * @return a list of `McpSchema.PromptArgument` objects
  */
 internal fun argumentsFromType(excludedInterfaces: Set<Class<*>>, type: Class<*>): List<McpSchema.PromptArgument> {
     val excludedFields: Iterable<Method> = excludedInterfaces.flatMap {

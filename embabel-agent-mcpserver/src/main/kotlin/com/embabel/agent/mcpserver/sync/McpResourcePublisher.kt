@@ -18,8 +18,19 @@ package com.embabel.agent.mcpserver.sync
 import com.embabel.common.core.types.HasInfoString
 import io.modelcontextprotocol.server.McpServerFeatures
 
+/**
+ * Publishes resource specifications for the MCP sync server.
+ *
+ * Implementations provide a list of resource specifications that can be registered
+ * with the server. Extends [HasInfoString] for informational purposes.
+ */
 interface McpResourcePublisher : HasInfoString {
 
+    /**
+     * Returns a list of synchronous resource specifications to be published.
+     *
+     * @return a list of [McpServerFeatures.SyncResourceSpecification] objects
+     */
     fun resources(): List<McpServerFeatures.SyncResourceSpecification>
 
 }

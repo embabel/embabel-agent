@@ -20,16 +20,39 @@ import com.embabel.agent.mcpserver.support.toolNames
 import io.modelcontextprotocol.server.McpAsyncServer
 
 /**
- * Tool registry implementation for async servers.
+ * Registry for managing tools in an asynchronous MCP server.
+ *
+ * Provides access to tool names, counts, and existence checks
+ * by delegating to the underlying `McpAsyncServer` instance.
+ *
+ * @param server the asynchronous MCP server instance
  */
 class AsyncToolRegistry(private val server: McpAsyncServer) : ToolRegistry {
 
+    /**
+     * Returns the list of tool names available in the async server.
+     *
+     * Delegates to the server's `toolNames()` method.
+     *
+     * @return a list of tool names
+     */
     override fun getToolNames(): List<String> {
         return server.toolNames()
     }
 
+    /**
+     * Returns the total number of tools registered in the async server.
+     *
+     * @return the count of tools
+     */
     override fun getToolCount(): Int = getToolNames().size
 
+    /**
+     * Checks if a tool with the specified name exists in the async server.
+     *
+     * @param name the name of the tool to check
+     * @return `true` if the tool exists, `false` otherwise
+     */
     override fun hasToolNamed(name: String): Boolean = getToolNames().contains(name)
 
 }

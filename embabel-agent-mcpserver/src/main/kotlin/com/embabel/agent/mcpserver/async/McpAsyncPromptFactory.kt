@@ -25,6 +25,7 @@ import reactor.core.publisher.Mono
 
 /**
  * Create Prompt specifications for the MCP server.
+ *
  * @param excludedInterfaces Set of interfaces whose fields should be excluded from the prompt arguments.
  */
 class McpAsyncPromptFactory(
@@ -35,6 +36,7 @@ class McpAsyncPromptFactory(
 
     /**
      * Creates a synchronous prompt specification for a given type.
+     *
      * @param goal The goal for which the prompt is created.
      * @param inputType The class type of the
      * @param inputType The class type of the input for the prompt.

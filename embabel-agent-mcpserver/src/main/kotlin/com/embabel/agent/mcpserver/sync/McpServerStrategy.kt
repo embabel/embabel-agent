@@ -24,15 +24,31 @@ import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
 
 /**
- * Sync server strategy implementation.
+ * Strategy implementation for the MCP sync server.
+ *
+ * Handles registration and management of tools, resources, and prompts
+ * for synchronous execution mode using [McpSyncServer].
+ *
+ * @property server the underlying MCP sync server instance
  */
 class SyncServerStrategy(
     private val server: McpSyncServer
 ) : McpServerStrategy {
 
     private val logger = LoggerFactory.getLogger(SyncServerStrategy::class.java)
+
+    /**
+     * The execution mode for this strategy, set to synchronous.
+     */
     override val executionMode = McpExecutionMode.SYNC
 
+    /**
+     * Adds a tool specification to the sync server.
+     *
+     * @param toolSpec the tool specification to add; must be [McpServerFeatures.SyncToolSpecification]
+     * @return a [Mono] signaling completion
+     * @throws IllegalArgumentException if the specification type is incorrect
+     */
     override fun addTool(toolSpec: Any): Mono<Void> {
         return Mono.fromRunnable {
             when (toolSpec) {
@@ -42,12 +58,25 @@ class SyncServerStrategy(
         }
     }
 
+    /**
+     * Removes a tool from the sync server by name.
+     *
+     * @param toolName the name of the tool to remove
+     * @return a [Mono] signaling completion
+     */
     override fun removeTool(toolName: String): Mono<Void> {
         return Mono.fromRunnable {
             server.removeTool(toolName)
         }
     }
 
+    /**
+     * Adds a resource specification to the sync server.
+     *
+     * @param resourceSpec the resource specification to add; must be [McpServerFeatures.SyncResourceSpecification]
+     * @return a [Mono] signaling completion
+     * @throws IllegalArgumentException if the specification type is incorrect
+     */
     override fun addResource(resourceSpec: Any): Mono<Void> {
         return Mono.fromRunnable {
             when (resourceSpec) {
@@ -57,6 +86,13 @@ class SyncServerStrategy(
         }
     }
 
+    /**
+     * Adds a prompt specification to the sync server.
+     *
+     * @param promptSpec the prompt specification to add; must be [McpServerFeatures.SyncPromptSpecification]
+     * @return a [Mono] signaling completion
+     * @throws IllegalArgumentException if the specification type is incorrect
+     */
     override fun addPrompt(promptSpec: Any): Mono<Void> {
         return Mono.fromRunnable {
             when (promptSpec) {
@@ -66,6 +102,11 @@ class SyncServerStrategy(
         }
     }
 
+    /**
+     * Returns the tool registry for the sync server.
+     *
+     * @return a [ToolRegistry] instance for synchronous tools
+     */
     override fun getToolRegistry(): ToolRegistry {
         return SyncToolRegistry(server)
     }

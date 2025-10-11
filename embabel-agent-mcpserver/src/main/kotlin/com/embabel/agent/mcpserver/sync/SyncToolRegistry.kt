@@ -20,16 +20,36 @@ import com.embabel.agent.mcpserver.support.toolNames
 import io.modelcontextprotocol.server.McpSyncServer
 
 /**
- * Tool registry implementation for sync servers.
+ * Registry for tools managed by the MCP sync server.
+ *
+ * Provides access to tool names and counts for synchronous execution mode.
+ *
+ * @property server the underlying MCP sync server instance
  */
 class SyncToolRegistry(private val server: McpSyncServer) : ToolRegistry {
 
+    /**
+     * Returns a list of tool names registered in the sync server.
+     *
+     * @return a list of tool names
+     */
     override fun getToolNames(): List<String> {
         return server.toolNames()
     }
 
+    /**
+     * Returns the number of tools registered in the sync server.
+     *
+     * @return the count of tools
+     */
     override fun getToolCount(): Int = getToolNames().size
 
+    /**
+     * Checks if a tool with the given name exists in the sync server.
+     *
+     * @param name the name of the tool to check
+     * @return `true` if the tool exists, otherwise `false`
+     */
     override fun hasToolNamed(name: String): Boolean = getToolNames().contains(name)
 
 }
