@@ -43,9 +43,9 @@ import org.springframework.stereotype.Service
 @ConditionalOnProperty(
     value = ["embabel.agent.mcpserver.type"],
     havingValue = "ASYNC",
-    matchIfMissing = true,
+    matchIfMissing = false,
 )
-class PerGoalMcpSyncToolExportCallbackPublisher(
+class PerGoalMcpAsyncToolExportCallbackPublisher(
     autonomy: Autonomy,
     private val mcpAsyncServer: McpAsyncServer,
     @Value("\${spring.application.name:agent-api}") applicationName: String,
