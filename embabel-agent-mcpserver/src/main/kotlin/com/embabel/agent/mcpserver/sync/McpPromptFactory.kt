@@ -60,7 +60,7 @@ class McpPromptFactory(
                         McpSchema.Role.USER,
                         McpSchema.TextContent(
                             """
-                            Use the following information to achieve goal ${goal.name}" - <${goal.description}>:
+                            Use the following information to achieve goal $name" - <$description>:
                             ${
                                 getPromptRequest.arguments.entries.joinToString(separator = "\n") { "${it.key}=${it.value}" }
                             }
