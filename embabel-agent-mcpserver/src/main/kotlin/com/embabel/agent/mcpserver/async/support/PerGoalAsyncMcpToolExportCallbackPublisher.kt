@@ -41,7 +41,7 @@ import org.springframework.stereotype.Service
  */
 @Service
 @ConditionalOnProperty(
-    value = ["embabel.agent.mcpserver.type"],
+    value = ["spring.ai.mcp.server.type"],
     havingValue = "ASYNC",
     matchIfMissing = false,
 )

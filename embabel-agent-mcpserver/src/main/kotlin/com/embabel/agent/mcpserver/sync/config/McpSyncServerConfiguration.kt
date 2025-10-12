@@ -27,10 +27,8 @@ import org.springframework.ai.mcp.McpToolUtils
 import org.springframework.ai.tool.ToolCallbackProvider
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
 import org.springframework.context.ConfigurableApplicationContext
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Condition
-import org.springframework.context.annotation.Conditional
-import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.*
+import org.springframework.core.type.AnnotatedTypeMetadata
 
 
 /**
@@ -49,13 +47,12 @@ class McpSyncServerCondition : Condition {
      * @return `true` if sync server should be enabled, otherwise `false`
      */
     override fun matches(
-        context: org.springframework.context.annotation.ConditionContext,
-        metadata: org.springframework.core.type.AnnotatedTypeMetadata,
+        context: ConditionContext,
+        metadata: AnnotatedTypeMetadata
     ): Boolean {
         val environment = context.environment
-        val enabled = environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false)
-        val type = environment.getProperty("embabel.agent.mcpserver.type", "SYNC")
-        return enabled && type == "SYNC"
+        val type = environment.getProperty("spring.ai.mcp.server.type", "SYNC")
+        return type == "SYNC"
     }
 }
 

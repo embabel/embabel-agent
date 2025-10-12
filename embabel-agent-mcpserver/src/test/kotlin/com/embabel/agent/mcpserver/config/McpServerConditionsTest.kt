@@ -37,24 +37,9 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns true
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "SYNC"
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "SYNC"
 
         assertTrue(condition.matches(context, metadata))
-    }
-
-    @Test
-    fun `McpSyncServerCondition should not match when disabled`() {
-        val condition = McpSyncServerCondition()
-        val context = mockk<ConditionContext>()
-        val metadata = mockk<AnnotatedTypeMetadata>()
-        val environment = mockk<Environment>()
-
-        every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns false
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "SYNC"
-
-        assertFalse(condition.matches(context, metadata))
     }
 
     @Test
@@ -65,8 +50,7 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns true
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "ASYNC"
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "ASYNC"
 
         assertFalse(condition.matches(context, metadata))
     }
@@ -79,8 +63,7 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns true
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "SYNC" // Default value
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "SYNC" // Default value
 
         assertTrue(condition.matches(context, metadata))
     }
@@ -93,24 +76,9 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns true
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "ASYNC"
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "ASYNC"
 
         assertTrue(condition.matches(context, metadata))
-    }
-
-    @Test
-    fun `McpAsyncServerCondition should not match when disabled`() {
-        val condition = McpAsyncServerCondition()
-        val context = mockk<ConditionContext>()
-        val metadata = mockk<AnnotatedTypeMetadata>()
-        val environment = mockk<Environment>()
-
-        every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns false
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "ASYNC"
-
-        assertFalse(condition.matches(context, metadata))
     }
 
     @Test
@@ -121,8 +89,7 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns true
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "SYNC"
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "SYNC"
 
         assertFalse(condition.matches(context, metadata))
     }
@@ -135,8 +102,7 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns true
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "SYNC" // Default
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "SYNC" // Default
 
         assertFalse(condition.matches(context, metadata))
     }
@@ -169,13 +135,12 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns true
 
         // Test lowercase
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "sync"
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "sync"
         assertFalse(syncCondition.matches(context, metadata)) // Should be case sensitive
 
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "async"
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "async"
         assertFalse(asyncCondition.matches(context, metadata)) // Should be case sensitive
     }
 
@@ -188,8 +153,7 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns true
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "UNKNOWN"
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "UNKNOWN"
 
         assertFalse(syncCondition.matches(context, metadata))
         assertFalse(asyncCondition.matches(context, metadata))
@@ -203,11 +167,9 @@ class McpServerConditionsTest {
         val environment = mockk<Environment>()
 
         every { context.environment } returns environment
-        // When enabled property is not set, should default to false
-        every { environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false) } returns false
         // When type property is not set, should default to "SYNC"
-        every { environment.getProperty("embabel.agent.mcpserver.type", "SYNC") } returns "SYNC"
+        every { environment.getProperty("spring.ai.mcp.server.type", "SYNC") } returns "SYNC"
 
-        assertFalse(syncCondition.matches(context, metadata))
+        assertTrue(syncCondition.matches(context, metadata))
     }
 }

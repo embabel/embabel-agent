@@ -27,22 +27,20 @@ import org.springframework.ai.mcp.McpToolUtils
 import org.springframework.ai.tool.ToolCallbackProvider
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
 import org.springframework.context.ConfigurableApplicationContext
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Conditional
-import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.*
+import org.springframework.core.type.AnnotatedTypeMetadata
 
 /**
  * Condition that checks if the MCP server is enabled and set to ASYNC mode.
  */
-class McpAsyncServerCondition : org.springframework.context.annotation.Condition {
+class McpAsyncServerCondition : Condition {
     override fun matches(
-        context: org.springframework.context.annotation.ConditionContext,
-        metadata: org.springframework.core.type.AnnotatedTypeMetadata,
+        context: ConditionContext,
+        metadata: AnnotatedTypeMetadata
     ): Boolean {
         val environment = context.environment
-        val enabled = environment.getProperty("embabel.agent.mcpserver.enabled", Boolean::class.java, false)
-        val type = environment.getProperty("embabel.agent.mcpserver.type", "SYNC")
-        return enabled && type == "ASYNC"
+        val type = environment.getProperty("spring.ai.mcp.server.type", "SYNC")
+        return type == "ASYNC"
     }
 }
 
