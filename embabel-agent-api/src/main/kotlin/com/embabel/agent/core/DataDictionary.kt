@@ -16,6 +16,20 @@
 package com.embabel.agent.core
 
 /**
+ * Represents a relationship between two domain types.
+ * @param from The source domain type
+ * @param to The target domain type
+ * @param relationshipName The name of the relationship (inferred from property name)
+ * @param cardinality The cardinality of the relationship
+ */
+data class AllowedRelationship(
+    val from: DomainType,
+    val to: DomainType,
+    val relationshipName: String,
+    val cardinality: Cardinality,
+)
+
+/**
  * Implemented by types that reference data types
  */
 interface DataDictionary {
@@ -33,6 +47,30 @@ interface DataDictionary {
     val jvmTypes: Collection<JvmType>
         get() =
             domainTypes.filterIsInstance<JvmType>().toSet()
+
+    /**
+     * Get all relationships between domain types in this dictionary.
+     * A relationship is a property that references another DomainType (not a simple property).
+     * @return List of all possible relationships
+     */
+    fun allowedRelationships(): List<AllowedRelationship> {
+        val relationships = mutableListOf<AllowedRelationship>()
+        domainTypes.forEach { domainType ->
+            domainType.properties.forEach { property ->
+                if (property is DomainTypePropertyDefinition) {
+                    relationships.add(
+                        AllowedRelationship(
+                            from = domainType,
+                            to = property.type,
+                            relationshipName = property.name,
+                            cardinality = property.cardinality,
+                        )
+                    )
+                }
+            }
+        }
+        return relationships
+    }
 
 }
 

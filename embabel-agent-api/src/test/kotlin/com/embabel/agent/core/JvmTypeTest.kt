@@ -90,7 +90,7 @@ class JvmTypeTest {
     )
 
     @Test
-    fun `should not nest collection types as entities`() {
+    fun `should nest collection of entities with cardinality`() {
         val type = JvmType(Kennel::class.java)
         assertEquals(3, type.ownProperties.size)
 
@@ -104,8 +104,10 @@ class JvmTypeTest {
 
         val dogsProperty = type.ownProperties[2]
         assertEquals("dogs", dogsProperty.name)
-        assert(dogsProperty is SimplePropertyDefinition)
-        assertEquals("List", (dogsProperty as SimplePropertyDefinition).type)
+        assert(dogsProperty is DomainTypePropertyDefinition)
+        val domainProp = dogsProperty as DomainTypePropertyDefinition
+        assertEquals(Dog::class.java.name, (domainProp.type as JvmType).className)
+        assertEquals(Cardinality.LIST, domainProp.cardinality)
     }
 
     @Test
