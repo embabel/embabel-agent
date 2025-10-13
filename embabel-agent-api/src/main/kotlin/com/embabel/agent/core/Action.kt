@@ -61,7 +61,7 @@ interface Action : DataFlowStep, GoapAction, ActionRunner, DataDictionary, ToolG
         var type = DynamicType(name = binding.type)
         for (prop in action.referencedInputProperties(binding.name)) {
             loggerFor<Action>().debug("Discovered property {}", prop)
-            type = type.withProperty(PropertyDefinition(name = prop))
+            type = type.withProperty(SimplePropertyDefinition(name = prop))
         }
         loggerFor<Action>().debug(
             "Action {} references variable {} of type {}: {}",

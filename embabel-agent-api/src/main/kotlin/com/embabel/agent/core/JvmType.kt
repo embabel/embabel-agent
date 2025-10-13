@@ -75,10 +75,9 @@ data class JvmType @JsonCreator constructor(
     override val properties: List<PropertyDefinition>
         get() {
             return clazz.declaredFields.map {
-                PropertyDefinition(
+                SimplePropertyDefinition(
                     name = it.name,
                     type = it.type.simpleName,
-                    description = null,
                 )
             }
         }

@@ -45,13 +45,13 @@ class DomainTypeSerializationTest {
         }
 
         @Test
-        fun `test DynamicType with properties can be serialized and deserialized`() {
+        fun `test DynamicType with scalar properties can be serialized and deserialized`() {
             val dynamicType = DynamicType(
                 name = "Person",
                 description = "A person",
                 properties = listOf(
-                    PropertyDefinition(name = "firstName", type = "string", description = "First name"),
-                    PropertyDefinition(name = "age", type = "int", description = "Age"),
+                    SimplePropertyDefinition(name = "firstName", type = "string", description = "First name"),
+                    SimplePropertyDefinition(name = "age", type = "int", description = "Age"),
                 ),
             )
             val json = om.writeValueAsString(dynamicType)
@@ -96,14 +96,17 @@ class DomainTypeSerializationTest {
     }
 
     @Nested
-    inner class `Mixed DomainType serialization` {
+    inner class MixedDomainTypeSerialization {
 
         @Test
         fun `test list of mixed DomainTypes can be serialized and deserialized`() {
             val types: List<DomainType> = listOf(
                 DynamicType(name = "DynamicOne"),
                 JvmType(String::class.java),
-                DynamicType(name = "DynamicTwo", properties = listOf(PropertyDefinition("field", "string"))),
+                DynamicType(
+                    name = "DynamicTwo",
+                    properties = listOf(SimplePropertyDefinition("field", "string"))
+                ),
                 JvmType(Integer::class.java),
             )
             val json = om.writeValueAsString(types)
@@ -119,11 +122,11 @@ class DomainTypeSerializationTest {
     }
 
     @Nested
-    inner class `PropertyDefinition serialization` {
+    inner class PropertyDefinitionSerialization {
 
         @Test
         fun `test PropertyDefinition can be serialized and deserialized`() {
-            val property = PropertyDefinition(
+            val property = SimplePropertyDefinition(
                 name = "testField",
                 type = "string",
                 description = "A test field",
@@ -131,7 +134,7 @@ class DomainTypeSerializationTest {
             val json = om.writeValueAsString(property)
             val deserialized = om.readValue<PropertyDefinition>(json)
             assertEquals("testField", deserialized.name)
-            assertEquals("string", deserialized.type)
+            assertEquals("string", (deserialized as SimplePropertyDefinition).type)
             assertEquals("A test field", deserialized.description)
         }
     }

@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 /**
  * Type known to the Embabel agent platform.
- * May be backed by a domain object or by a map.
+ * May be backed by a domain object or ba dynamic type.
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.DEDUCTION,
@@ -48,8 +48,39 @@ sealed interface DomainType : HasInfoString, NamedAndDescribed {
 
 }
 
-data class PropertyDefinition(
-    val name: String,
-    val type: String = "string",
-    val description: String? = name,
+/**
+ * Semantics of holding the value for the property
+ */
+enum class Cardinality {
+    OPTIONAL,
+    ONE,
+    LIST,
+    SET,
+}
+
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.SIMPLE_NAME,
 )
+@JsonSubTypes(
+    JsonSubTypes.Type(value = SimplePropertyDefinition::class, name = "simple"),
+    JsonSubTypes.Type(value = DomainTypePropertyDefinition::class, name = "domain"),
+)
+sealed interface PropertyDefinition {
+    val name: String
+    val description: String
+    val cardinality: Cardinality
+}
+
+data class SimplePropertyDefinition(
+    override val name: String,
+    val type: String = "string",
+    override val cardinality: Cardinality = Cardinality.ONE,
+    override val description: String = name,
+) : PropertyDefinition
+
+data class DomainTypePropertyDefinition(
+    override val name: String,
+    val type: DomainType,
+    override val cardinality: Cardinality = Cardinality.ONE,
+    override val description: String = name,
+) : PropertyDefinition
