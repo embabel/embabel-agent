@@ -23,6 +23,7 @@ import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -74,14 +75,14 @@ class OpenAiModelsConfig(
     completionsPath: String?,
     @Value("\${OPENAI_EMBEDDINGS_PATH:#{null}}")
     embeddingsPath: String?,
-    observationRegistry: ObservationRegistry,
+    observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: OpenAiProperties,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = baseUrl,
     apiKey = apiKey,
     completionsPath = completionsPath,
     embeddingsPath = embeddingsPath,
-    observationRegistry = observationRegistry
+    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
 ) {
 
     init {

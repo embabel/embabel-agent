@@ -28,6 +28,7 @@ import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
 import org.springframework.ai.anthropic.api.AnthropicApi
 import org.springframework.ai.model.tool.ToolCallingManager
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -80,7 +81,7 @@ class AnthropicModelsConfig(
     @param:Value("\${ANTHROPIC_API_KEY}")
     private val apiKey: String,
     private val properties: AnthropicProperties,
-    private val observationRegistry: ObservationRegistry,
+    private val observationRegistry: ObjectProvider<ObservationRegistry>,
 ) {
     private val logger = LoggerFactory.getLogger(AnthropicModelsConfig::class.java)
 
@@ -142,10 +143,10 @@ class AnthropicModelsConfig(
             .anthropicApi(createAnthropicApi())
             .toolCallingManager(
                 ToolCallingManager.builder()
-                    .observationRegistry(observationRegistry)
+                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     .build())
             .retryTemplate(properties.retryTemplate("anthropic-$name"))
-            .observationRegistry(observationRegistry)
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
 
         return Llm(
@@ -166,10 +167,10 @@ class AnthropicModelsConfig(
         //add observation registry to rest and web client builders
         builder
             .restClientBuilder(RestClient.builder()
-                .observationRegistry(observationRegistry))
+                .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
         builder
             .webClientBuilder(WebClient.builder()
-                .observationRegistry(observationRegistry))
+                .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }))
 
         return builder.build()
     }

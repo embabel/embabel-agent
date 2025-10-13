@@ -33,6 +33,7 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -63,7 +64,7 @@ class AgentPlatformConfiguration(
     @Bean
     fun toolDecorator(
         toolGroupResolver: ToolGroupResolver,
-        observationRegistry: ObservationRegistry,
+        observationRegistry: ObjectProvider<ObservationRegistry>,
     ): ToolDecorator {
         loggerFor<AgentPlatformConfiguration>().info(
             "Creating default ToolDecorator with toolGroupResolver: {}, observationRegistry: {}",
@@ -72,7 +73,7 @@ class AgentPlatformConfiguration(
         )
         return DefaultToolDecorator(
             toolGroupResolver = toolGroupResolver,
-            observationRegistry = observationRegistry,
+            observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
             outputTransformer = StringTransformer(),
         )
     }
