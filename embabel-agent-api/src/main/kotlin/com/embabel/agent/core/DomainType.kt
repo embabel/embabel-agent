@@ -17,12 +17,14 @@ package com.embabel.agent.core
 
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.NamedAndDescribed
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 /**
  * Type known to the Embabel agent platform.
  * May be backed by a domain object or ba dynamic type.
+ * Supports inheritance.
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.DEDUCTION,
@@ -34,9 +36,36 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 sealed interface DomainType : HasInfoString, NamedAndDescribed {
 
     /**
-     * Exposed even for JvmTypes, for consistency
+     * Get all properties, including inherited ones.
+     * Exposed even for JvmTypes, for consistency.
+     * Properties are deduplicated by name, with own properties taking precedence over inherited ones.
      */
+    @get:JsonIgnore
     val properties: List<PropertyDefinition>
+        get() {
+            val propertiesByName = mutableMapOf<String, PropertyDefinition>()
+            // First add inherited properties (so they can be overridden)
+            parents.forEach { parent ->
+                parent.properties.forEach { property ->
+                    propertiesByName.putIfAbsent(property.name, property)
+                }
+            }
+            // Then add own properties (these take precedence)
+            ownProperties.forEach { property ->
+                propertiesByName[property.name] = property
+            }
+            return propertiesByName.values.toList()
+        }
+
+    /**
+     * Properties defined on this type only (not inherited)
+     */
+    val ownProperties: List<PropertyDefinition>
+
+    /**
+     * Supports inheritance
+     */
+    val parents: List<DomainType>
 
     fun isAssignableFrom(other: Class<*>): Boolean
 

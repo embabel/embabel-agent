@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.neo.ogm
 
-import com.embabel.agent.core.PropertyDefinition
+import com.embabel.agent.core.SimplePropertyDefinition
 import com.embabel.agent.rag.EntitySearch
 import com.embabel.agent.rag.schema.*
 import com.fasterxml.jackson.annotation.JsonClassDescription
@@ -51,7 +51,7 @@ class OgmMetadataSchemaResolver(
                 val entityDefinition = EntityDefinition(
                     labels = labels,
                     properties = entity.propertyFields().map { property ->
-                        PropertyDefinition(
+                        SimplePropertyDefinition(
                             name = property.name,
                             type = property.typeDescriptor,
                             description = property.name, // TODO get from annotation

@@ -30,6 +30,17 @@ data class JvmType @JsonCreator constructor(
     val className: String,
 ) : DomainType {
 
+    @get:JsonIgnore
+    override val parents: List<JvmType>
+        get() {
+            val superclass = clazz.superclass
+            val parentList = mutableListOf<JvmType>()
+            if (superclass != null && superclass != Object::class.java) {
+                parentList.add(JvmType(superclass))
+            }
+            clazz.interfaces.forEach { parentList.add(JvmType(it)) }
+            return parentList
+        }
 
     @get:JsonIgnore
     val clazz: Class<*> by lazy {
@@ -72,15 +83,48 @@ data class JvmType @JsonCreator constructor(
         }
 
     @get:JsonIgnore
-    override val properties: List<PropertyDefinition>
+    override val ownProperties: List<PropertyDefinition>
         get() {
-            return clazz.declaredFields.map {
-                SimplePropertyDefinition(
-                    name = it.name,
-                    type = it.type.simpleName,
-                )
+            return clazz.declaredFields.map { field ->
+                if (shouldNestAsEntity(field.type)) {
+                    DomainTypePropertyDefinition(
+                        name = field.name,
+                        type = JvmType(field.type),
+                    )
+                } else {
+                    SimplePropertyDefinition(
+                        name = field.name,
+                        type = field.type.simpleName,
+                    )
+                }
             }
         }
+
+    private fun shouldNestAsEntity(type: Class<*>): Boolean {
+        // Primitives and their wrappers are scalars
+        if (type.isPrimitive || type == java.lang.Boolean::class.java ||
+            type == java.lang.Byte::class.java || type == java.lang.Short::class.java ||
+            type == java.lang.Integer::class.java || type == java.lang.Long::class.java ||
+            type == java.lang.Float::class.java || type == java.lang.Double::class.java ||
+            type == java.lang.Character::class.java
+        ) {
+            return false
+        }
+        // Common scalar types
+        if (type == String::class.java || type == java.math.BigDecimal::class.java ||
+            type == java.math.BigInteger::class.java || type == java.util.Date::class.java ||
+            type == java.time.LocalDate::class.java || type == java.time.LocalDateTime::class.java ||
+            type == java.time.Instant::class.java
+        ) {
+            return false
+        }
+        // Collections are not nested as entities (their element types might be)
+        if (Collection::class.java.isAssignableFrom(type) || Map::class.java.isAssignableFrom(type)) {
+            return false
+        }
+        // Everything else is considered an entity
+        return true
+    }
 
     override fun infoString(
         verbose: Boolean?,

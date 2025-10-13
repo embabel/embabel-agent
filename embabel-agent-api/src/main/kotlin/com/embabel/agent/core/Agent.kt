@@ -140,11 +140,11 @@ data class Agent(
                 .groupBy { it.name }
                 .mapValues { (_, types) ->
                     types.reduce { acc, type ->
-                        acc.copy(properties = acc.properties + type.properties)
+                        acc.copy(ownProperties = acc.properties + type.properties)
                     }
                 }
                 .values)
-                .map { it.copy(properties = it.properties.distinctBy { it.name }) }
+                .map { it.copy(ownProperties = it.properties.distinctBy { it.name }) }
                 .distinctBy { it.name }
                 .sortedBy { it.name }
 

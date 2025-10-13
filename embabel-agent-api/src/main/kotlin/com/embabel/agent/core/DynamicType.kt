@@ -23,11 +23,13 @@ import com.embabel.common.util.indentLines
  * @param name name of the type. Should be unique within a given context
  * @param description description of the type
  * @param properties properties of the type
+ * @param parents parent types of this type. Can be JVM types or dynamic types
  */
 data class DynamicType(
     override val name: String,
     override val description: String = name,
-    override val properties: List<PropertyDefinition> = emptyList(),
+    override val ownProperties: List<PropertyDefinition> = emptyList(),
+    override val parents: List<DomainType> = emptyList(),
 ) : DomainType {
 
     override fun isAssignableFrom(other: Class<*>): Boolean = false
@@ -41,7 +43,7 @@ data class DynamicType(
     fun withProperty(
         property: PropertyDefinition,
     ): DynamicType {
-        return copy(properties = properties + property)
+        return copy(ownProperties = properties + property)
     }
 
     override fun infoString(
@@ -58,4 +60,3 @@ data class DynamicType(
     }
 
 }
-

@@ -45,19 +45,23 @@ class DomainTypeSerializationTest {
         }
 
         @Test
-        fun `test DynamicType with scalar properties can be serialized and deserialized`() {
+        fun `test DynamicType with simple properties can be serialized and deserialized`() {
             val dynamicType = DynamicType(
                 name = "Person",
                 description = "A person",
-                properties = listOf(
+                ownProperties = listOf(
                     SimplePropertyDefinition(name = "firstName", type = "string", description = "First name"),
                     SimplePropertyDefinition(name = "age", type = "int", description = "Age"),
                 ),
             )
+            assertEquals(2, dynamicType.ownProperties.size, "Should have 2 properties of its own")
+            assertEquals(2, dynamicType.properties.size, "Should not have inherited properties")
+
             val json = om.writeValueAsString(dynamicType)
-            val deserialized = om.readValue<DynamicType>(json)
+            val deserialized = om.readValue<DomainType>(json)
             assertEquals("Person", deserialized.name)
-            assertEquals(2, deserialized.properties.size)
+            assertEquals(2, deserialized.ownProperties.size, "Deserialized should have 2 properties of its own")
+            assertEquals(2, deserialized.properties.size, "Deserialized should not have inherited properties")
             assertEquals("firstName", deserialized.properties[0].name)
             assertEquals("age", deserialized.properties[1].name)
         }
@@ -69,6 +73,231 @@ class DomainTypeSerializationTest {
             val deserialized = om.readValue<DomainType>(json)
             assertTrue(deserialized is DynamicType)
             assertEquals("TestType", deserialized.name)
+        }
+
+        @Test
+        fun `test DynamicType with parent includes inherited properties`() {
+            val parentType = DynamicType(
+                name = "Animal",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "name", type = "string"),
+                    SimplePropertyDefinition(name = "age", type = "int"),
+                ),
+            )
+
+            val childType = DynamicType(
+                name = "Dog",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "breed", type = "string"),
+                ),
+                parents = listOf(parentType),
+            )
+
+            assertEquals(1, childType.ownProperties.size)
+            assertEquals("breed", childType.ownProperties[0].name)
+
+            assertEquals(3, childType.properties.size)
+            val propertyNames = childType.properties.map { it.name }
+            assertTrue(propertyNames.contains("breed"))
+            assertTrue(propertyNames.contains("name"))
+            assertTrue(propertyNames.contains("age"))
+        }
+
+        @Test
+        fun `test DynamicType with multiple parents includes all inherited properties`() {
+            val namedType = DynamicType(
+                name = "Named",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "name", type = "string"),
+                ),
+            )
+
+            val agedType = DynamicType(
+                name = "Aged",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "age", type = "int"),
+                ),
+            )
+
+            val personType = DynamicType(
+                name = "Person",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "email", type = "string"),
+                ),
+                parents = listOf(namedType, agedType),
+            )
+
+            assertEquals(1, personType.ownProperties.size)
+            assertEquals(3, personType.properties.size)
+            val propertyNames = personType.properties.map { it.name }
+            assertTrue(propertyNames.contains("email"))
+            assertTrue(propertyNames.contains("name"))
+            assertTrue(propertyNames.contains("age"))
+        }
+
+        @Test
+        fun `test DynamicType with nested inheritance includes all properties`() {
+            val grandparentType = DynamicType(
+                name = "LivingThing",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "alive", type = "boolean"),
+                ),
+            )
+
+            val parentType = DynamicType(
+                name = "Animal",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "name", type = "string"),
+                ),
+                parents = listOf(grandparentType),
+            )
+
+            val childType = DynamicType(
+                name = "Dog",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "breed", type = "string"),
+                ),
+                parents = listOf(parentType),
+            )
+
+            assertEquals(1, childType.ownProperties.size)
+            assertEquals(3, childType.properties.size)
+            val propertyNames = childType.properties.map { it.name }
+            assertTrue(propertyNames.contains("breed"))
+            assertTrue(propertyNames.contains("name"))
+            assertTrue(propertyNames.contains("alive"))
+        }
+
+        @Test
+        fun `test DynamicType with JvmType parent includes inherited properties`() {
+            val jvmParent = JvmType(JvmTypeTest.Dog::class.java)
+
+            val childType = DynamicType(
+                name = "ServiceDog",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "serviceType", type = "string"),
+                ),
+                parents = listOf(jvmParent),
+            )
+
+            assertEquals(1, childType.ownProperties.size)
+            assertEquals(3, childType.properties.size)
+            val propertyNames = childType.properties.map { it.name }
+            assertTrue(propertyNames.contains("serviceType"))
+            assertTrue(propertyNames.contains("name"))
+            assertTrue(propertyNames.contains("breed"))
+        }
+
+        @Test
+        fun `test DynamicType does not duplicate properties when child overrides parent property`() {
+            val parentType = DynamicType(
+                name = "Animal",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "name", type = "string"),
+                    SimplePropertyDefinition(name = "age", type = "int"),
+                ),
+            )
+
+            val childType = DynamicType(
+                name = "Dog",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "name", type = "string", description = "Dog's name"),
+                    SimplePropertyDefinition(name = "breed", type = "string"),
+                ),
+                parents = listOf(parentType),
+            )
+
+            assertEquals(2, childType.ownProperties.size)
+            assertEquals(3, childType.properties.size)
+
+            val propertyNames = childType.properties.map { it.name }
+            assertTrue(propertyNames.contains("name"))
+            assertTrue(propertyNames.contains("age"))
+            assertTrue(propertyNames.contains("breed"))
+
+            // Verify no duplicates
+            assertEquals(propertyNames.size, propertyNames.distinct().size)
+
+            // Verify child's definition takes precedence
+            val nameProperty = childType.properties.find { it.name == "name" }
+            assertEquals("Dog's name", nameProperty?.description)
+        }
+
+        @Test
+        fun `test DynamicType with multiple parents deduplicates properties`() {
+            val namedType = DynamicType(
+                name = "Named",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "name", type = "string"),
+                ),
+            )
+
+            val identifiedType = DynamicType(
+                name = "Identified",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "id", type = "string"),
+                    SimplePropertyDefinition(name = "name", type = "string"),
+                ),
+            )
+
+            val personType = DynamicType(
+                name = "Person",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "email", type = "string"),
+                ),
+                parents = listOf(namedType, identifiedType),
+            )
+
+            assertEquals(1, personType.ownProperties.size)
+            assertEquals(3, personType.properties.size)
+
+            val propertyNames = personType.properties.map { it.name }
+            assertTrue(propertyNames.contains("email"))
+            assertTrue(propertyNames.contains("name"))
+            assertTrue(propertyNames.contains("id"))
+
+            // Verify no duplicates (name appears in both parents)
+            assertEquals(propertyNames.size, propertyNames.distinct().size)
+        }
+
+        @Test
+        fun `test DynamicType deduplicates properties across deep inheritance hierarchy`() {
+            val livingType = DynamicType(
+                name = "Living",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "alive", type = "boolean"),
+                    SimplePropertyDefinition(name = "name", type = "string"),
+                ),
+            )
+
+            val animalType = DynamicType(
+                name = "Animal",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "name", type = "string"),
+                    SimplePropertyDefinition(name = "species", type = "string"),
+                ),
+                parents = listOf(livingType),
+            )
+
+            val dogType = DynamicType(
+                name = "Dog",
+                ownProperties = listOf(
+                    SimplePropertyDefinition(name = "breed", type = "string"),
+                ),
+                parents = listOf(animalType),
+            )
+
+            assertEquals(1, dogType.ownProperties.size)
+            assertEquals(4, dogType.properties.size)
+
+            val propertyNames = dogType.properties.map { it.name }
+            assertTrue(propertyNames.contains("breed"))
+            assertTrue(propertyNames.contains("name"))
+            assertTrue(propertyNames.contains("species"))
+            assertTrue(propertyNames.contains("alive"))
+
+            // Verify no duplicates (name appears at multiple levels)
+            assertEquals(propertyNames.size, propertyNames.distinct().size)
         }
     }
 
@@ -105,7 +334,7 @@ class DomainTypeSerializationTest {
                 JvmType(String::class.java),
                 DynamicType(
                     name = "DynamicTwo",
-                    properties = listOf(SimplePropertyDefinition("field", "string"))
+                    ownProperties = listOf(SimplePropertyDefinition("field", "string"))
                 ),
                 JvmType(Integer::class.java),
             )
