@@ -114,7 +114,7 @@ data class FakePromptRunner(
     ): T {
         _llmInvocations += LlmInvocation(
             interaction = createLlmInteraction(),
-            messages = messages,
+            messages = listOf(UserMessage(prompt)),
             method = Method.CREATE_OBJECT,
         )
         return getResponse(outputClass)!!
