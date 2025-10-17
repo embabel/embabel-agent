@@ -1,14 +1,138 @@
+
 [[reference.integrations]]
 === Integrations
 
 [[reference.integrations__mcp]]
 ==== Model Context Protocol (MCP)
 
-===== Consuming
-
-
 ===== Publishing
+
+====== Overview
+
+Embabel Agent can expose your agents as MCP servers, making them available to external MCP clients such as Claude Desktop, VS Code extensions, or other MCP-compatible applications. The framework provides automatic publishing of agent goals as tools and prompts without requiring manual configuration.
+
+====== Server Configuration
+
+Configure MCP server functionality in your `application.yml`. The server type determines the execution mode:
+
+[source,yaml]
+----
+spring:
+  ai:
+    mcp:
+      server:
+        type: SYNC  # or ASYNC
+----
+
+====== Server Types
+
+Embabel Agent supports two MCP server execution modes controlled by the `spring.ai.mcp.server.type` property:
+
+**SYNC Mode** (Default)::
+- Blocking operations wrapped in reactive streams
+- Simpler to develop and debug
+- Suitable for most use cases
+- Better error handling and logging
+
+[source,yaml]
+----
+spring:
+  ai:
+    mcp:
+      server:
+        type: SYNC
+----
+
+**ASYNC Mode**::
+- True non-blocking reactive operations
+- Higher throughput for concurrent requests
+- More complex error handling
+- Suitable for high-performance scenarios
+
+[source,yaml]
+----
+spring:
+  ai:
+    mcp:
+      server:
+        type: ASYNC
+----
+
+====== Automatic Publishing
+
+**Tools**::
+Agent goals are automatically published as MCP tools when annotated with `@Export(remote = true)`. The `PerGoalMcpToolExportCallbackPublisher` automatically discovers and exposes these goals without any additional configuration.
+
+**Prompts**::
+Prompts are automatically generated for each goal's starting input types through the `PerGoalStartingInputTypesPromptPublisher`. This provides ready-to-use prompt templates based on your agent definitions.
+
+====== Exposing Agent Goals as Tools
+
+Agent goals become MCP tools automatically when annotated with `@Export`:
+
+[source,java]
+----
+@Agent(
+    goal = "Provide weather information",
+    backstory = "Weather service agent"
+)
+public class WeatherAgent {
+    
+    @Goal
+    @Export(remote = true)  // Automatically becomes MCP tool
+    public String getWeather(
+        @Param("location") String location,
+        @Param("units") String units
+    ) {
+        return "Weather for " + location + " in " + units;
+    }
+    
+    @Goal
+    public String internalMethod() {
+        // Not exposed to MCP (no @Export annotation)
+        return "Internal use only";
+    }
+}
+----
+
+====== Server Architecture
+
+The MCP server implementation uses several design patterns:
+
+**Template Method Pattern**::
+- `AbstractMcpServerConfiguration` provides common initialization logic
+- Concrete implementations (`McpSyncServerConfiguration`, `McpAsyncServerConfiguration`) handle mode-specific details
+
+**Strategy Pattern**::
+- Server strategies abstract sync vs async operations
+- Mode-specific implementations handle tool, resource, and prompt management
+
+**Publisher Pattern**::
+- Tools, resources, and prompts are discovered through publisher interfaces
+- Automatic registration and lifecycle management
+- Event-driven initialization ensures proper timing
+
+====== Built-in Tools
+
+Every MCP server includes a built-in `helloBanner` tool that displays server information:
+
+[source,json]
+----
+{
+  "type": "banner",
+  "mode": "SYNC",
+  "lines": [
+    "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+    "Embabel Agent MCP SYNC Server",
+    "Version: 0.1.4-SNAPSHOT",
+    "Java: 21.0.2+13-LTS-58",
+    "Started: 2025-01-17T14:23:47.785Z",
+    "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  ]
+}
+----
 
 
 [[reference.integrations__a2a]]
 ==== A2A
+
