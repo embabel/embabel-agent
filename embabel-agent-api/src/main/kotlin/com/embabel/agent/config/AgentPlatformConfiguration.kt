@@ -34,14 +34,16 @@ import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.DependsOn
 import org.springframework.context.annotation.Primary
 import org.springframework.web.client.RestTemplate
+
 
 /**
  * Core configuration for AgentPlatform
@@ -146,61 +148,54 @@ class AgentPlatformConfiguration(
         ProcessOptionsOperationScheduler()
 
     /**
-     * Docker models won't be loaded unless the profile is set
-     * Ollama models won't be loaded unless starter-ollama is referenced.
+     * Create a `ModelProvider` bean named `"modelProvider"`.
+     *
+     * Collects all available `Llm` and `EmbeddingService` beans from the provided
+     * [ApplicationContext] and constructs a [ConfigurableModelProvider] configured
+     * with the supplied [ConfigurableModelProviderProperties].
+     *
+     * The parameters `dockerLocalModelsConfig` and `ollamaModelsConfig` are
+     * optional markers used to trigger related auto-configuration when present;
+     * they are not accessed directly by this method.
+     *
+     * @param applicationContext the Spring application context used to discover model beans
+     * @param properties configuration properties for the model provider
+     * @param dockerLocalModelsConfig optional marker bean for docker-local models auto-configuration
+     * @param ollamaModelsConfig optional marker bean for Ollama models auto-configuration
+     * @return a configured [ModelProvider] instance that exposes discovered LLMs and embedding services
      */
     @Bean(name = ["modelProvider"])
-    @ConditionalOnBean(name = ["ollamaModelsConfig", "dockerLocalModelsConfig"])
-    @DependsOn("dockerLocalModelsConfig", "ollamaModelsConfig")
-    fun modelProviderWithDockerAndOllama(
-        llms: List<Llm>,
-        embeddingServices: List<EmbeddingService>,
-        properties: ConfigurableModelProviderProperties,
-    ): ModelProvider = ConfigurableModelProvider(
-        llms = llms,
-        embeddingServices = embeddingServices,
-        properties = properties,
-    )
-
-    @Bean(name = ["modelProvider"])
-    @ConditionalOnMissingBean(name = ["modelProvider"])
-    @ConditionalOnBean(name = ["dockerLocalModelsConfig"])
-    @DependsOn("dockerLocalModelsConfig")
-    fun modelProviderWithDocker(
-        llms: List<Llm>,
-        embeddingServices: List<EmbeddingService>,
-        properties: ConfigurableModelProviderProperties,
-    ): ModelProvider = ConfigurableModelProvider(
-        llms = llms,
-        embeddingServices = embeddingServices,
-        properties = properties,
-    )
-
-    @Bean(name = ["modelProvider"])
-    @ConditionalOnMissingBean(name = ["modelProvider"])
-    @ConditionalOnBean(name = ["ollamaModelsConfig"])
-    @DependsOn("ollamaModelsConfig")
-    fun modelProviderWithOllama(
-        llms: List<Llm>,
-        embeddingServices: List<EmbeddingService>,
-        properties: ConfigurableModelProviderProperties,
-    ): ModelProvider = ConfigurableModelProvider(
-        llms = llms,
-        embeddingServices = embeddingServices,
-        properties = properties,
-    )
-
-    @Bean(name = ["modelProvider"])
-    @ConditionalOnMissingBean(name = ["modelProvider"])
     fun modelProvider(
-        llms: List<Llm>,
-        embeddingServices: List<EmbeddingService>,
+        applicationContext: ApplicationContext,
         properties: ConfigurableModelProviderProperties,
-    ): ModelProvider = ConfigurableModelProvider(
-        llms = llms,
-        embeddingServices = embeddingServices,
-        properties = properties,
-    )
+        @Autowired(required = false)
+        @Qualifier("dockerLocalModelsConfig") dockerLocalModelsConfig: Any?,
+        @Autowired(required = false)
+        @Qualifier("ollamaModelsConfig") ollamaModelsConfig: Any?
+    ): ModelProvider {
+
+        return ConfigurableModelProvider(
+            llms = applicationContext.getBeansOfType(Llm::class.java).values.toList(),
+            embeddingServices = applicationContext.getBeansOfType(EmbeddingService::class.java).values.toList(),
+            properties = properties,
+        )
+    }
+    @Bean(name = ["modelProvider"])
+    fun modelProvider(
+        applicationContext: ApplicationContext,
+        properties: ConfigurableModelProviderProperties,
+        @Autowired(required = false)
+        @Qualifier("dockerLocalModelsConfig") dockerLocalModelsConfig: Any?,
+        @Autowired(required = false)
+        @Qualifier("ollamaModelsConfig") ollamaModelsConfig: Any?
+    ): ModelProvider {
+
+        return ConfigurableModelProvider(
+            llms = applicationContext.getBeansOfType(Llm::class.java).values.toList(),
+            embeddingServices = applicationContext.getBeansOfType(EmbeddingService::class.java).values.toList(),
+            properties = properties,
+        )
+    }
 
     @Bean
     fun autoLlmSelectionCriteriaResolver(
