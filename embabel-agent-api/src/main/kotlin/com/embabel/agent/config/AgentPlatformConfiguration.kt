@@ -180,22 +180,6 @@ class AgentPlatformConfiguration(
             properties = properties,
         )
     }
-    @Bean(name = ["modelProvider"])
-    fun modelProvider(
-        applicationContext: ApplicationContext,
-        properties: ConfigurableModelProviderProperties,
-        @Autowired(required = false)
-        @Qualifier("dockerLocalModelsConfig") dockerLocalModelsConfig: Any?,
-        @Autowired(required = false)
-        @Qualifier("ollamaModelsConfig") ollamaModelsConfig: Any?
-    ): ModelProvider {
-
-        return ConfigurableModelProvider(
-            llms = applicationContext.getBeansOfType(Llm::class.java).values.toList(),
-            embeddingServices = applicationContext.getBeansOfType(EmbeddingService::class.java).values.toList(),
-            properties = properties,
-        )
-    }
 
     @Bean
     fun autoLlmSelectionCriteriaResolver(
