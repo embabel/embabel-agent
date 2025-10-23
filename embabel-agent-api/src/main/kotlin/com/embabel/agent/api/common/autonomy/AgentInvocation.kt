@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.autonomy
 
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessOptions
 import java.util.concurrent.CompletableFuture
 import java.util.function.Consumer
@@ -44,7 +45,7 @@ interface AgentInvocation<T> {
     fun invoke(
         obj: Any,
         vararg objs: Any,
-    ): T
+    ): T = invokeAsync(obj, *objs).get()
 
     /**
      * Invokes the agent with a map of named inputs.
@@ -52,7 +53,7 @@ interface AgentInvocation<T> {
      * @param map A [Map] that initializes the blackboard
      * @return the result of type [T] from the agent invocation
      */
-    fun invoke(map: Map<String, Any>): T
+    fun invoke(map: Map<String, Any>): T = invokeAsync(map).get()
 
     /**
      * Invokes the agent asynchronously with one or more arguments.
@@ -73,6 +74,46 @@ interface AgentInvocation<T> {
      * @return the result of type [T] from the agent invocation
      */
     fun invokeAsync(map: Map<String, Any>): CompletableFuture<T>
+
+    /**
+     * Runs the agent with one or more arguments
+     *
+     * @param obj the first (and possibly only) input value to be added to the blackboard
+     * @param objs additional input values to add to the blackboard
+     * @return the agent process
+     */
+    fun run(
+        obj: Any,
+        vararg objs: Any,
+    ): AgentProcess = runAsync(obj, *objs).get()
+
+    /**
+     * Runs the agent with a map of named inputs.
+     *
+     * @param map A [Map] that initializes the blackboard
+     * @return the agent process
+     */
+    fun run(map: Map<String, Any>): AgentProcess = runAsync(map).get()
+
+    /**
+     * Runs the agent asynchronously with one or more arguments
+     *
+     * @param obj the first (and possibly only) input value to be added to the blackboard
+     * @param objs additional input values to add to the blackboard
+     * @return the future agent process
+     */
+    fun runAsync(
+        obj: Any,
+        vararg objs: Any,
+    ): CompletableFuture<AgentProcess>
+
+    /**
+     * Runs the agent asynchronously with a map of named inputs.
+     *
+     * @param map A [Map] that initializes the blackboard
+     * @return the future agent process
+     */
+    fun runAsync(map: Map<String, Any>): CompletableFuture<AgentProcess>
 
     companion object {
 
@@ -182,36 +223,30 @@ internal class DefaultAgentInvocation<T : Any>(
     private val resultType: Class<T>,
 ) : AgentInvocation<T> {
 
-    override fun invoke(
-        obj: Any,
-        vararg objs: Any,
-    ): T {
-        return invokeAsync(obj, *objs)
-            .get()
-    }
-
-    override fun invoke(map: Map<String, Any>): T {
-        return invokeAsync(map)
-            .get()
-    }
-
     override fun invokeAsync(
         obj: Any,
         vararg objs: Any,
-    ): CompletableFuture<T> {
+    ): CompletableFuture<T> = runAsync(obj, *objs).thenApply { it.last(resultType) }
+
+    override fun invokeAsync(map: Map<String, Any>): CompletableFuture<T> =
+        runAsync(map).thenApply { it.last(resultType) }
+
+    override fun runAsync(
+        obj: Any,
+        vararg objs: Any,
+    ): CompletableFuture<AgentProcess> {
         val agent = findAgentByResultType() ?: error("No agent with outputClass $resultType found.")
         val args = arrayOf(obj, *objs)
 
         val agentProcess = agentPlatform.createAgentProcessFrom(
             agent = agent,
             processOptions = processOptions,
-            *args
+            objectsToAdd = args
         )
         return agentPlatform.start(agentProcess)
-            .thenApply { it.last(resultType) }
     }
 
-    override fun invokeAsync(map: Map<String, Any>): CompletableFuture<T> {
+    override fun runAsync(map: Map<String, Any>): CompletableFuture<AgentProcess> {
         val agent = findAgentByResultType() ?: error("No agent with outputClass $resultType found.")
 
         val agentProcess = agentPlatform.createAgentProcess(
@@ -220,7 +255,6 @@ internal class DefaultAgentInvocation<T : Any>(
             bindings = map
         )
         return agentPlatform.start(agentProcess)
-            .thenApply { it.last(resultType) }
     }
 
 
