@@ -30,15 +30,6 @@ open class DummyObjectCreatingLlmOperations(
     stringsToUse: List<String>,
 ) : LlmOperations, DummyInstanceCreator(stringsToUse) {
 
-    override fun generate(
-        prompt: String,
-        interaction: LlmInteraction,
-        agentProcess: AgentProcess,
-        action: Action?,
-    ): String {
-        return stringsToUse.random()
-    }
-
     override fun <O> doTransform(
         messages: List<Message>,
         interaction: LlmInteraction,

@@ -18,14 +18,15 @@ package com.embabel.agent.core.support
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.event.LlmRequestEvent
-import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
-import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.LlmOperations
-import com.embabel.agent.spi.ToolDecorator
+import com.embabel.agent.spi.*
+import com.embabel.agent.spi.support.LlmDataBindingProperties
+import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
+import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.time
+import jakarta.validation.Validator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
@@ -40,23 +41,13 @@ import java.time.Duration
 abstract class AbstractLlmOperations(
     private val toolDecorator: ToolDecorator,
     private val modelProvider: ModelProvider,
-    private val autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
+    private val validator: Validator,
+    private val validationPromptGenerator: ValidationPromptGenerator = DefaultValidationPromptGenerator(),
+    private val autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver,
+    protected val dataBindingProperties: LlmDataBindingProperties,
 ) : LlmOperations {
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
-
-    override fun generate(
-        prompt: String,
-        interaction: LlmInteraction,
-        agentProcess: AgentProcess,
-        action: Action?,
-    ): String = createObject(
-        messages = listOf(UserMessage(prompt)),
-        interaction = interaction,
-        outputClass = String::class.java,
-        agentProcess = agentProcess,
-        action = action,
-    )
 
     final override fun <O> createObject(
         messages: List<Message>,
@@ -65,36 +56,73 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): O {
-        val (allToolCallbacks, llmRequestEvent) = setup(
+        val (allToolCallbacks, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
             action = action,
             messages = messages,
             outputClass = outputClass,
         )
-        val (response, ms) = time {
-            doTransform(
-                messages = messages,
-                interaction = interaction.copy(toolCallbacks = allToolCallbacks.map {
-                    toolDecorator.decorate(
-                        tool = it,
-                        agentProcess = agentProcess,
-                        action = action,
-                        llmOptions = interaction.llm,
+
+        val interactionWithToolDecoration = interaction.copy(
+            toolCallbacks = allToolCallbacks.map {
+                toolDecorator.decorate(
+                    tool = it,
+                    agentProcess = agentProcess,
+                    action = action,
+                    llmOptions = interaction.llm,
+                )
+            })
+
+        val (createdObject, ms) = time {
+            val initialMessages = if (dataBindingProperties.sendValidationInfo) {
+                messages + UserMessage(
+                    validationPromptGenerator.generateRequirementsPrompt(
+                        validator = validator,
+                        outputClass = outputClass,
                     )
-                }),
+                )
+            } else {
+                messages
+            }
+
+            var candidate = doTransform(
+                messages = initialMessages,
+                interaction = interactionWithToolDecoration,
                 outputClass = outputClass,
                 llmRequestEvent = llmRequestEvent,
             )
+            var constraintViolations = validator.validate(candidate)
+            if (constraintViolations.isNotEmpty()) {
+                // If we had violations, try again, once, before throwing an exception
+                candidate = doTransform(
+                    messages = messages + UserMessage(
+                        validationPromptGenerator.generateViolationsReport(
+                            constraintViolations
+                        )
+                    ),
+                    interaction = interactionWithToolDecoration,
+                    outputClass = outputClass,
+                    llmRequestEvent = llmRequestEvent,
+                )
+                constraintViolations = validator.validate(candidate)
+                if (constraintViolations.isNotEmpty()) {
+                    throw InvalidLlmReturnTypeException(
+                        returnedObject = candidate as Any,
+                        constraintViolations = constraintViolations,
+                    )
+                }
+            }
+            candidate
         }
-        logger.debug("LLM response={}", response)
+        logger.debug("LLM response={}", createdObject)
         agentProcess.processContext.onProcessEvent(
             llmRequestEvent.responseEvent(
-                response = response,
+                response = createdObject,
                 runningTime = Duration.ofMillis(ms),
             ),
         )
-        return response
+        return createdObject
     }
 
     final override fun <O> createObjectIfPossible(
@@ -104,7 +132,7 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<O> {
-        val (allToolCallbacks, llmRequestEvent) = setup(
+        val (allToolCallbacks, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
             action = action,
@@ -155,7 +183,7 @@ abstract class AbstractLlmOperations(
         llmRequestEvent: LlmRequestEvent<O>,
     ): Result<O>
 
-    private fun <O> setup(
+    private fun <O> getToolsAndEvent(
         agentProcess: AgentProcess,
         interaction: LlmInteraction,
         action: Action?,

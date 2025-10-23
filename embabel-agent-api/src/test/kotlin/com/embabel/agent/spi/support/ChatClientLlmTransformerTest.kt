@@ -34,6 +34,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Disabled
@@ -170,9 +171,10 @@ class ChatClientLlmTransformerTest {
             )
 
             val transformer = ChatClientLlmOperations(
-                mockModelProvider,
-                DefaultToolDecorator(),
-                JinjavaTemplateRenderer(),
+                modelProvider = mockModelProvider,
+                toolDecorator = DefaultToolDecorator(),
+                validator = Validation.buildDefaultValidatorFactory().validator,
+                templateRenderer = JinjavaTemplateRenderer(),
             )
             return transformer.createObject(
                 messages = listOf(UserMessage("Say hello")),
@@ -349,9 +351,10 @@ class ChatClientLlmTransformerTest {
 
             val transformer =
                 ChatClientLlmOperations(
-                    mockModelProvider,
-                    DefaultToolDecorator(),
-                    JinjavaTemplateRenderer(),
+                    modelProvider = mockModelProvider,
+                    toolDecorator = DefaultToolDecorator(),
+                    templateRenderer = JinjavaTemplateRenderer(),
+                    validator = Validation.buildDefaultValidatorFactory().validator,
                 )
             val result = transformer.createObjectIfPossible(
                 messages = listOf(UserMessage("Say hello")),

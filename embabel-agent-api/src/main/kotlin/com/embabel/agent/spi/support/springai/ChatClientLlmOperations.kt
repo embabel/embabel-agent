@@ -24,6 +24,8 @@ import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
+import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
+import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
@@ -34,6 +36,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
+import jakarta.validation.Validator
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ResponseEntity
 import org.springframework.ai.chat.client.observation.DefaultChatClientObservationConvention
@@ -67,14 +70,23 @@ const val PROMPT_ELEMENT_SEPARATOR = "\n----\n";
 internal class ChatClientLlmOperations(
     modelProvider: ModelProvider,
     toolDecorator: ToolDecorator,
+    validator: Validator,
+    validationPromptGenerator: ValidationPromptGenerator = DefaultValidationPromptGenerator(),
     private val templateRenderer: TemplateRenderer,
-    private val dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
+    dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
     private val llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     private val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-) : AbstractLlmOperations(toolDecorator, modelProvider, autoLlmSelectionCriteriaResolver) {
+) : AbstractLlmOperations(
+    toolDecorator = toolDecorator,
+    modelProvider = modelProvider,
+    validator = validator,
+    validationPromptGenerator = validationPromptGenerator,
+    dataBindingProperties = dataBindingProperties,
+    autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver
+) {
 
     @PostConstruct
     private fun logPropertyConfiguration() {

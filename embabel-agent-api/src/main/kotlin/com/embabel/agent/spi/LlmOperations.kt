@@ -27,6 +27,7 @@ import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
+import jakarta.validation.ConstraintViolation
 import org.springframework.ai.tool.ToolCallback
 
 /**
@@ -154,6 +155,17 @@ class InvalidLlmReturnFormatException(
 }
 
 /**
+ * Thrown the LLM returned an object that fails validation,
+ * and although we tried, we could not correct it.
+ */
+class InvalidLlmReturnTypeException(
+    val returnedObject: Any,
+    val constraintViolations: Set<ConstraintViolation<*>>,
+) : RuntimeException(
+    "Validation errors: ${constraintViolations.joinToString(", ")}",
+)
+
+/**
  * Wraps LLM operations.
  * All user-initiated LLM operations go through this,
  * allowing the AgentPlatform to mediate them.
@@ -177,7 +189,13 @@ interface LlmOperations {
         interaction: LlmInteraction,
         agentProcess: AgentProcess,
         action: Action?,
-    ): String
+    ): String = createObject(
+        messages = listOf(UserMessage(prompt)),
+        interaction = interaction,
+        outputClass = String::class.java,
+        agentProcess = agentProcess,
+        action = action,
+    )
 
     /**
      * Create an output object, in the context of an AgentProcess.
@@ -186,8 +204,13 @@ interface LlmOperations {
      * @param outputClass Class of the output object
      * @param agentProcess Agent process we are running within
      * @param action Action we are running within if we are running within an action
-     * @throws InvalidLlmReturnFormatException if the LLM returns an object of the wrong type
+     * @throws InvalidLlmReturnFormatException if the LLM returns an invalid object
+     * @throws InvalidLlmReturnTypeException if the LLM returns an object that fails validation
      */
+    @Throws(
+        InvalidLlmReturnFormatException::class,
+        InvalidLlmReturnTypeException::class
+    )
     fun <O> createObject(
         messages: List<Message>,
         interaction: LlmInteraction,
