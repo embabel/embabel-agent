@@ -28,8 +28,10 @@ import org.springframework.ai.transformer.splitter.TokenTextSplitter
  */
 class MultiIngester(
     override val stores: List<WritableStore>,
-    val splitter: TextSplitter = TokenTextSplitter(),
+    private val splitterProvider: () -> TextSplitter = { TokenTextSplitter() },
 ) : Ingester {
+
+    private val splitter: TextSplitter by lazy { splitterProvider() }
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
