@@ -9,11 +9,13 @@ It's defined in the https://github.com/embabel/embabel-common[embabel-common] pr
 [source,java]
 ----
 // Create LlmOptions with model and temperature
-var options = LlmOptions.withModel(OpenAiModels.GPT_4O_MINI)
+var options = LlmOptions
+    .withModel(OpenAiModels.GPT_4O_MINI)
     .withTemperature(0.8);
 
 // Use different hyperparameters for different tasks
-var analyticalOptions = LlmOptions.withModel(OpenAiModels.GPT_4O_MINI)
+var analyticalOptions = LlmOptions
+    .withModel(OpenAiModels.GPT_4O_MINI)
     .withTemperature(0.2)
     .withTopP(0.9);
 ----
@@ -21,10 +23,15 @@ var analyticalOptions = LlmOptions.withModel(OpenAiModels.GPT_4O_MINI)
 **Important Methods:**
 
 - `withModel(String)`: Specify the model name
+- `withRole(String)`: Specify the model role. The role must be one defined in configuration via `embabel.models.llms.<role>=<model-name>`
 - `withTemperature(Double)`: Set creativity/randomness (0.0-1.0)
 - `withTopP(Double)`: Set nucleus sampling parameter
 - `withTopK(Integer)`: Set top-K sampling parameter
 - `withPersona(String)`: Add a system message persona
+
+`LlmOptions` is serializable to JSON, so you can set properties of type
+`LlmOptions` in `application.yml` and other application configuration files.
+This is a powerful way of externalizing not only models, but hyperparameters.
 
 ==== PromptRunner
 
@@ -109,5 +116,17 @@ var story = context.ai()
 - `withTemplate(String)`: Use <<reference.templates, Jinja>> templates for prompts
 - `withSubagents(Subagent...)`: Enable handoffs to other agents
 - `evaluateCondition(String, String)`: Evaluate boolean condition
+
+**Validation**
+
+Embabel supports JSR-380 bean validation annotations on domain objects.
+When creating objects via `PromptRunner.createObject` or `createObjectIfPossible`, validation is automatically performed after deserialization.
+If validation fails, Embabel transparently retries the LLM call to obtain a valid object,
+describing the validation errors to the LLM to help it correct its response.
+
+If validation fails a second time, `InvalidLlmReturnTypeException` is thrown.
+This will trigger replanning if not caught.
+You can also choose to catch it within the action method making the LLM call,
+and take appropriate action in your own code.
 
 // TODO: (jasper notes) Add links to subagent and evaluateCondition
