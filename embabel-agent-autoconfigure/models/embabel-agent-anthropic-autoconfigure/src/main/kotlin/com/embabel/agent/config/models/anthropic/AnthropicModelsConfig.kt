@@ -17,12 +17,14 @@ package com.embabel.agent.config.models.anthropic
 
 import com.embabel.agent.common.RetryProperties
 import com.embabel.agent.api.models.AnthropicModels
+import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
+import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
@@ -30,8 +32,8 @@ import org.springframework.ai.anthropic.api.AnthropicApi
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
@@ -82,6 +84,8 @@ class AnthropicModelsConfig(
     private val apiKey: String,
     private val properties: AnthropicProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
+    private val configurableBeanFactory: ConfigurableBeanFactory,
+    private val modelLoader: LlmAutoConfigMetadataLoader<AnthropicModelDefinitions> = AnthropicModelLoader(),
 ) {
     private val logger = LoggerFactory.getLogger(AnthropicModelsConfig::class.java)
 
@@ -89,85 +93,92 @@ class AnthropicModelsConfig(
         logger.info("Anthropic models are available: {}", properties)
     }
 
-    @Bean
-    fun claudeOpus40(): Llm {
-        return anthropicLlmOf(
-            AnthropicModels.CLAUDE_40_OPUS,
-            knowledgeCutoffDate = LocalDate.of(2025, 3, 31),
-        )
-            .copy(
-                pricingModel = PerTokenPricingModel(
-                    usdPer1mInputTokens = 15.0,
-                    usdPer1mOutputTokens = 75.0,
-                )
-            )
+    @PostConstruct
+    fun registerModelBeans() {
+        modelLoader
+            .loadAutoConfigMetadata().models.forEach { modelDef ->
+                try {
+                    val llm = createAnthropicLlm(modelDef)
+
+                    // Register as singleton bean with the configured bean name
+                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
+
+                    logger.info(
+                        "Registered Anthropic model bean: {} -> {}",
+                        modelDef.name, modelDef.modelId
+                    )
+
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create model: {} ({})",
+                        modelDef.name, modelDef.modelId, e
+                    )
+                    throw e
+                }
+            }
     }
 
-    @Bean
-    fun claudeOpus41(): Llm {
-        return anthropicLlmOf(
-            AnthropicModels.CLAUDE_41_OPUS,
-            knowledgeCutoffDate = LocalDate.of(2025, 1, 1),
-        )
-            .copy(
-                pricingModel = PerTokenPricingModel(
-                    usdPer1mInputTokens = 15.0,
-                    usdPer1mOutputTokens = 75.0,
-                )
+    /**
+     * Creates an individual Anthropic model from configuration.
+     */
+    private fun createAnthropicLlm(modelDef: AnthropicModelDefinition): Llm {
+        val chatModel = AnthropicChatModel
+            .builder()
+            .defaultOptions(createDefaultOptions(modelDef))
+            .anthropicApi(createAnthropicApi())
+            .toolCallingManager(
+                ToolCallingManager.builder()
+                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                    .build()
             )
+            .retryTemplate(properties.retryTemplate("anthropic-${modelDef.modelId}"))
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            .build()
+
+        return Llm(
+            name = modelDef.modelId,
+            model = chatModel,
+            provider = AnthropicModels.PROVIDER,
+            optionsConverter = AnthropicOptionsConverter,
+            knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
+            pricingModel = modelDef.pricingModel?.let {
+                PerTokenPricingModel(
+                    usdPer1mInputTokens = it.usdPer1mInputTokens,
+                    usdPer1mOutputTokens = it.usdPer1mOutputTokens,
+                )
+            }
+        )
     }
 
-    @Bean
-    fun claudeSonnet37(): Llm {
-        return anthropicLlmOf(
-            AnthropicModels.CLAUDE_37_SONNET,
-            knowledgeCutoffDate = LocalDate.of(2024, 10, 31),
-        )
-            .copy(
-                pricingModel = PerTokenPricingModel(
-                    usdPer1mInputTokens = 3.0,
-                    usdPer1mOutputTokens = 15.0,
+    /**
+     * Creates default options for a model based on YAML configuration.
+     */
+    private fun createDefaultOptions(modelDef: AnthropicModelDefinition): AnthropicChatOptions {
+        return AnthropicChatOptions.builder()
+            .model(modelDef.modelId)
+            .maxTokens(modelDef.maxTokens)
+            .temperature(modelDef.temperature)
+            .apply {
+                modelDef.topP?.let { topP(it) }
+                modelDef.topK?.let { topK(it) }
+
+                // Configure thinking mode if specified
+                modelDef.thinking?.let { thinkingConfig ->
+                    thinking(
+                        AnthropicApi.ChatCompletionRequest.ThinkingConfig(
+                            AnthropicApi.ThinkingType.ENABLED,
+                            thinkingConfig.tokenBudget
+                        )
+                    )
+                } ?: thinking(
+                    AnthropicApi.ChatCompletionRequest.ThinkingConfig(
+                        AnthropicApi.ThinkingType.DISABLED,
+                        null
+                    )
                 )
-            )
+            }
+            .build()
     }
-
-    @Bean
-    fun claudeSonnet45(): Llm {
-        return anthropicLlmOf(
-            AnthropicModels.CLAUDE_SONNET_4_5,
-            knowledgeCutoffDate = LocalDate.of(2025, 1, 1),
-        )
-            .copy(
-                pricingModel = PerTokenPricingModel(
-                    usdPer1mInputTokens = 3.0,
-                    usdPer1mOutputTokens = 15.0,
-                )
-            )
-    }
-
-    @Bean
-    fun claudeHaiku35(): Llm = anthropicLlmOf(
-        AnthropicModels.CLAUDE_35_HAIKU,
-        knowledgeCutoffDate = LocalDate.of(2024, 10, 22),
-    )
-        .copy(
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = .80,
-                usdPer1mOutputTokens = 4.0,
-            )
-        )
-
-    @Bean
-    fun claudeHaiku45(): Llm = anthropicLlmOf(
-        AnthropicModels.CLAUDE_HAIKU_4_5,
-        knowledgeCutoffDate = LocalDate.of(2025, 2, 1),
-    )
-        .copy(
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = 1.0,
-                usdPer1mOutputTokens = 5.0,
-            )
-        )
 
     private fun anthropicLlmOf(
         name: String,
