@@ -28,6 +28,7 @@ import com.embabel.common.core.types.Named
 import io.mockk.*
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertNotNull //Explicit import to disambiguate from kotlin.test.assertNotNull
 
 /**
  * Tests for the agent selection functionality in Autonomy.
