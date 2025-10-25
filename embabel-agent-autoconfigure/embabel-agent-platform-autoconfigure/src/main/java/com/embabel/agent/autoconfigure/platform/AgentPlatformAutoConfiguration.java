@@ -23,12 +23,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Import;
+import com.embabel.common.core.config.CommonPlatformPropertiesLoader;
+
 
 /**
  * Bootstraps Agent Platform Configuration, Tools Configuration, and Rag Service Configuration
  */
 @AutoConfiguration
-@Import({ScanConfiguration.class, AgentPlatformConfiguration.class, ToolGroupsConfiguration.class,})
+@Import({CommonPlatformPropertiesLoader.class, ScanConfiguration.class, AgentPlatformConfiguration.class, ToolGroupsConfiguration.class,})
 public class AgentPlatformAutoConfiguration {
     final private static Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
 
