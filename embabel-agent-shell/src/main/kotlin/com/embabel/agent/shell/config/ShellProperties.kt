@@ -15,13 +15,9 @@
  */
 package com.embabel.agent.shell.config
 
-import com.embabel.chat.agent.ChatConfig
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.boot.context.properties.NestedConfigurationProperty
 
 @ConfigurationProperties(prefix = "embabel.agent.shell")
 class ShellProperties {
     var lineLength: Int = 140
-    @field:NestedConfigurationProperty
-    var chat: ChatConfig = ChatConfig()
 }

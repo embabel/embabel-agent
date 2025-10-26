@@ -18,7 +18,6 @@ package com.embabel.chat.agent
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.workflow.control.SimpleAgentBuilder
 import com.embabel.agent.core.Agent
-import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.last
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.domain.library.HasContent
@@ -28,10 +27,8 @@ import com.embabel.agent.prompt.persona.Persona
 import com.embabel.agent.tools.agent.AchievableGoalsToolGroupFactory
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
-import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.HasInfoString
-import org.springframework.ai.tool.annotation.Tool
 
 val K9 = Persona(
     name = "K9",
@@ -56,29 +53,9 @@ object DefaultBlackboardEntryFormatter : BlackboardEntryFormatter {
     }
 }
 
-interface BlackboardFormatter {
-
-    /**
-     * Formats the conversation so far for the agent.
-     * @return the formatted conversation
-     */
-    fun format(blackboard: Blackboard): String
-}
-
-// TODO could make a prompt contributor so we can get caching
-class DefaultBlackboardFormatter(
-    private val entryFormatter: BlackboardEntryFormatter = DefaultBlackboardEntryFormatter,
-) : BlackboardFormatter {
-    override fun format(blackboard: Blackboard): String {
-        return blackboard.objects
-            .filterNot { it is Conversation || it is Message || it is UserInput }
-            .map { entryFormatter.format(it) }
-            .joinToString(separator = "\n") { it.trim() }
-    }
-}
-
 
 /**
+ * Convenient class to build a default chat agent.
  * @param promptTemplate location of the prompt template to use for the agent.
  * It expects:
  * - persona: the persona of the agent
@@ -99,14 +76,6 @@ class DefaultChatAgentBuilder(
         SimpleAgentBuilder
             .returning(AssistantMessage::class.java)
             .running { context ->
-                // TODO could have a tool to say what we're calling
-                val tool = object {
-                    @Tool
-                    fun callingTool(name: String) {
-                        context
-                    }
-                }
-
                 val conversation = context.last<Conversation>()
                     ?: throw IllegalStateException("No conversation found in context")
 

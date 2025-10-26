@@ -15,16 +15,28 @@
  */
 package com.embabel.agent.shell
 
+import com.embabel.agent.api.annotation.AchievesGoal
+import com.embabel.agent.api.annotation.Action
+import com.embabel.agent.api.annotation.Agent
+import com.embabel.agent.api.annotation.Condition
+import com.embabel.agent.api.annotation.support.AgentMetadataReader
+import com.embabel.agent.api.common.ActionContext
+import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
+import com.embabel.agent.prompt.persona.Persona
 import com.embabel.agent.shell.config.ShellProperties
-import com.embabel.chat.agent.*
-import com.embabel.chat.agent.shell.TerminalServicesProcessWaitingHandler
-import com.embabel.common.ai.model.LlmOptions
+import com.embabel.agent.tools.agent.AchievableGoalsToolGroupFactory
+import com.embabel.chat.Conversation
+import com.embabel.chat.UserMessage
+import com.embabel.chat.agent.AgentProcessChatbot
+import com.embabel.chat.agent.ChatbotReturn
+import com.embabel.chat.agent.ConversationTermination
+import com.embabel.chat.agent.K9
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.util.bold
 import com.embabel.common.util.color
@@ -44,7 +56,6 @@ import kotlin.system.exitProcess
  */
 data class ShellConfig(
     val lineLength: Int = 140,
-    val chat: ChatConfig = ChatConfig(),
 )
 
 
@@ -111,40 +122,63 @@ class ShellCommands(
 
     @ShellMethod("Chat")
     fun chat(): String {
-        val processOptions = ProcessOptions(
-            verbosity = Verbosity(
-                debug = false,
-                showPrompts = true,
-                showLlmResponses = false,
-                showPlanning = true,
-            )
+        // Here so Spring doesn't pick it up.
+        // TODO We will find a better approach
+        @Agent(
+            name = "simple-chat-agent",
+            description = "A simple chat agent that responds to user messages",
+            scan = false,
         )
-        blackboard = processOptions.blackboard
+        class SimpleChatAgent(
+            val persona: Persona,
+            autonomy: Autonomy,
+        ) {
 
-        val goalChoiceApprover =
-            if (shellProperties.chat.confirmGoals) terminalServices else GoalChoiceApprover.APPROVE_ALL
+            private val achievableGoalsToolGroupFactory = AchievableGoalsToolGroupFactory(autonomy)
 
-        val chatSession = AgentPlatformChatSession(
-            user = null,
-            planLister = planLister,
-            processOptions = processOptions,
-            outputChannel = terminalServices.outputChannel(),
-            responseGenerator = if (shellProperties.chat.bindConversation) AgentResponseGenerator(
-                agentPlatform = agentPlatform,
-                agent = DefaultChatAgentBuilder(
-                    autonomy = autonomy,
-                    persona = K9,
-                    llm = LlmOptions
-                        .withModel(shellProperties.chat.model)
-                        .withTemperature(null)
-                ).build()
-            ) else AutonomyResponseGenerator(
-                autonomy = autonomy,
-                goalChoiceApprover = goalChoiceApprover,
-                processWaitingHandler = TerminalServicesProcessWaitingHandler(terminalServices),
-                chatConfig = shellProperties.chat,
-            ),
+            @Condition
+            fun lastEventWasUserMessage(context: OperationContext): Boolean {
+                return context.lastResult() is UserMessage
+            }
+
+            @Action(canRerun = true, pre = ["lastEventWasUserMessage"])
+            fun respondToUserMessage(
+                conversation: Conversation,
+                context: ActionContext,
+            ): ChatbotReturn {
+                val assistantMessage = context.ai()
+                    .withAutoLlm()
+                    .withPromptContributor(persona)
+                    .withToolGroup(
+                        achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
+                            context,
+                            emptyMap(),
+                            emptyList()
+                        )
+                    )
+                    .respond(conversation.messages)
+                conversation.addMessage(assistantMessage)
+                context.sendMessage(assistantMessage)
+                return ChatbotReturn(assistantMessage, null)
+            }
+
+            @Action
+            @AchievesGoal(description = "Conversation finished")
+            fun finishConversation(
+                conversationTermination: ConversationTermination,
+            ): ConversationTermination {
+                return conversationTermination
+            }
+        }
+
+        val chatAgent = SimpleChatAgent(
+            persona = K9,
+            autonomy = autonomy,
         )
+        val chatbot = AgentProcessChatbot(agentPlatform, {
+            AgentMetadataReader().createAgentMetadata(chatAgent) as com.embabel.agent.core.Agent
+        })
+        val chatSession = chatbot.createSession(user = null, outputChannel = terminalServices.outputChannel())
         return terminalServices.chat(chatSession = chatSession, welcome = null, colorPalette = colorPalette)
     }
 
