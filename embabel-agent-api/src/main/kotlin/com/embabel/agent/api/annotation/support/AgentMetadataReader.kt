@@ -16,14 +16,14 @@
 package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.annotation.*
+import com.embabel.agent.api.annotation.Action
+import com.embabel.agent.api.annotation.Agent
+import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.ToolObject
-import com.embabel.agent.core.AgentScope
-import com.embabel.agent.core.ComputedBooleanCondition
+import com.embabel.agent.core.*
 import com.embabel.agent.core.Export
-import com.embabel.agent.core.IoBinding
-import com.embabel.agent.core.JvmType
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.agent.validation.AgentStructureValidator
@@ -33,6 +33,7 @@ import com.embabel.agent.validation.GoapPathToCompletionValidator
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.NameUtils
 import com.embabel.common.util.loggerFor
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
 import org.springframework.cglib.proxy.Enhancer
@@ -417,10 +418,11 @@ class AgentMetadataReader(
  * @return true if the return type has a @JsonDeserialize annotation, false otherwise
  */
 private fun hasRequiredJsonDeserializeAnnotationOnInterfaceReturnType(method: Method): Boolean {
-    val hasRequiredAnnotation = method.returnType.isAnnotationPresent(JsonDeserialize::class.java)
+    val hasRequiredAnnotation = method.returnType.isAnnotationPresent(JsonDeserialize::class.java) ||
+            method.returnType.isAnnotationPresent(JsonTypeInfo::class.java)
     if (!hasRequiredAnnotation) {
         loggerFor<AgentMetadataReader>().warn(
-            "❓Interface {} used as return type of {}.{} must have @JsonDeserialize annotation",
+            "❓Interface {} used as return type of {}.{} must have @JsonDeserialize or @JsoonTypeInfo annotation",
             method.returnType,
             method.declaringClass,
             method.name,

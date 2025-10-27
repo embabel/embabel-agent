@@ -26,7 +26,9 @@ import com.embabel.chat.Chatbot
 import com.embabel.chat.Conversation
 import com.embabel.chat.UserMessage
 import com.embabel.chat.support.InMemoryConversation
+import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 fun interface AgentSource {
 
@@ -44,6 +46,11 @@ fun interface ListenerProvider {
 /**
  * Convenient supertype for chatbot agent returns
  */
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.SIMPLE_NAME,
+    include = JsonTypeInfo.As.PROPERTY,
+    property = "type"
+)
 sealed interface ConversationStatus
 
 object ConversationContinues : ConversationStatus
@@ -163,7 +170,12 @@ private class AgentProcessChatSession(
     ) {
         conversation.addMessage(userMessage)
         agentProcess.addObject(userMessage)
-        agentProcess.run()
+        val agentProcessRun = agentProcess.run()
+        loggerFor<AgentProcessChatSession>().info(
+            "Agent process {} run completed with status {}",
+            agentProcess.id,
+            agentProcessRun.status
+        )
     }
 
     companion object {
