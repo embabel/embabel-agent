@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.DefaultPlanLister
 import com.embabel.agent.common.Constants
+import com.embabel.agent.core.JvmType
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.agent.domain.io.UserInput
@@ -37,17 +38,22 @@ class AchievableGoalsToolGroupFactory(
      * Creates a ToolGroup containing achievable goals for the chat agent
      * from the present OperationContext
      * @param bindings any additional bindings to pass to the agent process
+     * @param listeners any additional listeners to attach to the tool callbacks
+     * @param excludedTypes types of goals to exclude from the tool group
      */
     fun achievableGoalsToolGroup(
         context: OperationContext,
         bindings: Map<String, Any>,
         listeners: List<AgenticEventListener>,
+        excludedTypes: Set<Class<*>> = emptySet(),
     ): ToolGroup {
         val planLister = DefaultPlanLister(context.agentPlatform())
         val achievableGoals = planLister.achievableGoals(
             processOptions = context.processContext.processOptions,
             bindings = bindings,
-        )
+        ).filterNot { goal ->
+            excludedTypes.any { excludedType -> (goal.outputType as? JvmType)?.isAssignableFrom(excludedType) == true }
+        }
         return ToolGroup(
             metadata = ToolGroupMetadata(
                 name = "Default chat tools",

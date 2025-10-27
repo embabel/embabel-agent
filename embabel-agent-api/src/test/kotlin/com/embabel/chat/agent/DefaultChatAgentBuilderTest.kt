@@ -15,13 +15,9 @@
  */
 package com.embabel.chat.agent
 
-import com.embabel.agent.api.common.workflow.control.SimpleAgentBuilder
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.agent.core.last
 import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyAgentPlatform
-import com.embabel.chat.AssistantMessage
-import com.embabel.chat.Conversation
 import com.embabel.chat.UserMessage
 import com.embabel.chat.support.InMemoryConversation
 import com.embabel.common.ai.model.LlmOptions
@@ -30,20 +26,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class DefaultChatAgentBuilderTest {
-
-    private val chatAgent = SimpleAgentBuilder
-        .returning(AssistantMessage::class.java)
-        .running({ context ->
-            val conversation = context.last<Conversation>()
-                ?: throw IllegalStateException("No conversation found in context")
-            val userMessage = conversation.lastMessageMustBeFromUser()
-                ?: throw IllegalStateException("Last message must be from user")
-            AssistantMessage(
-                name = "Test Agent",
-                content = "Response to: ${userMessage.content}",
-            )
-        })
-        .buildAgent("chatty", "A test agent for chat responses")
 
     @Test
     fun `emits one message`() {
@@ -63,7 +45,10 @@ class DefaultChatAgentBuilderTest {
                 "conversation" to conversation,
             )
         )
-        assertEquals(AgentProcessStatusCode.COMPLETED, agentProcess.status)
+        assertEquals(
+            AgentProcessStatusCode.STUCK, agentProcess.status,
+            "It's OK to be stuck waiting for another user message"
+        )
     }
 
 

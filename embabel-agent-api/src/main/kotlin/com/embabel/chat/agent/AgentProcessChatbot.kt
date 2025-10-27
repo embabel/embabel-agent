@@ -15,14 +15,16 @@
  */
 package com.embabel.chat.agent
 
-import com.embabel.agent.api.common.SomeOf
 import com.embabel.agent.channel.LoggingOutputChannelEvent
 import com.embabel.agent.channel.OutputChannel
 import com.embabel.agent.core.*
 import com.embabel.agent.event.AgenticEventListener
 import com.embabel.agent.event.progress.OutputChannelHighlightingEventListener
 import com.embabel.agent.identity.User
-import com.embabel.chat.*
+import com.embabel.chat.ChatSession
+import com.embabel.chat.Chatbot
+import com.embabel.chat.Conversation
+import com.embabel.chat.UserMessage
 import com.embabel.chat.support.InMemoryConversation
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 
@@ -39,18 +41,18 @@ fun interface ListenerProvider {
     ): List<AgenticEventListener>
 }
 
-data class ConversationTermination(
+/**
+ * Convenient supertype for chatbot agent returns
+ */
+sealed interface ConversationStatus
+
+object ConversationContinues : ConversationStatus
+
+data class ConversationOver(
     @get:JsonPropertyDescription("Reason for conversation termination, e.g. 'user requested end of conversation', or 'conversation unsafe'")
     val reason: String,
-)
+) : ConversationStatus
 
-/**
- * Return from a chatbot agent action method
- */
-data class ChatbotReturn(
-    val assistantMessage: AssistantMessage? = null,
-    val conversationTermination: ConversationTermination? = null,
-) : SomeOf
 
 /**
  * Chatbot implementation backed by an AgentProcess

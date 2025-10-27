@@ -15,28 +15,17 @@
  */
 package com.embabel.agent.shell
 
-import com.embabel.agent.api.annotation.AchievesGoal
-import com.embabel.agent.api.annotation.Action
-import com.embabel.agent.api.annotation.Agent
-import com.embabel.agent.api.annotation.Condition
-import com.embabel.agent.api.annotation.support.AgentMetadataReader
-import com.embabel.agent.api.common.ActionContext
-import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.event.logging.LoggingPersonality
 import com.embabel.agent.event.logging.personality.ColorPalette
-import com.embabel.agent.prompt.persona.Persona
 import com.embabel.agent.shell.config.ShellProperties
-import com.embabel.agent.tools.agent.AchievableGoalsToolGroupFactory
-import com.embabel.chat.Conversation
-import com.embabel.chat.UserMessage
 import com.embabel.chat.agent.AgentProcessChatbot
-import com.embabel.chat.agent.ChatbotReturn
-import com.embabel.chat.agent.ConversationTermination
+import com.embabel.chat.agent.DefaultChatAgentBuilder
 import com.embabel.chat.agent.K9
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.util.bold
 import com.embabel.common.util.color
@@ -122,62 +111,13 @@ class ShellCommands(
 
     @ShellMethod("Chat")
     fun chat(): String {
-        // Here so Spring doesn't pick it up.
-        // TODO We will find a better approach
-        @Agent(
-            name = "simple-chat-agent",
-            description = "A simple chat agent that responds to user messages",
-            scan = false,
-        )
-        class SimpleChatAgent(
-            val persona: Persona,
-            autonomy: Autonomy,
-        ) {
-
-            private val achievableGoalsToolGroupFactory = AchievableGoalsToolGroupFactory(autonomy)
-
-            @Condition
-            fun lastEventWasUserMessage(context: OperationContext): Boolean {
-                return context.lastResult() is UserMessage
-            }
-
-            @Action(canRerun = true, pre = ["lastEventWasUserMessage"])
-            fun respondToUserMessage(
-                conversation: Conversation,
-                context: ActionContext,
-            ): ChatbotReturn {
-                val goalTools = achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
-                    context,
-                    // We need to see what's achievable from user input
-                    // TODO do we need to ask about blackboard
-                    mapOf("it" to UserInput("doesn't matter")),
-                    emptyList()
-                )
-                val assistantMessage = context.ai()
-                    .withAutoLlm()
-                    .withPromptContributor(persona)
-                    .withToolGroup(goalTools)
-                    .respond(conversation.messages)
-                conversation.addMessage(assistantMessage)
-                context.sendMessage(assistantMessage)
-                return ChatbotReturn(assistantMessage, null)
-            }
-
-            @Action
-            @AchievesGoal(description = "Conversation finished")
-            fun finishConversation(
-                conversationTermination: ConversationTermination,
-            ): ConversationTermination {
-                return conversationTermination
-            }
-        }
-
-        val chatAgent = SimpleChatAgent(
-            persona = K9,
+        val chatAgent = DefaultChatAgentBuilder(
             autonomy = autonomy,
-        )
+            llm = LlmOptions.withAutoLlm(),
+            persona = K9,
+        ).build()
         val chatbot = AgentProcessChatbot(agentPlatform, {
-            AgentMetadataReader().createAgentMetadata(chatAgent) as com.embabel.agent.core.Agent
+            chatAgent
         })
         val chatSession = chatbot.createSession(user = null, outputChannel = terminalServices.outputChannel())
         return terminalServices.chat(chatSession = chatSession, welcome = null, colorPalette = colorPalette)

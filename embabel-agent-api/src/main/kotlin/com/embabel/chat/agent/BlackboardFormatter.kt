@@ -17,8 +17,26 @@ package com.embabel.chat.agent
 
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.domain.io.UserInput
+import com.embabel.agent.domain.library.HasContent
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
+import com.embabel.common.core.types.HasInfoString
+
+interface BlackboardEntryFormatter {
+
+    fun format(entry: Any): String
+}
+
+object DefaultBlackboardEntryFormatter : BlackboardEntryFormatter {
+
+    override fun format(entry: Any): String {
+        return when (entry) {
+            is HasInfoString -> entry.infoString(verbose = true, indent = 0)
+            is HasContent -> entry.content
+            else -> entry.toString()
+        }
+    }
+}
 
 /**
  * Present the context of the blackboard to the agent in a textual form.

@@ -36,7 +36,7 @@ interface Conversation : StableIdentified, HasInfoString {
     /**
      * Non-null if the conversation has messages and the last message is from the user.
      */
-    fun lastMessageMustBeFromUser(): UserMessage? = messages.lastOrNull() as? UserMessage
+    fun lastMessageIfBeFromUser(): UserMessage? = messages.lastOrNull() as? UserMessage
 
     /**
      * Modify the state of this conversation
