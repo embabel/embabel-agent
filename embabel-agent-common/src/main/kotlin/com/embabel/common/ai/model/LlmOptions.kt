@@ -80,18 +80,19 @@ interface LlmHyperparameters {
 @Schema(
     description = "Options for LLM use",
 )
-data class LlmOptions(
+data class LlmOptions @JvmOverloads constructor(
+    // Note we use vars to allow Spring configuration properties binding
     val modelSelectionCriteria: ModelSelectionCriteria? = null,
-    val model: String? = null,
-    val role: String? = null,
-    override val temperature: Double? = null,
-    override val frequencyPenalty: Double? = null,
-    override val maxTokens: Int? = null,
-    override val presencePenalty: Double? = null,
-    override val topK: Int? = null,
-    override val topP: Double? = null,
-    val thinking: Thinking? = null,
-    val timeout: Duration? = null,
+    var model: String? = null,
+    var role: String? = null,
+    override var temperature: Double? = null,
+    override var frequencyPenalty: Double? = null,
+    override var maxTokens: Int? = null,
+    override var presencePenalty: Double? = null,
+    override var topK: Int? = null,
+    override var topP: Double? = null,
+    var thinking: Thinking? = null,
+    var timeout: Duration? = null,
 ) : LlmHyperparameters, HasInfoString {
 
     @get:Schema(
@@ -104,12 +105,12 @@ data class LlmOptions(
                 null -> null
                 "default" -> PlatformDefault
                 "auto" -> AutoModelSelectionCriteria
-                else -> byName(model)
+                else -> byName(model!!)
             } ?: when (role) {
                 null -> null
                 "default" -> PlatformDefault
                 "auto" -> AutoModelSelectionCriteria
-                else -> byRole(role)
+                else -> byRole(role!!)
             } ?: PlatformDefault
 
     /**
