@@ -17,6 +17,7 @@ package com.embabel.plan
 
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Timestamped
+import com.embabel.common.util.loggerFor
 
 /**
  * A planning system is a set of actions and goals.
@@ -61,7 +62,20 @@ interface Planner<S : PlanningSystem, W : WorldState, P : Plan> {
      */
     fun plansToGoals(system: S): List<P> =
         system.goals.mapNotNull { goal ->
-            planToGoal(system.actions, goal)
+            val plan = planToGoal(system.actions, goal)
+            if (plan != null) {
+                loggerFor<Planner<*, *, *>>().info(
+                    "Found plan to goal {}: {}",
+                    goal.name,
+                    plan.infoString(verbose = false) ?: "none",
+                )
+            } else {
+                loggerFor<Planner<*, *, *>>().info(
+                    "No plan found to goal {}",
+                    goal.name,
+                )
+            }
+            plan
         }.sortedByDescending { p -> p.netValue }
 
     /**

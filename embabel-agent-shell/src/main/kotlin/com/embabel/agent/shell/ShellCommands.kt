@@ -146,16 +146,17 @@ class ShellCommands(
                 conversation: Conversation,
                 context: ActionContext,
             ): ChatbotReturn {
+                val goalTools = achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
+                    context,
+                    // We need to see what's achievable from user input
+                    // TODO do we need to ask about blackboard
+                    mapOf("it" to UserInput("doesn't matter")),
+                    emptyList()
+                )
                 val assistantMessage = context.ai()
                     .withAutoLlm()
                     .withPromptContributor(persona)
-                    .withToolGroup(
-                        achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
-                            context,
-                            emptyMap(),
-                            emptyList()
-                        )
-                    )
+                    .withToolGroup(goalTools)
                     .respond(conversation.messages)
                 conversation.addMessage(assistantMessage)
                 context.sendMessage(assistantMessage)

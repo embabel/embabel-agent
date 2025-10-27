@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.autonomy
 
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.common.util.time
 import com.embabel.plan.Plan
 import com.embabel.plan.goap.GoapPlanner
 import com.embabel.plan.goap.GoapPlanningSystem
@@ -49,13 +50,16 @@ class DefaultPlanLister(
         val planner = dummyAgentProcess.planner as? GoapPlanner
             ?: TODO("Only GoapPlanners are presently supported: found ${dummyAgentProcess.planner::class.qualifiedName}")
         val planningSystem = planningSystem()
-        val plans = planner.plansToGoals(
-            system = planningSystem,
-        )
+        val (plans, ms) = time {
+            planner.plansToGoals(
+                system = planningSystem,
+            )
+        }
         logger.info(
-            "Achievable plans given {} actions and {} goals from bindings {}: {}\n{}",
+            "Achievable plans given {} actions and {} goals in {}ms from bindings {} : {}\n{}",
             planningSystem.actions.size,
             planningSystem.goals.size,
+            ms,
             bindings,
             plans.joinToString("\n") { it.infoString(verbose = true, indent = 1) },
             planningSystem.infoString(verbose = true, indent = 1),

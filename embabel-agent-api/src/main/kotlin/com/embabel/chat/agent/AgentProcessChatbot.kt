@@ -54,7 +54,7 @@ data class ChatbotReturn(
 
 /**
  * Chatbot implementation backed by an AgentProcess
- * The AgentProcess must react to messages and respond on its output channel
+ * The AgentProcess must react to UserMessage and respond on its output channel
  * The AgentProcess can assume that the Conversation will be available in the blackboard,
  * and the latest UserMessage.
  * Action methods will often take precondition being that the last event

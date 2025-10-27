@@ -45,6 +45,16 @@ class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
         actions: Collection<GoapAction>,
         goal: GoapGoal,
     ): GoapPlan? {
+        // Quick check: if goal is already satisfied, return empty plan
+        if (goal.isAchievable(startState)) {
+            return GoapPlan(emptyList(), goal, worldState = startState)
+        }
+
+        // Early reachability check to avoid expensive A* search for unreachable goals
+        if (!isGoalReachable(startState, actions, goal)) {
+            return null
+        }
+
         // Open list - states to be evaluated
         val openList = PriorityQueue<SearchNode>()
 
@@ -254,6 +264,43 @@ class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
             }
         }
         return currentState
+    }
+
+    /**
+     * Performs a fast backward reachability analysis to determine if a goal is theoretically reachable.
+     * This check is conservative - it only returns false for OBVIOUSLY unreachable goals.
+     * If there's any doubt, it returns true and lets the A* search determine actual reachability.
+     *
+     * The key optimization: quickly detect when a goal requires an effect that no action can produce.
+     */
+    private fun isGoalReachable(
+        startState: GoapWorldState,
+        actions: Collection<GoapAction>,
+        goal: GoapGoal,
+    ): Boolean {
+        // Build a set of all effects that actions can produce
+        val producibleEffects = mutableSetOf<Pair<String, ConditionDetermination>>()
+        for (action in actions) {
+            for ((key, value) in action.effects) {
+                producibleEffects.add(key to value)
+            }
+        }
+
+        // Check each goal precondition
+        for ((key, value) in goal.preconditions) {
+            // If already satisfied in start state, skip
+            if (startState.state[key] == value) {
+                continue
+            }
+
+            // If no action can produce this effect, goal is unreachable
+            if ((key to value) !in producibleEffects) {
+                return false
+            }
+        }
+
+        // Goal might be reachable - let A* determine for sure
+        return true
     }
 
     /**

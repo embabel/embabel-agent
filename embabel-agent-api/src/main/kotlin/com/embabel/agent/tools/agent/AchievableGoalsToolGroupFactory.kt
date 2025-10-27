@@ -24,6 +24,10 @@ import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.event.AgenticEventListener
 
+/**
+ * Expose tools for all goals achievable by the agent given
+ * its current OperationContext and Blackboard
+ */
 class AchievableGoalsToolGroupFactory(
     private val autonomy: Autonomy,
     private val goalToolNamingStrategy: GoalToolNamingStrategy = SanitizedGoalNameToolNamingStrategy,
@@ -52,7 +56,7 @@ class AchievableGoalsToolGroupFactory(
                 provider = Constants.EMBABEL_PROVIDER,
                 permissions = emptySet(),
             ),
-            toolCallbacks = achievableGoals.mapIndexed { i, goal ->
+            toolCallbacks = achievableGoals.mapIndexed { _, goal ->
                 GoalToolCallback(
                     autonomy = autonomy,
                     name = goalToolNamingStrategy.nameForGoal(goal),

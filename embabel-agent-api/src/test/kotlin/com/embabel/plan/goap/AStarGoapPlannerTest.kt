@@ -337,6 +337,149 @@ class AStarGoapPlannerTest {
     }
 
     @Nested
+    inner class `Unreachable goal optimization` {
+
+        @Test
+        fun `should quickly return null for unreachable goal with no action producing required effect`() {
+            val action = GoapAction(
+                name = "irrelevantAction",
+                preconditions = mapOf("start" to ConditionDetermination.TRUE),
+                effects = mapOf("irrelevant" to ConditionDetermination.TRUE),
+                cost = 1.0
+            )
+
+            val goal = GoapGoal(
+                name = "unreachableGoal",
+                preconditions = mapOf("impossibleCondition" to ConditionDetermination.TRUE)
+            )
+
+            val planner = AStarGoapPlanner(
+                WorldStateDeterminer.fromMap(
+                    mapOf(
+                        "start" to ConditionDetermination.TRUE,
+                        "impossibleCondition" to ConditionDetermination.FALSE
+                    )
+                )
+            )
+
+            val startTime = System.currentTimeMillis()
+            val plan = planner.planToGoal(listOf(action), goal)
+            val elapsedTime = System.currentTimeMillis() - startTime
+
+            assertNull(plan, "Should return null for unreachable goal")
+            assertTrue(elapsedTime < 100, "Should detect unreachability quickly (took ${elapsedTime}ms)")
+        }
+
+        @Test
+        fun `should quickly return null for goal requiring unavailable precondition chain`() {
+            // Actions that don't create the chain needed for the goal
+            val action1 = GoapAction(
+                name = "action1",
+                preconditions = mapOf("start" to ConditionDetermination.TRUE),
+                effects = mapOf("conditionA" to ConditionDetermination.TRUE),
+                cost = 1.0
+            )
+
+            val action2 = GoapAction(
+                name = "action2",
+                preconditions = mapOf("conditionB" to ConditionDetermination.TRUE),
+                effects = mapOf("conditionC" to ConditionDetermination.TRUE),
+                cost = 1.0
+            )
+
+            // Goal requires conditionC, but there's no way to get conditionB
+            val goal = GoapGoal(
+                name = "unreachableGoal",
+                preconditions = mapOf("conditionC" to ConditionDetermination.TRUE)
+            )
+
+            val planner = AStarGoapPlanner(
+                WorldStateDeterminer.fromMap(
+                    mapOf(
+                        "start" to ConditionDetermination.TRUE,
+                        "conditionA" to ConditionDetermination.FALSE,
+                        "conditionB" to ConditionDetermination.FALSE,
+                        "conditionC" to ConditionDetermination.FALSE
+                    )
+                )
+            )
+
+            val startTime = System.currentTimeMillis()
+            val plan = planner.planToGoal(listOf(action1, action2), goal)
+            val elapsedTime = System.currentTimeMillis() - startTime
+
+            assertNull(plan, "Should return null for unreachable goal")
+            assertTrue(elapsedTime < 100, "Should detect unreachability quickly (took ${elapsedTime}ms)")
+        }
+
+        @Test
+        fun `should still find plans for reachable goals`() {
+            val action1 = GoapAction(
+                name = "action1",
+                preconditions = mapOf("start" to ConditionDetermination.TRUE),
+                effects = mapOf("intermediate" to ConditionDetermination.TRUE),
+                cost = 1.0
+            )
+
+            val action2 = GoapAction(
+                name = "action2",
+                preconditions = mapOf("intermediate" to ConditionDetermination.TRUE),
+                effects = mapOf("goal" to ConditionDetermination.TRUE),
+                cost = 1.0
+            )
+
+            val goal = GoapGoal(
+                name = "reachableGoal",
+                preconditions = mapOf("goal" to ConditionDetermination.TRUE)
+            )
+
+            val planner = AStarGoapPlanner(
+                WorldStateDeterminer.fromMap(
+                    mapOf(
+                        "start" to ConditionDetermination.TRUE,
+                        "intermediate" to ConditionDetermination.FALSE,
+                        "goal" to ConditionDetermination.FALSE
+                    )
+                )
+            )
+
+            val plan = planner.planToGoal(listOf(action1, action2), goal)
+
+            assertNotNull(plan, "Should find a plan for reachable goal")
+            assertEquals(2, plan!!.actions.size)
+        }
+
+        @Test
+        fun `should return empty plan when goal already satisfied`() {
+            val action = GoapAction(
+                name = "unnecessaryAction",
+                preconditions = mapOf("start" to ConditionDetermination.TRUE),
+                effects = mapOf("goal" to ConditionDetermination.TRUE),
+                cost = 1.0
+            )
+
+            val goal = GoapGoal(
+                name = "alreadySatisfied",
+                preconditions = mapOf("goal" to ConditionDetermination.TRUE)
+            )
+
+            val planner = AStarGoapPlanner(
+                WorldStateDeterminer.fromMap(
+                    mapOf(
+                        "start" to ConditionDetermination.TRUE,
+                        "goal" to ConditionDetermination.TRUE
+                    )
+                )
+            )
+
+            val plan = planner.planToGoal(listOf(action), goal)
+
+            assertNotNull(plan, "Should return a plan when goal is already satisfied")
+            assertEquals(0, plan!!.actions.size, "Plan should be empty when goal already satisfied")
+        }
+    }
+
+    @Nested
     inner class `Integration with existing optimization` {
 
         @Test

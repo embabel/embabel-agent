@@ -16,12 +16,9 @@
 package com.embabel.agent.discord
 
 import com.embabel.agent.api.common.Asyncer
-import com.embabel.agent.api.common.autonomy.ProcessWaitingException
-import com.embabel.chat.AssistantMessage
 import com.embabel.chat.ChatSession
 import com.embabel.chat.Chatbot
 import com.embabel.chat.UserMessage
-import com.embabel.chat.agent.ProcessWaitingHandler
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import org.slf4j.LoggerFactory
@@ -92,14 +89,5 @@ class ChatbotSessionEventListener(
                 systemMessage = null,
             )
         } as ChatSession
-    }
-}
-
-class DiscordProcessWaitingHandler : ProcessWaitingHandler {
-    override fun handleProcessWaitingException(
-        pwe: ProcessWaitingException,
-        basis: Any,
-    ): AssistantMessage {
-        TODO("Not yet implemented")
     }
 }
