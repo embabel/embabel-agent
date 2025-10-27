@@ -15,6 +15,11 @@
  */
 package com.embabel.agent.shell
 
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.Appender
+import ch.qos.logback.core.FileAppender
 import com.embabel.agent.api.common.autonomy.*
 import com.embabel.agent.channel.*
 import com.embabel.agent.core.hitl.*
@@ -33,7 +38,14 @@ import org.apache.commons.text.WordUtils
 import org.jline.reader.LineReader
 import org.jline.reader.LineReaderBuilder
 import org.jline.terminal.Terminal
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import ch.qos.logback.classic.Logger as LogbackLogger
+
 
 /**
  * Provide interaction and form support
@@ -250,6 +262,63 @@ class TerminalServices(
                     println(event.toString())
                 }
             }
+        }
+    }
+
+    /**
+     * Redirects all logging to a file and returns a function to restore the original logging configuration.
+     * This is useful during interactive chat sessions to prevent log output from interfering with the UI.
+     */
+    fun redirectLoggingToFile(filename: String): () -> Unit {
+        val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
+        val rootLogger = loggerContext.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as LogbackLogger
+
+        // Store the current appenders to restore later
+        val originalAppenders = mutableMapOf<String, Appender<ILoggingEvent>>()
+        val appenderIterator = rootLogger.iteratorForAppenders()
+        while (appenderIterator.hasNext()) {
+            val appender = appenderIterator.next()
+            originalAppenders[appender.name] = appender
+            rootLogger.detachAppender(appender)
+        }
+
+        // Create a file appender for logs during chat
+        val logsDir = Paths.get(System.getProperty("user.home"), ".embabel", "logs")
+        Files.createDirectories(logsDir)
+        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+        val logFile = logsDir.resolve("$filename-$timestamp.log")
+
+        val fileAppender = FileAppender<ILoggingEvent>().apply {
+            context = loggerContext
+            name = filename
+            file = logFile.toString()
+
+            val encoder = PatternLayoutEncoder().apply {
+                context = loggerContext
+                pattern = "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+                start()
+            }
+            this.encoder = encoder
+            start()
+        }
+
+        // Attach the file appender
+        rootLogger.addAppender(fileAppender)
+
+        loggerFor<TerminalServices>().info("Logs redirected to: $logFile")
+
+        // Return a function to restore the original logging configuration
+        return {
+            // Stop and detach the file appender
+            rootLogger.detachAppender(fileAppender)
+            fileAppender.stop()
+
+            // Re-attach the original appenders
+            originalAppenders.values.forEach { appender ->
+                rootLogger.addAppender(appender)
+            }
+
+            loggerFor<TerminalServices>().info("Logging to console resotred. Logs are available at: $logFile")
         }
     }
 

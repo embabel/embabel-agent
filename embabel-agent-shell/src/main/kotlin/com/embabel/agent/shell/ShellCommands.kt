@@ -120,7 +120,15 @@ class ShellCommands(
             chatAgent
         })
         val chatSession = chatbot.createSession(user = null, outputChannel = terminalServices.outputChannel())
-        return terminalServices.chat(chatSession = chatSession, welcome = null, colorPalette = colorPalette)
+
+        // Redirect logging to file during chat
+        val logRestorer = terminalServices.redirectLoggingToFile("chat-session")
+        try {
+            return terminalServices.chat(chatSession = chatSession, welcome = null, colorPalette = colorPalette)
+        } finally {
+            // Restore regular logging when chat exits
+            logRestorer()
+        }
     }
 
     @ShellMethod("List agents")
