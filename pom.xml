@@ -8,13 +8,13 @@
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-parent</artifactId>
-    <version>0.1.4</version>
+    <version>0.1.4-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Embabel Agent Parent</name>
     <description>Parent POM for Embabel Agent Modules</description>
 
     <properties>
-        <embabel-common.version>0.1.4-SNAPSHOT</embabel-common.version>
+        <embabel-common.version>0.1.4</embabel-common.version>
         <!-- Netty version for security vulnerability fixes - duplicate from build-dependencies -->
         <netty.version>4.1.125.Final</netty.version>
     </properties>
