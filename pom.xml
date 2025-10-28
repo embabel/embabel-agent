@@ -14,7 +14,7 @@
     <description>Parent POM for Embabel Agent Modules</description>
 
     <properties>
-        <embabel-common.version>0.1.4</embabel-common.version>
+        <embabel-common.version>0.1.5-SNAPSHOT</embabel-common.version>
         <!-- Netty version for security vulnerability fixes - duplicate from build-dependencies -->
         <netty.version>4.1.125.Final</netty.version>
     </properties>
