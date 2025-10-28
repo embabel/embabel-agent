@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.common</groupId>
         <artifactId>embabel-common-parent</artifactId>
-        <version>0.1.4</version>
+        <version>0.1.5-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-common-ai</artifactId>
     <packaging>jar</packaging>
