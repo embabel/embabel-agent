@@ -28,7 +28,7 @@ import com.embabel.agent.api.dsl.AgentScopeBuilder
  */
 data class RepeatUntilBuilder<RESULT : Any>(
     private val resultClass: Class<RESULT>,
-    private val inputClasses: List<Class<out Any>> = emptyList(),
+    private val inputClass: Class<out Any>? = null,
     private val maxIterations: Int = DEFAULT_MAX_ITERATIONS,
 ) : WorkFlowBuilderWithInput {
 
@@ -46,7 +46,7 @@ data class RepeatUntilBuilder<RESULT : Any>(
     }
 
     override fun withInput(inputClass: Class<out Any>): RepeatUntilBuilder<RESULT> {
-        return copy(inputClasses = inputClasses + inputClass)
+        return copy(inputClass = inputClass)
     }
 
     fun withMaxIterations(maxIterations: Int): RepeatUntilBuilder<RESULT> =
@@ -79,7 +79,7 @@ data class RepeatUntilBuilder<RESULT : Any>(
     inner class Emitter(
         private val generator: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
         private val accept: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
-    ) : WorkflowBuilder<RESULT>(resultClass, inputClasses) {
+    ) : WorkflowBuilder<RESULT>(resultClass, inputClass) {
 
         /**
          * Build the workflow so it can be included in agents
@@ -90,7 +90,7 @@ data class RepeatUntilBuilder<RESULT : Any>(
                     task = generator,
                     accept = accept,
                     resultClass = resultClass,
-                    inputClasses = inputClasses,
+                    inputClass = inputClass,
                 )
         }
 

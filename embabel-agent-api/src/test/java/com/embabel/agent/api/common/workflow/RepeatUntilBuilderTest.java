@@ -209,6 +209,44 @@ class RepeatUntilBuilderTest {
     @Nested
     class Consumer {
 
+        com.embabel.agent.core.Agent takesPerson = RepeatUntilBuilder
+                .returning(Report.class)
+                .withInput(Person.class)
+                .withMaxIterations(3)
+                .repeating(
+                        tac -> {
+                            var person = tac.last(Person.class);
+                            assertNotNull(person, "Person must be provided as input");
+                            return new Report(person.name + " " + person.age);
+                        })
+                .until(f -> true)
+                .buildAgent("foo", "bar");
+
+        @Test
+        void terminatesItselfAgentRequiresInput() {
+            var agent = takesPerson;
+            var agentPlatform = IntegrationTestUtils.dummyAgentPlatform();
+            var agentProcess = agentPlatform.runAgentFrom(
+                    agent,
+                    ProcessOptions.DEFAULT,
+                    Map.of("it", new UserInput("input"))
+            );
+            assertEquals(AgentProcessStatusCode.STUCK, agentProcess.getStatus(),
+                    "Expected stuckness due to missing Person input");
+        }
+
+        @Test
+        void terminatesItselfAgentWithInput() {
+            var agent = takesPerson;
+            var agentPlatform = IntegrationTestUtils.dummyAgentPlatform();
+            var agentProcess = agentPlatform.runAgentFrom(
+                    agent,
+                    ProcessOptions.DEFAULT,
+                    Map.of("it", new Person("greg", 50))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, agentProcess.getStatus(),
+                    "Expected completion with Person input");
+        }
 
         @Test
         void terminatesItselfRequiresInput() {

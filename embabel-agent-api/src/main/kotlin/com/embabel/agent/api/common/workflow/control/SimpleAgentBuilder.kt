@@ -34,7 +34,7 @@ import com.embabel.common.core.MobyNameGenerator
  */
 data class SimpleAgentBuilder<RESULT : Any>(
     private val resultClass: Class<RESULT>,
-    private val inputClasses: List<Class<out Any>> = emptyList(),
+    private val inputClass: Class<out Any>? = null,
 ) : WorkFlowBuilderConsuming, WorkFlowBuilderWithInput {
 
     companion object : WorkFlowBuilderReturning {
@@ -54,7 +54,7 @@ data class SimpleAgentBuilder<RESULT : Any>(
     }
 
     override fun withInput(inputClass: Class<out Any>): SimpleAgentBuilder<RESULT> {
-        return copy(inputClasses = inputClasses + inputClass)
+        return copy(inputClass = inputClass)
     }
 
     override fun <INPUT : Any> consuming(inputClass: Class<INPUT>): SimpleAgentConsumer<INPUT> {
@@ -73,7 +73,7 @@ data class SimpleAgentBuilder<RESULT : Any>(
     inner class Emitter(
         private val generator: (SupplierActionContext<RESULT>) -> RESULT,
         private val mustRun: Boolean = false,
-    ) : WorkflowBuilder<RESULT>(resultClass, inputClasses) {
+    ) : WorkflowBuilder<RESULT>(resultClass, inputClass) {
 
         /**
          * If this is true, the action must run even if its
@@ -90,7 +90,7 @@ data class SimpleAgentBuilder<RESULT : Any>(
                 cost = 0.0,
                 value = 0.0,
                 canRerun = true,
-                pre = inputClasses.map { IoBinding(type = it).value },
+                pre = listOfNotNull(inputClass).map { IoBinding(type = it).value },
                 outputClass = resultClass,
                 toolGroups = emptySet(),
             ) { context ->
@@ -134,7 +134,7 @@ data class SimpleAgentBuilder<RESULT : Any>(
 
         inner class Emitter(
             private val generator: (TransformationActionContext<INPUT, RESULT>) -> RESULT,
-        ) : WorkflowBuilder<RESULT>(resultClass, inputClasses) {
+        ) : WorkflowBuilder<RESULT>(resultClass, inputClass) {
 
             override fun build(): AgentScopeBuilder<RESULT> {
                 val action = TransformationAction(

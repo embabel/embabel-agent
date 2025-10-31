@@ -18,7 +18,6 @@ package com.embabel.agent.api.common.workflow.loop
 import com.embabel.agent.api.common.InputActionContext
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
-import com.embabel.agent.api.common.support.SupplierAction
 import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 import com.embabel.agent.core.*
@@ -65,13 +64,13 @@ data class RepeatUntil(
     inline fun <reified RESULT : Any> build(
         noinline task: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
         noinline acceptanceCriteria: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
-        inputClasses: List<Class<Any>> = emptyList(),
+        inputClass: Class<Any>? = null,
     ): AgentScopeBuilder<RESULT> =
         build(
             task = task,
             accept = acceptanceCriteria,
             resultClass = RESULT::class.java,
-            inputClasses = inputClasses,
+            inputClass = inputClass,
         )
 
 
@@ -79,7 +78,7 @@ data class RepeatUntil(
         task: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
         accept: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
         resultClass: Class<RESULT>,
-        inputClasses: List<Class<out Any>> = emptyList(),
+        inputClass: Class<out Any>? = null,
     ): AgentScopeBuilder<RESULT> {
 
         fun findOrBindResultHistory(context: OperationContext): ResultHistory<RESULT> {
@@ -92,15 +91,16 @@ data class RepeatUntil(
                 }
         }
 
-        val taskAction = SupplierAction(
+        val taskAction = TransformationAction(
             name = "=>${resultClass.name}",
             description = "Generate $resultClass",
             post = listOf(RESULT_WAS_BOUND_LAST_CONDITION, ACCEPTABLE_CONDITION),
             cost = 0.0,
             value = 0.0,
-            pre = inputClasses.map { IoBinding(type = it).value },
+            pre = listOfNotNull(inputClass).map { IoBinding(type = it).value },
             canRerun = true,
             outputClass = resultClass,
+            inputClass = inputClass ?: Unit::class.java,
             toolGroups = emptySet(),
         ) { context ->
             val resultHistory = findOrBindResultHistory(context)

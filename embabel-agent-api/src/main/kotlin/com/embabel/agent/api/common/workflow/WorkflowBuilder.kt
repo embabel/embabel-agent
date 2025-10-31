@@ -51,7 +51,7 @@ interface WorkFlowBuilderConsuming {
  */
 abstract class WorkflowBuilder<RESULT : Any>(
     private val resultClass: Class<RESULT>,
-    private val inputClasses: List<Class<out Any>>,
+    private val inputClass: Class<out Any>?,
 ) {
 
     abstract fun build(): AgentScopeBuilder<RESULT>
@@ -81,7 +81,7 @@ abstract class WorkflowBuilder<RESULT : Any>(
     fun asSubProcess(
         context: ActionContext,
     ): RESULT {
-        val preconditions = inputClasses.map { IoBinding(type = it) }.map { it.value }
+        val preconditions = listOfNotNull(inputClass).map { IoBinding(type = it) }.map { it.value }
         val illegals = preconditions.filter { context.action?.preconditions?.contains(it) != true }
         if (illegals.isNotEmpty()) {
             error(

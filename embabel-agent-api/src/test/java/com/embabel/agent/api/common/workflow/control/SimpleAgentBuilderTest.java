@@ -82,7 +82,10 @@ class SimpleAgentBuilderTest {
             var agent = SimpleAgentBuilder
                     .returning(Person.class)
                     .consuming(Combined.class)
-                    .running(tac -> new Person("Geoff", 55))
+                    .running(tac -> {
+                        assertEquals("James", tac.getInput().name(), "Expected name");
+                        return new Person("Geoff", 55);
+                    })
                     .buildAgent("name", "description");
             var ap = IntegrationTestUtils.dummyAgentPlatform();
             var result = ap.runAgentFrom(
