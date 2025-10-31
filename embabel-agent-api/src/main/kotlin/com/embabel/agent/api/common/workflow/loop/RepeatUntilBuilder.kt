@@ -15,8 +15,9 @@
  */
 package com.embabel.agent.api.common.workflow.loop
 
-import com.embabel.agent.api.common.workflow.WorkFlowBuilderReturning
+import com.embabel.agent.api.common.workflow.WorkFlowBuilderConsuming
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
+import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 
 /**
@@ -26,9 +27,9 @@ data class RepeatUntilBuilder<INPUT, RESULT : Any>(
     private val resultClass: Class<RESULT>,
     private val inputClass: Class<out INPUT>? = null,
     private val maxIterations: Int = DEFAULT_MAX_ITERATIONS,
-) {
+) : WorkFlowBuilderConsuming {
 
-    companion object : WorkFlowBuilderReturning {
+    companion object : WorkflowBuilderReturning {
 
         const val DEFAULT_MAX_ITERATIONS = 5
 
@@ -41,9 +42,8 @@ data class RepeatUntilBuilder<INPUT, RESULT : Any>(
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun <I : Any> withInput(inputClass: Class<out I>): RepeatUntilBuilder<I, RESULT> {
-        return RepeatUntilBuilder<I, RESULT>(
+    override fun <INPUT : Any> consuming(inputClass: Class<INPUT>): RepeatUntilBuilder<INPUT, RESULT> {
+        return RepeatUntilBuilder(
             resultClass = resultClass,
             inputClass = inputClass,
             maxIterations = maxIterations,

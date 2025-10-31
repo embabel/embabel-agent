@@ -16,8 +16,8 @@
 package com.embabel.agent.api.common.workflow.loop
 
 import com.embabel.agent.api.common.TransformationActionContext
-import com.embabel.agent.api.common.workflow.WorkFlowBuilderReturning
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
+import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 
 /**
@@ -30,7 +30,7 @@ data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
     private val scoreThreshold: Double = DEFAULT_SCORE_THRESHOLD,
 ) {
 
-    companion object : WorkFlowBuilderReturning {
+    companion object : WorkflowBuilderReturning {
 
         const val DEFAULT_MAX_ITERATIONS = 5
 

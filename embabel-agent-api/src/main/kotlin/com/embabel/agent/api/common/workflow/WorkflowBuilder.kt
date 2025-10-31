@@ -24,12 +24,12 @@ import com.embabel.agent.core.IoBinding
 /**
  * Ensure consistent naming convention for workflow builders that return a given result type.
  */
-interface WorkFlowBuilderReturning {
+interface WorkflowBuilderReturning {
 
     fun <RESULT : Any> returning(resultClass: Class<RESULT>): Any
 }
 
-interface WorkFlowBuilderWithInput {
+interface WorkflowBuilderWithInput {
 
     /**
      * Specify an input class for this workflow agent.

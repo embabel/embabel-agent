@@ -64,7 +64,7 @@ class RepeatUntilBuilderTest {
     void testNoExportedActionsFromWorkflow() {
         var agent = RepeatUntilBuilder
                 .returning(Report.class)
-                .withInput(Person.class)
+                .consuming(Person.class)
                 .withMaxIterations(3)
                 .repeating(
                         tac -> {
@@ -211,7 +211,7 @@ class RepeatUntilBuilderTest {
 
         com.embabel.agent.core.Agent takesPerson = RepeatUntilBuilder
                 .returning(Report.class)
-                .withInput(Person.class)
+                .consuming(Person.class)
                 .withMaxIterations(3)
                 .repeating(
                         tac -> {
@@ -282,7 +282,7 @@ class RepeatUntilBuilderTest {
         void terminatesItselfWithInput() {
             var agent = RepeatUntilBuilder
                     .returning(Report.class)
-                    .withInput(Person.class)
+                    .consuming(Person.class)
                     .withMaxIterations(3)
                     .repeating(
                             tac -> {
@@ -312,7 +312,7 @@ class RepeatUntilBuilderTest {
             public Report report(UserInput userInput, ActionContext context) {
                 return RepeatUntilBuilder
                         .returning(Report.class)
-                        .withInput(Person.class)
+                        .consuming(Person.class)
                         .withMaxIterations(3)
                         .repeating(
                                 tac -> {
@@ -334,11 +334,11 @@ class RepeatUntilBuilderTest {
             public Report report(UserInput userInput, Person definesDependency, ActionContext context) {
                 return RepeatUntilBuilder
                         .returning(Report.class)
-                        .withInput(Person.class)
+                        .consuming(Person.class)
                         .withMaxIterations(3)
                         .repeating(
                                 tac -> {
-                                    var person = tac.last(Person.class);
+                                    var person = tac.getInput();
                                     assertNotNull(person, "Person must be provided as input");
                                     return new Report(person.name + " " + person.age);
                                 })

@@ -20,9 +20,9 @@ import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.SupplierAction
 import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.api.common.workflow.WorkFlowBuilderConsuming
-import com.embabel.agent.api.common.workflow.WorkFlowBuilderReturning
-import com.embabel.agent.api.common.workflow.WorkFlowBuilderWithInput
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
+import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
+import com.embabel.agent.api.common.workflow.WorkflowBuilderWithInput
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.IoBinding
@@ -35,9 +35,9 @@ import com.embabel.common.core.MobyNameGenerator
 data class SimpleAgentBuilder<RESULT : Any>(
     private val resultClass: Class<RESULT>,
     private val inputClass: Class<out Any>? = null,
-) : WorkFlowBuilderConsuming, WorkFlowBuilderWithInput {
+) : WorkFlowBuilderConsuming, WorkflowBuilderWithInput {
 
-    companion object : WorkFlowBuilderReturning {
+    companion object : WorkflowBuilderReturning {
 
         /**
          * Creates a simple agent builder that can be used to build agents with a single action.

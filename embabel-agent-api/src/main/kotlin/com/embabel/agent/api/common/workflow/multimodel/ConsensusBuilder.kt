@@ -17,8 +17,8 @@ package com.embabel.agent.api.common.workflow.multimodel
 
 import com.embabel.agent.api.common.SupplierActionContext
 import com.embabel.agent.api.common.TransformationActionContext
-import com.embabel.agent.api.common.workflow.WorkFlowBuilderReturning
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
+import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
 import com.embabel.agent.api.common.workflow.control.ResultList
 import com.embabel.agent.api.common.workflow.control.ScatterGather
 import com.embabel.agent.api.dsl.AgentScopeBuilder
@@ -34,7 +34,7 @@ class ConsensusBuilder<RESULT : Any>(
     private val maxConcurrency: Int = DEFAULT_MAX_CONCURRENCY,
 ) {
 
-    companion object : WorkFlowBuilderReturning {
+    companion object : WorkflowBuilderReturning {
 
         const val DEFAULT_MAX_CONCURRENCY = 6
 
