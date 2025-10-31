@@ -17,7 +17,6 @@ package com.embabel.agent.api.common.workflow.loop
 
 import com.embabel.agent.api.common.InputActionContext
 import com.embabel.agent.api.common.OperationContext
-import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 import com.embabel.agent.core.*
@@ -62,10 +61,10 @@ data class RepeatUntil(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    inline fun <reified RESULT : Any> build(
-        noinline task: (RepeatUntilActionContext<Any?, RESULT>) -> RESULT,
-        noinline acceptanceCriteria: (RepeatUntilActionContext<Any?, RESULT>) -> Boolean,
-        inputClass: Class<Any>? = null,
+    inline fun <reified INPUT, reified RESULT : Any> build(
+        noinline task: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
+        noinline acceptanceCriteria: (RepeatUntilActionContext<INPUT, RESULT>) -> Boolean,
+        inputClass: Class<INPUT>? = null,
     ): AgentScopeBuilder<RESULT> =
         build(
             task = task,
@@ -105,6 +104,7 @@ data class RepeatUntil(
             toolGroups = emptySet(),
         ) { context ->
             val resultHistory = findOrBindResultHistory(context)
+
             @Suppress("UNCHECKED_CAST")
             val tac = RepeatUntilActionContext<INPUT, RESULT>(
                 input = context.input as? INPUT,
@@ -228,16 +228,6 @@ data class RepeatUntilActionContext<INPUT, RESULT : Any>(
     val history: ResultHistory<RESULT>,
 ) : InputActionContext<INPUT?>, Blackboard by processContext.agentProcess,
     AgenticEventListener by processContext {
-
-    constructor(tac: TransformationActionContext<INPUT, RESULT>) : this(
-        input = tac.input,
-        processContext = tac.processContext,
-        action = tac.action,
-        inputClass = tac.inputClass,
-        outputClass = tac.outputClass,
-        history = tac.last<ResultHistory<RESULT>>()
-            ?: throw IllegalStateException("ResultHistory not found in process context"),
-    )
 
     override val toolGroups: Set<ToolGroupRequirement>
         get() = action.toolGroups

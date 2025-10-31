@@ -215,8 +215,10 @@ class RepeatUntilBuilderTest {
                 .withMaxIterations(3)
                 .repeating(
                         tac -> {
-                            var person = tac.last(Person.class);
+                            var person = tac.getInput();
                             assertNotNull(person, "Person must be provided as input");
+                            var history = tac.getHistory();
+                            assertNotNull(history, "History must be provided as input");
                             return new Report(person.name + " " + person.age);
                         })
                 .until(f -> true)

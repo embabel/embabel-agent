@@ -15,21 +15,18 @@
  */
 package com.embabel.agent.api.common.workflow.loop
 
-import com.embabel.agent.api.common.InputActionContext
 import com.embabel.agent.api.common.workflow.WorkFlowBuilderReturning
-import com.embabel.agent.api.common.workflow.WorkFlowBuilderWithInput
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
 import com.embabel.agent.api.dsl.AgentScopeBuilder
-
 
 /**
  * Java friendly builder for RepeatUntil workflow.
  */
-data class RepeatUntilBuilder<RESULT : Any>(
+data class RepeatUntilBuilder<INPUT, RESULT : Any>(
     private val resultClass: Class<RESULT>,
-    private val inputClass: Class<out Any>? = null,
+    private val inputClass: Class<out INPUT>? = null,
     private val maxIterations: Int = DEFAULT_MAX_ITERATIONS,
-) : WorkFlowBuilderWithInput {
+) {
 
     companion object : WorkFlowBuilderReturning {
 
@@ -39,29 +36,34 @@ data class RepeatUntilBuilder<RESULT : Any>(
          * Create a RepeatUntilBuilder for a specific result type and default TextFeedback.
          */
         @JvmStatic
-        override fun <RESULT : Any> returning(resultClass: Class<RESULT>): RepeatUntilBuilder<RESULT> {
+        override fun <RESULT : Any> returning(resultClass: Class<RESULT>): RepeatUntilBuilder<Any?, RESULT> {
             return RepeatUntilBuilder(resultClass = resultClass)
         }
     }
 
-    override fun withInput(inputClass: Class<out Any>): RepeatUntilBuilder<RESULT> {
-        return copy(inputClass = inputClass)
+    @Suppress("UNCHECKED_CAST")
+    fun <I : Any> withInput(inputClass: Class<out I>): RepeatUntilBuilder<I, RESULT> {
+        return RepeatUntilBuilder<I, RESULT>(
+            resultClass = resultClass,
+            inputClass = inputClass,
+            maxIterations = maxIterations,
+        )
     }
 
-    fun withMaxIterations(maxIterations: Int): RepeatUntilBuilder<RESULT> =
+    fun withMaxIterations(maxIterations: Int): RepeatUntilBuilder<INPUT, RESULT> =
         copy(maxIterations = maxIterations)
 
     /**
      * Define the task to be repeated until an acceptable result is achieved.
      */
     fun repeating(
-        what: (RepeatUntilActionContext<Any?, RESULT>) -> RESULT,
+        what: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
     ): Looper {
         return Looper(generator = what)
     }
 
     inner class Looper(
-        private val generator: (RepeatUntilActionContext<Any?, RESULT>) -> RESULT,
+        private val generator: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
     ) {
 
         /**
@@ -69,15 +71,15 @@ data class RepeatUntilBuilder<RESULT : Any>(
          * This will determine when the generated result is considered acceptable.
          */
         fun until(
-            accept: (RepeatUntilActionContext<Any?, RESULT>) -> Boolean,
+            accept: (RepeatUntilActionContext<INPUT, RESULT>) -> Boolean,
         ): Emitter {
             return Emitter(generator, accept)
         }
     }
 
     inner class Emitter(
-        private val generator: (RepeatUntilActionContext<Any?, RESULT>) -> RESULT,
-        private val accept: (RepeatUntilActionContext<Any?, RESULT>) -> Boolean,
+        private val generator: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
+        private val accept: (RepeatUntilActionContext<INPUT, RESULT>) -> Boolean,
     ) : WorkflowBuilder<RESULT>(resultClass, inputClass) {
 
         /**
