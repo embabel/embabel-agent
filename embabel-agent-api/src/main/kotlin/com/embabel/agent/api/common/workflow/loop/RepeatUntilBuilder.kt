@@ -16,7 +16,6 @@
 package com.embabel.agent.api.common.workflow.loop
 
 import com.embabel.agent.api.common.InputActionContext
-import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.workflow.WorkFlowBuilderReturning
 import com.embabel.agent.api.common.workflow.WorkFlowBuilderWithInput
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
@@ -56,13 +55,13 @@ data class RepeatUntilBuilder<RESULT : Any>(
      * Define the task to be repeated until an acceptable result is achieved.
      */
     fun repeating(
-        what: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
+        what: (RepeatUntilActionContext<Any?, RESULT>) -> RESULT,
     ): Looper {
         return Looper(generator = what)
     }
 
     inner class Looper(
-        private val generator: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
+        private val generator: (RepeatUntilActionContext<Any?, RESULT>) -> RESULT,
     ) {
 
         /**
@@ -70,15 +69,15 @@ data class RepeatUntilBuilder<RESULT : Any>(
          * This will determine when the generated result is considered acceptable.
          */
         fun until(
-            accept: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
+            accept: (RepeatUntilActionContext<Any?, RESULT>) -> Boolean,
         ): Emitter {
             return Emitter(generator, accept)
         }
     }
 
     inner class Emitter(
-        private val generator: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
-        private val accept: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
+        private val generator: (RepeatUntilActionContext<Any?, RESULT>) -> RESULT,
+        private val accept: (RepeatUntilActionContext<Any?, RESULT>) -> Boolean,
     ) : WorkflowBuilder<RESULT>(resultClass, inputClass) {
 
         /**

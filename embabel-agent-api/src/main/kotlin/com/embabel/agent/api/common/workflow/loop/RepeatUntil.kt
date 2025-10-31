@@ -21,6 +21,7 @@ import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.api.dsl.AgentScopeBuilder
 import com.embabel.agent.core.*
+import com.embabel.agent.event.AgenticEventListener
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
@@ -62,8 +63,8 @@ data class RepeatUntil(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     inline fun <reified RESULT : Any> build(
-        noinline task: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
-        noinline acceptanceCriteria: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
+        noinline task: (RepeatUntilActionContext<Any?, RESULT>) -> RESULT,
+        noinline acceptanceCriteria: (RepeatUntilActionContext<Any?, RESULT>) -> Boolean,
         inputClass: Class<Any>? = null,
     ): AgentScopeBuilder<RESULT> =
         build(
@@ -74,11 +75,11 @@ data class RepeatUntil(
         )
 
 
-    fun <RESULT : Any> build(
-        task: (TransformationActionContext<ResultHistory<RESULT>, RESULT>) -> RESULT,
-        accept: (InputActionContext<ResultHistory<RESULT>>) -> Boolean,
+    fun <INPUT, RESULT : Any> build(
+        task: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
+        accept: (RepeatUntilActionContext<INPUT, RESULT>) -> Boolean,
         resultClass: Class<RESULT>,
-        inputClass: Class<out Any>? = null,
+        inputClass: Class<out INPUT>? = null,
     ): AgentScopeBuilder<RESULT> {
 
         fun findOrBindResultHistory(context: OperationContext): ResultHistory<RESULT> {
@@ -104,15 +105,21 @@ data class RepeatUntil(
             toolGroups = emptySet(),
         ) { context ->
             val resultHistory = findOrBindResultHistory(context)
-            val tac = (context as TransformationActionContext<ResultHistory<RESULT>, RESULT>).copy(
-                input = resultHistory,
+            @Suppress("UNCHECKED_CAST")
+            val tac = RepeatUntilActionContext<INPUT, RESULT>(
+                input = context.input as? INPUT,
+                processContext = context.processContext,
+                action = context.action,
+                inputClass = inputClass as? Class<INPUT> ?: Unit::class.java as Class<INPUT>,
+                outputClass = resultClass,
+                history = resultHistory,
             )
             val result = task.invoke(tac)
             // Allow the evaluator to access the last result
             resultHistory.recordResult(result)
             logger.info(
                 "Generated result {}: {}",
-                resultHistory.results().size + 1,
+                resultHistory.results().size,
                 result,
             )
             result
@@ -140,12 +147,19 @@ data class RepeatUntil(
                     )
                     true
                 } else {
-                    val tac = TransformationActionContext<ResultHistory<RESULT>, Boolean>(
-                        input = resultHistory,
-                        outputClass = Boolean::class.java,
+                    @Suppress("UNCHECKED_CAST")
+                    val input: INPUT? = if (inputClass != null) {
+                        context.last(inputClass) as? INPUT
+                    } else {
+                        null
+                    }
+                    val tac = RepeatUntilActionContext<INPUT, RESULT>(
+                        input = input,
+                        outputClass = resultClass,
                         processContext = context.processContext,
                         action = taskAction,
-                        inputClass = ResultHistory::class.java as Class<ResultHistory<RESULT>>,
+                        inputClass = inputClass as? Class<INPUT> ?: Unit::class.java as Class<INPUT>,
+                        history = resultHistory,
                     )
                     val isAcceptable = accept(tac)
                     logger.info(
@@ -203,4 +217,30 @@ data class RepeatUntil(
         private val RESULT_WAS_BOUND_LAST_CONDITION = "${RepeatUntil::class.simpleName}_resultWasBoundLast"
     }
 
+}
+
+data class RepeatUntilActionContext<INPUT, RESULT : Any>(
+    override val input: INPUT?,
+    override val processContext: ProcessContext,
+    override val action: Action,
+    val inputClass: Class<INPUT>,
+    val outputClass: Class<RESULT>,
+    val history: ResultHistory<RESULT>,
+) : InputActionContext<INPUT?>, Blackboard by processContext.agentProcess,
+    AgenticEventListener by processContext {
+
+    constructor(tac: TransformationActionContext<INPUT, RESULT>) : this(
+        input = tac.input,
+        processContext = tac.processContext,
+        action = tac.action,
+        inputClass = tac.inputClass,
+        outputClass = tac.outputClass,
+        history = tac.last<ResultHistory<RESULT>>()
+            ?: throw IllegalStateException("ResultHistory not found in process context"),
+    )
+
+    override val toolGroups: Set<ToolGroupRequirement>
+        get() = action.toolGroups
+
+    override val operation = action
 }
