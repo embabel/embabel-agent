@@ -30,6 +30,7 @@ import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
+import java.util.function.Predicate
 
 enum class Method {
     CREATE_OBJECT,
@@ -51,6 +52,7 @@ data class FakePromptRunner(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
+    override val propertyFilter: Predicate<String> = Predicate { true },
     private val context: OperationContext,
     private val _llmInvocations: MutableList<LlmInvocation> = mutableListOf(),
     private val responses: MutableList<Any?> = mutableListOf(),
@@ -171,6 +173,10 @@ data class FakePromptRunner(
 
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(generateExamples = generateExamples)
+
+    override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
+        copy(propertyFilter = this.propertyFilter.and(filter))
+
 
     private fun createLlmInteraction() =
         LlmInteraction(

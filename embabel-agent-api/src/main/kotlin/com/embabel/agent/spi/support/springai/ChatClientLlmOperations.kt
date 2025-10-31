@@ -45,7 +45,6 @@ import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.Prompt
-import org.springframework.ai.converter.BeanOutputConverter
 import org.springframework.context.ApplicationContext
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.retry.support.RetrySynchronizationManager
@@ -208,7 +207,11 @@ internal class ChatClientLlmOperations(
                         expectedType = outputClass,
                         delegate = WithExampleConverter(
                             delegate = SuppressThinkingConverter(
-                                BeanOutputConverter(outputClass, objectMapper)
+                                FilteringJacksonOutputConverter(
+                                    clazz = outputClass,
+                                    objectMapper = objectMapper,
+                                    propertyFilter = interaction.propertyFilter,
+                                )
                             ),
                             outputClass = outputClass,
                             ifPossible = false,
@@ -346,7 +349,11 @@ internal class ChatClientLlmOperations(
                         expectedType = MaybeReturn::class.java,
                         delegate = WithExampleConverter(
                             delegate = SuppressThinkingConverter(
-                                BeanOutputConverter(typeReference, objectMapper)
+                                FilteringJacksonOutputConverter(
+                                    typeReference = typeReference,
+                                    objectMapper = objectMapper,
+                                    propertyFilter = interaction.propertyFilter,
+                                )
                             ),
                             outputClass = outputClass as Class<MaybeReturn<*>>,
                             ifPossible = true,

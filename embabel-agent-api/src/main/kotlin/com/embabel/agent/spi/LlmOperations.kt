@@ -29,6 +29,7 @@ import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import jakarta.validation.ConstraintViolation
 import org.springframework.ai.tool.ToolCallback
+import java.util.function.Predicate
 
 /**
  * Spec for calling an LLM. Optional LlmOptions,
@@ -42,6 +43,11 @@ interface LlmUse : PromptContributorConsumer, ToolGroupConsumer {
      * Defaults to unknown: Set to false if generating your own examples.
      */
     val generateExamples: Boolean?
+
+    /**
+     * Filter that determines which properties to include when creating objects.
+     */
+    val propertyFilter: Predicate<String>
 
 }
 
@@ -76,6 +82,7 @@ private data class LlmCallImpl(
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean = false,
+    override val propertyFilter: Predicate<String> = Predicate { true },
 ) : LlmCall
 
 /**
@@ -101,6 +108,7 @@ data class LlmInteraction(
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean? = null,
+    override val propertyFilter: Predicate<String> = Predicate { true },
 ) : LlmCall {
 
     override val name: String = id.value

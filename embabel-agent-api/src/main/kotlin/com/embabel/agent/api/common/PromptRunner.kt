@@ -28,6 +28,8 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
 import com.embabel.common.util.loggerFor
 import org.jetbrains.annotations.ApiStatus
+import java.util.function.Predicate
+import kotlin.reflect.KProperty
 
 /**
  * Define a handoff to a subagent.
@@ -298,6 +300,33 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     fun withGenerateExamples(generateExamples: Boolean): PromptRunner
 
     /**
+     * Adds a filter that determines which properties are to be included when creating an object.
+     *
+     * Note that each predicate is applied *in addition to* previously registered predicates, including
+     * [withProperties] and [withoutProperties].
+     * @param filter the property predicate to be added
+     */
+    fun withPropertyFilter(filter: Predicate<String>): PromptRunner
+
+    /**
+     * Includes the given properties when creating an object.
+     *
+     * Note that each predicate is applied *in addition to* previously registered predicates, including
+     * [withPropertyFilter] and [withoutProperties].
+     * @param properties the properties that are to be included
+     */
+    fun withProperties(vararg properties: String): PromptRunner = withPropertyFilter { properties.contains(it) }
+
+    /**
+     * Excludes the given properties when creating an object.
+     *
+     * Note that each predicate is applied *in addition to* previously registered predicates, including
+     * [withPropertyFilter] and [withProperties].
+     * @param properties the properties that are to be included
+     */
+    fun withoutProperties(vararg properties: String): PromptRunner = withPropertyFilter { !properties.contains(it) }
+
+    /**
      * Create an object creator for the given output class.
      * Allows setting strongly typed examples.
      */
@@ -325,3 +354,13 @@ inline fun <reified T> TemplateOperations.createObject(
     model: Map<String, Any>,
 ): T =
     createObject(outputClass = T::class.java, model = model)
+
+fun PromptRunner.withProperties(
+    vararg properties: KProperty<Any>
+): PromptRunner =
+    withProperties(*properties.map { it.name }.toTypedArray())
+
+fun PromptRunner.withoutProperties(
+    vararg properties: KProperty<Any>
+): PromptRunner =
+    withoutProperties(*properties.map { it.name }.toTypedArray())

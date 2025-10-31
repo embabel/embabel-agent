@@ -33,6 +33,7 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.tool.ToolCallback
+import java.util.function.Predicate
 
 /**
  * Uses the platform's LlmOperations to execute the prompt.
@@ -48,6 +49,7 @@ internal data class OperationContextPromptRunner(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
+    override val propertyFilter: Predicate<String> = Predicate { true },
     private val otherToolCallbacks: List<ToolCallback> = emptyList(),
 ) : PromptRunner {
 
@@ -83,6 +85,7 @@ internal data class OperationContextPromptRunner(
                 },
                 id = interactionId ?: idForPrompt(messages, outputClass),
                 generateExamples = generateExamples,
+                propertyFilter = propertyFilter,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -107,6 +110,7 @@ internal data class OperationContextPromptRunner(
                 },
                 id = interactionId ?: idForPrompt(messages, outputClass),
                 generateExamples = generateExamples,
+                propertyFilter = propertyFilter,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -224,6 +228,9 @@ internal data class OperationContextPromptRunner(
 
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(generateExamples = generateExamples)
+
+    override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
+        copy(propertyFilter = this.propertyFilter.and(filter))
 
     override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
         return PromptRunnerObjectCreator(
