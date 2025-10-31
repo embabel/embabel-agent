@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.common.workflow.loop
 
-import com.embabel.agent.api.common.TransformationActionContext
+import com.embabel.agent.api.common.workflow.WorkFlowBuilderConsuming
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
 import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
 import com.embabel.agent.api.dsl.AgentScopeBuilder
@@ -23,12 +23,13 @@ import com.embabel.agent.api.dsl.AgentScopeBuilder
 /**
  * Java friendly builder for RepeatUntil workflow.
  */
-data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
+data class RepeatUntilAcceptableBuilder<INPUT, RESULT : Any, FEEDBACK : Feedback>(
     private val resultClass: Class<RESULT>,
+    private val inputClass: Class<out INPUT>? = null,
     private val feedbackClass: Class<FEEDBACK> = Feedback::class.java as Class<FEEDBACK>,
     private val maxIterations: Int = DEFAULT_MAX_ITERATIONS,
     private val scoreThreshold: Double = DEFAULT_SCORE_THRESHOLD,
-) {
+) : WorkFlowBuilderConsuming {
 
     companion object : WorkflowBuilderReturning {
 
@@ -40,46 +41,57 @@ data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
          * Create a RepeatUntilBuilder for a specific result type and default TextFeedback.
          */
         @JvmStatic
-        override fun <RESULT : Any> returning(resultClass: Class<RESULT>): RepeatUntilAcceptableBuilder<RESULT, TextFeedback> {
+        override fun <RESULT : Any> returning(resultClass: Class<RESULT>): RepeatUntilAcceptableBuilder<Any?, RESULT, TextFeedback> {
             return RepeatUntilAcceptableBuilder(resultClass = resultClass, feedbackClass = TextFeedback::class.java)
         }
+    }
+
+    override fun <INPUT : Any> consuming(inputClass: Class<INPUT>): RepeatUntilAcceptableBuilder<INPUT, RESULT, FEEDBACK> {
+        return RepeatUntilAcceptableBuilder(
+            resultClass = resultClass,
+            inputClass = inputClass,
+            feedbackClass = feedbackClass,
+            maxIterations = maxIterations,
+            scoreThreshold = scoreThreshold,
+        )
     }
 
     /**
      * Customize the feedback class for this RepeatUntil workflow.
      */
-    fun <F : Feedback> withFeedbackClass(feedbackClass: Class<F>): RepeatUntilAcceptableBuilder<RESULT, F> =
+    fun <F : Feedback> withFeedbackClass(feedbackClass: Class<F>): RepeatUntilAcceptableBuilder<INPUT, RESULT, F> =
         RepeatUntilAcceptableBuilder(
             resultClass = resultClass,
+            inputClass = inputClass,
             feedbackClass = feedbackClass,
             maxIterations = maxIterations,
             scoreThreshold = scoreThreshold,
         )
 
-    fun withMaxIterations(maxIterations: Int): RepeatUntilAcceptableBuilder<RESULT, FEEDBACK> =
+    fun withMaxIterations(maxIterations: Int): RepeatUntilAcceptableBuilder<INPUT, RESULT, FEEDBACK> =
         copy(maxIterations = maxIterations)
 
-    fun withScoreThreshold(scoreThreshold: Double): RepeatUntilAcceptableBuilder<RESULT, FEEDBACK> =
+    fun withScoreThreshold(scoreThreshold: Double): RepeatUntilAcceptableBuilder<INPUT, RESULT, FEEDBACK> =
         copy(scoreThreshold = scoreThreshold)
 
     /**
      * Define the task to be repeated until an acceptable result is achieved.
      */
     fun repeating(
-        what: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, RESULT>) -> RESULT,
+        what: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
     ): Critiquer {
         return Critiquer(generator = what)
     }
 
     inner class Critiquer(
-        private val generator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, RESULT>) -> RESULT,
+        private val generator: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
     ) {
 
         /**
          * Provide the evaluation function that will assess the generated results.
          */
         fun withEvaluator(
-            evaluator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, FEEDBACK>) -> FEEDBACK,
+            evaluator: (RepeatUntilActionContext<INPUT, FEEDBACK>) -> FEEDBACK,
         ): Evaluator {
             return Evaluator(generator = generator, evaluator = evaluator)
         }
@@ -87,9 +99,9 @@ data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
     }
 
     inner class Evaluator(
-        private val generator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, RESULT>) -> RESULT,
-        private val evaluator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, FEEDBACK>) -> FEEDBACK,
-    ) : WorkflowBuilder<RESULT>(resultClass = resultClass, inputClass = null) {
+        private val generator: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
+        private val evaluator: (RepeatUntilActionContext<INPUT, FEEDBACK>) -> FEEDBACK,
+    ) : WorkflowBuilder<RESULT>(resultClass = resultClass, inputClass = inputClass) {
 
         /**
          * Define the acceptance criteria for the feedback.
@@ -112,10 +124,10 @@ data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
     }
 
     inner class Emitter(
-        private val generator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, RESULT>) -> RESULT,
-        private val evaluator: (TransformationActionContext<AttemptHistory<RESULT, FEEDBACK>, FEEDBACK>) -> FEEDBACK,
+        private val generator: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
+        private val evaluator: (RepeatUntilActionContext<INPUT, FEEDBACK>) -> FEEDBACK,
         private val accept: (f: FEEDBACK) -> Boolean,
-    ) : WorkflowBuilder<RESULT>(resultClass = resultClass, inputClass = null) {
+    ) : WorkflowBuilder<RESULT>(resultClass = resultClass, inputClass = inputClass) {
 
         /**
          * Build the workflow so it can be included in agents
@@ -128,6 +140,7 @@ data class RepeatUntilAcceptableBuilder<RESULT : Any, FEEDBACK : Feedback>(
                     acceptanceCriteria = accept,
                     resultClass = resultClass,
                     feedbackClass = feedbackClass,
+                    inputClass = inputClass,
                 )
         }
 

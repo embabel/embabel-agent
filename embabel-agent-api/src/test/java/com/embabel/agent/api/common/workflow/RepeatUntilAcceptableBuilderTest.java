@@ -27,6 +27,7 @@ import com.embabel.agent.core.ProcessOptions;
 import com.embabel.agent.core.Verbosity;
 import com.embabel.agent.domain.io.UserInput;
 import com.embabel.agent.testing.integration.IntegrationTestUtils;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -36,6 +37,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class RepeatUntilAcceptableBuilderTest {
 
+    record Person(String name, int age) {
+    }
+
     @Test
     void testNoExportedActionsFromWorkflow() {
         var agent = RepeatUntilAcceptableBuilder
@@ -43,11 +47,13 @@ class RepeatUntilAcceptableBuilderTest {
                 .withMaxIterations(3)
                 .repeating(
                         tac -> {
-                            return new Report("thing-" + tac.getInput().attempts().size());
+                            var history = tac.getAttemptHistory();
+                            return new Report("thing-" + (history != null ? history.attempts().size() : 0));
                         })
                 .withEvaluator(
                         ctx -> {
-                            assertNotNull(ctx.getInput().resultToEvaluate(),
+                            var history = ctx.getAttemptHistory();
+                            assertNotNull(history != null ? history.resultToEvaluate() : null,
                                     "Last result must be available to evaluator");
                             return new TextFeedback(0.5, "feedback");
                         })
@@ -121,11 +127,13 @@ class RepeatUntilAcceptableBuilderTest {
                 .withMaxIterations(3)
                 .repeating(
                         tac -> {
-                            return new Report("thing-" + tac.getInput().attempts().size());
+                            var history = tac.getAttemptHistory();
+                            return new Report("thing-" + (history != null ? history.attempts().size() : 0));
                         })
                 .withEvaluator(
                         ctx -> {
-                            assertNotNull(ctx.getInput().resultToEvaluate(),
+                            var history = ctx.getAttemptHistory();
+                            assertNotNull(history != null ? history.resultToEvaluate() : null,
                                     "Last result must be available to evaluator");
                             return new TextFeedback(0.5, "feedback");
                         })
@@ -143,6 +151,155 @@ class RepeatUntilAcceptableBuilderTest {
         assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
         assertTrue(result.lastResult() instanceof Report,
                 "Report was bound: " + result.getObjects());
+    }
+
+    @Nested
+    class Consumer {
+
+        com.embabel.agent.core.Agent takesPerson = RepeatUntilAcceptableBuilder
+                .returning(Report.class)
+                .consuming(Person.class)
+                .withMaxIterations(3)
+                .repeating(
+                        tac -> {
+                            var person = tac.getInput();
+                            assertNotNull(person, "Person must be provided as input");
+                            var history = tac.getAttemptHistory();
+                            var attemptCount = history != null ? history.attempts().size() : 0;
+                            return new Report(person.name + " " + person.age + " attempt " + attemptCount);
+                        })
+                .withEvaluator(
+                        ctx -> {
+                            var person = ctx.getInput();
+                            assertNotNull(person, "Person must be provided as input");
+                            var history = ctx.getAttemptHistory();
+                            assertNotNull(history != null ? history.resultToEvaluate() : null,
+                                    "Last result must be available to evaluator");
+                            return new TextFeedback(0.5, "feedback for " + person.name);
+                        })
+                .withAcceptanceCriteria(f -> true)
+                .buildAgent("takesPerson", "Takes a person as input");
+
+        @Test
+        void testWithConsumingBuildAgent() {
+            var agent = RepeatUntilAcceptableBuilder
+                    .returning(Report.class)
+                    .consuming(Person.class)
+                    .withMaxIterations(3)
+                    .repeating(
+                            tac -> {
+                                var person = tac.getInput();
+                                assertNotNull(person, "Person must be provided as input");
+                                return new Report(person.name + " " + person.age);
+                            })
+                    .withEvaluator(
+                            ctx -> {
+                                var history = ctx.getAttemptHistory();
+                                assertNotNull(history != null ? history.resultToEvaluate() : null,
+                                        "Last result must be available to evaluator");
+                                return new TextFeedback(0.5, "feedback");
+                            })
+                    .withAcceptanceCriteria(f -> true)
+                    .buildAgent("myAgent", "This is a very good agent");
+
+            assertFalse(agent.getActions().isEmpty(), "Should have actions");
+            var ap = dummyAgentPlatform();
+            ap.deploy(agent);
+            assertTrue(agent.getOpaque(), "Agent should be opaque");
+
+            assertTrue(agent.getActions().size() > 1,
+                    "Should have actions on the agent");
+            assertEquals(0, ap.getActions().size());
+        }
+
+        @Test
+        void testWithConsumingRunAgent() {
+            var agent = RepeatUntilAcceptableBuilder
+                    .returning(Report.class)
+                    .consuming(Person.class)
+                    .withMaxIterations(3)
+                    .repeating(
+                            tac -> {
+                                var person = tac.getInput();
+                                assertNotNull(person, "Person must be provided as input");
+                                var history = tac.getAttemptHistory();
+                                var attemptCount = history != null ? history.attempts().size() : 0;
+                                return new Report(person.name + " " + person.age + " attempt " + attemptCount);
+                            })
+                    .withEvaluator(
+                            ctx -> {
+                                var history = ctx.getAttemptHistory();
+                                assertNotNull(history != null ? history.resultToEvaluate() : null,
+                                        "Last result must be available to evaluator");
+                                return new TextFeedback(0.5, "feedback");
+                            })
+                    .withAcceptanceCriteria(f -> true)
+                    .buildAgent("myAgent", "This is a very good agent");
+
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.DEFAULT,
+                    Map.of("it", new Person("Alice", 30))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Report);
+            var report = (Report) result.lastResult();
+            assertTrue(report.getContent().contains("Alice"),
+                    "Report should contain person name: " + report.getContent());
+            assertTrue(report.getContent().contains("30"),
+                    "Report should contain person age: " + report.getContent());
+        }
+
+        @Test
+        void testAsSubProcess() {
+            AgentMetadataReader reader = new AgentMetadataReader();
+            var agent = (com.embabel.agent.core.Agent) reader.createAgentMetadata(new ConsumingSubProcessAgent());
+            var ap = IntegrationTestUtils.dummyAgentPlatform();
+            var result = ap.runAgentFrom(
+                    agent,
+                    ProcessOptions.DEFAULT,
+                    Map.of("it", new UserInput("input"), "person", new Person("Bob", 25))
+            );
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.getStatus());
+            assertTrue(result.lastResult() instanceof Report);
+            var report = (Report) result.lastResult();
+            assertTrue(report.getContent().contains("Bob"),
+                    "Report should contain person name: " + report.getContent());
+        }
+    }
+
+    @Agent(description = "consumer test")
+    public static class ConsumingSubProcessAgent {
+
+        @AchievesGoal(description = "Creating a report")
+        @Action
+        public Report report(UserInput userInput, Person person, ActionContext context) {
+            var eo = RepeatUntilAcceptableBuilder
+                    .returning(Report.class)
+                    .consuming(Person.class)
+                    .withMaxIterations(3)
+                    .repeating(
+                            tac -> {
+                                var p = tac.getInput();
+                                assertNotNull(p, "Person must be provided as input");
+                                var history = tac.getAttemptHistory();
+                                var attemptCount = history != null ? history.attempts().size() : 0;
+                                return new Report(p.name + " " + p.age + " attempt " + attemptCount);
+                            })
+                    .withEvaluator(
+                            ctx -> {
+                                var history = ctx.getAttemptHistory();
+                                assertNotNull(history != null ? history.resultToEvaluate() : null,
+                                        "Last result must be available to evaluator");
+                                return new TextFeedback(0.5, "feedback");
+                            })
+                    .withAcceptanceCriteria(f -> true)
+                    .build();
+            return context.asSubProcess(
+                    Report.class,
+                    eo);
+        }
     }
 
 

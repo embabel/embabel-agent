@@ -233,4 +233,13 @@ data class RepeatUntilActionContext<INPUT, RESULT : Any>(
         get() = action.toolGroups
 
     override val operation = action
+
+    /**
+     * Get the AttemptHistory from the process context if available.
+     * This is used by RepeatUntilAcceptable to access attempt history with feedback.
+     */
+    fun <R : Any, F : Feedback> getAttemptHistory(): AttemptHistory<INPUT, R, F>? {
+        @Suppress("UNCHECKED_CAST")
+        return processContext.agentProcess.last<AttemptHistory<INPUT, R, F>>()
+    }
 }
