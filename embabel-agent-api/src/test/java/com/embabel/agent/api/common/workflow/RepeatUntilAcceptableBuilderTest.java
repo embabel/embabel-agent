@@ -48,12 +48,15 @@ class RepeatUntilAcceptableBuilderTest {
                 .repeating(
                         tac -> {
                             var history = tac.getAttemptHistory();
-                            return new Report("thing-" + (history != null ? history.attempts().size() : 0));
+                            return new Report("thing-" + history.attempts().size());
                         })
                 .withEvaluator(
                         ctx -> {
                             var history = ctx.getAttemptHistory();
-                            assertNotNull(history != null ? history.resultToEvaluate() : null,
+                            assertNotNull(history.lastAttempt().getResult(),
+                                    "Last result must be available to evaluator");
+
+                            assertNotNull(history.resultToEvaluate(),
                                     "Last result must be available to evaluator");
                             return new TextFeedback(0.5, "feedback");
                         })
@@ -128,12 +131,12 @@ class RepeatUntilAcceptableBuilderTest {
                 .repeating(
                         tac -> {
                             var history = tac.getAttemptHistory();
-                            return new Report("thing-" + (history != null ? history.attempts().size() : 0));
+                            return new Report("thing-" + history.attempts().size());
                         })
                 .withEvaluator(
                         ctx -> {
                             var history = ctx.getAttemptHistory();
-                            assertNotNull(history != null ? history.resultToEvaluate() : null,
+                            assertNotNull(history.resultToEvaluate(),
                                     "Last result must be available to evaluator");
                             return new TextFeedback(0.5, "feedback");
                         })
@@ -173,7 +176,7 @@ class RepeatUntilAcceptableBuilderTest {
                             var person = ctx.getInput();
                             assertNotNull(person, "Person must be provided as input");
                             var history = ctx.getAttemptHistory();
-                            assertNotNull(history != null ? history.resultToEvaluate() : null,
+                            assertNotNull(history.resultToEvaluate(),
                                     "Last result must be available to evaluator");
                             return new TextFeedback(0.5, "feedback for " + person.name);
                         })
@@ -195,7 +198,7 @@ class RepeatUntilAcceptableBuilderTest {
                     .withEvaluator(
                             ctx -> {
                                 var history = ctx.getAttemptHistory();
-                                assertNotNull(history != null ? history.resultToEvaluate() : null,
+                                assertNotNull(history.resultToEvaluate(),
                                         "Last result must be available to evaluator");
                                 return new TextFeedback(0.5, "feedback");
                             })
@@ -222,9 +225,8 @@ class RepeatUntilAcceptableBuilderTest {
                             tac -> {
                                 assertNotNull(tac.getInput(), "Person must be provided as input");
                                 var person = tac.getInput();
-                                if (tac.getHistory().attemptCount() > 0) {
+                                if (tac.getAttemptHistory().attemptCount() > 0) {
                                     assertNotNull(tac.lastAttempt(), "Last attempt must not be null");
-                                    assertEquals(tac.getHistory().attemptCount(), tac.getAttemptHistory().attempts().size());
                                     tac.getAttemptHistory().attempts().forEach(
                                             attempt -> {
                                                 assertNotNull(attempt, "Attempt should not be null");
@@ -241,7 +243,7 @@ class RepeatUntilAcceptableBuilderTest {
                     .withEvaluator(
                             ctx -> {
                                 var history = ctx.getAttemptHistory();
-                                assertNotNull(history != null ? history.resultToEvaluate() : null,
+                                assertNotNull(history.resultToEvaluate(),
                                         "Last result must be available to evaluator");
                                 return new TextFeedback(0.5 + history.attempts().size() / 10.0, "feedback");
                             })
@@ -302,7 +304,7 @@ class RepeatUntilAcceptableBuilderTest {
                     .withEvaluator(
                             ctx -> {
                                 var history = ctx.getAttemptHistory();
-                                assertNotNull(history != null ? history.resultToEvaluate() : null,
+                                assertNotNull(history.resultToEvaluate(),
                                         "Last result must be available to evaluator");
                                 return new TextFeedback(0.5, "feedback");
                             })

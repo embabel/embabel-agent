@@ -131,13 +131,13 @@ class RepeatUntilBuilderTest {
                     .withMaxIterations(3)
                     .repeating(
                             tac -> {
-                                var history = tac.getHistory();
+                                var history = tac.getAttemptHistory();
                                 return new Report("thing-" + (history != null ? history.attempts().size() : 0));
                             })
                     .withEvaluator(
                             ctx -> {
-                                var history = ctx.getHistory();
-                                assertNotNull(history != null ? history.lastAttempt() : null,
+                                var history = ctx.getAttemptHistory();
+                                assertNotNull(history != null ? history.resultToEvaluate() : null,
                                         "Last result must be available to evaluator");
                                 return new TextFeedback(0.5, "feedback");
                             })

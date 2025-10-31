@@ -78,20 +78,20 @@ data class RepeatUntilAcceptableBuilder<INPUT, RESULT : Any, FEEDBACK : Feedback
      * Define the task to be repeated until an acceptable result is achieved.
      */
     fun repeating(
-        what: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
+        what: (RepeatUntilAcceptableActionContext<INPUT, RESULT, FEEDBACK>) -> RESULT,
     ): Critiquer {
         return Critiquer(generator = what)
     }
 
     inner class Critiquer(
-        private val generator: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
+        private val generator: (RepeatUntilAcceptableActionContext<INPUT, RESULT, FEEDBACK>) -> RESULT,
     ) {
 
         /**
          * Provide the evaluation function that will assess the generated results.
          */
         fun withEvaluator(
-            evaluator: (RepeatUntilActionContext<INPUT, FEEDBACK>) -> FEEDBACK,
+            evaluator: (EvaluationActionContext<INPUT, RESULT, FEEDBACK>) -> FEEDBACK,
         ): Evaluator {
             return Evaluator(generator = generator, evaluator = evaluator)
         }
@@ -99,8 +99,8 @@ data class RepeatUntilAcceptableBuilder<INPUT, RESULT : Any, FEEDBACK : Feedback
     }
 
     inner class Evaluator(
-        private val generator: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
-        private val evaluator: (RepeatUntilActionContext<INPUT, FEEDBACK>) -> FEEDBACK,
+        private val generator: (RepeatUntilAcceptableActionContext<INPUT, RESULT, FEEDBACK>) -> RESULT,
+        private val evaluator: (EvaluationActionContext<INPUT, RESULT, FEEDBACK>) -> FEEDBACK,
     ) : WorkflowBuilder<RESULT>(resultClass = resultClass, inputClass = inputClass) {
 
         /**
@@ -124,8 +124,8 @@ data class RepeatUntilAcceptableBuilder<INPUT, RESULT : Any, FEEDBACK : Feedback
     }
 
     inner class Emitter(
-        private val generator: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
-        private val evaluator: (RepeatUntilActionContext<INPUT, FEEDBACK>) -> FEEDBACK,
+        private val generator: (RepeatUntilAcceptableActionContext<INPUT, RESULT, FEEDBACK>) -> RESULT,
+        private val evaluator: (EvaluationActionContext<INPUT, RESULT, FEEDBACK>) -> FEEDBACK,
         private val accept: (f: FEEDBACK) -> Boolean,
     ) : WorkflowBuilder<RESULT>(resultClass = resultClass, inputClass = inputClass) {
 
