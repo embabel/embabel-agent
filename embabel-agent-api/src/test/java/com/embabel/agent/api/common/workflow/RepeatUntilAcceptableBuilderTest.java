@@ -220,7 +220,19 @@ class RepeatUntilAcceptableBuilderTest {
                     .withMaxIterations(3)
                     .repeating(
                             tac -> {
+                                assertNotNull(tac.getInput(), "Person must be provided as input");
                                 var person = tac.getInput();
+                                if (tac.getHistory().attemptCount() > 0) {
+                                    assertNotNull(tac.lastAttempt(), "Last attempt must not be null");
+                                    assertEquals(tac.getHistory().attemptCount(), tac.getAttemptHistory().attempts().size());
+                                    tac.getAttemptHistory().attempts().forEach(
+                                            attempt -> {
+                                                assertNotNull(attempt, "Attempt should not be null");
+                                                assertNotNull(attempt.getResult(), "Result should not be null");
+                                                assertNotNull(attempt.getFeedback(), "Feedback should not be null");
+                                            }
+                                    );
+                                }
                                 assertNotNull(person, "Person must be provided as input");
                                 var history = tac.getAttemptHistory();
                                 var attemptCount = history != null ? history.attempts().size() : 0;
@@ -231,9 +243,9 @@ class RepeatUntilAcceptableBuilderTest {
                                 var history = ctx.getAttemptHistory();
                                 assertNotNull(history != null ? history.resultToEvaluate() : null,
                                         "Last result must be available to evaluator");
-                                return new TextFeedback(0.5, "feedback");
+                                return new TextFeedback(0.5 + history.attempts().size() / 10.0, "feedback");
                             })
-                    .withAcceptanceCriteria(f -> true)
+                    .withAcceptanceCriteria(f -> f.getScore() > .5)
                     .buildAgent("myAgent", "This is a very good agent");
 
             var ap = IntegrationTestUtils.dummyAgentPlatform();

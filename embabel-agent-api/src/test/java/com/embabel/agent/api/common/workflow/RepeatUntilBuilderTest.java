@@ -131,13 +131,13 @@ class RepeatUntilBuilderTest {
                     .withMaxIterations(3)
                     .repeating(
                             tac -> {
-                                var history = tac.getAttemptHistory();
+                                var history = tac.getHistory();
                                 return new Report("thing-" + (history != null ? history.attempts().size() : 0));
                             })
                     .withEvaluator(
                             ctx -> {
-                                var history = ctx.getAttemptHistory();
-                                assertNotNull(history != null ? history.resultToEvaluate() : null,
+                                var history = ctx.getHistory();
+                                assertNotNull(history != null ? history.lastAttempt() : null,
                                         "Last result must be available to evaluator");
                                 return new TextFeedback(0.5, "feedback");
                             })
@@ -220,10 +220,13 @@ class RepeatUntilBuilderTest {
                             var person = tac.getInput();
                             assertNotNull(person, "Person must be provided as input");
                             var history = tac.getHistory();
+                            if (tac.getHistory().attemptCount() > 0) {
+                                assertNotNull(tac.lastAttempt(), "Last attempt must be available");
+                            }
                             assertNotNull(history, "History must be provided as input");
                             return new Report(person.name + " " + person.age);
                         })
-                .until(f -> true)
+                .until(f -> f.getHistory().attemptCount() > 2)
                 .buildAgent("foo", "bar");
 
         @Test

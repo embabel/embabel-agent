@@ -42,9 +42,9 @@ data class ResultHistory<RESULT : Any>(
     override val runningTime: Duration
         get() = Duration.between(timestamp, Instant.now())
 
-    fun results(): List<RESULT> = _results.toList()
+    fun attempts(): List<RESULT> = _results.toList()
 
-    fun lastResult(): RESULT? = _results.lastOrNull()
+    fun lastAttempt(): RESULT? = _results.lastOrNull()
 
     internal fun recordResult(result: RESULT) {
         _results += result
@@ -106,7 +106,7 @@ data class RepeatUntil(
             val resultHistory = findOrBindResultHistory(context)
 
             @Suppress("UNCHECKED_CAST")
-            val tac = RepeatUntilActionContext<INPUT, RESULT>(
+            val tac = RepeatUntilActionContext(
                 input = context.input as? INPUT,
                 processContext = context.processContext,
                 action = context.action,
@@ -119,7 +119,7 @@ data class RepeatUntil(
             resultHistory.recordResult(result)
             logger.info(
                 "Generated result {}: {}",
-                resultHistory.results().size,
+                resultHistory.attempts().size,
                 result,
             )
             result
@@ -137,13 +137,13 @@ data class RepeatUntil(
             name = ACCEPTABLE_CONDITION,
             evaluator = { context, _ ->
                 val resultHistory = context.last<ResultHistory<RESULT>>()
-                if (resultHistory?.lastResult() == null) {
+                if (resultHistory?.lastAttempt() == null) {
                     false
-                } else if (resultHistory.results().size >= maxIterations) {
+                } else if (resultHistory.attempts().size >= maxIterations) {
                     logger.info(
                         "Condition '{}': Giving up after {} iterations",
                         ACCEPTABLE_CONDITION,
-                        resultHistory.results().size,
+                        resultHistory.attempts().size,
                     )
                     true
                 } else {
@@ -165,7 +165,7 @@ data class RepeatUntil(
                     logger.info(
                         "Condition '{}', iterations={}, acceptable={}",
                         ACCEPTABLE_CONDITION,
-                        resultHistory.results().size,
+                        resultHistory.attempts().size,
                         isAcceptable,
                     )
                     isAcceptable
@@ -183,7 +183,7 @@ data class RepeatUntil(
             inputClass = ResultHistory::class.java,
             outputClass = resultClass,
         ) { context ->
-            val finalResult: RESULT = (context.input.lastResult() as? RESULT)
+            val finalResult: RESULT = (context.input.lastAttempt() as? RESULT)
                 ?: throw IllegalStateException("No result available in ResultHistory")
             logger.info("Consolidating results, final (best) result: {}", finalResult)
             finalResult
@@ -233,6 +233,8 @@ data class RepeatUntilActionContext<INPUT, RESULT : Any>(
         get() = action.toolGroups
 
     override val operation = action
+
+    fun lastAttempt(): RESULT? = history.lastAttempt()
 
     /**
      * Get the AttemptHistory from the process context if available.
