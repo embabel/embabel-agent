@@ -21,6 +21,7 @@ import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.bedrock.cohere.BedrockCohereEmbeddingModel
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel
+import org.springframework.ai.bedrock.converse.BedrockChatOptions
 import org.springframework.ai.bedrock.converse.BedrockProxyChatModel
 import org.springframework.ai.bedrock.titan.BedrockTitanEmbeddingModel
 import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi
@@ -210,11 +211,11 @@ class BedrockModels(
         .credentialsProvider(credentialsProvider)
         .region(regionProvider.region)
         .timeout(connectionProperties.timeout)
-        .defaultOptions(ToolCallingChatOptions.builder().model(model).build())
+        .defaultOptions(BedrockChatOptions.builder().model(model).build())
         .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
         .toolCallingManager(
             ToolCallingManager.builder()
-            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }).build()
+                .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP }).build()
         )
         .bedrockRuntimeClient(bedrockRuntimeClient.getIfAvailable())
         .bedrockRuntimeAsyncClient(bedrockRuntimeAsyncClient.getIfAvailable())
@@ -307,7 +308,7 @@ class EmbabelBedrockProxyChatModelBuilder internal constructor() {
     private var toolCallingManager: ToolCallingManager? = null
     private var toolExecutionEligibilityPredicate: ToolExecutionEligibilityPredicate =
         DefaultToolExecutionEligibilityPredicate()
-    private var defaultOptions = ToolCallingChatOptions.builder().build()
+    private var defaultOptions = BedrockChatOptions.builder().build()
     private var observationRegistry = ObservationRegistry.NOOP
     private var customObservationConvention: ChatModelObservationConvention? = null
     private var bedrockRuntimeClient: BedrockRuntimeClient? = null
@@ -340,7 +341,7 @@ class EmbabelBedrockProxyChatModelBuilder internal constructor() {
         return this
     }
 
-    fun defaultOptions(defaultOptions: ToolCallingChatOptions): EmbabelBedrockProxyChatModelBuilder {
+    fun defaultOptions(defaultOptions: BedrockChatOptions): EmbabelBedrockProxyChatModelBuilder {
         this.defaultOptions = defaultOptions
         return this
     }

@@ -17,13 +17,13 @@ package com.embabel.agent.config.models.bedrock
 
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.mockk
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.springframework.ai.bedrock.converse.BedrockProxyChatModel
+import org.springframework.ai.bedrock.converse.BedrockChatOptions
 import org.springframework.ai.chat.observation.DefaultChatModelObservationConvention
 import org.springframework.ai.model.tool.DefaultToolExecutionEligibilityPredicate
-import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
@@ -55,7 +55,7 @@ class EmbabelBedrockProxyChatModelBuilderTest {
         val region = EU_WEST_3
         val credentialsProvider = DefaultCredentialsProvider.create()
         val timeout = Duration.ofSeconds(1)
-        val defaultOptions = ToolCallingChatOptions.builder().model("model").build()
+        val defaultOptions = BedrockChatOptions.builder().model("model").build()
         val toolCallingManager: ToolCallingManager = mockk()
         val observationRegistry = ObservationRegistry.NOOP
         val observationConvention = DefaultChatModelObservationConvention()
