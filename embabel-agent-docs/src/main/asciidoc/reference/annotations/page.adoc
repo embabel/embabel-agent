@@ -62,7 +62,7 @@ A nullable domain object parameter will be populated if it is non-null on the bl
 This enables nice-to-have parameters that are not required for the action to run.
 In Kotlin, use a nullable parameter with `?`: in Java, mark the parameter with the `org.springframework.lang.Nullable` or another `Nullable` annotation.
 
-* _Infrastructure objects_. `OperationContext` parameters may be passed to action or condition methods.
+* _Infrastructure parameters_, such as the `OperationContext`, `ProcessContext`, and `Ai` may be used in action or condition methods.
 
 NOTE: Domain objects drive planning, specifying the preconditions to an action.
 
@@ -72,6 +72,23 @@ This is an important element of composition.
 
 > Use the least specific type possible for parameters.
 Use `OperationContext` unless you are creating a subprocess.
+
+===== Custom Parameters
+
+Besides two default parameter categories described above, you can provide your own parameters by implementing the `ActionMethodArgumentResolver` interface.
+The two main methods of this interface are:
+
+* `supportsParameter`, which indicates what kind of parameters are supported, and
+* `resolveArgument`, which resolves the argument into an object used to invoke the action method.
+
+NOTE: Note the similarity with Spring MVC, where you can provide custom parameters by implementing a `HandlerMethodArgumentResolver`.
+
+> All default parameters are provided by `ActionMethodArgumentResolver` implementations.
+
+To register your custom argument resolver, provide it to the `DefaultActionMethodManager` component in your Spring configuration.
+Typically, you will register (some of) the defaults as well your custom resolver, in order to support the default parameters.
+
+TIP: Make sure to register the `BlackboardArgumentResolver` as last resolver, to ensure that others take precedence.
 
 ==== Binding by name
 
