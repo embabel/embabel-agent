@@ -46,6 +46,7 @@ import org.springframework.web.reactive.function.client.WebClient
 class OllamaModelsConfig(
     @param:Value("\${spring.ai.ollama.base-url}")
     private val baseUrl: String,
+    private val nodeProperties: OllamaNodeProperties?,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val properties: ConfigurableModelProviderProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
@@ -68,7 +69,7 @@ class OllamaModelsConfig(
         val size: Long,
     )
 
-    private fun loadModels(): List<Model> =
+    private fun loadModelsFromUrl(baseUrl: String): List<Model> =
         try {
             val restClient = RestClient.create()
             val response = restClient.get()
@@ -92,48 +93,37 @@ class OllamaModelsConfig(
             emptyList()
         }
 
+    private fun loadModels(): List<Model> {
+        return loadModelsFromUrl(this.baseUrl)
+    }
+
 
     @PostConstruct
     fun registerModels() {
-        logger.info("Ollama models will be discovered at {}", baseUrl)
+        val nodes = nodeProperties?.nodes?.takeIf { it.isNotEmpty() }
+        val hasDefaultUrl = baseUrl.isNotBlank()
 
-        val models = loadModels()
-        if (models.isEmpty()) {
-            logger.warn("No Ollama models discovered. Check Ollama server configuration.")
-        } else {
-            logger.info("Discovered Ollama models: {}", models.map { it.name })
-        }
-
-        models.forEach { model ->
-            try {
-                val beanName = "ollamaModel-${model.name}"
-                if (properties.allWellKnownEmbeddingServiceNames().contains(model.model)) {
-                    val embeddingService = ollamaEmbeddingServiceOf(model.model)
-                    val embeddingBeanName = "ollamaEmbeddingModel-${model.name}"
-                    configurableBeanFactory.registerSingleton(embeddingBeanName, embeddingService)
-                    logger.debug(
-                        "Successfully registered Ollama embedding service {} as bean {}",
-                        model.name,
-                        embeddingBeanName,
-                    )
-                } else {
-                    val llm = ollamaLlmOf(model.model)
-
-                    // Use registerSingleton with a more descriptive bean name
-                    configurableBeanFactory.registerSingleton(beanName, llm)
-                    logger.debug(
-                        "Successfully registered Ollama LLM {} as bean {}",
-                        model.name,
-                        beanName,
-                    )
-                }
-            } catch (e: Exception) {
-                logger.error("Failed to register Ollama model {}: {}", model.name, e.message)
+        when {
+            hasDefaultUrl && nodes == null -> {
+                logger.info("Using default Ollama instance at {}", baseUrl)
+                registerDefaultMode()
+            }
+            !hasDefaultUrl && nodes != null -> {
+                logger.info("Using {} Ollama nodes", nodes.size)
+                registerMultiNodeOnlyMode()
+            }
+            hasDefaultUrl && nodes != null -> {
+                logger.info("Using default instance + {} nodes", nodes.size)
+                registerHybridMode()
+            }
+            else -> {
+                logger.warn("No Ollama configuration found. Skipping model registration.")
             }
         }
     }
 
-    private fun ollamaLlmOf(name: String): Llm {
+    private fun ollamaLlmOf(modelName: String, baseUrl: String, nodeName: String? = null): Llm {
+        val uniqueModelName = createUniqueModelName(modelName, nodeName)
         val springChatModel = OllamaChatModel.builder()
             .ollamaApi(
                 OllamaApi.builder()
@@ -150,7 +140,7 @@ class OllamaModelsConfig(
             )
             .defaultOptions(
                 OllamaOptions.builder()
-                    .model(name)
+                    .model(modelName)
                     .build()
             )
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
@@ -162,7 +152,7 @@ class OllamaModelsConfig(
             .build()
 
         return Llm(
-            name = name,
+            name = uniqueModelName,
             model = springChatModel,
             provider = OllamaModels.PROVIDER,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
@@ -170,8 +160,13 @@ class OllamaModelsConfig(
         )
     }
 
+    private fun ollamaLlmOf(name: String): Llm {
+        return ollamaLlmOf(name, this.baseUrl)
+    }
 
-    private fun ollamaEmbeddingServiceOf(name: String): EmbeddingService {
+
+    private fun ollamaEmbeddingServiceOf(modelName: String, baseUrl: String, nodeName: String? = null): EmbeddingService {
+        val uniqueModelName = createUniqueModelName(modelName, nodeName)
         val springEmbeddingModel = OllamaEmbeddingModel.builder()
             .ollamaApi(
                 OllamaApi.builder()
@@ -188,16 +183,103 @@ class OllamaModelsConfig(
             )
             .defaultOptions(
                 OllamaOptions.builder()
-                    .model(name)
+                    .model(modelName)
                     .build()
             )
             .build()
 
         return EmbeddingService(
-            name = name,
+            name = uniqueModelName,
             model = springEmbeddingModel,
             provider = OllamaModels.PROVIDER,
         )
+    }
+
+    private fun ollamaEmbeddingServiceOf(name: String): EmbeddingService {
+        return ollamaEmbeddingServiceOf(name, this.baseUrl)
+    }
+
+    private fun normalizeModelNameForBean(model: Model): String {
+        return model.model.replace(":", "-").lowercase()
+    }
+
+    private fun createUniqueModelName(modelName: String, nodeName: String?): String {
+        return nodeName?.let { "$it-$modelName" } ?: modelName
+    }
+
+    private fun registerModelsFromUrl(
+        baseUrl: String,
+        nodeName: String? = null,
+        beanNameProvider: (Model) -> List<String>
+    ) {
+        val models = loadModelsFromUrl(baseUrl)
+        val contextName = if (nodeName == null) "default instance" else "node '$nodeName'"
+
+        if (models.isEmpty()) {
+            logger.warn("No Ollama models discovered from {} at {}. Check server configuration.", contextName, baseUrl)
+        } else {
+            logger.info("Discovered {} Ollama models from {}: {}", models.size, contextName, models.map { it.name })
+        }
+
+        models.forEach { model ->
+            try {
+                if (properties.allWellKnownEmbeddingServiceNames().contains(model.model)) {
+                    val embeddingService = ollamaEmbeddingServiceOf(model.model, baseUrl, nodeName)
+
+                    // Use node-aware naming for embeddings too
+                    beanNameProvider(model).forEach { beanName ->
+                        val embeddingBeanName = beanName.replace("ollamaModel-", "ollamaEmbeddingModel-")
+                        configurableBeanFactory.registerSingleton(embeddingBeanName, embeddingService)
+                        logger.debug(
+                            "Successfully registered Ollama embedding service {} as bean {}",
+                            model.name,
+                            embeddingBeanName,
+                        )
+                    }
+                } else {
+                    val llm = ollamaLlmOf(model.model, baseUrl, nodeName)
+
+                    // Register with all provided bean names
+                    beanNameProvider(model).forEach { beanName ->
+                        configurableBeanFactory.registerSingleton(beanName, llm)
+                        logger.debug(
+                            "Successfully registered Ollama LLM {} as bean {}",
+                            model.name,
+                            beanName,
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                logger.error("Failed to register Ollama model {}: {}", model.name, e.message)
+            }
+        }
+    }
+
+    private fun registerDefaultMode() {
+        registerModelsFromUrl(baseUrl, nodeName = null) { model ->
+            val normalizedName = normalizeModelNameForBean(model)
+            listOf(
+                "ollamaModel-${normalizedName}"           // backward compatibility only
+            )
+        }
+    }
+
+    private fun registerMultiNodeOnlyMode() {
+        nodeProperties?.nodes?.forEach { node ->
+            registerNodeModels(node.name, node.baseUrl)
+        }
+    }
+
+    private fun registerHybridMode() {
+        registerDefaultMode()
+        registerMultiNodeOnlyMode()
+    }
+
+    private fun registerNodeModels(nodeName: String, nodeBaseUrl: String) {
+        registerModelsFromUrl(nodeBaseUrl, nodeName = nodeName) { model ->
+            val normalizedName = normalizeModelNameForBean(model)
+            listOf("ollamaModel-${nodeName}-${normalizedName}")
+        }
     }
 }
 
