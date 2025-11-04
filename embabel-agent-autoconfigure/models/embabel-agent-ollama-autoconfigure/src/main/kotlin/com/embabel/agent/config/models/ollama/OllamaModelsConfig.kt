@@ -41,7 +41,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * This class will always be loaded, but models won't be loaded
  * from Ollama unless the "ollama" profile is set.
  */
-@ExcludeFromJacocoGeneratedReport(reason = "Ollama configuration can't be unit tested")
+//@ExcludeFromJacocoGeneratedReport(reason = "Ollama configuration can't be unit tested")
 @Configuration(proxyBeanMethods = false)
 class OllamaModelsConfig(
     @param:Value("\${spring.ai.ollama.base-url}")
