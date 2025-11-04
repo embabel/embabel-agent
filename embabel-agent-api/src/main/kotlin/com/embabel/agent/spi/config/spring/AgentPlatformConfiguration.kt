@@ -44,7 +44,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder
-import org.springframework.web.client.RestTemplate
 
 
 /**
@@ -101,9 +100,6 @@ class AgentPlatformConfiguration(
     @Bean
     @ConditionalOnMissingBean(ColorPalette::class)
     fun defaultColorPalette(): ColorPalette = DefaultColorPalette()
-
-    @Bean
-    fun restTemplate() = RestTemplate()
 
     @Bean
     @ConditionalOnMissingBean(name = ["embabelJacksonObjectMapper"])

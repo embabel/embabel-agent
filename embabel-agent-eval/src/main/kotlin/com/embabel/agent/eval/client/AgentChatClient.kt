@@ -15,11 +15,10 @@
  */
 package com.embabel.agent.eval.client
 
-import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpMethod
 import org.springframework.stereotype.Service
-import org.springframework.web.client.RestTemplate
+import org.springframework.web.client.RestClient
+import org.springframework.web.client.body
 
 data class KnowledgeContext(
     val name: String,
@@ -42,7 +41,7 @@ data class SessionCreationResponse(
  */
 @Service
 class AgentChatClient(
-    private val restTemplate: RestTemplate = RestTemplate(),
+    private val restClient: RestClient = RestClient.create(),
     private val agentHost: String = "http://localhost:8081",
     private val agentChatPath: String = "/api/v1/chat",
     private val boogieHost: String = "http://localhost:8080",
@@ -57,25 +56,25 @@ class AgentChatClient(
     }
 
     fun createKnowledgeContext(knowledgeContext: KnowledgeContext): String {
-        val entity = HttpEntity(knowledgeContext, defaultHeaders)
-        return restTemplate.exchange(
-            "${boogieHost}/${boogieContextPath}",
-            HttpMethod.PUT,
-            entity,
-            String::class.java,
-        ).body ?: throw IllegalStateException("No response body")
+        return restClient
+            .put()
+            .uri("${boogieHost}/${boogieContextPath}")
+            .headers { it.putAll(defaultHeaders) }
+            .body(knowledgeContext)
+            .retrieve()
+            .body<String>()
+            ?: throw IllegalStateException("No response body")
     }
 
     fun createSession(sessionCreationRequest: SessionCreationRequest): SessionCreationResponse {
-        val url = "${agentHost}/${agentChatPath}/sessions"
-        val entity = HttpEntity(sessionCreationRequest, defaultHeaders)
-        val re = restTemplate.exchange(
-            url,
-            HttpMethod.PUT,
-            entity,
-            SessionCreationResponse::class.java,
-        )
-        return re.body ?: throw IllegalStateException("No response body")
+        return restClient
+            .put()
+            .uri("${agentHost}/${agentChatPath}/sessions")
+            .headers { it.putAll(defaultHeaders) }
+            .body(sessionCreationRequest)
+            .retrieve()
+            .body<SessionCreationResponse>()
+            ?: throw IllegalStateException("No response body")
     }
 
 //    fun ingestDocument(knowledgeContext: KnowledgeContext): String {
@@ -89,21 +88,22 @@ class AgentChatClient(
 //    }
 
     fun getObjectContext(id: String): ObjectContext {
-        return restTemplate.getForObject(
-            "${agentHost}/${agentChatPath}/objectContexts/{id}",
-            ObjectContext::class.java,
-            id,
-        ) ?: throw IllegalStateException("No response body")
+        return restClient
+            .get()
+            .uri("${agentHost}/${agentChatPath}/objectContexts/{id}", id)
+            .retrieve()
+            .body<ObjectContext>()
+            ?: throw IllegalStateException("No response body")
     }
 
     fun respond(chatRequest: ChatRequest): MessageResponse {
-        val entity = HttpEntity(chatRequest)
-        return restTemplate.exchange(
-            "${agentHost}/${agentChatPath}/messages",
-            HttpMethod.PUT,
-            entity,
-            MessageResponse::class.java,
-        ).body ?: throw IllegalStateException("No response body")
+        return restClient
+            .put()
+            .uri("${agentHost}/${agentChatPath}/messages")
+            .body(chatRequest)
+            .retrieve()
+            .body<MessageResponse>()
+            ?: throw IllegalStateException("No response body")
     }
 
 }
