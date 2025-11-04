@@ -32,6 +32,7 @@ import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Autowired
@@ -42,6 +43,7 @@ import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder
 import org.springframework.web.client.RestTemplate
 
 
@@ -102,6 +104,12 @@ class AgentPlatformConfiguration(
 
     @Bean
     fun restTemplate() = RestTemplate()
+
+    @Bean
+    @ConditionalOnMissingBean(name = ["embabelJacksonObjectMapper"])
+    fun embabelJacksonObjectMapper(builder: Jackson2ObjectMapperBuilder): ObjectMapper {
+        return builder.createXmlMapper(false).build()
+    }
 
     @Bean
     fun ranker(

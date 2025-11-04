@@ -31,6 +31,7 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationContext
 import org.springframework.stereotype.Service
@@ -52,6 +53,7 @@ open class DefaultAgentPlatform(
     private val agentProcessRepository: AgentProcessRepository = InMemoryAgentProcessRepository(),
     private val operationScheduler: OperationScheduler = OperationScheduler.PRONTO,
     private val asyncer: Asyncer,
+    @param:Qualifier("embabelJacksonObjectMapper")
     private val objectMapper: ObjectMapper,
     private val outputChannel: OutputChannel,
     private val templateRenderer: TemplateRenderer,
