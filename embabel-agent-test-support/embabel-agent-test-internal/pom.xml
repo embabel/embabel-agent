@@ -16,19 +16,6 @@
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test</artifactId>
         </dependency>
-        
-        <!-- Test framework dependencies with compile scope needed for main code (test support utilities) -->
-        <!--<dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <scope>compile</scope>
-        </dependency>
-        
-        <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-test-junit5</artifactId>
-            <scope>compile</scope>
-        </dependency>-->
     </dependencies> 
 
 </project>
