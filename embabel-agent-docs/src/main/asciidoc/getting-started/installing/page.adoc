@@ -177,15 +177,29 @@ dependencies {
 
 Before running your application, you'll need to set up your environment with API keys for the LLM providers you plan to use.
 
-Required:
-- `OPENAI_API_KEY`: For OpenAI models (GPT-4, GPT-5, etc.)
-
-Optional but recommended:
-- `ANTHROPIC_API_KEY`: For Anthropic models (Claude 3.x, etc.)
-
 Example `.env` file:
 ----
 OPENAI_API_KEY=your_openai_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ----
 
+===== OpenAI Compatible (GPT-4, GPT-5, etc.)
+
+* Required:
+    - `OPENAI_API_KEY`: API key for OpenAI or compatible services (e.g., Azure OpenAI, etc.)
+* Optional:
+    - `OPENAI_BASE_URL`: base URL of the OpenAI deployment (for Azure AI use `https://{resource-name}.openai.azure.com/openai`)
+    - `OPENAI_COMPLETIONS_PATH`: custom path for completions endpoint (default: `/v1/completions`)
+    - `OPENAI_EMBEDDINGS_PATH`: custom path for embeddings endpoint (default: `/v1/embeddings`)
+
+===== Anthropic (Claude 3.x, etc.)
+
+* Required:
+    - `ANTHROPIC_API_KEY`: API key for Anthropic services
+
+===== DeepSeek
+
+* Required:
+    - `DEEPSEEK_API_KEY`: API key for DeepSeek services
+* Optional:
+    - `DEEPSEEK_BASE_URL`: base URL for DeepSeek API (default: `https://api.deepseek.com`)
