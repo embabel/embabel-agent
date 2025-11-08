@@ -9,6 +9,14 @@
     <artifactId>embabel-agent-starter</artifactId>
     <name>Embabel Agent Starter</name>
     <description>Embabel Agent Starter. Parent to all starters</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
     <!-- includes transitive dependency on agent API module -->
     <dependencies>

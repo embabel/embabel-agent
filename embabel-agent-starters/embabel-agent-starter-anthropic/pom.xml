@@ -10,6 +10,14 @@
     <packaging>jar</packaging>
     <name>Embabel Agent Anthropic Starter</name>
     <description>Embabel Agent Anthropic Starter</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
     <dependencies>
         <dependency>

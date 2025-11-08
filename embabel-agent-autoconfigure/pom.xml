@@ -10,6 +10,14 @@
     <packaging>pom</packaging>
     <name>Embabel Agent Autoconfigurations</name>
     <description>Spring Boot Auto-Configurations for Embabel Agent API</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
     
     <modules>
         <module>embabel-agent-platform-autoconfigure</module>

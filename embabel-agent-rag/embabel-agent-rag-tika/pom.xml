@@ -10,12 +10,14 @@
     <packaging>jar</packaging>
     <name>Embabel Agent Rag Tika ingestion</name>
     <description>Embabel Agent Tika ingestion</description>
+    <url>https://github.com/embabel/embabel-agent</url>
 
-    <!-- Use version from build-dependencies
-    <properties>
-        <tika.version>2.9.2</tika.version>
-    </properties>
-    -->
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
     <dependencies>
         <!-- Embabel Agent API for RAG classes -->

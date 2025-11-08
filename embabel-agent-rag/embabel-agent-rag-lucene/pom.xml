@@ -10,6 +10,14 @@
     <packaging>jar</packaging>
     <name>Embabel Agent Rag for Lucene</name>
     <description>Embabel Agent Rag for Lucene</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <lucene.version>9.11.1</lucene.version>

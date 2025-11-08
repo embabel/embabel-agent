@@ -10,6 +10,14 @@
     <packaging>pom</packaging>
     <name>Embabel Agent Rag</name>
     <description>Embabel Agent Rag</description>
+    <url>https://github.com/embabel/embabel-agent</url>
+
+    <scm>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
     <modules>
         <module>embabel-agent-rag-neo</module>

@@ -12,6 +12,7 @@
     <packaging>pom</packaging>
     <name>Embabel Agent Parent</name>
     <description>Parent POM for Embabel Agent Modules</description>
+    <url>https://github.com/embabel/embabel-agent</url>
 
     <properties>
         <embabel-common.version>0.1.5-SNAPSHOT</embabel-common.version>
