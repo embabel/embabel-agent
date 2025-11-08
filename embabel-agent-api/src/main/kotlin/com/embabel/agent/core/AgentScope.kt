@@ -125,6 +125,5 @@ private data class AgentScopeImpl(
     override val actions: List<Action>,
     override val goals: Set<Goal>,
     override val conditions: Set<Condition>,
-    override val domainTypes: Collection<DynamicType> = emptyList(),
     override val opaque: Boolean = false,
 ) : AgentScope
