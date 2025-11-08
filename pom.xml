@@ -33,6 +33,7 @@
         <module>embabel-agent-test-support</module>
         <module>embabel-agent-ux</module>
         <module>embabel-agent-discord</module>
+        <module>embabel-agent-remote</module>
     </modules>
 
     <scm>
