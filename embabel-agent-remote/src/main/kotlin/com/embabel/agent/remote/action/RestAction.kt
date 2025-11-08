@@ -10,6 +10,7 @@ import org.springframework.web.client.body
  * Remote a remote REST endpoint described in the specs
  */
 internal class RestAction(
+    val serverRegistration: RestServerRegistration,
     val spec: RestActionMetadata,
     qos: ActionQos = ActionQos(),
     override val domainTypes: Collection<DomainType>,
@@ -22,8 +23,8 @@ internal class RestAction(
     post = spec.post,
     cost = spec.cost,
     value = spec.value,
-    inputs = spec.inputs,
-    outputs = spec.outputs,
+    inputs = spec.inputs.map { it.toIoBinding() }.toSet(),
+    outputs = spec.outputs.map { it.toIoBinding() }.toSet(),
     toolGroups = emptySet(),
     canRerun = spec.canRerun,
     qos = qos,
@@ -49,7 +50,7 @@ internal class RestAction(
     private fun invokeRemoteAction(inputValues: List<Any>): Map<*, *> {
         val json = restClient
             .post()
-            .uri(spec.url)
+            .uri("${serverRegistration.baseUrl}/${spec.url}")
             .body(inputValues)
             .retrieve()
             .body<String>()

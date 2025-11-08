@@ -76,6 +76,7 @@ class RestServer(
             domainTypes = domainTypes,
             restClient = restClient,
             objectMapper = objectMapper,
+            serverRegistration = registration,
         )
     }
 
