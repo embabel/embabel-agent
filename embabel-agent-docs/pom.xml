@@ -31,96 +31,54 @@
 
     <build>
         <defaultGoal>process-resources</defaultGoal>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.asciidoctor</groupId>
+                    <artifactId>asciidoctor-maven-plugin</artifactId>
+                    <version>${asciidoctor.maven.plugin.version}</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.jruby</groupId>
+                            <artifactId>jruby-complete</artifactId>
+                            <version>${jruby.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.asciidoctor</groupId>
+                            <artifactId>asciidoctorj-pdf</artifactId>
+                            <version>${asciidoctorj.pdf.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.asciidoctor</groupId>
+                            <artifactId>asciidoctorj</artifactId>
+                            <version>${asciidoctorj.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.asciidoctor</groupId>
+                            <artifactId>asciidoctorj-diagram</artifactId>
+                            <version>${asciidoctorj.diagram.version}</version>
+                        </dependency>
+                    </dependencies>
+                    <configuration>
+                        <sourceDirectory>src/main/asciidoc</sourceDirectory>
+                        <sourceDocumentName>index.adoc</sourceDocumentName>
+                        <doctype>book</doctype>
+                        <requires>
+                            <require>asciidoctor-diagram</require>
+                        </requires>
+                        <!-- Attributes common to all output formats-->
+                        <attributes>
+                            <sourcedir>${project.build.sourceDirectory}</sourcedir>
+                            <imagesdir>images</imagesdir>
+                            <stylesheet>embabel-agent-docs.css</stylesheet>
+                            <stylesDir>${project.basedir}/src/main/resources/themes</stylesDir>
+                            <embabel-agent-version>${agent-api.version}</embabel-agent-version>
+                        </attributes>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
-            <plugin>
-                <groupId>org.asciidoctor</groupId>
-                <artifactId>asciidoctor-maven-plugin</artifactId>
-                <version>${asciidoctor.maven.plugin.version}</version>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.jruby</groupId>
-                        <artifactId>jruby-complete</artifactId>
-                        <version>${jruby.version}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>org.asciidoctor</groupId>
-                        <artifactId>asciidoctorj-pdf</artifactId>
-                        <version>${asciidoctorj.pdf.version}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>org.asciidoctor</groupId>
-                        <artifactId>asciidoctorj</artifactId>
-                        <version>${asciidoctorj.version}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>org.asciidoctor</groupId>
-                        <artifactId>asciidoctorj-diagram</artifactId>
-                        <version>${asciidoctorj.diagram.version}</version>
-                    </dependency>
-                </dependencies>
-                <configuration>
-                    <sourceDirectory>src/main/asciidoc</sourceDirectory>
-                    <sourceDocumentName>index.adoc</sourceDocumentName>
-                    <doctype>book</doctype>
-                    <requires>
-                        <require>asciidoctor-diagram</require>
-                    </requires>
-                    <!-- Attributes common to all output formats-->
-                    <attributes>
-                        <sourcedir>${project.build.sourceDirectory}</sourcedir>
-                        <imagesdir>images</imagesdir>
-                        <stylesheet>embabel-agent-docs.css</stylesheet>
-                        <stylesDir>${project.basedir}/src/main/resources/themes</stylesDir>
-                        <embabel-agent-version>${agent-api.version}</embabel-agent-version>
-                    </attributes>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>generate-pdf</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>process-asciidoc</goal>
-                        </goals>
-                        <configuration>
-                            <backend>pdf</backend>
-                            <attributes>
-                                <doctype>book</doctype>
-                                <docinfo>shared</docinfo>
-                                <source-highlighter>rouge</source-highlighter>
-                                <icons>font</icons>
-                                <iconfont-remote>true</iconfont-remote>
-                                <pagenums />
-                                <toc />
-                                <idprefix />
-                                <idseparator>-</idseparator>
-                            </attributes>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>generate-html</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>process-asciidoc</goal>
-                        </goals>
-                        <configuration>
-                            <backend>html5</backend>
-                            <attributes>
-                                <notitle>true</notitle>
-                                <doctype>book</doctype>
-                                <docinfo>shared</docinfo>
-                                <source-highlighter>rouge</source-highlighter>
-                                <icons>font</icons>
-                                <pagenums />
-                                <toc>left</toc>
-                                <sectanchors>true</sectanchors>
-                                <toclevels>3</toclevels>
-                                <idprefix />
-                                <idseparator>-</idseparator>
-                            </attributes>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -146,67 +104,151 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>org.jetbrains.dokka</groupId>
-                <artifactId>dokka-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>aggregate-docs</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>dokka</goal>
-                        </goals>
-                        <configuration>
-                            <!-- Collect source from all sibling modules -->
-                            <sourceDirectories>
-                                <dir>${project.parent.basedir}/embabel-agent-api/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-api/src/main/java</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-a2a/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-code/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/main/java</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/java</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-eval/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-mcpserver/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-neo/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-lucene/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-shell/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-discord/src/main/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-ux/src/main/kotlin</dir>
-                            </sourceDirectories>
-                            <samples>
-                                <dir>${project.parent.basedir}/embabel-agent-api/src/test/kotlin</dir>
-                                <dir>${project.parent.basedir}/embabel-agent-test-support/embabel-agent-test/src/test/kotlin</dir>
-                            </samples>
-                            <!-- Platform settings -->
-                            <platform>jvm</platform>
-                            <includeNonPublic>false</includeNonPublic>
-                            <reportUndocumented>true</reportUndocumented>
-                            <skipEmptyPackages>true</skipEmptyPackages>
-                            <jdkVersion>${java.version}</jdkVersion>
-                            <languageVersion>${kotlin.compiler.apiVersion}</languageVersion>
-                            <apiVersion>${kotlin.compiler.apiVersion}</apiVersion>
-                            <noStdlibLink>false</noStdlibLink>
-                            <noJdkLink>false</noJdkLink>
-                            <suppressObviousFunctions>true</suppressObviousFunctions>
-                            <outputDir>${project.build.directory}/dokka-aggregate</outputDir>
-                            <moduleName>Embabel Agent Documentation</moduleName>
-                            <externalDocumentationLinks>
-                                <link>
-                                    <url>https://docs.spring.io/spring-framework/docs/current/javadoc-api/</url>
-                                </link>
-                                <link>
-                                    <url>https://docs.spring.io/spring-boot/docs/current/api/</url>
-                                </link>
-                                <link>
-                                    <url>https://docs.spring.io/spring-ai/docs/current/api/</url>
-                                </link>
-                            </externalDocumentationLinks>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>guide-html</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.asciidoctor</groupId>
+                        <artifactId>asciidoctor-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>generate-html</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>process-asciidoc</goal>
+                                </goals>
+                                <configuration>
+                                    <backend>html5</backend>
+                                    <attributes>
+                                        <notitle>true</notitle>
+                                        <doctype>book</doctype>
+                                        <docinfo>shared</docinfo>
+                                        <source-highlighter>rouge</source-highlighter>
+                                        <icons>font</icons>
+                                        <pagenums />
+                                        <toc>left</toc>
+                                        <sectanchors>true</sectanchors>
+                                        <toclevels>3</toclevels>
+                                        <idprefix />
+                                        <idseparator>-</idseparator>
+                                    </attributes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>            
+        </profile>
+        <profile>
+            <id>guide-pdf</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.asciidoctor</groupId>
+                        <artifactId>asciidoctor-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>generate-pdf</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>process-asciidoc</goal>
+                                </goals>
+                                <configuration>
+                                    <backend>pdf</backend>
+                                    <attributes>
+                                        <doctype>book</doctype>
+                                        <docinfo>shared</docinfo>
+                                        <source-highlighter>rouge</source-highlighter>
+                                        <icons>font</icons>
+                                        <iconfont-remote>true</iconfont-remote>
+                                        <pagenums />
+                                        <toc />
+                                        <idprefix />
+                                        <idseparator>-</idseparator>
+                                    </attributes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>            
+        </profile>
+        <profile>
+            <id>dokka</id>
+            <build>
+                <plugins>
+                        <plugin>
+                        <groupId>org.jetbrains.dokka</groupId>
+                        <artifactId>dokka-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>aggregate-docs</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>dokka</goal>
+                                </goals>
+                                <configuration>
+                                    <!-- Collect source from all sibling modules -->
+                                    <sourceDirectories>
+                                        <dir>${project.parent.basedir}/embabel-agent-api/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-api/src/main/java</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-a2a/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-code/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/main/java</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/java</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-eval/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-mcpserver/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-neo/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-lucene/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-shell/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-discord/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-ux/src/main/kotlin</dir>
+                                    </sourceDirectories>
+                                    <samples>
+                                        <dir>${project.parent.basedir}/embabel-agent-api/src/test/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-test-support/embabel-agent-test/src/test/kotlin</dir>
+                                    </samples>
+                                    <!-- Platform settings -->
+                                    <platform>jvm</platform>
+                                    <includeNonPublic>false</includeNonPublic>
+                                    <reportUndocumented>true</reportUndocumented>
+                                    <skipEmptyPackages>true</skipEmptyPackages>
+                                    <jdkVersion>${java.version}</jdkVersion>
+                                    <languageVersion>${kotlin.compiler.apiVersion}</languageVersion>
+                                    <apiVersion>${kotlin.compiler.apiVersion}</apiVersion>
+                                    <noStdlibLink>false</noStdlibLink>
+                                    <noJdkLink>false</noJdkLink>
+                                    <suppressObviousFunctions>true</suppressObviousFunctions>
+                                    <outputDir>${project.build.directory}/dokka-aggregate</outputDir>
+                                    <moduleName>Embabel Agent Documentation</moduleName>
+                                    <externalDocumentationLinks>
+                                        <link>
+                                            <url>https://docs.spring.io/spring-framework/docs/current/javadoc-api/</url>
+                                        </link>
+                                        <link>
+                                            <url>https://docs.spring.io/spring-boot/docs/current/api/</url>
+                                        </link>
+                                        <link>
+                                            <url>https://docs.spring.io/spring-ai/docs/current/api/</url>
+                                        </link>
+                                    </externalDocumentationLinks>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
 
 </project>
