@@ -12,7 +12,6 @@ Example:
 @SpringBootApplication
 @EnableAgents(
     loggingTheme = LoggingThemes.STAR_WARS,
-    localModels = { "docker" },
     mcpClients = { "docker" }
 )
 class MyAgentApplication {
@@ -26,7 +25,19 @@ This is a normal Spring Boot application class.
 You can add other Spring Boot annotations as needed.
 `@EnableAgents` enables the agent framework.
 It allows you to specify a logging theme (optional) and well-known sources of local models and MCP tools.
-In this case we're using Docker as a source of local models and MCP tools.
+In this case we're using Docker as a source of MCP tools.
+
+Add the following dependency to your `pom.xml` to include the Ollama model provider starter:
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-ollama</artifactId>
+</dependency>
+----
+
+Other providers such as OpenAI, Anthropic, AWS Bedrock, Docker Models, etc. can be added similarly by including their respective starter dependencies.
 
 ==== Configuration Properties
 
