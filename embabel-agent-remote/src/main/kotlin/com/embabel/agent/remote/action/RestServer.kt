@@ -1,9 +1,28 @@
+/*
+ * Copyright 2024-2025 Embabel Software, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.embabel.agent.remote.action
 
 import com.embabel.agent.core.*
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import org.springframework.http.converter.ByteArrayHttpMessageConverter
+import org.springframework.http.converter.ResourceHttpMessageConverter
+import org.springframework.http.converter.StringHttpMessageConverter
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter
+import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
 
@@ -14,7 +33,33 @@ import org.springframework.web.client.body
 class RestServer(
     val registration: RestServerRegistration,
     private val restClient: RestClient,
+    private val objectMapper: ObjectMapper,
 ) {
+
+    companion object {
+        /**
+         * Create a properly configured RestClient with JSON support.
+         * Uses HTTP/1.1 only to avoid protocol upgrade issues with some servers.
+         */
+        fun createRestClient(objectMapper: ObjectMapper): RestClient {
+            // Use JDK HttpClient with HTTP/1.1 only (no upgrade protocols)
+            val jdkHttpClient = java.net.http.HttpClient.newBuilder()
+                .version(java.net.http.HttpClient.Version.HTTP_1_1)
+                .build()
+            val requestFactory = org.springframework.http.client.JdkClientHttpRequestFactory(jdkHttpClient)
+
+            return RestClient.builder()
+                .requestFactory(requestFactory)
+                .messageConverters { converters ->
+                    converters.add(ByteArrayHttpMessageConverter())
+                    converters.add(StringHttpMessageConverter())
+                    converters.add(ResourceHttpMessageConverter())
+                    converters.add(AllEncompassingFormHttpMessageConverter())
+                    converters.add(MappingJackson2HttpMessageConverter(objectMapper))
+                }
+                .build()
+        }
+    }
 
     /**
      * Invoke server to get actions
@@ -26,7 +71,7 @@ class RestServer(
             .uri("${registration.baseUrl}/api/v1/actions")
             .retrieve()
             .body<String>()
-        return jacksonObjectMapper().readValue(json, object : TypeReference<List<RestActionMetadata>>() {})
+        return objectMapper.readValue(json, object : TypeReference<List<RestActionMetadata>>() {})
     }
 
     private fun serverTypes(): Collection<DynamicType> {
@@ -35,7 +80,7 @@ class RestServer(
             .uri("${registration.baseUrl}/api/v1/types")
             .retrieve()
             .body<String>()
-        return jacksonObjectMapper().readValue(json, object : TypeReference<List<DynamicType>>() {})
+        return objectMapper.readValue(json, object : TypeReference<List<DynamicType>>() {})
     }
 
     /**
