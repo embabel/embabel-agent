@@ -28,6 +28,7 @@ import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
+import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
