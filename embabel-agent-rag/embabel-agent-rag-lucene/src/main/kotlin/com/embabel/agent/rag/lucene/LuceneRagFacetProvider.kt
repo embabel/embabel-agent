@@ -73,6 +73,12 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
     private var indexWriter = IndexWriter(directory, indexWriterConfig)
     private val queryParser = QueryParser("content", analyzer)
 
+    companion object {
+        private const val KEYWORDS_FIELD = "keywords"
+        private const val CONTENT_FIELD = "content"
+        private const val ID_FIELD = "id"
+    }
+
     init {
         if (embeddingModel == null) {
             logger.warn("No embedding model configured; only text search will be supported.")
@@ -158,6 +164,119 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
         logger.debug("Retrieved {} chunks from storage", allChunks.size)
         return allChunks
     }
+
+    /**
+     * Update keywords for existing chunks.
+     * This will re-index the chunks with new keywords.
+     *
+     * @param updates Map of chunkId to new keywords
+     */
+    fun updateKeywords(updates: Map<String, List<String>>) {
+        logger.debug("Updating keywords for {} chunks", updates.size)
+
+        var updatedCount = 0
+        updates.forEach { (chunkId, newKeywords) ->
+            val chunk = contentElementStorage[chunkId] as? Chunk
+            if (chunk == null) {
+                logger.warn("Chunk with id='{}' not found, skipping keyword update", chunkId)
+                return@forEach
+            }
+
+            // Update chunk in storage with new keywords
+            val updatedChunk = Chunk(
+                id = chunk.id,
+                text = chunk.text,
+                metadata = chunk.metadata + (KEYWORDS_FIELD to newKeywords)
+            )
+            contentElementStorage[chunkId] = updatedChunk
+
+            // Delete old document from Lucene index
+            indexWriter.deleteDocuments(org.apache.lucene.index.Term(ID_FIELD, chunkId))
+
+            // Create new Lucene document with updated keywords
+            val luceneDoc = Document().apply {
+                add(StringField(ID_FIELD, chunk.id, Field.Store.YES))
+                add(TextField(CONTENT_FIELD, chunk.embeddableValue(), Field.Store.YES))
+
+                // Add new keywords
+                newKeywords.forEach { keyword ->
+                    add(TextField(KEYWORDS_FIELD, keyword.lowercase(), Field.Store.YES))
+                }
+
+                if (embeddingModel != null && chunk.metadata.containsKey("embedding")) {
+                    // Preserve existing embedding if it exists
+                    val embedding = embeddingModel.embed(chunk.embeddableValue())
+                    val embeddingBytes = floatArrayToBytes(embedding)
+                    add(StoredField("embedding", embeddingBytes))
+                }
+
+                chunk.metadata.forEach { (key, value) ->
+                    if (key != KEYWORDS_FIELD) {
+                        add(StringField(key, value.toString(), Field.Store.YES))
+                    }
+                }
+            }
+            indexWriter.addDocument(luceneDoc)
+
+            updatedCount++
+            logger.debug("Updated keywords for chunk id='{}' to: {}", chunkId, newKeywords)
+        }
+
+        // Commit changes if anything was updated
+        if (updatedCount > 0) {
+            commit()
+        }
+        logger.info("Successfully updated keywords for {} chunks", updatedCount)
+    }
+
+    /**
+     * Find chunk IDs by keyword intersection.
+     * Returns pairs of (chunkId, matchCount) sorted by match count descending.
+     *
+     * @param keywords Set of keywords to search for
+     * @param minIntersection Minimum number of keywords that must match (default: 1)
+     * @param maxResults Maximum number of results to return (default: 100)
+     * @return List of (chunkId, matchCount) pairs sorted by match count descending
+     */
+    fun findChunkIdsByKeywords(
+        keywords: Set<String>,
+        minIntersection: Int = 1,
+        maxResults: Int = 100,
+    ): List<Pair<String, Int>> {
+        refreshReaderIfNeeded()
+
+        val reader = directoryReader ?: return emptyList()
+
+        // Handle empty index
+        if (reader.maxDoc() == 0) {
+            return emptyList()
+        }
+
+        val searcher = IndexSearcher(reader)
+
+        // Count keyword matches per document
+        val docMatchCounts = mutableMapOf<Int, Int>()
+
+        keywords.forEach { keyword ->
+            val query = QueryParser(KEYWORDS_FIELD, analyzer).parse(QueryParser.escape(keyword.lowercase()))
+            val topDocs = searcher.search(query, reader.maxDoc())
+
+            topDocs.scoreDocs.forEach { scoreDoc ->
+                docMatchCounts[scoreDoc.doc] = docMatchCounts.getOrDefault(scoreDoc.doc, 0) + 1
+            }
+        }
+
+        // Filter by minimum intersection and convert to (chunkId, matchCount) pairs
+        return docMatchCounts
+            .filter { (_, matchCount) -> matchCount >= minIntersection }
+            .map { (docId, matchCount) ->
+                val doc = searcher.storedFields().document(docId)
+                doc.get(ID_FIELD) to matchCount
+            }
+            .sortedByDescending { it.second }
+            .take(maxResults)
+    }
+
 
     fun search(ragRequest: RagRequest): RagFacetResults<Chunk> {
         ensureChunksLoaded()
@@ -251,12 +370,22 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
     }
 
     private fun createChunkFromDocument(doc: Document): Chunk {
+        val keywords = doc.getValues(KEYWORDS_FIELD)?.toList() ?: emptyList()
+
+        val metadata = doc.fields
+            .filter { field -> field.name() !in setOf(ID_FIELD, CONTENT_FIELD, "embedding", KEYWORDS_FIELD) }
+            .associate { field -> field.name() to field.stringValue() as Any? }
+            .toMutableMap()
+
+        // Add keywords to metadata if present
+        if (keywords.isNotEmpty()) {
+            metadata[KEYWORDS_FIELD] = keywords as Any?
+        }
+
         return Chunk(
-            id = doc.get("id"),
-            text = doc.get("content"),
-            metadata = doc.fields
-                .filter { field -> field.name() !in setOf("id", "content", "embedding") }
-                .associate { field -> field.name() to field.stringValue() }
+            id = doc.get(ID_FIELD),
+            text = doc.get(CONTENT_FIELD),
+            metadata = metadata
         )
     }
 
@@ -293,11 +422,25 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
             logger.warn("Only Chunk retrievables are supported; skipping retrievable with id='{}'", retrievable.id)
             return
         }
+
+        // Get keywords from metadata only
+        val keywords = when (val keywordsMeta = retrievable.metadata[KEYWORDS_FIELD]) {
+            is List<*> -> keywordsMeta.filterIsInstance<String>()
+            is String -> listOf(keywordsMeta)
+            else -> emptyList()
+        }
+
         contentElementStorage[retrievable.id] = retrievable
+
         // Create Lucene document for indexing
         val luceneDoc = Document().apply {
-            add(StringField("id", retrievable.id, Field.Store.YES))
-            add(TextField("content", retrievable.embeddableValue(), Field.Store.YES))
+            add(StringField(ID_FIELD, retrievable.id, Field.Store.YES))
+            add(TextField(CONTENT_FIELD, retrievable.embeddableValue(), Field.Store.YES))
+
+            // Add keywords as a multi-valued field
+            keywords.forEach { keyword ->
+                add(TextField(KEYWORDS_FIELD, keyword.lowercase(), Field.Store.YES))
+            }
 
             if (embeddingModel != null) {
                 val embedding = embeddingModel.embed(retrievable.embeddableValue())
@@ -306,14 +449,17 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
             }
 
             retrievable.metadata.forEach { (key, value) ->
-                add(StringField(key, value.toString(), Field.Store.YES))
+                if (key != KEYWORDS_FIELD) { // Don't duplicate keywords field
+                    add(StringField(key, value.toString(), Field.Store.YES))
+                }
             }
         }
         indexWriter.addDocument(luceneDoc)
         logger.debug(
-            "Indexed and stored retrievable with id='{}' and text length={}",
+            "Indexed and stored retrievable with id='{}', text length={}, keywords={}",
             retrievable.id,
-            retrievable.embeddableValue().length
+            retrievable.embeddableValue().length,
+            keywords
         )
     }
 
