@@ -51,6 +51,7 @@ class OgmRagFacetProvider(
     private val sessionFactory: SessionFactory,
     platformTransactionManager: PlatformTransactionManager,
     private val properties: NeoRagServiceProperties,
+    override val enhancers: List<RetrievableEnhancer> = emptyList(),
 ) : AbstractWritableContentElementRepository(properties), RagFacetProvider {
 
     private val logger = LoggerFactory.getLogger(OgmRagFacetProvider::class.java)
@@ -61,7 +62,6 @@ class OgmRagFacetProvider(
     }
 
     override val name = properties.name
-
 
     private val embeddingService = modelProvider.getEmbeddingService(DefaultModelSelectionCriteria)
 

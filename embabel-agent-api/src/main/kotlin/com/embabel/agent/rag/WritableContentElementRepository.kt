@@ -30,7 +30,21 @@ interface WritableContentElementRepository : WritableStore, ContentElementReposi
     }
 
     /**
-     * The Retrievables have been saved to the store,
+     * List of enhancers
+     */
+    val enhancers: List<RetrievableEnhancer>
+
+    fun <T : Retrievable> enhance(retrievable: T): T {
+        // TODO need context to do this properly
+        var enhanced = retrievable
+        for (enhancer in enhancers) {
+            enhanced = enhancer.enhance(retrievable)
+        }
+        return enhanced
+    }
+
+    /**
+     * Retrievables have been saved to the store,
      * but Retrievables are special, and we probably want to embed them
      */
     fun onNewRetrievables(

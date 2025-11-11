@@ -83,6 +83,16 @@ interface Chunk : Source, HierarchicalContentElement {
 
     }
 
+    /**
+     * Return the chunk with additional metadata.
+     * May be a new instance or the same instance,
+     * but must have the same id and text.
+     * All existing metadata will be replaced:
+     * callers are responsible for ensuring that any
+     * they want to keep is preserved.
+     */
+    fun withMetadata(metadata: Map<String, Any?>): Chunk
+
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
@@ -94,7 +104,11 @@ private data class ChunkImpl(
     override val text: String,
     override val parentId: String? = null,
     override val metadata: Map<String, Any?>,
-) : Chunk
+) : Chunk {
+
+    override fun withMetadata(metadata: Map<String, Any?>): Chunk =
+        this.copy(metadata = metadata)
+}
 
 /**
  * A fact.

@@ -33,6 +33,8 @@ abstract class AbstractWritableContentElementRepository(
     final override fun writeContent(root: MaterializedDocument): List<String> {
         val chunker = ContentChunker(chunkerConfig)
         val chunks = chunker.chunk(root)
+            .map { enhance(it) }
+
         save(root)
         root.descendants().forEach { save(it) }
         chunks.forEach { save(it) }

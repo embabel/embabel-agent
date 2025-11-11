@@ -59,6 +59,7 @@ import org.springframework.ai.document.Document as SpringAiDocument
  */
 class LuceneRagFacetProvider @JvmOverloads constructor(
     override val name: String,
+    override val enhancers: List<RetrievableEnhancer> = emptyList(),
     private val embeddingModel: EmbeddingModel? = null,
     private val vectorWeight: Double = 0.5,
     chunkerConfig: ContentChunker.Config = ContentChunker.DefaultConfig(),
@@ -74,7 +75,7 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
     private val queryParser = QueryParser("content", analyzer)
 
     companion object {
-        private const val KEYWORDS_FIELD = "keywords"
+        const val KEYWORDS_FIELD = "keywords"
         private const val CONTENT_FIELD = "content"
         private const val ID_FIELD = "id"
     }
@@ -425,7 +426,7 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
 
         // Get keywords from metadata only
         val keywords = when (val keywordsMeta = retrievable.metadata[KEYWORDS_FIELD]) {
-            is List<*> -> keywordsMeta.filterIsInstance<String>()
+            is Collection<*> -> keywordsMeta.filterIsInstance<String>()
             is String -> listOf(keywordsMeta)
             else -> emptyList()
         }
@@ -544,7 +545,11 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
                         )
                         val chunk = createChunkFromDocument(doc)
                         contentElementStorage[chunk.id] = chunk
-                        logger.info("✅ Loaded chunk with id={}", chunk.id)
+                        logger.info(
+                            "✅ Loaded chunk with id={} and keywords {}",
+                            chunk.id,
+                            chunk.metadata.get(KEYWORDS_FIELD),
+                        )
                     } catch (e: Exception) {
                         logger.error("❌ Failed to load document {}: {}", i, e.message, e)
                     }
