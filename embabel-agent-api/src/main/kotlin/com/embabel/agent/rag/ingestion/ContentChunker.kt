@@ -40,6 +40,13 @@ class ContentChunker(
         /** Metadata key for the total number of chunks created from the parent section */
         const val TOTAL_CHUNKS = "total_chunks"
 
+        /**
+         * Metadata key for a stable sequence number used for sorting chunks within a container section hierarchy.
+         * This is a zero-based sequential number assigned to each chunk as it is created from a container section,
+         * preserving the original order of leaves and their chunks. Use this for stable, predictable sorting.
+         */
+        const val SEQUENCE_NUMBER = "sequence_number"
+
         /** Metadata key for the unique identifier of the container section */
         const val CONTAINER_SECTION_ID = "container_section_id"
 
@@ -72,7 +79,7 @@ class ContentChunker(
                 "Creating single chunk for container section '{}' with {} leaves (total length: {} <= max: {})",
                 section.title, leaves.size, totalContentLength, config.maxChunkSize
             )
-            return listOf(createSingleChunkFromContainer(section, leaves))
+            return listOf(createSingleChunkFromContainer(section, leaves, sequenceNumber = 0))
         }
 
         // Strategy 2: Try to group leaves intelligently before splitting
@@ -93,6 +100,7 @@ class ContentChunker(
     private fun createSingleChunkFromContainer(
         section: MaterializedContainerSection,
         leaves: List<LeafSection>,
+        sequenceNumber: Int,
     ): Chunk {
         val combinedContent = leaves.joinToString("\n\n") { leaf ->
             if (leaf.title.isNotBlank()) "${leaf.title}\n${leaf.content}" else leaf.content
@@ -105,6 +113,7 @@ class ContentChunker(
         combinedMetadata[CONTAINER_SECTION_URL] = section.uri
         combinedMetadata[CHUNK_INDEX] = 0
         combinedMetadata[TOTAL_CHUNKS] = 1
+        combinedMetadata[SEQUENCE_NUMBER] = sequenceNumber
 
         return Chunk(
             id = UUID.randomUUID().toString(),
@@ -120,6 +129,7 @@ class ContentChunker(
     ): List<Chunk> {
         val allChunks = mutableListOf<Chunk>()
         val leafGroups = groupLeavesForOptimalChunking(leaves)
+        var sequenceNumber = 0
 
         logger.debug("Grouped {} leaves into {} groups for chunking", leaves.size, leafGroups.size)
 
@@ -132,16 +142,18 @@ class ContentChunker(
 
                     if (leafContentSize <= config.maxChunkSize) {
                         // Small enough for single chunk
-                        allChunks.add(createSingleLeafChunk(containerSection, leaf))
+                        allChunks.add(createSingleLeafChunk(containerSection, leaf, sequenceNumber++))
                     } else {
                         // Too large, split it
-                        allChunks.addAll(splitLeafIntoMultipleChunks(containerSection, leaf))
+                        val chunks = splitLeafIntoMultipleChunks(containerSection, leaf, sequenceNumber)
+                        sequenceNumber += chunks.size
+                        allChunks.addAll(chunks)
                     }
                 }
 
                 else -> {
                     // Multi-leaf group - create combined chunk
-                    allChunks.add(createCombinedLeafChunk(containerSection, group))
+                    allChunks.add(createCombinedLeafChunk(containerSection, group, sequenceNumber++))
                 }
             }
         }
@@ -190,6 +202,7 @@ class ContentChunker(
     private fun createCombinedLeafChunk(
         containerSection: MaterializedContainerSection,
         leaves: List<LeafSection>,
+        sequenceNumber: Int,
     ): Chunk {
         val combinedContent = leaves.joinToString("\n\n") { leaf ->
             if (leaf.title.isNotBlank()) "${leaf.title}\n${leaf.content}" else leaf.content
@@ -202,6 +215,7 @@ class ContentChunker(
         combinedMetadata[CONTAINER_SECTION_URL] = containerSection.uri
         combinedMetadata[CHUNK_INDEX] = 0
         combinedMetadata[TOTAL_CHUNKS] = 1
+        combinedMetadata[SEQUENCE_NUMBER] = sequenceNumber
 
         return Chunk(
             id = UUID.randomUUID().toString(),
@@ -214,6 +228,7 @@ class ContentChunker(
     private fun createSingleLeafChunk(
         containerSection: MaterializedContainerSection,
         leaf: LeafSection,
+        sequenceNumber: Int,
     ): Chunk {
         val content = if (leaf.title.isNotBlank()) "${leaf.title}\n${leaf.content}" else leaf.content
 
@@ -227,7 +242,8 @@ class ContentChunker(
                 LEAF_SECTION_TITLE to leaf.title,
                 LEAF_SECTION_URL to leaf.uri,
                 CHUNK_INDEX to 0,
-                TOTAL_CHUNKS to 1
+                TOTAL_CHUNKS to 1,
+                SEQUENCE_NUMBER to sequenceNumber
             ),
             parentId = leaf.id
         )
@@ -236,6 +252,7 @@ class ContentChunker(
     private fun splitLeafIntoMultipleChunks(
         containerSection: MaterializedContainerSection,
         leaf: LeafSection,
+        startingSequenceNumber: Int,
     ): List<Chunk> {
         val chunks = mutableListOf<Chunk>()
         val fullContent = if (leaf.title.isNotBlank()) "${leaf.title}\n${leaf.content}" else leaf.content
@@ -254,7 +271,8 @@ class ContentChunker(
                     LEAF_SECTION_TITLE to leaf.title,
                     LEAF_SECTION_URL to leaf.uri,
                     CHUNK_INDEX to index,
-                    TOTAL_CHUNKS to textChunks.size
+                    TOTAL_CHUNKS to textChunks.size,
+                    SEQUENCE_NUMBER to (startingSequenceNumber + index)
                 ),
                 parentId = leaf.id
             )

@@ -17,6 +17,8 @@ package com.embabel.agent.rag.lucene
 
 import com.embabel.agent.rag.*
 import com.embabel.agent.rag.ingestion.ContentChunker
+import com.embabel.agent.rag.ingestion.ContentChunker.Companion.CONTAINER_SECTION_ID
+import com.embabel.agent.rag.ingestion.ContentChunker.Companion.SEQUENCE_NUMBER
 import com.embabel.agent.rag.ingestion.MaterializedDocument
 import com.embabel.agent.rag.support.FunctionRagFacet
 import com.embabel.agent.rag.support.RagFacet
@@ -30,6 +32,7 @@ import org.apache.lucene.document.*
 import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
+import org.apache.lucene.index.MultiBits
 import org.apache.lucene.queryparser.classic.QueryParser
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.Query
@@ -161,7 +164,9 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
     fun findAll(): List<Chunk> {
         ensureChunksLoaded()
         logger.debug("Retrieving all chunks from storage")
-        val allChunks = contentElementStorage.values.filterIsInstance<Chunk>()
+        val allChunks = contentElementStorage.values
+            .filterIsInstance<Chunk>()
+            .sortedBy { "${it.metadata[CONTAINER_SECTION_ID]}-${it.metadata[SEQUENCE_NUMBER]}" }
         logger.debug("Retrieved {} chunks from storage", allChunks.size)
         return allChunks
     }
@@ -533,8 +538,15 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
                     reader.maxDoc()
                 )
 
-                // Load all existing documents from the index
+                // Load all existing documents from the index, skipping deleted documents
+                val liveDocs = MultiBits.getLiveDocs(reader)
                 for (i in 0 until reader.maxDoc()) {
+                    // Skip deleted documents (liveDocs.get(i) returns true if doc is live)
+                    if (liveDocs != null && !liveDocs.get(i)) {
+                        logger.debug("Skipping deleted document at position {}", i)
+                        continue
+                    }
+
                     try {
                         val doc = reader.storedFields().document(i)
                         logger.debug(

@@ -751,6 +751,43 @@ class LuceneRagFacetProviderTest {
             )
             assertTrue(results.isEmpty())
         }
+
+        @Test
+        fun `should maintain correct count after updates that create deleted documents`() {
+            // Add initial documents
+            val documents = listOf(
+                Document("doc1", "Traffic content", mapOf("keywords" to listOf("traffic", "roads"))),
+                Document("doc2", "Weather content", mapOf("keywords" to listOf("weather", "forecast"))),
+                Document("doc3", "Sports content", mapOf("keywords" to listOf("sports", "football")))
+            )
+
+            ragService.accept(documents)
+
+            // Verify initial count
+            assertEquals(3, ragService.count())
+            val initialStats = ragService.getStatistics()
+            assertEquals(3, initialStats.totalChunks)
+            assertEquals(3, initialStats.totalDocuments)
+
+            // Update keywords for doc1 and doc2 (this deletes old documents and adds new ones)
+            ragService.updateKeywords(
+                mapOf(
+                    "doc1" to listOf("car", "pedestrian", "speedlimit"),
+                    "doc2" to listOf("rain", "sun", "temperature")
+                )
+            )
+
+            // Count should still be 3 (not 5 due to deleted docs)
+            assertEquals(3, ragService.count(), "Count should remain 3 after keyword updates")
+            val afterUpdateStats = ragService.getStatistics()
+            assertEquals(3, afterUpdateStats.totalChunks, "Total chunks should remain 3")
+            assertEquals(3, afterUpdateStats.totalDocuments, "Total documents should remain 3")
+
+            // Verify all chunks are still accessible
+            val allChunks = ragService.findAll()
+            assertEquals(3, allChunks.size, "findAll should return exactly 3 chunks")
+            assertEquals(setOf("doc1", "doc2", "doc3"), allChunks.map { it.id }.toSet())
+        }
     }
 
     @Nested
