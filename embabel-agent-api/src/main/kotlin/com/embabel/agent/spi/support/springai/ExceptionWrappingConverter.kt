@@ -42,5 +42,5 @@ class ExceptionWrappingConverter<T>(
         }
     }
 
-    override fun getFormat(): String? = delegate.format
+    override fun getFormat(): String = delegate.format
 }

@@ -16,8 +16,8 @@
 package com.embabel.agent.config.models.ollama
 
 import com.embabel.agent.test.models.OptionsConverterTestSupport
-import org.springframework.ai.ollama.api.OllamaOptions
+import org.springframework.ai.ollama.api.OllamaChatOptions
 
-class OllamaOptionsConverterTest : OptionsConverterTestSupport<OllamaOptions>(
+class OllamaOptionsConverterTest : OptionsConverterTestSupport<OllamaChatOptions>(
     optionsConverter = OllamaOptionsConverter
 )

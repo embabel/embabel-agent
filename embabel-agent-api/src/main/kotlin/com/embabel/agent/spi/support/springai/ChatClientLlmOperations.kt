@@ -41,6 +41,7 @@ import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ResponseEntity
+import org.springframework.ai.chat.client.advisor.observation.DefaultAdvisorObservationConvention
 import org.springframework.ai.chat.client.observation.DefaultChatClientObservationConvention
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
@@ -391,7 +392,9 @@ internal class ChatClientLlmOperations(
      **/
     private fun createChatClient(llm: Llm): ChatClient {
         return ChatClient
-            .builder(llm.model, observationRegistry, DefaultChatClientObservationConvention())
+            .builder(llm.model, observationRegistry, DefaultChatClientObservationConvention(),
+                DefaultAdvisorObservationConvention()
+            )
             .build()
     }
 
