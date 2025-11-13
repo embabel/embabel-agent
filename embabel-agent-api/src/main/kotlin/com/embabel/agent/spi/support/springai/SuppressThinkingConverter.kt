@@ -92,7 +92,7 @@ class SuppressThinkingConverter<T>(
      *
      * @return The format description string from the delegate, or null if the delegate doesn't provide one
      */
-    override fun getFormat(): String? = delegate.format
+    override fun getFormat(): String = delegate.format
 
     private fun identifyThinkBlock(input: String): ThinkBlockSanitization {
         // First try to parse the input as JSON to see if it is already clean

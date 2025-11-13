@@ -26,7 +26,8 @@ import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.ollama.OllamaChatModel
 import org.springframework.ai.ollama.OllamaEmbeddingModel
 import org.springframework.ai.ollama.api.OllamaApi
-import org.springframework.ai.ollama.api.OllamaOptions
+import org.springframework.ai.ollama.api.OllamaChatOptions
+import org.springframework.ai.ollama.api.OllamaEmbeddingOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -140,16 +141,16 @@ class OllamaModelsConfig(
                     .baseUrl(baseUrl)
                     .restClientBuilder(
                         RestClient.builder()
-                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     )
                     .webClientBuilder(
                         WebClient.builder()
-                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     )
                     .build()
             )
             .defaultOptions(
-                OllamaOptions.builder()
+                OllamaChatOptions.builder()
                     .model(name)
                     .build()
             )
@@ -178,16 +179,16 @@ class OllamaModelsConfig(
                     .baseUrl(baseUrl)
                     .restClientBuilder(
                         RestClient.builder()
-                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     )
                     .webClientBuilder(
                         WebClient.builder()
-                        .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     )
                     .build()
             )
             .defaultOptions(
-                OllamaOptions.builder()
+                OllamaEmbeddingOptions.builder()
                     .model(name)
                     .build()
             )
@@ -201,9 +202,9 @@ class OllamaModelsConfig(
     }
 }
 
-object OllamaOptionsConverter : OptionsConverter<OllamaOptions> {
-    override fun convertOptions(options: LlmOptions): OllamaOptions =
-        OllamaOptions.builder()
+object OllamaOptionsConverter : OptionsConverter<OllamaChatOptions> {
+    override fun convertOptions(options: LlmOptions): OllamaChatOptions =
+        OllamaChatOptions.builder()
             .temperature(options.temperature)
             .topP(options.topP)
             .presencePenalty(options.presencePenalty)

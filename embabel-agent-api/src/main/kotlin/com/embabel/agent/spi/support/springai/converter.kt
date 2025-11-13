@@ -30,7 +30,7 @@ import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 fun Message.toSpringAiMessage(): SpringAiMessage {
     val metadata: Map<String, Any> = emptyMap()
     return when (this) {
-        is AssistantMessage -> SpringAiAssistantMessage(this.content, metadata)
+        is AssistantMessage -> SpringAiAssistantMessage(this.content)
 
         is UserMessage -> SpringAiUserMessage.builder().text(this.content).metadata(metadata).build()
 
