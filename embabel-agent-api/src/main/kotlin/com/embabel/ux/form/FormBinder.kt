@@ -15,6 +15,8 @@
  */
 package com.embabel.ux.form
 
+import com.embabel.ux.form.FormBinder.Companion.formBinder
+import org.springframework.core.KotlinDetector
 import org.springframework.lang.Nullable
 import java.time.LocalDate
 import java.time.LocalTime
@@ -40,11 +42,9 @@ annotation class FormField(val controlId: String)
 annotation class NoFormField
 
 /**
- * Form binder system that maps form submission values to Kotlin data classes and Java classes
+ * Form binder system that maps form submission values.
  */
-class FormBinder<T : Any>(private val targetClass: KClass<T>) {
-
-    constructor (targetClass: Class<T>) : this(targetClass.kotlin)
+interface FormBinder<T : Any> {
 
     class FormBindingException(message: String) : Exception(message)
 
@@ -55,31 +55,58 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
      * @throws FormBindingException if there's an error mapping values
      * @throws ValidationException if the form submission has validation errors
      */
-    fun bind(submissionResult: FormSubmissionResult): T {
+    fun bind(submissionResult: FormSubmissionResult): T
+
+    companion object {
+
+        /**
+         * Return a [FormBinder] for the given Kotlin class.
+         */
+        fun <T : Any> formBinder(kotlinClass: KClass<T>): FormBinder<T> {
+            return if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(kotlinClass.java)) {
+                KotlinFormBinder(kotlinClass)
+            } else {
+                JavaFormBinder(kotlinClass.java)
+            }
+        }
+
+        /**
+         * Return a [FormBinder] for the given Java class.
+         */
+        @JvmStatic
+        fun <T : Any> formBinder(javaClass: Class<T>): FormBinder<T> {
+            return if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(javaClass)) {
+                KotlinFormBinder(javaClass.kotlin)
+            } else {
+                JavaFormBinder(javaClass)
+            }
+        }
+    }
+
+}
+
+/**
+ * Java implementation of the [FormBinder] interface, capable of binding to records and plain classes.
+ */
+internal open class JavaFormBinder<T : Any>(
+    private val javaClass: Class<T>
+) : FormBinder<T> {
+
+
+    override fun bind(submissionResult: FormSubmissionResult): T {
         if (!submissionResult.valid) {
-            throw ValidationException(submissionResult.validationErrors)
+            throw FormBinder.ValidationException(submissionResult.validationErrors)
         }
-
-        return try {
-            bindKotlinDataClass(submissionResult)
-        } catch (_: IllegalArgumentException) {
-            bindJavaClass(submissionResult)
+        return if (javaClass.isRecord) {
+            bindJavaRecord(submissionResult)
+        } else {
+            bindJavaConstructor(submissionResult)
         }
     }
 
-    private fun bindJavaClass(submissionResult: FormSubmissionResult): T {
-        val javaClass = targetClass.java
-
-        // Try to bind as Java Record first
-        if (javaClass.isRecord) {
-            return bindJavaRecord(submissionResult, javaClass)
-        }
-        return bindJavaConstructor(submissionResult, javaClass)
-    }
-
-    private fun bindJavaRecord(submissionResult: FormSubmissionResult, javaClass: Class<T>): T {
+    private fun bindJavaRecord(submissionResult: FormSubmissionResult): T {
         val recordComponents = javaClass.recordComponents
-            ?: throw FormBindingException("Failed to get record components for ${javaClass.simpleName}")
+            ?: throw FormBinder.FormBindingException("Failed to get record components for ${javaClass.simpleName}")
 
         val parameterValues = mutableListOf<Any?>()
 
@@ -90,18 +117,18 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
             val noFormFieldAnnotation = field.getAnnotation(NoFormField::class.java)
 
             if (noFormFieldAnnotation != null) {
-                throw FormBindingException("Record component ${component.name} is marked with @NoFormField but is required")
+                throw FormBinder.FormBindingException("Record component ${component.name} is marked with @NoFormField but is required")
             }
 
             val controlId = formFieldAnnotation?.controlId ?: component.name
             val controlValue = submissionResult.values[controlId]
-                ?: throw FormBindingException(
+                ?: throw FormBinder.FormBindingException(
                     "No value found for control id '$controlId' in form submission binding to Java record ${
                         javaClass.name
                     }: formFieldAnnotation=$formFieldAnnotation, noFormFieldAnnotation=$noFormFieldAnnotation, component=$component"
                 )
 
-            val convertedValue = convertToJavaType(controlValue, component.type, component.genericType)
+            val convertedValue = convertToJavaType(controlValue, component.type)
             parameterValues.add(convertedValue)
         }
 
@@ -110,11 +137,11 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
             constructor.trySetAccessible()
             constructor.newInstance(*parameterValues.toTypedArray()) as T
         } catch (e: Exception) {
-            throw FormBindingException("Failed to construct Java record ${javaClass.simpleName}: ${e.message}")
+            throw FormBinder.FormBindingException("Failed to construct Java record ${javaClass.simpleName}: ${e.message}")
         }
     }
 
-    private fun bindJavaConstructor(submissionResult: FormSubmissionResult, javaClass: Class<T>): T {
+    private fun bindJavaConstructor(submissionResult: FormSubmissionResult): T {
         // Find constructors and try them in order of parameter count (prefer more specific)
         val constructors = javaClass.declaredConstructors.sortedByDescending { it.parameterCount }
 
@@ -128,7 +155,7 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
                     val formFieldAnnotation = parameter.getAnnotation(FormField::class.java)
                     val noFormFieldAnnotation = parameter.getAnnotation(NoFormField::class.java)
                     if (noFormFieldAnnotation != null) {
-                        throw FormBindingException("Constructor parameter ${parameter.name} is marked with @NoFormField but is required")
+                        throw FormBinder.FormBindingException("Constructor parameter ${parameter.name} is marked with @NoFormField but is required")
                     }
 
                     val controlId = formFieldAnnotation?.controlId ?: parameter.name
@@ -144,8 +171,7 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
                         }
                         parameterValues.add(null)
                     } else {
-                        val convertedValue =
-                            convertToJavaType(controlValue, parameter.type, parameter.parameterizedType)
+                        val convertedValue = convertToJavaType(controlValue, parameter.type)
                         parameterValues.add(convertedValue)
                     }
                 }
@@ -154,19 +180,18 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
                     constructor.isAccessible = true
                     return constructor.newInstance(*parameterValues.toTypedArray()) as T
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Try next constructor
                 continue
             }
         }
 
-        throw FormBindingException("No suitable constructor found for Java class ${javaClass.simpleName}")
+        throw FormBinder.FormBindingException("No suitable constructor found for Java class ${javaClass.simpleName}")
     }
 
     private fun convertToJavaType(
         controlValue: ControlValue,
-        targetType: Class<*>,
-        genericType: java.lang.reflect.Type
+        targetType: Class<*>
     ): Any? {
         return when (controlValue) {
             is ControlValue.TextValue -> convertJavaTextValue(controlValue.value, targetType)
@@ -230,7 +255,7 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
         }
     }
 
-    private fun convertJavaNumberValue(value: Double, targetType: Class<*>): Any? {
+    private fun convertJavaNumberValue(value: Double, targetType: Class<*>): Any {
         return when (targetType) {
             Int::class.javaPrimitiveType, Int::class.javaObjectType -> value.toInt()
             Long::class.javaPrimitiveType, Long::class.javaObjectType -> value.toLong()
@@ -241,10 +266,31 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
         }
     }
 
+}
+
+
+/**
+ * Kotlin implementation of the [FormBinder] interface, capable of binding to Kotlin data classes, as well as Java
+ * records and plain classes.
+ */
+internal class KotlinFormBinder<T : Any>(
+    private val kotlinClass: KClass<T>
+) : JavaFormBinder<T>(kotlinClass.java) {
+
+    override fun bind(submissionResult: FormSubmissionResult): T {
+        if (!submissionResult.valid) {
+            throw FormBinder.ValidationException(submissionResult.validationErrors)
+        }
+        return if (kotlinClass.isData)
+            bindKotlinDataClass(submissionResult)
+        else
+            super.bind(submissionResult)
+    }
+
     private fun bindKotlinDataClass(submissionResult: FormSubmissionResult): T {
         // Get the primary constructor for the data class
-        val constructor = targetClass.primaryConstructor
-            ?: throw IllegalArgumentException("Target class ${targetClass.simpleName} must be a data class with a primary constructor")
+        val constructor = kotlinClass.primaryConstructor
+            ?: throw IllegalArgumentException("Target class ${kotlinClass.simpleName} must be a data class with a primary constructor")
 
         // Map of parameter name to its corresponding type
         val parameterMap = constructor.parameters.associateBy { it.name }
@@ -253,7 +299,7 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
         val parameterValues = mutableMapOf<KParameter, Any?>()
 
         // Get properties with FormField annotation
-        val formFields = getPropertiesInDeclarationOrder(targetClass)
+        val formFields = getPropertiesInDeclarationOrder(kotlinClass)
             .filterNot { it.annotations.any { annotation -> annotation is NoFormField } }
 
         // Map each annotated property to its parameter and value from the form submission
@@ -264,10 +310,10 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
 
             val controlId = formFieldAnnotation?.controlId ?: property.name
             val controlValue = submissionResult.values[controlId]
-                ?: throw FormBindingException("No value found for control id '$controlId' in form submission: $submissionResult")
+                ?: throw FormBinder.FormBindingException("No value found for control id '$controlId' in form submission: $submissionResult")
 
             val parameter = parameterMap[property.name]
-                ?: throw FormBindingException("No matching constructor parameter for property: ${property.name}")
+                ?: throw FormBinder.FormBindingException("No matching constructor parameter for property: ${property.name}")
 
             // Convert the ControlValue to the appropriate type for the parameter
             parameterValues[parameter] = convertToParameterType(controlValue, parameter)
@@ -277,14 +323,14 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
         constructor.parameters
             .filter { it.isOptional.not() && it.name !in parameterValues.keys.mapNotNull { param -> param.name } }
             .forEach {
-                throw FormBindingException("Missing required parameter: ${it.name}")
+                throw FormBinder.FormBindingException("Missing required parameter: ${it.name}")
             }
 
         // Create instance of the data class using the constructor
         return try {
             constructor.callBy(parameterValues)
         } catch (e: Exception) {
-            throw FormBindingException("Failed to construct ${targetClass.simpleName}: ${e.message}")
+            throw FormBinder.FormBindingException("Failed to construct ${kotlinClass.simpleName}: ${e.message}")
         }
     }
 
@@ -325,7 +371,7 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
     /**
      * Converts number values to appropriate numeric types
      */
-    private fun convertNumberValue(value: Double, parameter: KParameter): Any? {
+    private fun convertNumberValue(value: Double, parameter: KParameter): Any {
         return when (parameter.type.classifier) {
             Int::class -> value.toInt()
             Long::class -> value.toLong()
@@ -344,16 +390,17 @@ class FormBinder<T : Any>(private val targetClass: KClass<T>) {
     }
 }
 
+
 /**
  * Extension function to make binding more convenient
  */
 inline fun <reified T : Any> FormSubmissionResult.bindTo(): T {
-    return FormBinder(T::class).bind(this)
+    return formBinder(T::class).bind(this)
 }
 
 /**
  * Extension function for Java class binding
  */
 fun <T : Any> FormSubmissionResult.bindTo(javaClass: Class<T>): T {
-    return FormBinder(javaClass).bind(this)
+    return formBinder(javaClass).bind(this)
 }

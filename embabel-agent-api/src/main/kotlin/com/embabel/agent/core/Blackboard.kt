@@ -19,8 +19,11 @@ import com.embabel.agent.api.common.Aggregation
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.findAllSupertypes
 import com.embabel.common.util.loggerFor
+import org.springframework.core.KotlinDetector
+import java.lang.reflect.Constructor
 import java.lang.reflect.ParameterizedType
 import kotlin.reflect.KClass
+import kotlin.reflect.KFunction
 import kotlin.reflect.KType
 import kotlin.reflect.jvm.javaType
 
@@ -142,10 +145,15 @@ interface Blackboard : Bindable, MayHaveLastResult, HasInfoString {
             Aggregation::class.java.isAssignableFrom(it)
         }.find { it.simpleName == type }
         if (aggregationClass != null) {
-            val aggregationInstance = aggregationFromBlackboard(
-                this,
-                aggregationClass.kotlin as KClass<Aggregation>,
-            )
+            val aggregationInstance =
+                if (KotlinDetector.isKotlinReflectPresent()) aggregationFromBlackboardKotlinReflect(
+                    this,
+                    aggregationClass.kotlin as KClass<Aggregation>,
+                )
+                else aggregationFromBlackboardJavaReflect(
+                    this,
+                    aggregationClass as Class<Aggregation>,
+                )
             if (aggregationInstance != null) {
                 return true;
             }
@@ -178,10 +186,15 @@ interface Blackboard : Bindable, MayHaveLastResult, HasInfoString {
             Aggregation::class.java.isAssignableFrom(it)
         }.find { it.simpleName == type }
         if (aggregationClass != null) {
-            val aggregationInstance = aggregationFromBlackboard(
+            val aggregationInstance =
+                if (KotlinDetector.isKotlinReflectPresent()) aggregationFromBlackboardKotlinReflect(
                 this,
                 aggregationClass.kotlin as KClass<Aggregation>,
             )
+                else aggregationFromBlackboardJavaReflect(
+                    this,
+                    aggregationClass as Class<Aggregation>,
+                )
             if (aggregationInstance != null) {
                 loggerFor<ProcessContext>().info("Adding megazord {} to blackboard", this)
                 this += aggregationInstance
@@ -289,12 +302,12 @@ inline fun <reified T> Blackboard.last(): T? {
 /**
  * Try to instantiate an Aggregation subclass from the blackboard
  */
-private fun <T : Aggregation> aggregationFromBlackboard(
+private fun <T : Aggregation> aggregationFromBlackboardKotlinReflect(
     blackboard: Blackboard,
     clazz: KClass<T>,
 ): T? {
     // Get the constructor for the specific Megazord subclass
-    val constructor = clazz.constructors.firstOrNull()
+    val constructor: KFunction<T> = clazz.constructors.firstOrNull()
         ?: throw IllegalArgumentException("No constructor found for ${clazz.simpleName}")
 
     // Get the parameters needed for the constructor
@@ -316,6 +329,33 @@ private fun <T : Aggregation> aggregationFromBlackboard(
 
     // Create a new instance using the constructor and arguments
     return constructor.callBy(args)
+}
+
+private fun <T : Aggregation> aggregationFromBlackboardJavaReflect(
+    blackboard: Blackboard,
+    clazz: Class<T>,
+): T? {
+    // Get the constructor for the specific Megazord subclass
+    val constructor: Constructor<T> = clazz.constructors.firstOrNull() as Constructor<T>?
+        ?: throw IllegalArgumentException("No constructor found for ${clazz.simpleName}")
+
+    // Get the parameters needed for the constructor
+    val params = constructor.parameters
+
+    // Map each parameter to its value from the map
+    val args: Array<Any?> = arrayOfNulls(params.size)
+    for (i in params.indices) {
+        val param = params[i]
+        val value = blackboard.last(param.type)
+        if (value == null) {
+            loggerFor<Blackboard>().debug("No value found for parameter {} of type {}", param.name, param.type)
+            return null
+        }
+        args[i] = value
+    }
+
+    // Create a new instance using the constructor and arguments
+    return constructor.newInstance(*args)
 }
 
 private fun KType.toJavaClass(): Class<*> {

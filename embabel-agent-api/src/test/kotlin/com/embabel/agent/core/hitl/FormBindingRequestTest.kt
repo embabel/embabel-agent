@@ -35,7 +35,7 @@ class FormBindingRequestTest {
     private lateinit var processContext: ProcessContext
     private lateinit var form: Form
     private lateinit var formProcessor: DefaultFormProcessor
-    private lateinit var formBinder: FormBinder<TestData>
+    private lateinit var formBinder: KotlinFormBinder<TestData>
 
     @BeforeEach
     fun setUp() {
@@ -62,7 +62,7 @@ class FormBindingRequestTest {
         every { anyConstructed<DefaultFormProcessor>().processSubmission(any(), any()) } returns mockk(relaxed = true)
 
         formBinder = mockk()
-        mockkConstructor(FormBinder::class)
+        mockkConstructor(KotlinFormBinder::class)
     }
 
     @AfterEach
@@ -119,7 +119,7 @@ class FormBindingRequestTest {
             } returns submissionResult
 
             val testData = TestData("John Doe", "john@example.com")
-            every { anyConstructed<FormBinder<TestData>>().bind(submissionResult) } returns testData
+            every { anyConstructed<KotlinFormBinder<TestData>>().bind(submissionResult) } returns testData
 
             val result = request.onResponse(response, agentProcess)
 

@@ -19,8 +19,8 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.common.util.loggerFor
 import com.embabel.ux.form.DefaultFormProcessor
 import com.embabel.ux.form.Form
-import com.embabel.ux.form.FormBinder
 import com.embabel.ux.form.FormSubmission
+import com.embabel.ux.form.bindTo
 import java.time.Instant
 import java.util.*
 
@@ -57,8 +57,7 @@ class FormBindingRequest<O : Any> @JvmOverloads constructor(
         if (!formSubmissionResult.valid) {
             throw IllegalStateException("Form submission is not valid: ${formSubmissionResult.validationErrors}")
         }
-        val formBinder = FormBinder(outputClass)
-        val boundInstance = formBinder.bind(formSubmissionResult)
+        val boundInstance = formSubmissionResult.bindTo(outputClass)
         return bind(boundInstance, agentProcess)
     }
 
