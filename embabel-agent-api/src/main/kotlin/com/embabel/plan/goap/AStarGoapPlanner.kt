@@ -117,7 +117,7 @@ class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
                 if (nextState == current.state) continue
 
                 // Calculate total cost to reach nextState via this path
-                val tentativeGScore = gScores.getValue(current.state) + action.cost
+                val tentativeGScore = gScores.getValue(current.state) + action.cost(startState)
 
                 // Skip if this path would already be more expensive than our best goal so far
                 if (bestGoalNode != null && tentativeGScore >= bestGoalScore) {

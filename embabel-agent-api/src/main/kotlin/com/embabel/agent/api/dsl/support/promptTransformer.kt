@@ -23,7 +23,7 @@ import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
-import com.embabel.common.core.types.ZeroToOne
+import com.embabel.plan.CostComputation
 import org.springframework.ai.tool.ToolCallback
 
 /**
@@ -38,7 +38,7 @@ fun <I, O : Any> promptTransformer(
     outputVarName: String = IoBinding.DEFAULT_BINDING,
     inputClass: Class<I>,
     outputClass: Class<O>,
-    cost: ZeroToOne = 0.0,
+    cost: CostComputation = { 0.0 },
     toolGroups: Set<ToolGroupRequirement> = emptySet(),
     qos: ActionQos = ActionQos(),
     referencedInputProperties: Set<String>? = null,

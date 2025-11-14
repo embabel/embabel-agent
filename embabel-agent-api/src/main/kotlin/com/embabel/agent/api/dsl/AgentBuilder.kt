@@ -29,6 +29,7 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
 import com.embabel.common.core.types.Semver
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.plan.CostComputation
 import com.embabel.plan.goap.ConditionDetermination
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
@@ -128,7 +129,8 @@ class AgentBuilder(
         canRerun: Boolean = false,
         inputVarName: String = IoBinding.DEFAULT_BINDING,
         outputVarName: String? = IoBinding.DEFAULT_BINDING,
-        cost: ZeroToOne = 0.0,
+        noinline cost: CostComputation = { 0.0 },
+        noinline value: CostComputation = { 0.0 },
         toolGroups: Set<ToolGroupRequirement> = emptySet(),
         qos: ActionQos = ActionQos(),
         referencedInputProperties: Set<String>? = null,
@@ -141,6 +143,7 @@ class AgentBuilder(
             post = post.map { it.name },
             canRerun = canRerun,
             cost = cost,
+            value = value,
             qos = qos,
             inputVarName = inputVarName,
             outputVarName = outputVarName,
@@ -163,7 +166,7 @@ class AgentBuilder(
         post: List<Condition> = emptyList(),
         inputVarName: String = IoBinding.DEFAULT_BINDING,
         outputVarName: String = IoBinding.DEFAULT_BINDING,
-        cost: ZeroToOne = 0.0,
+        noinline cost: CostComputation = { 0.0 },
         toolGroups: Set<ToolGroupRequirement> = emptySet(),
         qos: ActionQos = ActionQos(),
         referencedInputProperties: Set<String>? = null,
@@ -221,7 +224,7 @@ class AgentBuilder(
             )
         }.toSet(),
         pre: List<Condition> = emptyList(),
-        value: ZeroToOne = 0.0,
+        value: CostComputation = { 0.0 },
         export: Export = Export(),
     ) {
         // TODO check validity

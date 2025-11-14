@@ -179,7 +179,7 @@ class GoapPathToCompletionValidator : AgentValidator {
             // Find the action that is annotated with @AchievesGoal and matches this goal
             val goalAction = agentScope.actions.find { it.name == goal.name }
 
-            if(goalAction == null) {
+            if (goalAction == null) {
                 logger.error("Goal action '${goal.name}' not found in agent actions. Skipping this goal.")
                 continue
             }
@@ -224,7 +224,11 @@ class GoapPathToCompletionValidator : AgentValidator {
         return ValidationResult(errors.isEmpty(), errors)
     }
 
-    private fun error(code: String, message: String, agentScope: AgentScope): ValidationError =
+    private fun error(
+        code: String,
+        message: String,
+        agentScope: AgentScope,
+    ): ValidationError =
         ValidationError(
             code = code,
             message = message,

@@ -445,7 +445,7 @@ class AgentMetadataReader(
             description = goalAnnotation.description,
             inputs = setOf(inputBinding),
             outputType = JvmType(method.returnType),
-            value = goalAnnotation.value,
+            value = { goalAnnotation.value },
             // Add precondition of the action having run
             pre = setOf(Rerun.hasRunCondition(action)) + action.preconditions.keys.toSet(),
             export = Export(

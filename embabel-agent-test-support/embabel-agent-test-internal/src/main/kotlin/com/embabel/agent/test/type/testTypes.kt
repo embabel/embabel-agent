@@ -57,7 +57,7 @@ class OneGoalOnly {
         name = "thing1",
         description = "Thanks to Dr Seuss",
         type = PersonWithReverseTool::class.java,
-    ).withValue(30.0)
+    ).withFixedValue(30.0)
 }
 
 @AgentCapabilities
@@ -69,7 +69,7 @@ class OneGoalOnlyWithRichMetadata {
         type = PersonWithReverseTool::class.java,
         tags = setOf("foo", "bar"),
         examples = setOf("make me happy"),
-    ).withValue(30.0)
+    ).withFixedValue(30.0)
 }
 
 @AgentCapabilities
@@ -190,7 +190,7 @@ class NoConditions {
         name = "thing1",
         description = "Thanks to Dr Seuss",
         type = PersonWithReverseTool::class.java,
-    ).withValue(30.0)
+    ).withFixedValue(30.0)
 
 }
 
@@ -468,7 +468,7 @@ class Combined {
     val planner = Goal.createInstance(
         description = "Create a person",
         type = PersonWithReverseTool::class.java,
-    ).withValue(30.0)
+    ).withFixedValue(30.0)
 
     // Can reuse this or inject
     val magicalLlm =

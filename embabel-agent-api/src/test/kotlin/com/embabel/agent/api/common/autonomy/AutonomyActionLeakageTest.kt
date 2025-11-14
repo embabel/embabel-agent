@@ -20,8 +20,8 @@ import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.testing.integration.IntegrationTestUtils
 import com.embabel.agent.testing.integration.RandomRanker
 import com.embabel.agent.testing.integration.forAutonomyTesting
-import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
+import com.embabel.plan.CostComputation
 import com.embabel.plan.goap.ConditionDetermination
 import io.mockk.clearAllMocks
 import io.mockk.unmockkAll
@@ -114,7 +114,7 @@ class AutonomyActionLeakageTest {
         val goal1 = Goal(
             name = "goal1",
             description = "Test goal 1",
-            value = 0.8,
+            value = { 0.8 },
             pre = setOf(condition1.name),
             outputType = null,
         )
@@ -122,7 +122,7 @@ class AutonomyActionLeakageTest {
         val goal2 = Goal(
             name = "goal2",
             description = "Test goal 2",
-            value = 0.8,
+            value = { 0.8 },
             pre = setOf(condition2.name),
             outputType = null,
         )
@@ -130,14 +130,13 @@ class AutonomyActionLeakageTest {
         // Create action1 that satisfies goal1
         val action1 = object : Action {
             override val outputs: Set<IoBinding> = setOf(IoBinding("goal1", type = UserInput::class.java))
-            override val cost: ZeroToOne
-                get() = 0.9
+            override val cost: CostComputation = { 0.9 }
             override val canRerun: Boolean
                 get() = true
             override val qos: ActionQos
                 get() = ActionQos()
             override val name = "action1"
-            override val value: ZeroToOne = 0.3
+            override val value: CostComputation = { 0.3 }
             override fun infoString(
                 verbose: Boolean?,
                 indent: Int,
@@ -175,14 +174,13 @@ class AutonomyActionLeakageTest {
         // Create action2 that satisfies goal2
         val action2 = object : Action {
             override val outputs: Set<IoBinding> = setOf(IoBinding("goal1", type = UserInput::class.java))
-            override val cost: ZeroToOne
-                get() = 0.9
+            override val cost: CostComputation = { 0.9 }
             override val canRerun: Boolean
                 get() = true
             override val qos: ActionQos
                 get() = ActionQos()
             override val name = "action2"
-            override val value: ZeroToOne = 0.3
+            override val value: CostComputation = { 0.3 }
             override fun infoString(
                 verbose: Boolean?,
                 indent: Int,
@@ -286,7 +284,7 @@ class AutonomyActionLeakageTest {
         val goal1 = Goal(
             name = "goal1",
             description = "Agent1 goal 1",
-            value = 0.8,
+            value = { 0.8 },
             pre = setOf(condition1.name),
             outputType = null,
         )
@@ -294,7 +292,7 @@ class AutonomyActionLeakageTest {
         val goal2 = Goal(
             name = "goal2",
             description = "Agent1 goal 2",
-            value = 0.8,
+            value = { 0.8 },
             pre = setOf(condition2.name),
             outputType = null,
         )
@@ -315,7 +313,7 @@ class AutonomyActionLeakageTest {
         val goal3 = Goal(
             name = "goal3",
             description = "Agent2 goal 1",
-            value = 0.8,
+            value = { 0.8 },
             pre = setOf(condition3.name),
             outputType = null,
         )
@@ -323,7 +321,7 @@ class AutonomyActionLeakageTest {
         val goal4 = Goal(
             name = "goal4",
             description = "Agent2 goal 2",
-            value = 0.8,
+            value = { 0.8 },
             pre = setOf(condition4.name),
             outputType = null,
         )
@@ -428,11 +426,11 @@ class AutonomyActionLeakageTest {
     ): Action {
         return object : Action {
             override val outputs: Set<IoBinding> = setOf(IoBinding(name, type = UserInput::class.java))
-            override val cost: ZeroToOne = 0.9
+            override val cost: CostComputation = { 0.9 }
             override val canRerun: Boolean = true
             override val qos: ActionQos = ActionQos()
             override val name = name
-            override val value: ZeroToOne = 0.3
+            override val value: CostComputation = { 0.3 }
             override fun infoString(
                 verbose: Boolean?,
                 indent: Int,

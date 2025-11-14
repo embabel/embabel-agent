@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test
 class OptimizingGoapPlannerTest {
 
     @Nested
-    inner class `Cyclic dependency tests` {
+    inner class CyclicDependencyTests {
 
         @Test
         fun `should detect and avoid cyclic dependencies in actions`() {
@@ -81,7 +81,7 @@ class OptimizingGoapPlannerTest {
     }
 
     @Nested
-    inner class `Action cost optimization tests` {
+    inner class ActionCostOptimizationTests {
 
         @Test
         fun `should choose lower cost path when multiple paths exist`() {
@@ -90,14 +90,14 @@ class OptimizingGoapPlannerTest {
                 name = "actionA1",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("stepB" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val actionB1 = GoapAction(
                 name = "actionB1",
                 preconditions = mapOf("stepB" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 2.0
+                cost = { 2.0 },
             )
 
             // Path 2: X -> Y -> Z (total cost 5)
@@ -105,14 +105,14 @@ class OptimizingGoapPlannerTest {
                 name = "actionX2",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("stepY" to ConditionDetermination.TRUE),
-                cost = 2.0
+                cost = { 2.0 },
             )
 
             val actionY2 = GoapAction(
                 name = "actionY2",
                 preconditions = mapOf("stepY" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 3.0
+                cost = { 3.0 },
             )
 
             val goal = GoapGoal(
@@ -143,7 +143,7 @@ class OptimizingGoapPlannerTest {
     }
 
     @Nested
-    inner class `Irrelevant action pruning tests` {
+    inner class IrrelevantActionPruningTests {
 
         @Test
         fun `should ignore irrelevant actions with misleading effects`() {
@@ -205,7 +205,10 @@ class OptimizingGoapPlannerTest {
             assertTrue(goal.isAchievable(finalState), "The plan should achieve the goal")
         }
 
-        private fun simulatePlan(startState: GoapWorldState, actions: List<GoapAction>): GoapWorldState {
+        private fun simulatePlan(
+            startState: GoapWorldState,
+            actions: List<GoapAction>,
+        ): GoapWorldState {
             var currentState = startState
             for (action in actions) {
                 if (action.isAchievable(currentState)) {
@@ -215,7 +218,10 @@ class OptimizingGoapPlannerTest {
             return currentState
         }
 
-        private fun applyAction(currentState: GoapWorldState, action: GoapAction): GoapWorldState {
+        private fun applyAction(
+            currentState: GoapWorldState,
+            action: GoapAction,
+        ): GoapWorldState {
             val newState = currentState.state.toMutableMap()
             action.effects.forEach { (key, value) ->
                 newState[key] = value
@@ -225,7 +231,7 @@ class OptimizingGoapPlannerTest {
     }
 
     @Nested
-    inner class `Complex dependency chain tests` {
+    inner class ComplexDependencyChainTests {
 
         @Test
         fun `should handle long dependency chains with many irrelevant actions`() {
@@ -292,7 +298,7 @@ class OptimizingGoapPlannerTest {
     }
 
     @Nested
-    inner class `Condition conflicts tests` {
+    inner class ConditionConflictsTests {
 
         @Test
         fun `should handle actions with conflicting effects`() {

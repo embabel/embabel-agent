@@ -68,7 +68,7 @@ internal class DefaultActionMethodManager(
         return MultiTransformationAction(
             name = nameGenerator.generateName(instance, method.name),
             description = actionAnnotation.description.ifBlank { method.name },
-            cost = actionAnnotation.cost,
+            cost = { actionAnnotation.cost },
             inputs = inputs.toSet(),
             canRerun = actionAnnotation.canRerun,
             pre = actionAnnotation.pre.toList(),

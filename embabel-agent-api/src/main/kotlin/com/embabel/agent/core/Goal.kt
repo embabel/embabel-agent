@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
 import com.embabel.common.util.indentLines
+import com.embabel.plan.CostComputation
 import com.embabel.plan.goap.ConditionDetermination
 import com.embabel.plan.goap.EffectSpec
 import com.embabel.plan.goap.GoapGoal
@@ -45,7 +45,8 @@ data class Goal(
     val pre: Set<String> = emptySet(),
     override val inputs: Set<IoBinding> = emptySet(),
     val outputType: DomainType?,
-    override val value: ZeroToOne = 0.0,
+    @field:JsonIgnore
+    override val value: CostComputation = { 0.0 },
     val tags: Set<String> = emptySet(),
     val examples: Set<String> = emptySet(),
     val export: Export = Export(),
@@ -63,8 +64,8 @@ data class Goal(
     /**
      * Create a goal with the given value.
      */
-    fun withValue(value: Double): Goal {
-        return copy(value = value)
+    fun withFixedValue(value: Double): Goal {
+        return copy(value = { value })
     }
 
     @JsonIgnore
@@ -146,7 +147,7 @@ data class Goal(
                 inputs = inputs,
                 pre = pre.map { it.name }.toSet(),
                 outputType = if (satisfiedBy != null) JvmType(satisfiedBy) else null,
-                value = value,
+                value = { value },
                 tags = tags,
                 examples = examples,
             )

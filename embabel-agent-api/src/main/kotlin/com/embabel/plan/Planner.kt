@@ -69,7 +69,7 @@ interface Planner<S : PlanningSystem, W : WorldState, P : Plan> {
                 loggerFor<Planner<*, *, *>>().info(
                     "Found plan to goal {}: {}",
                     goal.name,
-                    plan.infoString(verbose = false) ?: "none",
+                    plan.infoString(verbose = false),
                 )
             } else {
                 loggerFor<Planner<*, *, *>>().info(
@@ -78,7 +78,7 @@ interface Planner<S : PlanningSystem, W : WorldState, P : Plan> {
                 )
             }
             plan
-        }.sortedByDescending { p -> p.netValue }
+        }.sortedByDescending { p -> p.netValue(state = worldState()) }
 
     /**
      * Return the best plan to any goal

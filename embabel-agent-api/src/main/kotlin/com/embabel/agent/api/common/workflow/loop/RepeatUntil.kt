@@ -95,8 +95,8 @@ data class RepeatUntil(
             name = "=>${resultClass.name}",
             description = "Generate $resultClass",
             post = listOf(RESULT_WAS_BOUND_LAST_CONDITION, ACCEPTABLE_CONDITION),
-            cost = 0.0,
-            value = 0.0,
+            cost = { 0.0 },
+            value = { 0.0 },
             pre = listOfNotNull(inputClass)
                 .filterNot { it == Unit::class.java }
                 .map { IoBinding(type = it).value },
@@ -179,8 +179,8 @@ data class RepeatUntil(
             name = "consolidate-${resultClass.name}",
             description = "Consolidate results and feedback",
             pre = listOf(ACCEPTABLE_CONDITION, RESULT_WAS_BOUND_LAST_CONDITION),
-            cost = 0.0,
-            value = 0.0,
+            cost = { 0.0 },
+            value = { 0.0 },
             toolGroups = emptySet(),
             inputClass = ResultHistory::class.java,
             outputClass = resultClass,

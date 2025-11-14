@@ -19,7 +19,7 @@ import com.embabel.agent.api.common.Transformation
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
-import com.embabel.common.core.types.ZeroToOne
+import com.embabel.plan.CostComputation
 
 /**
  * Return type to indicate that the action can return one of two types.
@@ -50,8 +50,8 @@ open class BranchingAction<I, O1, O2>(
     description: String = name,
     pre: List<String> = emptyList(),
     post: List<String> = emptyList(),
-    cost: ZeroToOne = 0.0,
-    value: ZeroToOne = 0.0,
+    cost: CostComputation = { 0.0 },
+    value: CostComputation = { 0.0 },
     canRerun: Boolean = false,
     qos: ActionQos = ActionQos(),
     private val inputClass: Class<I>,

@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
 import com.embabel.common.util.indentLines
 import com.embabel.common.util.loggerFor
@@ -33,8 +32,6 @@ import com.embabel.plan.goap.GoapAction
  * @qos Quality of Service. Governs retry policy
  */
 interface Action : DataFlowStep, GoapAction, ActionRunner, DataDictionary, ToolGroupConsumer {
-
-    override val cost: ZeroToOne get() = 0.0
 
     /**
      * Can this action be run again if it has already run in the given AgentProcess?
@@ -113,8 +110,6 @@ data class ActionMetadata(
     val outputs: Set<IoBinding>,
     val preconditions: EffectSpec,
     val effects: EffectSpec,
-    val cost: ZeroToOne,
-    val value: ZeroToOne,
     val canRerun: Boolean,
     val qos: ActionQos,
 ) {
@@ -128,8 +123,6 @@ data class ActionMetadata(
         outputs = action.outputs,
         preconditions = action.preconditions,
         effects = action.effects,
-        cost = action.cost,
-        value = action.value,
         canRerun = action.canRerun,
         qos = action.qos,
     )

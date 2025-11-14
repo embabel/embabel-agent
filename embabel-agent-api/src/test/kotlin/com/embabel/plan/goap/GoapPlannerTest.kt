@@ -16,6 +16,7 @@
 package com.embabel.plan.goap
 
 import com.embabel.common.util.time
+import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -39,7 +40,7 @@ class GoapPlannerTest {
             name = "Cook drugs",
             preconditions = emptyMap(),
             effects = mapOf("hasDrugs" to ConditionDetermination(true), "legalPeril" to ConditionDetermination(true)),
-            cost = 1.20
+            cost = { 1.20 },
         )
 
         val sellDrugs = GoapAction(
@@ -50,42 +51,42 @@ class GoapPlannerTest {
                 "hasMoney" to ConditionDetermination(true),
                 "legalPeril" to ConditionDetermination(true)
             ),
-            cost = 1.20,
+            cost = { 1.20 },
         )
 
         val buyGun = GoapAction(
             name = "Buy gun",
             preconditions = mapOf("hasMoney" to ConditionDetermination(true)),
             effects = mapOf("hasGun" to ConditionDetermination(true), "hasMoney" to ConditionDetermination(false)),
-            cost = 1.0,
+            cost = { 1.0 },
         )
 
         val bribeCop = GoapAction(
             name = "Bribe cop",
             preconditions = mapOf("hasMoney" to ConditionDetermination(true)),
             effects = mapOf("legalPeril" to ConditionDetermination(false), "hasMoney" to ConditionDetermination(false)),
-            cost = 2.0,
+            cost = { 2.0 },
         )
 
         val shootEnemy = GoapAction(
             name = "Shoot enemy",
             preconditions = mapOf("hasGun" to ConditionDetermination(true)),
             effects = mapOf("enemyDead" to ConditionDetermination(true), "legalPeril" to ConditionDetermination(true)),
-            cost = 1.0,
+            cost = { 1.0 },
         )
 
         val buyPoison = GoapAction(
             name = "Buy poison",
             preconditions = mapOf("hasMoney" to ConditionDetermination(true)),
             effects = mapOf("hasPoison" to ConditionDetermination(true), "hasMoney" to ConditionDetermination(false)),
-            cost = 3.0,
+            cost = { 3.0 },
         )
 
         val poisonEnemy = GoapAction(
             name = "Poison enemy",
             preconditions = mapOf("hasPoison" to ConditionDetermination(true)),
             effects = mapOf("enemyDead" to ConditionDetermination(true), "legalPeril" to ConditionDetermination(true)),
-            cost = 1.0
+            cost = { 1.0 },
         )
 
         val getAwayWithMurderGoal =
@@ -95,7 +96,7 @@ class GoapPlannerTest {
                     "enemyDead" to ConditionDetermination(true),
                     "legalPeril" to ConditionDetermination(false)
                 ),
-                value = 10.0,
+                value = { 10.0 },
             )
 
         val actions = setOf(
@@ -125,7 +126,7 @@ class GoapPlannerTest {
         @Test
         fun `should find 2 plans`() {
             val planner = AStarGoapPlanner(EmptyWorldStateDeterminer)
-            val hasGunGoal = GoapGoal("hasGun", value = 1.0)
+            val hasGunGoal = GoapGoal("hasGun", value = { 1.0 })
             val goapSystem = GoapPlanningSystem(actions, setOf(getAwayWithMurderGoal, hasGunGoal))
             val plans = planner.plansToGoals(goapSystem)
             assertEquals(plans.size, 2)
@@ -133,14 +134,14 @@ class GoapPlannerTest {
             assertEquals(
                 bestPlanActions,
                 best.actions.map { it.name })
-            assertTrue(best.netValue > 0.0)
-            assertTrue(best.cost > 0.0)
+            assertTrue(best.netValue(mockk()) > 0.0)
+            assertTrue(best.cost(mockk()) > 0.0)
         }
 
         @Test
         fun `best plan to any goal`() {
             val planner = AStarGoapPlanner(EmptyWorldStateDeterminer)
-            val hasGunGoal = GoapGoal(name = "hasGun", value = 1.0)
+            val hasGunGoal = GoapGoal(name = "hasGun", value = { 1.0 })
             val goapSystem = GoapPlanningSystem(actions, setOf(getAwayWithMurderGoal, hasGunGoal))
             val plan = planner.bestValuePlanToAnyGoal(goapSystem)
             assertNotNull(plan)
@@ -218,7 +219,7 @@ class GoapPlannerTest {
                         UUID.randomUUID().toString() to ConditionDetermination(true),
                         UUID.randomUUID().toString() to ConditionDetermination(false)
                     ),
-                    cost = 3.0,
+                    cost = { 3.0 },
                 )
             }
         }

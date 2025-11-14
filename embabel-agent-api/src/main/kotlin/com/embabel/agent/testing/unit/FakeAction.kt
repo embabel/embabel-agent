@@ -19,15 +19,15 @@ import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.core.ActionQos
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.common.core.types.ZeroToOne
+import com.embabel.plan.CostComputation
 
 class FakeAction(
     name: String,
     description: String = name,
     pre: List<String> = emptyList(),
     post: List<String> = emptyList(),
-    cost: ZeroToOne = 0.0,
-    value: ZeroToOne = 0.0,
+    cost: CostComputation = { 0.0 },
+    value: CostComputation = { 0.0 },
     canRerun: Boolean = false,
     qos: ActionQos = ActionQos(),
     inputClass: Class<Unit> = Unit::class.java,

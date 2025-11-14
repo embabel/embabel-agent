@@ -20,7 +20,7 @@ import com.embabel.agent.api.common.Transformation
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
-import com.embabel.common.core.types.ZeroToOne
+import com.embabel.plan.CostComputation
 import java.lang.reflect.Modifier
 
 
@@ -32,8 +32,8 @@ open class TransformationAction<I, O>(
     description: String = name,
     pre: List<String> = emptyList(),
     post: List<String> = emptyList(),
-    cost: ZeroToOne = 0.0,
-    value: ZeroToOne = 0.0,
+    cost: CostComputation = { 0.0 },
+    value: CostComputation = { 0.0 },
     canRerun: Boolean = false,
     qos: ActionQos = ActionQos(),
     private val inputClass: Class<I>,

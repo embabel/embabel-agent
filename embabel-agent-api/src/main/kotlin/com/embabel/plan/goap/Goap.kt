@@ -94,7 +94,7 @@ interface GoapAction : GoapStep, Action {
         verbose: Boolean?,
         indent: Int,
     ): String =
-        "$name - pre=${preconditions} cost=$cost value=${value}".indent(indent)
+        "$name - pre=${preconditions}".indent(indent)
 
 
     companion object {
@@ -105,8 +105,8 @@ interface GoapAction : GoapStep, Action {
             preconditions: EffectSpec = pre.associateWith { ConditionDetermination.TRUE },
             post: Collection<String> = emptySet(),
             effects: EffectSpec = post.associateWith { ConditionDetermination.TRUE },
-            cost: ZeroToOne = 0.0,
-            value: ZeroToOne = 0.0,
+            cost: (w: WorldState) -> ZeroToOne = { 0.0 },
+            value: (w: WorldState) -> ZeroToOne = { 0.0 },
         ): GoapAction {
             return SimpleGoapAction(
                 name = name,
@@ -124,8 +124,8 @@ private data class SimpleGoapAction(
     override val name: String,
     override val preconditions: EffectSpec,
     override val effects: EffectSpec,
-    override val cost: ZeroToOne,
-    override val value: ZeroToOne,
+    override val cost: CostComputation,
+    override val value: CostComputation,
 ) : GoapAction
 
 /**
@@ -141,14 +141,14 @@ interface GoapGoal : GoapStep,
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
-    ): String = "$name - pre=${preconditions} value=${value}".indent(indent)
+    ): String = "$name - pre=${preconditions}".indent(indent)
 
     companion object {
 
         operator fun invoke(
             name: String,
             preconditions: EffectSpec = mapOf(name to ConditionDetermination(true)),
-            value: ZeroToOne = 0.0,
+            value: CostComputation = { 0.0 },
         ): GoapGoal {
             return GoapGoalImpl(name, preconditions, value)
         }
@@ -156,7 +156,7 @@ interface GoapGoal : GoapStep,
         operator fun invoke(
             name: String,
             pre: Collection<String>,
-            value: ZeroToOne = 0.0,
+            value: CostComputation = { 0.0 },
         ): GoapGoal {
             return GoapGoalImpl(
                 name,
@@ -171,7 +171,7 @@ interface GoapGoal : GoapStep,
 private data class GoapGoalImpl(
     override val name: String,
     override val preconditions: EffectSpec,
-    override val value: ZeroToOne = 0.0,
+    override val value: CostComputation,
 ) : GoapGoal
 
 data class GoapPlanningSystem(

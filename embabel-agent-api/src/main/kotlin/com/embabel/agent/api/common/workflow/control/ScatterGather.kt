@@ -47,8 +47,8 @@ class ScatterGather(
         val generateAction = SupplierAction(
             name = "=>${resultClass.name}",
             description = "Generate $resultClass",
-            cost = 0.0,
-            value = 0.0,
+            cost = { 0.0 },
+            value = { 0.0 },
             canRerun = true,
             outputClass = ResultList::class.java,
             toolGroups = emptySet(),
@@ -70,8 +70,8 @@ class ScatterGather(
         val consolidateAction: Action = TransformationAction(
             name = "consolidate-${resultClass.name}",
             description = "Consolidate results and feedback",
-            cost = 0.0,
-            value = 0.0,
+            cost = { 0.0 },
+            value = { 0.0 },
             toolGroups = emptySet(),
             inputClass = ResultList::class.java,
             outputClass = resultClass,

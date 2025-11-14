@@ -19,7 +19,7 @@ import com.embabel.agent.api.common.Transformation
 import com.embabel.agent.core.ActionQos
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.common.core.types.ZeroToOne
+import com.embabel.plan.CostComputation
 
 /**
  * Action that has input preconditions, but produces no output
@@ -29,8 +29,8 @@ class ConsumerAction<I>(
     description: String = name,
     pre: List<String> = emptyList(),
     post: List<String> = emptyList(),
-    cost: ZeroToOne = 0.0,
-    value: ZeroToOne = 0.0,
+    cost: CostComputation = { 0.0 },
+    value: CostComputation = { 0.0 },
     canRerun: Boolean = false,
     qos: ActionQos = ActionQos(),
     inputClass: Class<I>,

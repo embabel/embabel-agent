@@ -21,6 +21,8 @@ import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
 import com.embabel.common.util.indentLines
 
+typealias CostComputation = (state: WorldState) -> ZeroToOne
+
 /**
  * A step in a plan. Can be an action or a goal
  */
@@ -32,11 +34,11 @@ interface Step : Named, HasInfoString {
     override val name: String
 
     /**
-     * Value of completing this step.
+     * Function to compute the value of completing this step.
      * From 0 (least valuable) to 1 (most valuable)
      * Steps with 0 value will still be planned if necessary to achieve a result
      */
-    val value: ZeroToOne
+    val value: CostComputation
 }
 
 interface Action : Step {
@@ -46,7 +48,7 @@ interface Action : Step {
      * Must be between 0 and 1
      * 1 is the most expensive imaginable.
      */
-    val cost: ZeroToOne
+    val cost: CostComputation
 
 }
 
@@ -69,11 +71,11 @@ open class Plan(
      * The cost of a plan may be greater than 1.0, even though
      * action costs and all values are 0-1
      */
-    val cost: Double get() = actions.sumOf { it.cost }
+    fun cost(state: WorldState): Double = actions.sumOf { it.cost(state) }
 
-    val actionsValue: Double get() = actions.sumOf { it.value }
+    fun actionsValue(state: WorldState): Double = actions.sumOf { it.value(state) }
 
-    val netValue: Double get() = goal.value + actionsValue - cost
+    fun netValue(state: WorldState): Double = goal.value(state) + actionsValue(state) - cost(state)
 
     override fun infoString(
         verbose: Boolean?,
@@ -88,16 +90,11 @@ open class Plan(
                     }
             }
                |goal: ${goal.name}
-               |cost: $cost
-               |netValue: $netValue
                |"""
                 .trimMargin()
                 .indentLines(level = indent)
-
-
         } else {
-            actions.joinToString(" -> ") { it.name } +
-                    "; netValue=$netValue"
+            actions.joinToString(" -> ") { it.name }
         }
     }
 

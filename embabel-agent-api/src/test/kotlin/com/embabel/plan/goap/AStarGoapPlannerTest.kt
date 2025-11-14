@@ -35,7 +35,7 @@ class AStarGoapPlannerTest {
                 name = "simpleAction",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             // Action with more preconditions (more specific)
@@ -47,7 +47,7 @@ class AStarGoapPlannerTest {
                     "condition2" to ConditionDetermination.TRUE
                 ),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0 // Same cost as simpleAction
+                cost = { 1.0 }, // Same cost as simpleAction
             )
 
             val goal = GoapGoal(
@@ -71,8 +71,10 @@ class AStarGoapPlannerTest {
 
             assertNotNull(plan, "Should find a plan")
             assertEquals(1, plan!!.actions.size, "Should have exactly one action")
-            assertEquals("specificAction", plan.actions[0].name,
-                "Should prefer the action with more preconditions")
+            assertEquals(
+                "specificAction", plan.actions[0].name,
+                "Should prefer the action with more preconditions"
+            )
         }
 
         @Test
@@ -82,7 +84,7 @@ class AStarGoapPlannerTest {
                 name = "action1",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val action2 = GoapAction(
@@ -92,7 +94,7 @@ class AStarGoapPlannerTest {
                     "extra1" to ConditionDetermination.TRUE
                 ),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val action3 = GoapAction(
@@ -104,7 +106,7 @@ class AStarGoapPlannerTest {
                     "extra3" to ConditionDetermination.TRUE
                 ),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -134,10 +136,14 @@ class AStarGoapPlannerTest {
             assertNotNull(plan1, "Should find a plan with first ordering")
             assertNotNull(plan2, "Should find a plan with second ordering")
 
-            assertEquals("action3", plan1!!.actions[0].name,
-                "Should prefer action3 with most preconditions (first ordering)")
-            assertEquals("action3", plan2!!.actions[0].name,
-                "Should prefer action3 with most preconditions (second ordering)")
+            assertEquals(
+                "action3", plan1!!.actions[0].name,
+                "Should prefer action3 with most preconditions (first ordering)"
+            )
+            assertEquals(
+                "action3", plan2!!.actions[0].name,
+                "Should prefer action3 with most preconditions (second ordering)"
+            )
         }
 
         @Test
@@ -152,7 +158,7 @@ class AStarGoapPlannerTest {
                     "condition3" to ConditionDetermination.TRUE
                 ),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 5.0
+                cost = { 5.0 },
             )
 
             // Low cost action with fewer preconditions
@@ -160,7 +166,7 @@ class AStarGoapPlannerTest {
                 name = "cheapSimpleAction",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -185,8 +191,10 @@ class AStarGoapPlannerTest {
 
             assertNotNull(plan, "Should find a plan")
             assertEquals(1, plan!!.actions.size, "Should have exactly one action")
-            assertEquals("cheapSimpleAction", plan.actions[0].name,
-                "Should prefer the lower cost action despite fewer preconditions")
+            assertEquals(
+                "cheapSimpleAction", plan.actions[0].name,
+                "Should prefer the lower cost action despite fewer preconditions"
+            )
         }
 
         @Test
@@ -196,7 +204,7 @@ class AStarGoapPlannerTest {
                 name = "simpleStep1",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("intermediate" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val specificStep1 = GoapAction(
@@ -206,7 +214,7 @@ class AStarGoapPlannerTest {
                     "extra" to ConditionDetermination.TRUE
                 ),
                 effects = mapOf("intermediate" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             // Second step: same for both paths
@@ -214,7 +222,7 @@ class AStarGoapPlannerTest {
                 name = "step2",
                 preconditions = mapOf("intermediate" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -238,15 +246,19 @@ class AStarGoapPlannerTest {
 
             assertNotNull(plan, "Should find a plan")
             assertEquals(2, plan!!.actions.size, "Should have exactly two actions")
-            assertEquals("specificStep1", plan.actions[0].name,
-                "Should prefer the more specific first step")
-            assertEquals("step2", plan.actions[1].name,
-                "Should include the second step")
+            assertEquals(
+                "specificStep1", plan.actions[0].name,
+                "Should prefer the more specific first step"
+            )
+            assertEquals(
+                "step2", plan.actions[1].name,
+                "Should include the second step"
+            )
         }
     }
 
     @Nested
-    inner class `Action selection edge cases` {
+    inner class ActionSelectionEdgeCases {
 
         @Test
         fun `should handle actions with zero preconditions`() {
@@ -254,14 +266,14 @@ class AStarGoapPlannerTest {
                 name = "noPreconditions",
                 preconditions = emptyMap(),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val actionWithOnePrecondition = GoapAction(
                 name = "onePrecondition",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -283,8 +295,10 @@ class AStarGoapPlannerTest {
 
             assertNotNull(plan, "Should find a plan")
             assertEquals(1, plan!!.actions.size, "Should have exactly one action")
-            assertEquals("onePrecondition", plan.actions[0].name,
-                "Should prefer action with preconditions over action with none")
+            assertEquals(
+                "onePrecondition", plan.actions[0].name,
+                "Should prefer action with preconditions over action with none"
+            )
         }
 
         @Test
@@ -296,7 +310,7 @@ class AStarGoapPlannerTest {
                     "condition1" to ConditionDetermination.TRUE
                 ),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val action2 = GoapAction(
@@ -306,7 +320,7 @@ class AStarGoapPlannerTest {
                     "condition2" to ConditionDetermination.TRUE
                 ),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -331,8 +345,10 @@ class AStarGoapPlannerTest {
             assertNotNull(plan, "Should find a plan")
             assertEquals(1, plan!!.actions.size, "Should have exactly one action")
             // Either action is acceptable since they have the same precondition count
-            assertTrue(plan.actions[0].name in listOf("action1", "action2"),
-                "Should choose one of the actions with equal precondition counts")
+            assertTrue(
+                plan.actions[0].name in listOf("action1", "action2"),
+                "Should choose one of the actions with equal precondition counts"
+            )
         }
     }
 
@@ -345,7 +361,7 @@ class AStarGoapPlannerTest {
                 name = "irrelevantAction",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("irrelevant" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -377,14 +393,14 @@ class AStarGoapPlannerTest {
                 name = "action1",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("conditionA" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val action2 = GoapAction(
                 name = "action2",
                 preconditions = mapOf("conditionB" to ConditionDetermination.TRUE),
                 effects = mapOf("conditionC" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             // Goal requires conditionC, but there's no way to get conditionB
@@ -418,14 +434,14 @@ class AStarGoapPlannerTest {
                 name = "action1",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("intermediate" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val action2 = GoapAction(
                 name = "action2",
                 preconditions = mapOf("intermediate" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -455,7 +471,7 @@ class AStarGoapPlannerTest {
                 name = "unnecessaryAction",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -480,7 +496,7 @@ class AStarGoapPlannerTest {
     }
 
     @Nested
-    inner class `Integration with existing optimization` {
+    inner class IntegrationWithExistingOptimization {
 
         @Test
         fun `should maintain optimization behavior while preferring more conditions`() {
@@ -489,14 +505,14 @@ class AStarGoapPlannerTest {
                 name = "unnecessary",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("irrelevant" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val simpleGoalAction = GoapAction(
                 name = "simpleGoal",
                 preconditions = mapOf("start" to ConditionDetermination.TRUE),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val specificGoalAction = GoapAction(
@@ -506,7 +522,7 @@ class AStarGoapPlannerTest {
                     "specific" to ConditionDetermination.TRUE
                 ),
                 effects = mapOf("goal" to ConditionDetermination.TRUE),
-                cost = 1.0
+                cost = { 1.0 },
             )
 
             val goal = GoapGoal(
@@ -530,10 +546,14 @@ class AStarGoapPlannerTest {
 
             assertNotNull(plan, "Should find a plan")
             assertEquals(1, plan!!.actions.size, "Should optimize away unnecessary actions")
-            assertEquals("specificGoal", plan.actions[0].name,
-                "Should prefer specific action that achieves goal")
-            assertFalse(plan.actions.any { it.name == "unnecessary" },
-                "Should not include unnecessary action")
+            assertEquals(
+                "specificGoal", plan.actions[0].name,
+                "Should prefer specific action that achieves goal"
+            )
+            assertFalse(
+                plan.actions.any { it.name == "unnecessary" },
+                "Should not include unnecessary action"
+            )
         }
     }
 }

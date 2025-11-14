@@ -15,8 +15,8 @@
  */
 package com.embabel.plan
 
-import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.indent
+import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -41,20 +41,22 @@ class PlanTest {
     // Simple implementation of Goal for testing
     private class TestGoal(
         override val name: String,
-        override val value: Double = 0.0,
+        override val value: CostComputation = { 0.0 },
     ) : Goal {
+
         override fun infoString(
             verbose: Boolean?,
             indent: Int,
-        ): String = "Goal($name, value=$value)".indent(indent)
+        ): String = "Goal($name)".indent(indent)
     }
 
     // Simple implementation of Action for testing
     private class TestAction(
         override val name: String,
-        override val cost: ZeroToOne = 0.0,
-        override val value: ZeroToOne = 0.0,
+        override val cost: CostComputation = { 0.0 },
+        override val value: CostComputation = { 0.0 },
     ) : Action {
+
         override fun infoString(
             verbose: Boolean?,
             indent: Int,
@@ -64,7 +66,7 @@ class PlanTest {
     @Test
     fun `test plan isComplete detects empty action list`() {
         // Create plan with no actions
-        val goal = TestGoal("TestGoal", 5.0)
+        val goal = TestGoal("TestGoal", { 5.0 })
         val emptyPlan = Plan(emptyList(), goal)
 
         // Complete when no actions
@@ -79,60 +81,60 @@ class PlanTest {
     fun `test plan cost calculation`() {
         val goal = TestGoal("TestGoal")
         val actions = listOf(
-            TestAction("Action1", cost = 2.5),
-            TestAction("Action2", cost = 1.5),
-            TestAction("Action3", cost = 3.0)
+            TestAction("Action1", cost = { 2.5 }),
+            TestAction("Action2", cost = { 1.5 }),
+            TestAction("Action3", cost = { 3.0 })
         )
 
         val plan = Plan(actions, goal)
 
         // Total cost should be sum of action costs
-        assertEquals(7.0, plan.cost)
+        assertEquals(7.0, plan.cost(mockk()))
     }
 
     @Test
     fun `test plan actionsValue calculation`() {
         val goal = TestGoal("TestGoal")
         val actions = listOf(
-            TestAction("Action1", value = 2.0),
-            TestAction("Action2", value = 3.0),
-            TestAction("Action3", value = 1.0)
+            TestAction("Action1", value = { 2.0 }),
+            TestAction("Action2", value = { 3.0 }),
+            TestAction("Action3", value = { 1.0 })
         )
 
         val plan = Plan(actions, goal)
 
         // Total action value should be sum of action values
-        assertEquals(6.0, plan.actionsValue)
+        assertEquals(6.0, plan.actionsValue(mockk()))
     }
 
     @Test
     fun `test plan netValue calculation`() {
-        val goal = TestGoal("TestGoal", value = 10.0)
+        val goal = TestGoal("TestGoal", value = { 10.0 })
         val actions = listOf(
-            TestAction("Action1", cost = 2.0, value = 1.0),
-            TestAction("Action2", cost = 3.0, value = 2.0)
+            TestAction("Action1", cost = { 2.0 }, value = { 1.0 }),
+            TestAction("Action2", cost = { 3.0 }, value = { 2.0 })
         )
 
         val plan = Plan(actions, goal)
 
         // Net value = goal value + action values - cost
         // 10 + (1 + 2) - (2 + 3) = 8
-        assertEquals(8.0, plan.netValue)
+        assertEquals(8.0, plan.netValue(mockk()))
     }
 
     @Test
     fun `test plan handles negative values and costs`() {
-        val goal = TestGoal("TestGoal", value = -5.0)
+        val goal = TestGoal("TestGoal", value = { -5.0 })
         val actions = listOf(
-            TestAction("Action1", cost = -1.0, value = -2.0),
-            TestAction("Action2", cost = 3.0, value = 1.0)
+            TestAction("Action1", cost = { -1.0 }, value = { -2.0 }),
+            TestAction("Action2", cost = { 3.0 }, value = { 1.0 })
         )
 
         val plan = Plan(actions, goal)
 
         // Net value = goal value + action values - cost
         // -5 + (-2 + 1) - (-1 + 3) = -8
-        assertEquals(-8.0, plan.netValue)
+        assertEquals(-8.0, plan.netValue(mockk()))
     }
 
     @Test
@@ -152,10 +154,6 @@ class PlanTest {
         assertTrue(verboseInfo.contains("  ".repeat(1) + "Action1"))
         assertTrue(verboseInfo.contains("  ".repeat(2) + "Action2"))
         assertTrue(verboseInfo.contains("  ".repeat(3) + "Action3"))
-
-        // Should contain cost and netValue
-        assertTrue(verboseInfo.contains("cost:"))
-        assertTrue(verboseInfo.contains("netValue:"))
     }
 
     @Test
@@ -173,8 +171,5 @@ class PlanTest {
 
         // Should contain action names with arrows
         assertTrue(info.contains("Action1 -> Action2 -> Action3"))
-
-        // Should contain netValue but be more compact
-        assertTrue(info.contains("netValue="))
     }
 }

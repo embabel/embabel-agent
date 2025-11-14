@@ -83,8 +83,8 @@ data class SimpleAgentBuilder<RESULT : Any>(
             val action = SupplierAction(
                 name = "Generate ${resultClass.simpleName}",
                 description = "Generates a result of type ${resultClass.simpleName}",
-                cost = 0.0,
-                value = 0.0,
+                cost = { 0.0 },
+                value = { 0.0 },
                 canRerun = true,
                 pre = listOfNotNull(inputClass).map { IoBinding(type = it).value },
                 outputClass = resultClass,
@@ -136,8 +136,8 @@ data class SimpleAgentBuilder<RESULT : Any>(
                 val action = TransformationAction(
                     name = "Generate ${resultClass.simpleName}",
                     description = "Generates a result of type ${resultClass.simpleName}",
-                    cost = 0.0,
-                    value = 0.0,
+                    cost = { 0.0 },
+                    value = { 0.0 },
                     canRerun = true,
                     inputClass = inputClass,
                     outputClass = resultClass,
