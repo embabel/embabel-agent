@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.remote.action
 
+import com.embabel.agent.core.Action
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.testing.integration.IntegrationTestUtils.dummyAgentPlatform
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -22,13 +23,11 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.springframework.http.converter.ByteArrayHttpMessageConverter
-import org.springframework.http.converter.ResourceHttpMessageConverter
-import org.springframework.http.converter.StringHttpMessageConverter
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter
-import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter
-import org.springframework.web.client.RestClient
 
+/**
+ * Tests for simple RestServer.
+ * Not run under CI
+ */
 class RestServerIT {
 
     @Test
@@ -67,7 +66,7 @@ class RestServerIT {
         )
         val agentScope = restServer.agentScope(agentPlatform)
         assertTrue(agentScope.actions.isNotEmpty(), "Should have had agents")
-        val greet = agentScope.actions.first { it.name == "greet" }
+        val greet: Action = agentScope.actions.first { it.name == "greet" }
         val pc = mockk<ProcessContext>(relaxed = true)
         every { pc.getValue("input", "GreetingInput") } returns mapOf(
             "name" to "Bob", "language" to "en"

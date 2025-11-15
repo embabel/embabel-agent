@@ -19,6 +19,7 @@ import com.embabel.agent.core.*
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.annotations.ApiStatus
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.http.converter.ByteArrayHttpMessageConverter
 import org.springframework.http.converter.ResourceHttpMessageConverter
 import org.springframework.http.converter.StringHttpMessageConverter
@@ -48,7 +49,7 @@ class RestServer(
             val jdkHttpClient = java.net.http.HttpClient.newBuilder()
                 .version(java.net.http.HttpClient.Version.HTTP_1_1)
                 .build()
-            val requestFactory = org.springframework.http.client.JdkClientHttpRequestFactory(jdkHttpClient)
+            val requestFactory = JdkClientHttpRequestFactory(jdkHttpClient)
 
             return RestClient.builder()
                 .requestFactory(requestFactory)
@@ -67,7 +68,6 @@ class RestServer(
      * Invoke server to get actions
      */
     private fun actions(): List<RestActionMetadata> {
-        // TODO make more springy?
         val json = restClient
             .get()
             .uri("${registration.baseUrl}/api/v1/actions")
@@ -113,6 +113,9 @@ class RestServer(
         )
     }
 
+    /**
+     * Convert action metadata to core Embabel Action
+     */
     private fun toAction(
         actionMetadata: RestActionMetadata,
         domainTypes: Collection<DomainType>,

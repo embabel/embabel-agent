@@ -36,8 +36,8 @@ internal class RestAction(
     description = spec.description,
     pre = spec.pre,
     post = spec.post,
-    cost = spec.cost,
-    value = spec.value,
+    cost = { spec.cost },
+    value = { spec.value },
     inputs = spec.inputs.map { it.toIoBinding() }.toSet(),
     outputs = spec.outputs.map { it.toIoBinding() }.toSet(),
     toolGroups = emptySet(),
@@ -45,6 +45,9 @@ internal class RestAction(
     qos = qos,
 ) {
 
+    /**
+     * Execute by invoking the remote REST endpoint
+     */
     override fun execute(
         processContext: ProcessContext,
     ): ActionStatus = ActionRunner.execute(processContext) {

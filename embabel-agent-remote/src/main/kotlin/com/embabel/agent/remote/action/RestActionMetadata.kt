@@ -47,7 +47,17 @@ data class RestActionMetadata(
 
 /**
  * Payload to register a remote server
+ * to which this server can delegate actions.
+ * Under the baseUrl, the server must expose
+ * - /actions to list actions (see RestActionMetadata),
+ * - /action/types to list known types (see DynamicType)
+ * and /remote/execute to execute actions
+ * execute should take action_name and parameters (Map<String, Any>) and return the output (Any)
+ * The output must match the dynamic type
  * @param baseUrl URL of the Embabel server below /api/v1
+ * @param name name of the server
+ * @param description description of the server
+ *
  */
 data class RestServerRegistration(
     val baseUrl: String,
