@@ -18,6 +18,7 @@ package com.embabel.agent.remote.action
 import com.embabel.agent.core.*
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.jetbrains.annotations.ApiStatus
 import org.springframework.http.converter.ByteArrayHttpMessageConverter
 import org.springframework.http.converter.ResourceHttpMessageConverter
 import org.springframework.http.converter.StringHttpMessageConverter
@@ -30,6 +31,7 @@ import org.springframework.web.client.body
 /**
  * Remote server that exposes actions over HTTP and REST
  */
+@ApiStatus.Experimental
 class RestServer(
     val registration: RestServerRegistration,
     private val restClient: RestClient,
