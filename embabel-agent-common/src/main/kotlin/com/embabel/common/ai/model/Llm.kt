@@ -34,13 +34,26 @@ import java.time.LocalDate
  * @param pricingModel if known for this LLM
  */
 @JsonSerialize(`as` = LlmMetadata::class)
-data class Llm(
+data class Llm @JvmOverloads constructor(
     override val name: String,
     override val provider: String,
     override val model: ChatModel,
-    val optionsConverter: OptionsConverter<*>,
+    val optionsConverter: OptionsConverter<*> = DefaultOptionsConverter,
     override val knowledgeCutoffDate: LocalDate? = null,
     override val promptContributors: List<PromptContributor> =
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
     override val pricingModel: PricingModel? = null,
-) : AiModel<ChatModel>, LlmMetadata, PromptContributorConsumer
+) : AiModel<ChatModel>, LlmMetadata, PromptContributorConsumer {
+
+    fun withOptionsConverter(converter: OptionsConverter<*>): Llm =
+        this.copy(optionsConverter = converter)
+
+    fun withKnowledgeCutoffDate(date: LocalDate): Llm =
+        this.copy(
+            knowledgeCutoffDate = date,
+            promptContributors = promptContributors + KnowledgeCutoffDate(date)
+        )
+
+    fun withPromptContributor(promptContributor: PromptContributor): Llm =
+        this.copy(promptContributors = promptContributors + promptContributor)
+}
