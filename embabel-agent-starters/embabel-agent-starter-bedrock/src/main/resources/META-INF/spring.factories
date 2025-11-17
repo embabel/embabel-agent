@@ -1,1 +1,0 @@
-org.springframework.boot.env.EnvironmentPostProcessor=com.embabel.agent.starter.bedrock.spi.BedrockEnvironmentPostProcessor

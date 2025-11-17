@@ -175,6 +175,8 @@ class AgentPlatformConfiguration(
         @Autowired(required = false)
         @Qualifier("anthropicModelsConfig") anthropicModelsConfig: Any?,
         @Autowired(required = false)
+        @Qualifier("bedrockModelsConfig") bedrockModelsConfig: Any?,
+        @Autowired(required = false)
         @Qualifier("dockerLocalModelsConfig") dockerLocalModelsConfig: Any?,
         @Autowired(required = false)
         @Qualifier("ollamaModelsConfig") ollamaModelsConfig: Any?,
