@@ -1,0 +1,229 @@
+# ============================================
+# bedrock-models.yml
+# ============================================
+# AWS Bedrock Claude models configuration
+# Models are available in US, EU, and APAC regions
+
+models:
+  # ========================================
+  # US REGION MODELS
+  # ========================================
+
+  # Claude 3.5 Sonnet (Original) - US
+  - name: "us_claude_3_5_sonnet"
+    model_id: "us.anthropic.claude-3-5-sonnet-20240620-v1:0"
+    display_name: "Claude 3.5 Sonnet (US)"
+    region: "us"
+    knowledge_cutoff_date: "2024-04-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude 3.5 Sonnet V2 - US
+  - name: "us_claude_3_5_sonnet_v2"
+    model_id: "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    display_name: "Claude 3.5 Sonnet V2 (US)"
+    region: "us"
+    knowledge_cutoff_date: "2024-07-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude 3.5 Haiku - US
+  - name: "us_claude_3_5_haiku"
+    model_id: "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+    display_name: "Claude 3.5 Haiku (US)"
+    region: "us"
+    knowledge_cutoff_date: "2024-07-01"
+    pricing_model:
+      usd_per1m_input_tokens: 0.8
+      usd_per1m_output_tokens: 4.0
+
+  # Claude 3.7 Sonnet - US
+  - name: "us_claude_3_7_sonnet"
+    model_id: "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    display_name: "Claude 3.7 Sonnet (US)"
+    region: "us"
+    knowledge_cutoff_date: "2024-10-31"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude Sonnet 4 - US
+  - name: "us_claude_sonnet_4"
+    model_id: "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    display_name: "Claude Sonnet 4 (US)"
+    region: "us"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude Opus 4 - US
+  - name: "us_claude_opus_4"
+    model_id: "us.anthropic.claude-opus-4-20250514-v1:0"
+    display_name: "Claude Opus 4 (US)"
+    region: "us"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 15.0
+      usd_per1m_output_tokens: 75.0
+
+  # ========================================
+  # EU REGION MODELS
+  # ========================================
+
+  # Claude 3.5 Sonnet (Original) - EU
+  - name: "eu_claude_3_5_sonnet"
+    model_id: "eu.anthropic.claude-3-5-sonnet-20240620-v1:0"
+    display_name: "Claude 3.5 Sonnet (EU)"
+    region: "eu"
+    knowledge_cutoff_date: "2024-04-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude 3.5 Sonnet V2 - EU
+  - name: "eu_claude_3_5_sonnet_v2"
+    model_id: "eu.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    display_name: "Claude 3.5 Sonnet V2 (EU)"
+    region: "eu"
+    knowledge_cutoff_date: "2024-07-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude 3.5 Haiku - EU
+  - name: "eu_claude_3_5_haiku"
+    model_id: "eu.anthropic.claude-3-5-haiku-20241022-v1:0"
+    display_name: "Claude 3.5 Haiku (EU)"
+    region: "eu"
+    knowledge_cutoff_date: "2024-07-01"
+    pricing_model:
+      usd_per1m_input_tokens: 0.8
+      usd_per1m_output_tokens: 4.0
+
+  # Claude 3.7 Sonnet - EU
+  - name: "eu_claude_3_7_sonnet"
+    model_id: "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    display_name: "Claude 3.7 Sonnet (EU)"
+    region: "eu"
+    knowledge_cutoff_date: "2024-10-31"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude Sonnet 4 - EU
+  - name: "eu_claude_sonnet_4"
+    model_id: "eu.anthropic.claude-sonnet-4-20250514-v1:0"
+    display_name: "Claude Sonnet 4 (EU)"
+    region: "eu"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude Opus 4 - EU
+  - name: "eu_claude_opus_4"
+    model_id: "eu.anthropic.claude-opus-4-20250514-v1:0"
+    display_name: "Claude Opus 4 (EU)"
+    region: "eu"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 15.0
+      usd_per1m_output_tokens: 75.0
+
+  # ========================================
+  # APAC REGION MODELS
+  # ========================================
+
+  # Claude 3.5 Sonnet (Original) - APAC
+  - name: "apac_claude_3_5_sonnet"
+    model_id: "apac.anthropic.claude-3-5-sonnet-20240620-v1:0"
+    display_name: "Claude 3.5 Sonnet (APAC)"
+    region: "apac"
+    knowledge_cutoff_date: "2024-04-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude 3.5 Sonnet V2 - APAC
+  - name: "apac_claude_3_5_sonnet_v2"
+    model_id: "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    display_name: "Claude 3.5 Sonnet V2 (APAC)"
+    region: "apac"
+    knowledge_cutoff_date: "2024-07-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude 3.5 Haiku - APAC
+  - name: "apac_claude_3_5_haiku"
+    model_id: "apac.anthropic.claude-3-5-haiku-20241022-v1:0"
+    display_name: "Claude 3.5 Haiku (APAC)"
+    region: "apac"
+    knowledge_cutoff_date: "2024-07-01"
+    pricing_model:
+      usd_per1m_input_tokens: 0.8
+      usd_per1m_output_tokens: 4.0
+
+  # Claude 3.7 Sonnet - APAC
+  - name: "apac_claude_3_7_sonnet"
+    model_id: "apac.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    display_name: "Claude 3.7 Sonnet (APAC)"
+    region: "apac"
+    knowledge_cutoff_date: "2024-10-31"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude Sonnet 4 - APAC
+  - name: "apac_claude_sonnet_4"
+    model_id: "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+    display_name: "Claude Sonnet 4 (APAC)"
+    region: "apac"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # Claude Opus 4 - APAC
+  - name: "apac_claude_opus_4"
+    model_id: "apac.anthropic.claude-opus-4-20250514-v1:0"
+    display_name: "Claude Opus 4 (APAC)"
+    region: "apac"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 15.0
+      usd_per1m_output_tokens: 75.0
+
+# ========================================
+# EMBEDDING MODELS
+# ========================================
+embedding_models:
+  # Amazon Titan Embedding Models
+  - name: "titan_embed_image_v1"
+    model_id: "amazon.titan-embed-image-v1"
+    display_name: "Titan Embed Image V1"
+    model_type: "titan"
+
+  - name: "titan_embed_text_v1"
+    model_id: "amazon.titan-embed-text-v1"
+    display_name: "Titan Embed Text V1"
+    model_type: "titan"
+
+  - name: "titan_embed_text_v2"
+    model_id: "amazon.titan-embed-text-v2:0"
+    display_name: "Titan Embed Text V2"
+    model_type: "titan"
+
+  # Cohere Embedding Models
+  - name: "cohere_embed_multilingual_v3"
+    model_id: "cohere.embed-multilingual-v3"
+    display_name: "Cohere Embed Multilingual V3"
+    model_type: "cohere"
+
+  - name: "cohere_embed_english_v3"
+    model_id: "cohere.embed-english-v3"
+    display_name: "Cohere Embed English V3"
+    model_type: "cohere"

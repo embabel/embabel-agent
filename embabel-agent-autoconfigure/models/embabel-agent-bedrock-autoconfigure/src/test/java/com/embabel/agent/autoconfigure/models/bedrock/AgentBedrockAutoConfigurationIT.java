@@ -15,8 +15,6 @@
  */
 package com.embabel.agent.autoconfigure.models.bedrock;
 
-//import com.embabel.agent.config.annotation.EnableAgentShell;
-import com.embabel.agent.config.annotation.bedrock.EnableAgentBedrock;
 import com.embabel.common.ai.model.Llm;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -30,7 +28,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.embabel.agent.config.models.bedrock.BedrockModels.*;
+import static com.embabel.agent.config.models.bedrock.BedrockModelsConfig.EU_ANTHROPIC_CLAUDE_OPUS_4;
+import static com.embabel.agent.config.models.bedrock.BedrockModelsConfig.EU_ANTHROPIC_CLAUDE_SONNET_4;
 
 @SpringBootTest(
         classes = AgentBedrockAutoConfigurationIT.class,
@@ -42,8 +41,6 @@ import static com.embabel.agent.config.models.bedrock.BedrockModels.*;
                 "spring.ai.bedrock.aws.access-key=AWSACCESSKEYID",
                 "spring.ai.bedrock.aws.secret-key=AWSSECRETACCESSKEY"
         })
-@EnableAgentBedrock
-//@EnableAgentShell can be added as well
 @ComponentScan(basePackages = "com.embabel.agent.autoconfigure")
 @ImportAutoConfiguration(classes = {AgentBedrockAutoConfiguration.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
