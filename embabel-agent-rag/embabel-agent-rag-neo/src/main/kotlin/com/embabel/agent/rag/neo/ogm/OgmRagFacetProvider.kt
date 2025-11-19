@@ -269,27 +269,23 @@ class OgmRagFacetProvider(
         }
     }
 
-    override fun existsRootWithUri(uri: String): Boolean {
-        logger.debug("Checking if root document exists with URI: {}", uri)
+    override fun findContentRootByUri(uri: String): ContentRoot? {
+        logger.debug("Finding root document with URI: {}", uri)
 
         try {
             val session = ogmCypherSearch.currentSession()
-            val result = session.query(
-                """
-                MATCH (root:ContentElement {uri: ${'$'}uri})
-                WHERE 'Document' IN labels(root) OR 'ContentRoot' IN labels(root)
-                RETURN count(root) > 0 AS exists
-                """.trimIndent(),
+            val rows = session.query(
+                cypherContentElementQuery(" WHERE c.uri = \$uri AND ('Document' IN labels(c) OR 'ContentRoot' IN labels(c)) "),
                 mapOf("uri" to uri),
                 true
             )
 
-            val exists = result.firstOrNull()?.get("exists") as? Boolean ?: false
-            logger.debug("Root document with URI {} exists: {}", uri, exists)
-            return exists
+            val element = rows.mapNotNull(::rowToContentElement).firstOrNull()
+            logger.debug("Root document with URI {} found: {}", uri, element != null)
+            return element as? ContentRoot
         } catch (e: Exception) {
-            logger.error("Error checking if root exists with URI: {}", uri, e)
-            return false
+            logger.error("Error finding root with URI: {}", uri, e)
+            return null
         }
     }
 

@@ -20,12 +20,7 @@ import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.CONTAINER_SECTION_ID
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.SEQUENCE_NUMBER
 import com.embabel.agent.rag.ingestion.RetrievableEnhancer
-import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.ContentElement
-import com.embabel.agent.rag.model.LeafSection
-import com.embabel.agent.rag.model.NavigableContainerSection
-import com.embabel.agent.rag.model.NavigableDocument
-import com.embabel.agent.rag.model.Retrievable
+import com.embabel.agent.rag.model.*
 import com.embabel.agent.rag.service.RagRequest
 import com.embabel.agent.rag.service.support.FunctionRagFacet
 import com.embabel.agent.rag.service.support.RagFacet
@@ -764,16 +759,14 @@ class LuceneRagFacetProvider @JvmOverloads constructor(
         }
     }
 
-    override fun existsRootWithUri(uri: String): Boolean {
-        logger.debug("Checking if root document exists with URI: {}", uri)
-        synchronized(this) {
-            val exists = contentElementStorage.values.any {
+    override fun findContentRootByUri(uri: String): ContentRoot? {
+        logger.debug("Finding root document with URI: {}", uri)
+        return synchronized(this) {
+            contentElementStorage.values.find {
                 it.uri == uri && it.labels().any { label ->
                     label.contains("Document") || label.contains("ContentRoot")
                 }
-            }
-            logger.debug("Root document with URI {} exists: {}", uri, exists)
-            return exists
+            } as? ContentRoot
         }
     }
 

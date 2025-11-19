@@ -514,4 +514,247 @@ class ContentRefreshPolicyTest {
             assertTrue(ingestCalls.isEmpty())
         }
     }
+
+    @Nested
+    inner class TtlContentRefreshPolicyTest {
+
+        @Test
+        fun `shouldReread returns true when document does not exist`() {
+            val uri = "test://new-document"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            every { mockRepository.findContentRootByUri(uri) } returns null
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertTrue(result)
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+        }
+
+        @Test
+        fun `shouldReread returns true when document is older than TTL`() {
+            val uri = "test://old-document"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Create a document that was ingested 1 hour ago (older than 30 min TTL)
+            val oldIngestionTime = java.time.Instant.now().minus(java.time.Duration.ofHours(1))
+            val oldDocument = MaterializedDocument(
+                id = "old-doc",
+                uri = uri,
+                title = "Old Document",
+                ingestionTimestamp = oldIngestionTime,
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns oldDocument
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertTrue(result, "Should reread document that is older than TTL")
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+        }
+
+        @Test
+        fun `shouldReread returns false when document is within TTL`() {
+            val uri = "test://recent-document"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Create a document that was ingested 10 minutes ago (within 30 min TTL)
+            val recentIngestionTime = java.time.Instant.now().minus(java.time.Duration.ofMinutes(10))
+            val recentDocument = MaterializedDocument(
+                id = "recent-doc",
+                uri = uri,
+                title = "Recent Document",
+                ingestionTimestamp = recentIngestionTime,
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns recentDocument
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertFalse(result, "Should not reread document that is within TTL")
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+        }
+
+        @Test
+        fun `shouldReread with document just past TTL boundary`() {
+            val uri = "test://boundary-document"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Create a document that was ingested slightly more than 30 minutes ago
+            val boundaryIngestionTime = java.time.Instant.now().minus(ttl).minusMillis(100)
+            val boundaryDocument = MaterializedDocument(
+                id = "boundary-doc",
+                uri = uri,
+                title = "Boundary Document",
+                ingestionTimestamp = boundaryIngestionTime,
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns boundaryDocument
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            // Document is past TTL, should reread
+            assertTrue(result, "Should reread document that is past TTL boundary")
+        }
+
+        @Test
+        fun `shouldRefreshDocument always returns true`() {
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = "test://document",
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            val result = policy.shouldRefreshDocument(mockRepository, document)
+
+            assertTrue(result, "shouldRefreshDocument should always return true")
+        }
+
+        @Test
+        fun `factory method creates correct policy`() {
+            val ttl = java.time.Duration.ofHours(2)
+            val policy = TtlContentRefreshPolicy.of(ttl)
+
+            assertNotNull(policy)
+            assertTrue(policy is TtlContentRefreshPolicy)
+        }
+
+        @Test
+        fun `TTL of zero always refreshes`() {
+            val uri = "test://zero-ttl-document"
+            val ttl = java.time.Duration.ZERO
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Even a just-ingested document should be rereread with TTL of zero
+            val justIngestedDocument = MaterializedDocument(
+                id = "just-ingested",
+                uri = uri,
+                title = "Just Ingested",
+                ingestionTimestamp = java.time.Instant.now(),
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns justIngestedDocument
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertTrue(result, "Should always reread with zero TTL")
+        }
+
+        @Test
+        fun `different TTL durations work correctly`() {
+            val uri = "test://ttl-test"
+
+            // Test with 1 hour TTL
+            val oneHourPolicy = TtlContentRefreshPolicy(java.time.Duration.ofHours(1))
+
+            // Document ingested 30 minutes ago
+            val doc30MinAgo = MaterializedDocument(
+                id = "doc",
+                uri = uri,
+                title = "Test",
+                ingestionTimestamp = java.time.Instant.now().minus(java.time.Duration.ofMinutes(30)),
+                children = emptyList()
+            )
+
+            // Document ingested 90 minutes ago
+            val doc90MinAgo = MaterializedDocument(
+                id = "doc",
+                uri = uri,
+                title = "Test",
+                ingestionTimestamp = java.time.Instant.now().minus(java.time.Duration.ofMinutes(90)),
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns doc30MinAgo
+            assertFalse(oneHourPolicy.shouldReread(mockRepository, uri), "30 min old doc should be within 1 hour TTL")
+
+            every { mockRepository.findContentRootByUri(uri) } returns doc90MinAgo
+            assertTrue(oneHourPolicy.shouldReread(mockRepository, uri), "90 min old doc should exceed 1 hour TTL")
+        }
+
+        @Test
+        fun `ingestUriIfNeeded respects TTL policy`() {
+            val uri = "test://ttl-ingestion"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Document within TTL
+            val recentDocument = MaterializedDocument(
+                id = "recent",
+                uri = uri,
+                title = "Recent",
+                ingestionTimestamp = java.time.Instant.now().minus(java.time.Duration.ofMinutes(5)),
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns recentDocument
+
+            val ingestCallTracker = mutableListOf<NavigableDocument>()
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri,
+                ingestDocument = { ingestCallTracker.add(it) }
+            )
+
+            // Should not parse or ingest since document is within TTL
+            assertTrue(ingestCallTracker.isEmpty())
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+            verify(exactly = 0) { mockReader.parseUrl(any()) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded refreshes expired documents`() {
+            val uri = "test://expired-doc"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Document older than TTL
+            val oldDocument = MaterializedDocument(
+                id = "old",
+                uri = uri,
+                title = "Old",
+                ingestionTimestamp = java.time.Instant.now().minus(java.time.Duration.ofHours(1)),
+                children = emptyList()
+            )
+
+            val newDocument = MaterializedDocument(
+                id = "new",
+                uri = uri,
+                title = "New",
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns oldDocument
+            every { mockReader.parseUrl(uri) } returns newDocument
+
+            val ingestCallTracker = mutableListOf<NavigableDocument>()
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri,
+                ingestDocument = { ingestCallTracker.add(it) }
+            )
+
+            // Should parse and ingest since document is expired
+            assertEquals(1, ingestCallTracker.size)
+            assertEquals(newDocument, ingestCallTracker[0])
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+            verify(exactly = 1) { mockReader.parseUrl(uri) }
+        }
+    }
 }

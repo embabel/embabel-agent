@@ -1216,16 +1216,15 @@ class LuceneRagFacetProviderTest {
         }
 
         @Test
-        fun `should return true for documents with ContentRoot label`() {
+        fun `should return true for documents with ContentRoot interface`() {
             val documentUri = "test://content-root"
-            // Create a custom content element with ContentRoot label
-            val root = object : com.embabel.agent.rag.model.ContentElement {
-                override val id = "root1"
-                override val uri = documentUri
-                override val metadata = emptyMap<String, Any?>()
-                override fun labels() = setOf("ContentElement", "ContentRoot")
-                override fun propertiesToPersist() = mapOf("id" to id, "uri" to uri)
-            }
+            // Use MaterializedDocument which properly implements ContentRoot
+            val root = com.embabel.agent.rag.model.MaterializedDocument(
+                id = "root1",
+                uri = documentUri,
+                title = "Content Root Document",
+                children = emptyList()
+            )
 
             ragService.save(root)
             ragService.commitChanges()

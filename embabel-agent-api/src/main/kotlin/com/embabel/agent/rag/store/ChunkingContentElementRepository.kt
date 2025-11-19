@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.store
 
 import com.embabel.agent.rag.ingestion.RetrievableEnhancer
+import com.embabel.agent.rag.model.ContentRoot
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.model.Retrievable
 
@@ -47,10 +48,12 @@ interface ChunkingContentElementRepository : ContentElementRepository {
      */
     fun deleteRootAndDescendants(uri: String): DocumentDeletionResult?
 
+    fun findContentRootByUri(uri: String): ContentRoot?
+
     /**
      * Does a root with the given uri exist?
      */
-    fun existsRootWithUri(uri: String): Boolean
+    fun existsRootWithUri(uri: String): Boolean = findContentRootByUri(uri) != null
 
     /**
      * List of enhancers
