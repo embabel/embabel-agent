@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.rag.ingestion;
 
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,7 +34,7 @@ class DirectoryParsingConfigTest {
         @Test
         @DisplayName("should create config with default values")
         void shouldCreateConfigWithDefaults() {
-            DirectoryParsingConfig config = new DirectoryParsingConfig();
+            com.embabel.agent.rag.ingestion.DirectoryParsingConfig config = new DirectoryParsingConfig();
 
             assertNotNull(config.getIncludedExtensions());
             assertFalse(config.getIncludedExtensions().isEmpty());
