@@ -44,14 +44,15 @@ interface ContentRefreshPolicy {
         repository: ChunkingContentElementRepository,
         hierarchicalContentReader: HierarchicalContentReader,
         rootUri: String,
-        ingestDocument: (NavigableDocument) -> Unit,
-    ) {
+    ): NavigableDocument? {
         if (shouldReread(repository, rootUri)) {
             val document = hierarchicalContentReader.parseUrl(rootUri)
             if (shouldRefreshDocument(repository, document)) {
-                ingestDocument(document)
+                repository.writeAndChunkDocument(document)
+                return document
             }
         }
+        return null
     }
 
 }

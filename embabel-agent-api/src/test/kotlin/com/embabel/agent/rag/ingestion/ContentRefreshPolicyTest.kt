@@ -130,13 +130,6 @@ class ContentRefreshPolicyTest {
     @Nested
     inner class IngestUriIfNeededTest {
 
-        private lateinit var ingestCallTracker: MutableList<NavigableDocument>
-
-        @BeforeEach
-        fun setUpIngestTracker() {
-            ingestCallTracker = mutableListOf()
-        }
-
         @Test
         fun `ingestUriIfNeeded does not read when shouldReread returns false`() {
             val uri = "test://existing-document"
@@ -147,14 +140,13 @@ class ContentRefreshPolicyTest {
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { ingestCallTracker.add(it) }
+                rootUri = uri
             )
 
             // Should not parse or ingest
-            assertTrue(ingestCallTracker.isEmpty())
             verify(exactly = 1) { mockRepository.existsRootWithUri(uri) }
             verify(exactly = 0) { mockReader.parseUrl(any()) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
         }
 
         @Test
@@ -174,14 +166,13 @@ class ContentRefreshPolicyTest {
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { ingestCallTracker.add(it) }
+                rootUri = uri
             )
 
             // Should parse but not ingest (because shouldRefreshDocument always returns false)
-            assertTrue(ingestCallTracker.isEmpty())
             verify(exactly = 1) { mockRepository.existsRootWithUri(uri) }
             verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
         }
 
         @Test
@@ -208,18 +199,17 @@ class ContentRefreshPolicyTest {
             }
 
             every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { ingestCallTracker.add(it) }
+                rootUri = uri
             )
 
             // Should parse and ingest
-            assertEquals(1, ingestCallTracker.size)
-            assertEquals(document, ingestCallTracker[0])
             verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
         }
 
         @Test
@@ -249,31 +239,29 @@ class ContentRefreshPolicyTest {
             every { mockRepository.existsRootWithUri(existingUri) } returns true
             every { mockRepository.existsRootWithUri(newUri) } returns false
             every { mockReader.parseUrl(newUri) } returns newDocument
+            every { mockRepository.writeAndChunkDocument(newDocument) } returns emptyList()
 
             // Try with existing URI
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = existingUri,
-                ingestDocument = { ingestCallTracker.add(it) }
+                rootUri = existingUri
             )
 
-            assertEquals(0, ingestCallTracker.size)
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
 
             // Try with new URI
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = newUri,
-                ingestDocument = { ingestCallTracker.add(it) }
+                rootUri = newUri
             )
 
-            assertEquals(1, ingestCallTracker.size)
-            assertEquals(newDocument, ingestCallTracker[0])
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(newDocument) }
         }
 
         @Test
-        fun `ingestUriIfNeeded calls ingestDocument with parsed document`() {
+        fun `ingestUriIfNeeded calls writeAndChunkDocument with parsed document`() {
             val uri = "test://document"
             val document = MaterializedDocument(
                 id = "doc1",
@@ -295,19 +283,15 @@ class ContentRefreshPolicyTest {
             }
 
             every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
-            var capturedDocument: NavigableDocument? = null
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { capturedDocument = it }
+                rootUri = uri
             )
 
-            assertNotNull(capturedDocument)
-            assertEquals(document.id, capturedDocument?.id)
-            assertEquals(document.uri, capturedDocument?.uri)
-            assertEquals(document.title, capturedDocument?.title)
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
         }
 
         @Test
@@ -334,19 +318,17 @@ class ContentRefreshPolicyTest {
             }
 
             every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { ingestCallTracker.add(it) }
+                rootUri = uri
             )
 
-            assertEquals(1, ingestCallTracker.size)
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
 
-            // Clear tracker and test with non-matching document
-            ingestCallTracker.clear()
-
+            // Test with non-matching document
             val otherDocument = MaterializedDocument(
                 id = "doc2",
                 uri = "test://other",
@@ -359,11 +341,12 @@ class ContentRefreshPolicyTest {
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = "test://other",
-                ingestDocument = { ingestCallTracker.add(it) }
+                rootUri = "test://other"
             )
 
-            assertEquals(0, ingestCallTracker.size)
+            // Should still only have 1 call (from the first document)
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(any()) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(otherDocument) }
         }
 
         @Test
@@ -387,16 +370,15 @@ class ContentRefreshPolicyTest {
                 policy.ingestUriIfNeeded(
                     repository = mockRepository,
                     hierarchicalContentReader = mockReader,
-                    rootUri = uri,
-                    ingestDocument = { ingestCallTracker.add(it) }
+                    rootUri = uri
                 )
             }
 
-            assertTrue(ingestCallTracker.isEmpty())
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
         }
 
         @Test
-        fun `ingestUriIfNeeded does not call ingestDocument when shouldReread is false`() {
+        fun `ingestUriIfNeeded does not call writeAndChunkDocument when shouldReread is false`() {
             val uri = "test://no-reread"
             val policy = object : ContentRefreshPolicy {
                 override fun shouldReread(
@@ -410,16 +392,14 @@ class ContentRefreshPolicyTest {
                 ): Boolean = true
             }
 
-            var ingestCalled = false
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { ingestCalled = true }
+                rootUri = uri
             )
 
-            assertFalse(ingestCalled)
             verify(exactly = 0) { mockReader.parseUrl(any()) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
         }
     }
 
@@ -451,17 +431,15 @@ class ContentRefreshPolicyTest {
 
             every { mockReader.parseUrl(uri) } returns document
 
-            val ingestCalls = mutableListOf<NavigableDocument>()
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { ingestCalls.add(it) }
+                rootUri = uri
             )
 
             // Should read but not ingest because title contains "Large"
-            assertTrue(ingestCalls.isEmpty())
             verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
         }
 
         @Test
@@ -489,29 +467,27 @@ class ContentRefreshPolicyTest {
 
             every { mockRepository.count() } returns 50
             every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
-            val ingestCalls = mutableListOf<NavigableDocument>()
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { ingestCalls.add(it) }
+                rootUri = uri
             )
 
-            assertEquals(1, ingestCalls.size)
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
 
             // Test when repository is full
-            ingestCalls.clear()
             every { mockRepository.count() } returns 150
 
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
-                rootUri = uri,
-                ingestDocument = { ingestCalls.add(it) }
+                rootUri = uri
             )
 
-            assertTrue(ingestCalls.isEmpty())
+            // Should still only have 1 call (from the first ingest)
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
         }
     }
 
@@ -701,19 +677,16 @@ class ContentRefreshPolicyTest {
 
             every { mockRepository.findContentRootByUri(uri) } returns recentDocument
 
-            val ingestCallTracker = mutableListOf<NavigableDocument>()
-
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
                 rootUri = uri,
-                ingestDocument = { ingestCallTracker.add(it) }
             )
 
             // Should not parse or ingest since document is within TTL
-            assertTrue(ingestCallTracker.isEmpty())
             verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
             verify(exactly = 0) { mockReader.parseUrl(any()) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
         }
 
         @Test
@@ -740,21 +713,18 @@ class ContentRefreshPolicyTest {
 
             every { mockRepository.findContentRootByUri(uri) } returns oldDocument
             every { mockReader.parseUrl(uri) } returns newDocument
-
-            val ingestCallTracker = mutableListOf<NavigableDocument>()
+            every { mockRepository.writeAndChunkDocument(any()) } returns emptyList()
 
             policy.ingestUriIfNeeded(
                 repository = mockRepository,
                 hierarchicalContentReader = mockReader,
                 rootUri = uri,
-                ingestDocument = { ingestCallTracker.add(it) }
             )
 
             // Should parse and ingest since document is expired
-            assertEquals(1, ingestCallTracker.size)
-            assertEquals(newDocument, ingestCallTracker[0])
             verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
             verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(newDocument) }
         }
     }
 }
