@@ -99,7 +99,13 @@ class OgmRagFacetProvider(
     }
 
     override fun findById(id: String): ContentElement? {
-        return findAllChunksById(listOf(id)).firstOrNull()
+        val session = ogmCypherSearch.currentSession()
+        val rows = session.query(
+            cypherContentElementQuery(" WHERE c.id = \$id "),
+            mapOf("id" to id),
+            true,
+        )
+        return rows.mapNotNull(::rowToContentElement).firstOrNull()
     }
 
     override fun save(element: ContentElement): ContentElement {
@@ -129,7 +135,7 @@ class OgmRagFacetProvider(
     }
 
     private fun cypherContentElementQuery(whereClause: String): String =
-        "MATCH (c:ContentElement) $whereClause RETURN c.id AS id, c.uri as uri, c.text AS text, c.parentId as parentId, c.metadata.source as metadata_source, labels(c) as labels"
+        "MATCH (c:ContentElement) $whereClause RETURN c.id AS id, c.uri as uri, c.text AS text, c.parentId as parentId, c.ingestionTimestamp as ingestionDate, c.metadata.source as metadata_source, labels(c) as labels"
 
     private fun rowToContentElement(row: Map<String, Any?>): ContentElement? {
         val metadata = mutableMapOf<String, Any>()
@@ -142,14 +148,24 @@ class OgmRagFacetProvider(
                 parentId = row["parentId"] as String,
                 metadata = metadata,
             )
-        if (labels.contains("Document"))
+        if (labels.contains("Document")) {
+            val ingestionDate = when (val rawDate = row["ingestionDate"]) {
+                is java.time.Instant -> rawDate
+                is java.time.ZonedDateTime -> rawDate.toInstant()
+                is Long -> java.time.Instant.ofEpochMilli(rawDate)
+                is String -> java.time.Instant.parse(rawDate)
+                null -> java.time.Instant.now()
+                else -> java.time.Instant.now()
+            }
             return MaterializedDocument(
                 id = row["id"] as String,
                 title = row["id"] as String,
                 children = emptyList(),
                 metadata = metadata,
                 uri = row["uri"] as String,
+                ingestionTimestamp = ingestionDate,
             )
+        }
         if (labels.contains("LeafSection"))
             return LeafSection(
                 id = row["id"] as String,

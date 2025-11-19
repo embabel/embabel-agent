@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.rag.model
 
+import java.time.Instant
+
 interface NavigableContainerSection : ContainerSection, NavigableSection {
 
     /**
@@ -54,6 +56,8 @@ interface NavigableDocument : ContentRoot, NavigableContainerSection {
 
     override fun labels(): Set<String> = super<ContentRoot>.labels() + super<NavigableContainerSection>.labels()
 
+    override fun propertiesToPersist(): Map<String, Any?> = super<ContentRoot>.propertiesToPersist()
+
 }
 
 /**
@@ -63,6 +67,7 @@ data class MaterializedDocument(
     override val id: String,
     override val uri: String,
     override val title: String,
+    override val ingestionTimestamp: Instant = Instant.now(),
     override val children: List<NavigableSection>,
     override val metadata: Map<String, Any?> = emptyMap(),
 ) : NavigableDocument

@@ -1049,14 +1049,16 @@ class LuceneRagFacetProviderTest {
             ragService.commitChanges()
 
             // Verify we can find it before deletion
-            val beforeDelete = ragService.hybridSearch(RagRequest.query("unique searchable").withSimilarityThreshold(0.0))
+            val beforeDelete =
+                ragService.hybridSearch(RagRequest.query("unique searchable").withSimilarityThreshold(0.0))
             assertTrue(beforeDelete.results.isNotEmpty())
 
             // Delete the document
             ragService.deleteRootAndDescendants(documentUri)
 
             // Verify search returns no results
-            val afterDelete = ragService.hybridSearch(RagRequest.query("unique searchable").withSimilarityThreshold(0.0))
+            val afterDelete =
+                ragService.hybridSearch(RagRequest.query("unique searchable").withSimilarityThreshold(0.0))
             assertTrue(afterDelete.results.isEmpty())
         }
 
@@ -1358,6 +1360,149 @@ class LuceneRagFacetProviderTest {
             // Should have initial + writer documents
             val finalChunks = ragService.findAll()
             assertTrue(finalChunks.size >= 100) // At least the initial documents
+        }
+    }
+
+    @Nested
+    inner class IngestionDatePersistenceTests {
+
+        @Test
+        fun `should persist and retrieve ingestionDate for MaterializedDocument`() {
+            val testTime = java.time.Instant.parse("2025-01-15T10:30:00Z")
+            val document = com.embabel.agent.rag.model.MaterializedDocument(
+                id = "test-doc-1",
+                uri = "test://document-with-date",
+                title = "Test Document",
+                ingestionTimestamp = testTime,
+                children = emptyList()
+            )
+
+            ragService.writeAndChunkDocument(document)
+
+            // Retrieve the document and verify ingestionDate
+            val retrieved = ragService.findById("test-doc-1")
+            assertNotNull(retrieved)
+            assertTrue(retrieved is com.embabel.agent.rag.model.ContentRoot)
+
+            val contentRoot = retrieved as com.embabel.agent.rag.model.ContentRoot
+            assertEquals(testTime, contentRoot.ingestionTimestamp)
+        }
+
+        @Test
+        fun `should persist ingestionDate in propertiesToPersist`() {
+            val testTime = java.time.Instant.parse("2025-02-20T15:45:30Z")
+            val document = com.embabel.agent.rag.model.MaterializedDocument(
+                id = "test-doc-2",
+                uri = "test://document-properties",
+                title = "Properties Test",
+                ingestionTimestamp = testTime,
+                children = emptyList()
+            )
+
+            val properties = document.propertiesToPersist()
+
+            assertTrue(properties.containsKey("ingestionTimestamp"))
+            assertEquals(testTime, properties["ingestionTimestamp"])
+            assertEquals("Properties Test", properties["title"])
+        }
+
+        @Test
+        fun `should handle documents with default ingestionDate`() {
+            // Create document without explicit ingestionDate (uses default)
+            val beforeCreation = java.time.Instant.now()
+            val document = com.embabel.agent.rag.model.MaterializedDocument(
+                id = "test-doc-3",
+                uri = "test://document-default-date",
+                title = "Default Date Test",
+                children = emptyList()
+            )
+            val afterCreation = java.time.Instant.now()
+
+            ragService.writeAndChunkDocument(document)
+
+            val retrieved = ragService.findById("test-doc-3") as? com.embabel.agent.rag.model.ContentRoot
+            assertNotNull(retrieved)
+
+            // Should be between before and after creation
+            assertTrue(
+                retrieved!!.ingestionTimestamp >= beforeCreation && retrieved.ingestionTimestamp <= afterCreation,
+                "Expected ingestionDate to be between $beforeCreation and $afterCreation but was ${retrieved.ingestionTimestamp}"
+            )
+        }
+
+        @Test
+        fun `should preserve different ingestionDates for multiple documents`() {
+            val time1 = java.time.Instant.parse("2025-01-01T00:00:00Z")
+            val time2 = java.time.Instant.parse("2025-06-15T12:00:00Z")
+            val time3 = java.time.Instant.parse("2025-12-31T23:59:59Z")
+
+            val doc1 = com.embabel.agent.rag.model.MaterializedDocument(
+                id = "doc-1",
+                uri = "test://doc1",
+                title = "Document 1",
+                ingestionTimestamp = time1,
+                children = emptyList()
+            )
+            val doc2 = com.embabel.agent.rag.model.MaterializedDocument(
+                id = "doc-2",
+                uri = "test://doc2",
+                title = "Document 2",
+                ingestionTimestamp = time2,
+                children = emptyList()
+            )
+            val doc3 = com.embabel.agent.rag.model.MaterializedDocument(
+                id = "doc-3",
+                uri = "test://doc3",
+                title = "Document 3",
+                ingestionTimestamp = time3,
+                children = emptyList()
+            )
+
+            ragService.writeAndChunkDocument(doc1)
+            ragService.writeAndChunkDocument(doc2)
+            ragService.writeAndChunkDocument(doc3)
+
+            val retrieved1 = ragService.findById("doc-1") as com.embabel.agent.rag.model.ContentRoot
+            val retrieved2 = ragService.findById("doc-2") as com.embabel.agent.rag.model.ContentRoot
+            val retrieved3 = ragService.findById("doc-3") as com.embabel.agent.rag.model.ContentRoot
+
+            assertEquals(time1, retrieved1.ingestionTimestamp)
+            assertEquals(time2, retrieved2.ingestionTimestamp)
+            assertEquals(time3, retrieved3.ingestionTimestamp)
+        }
+
+        @Test
+        fun `should persist ingestionDate for nested sections`() {
+            val rootTime = java.time.Instant.parse("2025-03-01T10:00:00Z")
+            val sectionTime = java.time.Instant.parse("2025-03-01T10:01:00Z")
+            val leafTime = java.time.Instant.parse("2025-03-01T10:02:00Z")
+
+            val leaf = com.embabel.agent.rag.model.LeafSection(
+                id = "leaf-1",
+                title = "Leaf Section",
+                text = "Content",
+                parentId = "section-1"
+            )
+
+            val section = com.embabel.agent.rag.model.DefaultMaterializedContainerSection(
+                id = "section-1",
+                title = "Container Section",
+                children = listOf(leaf),
+                parentId = "root-1"
+            )
+
+            val document = com.embabel.agent.rag.model.MaterializedDocument(
+                id = "root-1",
+                uri = "test://nested-document",
+                title = "Root Document",
+                ingestionTimestamp = rootTime,
+                children = listOf(section)
+            )
+
+            ragService.writeAndChunkDocument(document)
+
+            val retrievedRoot = ragService.findById("root-1") as com.embabel.agent.rag.model.ContentRoot
+            assertEquals(rootTime, retrievedRoot.ingestionTimestamp)
         }
     }
 

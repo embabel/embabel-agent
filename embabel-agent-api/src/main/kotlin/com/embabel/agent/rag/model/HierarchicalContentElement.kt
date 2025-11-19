@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.model
 
 import com.embabel.agent.domain.library.HasContent
+import java.time.Instant
 
 /**
  * ContentElement that exists in a hierarchy,
@@ -38,11 +39,24 @@ interface HierarchicalContentElement : ContentElement {
  */
 interface ContentRoot : HierarchicalContentElement {
 
+    /**
+     * A content root must have a URI
+     */
     override val uri: String
 
     val title: String
 
+    /**
+     * A content root has no parent
+     */
     override val parentId get() = null
+
+    val ingestionTimestamp: Instant
+
+    override fun propertiesToPersist(): Map<String, Any?> = super.propertiesToPersist() + mapOf(
+        "title" to title,
+        "ingestionTimestamp" to ingestionTimestamp,
+    )
 
     override fun labels(): Set<String> {
         return super.labels() + setOf("Document")

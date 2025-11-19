@@ -251,6 +251,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
             id = rootId,
             uri = uri,
             title = documentTitle,
+            ingestionTimestamp = java.time.Instant.now(),
             children = hierarchicalSections,
             metadata = extractMetadataMap(metadata)
         )
@@ -352,6 +353,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
             id = rootId,
             uri = uri,
             title = documentTitle,
+            ingestionTimestamp = java.time.Instant.now(),
             children = hierarchicalSections,
             metadata = extractMetadataMap(metadata)
         )
@@ -385,6 +387,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
             id = rootId,
             uri = uri,
             title = title,
+            ingestionTimestamp = java.time.Instant.now(),
             children = listOf(leafSection),
             metadata = extractMetadataMap(metadata)
         )
@@ -521,6 +524,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
             id = UUID.randomUUID().toString(),
             uri = uri,
             title = metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY) ?: "Empty Document",
+            ingestionTimestamp = java.time.Instant.now(),
             children = emptyList(),
             metadata = extractMetadataMap(metadata)
         )
@@ -551,6 +555,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
             id = rootId,
             uri = uri,
             title = "Parse Error",
+            ingestionTimestamp = java.time.Instant.now(),
             children = listOf(errorSection),
             metadata = extractMetadataMap(metadata) + mapOf("error" to errorMessage)
         )

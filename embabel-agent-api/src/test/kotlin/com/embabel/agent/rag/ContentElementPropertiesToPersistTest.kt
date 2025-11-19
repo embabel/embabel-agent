@@ -15,11 +15,7 @@
  */
 package com.embabel.agent.rag
 
-import com.embabel.agent.rag.model.DefaultMaterializedContainerSection
-import com.embabel.agent.rag.model.MaterializedDocument
-import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.Fact
-import com.embabel.agent.rag.model.LeafSection
+import com.embabel.agent.rag.model.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -165,7 +161,7 @@ class ContentElementPropertiesToPersistTest {
         // Children are not persisted
         assertFalse(properties.containsKey("children"))
 
-        val expectedKeys = setOf("id", "uri", "document-type", "version", "parentId", "title")
+        val expectedKeys = setOf("id", "uri", "document-type", "version", "parentId", "title", "ingestionTimestamp")
         assertEquals(expectedKeys, properties.keys)
     }
 

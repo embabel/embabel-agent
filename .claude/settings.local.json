@@ -11,7 +11,10 @@
       "Bash(mvn test-compile:*)",
       "Bash(mvn test:*)",
       "Bash(find:*)",
-      "Bash(mvn:*)"
+      "Bash(mvn:*)",
+      "Bash(perl:*)",
+      "Bash(git checkout:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []
