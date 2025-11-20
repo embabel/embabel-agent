@@ -118,10 +118,13 @@ class AutonomyA2ARequestHandler(
                 processOptions = ProcessOptions(),
             )
 
+            // Extract content for status message if output is HasContent
+            val statusMessage = extractContentForDisplay(result)
+
             val task = Task.Builder()
                 .id(ensureTaskId(params.message.taskId))
                 .contextId(ensureContextId(params.message.contextId))
-                .status(TaskStatus(TaskState.COMPLETED))
+                .status(createCompletedTaskStatus(params, statusMessage))
                 .history(listOfNotNull(params.message))
                 .artifacts(
                     listOf(
@@ -194,11 +197,14 @@ class AutonomyA2ARequestHandler(
                     taskId
                 )
 
+                // Extract content for status message if output is HasContent
+                val statusMessage = extractContentForDisplay(result)
+
                 // Send result
                 val taskResult = Task.Builder()
                     .id(taskId)
                     .contextId(contextId)
-                    .status(createCompletedTaskStatus(params))
+                    .status(createCompletedTaskStatus(params, statusMessage))
                     .history(listOfNotNull(params.message))
                     .artifacts(
                         listOf(
@@ -321,6 +327,19 @@ class AutonomyA2ARequestHandler(
 
     private fun ensureTaskId(providedTaskId: String?): String {
         return providedTaskId ?: UUID.randomUUID().toString()
+    }
+
+    /**
+     * Extracts content from AgentProcessExecution for display in status messages.
+     * If output implements HasContent, returns the content field.
+     * Otherwise, returns a generic completion message.
+     */
+    private fun extractContentForDisplay(result: AgentProcessExecution): String {
+        return if (result.output is com.embabel.agent.domain.library.HasContent) {
+            result.output.content
+        } else {
+            "Task completed successfully"
+        }
     }
 
     private fun createResultArtifact(
