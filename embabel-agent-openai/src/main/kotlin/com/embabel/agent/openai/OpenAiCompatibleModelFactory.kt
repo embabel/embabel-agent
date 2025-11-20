@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.models
+package com.embabel.agent.openai
 
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
@@ -35,6 +36,7 @@ import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
 import java.time.LocalDate
+import kotlin.jvm.javaClass
 
 /**
  * Generic support for OpenAI compatible models.

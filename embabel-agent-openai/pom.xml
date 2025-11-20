@@ -3,14 +3,13 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.embabel.agent</groupId>
-        <artifactId>embabel-agent-autoconfigure</artifactId>
+        <artifactId>embabel-agent-parent</artifactId>
         <version>0.3.0-SNAPSHOT</version>
-        <relativePath>../../pom.xml</relativePath>
     </parent>
-    <artifactId>embabel-agent-dockermodels-autoconfigure</artifactId>
+    <artifactId>embabel-agent-openai</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent Autoconfiguration Models Docker</name>
-    <description>Docker Local Models for Embabel Agent API</description>
+    <name>Embabel Agent OpenAI</name>
+    <description>Embabel Agent Open AI Utilities</description>
     <url>https://github.com/embabel/embabel-agent</url>
 
     <scm>
@@ -27,15 +26,24 @@
         </dependency>
 
         <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-openai</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test-internal</artifactId>
-            <scope>test</scope>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+    </build>
 
 </project>

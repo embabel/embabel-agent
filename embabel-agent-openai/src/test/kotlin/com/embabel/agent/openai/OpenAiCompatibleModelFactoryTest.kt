@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models
+package com.embabel.agent.openai
 
-import com.embabel.agent.api.models.OpenAiCompatibleModelFactory
 import com.embabel.common.ai.model.PricingModel
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals

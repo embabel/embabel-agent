@@ -17,7 +17,7 @@ package com.embabel.agent.config.models.docker
 
 import com.embabel.agent.common.RetryProperties
 import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
-import com.embabel.agent.api.models.OpenAiChatOptionsConverter
+import com.embabel.agent.openai.OpenAiChatOptionsConverter
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
