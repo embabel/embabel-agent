@@ -125,46 +125,16 @@ class A2AStreamingHandler(
                 taskStateManager.recordEvent(tid, event)
             }
 
-            val eventData = when (event) {
-                is Message -> {
-                    SseEmitter.event()
-                        .name("message")
-                        .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON)
-                }
-                is Task -> {
-                    SseEmitter.event()
-                        .name("task")
-                        .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON)
-                }
-                is TaskStatusUpdateEvent -> {
-                    SseEmitter.event()
-                        .name("task-update")
-                        .data(
-                            objectMapper.writeValueAsString(
-                                SendStreamingMessageResponse(
-                                    "2.0",
-                                    streamId,
-                                    event,
-                                    null
-                                )
-                            ), MediaType.APPLICATION_JSON
-                        )
-                }
-                is TaskArtifactUpdateEvent -> {
-                    SseEmitter.event()
-                        .name("task-update")
-                        .data(
-                            objectMapper.writeValueAsString(
-                                SendStreamingMessageResponse(
-                                    "2.0",
-                                    streamId,
-                                    event,
-                                    null
-                                )
-                            ), MediaType.APPLICATION_JSON
-                        )
-                }
-            }
+            // All events must be wrapped in SendStreamingMessageResponse per A2A protocol
+            val response = SendStreamingMessageResponse(
+                "2.0",
+                streamId,
+                event,
+                null
+            )
+
+            val eventData = SseEmitter.event()
+                .data(objectMapper.writeValueAsString(response), MediaType.APPLICATION_JSON)
             emitter.send(eventData)
         } catch (e: Exception) {
             logger.error("Error sending stream event", e)
