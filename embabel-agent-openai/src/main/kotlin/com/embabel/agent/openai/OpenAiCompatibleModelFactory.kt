@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.models
+package com.embabel.agent.openai
 
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
@@ -95,12 +96,12 @@ open class OpenAiCompatibleModelFactory(
         return builder.build()
     }
 
-    @kotlin.jvm.JvmOverloads
+    @JvmOverloads
     fun openAiCompatibleLlm(
         model: String,
         pricingModel: PricingModel,
         provider: String,
-        knowledgeCutoffDate: java.time.LocalDate?,
+        knowledgeCutoffDate: LocalDate?,
         optionsConverter: OptionsConverter<*> = OpenAiChatOptionsConverter,
         retryTemplate: RetryTemplate = RetryUtils.DEFAULT_RETRY_TEMPLATE,
     ): Llm {
