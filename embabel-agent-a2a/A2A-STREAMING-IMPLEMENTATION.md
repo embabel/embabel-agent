@@ -21,13 +21,16 @@ This document summarizes the implementation of comprehensive A2A (Agent-to-Agent
 - Tracks active and completed tasks with metadata (taskId, contextId, streamId)
 - Records all streaming events per task for replay capability
 - Automatically transitions tasks to terminal states (COMPLETED, FAILED, CANCELED)
+- Recognizes terminal states from both `Task` and `TaskStatusUpdateEvent` objects
 - Supports cleanup of old completed tasks
 
 **Key Methods**:
 - `registerTask()` - Registers a new task with its stream
-- `recordEvent()` - Records events for task history
+- `recordEvent()` - Records events for task history and detects terminal states
 - `getTaskEvents()` - Retrieves all events for a task
 - `resubscribeToTask()` - Updates stream ID and enables reconnection
+
+**Important**: The `recordEvent()` method handles both `Task` and `TaskStatusUpdateEvent` objects when detecting terminal states, ensuring proper state transitions regardless of event type.
 
 ### 2. ResubscribeTaskRequest.kt (New)
 **Purpose**: Custom JSON-RPC request class for task resubscription
