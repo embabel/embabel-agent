@@ -200,7 +200,9 @@ class AutonomyA2ARequestHandler(
                 // Extract content for status message if output is HasContent
                 val statusMessage = extractContentForDisplay(result)
 
-                // Send FINAL status update with content (this is what A2A Inspector displays)
+                // Send FINAL status update with content
+                // Per A2A spec: final status-update with final=true is sufficient for completion
+                // Task objects in streaming should only appear at the beginning, not at the end
                 streamingHandler.sendStreamEvent(
                     streamId,
                     TaskStatusUpdateEvent.Builder()
@@ -211,21 +213,6 @@ class AutonomyA2ARequestHandler(
                         .build(),
                     taskId
                 )
-
-                // Send complete task result with artifacts
-                val taskResult = Task.Builder()
-                    .id(taskId)
-                    .contextId(contextId)
-                    .status(createCompletedTaskStatus(params, statusMessage))
-                    .history(listOfNotNull(params.message))
-                    .artifacts(
-                        listOf(
-                            createResultArtifact(result, params.configuration?.acceptedOutputModes)
-                        )
-                    )
-                    .metadata(null)
-                    .build()
-                streamingHandler.sendStreamEvent(streamId, taskResult, taskId)
             } catch (e: Exception) {
                 logger.error("Streaming error", e)
                 try {
