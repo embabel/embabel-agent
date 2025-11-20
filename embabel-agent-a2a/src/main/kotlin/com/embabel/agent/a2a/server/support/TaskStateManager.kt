@@ -69,16 +69,22 @@ class TaskStateManager {
         if (taskInfo != null) {
             taskInfo.events.add(event)
 
-            // Update state if event is a Task with status
-            if (event is Task) {
-                taskInfo.currentState = event.status.state
+            // Update state if event is a Task or TaskStatusUpdateEvent with status
+            val taskState = when (event) {
+                is Task -> event.status.state
+                is io.a2a.spec.TaskStatusUpdateEvent -> event.status.state
+                else -> null
+            }
+
+            if (taskState != null) {
+                taskInfo.currentState = taskState
 
                 // Move to completed if task is in terminal state
-                if (isTerminalState(event.status.state)) {
+                if (isTerminalState(taskState)) {
                     taskInfo.completedAt = Instant.now()
                     activeTasks.remove(taskId)
                     completedTasks[taskId] = taskInfo
-                    logger.info("Task {} completed with state {}", taskId, event.status.state)
+                    logger.info("Task {} completed with state {}", taskId, taskState)
                 }
             }
         } else {

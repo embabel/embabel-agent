@@ -50,6 +50,7 @@ class HasContentArtifactTest {
     )
 
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
+        .findAndRegisterModules()  // Registers JSR310 module for Instant support
 
     @Test
     fun `should extract content as TextPart when object implements HasContent`() {
