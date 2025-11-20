@@ -46,7 +46,22 @@ data class ResubscribeTaskRequest(
 
 ## Files Modified
 
-### 1. EmbabelServerGoalsAgentCardHandler.kt
+### 1. A2AWebIntegrationTest.kt (Test)
+**Change**: Updated test to expect streaming enabled
+
+**Before**:
+```kotlin
+assertEquals(false, agentCard.capabilities.streaming)
+```
+
+**After**:
+```kotlin
+assertEquals(true, agentCard.capabilities.streaming)
+```
+
+This test was failing because the agent card now advertises streaming support, but the test was still checking for the old value.
+
+### 2. EmbabelServerGoalsAgentCardHandler.kt
 **Change**: Enabled streaming capability in agent card
 
 **Before**:
@@ -59,7 +74,7 @@ data class ResubscribeTaskRequest(
 .streaming(true)
 ```
 
-### 2. A2AStreamingHandler.kt
+### 3. A2AStreamingHandler.kt
 **Changes**: Enhanced to support task tracking and event replay
 
 **Key Updates**:
@@ -83,7 +98,7 @@ val response = SendStreamingMessageResponse(
 
 Previously, only some events were wrapped, causing validation errors on the client side.
 
-### 3. AutonomyA2ARequestHandler.kt
+### 4. AutonomyA2ARequestHandler.kt
 **Changes**: Added resubscription handling and improved task tracking
 
 **Key Additions**:
@@ -93,7 +108,7 @@ Previously, only some events were wrapped, causing validation errors on the clie
 
 **Important Note**: Uses `params.id` (not `params.taskId`) to access task identifier from TaskIdParams.
 
-### 4. A2AEndpointRegistrar.kt
+### 5. A2AEndpointRegistrar.kt
 **Changes**: Added routing for tasks/resubscribe method
 
 **Key Addition**:
@@ -273,6 +288,13 @@ None currently identified.
 3. **Event Wrapping Fix** (commit e6846a1)
    - Wrapped all events in SendStreamingMessageResponse
    - Fixed validation errors for Message and Task events
+
+4. **Documentation** (commit 9f994ee)
+   - Added comprehensive implementation documentation
+
+5. **Test Updates** (commit 8240830)
+   - Updated A2AWebIntegrationTest to expect streaming=true
+   - Fixed failing agent card test assertion
 
 ## Contributors
 
