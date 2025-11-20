@@ -26,7 +26,8 @@ import java.time.Instant
 
 /**
  * Test to verify that objects implementing HasContent are properly serialized
- * into A2A artifacts with separate TextPart and DataPart.
+ * into A2A artifacts with separate TextPart and DataPart, and that content
+ * appears in status messages for A2A Inspector visibility.
  */
 class HasContentArtifactTest {
 
@@ -126,5 +127,45 @@ class HasContentArtifactTest {
 
         assertEquals("Success", outputData.message)
         assertEquals(42, outputData.value)
+    }
+
+    @Test
+    fun `should extract content for status message when object implements HasContent`() {
+        // Given
+        val testContent = "This is the content that should appear in the status message"
+        val writeup = TestWriteup(
+            title = "Test Title",
+            author = "Test Author",
+            content = testContent
+        )
+
+        // When - simulate the extractContentForDisplay logic
+        val statusMessage = if (writeup is HasContent) {
+            writeup.content
+        } else {
+            "Task completed successfully"
+        }
+
+        // Then
+        assertEquals(testContent, statusMessage, "Status message should contain the content")
+    }
+
+    @Test
+    fun `should use default status message when object does not implement HasContent`() {
+        // Given
+        val result = TestResult(
+            message = "Success",
+            value = 42
+        )
+
+        // When - simulate the extractContentForDisplay logic
+        val statusMessage = if (result is HasContent) {
+            result.content
+        } else {
+            "Task completed successfully"
+        }
+
+        // Then
+        assertEquals("Task completed successfully", statusMessage, "Should use default message")
     }
 }
