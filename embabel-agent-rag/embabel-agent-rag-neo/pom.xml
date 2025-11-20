@@ -27,6 +27,11 @@
     <dependencies>
         <!-- Main Dependencies -->
         <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-rag-core</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.neo4j</groupId>
             <artifactId>neo4j-ogm-spring-boot-starter</artifactId>
             <version>${neo4j-ogm-spring-boot-starter.version}</version>

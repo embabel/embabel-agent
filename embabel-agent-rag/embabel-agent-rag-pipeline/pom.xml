@@ -20,11 +20,10 @@
     </scm>
 
     <dependencies>
-        <!-- Embabel Agent API for RAG classes -->
+        <!-- Embabel RAG Framework -->
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-api</artifactId>
-            <version>${project.version}</version>
+            <artifactId>embabel-agent-rag-core</artifactId>
         </dependency>
         
         <!-- Spring Framework for dependency injection and configuration -->
