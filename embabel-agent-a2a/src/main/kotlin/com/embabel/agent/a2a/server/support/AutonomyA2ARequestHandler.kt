@@ -355,8 +355,9 @@ class AutonomyA2ARequestHandler(
      * Otherwise, returns a generic completion message.
      */
     private fun extractContentForDisplay(result: AgentProcessExecution): String {
-        return if (result.output is com.embabel.agent.domain.library.HasContent) {
-            result.output.content
+        val output = result.output
+        return if (output is com.embabel.agent.domain.library.HasContent) {
+            output.content
         } else {
             "Task completed successfully"
         }
