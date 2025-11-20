@@ -99,12 +99,20 @@ val response = SendStreamingMessageResponse(
 Previously, only some events were wrapped, causing validation errors on the client side.
 
 ### 4. AutonomyA2ARequestHandler.kt
-**Changes**: Added resubscription handling and improved task tracking
+**Changes**: Added resubscription handling, improved task tracking, and HasContent artifact handling
 
 **Key Additions**:
 - `handleCustomStreamingRequest()` - Handles streaming methods not in SDK
 - `handleTaskResubscribe()` - Processes resubscription requests
 - Enhanced `handleMessageStream()` to track task IDs throughout execution
+- Enhanced `createResultArtifact()` to properly handle HasContent objects
+
+**HasContent Handling**:
+When agent output implements `HasContent`, the artifact is structured per A2A specification:
+- **TextPart** (kind: "text") - Contains the `content` field value for end-user visibility
+- **DataPart** (kind: "data") - Contains the remaining object fields (excluding content)
+
+This ensures content is viewable by end users according to the A2A protocol specification, which states that TextPart should be used for human-readable content intended for direct display.
 
 **Important Note**: Uses `params.id` (not `params.taskId`) to access task identifier from TaskIdParams.
 
