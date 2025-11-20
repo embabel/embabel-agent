@@ -58,7 +58,7 @@ class EmbabelServerGoalsAgentCardHandler(
             .documentationUrl("https://embabel.com/docs")
             .capabilities(
                 AgentCapabilities.Builder()
-                    .streaming(false) // TODO are they planning to support streaming?
+                    .streaming(true)
                     .pushNotifications(false)
                     .stateTransitionHistory(false)
                     .extensions(emptyList())

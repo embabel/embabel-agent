@@ -38,7 +38,8 @@ import java.util.concurrent.TimeUnit
 @Service
 @Profile("a2a")
 class A2AStreamingHandler(
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val taskStateManager: TaskStateManager
 ) {
     private val logger = LoggerFactory.getLogger(A2AStreamingHandler::class.java)
     private val activeStreams = ConcurrentHashMap<String, SseEmitter>()
@@ -46,12 +47,18 @@ class A2AStreamingHandler(
 
     /**
      * Creates a new SSE stream for the given stream ID
+     * @param taskId Optional task ID to associate with this stream
      */
-    fun createStream(streamId: String): SseEmitter {
-        logger.info("Creating SSE stream for streamId: {}", streamId)
+    fun createStream(streamId: String, taskId: String? = null, contextId: String? = null): SseEmitter {
+        logger.info("Creating SSE stream for streamId: {}, taskId: {}", streamId, taskId)
 
         val emitter = SseEmitter(Long.MAX_VALUE)
         activeStreams[streamId] = emitter
+
+        // Register task if taskId is provided
+        if (taskId != null && contextId != null) {
+            taskStateManager.registerTask(taskId, contextId, streamId)
+        }
 
         emitter.onCompletion {
             logger.info("Stream completed for streamId: {}", streamId)
@@ -78,15 +85,57 @@ class A2AStreamingHandler(
     }
 
     /**
-     * Sends a streaming event to the specified stream
+     * Resubscribes to an existing task by creating a new stream and replaying events
      */
-    fun sendStreamEvent(streamId: String, event: StreamingEventKind) {
+    fun resubscribeToTask(taskId: String, newStreamId: String): SseEmitter {
+        logger.info("Resubscribing to task: taskId={}, newStreamId={}", taskId, newStreamId)
+
+        // Check if task exists
+        if (!taskStateManager.taskExists(taskId)) {
+            throw IllegalArgumentException("Task not found: $taskId")
+        }
+
+        val taskInfo = taskStateManager.getTaskInfo(taskId)!!
+        val emitter = createStream(newStreamId, taskId, taskInfo.contextId)
+
+        // Update the stream ID for this task
+        taskStateManager.updateStreamId(taskId, newStreamId)
+
+        // Replay all events for this task
+        Thread.startVirtualThread {
+            try {
+                taskInfo.events.forEach { event ->
+                    sendStreamEvent(newStreamId, event, taskId)
+                }
+
+                // If task is completed, close the stream
+                if (!taskStateManager.isTaskActive(taskId)) {
+                    closeStream(newStreamId)
+                }
+            } catch (e: Exception) {
+                logger.error("Error replaying events for task {}", taskId, e)
+                emitter.completeWithError(e)
+            }
+        }
+
+        return emitter
+    }
+
+    /**
+     * Sends a streaming event to the specified stream and records it for the task
+     */
+    fun sendStreamEvent(streamId: String, event: StreamingEventKind, taskId: String? = null) {
         val emitter = activeStreams[streamId] ?: run {
             logger.warn("No active stream found for streamId: {}", streamId)
             return
         }
 
         try {
+            // Record event in task state manager if taskId is provided
+            taskId?.let { tid ->
+                taskStateManager.recordEvent(tid, event)
+            }
+
             val eventData = when (event) {
                 is Message -> {
                     SseEmitter.event()
