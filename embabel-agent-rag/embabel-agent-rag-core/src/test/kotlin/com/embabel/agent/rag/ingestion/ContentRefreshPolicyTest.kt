@@ -1,0 +1,730 @@
+/*
+ * Copyright 2024-2025 Embabel Software, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.rag.ingestion
+
+import com.embabel.agent.rag.model.MaterializedDocument
+import com.embabel.agent.rag.model.NavigableDocument
+import com.embabel.agent.rag.store.ChunkingContentElementRepository
+import io.mockk.clearAllMocks
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+
+class ContentRefreshPolicyTest {
+
+    private lateinit var mockRepository: ChunkingContentElementRepository
+    private lateinit var mockReader: HierarchicalContentReader
+
+    @BeforeEach
+    fun setUp() {
+        mockRepository = mockk<ChunkingContentElementRepository>()
+        mockReader = mockk<HierarchicalContentReader>()
+    }
+
+    @AfterEach
+    fun tearDown() {
+        clearAllMocks()
+    }
+
+    @Nested
+    inner class NeverRefreshExistingDocumentContentPolicyTest {
+
+        @Test
+        fun `shouldReread returns true when document does not exist`() {
+            val uri = "test://new-document"
+            every { mockRepository.existsRootWithUri(uri) } returns false
+
+            val result = NeverRefreshExistingDocumentContentPolicy.shouldReread(mockRepository, uri)
+
+            assertTrue(result)
+            verify(exactly = 1) { mockRepository.existsRootWithUri(uri) }
+        }
+
+        @Test
+        fun `shouldReread returns false when document exists`() {
+            val uri = "test://existing-document"
+            every { mockRepository.existsRootWithUri(uri) } returns true
+
+            val result = NeverRefreshExistingDocumentContentPolicy.shouldReread(mockRepository, uri)
+
+            assertFalse(result)
+            verify(exactly = 1) { mockRepository.existsRootWithUri(uri) }
+        }
+
+        @Test
+        fun `shouldRefreshDocument always returns false`() {
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = "test://document",
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            val result = NeverRefreshExistingDocumentContentPolicy.shouldRefreshDocument(
+                mockRepository,
+                document
+            )
+
+            assertFalse(result)
+            verify(exactly = 0) { mockRepository.existsRootWithUri(any()) }
+        }
+
+        @Test
+        fun `shouldRefreshDocument returns false even for different documents`() {
+            val doc1 = MaterializedDocument(
+                id = "doc1",
+                uri = "test://document1",
+                title = "Document 1",
+                children = emptyList()
+            )
+
+            val doc2 = MaterializedDocument(
+                id = "doc2",
+                uri = "test://document2",
+                title = "Document 2",
+                children = emptyList()
+            )
+
+            assertFalse(NeverRefreshExistingDocumentContentPolicy.shouldRefreshDocument(mockRepository, doc1))
+            assertFalse(NeverRefreshExistingDocumentContentPolicy.shouldRefreshDocument(mockRepository, doc2))
+        }
+
+        @Test
+        fun `shouldReread handles multiple URIs correctly`() {
+            val existingUri = "test://existing"
+            val newUri1 = "test://new1"
+            val newUri2 = "test://new2"
+
+            every { mockRepository.existsRootWithUri(existingUri) } returns true
+            every { mockRepository.existsRootWithUri(newUri1) } returns false
+            every { mockRepository.existsRootWithUri(newUri2) } returns false
+
+            assertFalse(NeverRefreshExistingDocumentContentPolicy.shouldReread(mockRepository, existingUri))
+            assertTrue(NeverRefreshExistingDocumentContentPolicy.shouldReread(mockRepository, newUri1))
+            assertTrue(NeverRefreshExistingDocumentContentPolicy.shouldReread(mockRepository, newUri2))
+
+            verify(exactly = 1) { mockRepository.existsRootWithUri(existingUri) }
+            verify(exactly = 1) { mockRepository.existsRootWithUri(newUri1) }
+            verify(exactly = 1) { mockRepository.existsRootWithUri(newUri2) }
+        }
+    }
+
+    @Nested
+    inner class IngestUriIfNeededTest {
+
+        @Test
+        fun `ingestUriIfNeeded does not read when shouldReread returns false`() {
+            val uri = "test://existing-document"
+            val policy = NeverRefreshExistingDocumentContentPolicy
+
+            every { mockRepository.existsRootWithUri(uri) } returns true
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            // Should not parse or ingest
+            verify(exactly = 1) { mockRepository.existsRootWithUri(uri) }
+            verify(exactly = 0) { mockReader.parseUrl(any()) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded reads but does not ingest when shouldRefreshDocument returns false`() {
+            val uri = "test://new-document"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "Test Document",
+                children = emptyList()
+            )
+            val policy = NeverRefreshExistingDocumentContentPolicy
+
+            every { mockRepository.existsRootWithUri(uri) } returns false
+            every { mockReader.parseUrl(uri) } returns document
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            // Should parse but not ingest (because shouldRefreshDocument always returns false)
+            verify(exactly = 1) { mockRepository.existsRootWithUri(uri) }
+            verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded ingests when both shouldReread and shouldRefreshDocument return true`() {
+            val uri = "test://new-document"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            // Create a custom policy that allows refresh
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = true
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = true
+            }
+
+            every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            // Should parse and ingest
+            verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded handles multiple URIs independently`() {
+            val existingUri = "test://existing"
+            val newUri = "test://new"
+
+            val newDocument = MaterializedDocument(
+                id = "new-doc",
+                uri = newUri,
+                title = "New Document",
+                children = emptyList()
+            )
+
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = !repository.existsRootWithUri(rootUri)
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = true
+            }
+
+            every { mockRepository.existsRootWithUri(existingUri) } returns true
+            every { mockRepository.existsRootWithUri(newUri) } returns false
+            every { mockReader.parseUrl(newUri) } returns newDocument
+            every { mockRepository.writeAndChunkDocument(newDocument) } returns emptyList()
+
+            // Try with existing URI
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = existingUri
+            )
+
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+
+            // Try with new URI
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = newUri
+            )
+
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(newDocument) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded calls writeAndChunkDocument with parsed document`() {
+            val uri = "test://document"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = true
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = true
+            }
+
+            every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded with conditional refresh policy`() {
+            val uri = "test://conditional-document"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "Conditional Document",
+                children = emptyList()
+            )
+
+            // Policy that only refreshes documents with specific title
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = true
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = root.title.contains("Conditional")
+            }
+
+            every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+
+            // Test with non-matching document
+            val otherDocument = MaterializedDocument(
+                id = "doc2",
+                uri = "test://other",
+                title = "Other Document",
+                children = emptyList()
+            )
+
+            every { mockReader.parseUrl("test://other") } returns otherDocument
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = "test://other"
+            )
+
+            // Should still only have 1 call (from the first document)
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(any()) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(otherDocument) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded handles parseUrl exceptions`() {
+            val uri = "test://failing-document"
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = true
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = true
+            }
+
+            every { mockReader.parseUrl(uri) } throws RuntimeException("Parse error")
+
+            assertThrows(RuntimeException::class.java) {
+                policy.ingestUriIfNeeded(
+                    repository = mockRepository,
+                    hierarchicalContentReader = mockReader,
+                    rootUri = uri
+                )
+            }
+
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded does not call writeAndChunkDocument when shouldReread is false`() {
+            val uri = "test://no-reread"
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = false
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = true
+            }
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            verify(exactly = 0) { mockReader.parseUrl(any()) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+        }
+    }
+
+    @Nested
+    inner class CustomPolicyTest {
+
+        @Test
+        fun `custom policy can implement different refresh logic`() {
+            val uri = "test://custom"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "Large Document",
+                children = emptyList()
+            )
+
+            // Policy that never rereads documents with "Large" in the title
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = true
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = !root.title.contains("Large")
+            }
+
+            every { mockReader.parseUrl(uri) } returns document
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            // Should read but not ingest because title contains "Large"
+            verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+        }
+
+        @Test
+        fun `custom policy can check repository state`() {
+            val uri = "test://check-repo"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "Test",
+                children = emptyList()
+            )
+
+            // Policy that checks if repository has space
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = repository.count() < 100
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = true
+            }
+
+            every { mockRepository.count() } returns 50
+            every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+
+            // Test when repository is full
+            every { mockRepository.count() } returns 150
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            // Should still only have 1 call (from the first ingest)
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+        }
+    }
+
+    @Nested
+    inner class TtlContentRefreshPolicyTest {
+
+        @Test
+        fun `shouldReread returns true when document does not exist`() {
+            val uri = "test://new-document"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            every { mockRepository.findContentRootByUri(uri) } returns null
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertTrue(result)
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+        }
+
+        @Test
+        fun `shouldReread returns true when document is older than TTL`() {
+            val uri = "test://old-document"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Create a document that was ingested 1 hour ago (older than 30 min TTL)
+            val oldIngestionTime = java.time.Instant.now().minus(java.time.Duration.ofHours(1))
+            val oldDocument = MaterializedDocument(
+                id = "old-doc",
+                uri = uri,
+                title = "Old Document",
+                ingestionTimestamp = oldIngestionTime,
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns oldDocument
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertTrue(result, "Should reread document that is older than TTL")
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+        }
+
+        @Test
+        fun `shouldReread returns false when document is within TTL`() {
+            val uri = "test://recent-document"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Create a document that was ingested 10 minutes ago (within 30 min TTL)
+            val recentIngestionTime = java.time.Instant.now().minus(java.time.Duration.ofMinutes(10))
+            val recentDocument = MaterializedDocument(
+                id = "recent-doc",
+                uri = uri,
+                title = "Recent Document",
+                ingestionTimestamp = recentIngestionTime,
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns recentDocument
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertFalse(result, "Should not reread document that is within TTL")
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+        }
+
+        @Test
+        fun `shouldReread with document just past TTL boundary`() {
+            val uri = "test://boundary-document"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Create a document that was ingested slightly more than 30 minutes ago
+            val boundaryIngestionTime = java.time.Instant.now().minus(ttl).minusMillis(100)
+            val boundaryDocument = MaterializedDocument(
+                id = "boundary-doc",
+                uri = uri,
+                title = "Boundary Document",
+                ingestionTimestamp = boundaryIngestionTime,
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns boundaryDocument
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            // Document is past TTL, should reread
+            assertTrue(result, "Should reread document that is past TTL boundary")
+        }
+
+        @Test
+        fun `shouldRefreshDocument always returns true`() {
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = "test://document",
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            val result = policy.shouldRefreshDocument(mockRepository, document)
+
+            assertTrue(result, "shouldRefreshDocument should always return true")
+        }
+
+        @Test
+        fun `factory method creates correct policy`() {
+            val ttl = java.time.Duration.ofHours(2)
+            val policy = TtlContentRefreshPolicy.of(ttl)
+
+            assertNotNull(policy)
+            assertTrue(policy is TtlContentRefreshPolicy)
+        }
+
+        @Test
+        fun `TTL of zero always refreshes`() {
+            val uri = "test://zero-ttl-document"
+            val ttl = java.time.Duration.ZERO
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Even a just-ingested document should be rereread with TTL of zero
+            val justIngestedDocument = MaterializedDocument(
+                id = "just-ingested",
+                uri = uri,
+                title = "Just Ingested",
+                ingestionTimestamp = java.time.Instant.now(),
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns justIngestedDocument
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertTrue(result, "Should always reread with zero TTL")
+        }
+
+        @Test
+        fun `different TTL durations work correctly`() {
+            val uri = "test://ttl-test"
+
+            // Test with 1 hour TTL
+            val oneHourPolicy = TtlContentRefreshPolicy(java.time.Duration.ofHours(1))
+
+            // Document ingested 30 minutes ago
+            val doc30MinAgo = MaterializedDocument(
+                id = "doc",
+                uri = uri,
+                title = "Test",
+                ingestionTimestamp = java.time.Instant.now().minus(java.time.Duration.ofMinutes(30)),
+                children = emptyList()
+            )
+
+            // Document ingested 90 minutes ago
+            val doc90MinAgo = MaterializedDocument(
+                id = "doc",
+                uri = uri,
+                title = "Test",
+                ingestionTimestamp = java.time.Instant.now().minus(java.time.Duration.ofMinutes(90)),
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns doc30MinAgo
+            assertFalse(oneHourPolicy.shouldReread(mockRepository, uri), "30 min old doc should be within 1 hour TTL")
+
+            every { mockRepository.findContentRootByUri(uri) } returns doc90MinAgo
+            assertTrue(oneHourPolicy.shouldReread(mockRepository, uri), "90 min old doc should exceed 1 hour TTL")
+        }
+
+        @Test
+        fun `ingestUriIfNeeded respects TTL policy`() {
+            val uri = "test://ttl-ingestion"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Document within TTL
+            val recentDocument = MaterializedDocument(
+                id = "recent",
+                uri = uri,
+                title = "Recent",
+                ingestionTimestamp = java.time.Instant.now().minus(java.time.Duration.ofMinutes(5)),
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns recentDocument
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri,
+            )
+
+            // Should not parse or ingest since document is within TTL
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+            verify(exactly = 0) { mockReader.parseUrl(any()) }
+            verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded refreshes expired documents`() {
+            val uri = "test://expired-doc"
+            val ttl = java.time.Duration.ofMinutes(30)
+            val policy = TtlContentRefreshPolicy(ttl)
+
+            // Document older than TTL
+            val oldDocument = MaterializedDocument(
+                id = "old",
+                uri = uri,
+                title = "Old",
+                ingestionTimestamp = java.time.Instant.now().minus(java.time.Duration.ofHours(1)),
+                children = emptyList()
+            )
+
+            val newDocument = MaterializedDocument(
+                id = "new",
+                uri = uri,
+                title = "New",
+                children = emptyList()
+            )
+
+            every { mockRepository.findContentRootByUri(uri) } returns oldDocument
+            every { mockReader.parseUrl(uri) } returns newDocument
+            every { mockRepository.writeAndChunkDocument(any()) } returns emptyList()
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri,
+            )
+
+            // Should parse and ingest since document is expired
+            verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
+            verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(newDocument) }
+        }
+    }
+}
