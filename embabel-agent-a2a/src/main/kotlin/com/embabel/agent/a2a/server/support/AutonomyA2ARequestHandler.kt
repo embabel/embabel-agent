@@ -348,13 +348,35 @@ class AutonomyA2ARequestHandler(
         acceptedOutputModes: List<String>? = emptyList()
     ): Artifact {
         // TODO result should be based on the outputMode received in the "params.configuration.acceptedOutputModes"
+
+        val parts = buildList {
+            val output = result.output
+
+            // Check if output implements HasContent
+            if (output is com.embabel.agent.domain.library.HasContent) {
+                // Extract content and add as TextPart for end-user visibility
+                add(TextPart(output.content))
+
+                // Serialize the object without the content field for DataPart
+                // Convert to map using Jackson, then remove the content field
+                val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
+                    .registerModule(com.fasterxml.jackson.module.kotlin.KotlinModule.Builder().build())
+                    .findAndRegisterModules()
+
+                @Suppress("UNCHECKED_CAST")
+                val outputMap = objectMapper.convertValue(output, Map::class.java) as MutableMap<String, Any?>
+                outputMap.remove("content")
+
+                add(DataPart(mapOf("output" to outputMap)))
+            } else {
+                // Standard behavior: serialize entire output in DataPart
+                add(DataPart(mapOf("output" to output)))
+            }
+        }
+
         return Artifact.Builder()
             .artifactId(UUID.randomUUID().toString())
-            .parts(
-                listOf(
-                    DataPart(mapOf("output" to result.output))
-                )
-            )
+            .parts(parts)
             .build()
     }
 }
