@@ -110,15 +110,21 @@ Previously, only some events were wrapped, causing validation errors on the clie
 **HasContent Handling**:
 When agent output implements `HasContent`, special handling ensures content visibility in A2A clients:
 
-1. **Status Message** - The `content` field is placed in the completion status message's TextPart
-   - This is what A2A Inspector displays to end users
-   - Without this, the content would not be visible in the client UI
+1. **Final Status Update Event** (CRITICAL for visibility) - A TaskStatusUpdateEvent with `final=true` is sent containing the content
+   - A2A Inspector displays content from status-update events, NOT from Task objects
+   - The content field is placed in the status message's TextPart
+   - This event is sent BEFORE the final Task object
 
-2. **Artifact Structure** - The artifact is structured per A2A specification:
+2. **Event Sequence for Streaming**:
+   - TaskStatusUpdateEvent (working) - "Processing task..."
+   - **TaskStatusUpdateEvent (final=true)** - Contains the actual content ← **This is what displays**
+   - Task object - Contains artifacts and complete result
+
+3. **Artifact Structure** - The artifact is structured per A2A specification:
    - **TextPart** (kind: "text") - Contains the `content` field value
    - **DataPart** (kind: "data") - Contains the remaining object fields (excluding content)
 
-This dual approach ensures content is viewable by end users according to the A2A protocol specification, which states that TextPart should be used for human-readable content intended for direct display. The status message TextPart is the primary visibility mechanism for A2A clients.
+This approach ensures content is viewable by end users according to the A2A protocol specification. The final status-update event (kind: "status-update", final: true) is the primary visibility mechanism for A2A Inspector and similar clients.
 
 **Key Methods**:
 - `extractContentForDisplay()` - Extracts content from AgentProcessExecution for status messages
