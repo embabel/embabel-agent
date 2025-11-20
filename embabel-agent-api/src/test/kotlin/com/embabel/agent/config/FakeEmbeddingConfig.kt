@@ -13,14 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.rag.service
+package com.embabel.agent.config
 
-import com.embabel.common.ai.model.LlmOptions
-import org.springframework.boot.context.properties.ConfigurationProperties
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.test.ai.FakeEmbeddingModel
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Profile
 
-@ConfigurationProperties(prefix = "embabel.agent.rag")
-data class RagServiceEnhancerProperties(
-    val compressionLlm: LlmOptions = LlmOptions.withAutoLlm(),
-    val rerankingLlm: LlmOptions = LlmOptions.withAutoLlm(),
-    val maxConcurrency: Int = 12,
-)
+@Configuration
+@Profile("test")
+class FakeEmbeddingConfig {
+
+    @Bean
+    fun fakeEmbeddingService(): EmbeddingService {
+        return EmbeddingService("test", "test-provider", FakeEmbeddingModel())
+    }
+}
