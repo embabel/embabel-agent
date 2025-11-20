@@ -75,6 +75,19 @@ class AutonomyA2ARequestHandler(
         }
     }
 
+    /**
+     * Handles streaming JSON-RPC requests that are not part of the standard SDK
+     */
+    fun handleCustomStreamingRequest(method: String, requestMap: Map<String, Any>, objectMapper: com.fasterxml.jackson.databind.ObjectMapper): SseEmitter {
+        return when (method) {
+            ResubscribeTaskRequest.METHOD -> {
+                val request = objectMapper.convertValue(requestMap, ResubscribeTaskRequest::class.java)
+                handleTaskResubscribe(request)
+            }
+            else -> throw UnsupportedOperationException("Method $method is not supported for streaming")
+        }
+    }
+
     override fun handleJsonRpc(
         request: NonStreamingJSONRPCRequest<*>
     ): JSONRPCResponse<*> {
@@ -160,26 +173,31 @@ class AutonomyA2ARequestHandler(
     fun handleMessageStream(request: SendStreamingMessageRequest): SseEmitter {
         val params = request.params
         val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
-        val emitter = streamingHandler.createStream(streamId)
+        val taskId = ensureTaskId(params.message.taskId)
+        val contextId = ensureContextId(params.message.contextId)
+
+        val emitter = streamingHandler.createStream(streamId, taskId, contextId)
 
         Thread.startVirtualThread {
             try {
                 // Send initial status event
                 streamingHandler.sendStreamEvent(
-                    streamId, TaskStatusUpdateEvent.Builder()
-                        .taskId(params.message.taskId)
-                        .contextId(params.message.contextId)
+                    streamId,
+                    TaskStatusUpdateEvent.Builder()
+                        .taskId(taskId)
+                        .contextId(contextId)
                         .status(createWorkingTaskStatus(params, "Task started..."))
-                        .build()
+                        .build(),
+                    taskId
                 )
 
                 // Send the received message, if any
                 params.message?.let { userMsg ->
-                    streamingHandler.sendStreamEvent(streamId, userMsg)
+                    streamingHandler.sendStreamEvent(streamId, userMsg, taskId)
                 }
 
                 val intent = params.message?.parts?.filterIsInstance<TextPart>()?.firstOrNull()?.text
-                    ?: "Task ${params.message.taskId}"
+                    ?: "Task $taskId"
 
                 // Execute the task using autonomy service
                 val result = autonomy.chooseAndRunAgent(
@@ -190,17 +208,19 @@ class AutonomyA2ARequestHandler(
 
                 // Send intermediate status updates
                 streamingHandler.sendStreamEvent(
-                    streamId, TaskStatusUpdateEvent.Builder()
-                        .taskId(params.message.taskId)
-                        .contextId(ensureContextId(params.message.contextId))
+                    streamId,
+                    TaskStatusUpdateEvent.Builder()
+                        .taskId(taskId)
+                        .contextId(contextId)
                         .status(createWorkingTaskStatus(params, "Processing task..."))
-                        .build()
+                        .build(),
+                    taskId
                 )
 
                 // Send result
                 val taskResult = Task.Builder()
-                    .id(params.message.taskId)
-                    .contextId("ctx_${UUID.randomUUID()}")
+                    .id(taskId)
+                    .contextId(contextId)
                     .status(createCompletedTaskStatus(params))
                     .history(listOfNotNull(params.message))
                     .artifacts(
@@ -210,16 +230,18 @@ class AutonomyA2ARequestHandler(
                     )
                     .metadata(null)
                     .build()
-                streamingHandler.sendStreamEvent(streamId, taskResult)
+                streamingHandler.sendStreamEvent(streamId, taskResult, taskId)
             } catch (e: Exception) {
                 logger.error("Streaming error", e)
                 try {
                     streamingHandler.sendStreamEvent(
-                        streamId, TaskStatusUpdateEvent.Builder()
-                            .taskId(params.message.taskId)
-                            .contextId(ensureContextId(params.message.contextId))
+                        streamId,
+                        TaskStatusUpdateEvent.Builder()
+                            .taskId(taskId)
+                            .contextId(contextId)
                             .status(createFailedTaskStatus(params, e))
-                            .build()
+                            .build(),
+                        taskId
                     )
                 } catch (sendError: Exception) {
                     logger.error("Error sending error event", sendError)
@@ -230,6 +252,31 @@ class AutonomyA2ARequestHandler(
         }
 
         return emitter
+    }
+
+    /**
+     * Handles task resubscription requests
+     */
+    fun handleTaskResubscribe(request: ResubscribeTaskRequest): SseEmitter {
+        val params = request.params
+        val taskId = params.id  // TaskIdParams.id contains the task identifier
+        val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
+
+        logger.info("Handling task resubscribe request for taskId: {}, streamId: {}", taskId, streamId)
+
+        return try {
+            streamingHandler.resubscribeToTask(taskId, streamId)
+        } catch (e: IllegalArgumentException) {
+            logger.error("Task not found: {}", taskId, e)
+            val emitter = SseEmitter(Long.MAX_VALUE)
+            emitter.completeWithError(e)
+            emitter
+        } catch (e: Exception) {
+            logger.error("Error resubscribing to task: {}", taskId, e)
+            val emitter = SseEmitter(Long.MAX_VALUE)
+            emitter.completeWithError(e)
+            emitter
+        }
     }
 
     private fun handleTasksGet(
