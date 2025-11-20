@@ -113,7 +113,7 @@ When agent output implements `HasContent`, special handling ensures content visi
 1. **Final Status Update Event** (CRITICAL for visibility) - A TaskStatusUpdateEvent with `final=true` is sent containing the content
    - A2A Inspector displays content from status-update events, NOT from Task objects
    - The content field is placed in the status message's TextPart
-   - This event is sent BEFORE the final Task object
+   - This event completes the streaming flow (no Task object is sent after it)
 
 2. **Event Sequence for Streaming**:
    - TaskStatusUpdateEvent (working) - "Processing task..."
