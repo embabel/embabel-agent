@@ -42,6 +42,14 @@
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-a2a</artifactId>
         </dependency>
+
+        <!-- Test Dependencies -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-rag-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
 </project>

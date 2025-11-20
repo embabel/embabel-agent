@@ -20,6 +20,7 @@
     </scm>
 
     <modules>
+        <module>embabel-agent-rag-core</module>
         <module>embabel-agent-rag-neo</module>
         <module>embabel-agent-rag-lucene</module>
         <module>embabel-agent-rag-tika</module>

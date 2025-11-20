@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.event
 
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.rag.service.RagRequest
 import com.embabel.agent.rag.service.RagResponse
 import com.embabel.common.core.types.Timestamped
@@ -45,6 +46,15 @@ class RagResponseEvent(
     override val request: RagRequest
         get() = ragResponse.request
 }
+
+/**
+ * Any RAG event that occurs within an agent process
+ */
+class AgentProcessRagEvent(
+    agentProcess: AgentProcess,
+    val ragEvent: RagEvent,
+) : AbstractAgentProcessEvent(agentProcess)
+
 
 fun interface RagEventListener {
 
