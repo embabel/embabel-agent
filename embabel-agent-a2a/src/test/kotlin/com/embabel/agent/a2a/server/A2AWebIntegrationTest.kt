@@ -117,7 +117,7 @@ class A2AWebIntegrationTest(
             assertEquals("https://embabel.com", agentCard.provider?.url)
             assertEquals(DEFAULT_VERSION, agentCard.version)
             assertEquals("https://embabel.com/docs", agentCard.documentationUrl)
-            assertEquals(false, agentCard.capabilities.streaming)
+            assertEquals(true, agentCard.capabilities.streaming)
             assertEquals(false, agentCard.capabilities.pushNotifications)
             assertEquals(false, agentCard.capabilities.stateTransitionHistory)
             assertEquals(listOf("application/json", "text/plain"), agentCard.defaultInputModes)
