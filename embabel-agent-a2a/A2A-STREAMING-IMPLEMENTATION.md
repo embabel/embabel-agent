@@ -108,11 +108,21 @@ Previously, only some events were wrapped, causing validation errors on the clie
 - Enhanced `createResultArtifact()` to properly handle HasContent objects
 
 **HasContent Handling**:
-When agent output implements `HasContent`, the artifact is structured per A2A specification:
-- **TextPart** (kind: "text") - Contains the `content` field value for end-user visibility
-- **DataPart** (kind: "data") - Contains the remaining object fields (excluding content)
+When agent output implements `HasContent`, special handling ensures content visibility in A2A clients:
 
-This ensures content is viewable by end users according to the A2A protocol specification, which states that TextPart should be used for human-readable content intended for direct display.
+1. **Status Message** - The `content` field is placed in the completion status message's TextPart
+   - This is what A2A Inspector displays to end users
+   - Without this, the content would not be visible in the client UI
+
+2. **Artifact Structure** - The artifact is structured per A2A specification:
+   - **TextPart** (kind: "text") - Contains the `content` field value
+   - **DataPart** (kind: "data") - Contains the remaining object fields (excluding content)
+
+This dual approach ensures content is viewable by end users according to the A2A protocol specification, which states that TextPart should be used for human-readable content intended for direct display. The status message TextPart is the primary visibility mechanism for A2A clients.
+
+**Key Methods**:
+- `extractContentForDisplay()` - Extracts content from AgentProcessExecution for status messages
+- `createResultArtifact()` - Structures artifacts with separate TextPart and DataPart
 
 **Important Note**: Uses `params.id` (not `params.taskId`) to access task identifier from TaskIdParams.
 
