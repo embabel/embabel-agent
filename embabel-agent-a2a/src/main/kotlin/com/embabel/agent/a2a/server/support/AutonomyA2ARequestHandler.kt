@@ -200,7 +200,19 @@ class AutonomyA2ARequestHandler(
                 // Extract content for status message if output is HasContent
                 val statusMessage = extractContentForDisplay(result)
 
-                // Send result
+                // Send FINAL status update with content (this is what A2A Inspector displays)
+                streamingHandler.sendStreamEvent(
+                    streamId,
+                    TaskStatusUpdateEvent.Builder()
+                        .taskId(taskId)
+                        .contextId(contextId)
+                        .status(createCompletedTaskStatus(params, statusMessage))
+                        .isFinal(true)
+                        .build(),
+                    taskId
+                )
+
+                // Send complete task result with artifacts
                 val taskResult = Task.Builder()
                     .id(taskId)
                     .contextId(contextId)
