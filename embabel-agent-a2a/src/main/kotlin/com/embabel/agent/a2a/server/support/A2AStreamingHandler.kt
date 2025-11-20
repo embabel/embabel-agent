@@ -70,17 +70,6 @@ class A2AStreamingHandler(
             activeStreams.remove(streamId)
         }
 
-        // Send initial connection established event
-        try {
-            emitter.send(SseEmitter.event()
-                .name("connected")
-                .data(mapOf("streamId" to streamId))
-            )
-        } catch (e: Exception) {
-            logger.error("Error sending initial event", e)
-            emitter.completeWithError(e)
-        }
-
         return emitter
     }
 
