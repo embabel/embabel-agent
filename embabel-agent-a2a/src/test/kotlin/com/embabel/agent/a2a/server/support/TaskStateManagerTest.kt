@@ -73,14 +73,16 @@ class TaskStateManagerTest {
     fun `should move task to completed when terminal state received`() {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val completedTask = Task.Builder()
-            .id("task-1")
+        // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
+        val completedStatus = TaskStatusUpdateEvent.Builder()
+            .taskId("task-1")
             .contextId("ctx-1")
             .status(TaskStatus(TaskState.COMPLETED))
+            .isFinal(true)
             .build()
 
         // When
-        taskStateManager.recordEvent("task-1", completedTask)
+        taskStateManager.recordEvent("task-1", completedStatus)
 
         // Then
         assertFalse(taskStateManager.isTaskActive("task-1"))
@@ -94,14 +96,16 @@ class TaskStateManagerTest {
     fun `should move task to completed on failed state`() {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val failedTask = Task.Builder()
-            .id("task-1")
+        // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
+        val failedStatus = TaskStatusUpdateEvent.Builder()
+            .taskId("task-1")
             .contextId("ctx-1")
             .status(TaskStatus(TaskState.FAILED))
+            .isFinal(true)
             .build()
 
         // When
-        taskStateManager.recordEvent("task-1", failedTask)
+        taskStateManager.recordEvent("task-1", failedStatus)
 
         // Then
         assertFalse(taskStateManager.isTaskActive("task-1"))
@@ -112,14 +116,16 @@ class TaskStateManagerTest {
     fun `should move task to completed on canceled state`() {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val canceledTask = Task.Builder()
-            .id("task-1")
+        // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
+        val canceledStatus = TaskStatusUpdateEvent.Builder()
+            .taskId("task-1")
             .contextId("ctx-1")
             .status(TaskStatus(TaskState.CANCELED))
+            .isFinal(true)
             .build()
 
         // When
-        taskStateManager.recordEvent("task-1", canceledTask)
+        taskStateManager.recordEvent("task-1", canceledStatus)
 
         // Then
         assertFalse(taskStateManager.isTaskActive("task-1"))
@@ -181,12 +187,14 @@ class TaskStateManagerTest {
     fun `should cleanup old completed tasks`() {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val completedTask = Task.Builder()
-            .id("task-1")
+        // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
+        val completedStatus = TaskStatusUpdateEvent.Builder()
+            .taskId("task-1")
             .contextId("ctx-1")
             .status(TaskStatus(TaskState.COMPLETED))
+            .isFinal(true)
             .build()
-        taskStateManager.recordEvent("task-1", completedTask)
+        taskStateManager.recordEvent("task-1", completedStatus)
 
         // Simulate old completion time
         val taskInfo = taskStateManager.getTaskInfo("task-1")
@@ -203,12 +211,14 @@ class TaskStateManagerTest {
     fun `should not cleanup recent completed tasks`() {
         // Given
         taskStateManager.registerTask("task-1", "ctx-1", "stream-1")
-        val completedTask = Task.Builder()
-            .id("task-1")
+        // Use TaskStatusUpdateEvent with final=true as per actual streaming implementation
+        val completedStatus = TaskStatusUpdateEvent.Builder()
+            .taskId("task-1")
             .contextId("ctx-1")
             .status(TaskStatus(TaskState.COMPLETED))
+            .isFinal(true)
             .build()
-        taskStateManager.recordEvent("task-1", completedTask)
+        taskStateManager.recordEvent("task-1", completedStatus)
 
         // When
         taskStateManager.cleanupOldTasks(Instant.now().minus(1, ChronoUnit.HOURS))
