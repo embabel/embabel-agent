@@ -117,14 +117,15 @@ When agent output implements `HasContent`, special handling ensures content visi
 
 2. **Event Sequence for Streaming**:
    - TaskStatusUpdateEvent (working) - "Processing task..."
-   - **TaskStatusUpdateEvent (final=true)** - Contains the actual content ← **This is what displays**
-   - Task object - Contains artifacts and complete result
+   - **TaskStatusUpdateEvent (final=true)** - Contains the actual content ← **This is what displays and completes the stream**
 
-3. **Artifact Structure** - The artifact is structured per A2A specification:
+   Note: Per A2A specification, Task objects should appear at the beginning of streams if returned, not at the end. The final status-update event with `final=true` is sufficient for completion.
+
+3. **Artifact Handling** - While artifacts are not sent in streaming responses (as the final event is a status-update, not a Task object), the artifact creation logic remains for potential non-streaming use cases:
    - **TextPart** (kind: "text") - Contains the `content` field value
    - **DataPart** (kind: "data") - Contains the remaining object fields (excluding content)
 
-This approach ensures content is viewable by end users according to the A2A protocol specification. The final status-update event (kind: "status-update", final: true) is the primary visibility mechanism for A2A Inspector and similar clients.
+This approach ensures content is viewable by end users according to the A2A protocol specification. The final status-update event (kind: "status-update", final: true) provides complete task completion signaling.
 
 **Key Methods**:
 - `extractContentForDisplay()` - Extracts content from AgentProcessExecution for status messages
