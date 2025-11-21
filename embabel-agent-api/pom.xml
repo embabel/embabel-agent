@@ -125,6 +125,18 @@
             <version>0.2.5</version>
         </dependency>
 
+        <!-- LogicNG for formula-based planning -->
+        <dependency>
+            <groupId>org.logicng</groupId>
+            <artifactId>logicng</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.logicng</groupId>
+            <artifactId>logicng-parser-j11</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+
         <!-- Unit and Integration Testing -->
         <!-- Most common testing dependencies are in the embabel-agent-parent -->
         <!-- If something is missing, add it here -->
