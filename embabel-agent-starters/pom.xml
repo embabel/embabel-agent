@@ -28,6 +28,7 @@
         <module>embabel-agent-starter-openai</module>
         <module>embabel-agent-starter-anthropic</module>
         <module>embabel-agent-starter-ollama</module>
+        <module>embabel-agent-starter-lmstudio</module>
         <module>embabel-agent-starter-dockermodels</module>
         <module>embabel-agent-starter-deepseek</module>
         <module>embabel-agent-starter-gemini</module>

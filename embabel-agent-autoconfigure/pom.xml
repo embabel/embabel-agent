@@ -25,6 +25,7 @@
         <module>models/embabel-agent-openai-autoconfigure</module>
         <module>models/embabel-agent-anthropic-autoconfigure</module>
         <module>models/embabel-agent-ollama-autoconfigure</module>
+        <module>models/embabel-agent-lmstudio-autoconfigure</module>
         <module>models/embabel-agent-dockermodels-autoconfigure</module>
         <module>models/embabel-agent-deepseek-autoconfigure</module>
         <module>models/embabel-agent-gemini-autoconfigure</module>
