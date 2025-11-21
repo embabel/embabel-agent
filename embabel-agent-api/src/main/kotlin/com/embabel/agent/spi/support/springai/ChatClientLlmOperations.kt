@@ -29,8 +29,10 @@ import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
+import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.DatabindException
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -43,6 +45,7 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ResponseEntity
 import org.springframework.ai.chat.client.advisor.observation.DefaultAdvisorObservationConvention
 import org.springframework.ai.chat.client.observation.DefaultChatClientObservationConvention
+import reactor.core.publisher.Flux
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
@@ -79,7 +82,7 @@ internal class ChatClientLlmOperations(
     private val llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
-    private val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+    internal val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
@@ -388,9 +391,14 @@ internal class ChatClientLlmOperations(
     }
 
     /**
+     * Expose LLM selection for streaming operations
+     */
+    internal fun getLlm(interaction: LlmInteraction): Llm = chooseLlm(interaction.llm)
+
+    /**
      * Create a chat client for the given Embabel Llm definition
-     **/
-    private fun createChatClient(llm: Llm): ChatClient {
+     */
+    internal fun createChatClient(llm: Llm): ChatClient {
         return ChatClient
             .builder(llm.model, observationRegistry, DefaultChatClientObservationConvention(),
                 DefaultAdvisorObservationConvention()
@@ -404,6 +412,7 @@ internal class ChatClientLlmOperations(
         }
         return llmCall.generateExamples == true
     }
+
 }
 
 /**
