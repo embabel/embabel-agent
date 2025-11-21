@@ -221,7 +221,7 @@ class OgmRagFacetProvider(
             query = cypher,
             params = params,
         )
-        val propertiesSet = result.queryStatistics().propertiesSet
+        val propertiesSet = result.items()[0]["nodesUpdated"];
         if (propertiesSet == 0) {
             logger.warn(
                 "Expected to set embedding properties, but set 0. chunkId={}, cypher={}",
@@ -251,7 +251,7 @@ class OgmRagFacetProvider(
                 params = mapOf("uri" to uri)
             )
 
-            val deletedCount = result.queryStatistics().nodesDeleted
+            val deletedCount = result.items()[0]["deletedCount"] as Int
 
             if (deletedCount == 0) {
                 logger.warn("No document found with URI: {}", uri)

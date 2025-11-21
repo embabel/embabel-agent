@@ -23,6 +23,7 @@ import com.embabel.agent.rag.model.SimpleEntityData
 import com.embabel.agent.rag.model.SimpleNamedEntityData
 import com.embabel.agent.rag.neo.common.CypherSearch
 import com.embabel.agent.rag.neo.common.LogicalQueryResolver
+import com.embabel.agent.rag.neo.common.QueryResult
 import com.embabel.agent.rag.service.Cluster
 import com.embabel.agent.rag.service.ClusterFinder
 import com.embabel.agent.rag.service.ClusterRetrievalRequest
@@ -69,10 +70,10 @@ class OgmCypherSearch(
             params = params,
             logger = ogmCypherSearchLogger,
         )
-        if (result.queryStatistics().nodesCreated != 1) {
+        if (result.items().size != 1) {
             ogmCypherSearchLogger.warn(
                 "Expected to create 1 node, but created: {}. params={}",
-                result.queryStatistics().nodesCreated,
+                result.items().size,
                 params
             )
         }
@@ -219,7 +220,7 @@ class OgmCypherSearch(
     }
 
     private fun rowsToEntityData(
-        result: Result,
+        result: QueryResult,
     ): List<EntityData> = result.map { row ->
         SimpleNamedEntityData(
             id = row["id"] as String,
@@ -245,7 +246,7 @@ class OgmCypherSearch(
     }
 
     private fun rowsToSimilarityResult(
-        result: Result,
+        result: QueryResult,
     ): List<SimilarityResult<EntityData>> = result.map { row ->
         val name = row["name"] as? String
         val description = row["description"] as? String
@@ -280,25 +281,25 @@ class OgmCypherSearch(
             ?: error("No active OGM session found. Ensure you are within a Spring transaction context.")
 
     /**
-     * Return an OGM result
+     * Execute a query and return results as QueryResult
      */
     override fun query(
         purpose: String,
         query: String,
         params: Map<String, *>,
         logger: Logger?,
-    ): Result {
+    ): QueryResult {
         val loggerToUse = logger ?: ogmCypherSearchLogger
         val cypher = if (query.contains(" ")) query else queryResolver.resolve(query)!!
         loggerToUse.info("[{}] query\n\tparams: {}\n{}", purpose, params, cypher)
-        val (result, millis) = time {
+        val (ogmResult, millis) = time {
             currentSession().query(
                 cypher,
                 params,
             )
         }
         loggerToUse.info("[{}] query took {} ms", purpose, millis)
-        return result
+        return QueryResult(ogmResult.toList())
     }
 
     override fun queryForInt(

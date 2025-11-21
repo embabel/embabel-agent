@@ -105,5 +105,5 @@ interface CypherSearch {
         query: String,
         params: Map<String, *>,
         logger: Logger? = null,
-    ): Result
+    ): QueryResult
 }
