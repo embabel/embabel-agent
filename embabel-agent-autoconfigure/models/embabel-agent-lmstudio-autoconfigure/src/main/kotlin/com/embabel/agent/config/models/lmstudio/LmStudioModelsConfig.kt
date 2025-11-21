@@ -40,7 +40,7 @@ import java.time.Duration
  */
 @Configuration(proxyBeanMethods = false)
 class LmStudioModelsConfig(
-    @Value("\${spring.ai.lmstudio.base-url:http://127.0.0.1:1234/v1}")
+    @Value("\${spring.ai.lmstudio.base-url:http://127.0.0.1:1234}")
     baseUrl: String,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     observationRegistry: ObjectProvider<ObservationRegistry>,
@@ -109,10 +109,15 @@ class LmStudioModelsConfig(
                 .requestFactory(requestFactory)
                 .build()
 
-            // baseUrl usually includes /v1, so we append /models
+            // baseUrl usually does NOT include /v1 for Spring AI OpenAiApi, but we need it for models endpoint
             // If baseUrl ends with /, remove it
-            val cleanBaseUrl = baseUrl?.trimEnd('/') ?: "http://127.0.0.1:1234/v1"
-            val url = "$cleanBaseUrl/models"
+            val cleanBaseUrl = baseUrl?.trimEnd('/') ?: "http://127.0.0.1:1234"
+            // Ensure we hit /v1/models
+            val url = if (cleanBaseUrl.endsWith("/v1")) {
+                "$cleanBaseUrl/models"
+            } else {
+                "$cleanBaseUrl/v1/models"
+            }
 
             log.info("Attempting to fetch models from: {}", url)
 
