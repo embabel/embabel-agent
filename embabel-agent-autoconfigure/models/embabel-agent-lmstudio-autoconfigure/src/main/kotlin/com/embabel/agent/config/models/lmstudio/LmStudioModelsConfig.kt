@@ -18,7 +18,9 @@ package com.embabel.agent.config.models.lmstudio
 import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.common.ai.model.PricingModel
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
@@ -27,8 +29,9 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
-import org.springframework.web.client.body
+import java.time.Duration
 
 /**
  * Configuration for LM Studio models.
@@ -49,11 +52,15 @@ class LmStudioModelsConfig(
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
 ) {
 
+    private val log = LoggerFactory.getLogger(LmStudioModelsConfig::class.java)
+
     // OpenAI-compatible models response
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private data class ModelResponse(
-        @param:JsonProperty("data") val data: List<ModelData>,
+        @param:JsonProperty("data") val data: List<ModelData>? = null,
     )
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private data class ModelData(
         @param:JsonProperty("id") val id: String,
     )
@@ -63,11 +70,11 @@ class LmStudioModelsConfig(
         val models = loadModelsFromUrl()
 
         if (models.isEmpty()) {
-            logger.warn("No LM Studio models discovered at {}. Ensure LM Studio is running and the server is started.", baseUrl)
+            log.warn("No LM Studio models discovered at {}. Ensure LM Studio is running and the server is started.", baseUrl)
             return
         }
 
-        logger.info("Discovered {} LM Studio models: {}", models.size, models)
+        log.info("Discovered {} LM Studio models: {}", models.size, models)
 
         models.forEach { modelId ->
             try {
@@ -82,35 +89,55 @@ class LmStudioModelsConfig(
                 // e.g. "lmStudioModel-my-model-name"
                 val beanName = "lmStudioModel-${normalizeModelName(modelId)}"
                 configurableBeanFactory.registerSingleton(beanName, llm)
-                logger.debug("Successfully registered LM Studio LLM {} as bean {}", modelId, beanName)
+                log.debug("Successfully registered LM Studio LLM {} as bean {}", modelId, beanName)
 
             } catch (e: Exception) {
-                logger.error("Failed to register LM Studio model {}: {}", modelId, e.message)
+                log.error("Failed to register LM Studio model {}: {}", modelId, e.message)
             }
         }
     }
 
-    private fun loadModelsFromUrl(): List<String> =
-        try {
+    private fun loadModelsFromUrl(): List<String> {
+        return try {
             // We can't use the RestClient from the parent because it's configured for the API
             // But we can use a simple one here to fetch the list
-            val restClient = RestClient.create()
+            val requestFactory = SimpleClientHttpRequestFactory()
+            requestFactory.setConnectTimeout(2000)
+            requestFactory.setReadTimeout(2000)
+
+            val restClient = RestClient.builder()
+                .requestFactory(requestFactory)
+                .build()
+
             // baseUrl usually includes /v1, so we append /models
             // If baseUrl ends with /, remove it
             val cleanBaseUrl = baseUrl?.trimEnd('/') ?: "http://localhost:1234/v1"
             val url = "$cleanBaseUrl/models"
 
-            val response = restClient.get()
+            log.info("Attempting to fetch models from: {}", url)
+
+            val responseBody = restClient.get()
                 .uri(url)
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
-                .body<ModelResponse>()
+                .body(String::class.java)
 
-            response?.data?.map { it.id } ?: emptyList()
+            log.debug("Received response from LM Studio: {}", responseBody)
+
+            if (responseBody == null) {
+                log.warn("Received empty response from LM Studio")
+                return emptyList()
+            }
+
+            val objectMapper = ObjectMapper()
+            val response = objectMapper.readValue(responseBody, ModelResponse::class.java)
+
+            response.data?.map { it.id } ?: emptyList()
         } catch (e: Exception) {
-            logger.warn("Failed to load models from {}: {}", baseUrl, e.message)
+            log.warn("Failed to load models from {}: {}", baseUrl, e.message)
             emptyList()
         }
+    }
 
     private fun normalizeModelName(modelId: String): String {
         // Replace characters that might be invalid in bean names or just to be consistent
