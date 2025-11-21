@@ -34,6 +34,7 @@ import io.a2a.spec.PushNotificationAuthenticationInfo
 import io.a2a.spec.PushNotificationConfig
 import io.a2a.spec.SendMessageRequest
 import io.a2a.spec.SendMessageResponse
+import io.a2a.spec.SendStreamingMessageRequest
 import io.a2a.spec.SetTaskPushNotificationConfigResponse
 import io.a2a.spec.Task
 import io.a2a.spec.TaskIdParams
@@ -184,12 +185,18 @@ class A2AWebIntegrationTest(
                 .contextId("ctx-123")
                 .build()
             val params = MessageSendParams.Builder().message(message).build()
+            val request = SendStreamingMessageRequest.Builder()
+                .jsonrpc(JSONRPCRequest.JSONRPC_VERSION)
+                .method(SendStreamingMessageRequest.METHOD)
+                .id("stream-123")
+                .params(params)
+                .build()
 
             // Note: We can't fully test SSE with MockMvc in a standard way
-            // This test just verifies the endpoint doesn't throw an error
-            mockMvc.post("/a2a/message/stream") {
+            // This test just verifies the endpoint accepts the streaming request without error
+            mockMvc.post("/a2a") {
                 contentType = MediaType.APPLICATION_JSON
-                content = objectMapper.writeValueAsString(params)
+                content = objectMapper.writeValueAsString(request)
             }
                 .andExpect {
                     status().isOk()
