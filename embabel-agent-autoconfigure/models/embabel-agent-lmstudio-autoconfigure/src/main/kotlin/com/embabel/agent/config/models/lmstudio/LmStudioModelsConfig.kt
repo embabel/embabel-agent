@@ -40,7 +40,7 @@ import java.time.Duration
  */
 @Configuration(proxyBeanMethods = false)
 class LmStudioModelsConfig(
-    @Value("\${spring.ai.lmstudio.base-url:http://localhost:1234/v1}")
+    @Value("\${spring.ai.lmstudio.base-url:http://127.0.0.1:1234/v1}")
     baseUrl: String,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     observationRegistry: ObjectProvider<ObservationRegistry>,
@@ -111,7 +111,7 @@ class LmStudioModelsConfig(
 
             // baseUrl usually includes /v1, so we append /models
             // If baseUrl ends with /, remove it
-            val cleanBaseUrl = baseUrl?.trimEnd('/') ?: "http://localhost:1234/v1"
+            val cleanBaseUrl = baseUrl?.trimEnd('/') ?: "http://127.0.0.1:1234/v1"
             val url = "$cleanBaseUrl/models"
 
             log.info("Attempting to fetch models from: {}", url)
