@@ -117,7 +117,7 @@ class A2AWebIntegrationTest(
             assertEquals("https://embabel.com", agentCard.provider?.url)
             assertEquals(DEFAULT_VERSION, agentCard.version)
             assertEquals("https://embabel.com/docs", agentCard.documentationUrl)
-            assertEquals(false, agentCard.capabilities.streaming)
+            assertEquals(true, agentCard.capabilities.streaming)
             assertEquals(false, agentCard.capabilities.pushNotifications)
             assertEquals(false, agentCard.capabilities.stateTransitionHistory)
             assertEquals(listOf("application/json", "text/plain"), agentCard.defaultInputModes)
@@ -192,6 +192,27 @@ class A2AWebIntegrationTest(
                 content = objectMapper.writeValueAsString(params)
             }
                 .andExpect {
+                    status().isOk()
+                }
+        }
+
+        @Test
+        fun `should handle tasks resubscribe request`() {
+            val resubscribeRequest = mapOf(
+                "jsonrpc" to "2.0",
+                "id" to "req-456",
+                "method" to "tasks/resubscribe",
+                "params" to mapOf("id" to "task-123")
+            )
+
+            // Note: This will fail if task doesn't exist, which is expected
+            // We're just testing that the endpoint is routed correctly
+            mockMvc.post("/a2a") {
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(resubscribeRequest)
+            }
+                .andExpect {
+                    // Should return 200 even if task not found (SSE stream will error)
                     status().isOk()
                 }
         }
