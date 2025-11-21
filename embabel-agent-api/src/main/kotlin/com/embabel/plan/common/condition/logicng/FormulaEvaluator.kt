@@ -1,7 +1,21 @@
+/*
+ * Copyright 2024-2025 Embabel Software, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.embabel.plan.common.condition.logicng
 
 import com.embabel.plan.common.condition.ConditionDetermination
-import com.embabel.plan.common.condition.ConditionWorldState
 import org.logicng.datastructures.Assignment
 import org.logicng.formulas.Formula
 import org.logicng.formulas.FormulaFactory
@@ -20,11 +34,15 @@ import org.logicng.formulas.Literal
 object FormulaEvaluator {
 
     /**
-     * Evaluate a formula against a world state using three-valued logic.
+     * Evaluate a formula using a condition determiner function using three-valued logic.
+     *
+     * @param formula The LogicNG formula to evaluate
+     * @param determineCondition Function that determines the value of a condition by name
+     * @param formulaFactory The formula factory used to create the formula
      */
     fun evaluate(
         formula: Formula,
-        worldState: ConditionWorldState,
+        determineCondition: (String) -> ConditionDetermination,
         formulaFactory: FormulaFactory = FormulaFactory(),
     ): ConditionDetermination {
         val variables = formula.variables()
@@ -35,7 +53,7 @@ object FormulaEvaluator {
 
         for (variable in variables) {
             val varName = variable.name()
-            when (val determination = worldState.state[varName] ?: ConditionDetermination.FALSE) {
+            when (val determination = determineCondition(varName)) {
                 ConditionDetermination.TRUE -> knownAssignments.add(formulaFactory.literal(varName, true))
                 ConditionDetermination.FALSE -> knownAssignments.add(formulaFactory.literal(varName, false))
                 ConditionDetermination.UNKNOWN -> unknownVariables.add(varName)

@@ -22,6 +22,7 @@ import com.embabel.agent.core.satisfiesType
 import com.embabel.agent.core.support.Rerun.HAS_RUN_CONDITION_PREFIX
 import com.embabel.plan.common.condition.ConditionDetermination
 import com.embabel.plan.common.condition.ConditionWorldState
+import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.embabel.plan.common.condition.WorldStateDeterminer
 import org.slf4j.LoggerFactory
 
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory
  */
 class BlackboardWorldStateDeterminer(
     private val processContext: ProcessContext,
+    private val logicalExpressionParser: LogicalExpressionParser,
 ) : WorldStateDeterminer {
 
     private val logger = LoggerFactory.getLogger(BlackboardWorldStateDeterminer::class.java)
@@ -48,7 +50,13 @@ class BlackboardWorldStateDeterminer(
     }
 
     override fun determineCondition(condition: String): ConditionDetermination {
+        val logicalExpression = logicalExpressionParser.parse(condition)
+
         val conditionDetermination = when {
+            logicalExpression != null -> {
+                logicalExpression.evaluate { determineCondition(it) }
+            }
+
             // Data binding condition
             condition.contains(":") -> {
                 val (variable, type) = condition.split(":")

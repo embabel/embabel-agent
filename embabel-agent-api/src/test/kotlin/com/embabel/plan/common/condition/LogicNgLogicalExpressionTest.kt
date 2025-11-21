@@ -283,6 +283,50 @@ class LogicNgLogicalExpressionTest {
     }
 
     @Test
+    fun `evaluate using determineCondition function`() {
+        // Given: A custom condition determiner (e.g., from WorldStateDeterminer)
+        val conditionMap = mapOf(
+            "hasDog" to ConditionDetermination.TRUE,
+            "needsWalk" to ConditionDetermination.TRUE,
+            "tired" to ConditionDetermination.FALSE
+        )
+        val determineCondition: (String) -> ConditionDetermination = { condition ->
+            conditionMap[condition] ?: ConditionDetermination.FALSE
+        }
+
+        // When: Evaluate formula using the determineCondition function directly
+        val formula = LogicNgLogicalExpression.parse("hasDog => (needsWalk & ~tired)")
+
+        // Then: Formula should be TRUE
+        assertThat(formula.evaluate(determineCondition)).isEqualTo(ConditionDetermination.TRUE)
+    }
+
+    @Test
+    fun `evaluate with WorldStateDeterminer interface`() {
+        // Given: Mock WorldStateDeterminer that returns specific values
+        val mockDeterminer = object : WorldStateDeterminer {
+            override fun determineWorldState(): ConditionWorldState {
+                throw NotImplementedError("Not needed for this test")
+            }
+
+            override fun determineCondition(condition: String): ConditionDetermination {
+                return when (condition) {
+                    "A" -> ConditionDetermination.TRUE
+                    "B" -> ConditionDetermination.TRUE
+                    "C" -> ConditionDetermination.FALSE
+                    else -> ConditionDetermination.FALSE
+                }
+            }
+        }
+
+        // When: Evaluate using the WorldStateDeterminer.determineCondition method
+        val formula = LogicNgLogicalExpression.parse("A => (B & ~C)")
+
+        // Then: Can pass the method reference directly
+        assertThat(formula.evaluate(mockDeterminer::determineCondition)).isEqualTo(ConditionDetermination.TRUE)
+    }
+
+    @Test
     fun `formula toString returns readable representation`() {
         // Given: Complex formula
         val formula = LogicNgLogicalExpression.parse("A => (B & ~C)")

@@ -29,6 +29,8 @@ import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.testing.common.EventSavingAgenticEventListener
 import com.embabel.plan.common.condition.ConditionDetermination
+import com.embabel.plan.common.condition.LogicalExpressionParser
+import com.embabel.plan.common.condition.logicng.LogicNgLogicalExpressionParser
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -97,13 +99,17 @@ class BlackboardWorldStateDeterminerTest {
         every { mockAgentProcess.get(any()) } answers {
             blackboard.get(firstArg())
         }
+        every { mockAgentProcess.getCondition(any()) } answers {
+            blackboard.getCondition(firstArg())
+        }
         every { mockAgentProcess.agent } returns SimpleTestAgent
         val bsb = BlackboardWorldStateDeterminer(
             processContext = ProcessContext(
                 platformServices = mockPlatformServices,
                 agentProcess = mockAgentProcess,
                 processOptions = ProcessOptions()
-            )
+            ),
+            logicalExpressionParser = LogicalExpressionParser.of(LogicNgLogicalExpressionParser)
         )
         return bsb
     }
@@ -245,6 +251,201 @@ class BlackboardWorldStateDeterminerTest {
                 bsb.determineCondition("story:Story"),
                 "Should match against map with name",
             )
+        }
+    }
+
+    @Nested
+    inner class LogicNgExpressions {
+
+        @Test
+        fun `ng conjunction - both conditions true`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Set explicit boolean conditions
+            blackboard.setCondition("hasInput", true)
+            blackboard.setCondition("hasPerson", true)
+
+            // When: Evaluate conjunction using ng: syntax
+            val result = bsb.determineCondition("ng:hasInput & hasPerson")
+
+            // Then: Should be TRUE
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `ng conjunction - one condition false`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Only one condition is true
+            blackboard.setCondition("hasInput", true)
+            blackboard.setCondition("hasPerson", false)
+
+            // When: Evaluate conjunction
+            val result = bsb.determineCondition("ng:hasInput & hasPerson")
+
+            // Then: Should be FALSE
+            assertEquals(ConditionDetermination.FALSE, result)
+        }
+
+        @Test
+        fun `ng disjunction - one condition true`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Only one condition is true
+            blackboard.setCondition("hasInput", true)
+            blackboard.setCondition("hasPerson", false)
+
+            // When: Evaluate disjunction
+            val result = bsb.determineCondition("ng:hasInput | hasPerson")
+
+            // Then: Should be TRUE (one of the conditions is true)
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `ng implication - antecedent true and consequent true`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Both conditions are true
+            blackboard.setCondition("hasInput", true)
+            blackboard.setCondition("hasPerson", true)
+
+            // When: Evaluate implication (if hasInput then hasPerson)
+            val result = bsb.determineCondition("ng:hasInput => hasPerson")
+
+            // Then: Should be TRUE
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `ng implication - antecedent true and consequent false`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Antecedent true, consequent false
+            blackboard.setCondition("hasInput", true)
+            blackboard.setCondition("hasPerson", false)
+
+            // When: Evaluate implication
+            val result = bsb.determineCondition("ng:hasInput => hasPerson")
+
+            // Then: Should be FALSE (implication violated)
+            assertEquals(ConditionDetermination.FALSE, result)
+        }
+
+        @Test
+        fun `ng implication - antecedent false`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Antecedent is false
+            blackboard.setCondition("hasInput", false)
+            blackboard.setCondition("hasPerson", false)
+
+            // When: Evaluate implication
+            val result = bsb.determineCondition("ng:hasInput => hasPerson")
+
+            // Then: Should be TRUE (implication vacuously true when antecedent is false)
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `ng negation - condition present`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Condition is true
+            blackboard.setCondition("hasInput", true)
+
+            // When: Evaluate negation
+            val result = bsb.determineCondition("ng:~hasInput")
+
+            // Then: Should be FALSE (negation of TRUE)
+            assertEquals(ConditionDetermination.FALSE, result)
+        }
+
+        @Test
+        fun `ng negation - condition absent`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Condition is false
+
+            // When: Evaluate negation
+            val result = bsb.determineCondition("ng:~hasInput")
+
+            // Then: Should be TRUE (negation of FALSE)
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `ng complex formula - implication with conjunction and negation`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: hasInput=true, hasPerson=true, hasFancy=false
+            blackboard.setCondition("hasInput", true)
+            blackboard.setCondition("hasPerson", true)
+            blackboard.setCondition("hasFancy", false)
+
+            // When: Evaluate complex formula: "if hasInput then (hasPerson and not hasFancy)"
+            val result = bsb.determineCondition("ng:hasInput => (hasPerson & ~hasFancy)")
+
+            // Then: Should be TRUE
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `ng complex formula - violation`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: All three conditions true
+            blackboard.setCondition("hasInput", true)
+            blackboard.setCondition("hasPerson", true)
+            blackboard.setCondition("hasFancy", true)
+
+            // When: Evaluate complex formula with negation that fails
+            val result = bsb.determineCondition("ng:hasInput => (hasPerson & ~hasFancy)")
+
+            // Then: Should be FALSE (hasFancy is true, violating the negation)
+            assertEquals(ConditionDetermination.FALSE, result)
+        }
+
+        @Test
+        fun `ng with explicit condition names`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Set explicit boolean conditions
+            blackboard.setCondition("hasCompleted", true)
+            blackboard.setCondition("needsReview", false)
+
+            // When: Evaluate formula with explicit condition names
+            val result = bsb.determineCondition("ng:hasCompleted & ~needsReview")
+
+            // Then: Should be TRUE
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `ng equivalence - both sides equal`() {
+            val blackboard = InMemoryBlackboard()
+            val bsb = createBlackboardWorldStateDeterminer(blackboard)
+
+            // Given: Both conditions have the same value
+            blackboard.setCondition("isReady", true)
+            blackboard.setCondition("canProceed", true)
+
+            // When: Evaluate equivalence
+            val result = bsb.determineCondition("ng:isReady <=> canProceed")
+
+            // Then: Should be TRUE (both are true)
+            assertEquals(ConditionDetermination.TRUE, result)
         }
     }
 

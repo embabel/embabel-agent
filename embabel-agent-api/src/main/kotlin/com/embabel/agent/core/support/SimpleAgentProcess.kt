@@ -24,7 +24,9 @@ import com.embabel.common.util.indentLines
 import com.embabel.plan.Plan
 import com.embabel.plan.Planner
 import com.embabel.plan.WorldState
+import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.embabel.plan.common.condition.WorldStateDeterminer
+import com.embabel.plan.common.condition.logicng.LogicNgLogicalExpressionParser
 import java.time.Instant
 
 open class SimpleAgentProcess(
@@ -51,7 +53,10 @@ open class SimpleAgentProcess(
     override val llmInvocations: List<LlmInvocation>
         get() = _llmInvocations.toList()
 
-    override val worldStateDeterminer: WorldStateDeterminer = BlackboardWorldStateDeterminer(processContext)
+    override val worldStateDeterminer: WorldStateDeterminer = BlackboardWorldStateDeterminer(
+        processContext,
+        LogicalExpressionParser.of(LogicNgLogicalExpressionParser),
+    )
 
     override val planner: Planner<*, *, *> = plannerFactory.createPlanner(processOptions, worldStateDeterminer)
 
