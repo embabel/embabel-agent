@@ -122,6 +122,12 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-mistral-ai-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-eval</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -184,7 +190,7 @@
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-starter-anthropic</artifactId>
                 <version>${project.version}</version>
-            </dependency>            
+            </dependency>
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
@@ -213,6 +219,12 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-starter-google-genai</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-mistral-ai</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

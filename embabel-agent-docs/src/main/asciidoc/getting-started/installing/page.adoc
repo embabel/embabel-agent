@@ -187,6 +187,7 @@ Example `.env` file:
 OPENAI_API_KEY=your_openai_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
+MISTRAL_API_KEY=your_mistral_api_key_here
 ----
 
 ===== OpenAI Compatible (GPT-4, GPT-5, etc.)
@@ -283,3 +284,11 @@ embabel:
 <1> Set a Google GenAI model as the default LLM
 <2> Google GenAI specific configuration
 <3> API key can be set here or via environment variable `GOOGLE_API_KEY`
+
+===== Mistral AI
+
+* Required:
+- `MISTRAL_API_KEY`: API key for Mistral AI services
+* Optional:
+- `MISTRAL_BASE_URL`: base URL for Mistral AI API (default: `https://api.mistral.ai`)
+
