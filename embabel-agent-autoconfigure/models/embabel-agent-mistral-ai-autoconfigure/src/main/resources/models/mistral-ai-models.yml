@@ -1,0 +1,86 @@
+# ============================================
+# mistral-ai-models.yml
+# ============================================
+# Updated with latest Mistral AI models as of November 2025
+# Using official Mistral AI API aliases
+
+models:
+  - name: "mistral-medium-2508"
+    model_id: "mistral-medium-2508"
+    display_name: "Mistral Medium 3.1"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.4
+      usd_per1m_output_tokens: 2.0
+
+  - name: "ministral-3b-2410"
+    model_id: "ministral-3b-2410"
+    display_name: "Ministral 3B"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.04
+      usd_per1m_output_tokens: 0.04
+
+  - name: "mistral-small-2506"
+    model_id: "mistral-small-2506"
+    display_name: "Mistral Small 3.2"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.1
+      usd_per1m_output_tokens: 0.3
+
+  - name: "ministral-8b-2410"
+    model_id: "ministral-8b-2410"
+    display_name: "Ministral 8B"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.1
+      usd_per1m_output_tokens: 0.1
+
+  - name: "codestral-2508"
+    model_id: "codestral-2508"
+    display_name: "Codestral"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.3
+      usd_per1m_output_tokens: 0.9
+
+  - name: "devstral-small-2507"
+    model_id: "devstral-small-2507"
+    display_name: "Devstral Small 1.1"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.1
+      usd_per1m_output_tokens: 0.3
+
+  - name: "devstral-medium-2507"
+    model_id: "devstral-medium-2507"
+    display_name: "Devstral Medium 1.0"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.4
+      usd_per1m_output_tokens: 2.0
+
+  - name: "open-mistral-nemo-2407"
+    model_id: "open-mistral-nemo-2407"
+    display_name: "Mistral Nemo 12B"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.15
+      usd_per1m_output_tokens: 0.15
+
+  - name: "mistral-medium-2505"
+    model_id: "mistral-medium-2505"
+    display_name: "Mistral Medium 3"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.4
+      usd_per1m_output_tokens: 2.0
+
+  - name: "mistral-large-2411"
+    model_id: "mistral-large-2411"
+    display_name: "Mistral Large 2.1"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 2.0
+      usd_per1m_output_tokens: 6.0
