@@ -20,10 +20,12 @@ import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.*
 import com.embabel.agent.core.Export
+import com.embabel.agent.core.support.NIRVANA
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.agent.spi.validation.AgentStructureValidator
@@ -181,7 +183,14 @@ class AgentMetadataReader(
             Pair(action, createGoalFromActionMethod(actionMethod, action, instance))
         }.unzip()
 
-        val goals = getterGoals + actionGoals.filterNotNull()
+        val goals =
+            if (agenticInfo.agentAnnotation?.planner == PlannerType.UTILITY) {
+                // Synthetic goal for utility-based agents
+                // TODO complain if multiple goals defined
+                listOf(NIRVANA)
+            } else {
+                getterGoals + actionGoals.filterNotNull()
+            }
 
         if (actionMethods.isEmpty() && goals.isEmpty() && conditionMethods.isEmpty()) {
             logger.warn(

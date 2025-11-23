@@ -36,10 +36,15 @@ import java.io.File
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
+import java.nio.charset.Charset
+import java.nio.charset.IllegalCharsetNameException
+import java.nio.charset.UnsupportedCharsetException
 import java.nio.file.Files
 import java.time.Duration
 import java.time.Instant
 import java.util.*
+import java.util.zip.GZIPInputStream
+import java.util.zip.InflaterInputStream
 
 /**
  * Reads various content types using Apache Tika and extracts LeafSection objects containing the actual content.
@@ -91,12 +96,40 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
                 val metadata = Metadata()
                 val contentType = connection.contentType
                 if (contentType != null) {
-                    metadata.set(TikaCoreProperties.CONTENT_TYPE_HINT, contentType.split(";")[0].trim())
-                    logger.debug("Server reported Content-Type: {}", contentType)
+                    // Parse Content-Type header: "text/html; charset=UTF-8"
+                    val parts = contentType.split(";").map { it.trim() }
+                    metadata.set(TikaCoreProperties.CONTENT_TYPE_HINT, parts[0])
+
+                    // Extract charset if present
+                    val charsetPart = parts.find { it.startsWith("charset=", ignoreCase = true) }
+                    if (charsetPart != null) {
+                        val charset = charsetPart.substringAfter("=").trim()
+                        metadata.set("charset", charset)
+                        logger.debug("Server reported Content-Type: {} with charset: {}", parts[0], charset)
+                    } else {
+                        logger.debug("Server reported Content-Type: {}", parts[0])
+                    }
                 }
 
-                return connection.inputStream.use { inputStream ->
-                    parseContent(inputStream, url, metadata)
+                // Handle Content-Encoding (gzip, deflate, etc.)
+                val contentEncoding = connection.contentEncoding
+                logger.debug("Content-Encoding: {}", contentEncoding ?: "none")
+
+                return connection.inputStream.use { rawStream ->
+                    // Decompress the stream if needed
+                    val decompressedStream = when (contentEncoding?.lowercase()) {
+                        "gzip" -> {
+                            logger.debug("Decompressing gzip content")
+                            GZIPInputStream(rawStream)
+                        }
+                        "deflate" -> {
+                            logger.debug("Decompressing deflate content")
+                            InflaterInputStream(rawStream)
+                        }
+                        else -> rawStream
+                    }
+
+                    parseContent(decompressedStream, url, metadata)
                 }
             } finally {
                 connection.disconnect()
@@ -166,7 +199,9 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
 
             // For HTML content, read raw bytes to preserve HTML structure
             if (detectedType.contains("html")) {
-                val rawContent = bufferedStream.readBytes().toString(Charsets.UTF_8)
+                // Get charset from metadata (from HTTP Content-Type header or other source)
+                val charset = getCharsetFromMetadata(metadata)
+                val rawContent = bufferedStream.readBytes().toString(charset)
                 return parseHtml(rawContent, metadata, uri)
             }
 
@@ -575,6 +610,24 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
         }
 
         return map
+    }
+
+    /**
+     * Extract charset from metadata, with fallback to UTF-8.
+     * Handles invalid or unsupported charset names gracefully.
+     */
+    private fun getCharsetFromMetadata(metadata: Metadata): Charset {
+        val charsetName = metadata.get("charset")
+        if (charsetName != null) {
+            try {
+                return Charset.forName(charsetName)
+            } catch (e: IllegalCharsetNameException) {
+                logger.warn("Invalid charset name '{}', falling back to UTF-8", charsetName)
+            } catch (e: UnsupportedCharsetException) {
+                logger.warn("Unsupported charset '{}', falling back to UTF-8", charsetName)
+            }
+        }
+        return Charsets.UTF_8
     }
 
     private fun createEmptyContentRoot(

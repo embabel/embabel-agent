@@ -53,6 +53,11 @@ interface Action : Step {
      */
     val cost: CostComputation
 
+    /**
+     * Net value of performing this action in the given world state
+     */
+    fun netValue(state: WorldState): Double = value(state) - cost(state)
+
 }
 
 /**
