@@ -34,6 +34,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.validation.Validator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
@@ -71,7 +72,7 @@ class FakeStreamingChatModel(
 
     override fun stream(prompt: Prompt): Flux<ChatResponse> {
         return Flux.just(
-            ChatResponse(listOf(Generation(AssistantMessage(response))))
+            ChatResponse(listOf(Generation(AssistantMessage("$response\n"))))
         )
     }
 }
@@ -169,6 +170,7 @@ class LLMStreamingIntegrationTest(
     @param: Autowired private val ai: Ai,
 ) {
 
+    private val logger = LoggerFactory.getLogger(LLMStreamingIntegrationTest::class.java)
     private val agentPlatform: AgentPlatform = autonomy.agentPlatform
 
     @Test
@@ -290,5 +292,60 @@ class LLMStreamingIntegrationTest(
         // Verify tool registration
         assertEquals(1, runner.toolObjects.size, "Should have one tool object registered")
         assertEquals(simpleTool, runner.toolObjects[0].obj, "Tool object should be our SimpleTool instance")
+    }
+
+    @Test
+    fun `real streaming integration with reactive callbacks`() {
+        // Given: Use the existing streaming test LLM (configured as "fastest")
+        val runner = ai.withLlmByRole("fastest")
+        assertTrue(runner.supportsStreaming(), "Test LLM should support streaming")
+
+        // When: Subscribe with real reactive callbacks
+        val receivedEvents = mutableListOf<String>()
+        var errorOccurred: Throwable? = null
+        var completionCalled = false
+
+        val results = runner.asStreaming()
+            .withPrompt("Test integration streaming")
+            .createObjectListWithThinking(SimpleItem::class.java)
+
+        results
+            .doOnNext { event ->
+                when {
+                    event.isThinking() -> {
+                        val content = event.getThinking()!!
+                        receivedEvents.add("THINKING: $content")
+                        logger.info("Integration test received thinking: {}", content)
+                    }
+                    event.isObject() -> {
+                        val obj = event.getObject()!!
+                        receivedEvents.add("OBJECT: ${obj.name}")
+                        logger.info("Integration test received object: {}", obj.name)
+                    }
+                }
+            }
+            .doOnError { error ->
+                errorOccurred = error
+                logger.error("Integration test stream error: {}", error.message)
+            }
+            .doOnComplete {
+                completionCalled = true
+                logger.info("Integration test stream completed successfully")
+            }
+            .subscribe()
+
+        // Give stream time to complete
+        Thread.sleep(1000)
+
+        // Then: Verify real integration streaming behavior
+        assertNull(errorOccurred, "Integration streaming should not produce errors")
+        assertTrue(completionCalled, "Integration stream should complete successfully")
+        assertTrue(receivedEvents.size >= 1, "Should receive object events")
+
+        // Verify we received object events (existing test LLM returns simple JSON)
+        val objectEvents = receivedEvents.filter { it.startsWith("OBJECT:") }
+        assertTrue(objectEvents.isNotEmpty(), "Should receive object events from integration streaming")
+
+        logger.info("Integration streaming test completed successfully with {} total events", receivedEvents.size)
     }
 }

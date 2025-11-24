@@ -22,15 +22,18 @@ import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.Llm
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.mockk.*
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.tool.ToolCallback
 import reactor.core.publisher.Flux
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import reactor.test.StepVerifier
+import java.time.Duration
+import org.slf4j.LoggerFactory
 
 /**
  * Unit tests for StreamingChatClientOperations.
@@ -50,6 +53,7 @@ import kotlin.test.assertTrue
  */
 class StreamingChatClientOperationsTest {
 
+    private val logger = LoggerFactory.getLogger(StreamingChatClientOperationsTest::class.java)
     private lateinit var mockChatClientLlmOperations: ChatClientLlmOperations
     private lateinit var mockLlm: Llm
     private lateinit var mockChatClient: ChatClient
@@ -62,16 +66,22 @@ class StreamingChatClientOperationsTest {
     fun setUp() {
         mockChatClientLlmOperations = mockk(relaxed = true)
         mockLlm = mockk(relaxed = true)
-        mockChatClient = mockk(relaxed = true)
+        mockChatClient = mockk<ChatClient>(relaxed = true)
         mockInteraction = mockk(relaxed = true)
         mockAgentProcess = mockk(relaxed = true)
         mockAction = mockk(relaxed = true)
 
         // Setup basic delegation
         every { mockChatClientLlmOperations.getLlm(any()) } returns mockLlm
-        every { mockChatClientLlmOperations.createChatClient(any()) } returns mockChatClient
+        every { mockChatClientLlmOperations.createChatClient(mockLlm) } returns mockChatClient
         every { mockInteraction.promptContributors } returns emptyList()
         every { mockLlm.promptContributors } returns emptyList()
+        every { mockLlm.optionsConverter } returns mockk(relaxed = true)
+        every { mockLlm.optionsConverter.convertOptions(any()) } returns mockk(relaxed = true)
+        every { mockInteraction.llm } returns mockk(relaxed = true)
+        every { mockInteraction.toolCallbacks } returns emptyList()
+        every { mockChatClientLlmOperations.objectMapper } returns jacksonObjectMapper()
+        every { mockInteraction.propertyFilter } returns { true }
 
         streamingOperations = StreamingChatClientOperations(mockChatClientLlmOperations)
     }
@@ -224,4 +234,171 @@ class StreamingChatClientOperationsTest {
     }
 
     data class TestItem(val name: String, val value: Int)
+
+    @Test
+    fun `should handle single complete chunk`() {
+        // Given: Single chunk with thinking content
+        val chunkFlux = Flux.just("<think>This is thinking content</think>\n")
+        mockChatClientForStreaming(chunkFlux)
+
+        // When
+        val result = streamingOperations.createObjectStreamWithThinking(
+            messages = listOf(UserMessage("test")),
+            interaction = mockInteraction,
+            outputClass = TestItem::class.java,
+            agentProcess = mockAgentProcess,
+            action = mockAction
+        )
+
+
+        // Then: Should emit one thinking event for the complete line
+        StepVerifier.create(result)
+            .expectNextMatches {
+                it.isThinking() && it.getThinking() == "This is thinking content"
+            }
+            .expectComplete()
+            .verify(Duration.ofSeconds(1))
+    }
+
+    @Test
+    fun `should handle multi-chunk JSONL object stream`() {
+        // Given: Multiple chunks forming JSONL objects
+        val chunkFlux = Flux.just(
+            "{\"name\":\"Item1\",\"value\":",
+            "42}\n{\"name\":\"Item2\",",
+            "\"value\":84}\n"
+        )
+        mockChatClientForStreaming(chunkFlux)
+
+        // When
+        val result = streamingOperations.createObjectStreamWithThinking(
+            messages = listOf(UserMessage("test")),
+            interaction = mockInteraction,
+            outputClass = TestItem::class.java,
+            agentProcess = mockAgentProcess,
+            action = mockAction
+        )
+
+        // Then: Should emit two object events
+        StepVerifier.create(result)
+            .expectNextMatches {
+                it.isObject() && it.getObject()?.name == "Item1" && it.getObject()?.value == 42
+            }
+            .expectNextMatches {
+                it.isObject() && it.getObject()?.name == "Item2" && it.getObject()?.value == 84
+            }
+            .expectComplete()
+            .verify(Duration.ofSeconds(1))
+    }
+
+    @Test
+    fun `should handle mixed thinking and object content in chunks`() {
+        // Given: Realistic chunking that splits thinking and JSON across chunk boundaries
+        val chunkFlux = Flux.just(
+            "<think>Ana",                  // Partial thinking start
+            "lyzing req",                          // Partial thinking middle
+            "uirement</think>\n{\"name\":",        // Thinking end + partial JSON
+            "\"TestItem\",\"va",                   // Partial JSON middle
+            "lue\":123}\n<think>Done",             // JSON end + partial thinking
+            "</think>\n"                           // Thinking end
+        )
+        mockChatClientForStreaming(chunkFlux)
+
+        // When
+        val result = streamingOperations.createObjectStreamWithThinking(
+            messages = listOf(UserMessage("test")),
+            interaction = mockInteraction,
+            outputClass = TestItem::class.java,
+            agentProcess = mockAgentProcess,
+            action = mockAction
+        )
+
+        // Then: Should emit thinking, object, thinking in correct order
+        StepVerifier.create(result)
+            .expectNextMatches {
+                it.isThinking() && it.getThinking() == "Analyzing requirement"
+            }
+            .expectNextMatches {
+                it.isObject() && it.getObject()?.name == "TestItem" && it.getObject()?.value == 123
+            }
+            .expectNextMatches {
+                it.isThinking() && it.getThinking() == "Done"
+            }
+            .expectComplete()
+            .verify(Duration.ofSeconds(1))
+    }
+
+    @Test
+    fun `should handle real streaming with reactive callbacks`() {
+        // Given: Mixed content with multiple events
+        val chunkFlux = Flux.just(
+            "<think>Processing request</think>\n",
+            "{\"name\":\"Item1\",\"value\":100}\n",
+            "{\"name\":\"Item2\",\"value\":200}\n",
+            "<think>Request completed</think>\n"
+        )
+        mockChatClientForStreaming(chunkFlux)
+
+        // When: Subscribe with real reactive callbacks
+        val receivedEvents = mutableListOf<String>()
+        var errorOccurred: Throwable? = null
+        var completionCalled = false
+
+        val result = streamingOperations.createObjectStreamWithThinking(
+            messages = listOf(UserMessage("test")),
+            interaction = mockInteraction,
+            outputClass = TestItem::class.java,
+            agentProcess = mockAgentProcess,
+            action = mockAction
+        )
+
+        result
+            .doOnNext { event ->
+                when {
+                    event.isThinking() -> {
+                        val content = event.getThinking()!!
+                        receivedEvents.add("THINKING: $content")
+                        logger.info("Received thinking: {}", content)
+                    }
+                    event.isObject() -> {
+                        val obj = event.getObject()!!
+                        receivedEvents.add("OBJECT: ${obj.name}=${obj.value}")
+                        logger.info("Received object: {}={}", obj.name, obj.value)
+                    }
+                }
+            }
+            .doOnError { error ->
+                errorOccurred = error
+                logger.error("Stream error: {}", error.message)
+            }
+            .doOnComplete {
+                completionCalled = true
+                logger.info("Stream completed successfully")
+            }
+            .subscribe()
+
+        // Give stream time to complete
+        Thread.sleep(500)
+
+        // Then: Verify real reactive behavior
+        assertNull(errorOccurred, "No errors should occur")
+        assertTrue(completionCalled, "Stream should complete successfully")
+        assertEquals(4, receivedEvents.size, "Should receive all events")
+        assertEquals("THINKING: Processing request", receivedEvents[0])
+        assertEquals("OBJECT: Item1=100", receivedEvents[1])
+        assertEquals("OBJECT: Item2=200", receivedEvents[2])
+        assertEquals("THINKING: Request completed", receivedEvents[3])
+    }
+
+    private fun mockChatClientForStreaming(chunkFlux: Flux<String>) {
+        val mockRequestSpec = mockk<ChatClient.ChatClientRequestSpec>(relaxed = true)
+        val mockContentStreamSpec = mockk<ChatClient.StreamResponseSpec>(relaxed = true)
+
+        every { mockChatClient.prompt(any<Prompt>()) } returns mockRequestSpec
+        every { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) } returns mockRequestSpec
+        every { mockRequestSpec.options(any()) } returns mockRequestSpec
+        every { mockRequestSpec.stream() } returns mockContentStreamSpec
+        every { mockContentStreamSpec.content() } returns chunkFlux
+
+    }
 }
