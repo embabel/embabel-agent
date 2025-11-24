@@ -13,7 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition
+package com.embabel.agent.spi.expression
+
+import com.embabel.agent.core.Blackboard
+import com.embabel.plan.common.condition.ConditionDetermination
 
 /**
  * Represents a parsed logical expression. May be backed by different implementations.
@@ -23,21 +26,16 @@ interface LogicalExpression {
     /**
      * Evaluate this formula using a condition determiner using three-valued logic.
      *
-     * This allows the expression to work with [WorldStateDeterminer.determineCondition]
-     * without requiring the full [ConditionWorldState].
+     * This allows the expression to work with [com.embabel.plan.common.condition.WorldStateDeterminer.determineCondition]
+     * without requiring the full [com.embabel.plan.common.condition.ConditionWorldState].
      *
      * Returns:
      * - TRUE if the formula evaluates to true given known conditions
      * - FALSE if the formula evaluates to false given known conditions
      * - UNKNOWN if the formula cannot be determined (contains unknown conditions)
      *
-     * @param determineCondition Function that determines the value of a condition by name
+     * @param blackboard blackboard to use for condition evaluation
      */
-    fun evaluate(determineCondition: (String) -> ConditionDetermination): ConditionDetermination
+    fun evaluate(blackboard: Blackboard): ConditionDetermination
 
-    /**
-     * Convenience method to evaluate against a [ConditionWorldState].
-     */
-    fun evaluate(worldState: ConditionWorldState): ConditionDetermination =
-        evaluate { condition -> worldState.state[condition] ?: ConditionDetermination.FALSE }
 }

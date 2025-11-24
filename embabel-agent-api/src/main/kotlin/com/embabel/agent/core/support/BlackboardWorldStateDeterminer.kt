@@ -20,9 +20,9 @@ import com.embabel.agent.core.Condition
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.satisfiesType
 import com.embabel.agent.core.support.Rerun.HAS_RUN_CONDITION_PREFIX
+import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.plan.common.condition.ConditionDetermination
 import com.embabel.plan.common.condition.ConditionWorldState
-import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.embabel.plan.common.condition.WorldStateDeterminer
 import org.slf4j.LoggerFactory
 
@@ -54,7 +54,7 @@ class BlackboardWorldStateDeterminer(
 
         val conditionDetermination = when {
             logicalExpression != null -> {
-                logicalExpression.evaluate { determineCondition(it) }
+                logicalExpression.evaluate(processContext.blackboard)
             }
 
             // Data binding condition
