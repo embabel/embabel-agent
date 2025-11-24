@@ -23,6 +23,7 @@ import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
+import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
@@ -55,6 +56,7 @@ interface PlatformServices {
      */
     val asyncer: Asyncer
 
+    val logicalExpressionParser: LogicalExpressionParser
 
     val objectMapper: ObjectMapper
 

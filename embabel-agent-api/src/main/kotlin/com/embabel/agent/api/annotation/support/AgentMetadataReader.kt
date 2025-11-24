@@ -20,10 +20,12 @@ import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.*
 import com.embabel.agent.core.Export
+import com.embabel.agent.core.support.NIRVANA
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.agent.spi.validation.AgentStructureValidator
@@ -181,7 +183,16 @@ class AgentMetadataReader(
             Pair(action, createGoalFromActionMethod(actionMethod, action, instance))
         }.unzip()
 
-        val goals = getterGoals + actionGoals.filterNotNull()
+        val plannerType = agenticInfo.agentAnnotation?.planner ?: PlannerType.GOAP
+
+        val goals = buildSet {
+            addAll(getterGoals)
+            addAll(actionGoals.filterNotNull())
+            if (plannerType == PlannerType.UTILITY) {
+                // Synthetic goal for utility-based agents
+                add(NIRVANA)
+            }
+        }
 
         if (actionMethods.isEmpty() && goals.isEmpty() && conditionMethods.isEmpty()) {
             logger.warn(
@@ -203,7 +214,7 @@ class AgentMetadataReader(
                 version = Semver(agenticInfo.agentAnnotation.version),
                 conditions = conditions,
                 actions = actions,
-                goals = goals.toSet(),
+                goals = goals,
                 stuckHandler = instance as? StuckHandler,
                 opaque = agenticInfo.agentAnnotation.opaque,
             )
@@ -212,15 +223,17 @@ class AgentMetadataReader(
                 name = agenticInfo.type.name,
                 conditions = conditions,
                 actions = actions,
-                goals = goals.toSet(),
+                goals = goals,
             )
         }
 
-        val validationResult = agentValidationManager.validate(agent)
-        if (!validationResult.isValid) {
-            logger.warn("Agent validation failed:\n${validationResult.errors.joinToString("\n")}")
-            // TODO: Uncomment to strengthen validation and refactor the test if needed. Because some tests might fail.
-            // return null
+        if (plannerType == PlannerType.GOAP) {
+            val validationResult = agentValidationManager.validate(agent)
+            if (!validationResult.isValid) {
+                logger.warn("Agent validation failed:\n${validationResult.errors.joinToString("\n")}")
+                // TODO: Uncomment to strengthen validation and refactor the test if needed. Because some tests might fail.
+                // return null
+            }
         }
 
         return agent

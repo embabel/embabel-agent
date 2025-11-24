@@ -76,7 +76,7 @@ class MultiTransformationAction<O : Any>(
                 action = this,
             )
         )
-        if (output != null) {
+        if (output != null && !(output is Unit || output::class.java == Void::class.java)) {
             bindOutput(processContext, output)
         }
     }

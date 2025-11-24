@@ -29,6 +29,7 @@ import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.plan.common.condition.ConditionDetermination
+import com.embabel.plan.common.condition.LogicalExpressionParser
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -72,6 +73,67 @@ val InterfaceTestAgent = agent("SimpleTest", description = "Simple test agent") 
     goal(name = "done", description = "done", satisfiedBy = FancyPerson::class)
 }
 
+class FakeAndExpression(
+    private val left: String,
+    private val right: String,
+) : com.embabel.plan.common.condition.LogicalExpression {
+    override fun evaluate(determineCondition: (String) -> ConditionDetermination): ConditionDetermination {
+        val leftResult = determineCondition(left)
+        val rightResult = determineCondition(right)
+
+        return when {
+            leftResult == ConditionDetermination.FALSE || rightResult == ConditionDetermination.FALSE ->
+                ConditionDetermination.FALSE
+
+            leftResult == ConditionDetermination.TRUE && rightResult == ConditionDetermination.TRUE ->
+                ConditionDetermination.TRUE
+
+            else -> ConditionDetermination.UNKNOWN
+        }
+    }
+}
+
+class FakeOrExpression(
+    private val left: String,
+    private val right: String,
+) : com.embabel.plan.common.condition.LogicalExpression {
+    override fun evaluate(determineCondition: (String) -> ConditionDetermination): ConditionDetermination {
+        val leftResult = determineCondition(left)
+        val rightResult = determineCondition(right)
+
+        return when {
+            leftResult == ConditionDetermination.TRUE || rightResult == ConditionDetermination.TRUE ->
+                ConditionDetermination.TRUE
+
+            leftResult == ConditionDetermination.FALSE && rightResult == ConditionDetermination.FALSE ->
+                ConditionDetermination.FALSE
+
+            else -> ConditionDetermination.UNKNOWN
+        }
+    }
+}
+
+class FakeLogicalExpressionParser : LogicalExpressionParser {
+    override fun parse(expression: String): com.embabel.plan.common.condition.LogicalExpression? {
+        if (!expression.startsWith("expr:")) return null
+
+        val content = expression.substringAfter("expr:")
+        return when {
+            " AND " in content -> {
+                val parts = content.split(" AND ", limit = 2)
+                FakeAndExpression(parts[0].trim(), parts[1].trim())
+            }
+
+            " OR " in content -> {
+                val parts = content.split(" OR ", limit = 2)
+                FakeOrExpression(parts[0].trim(), parts[1].trim())
+            }
+
+            else -> null
+        }
+    }
+}
+
 class BlackboardWorldStateDeterminerTest {
 
     val eventListener = EventSavingAgenticEventListener()
@@ -102,8 +164,9 @@ class BlackboardWorldStateDeterminerTest {
             processContext = ProcessContext(
                 platformServices = mockPlatformServices,
                 agentProcess = mockAgentProcess,
-                processOptions = ProcessOptions()
-            )
+                processOptions = ProcessOptions(),
+            ),
+            logicalExpressionParser = LogicalExpressionParser.EMPTY,
         )
         return bsb
     }
@@ -245,6 +308,89 @@ class BlackboardWorldStateDeterminerTest {
                 bsb.determineCondition("story:Story"),
                 "Should match against map with name",
             )
+        }
+    }
+
+    @Nested
+    inner class LogicalExpressionParserTests {
+
+        private fun createBlackboardWorldStateDeterminerWithParser(
+            blackboard: Blackboard,
+            parser: LogicalExpressionParser,
+        ): BlackboardWorldStateDeterminer {
+            val mockAgentProcess = mockk<AgentProcess>()
+            every { mockAgentProcess.history } returns emptyList()
+            every { mockAgentProcess.infoString(any()) } returns ""
+            every { mockAgentProcess.getValue(any(), any(), any()) } answers {
+                blackboard.getValue(firstArg(), secondArg(), thirdArg())
+            }
+            every { mockAgentProcess.get(any()) } answers {
+                blackboard.get(firstArg())
+            }
+            every { mockAgentProcess.agent } returns SimpleTestAgent
+            return BlackboardWorldStateDeterminer(
+                processContext = ProcessContext(
+                    platformServices = mockPlatformServices,
+                    agentProcess = mockAgentProcess,
+                    processOptions = ProcessOptions(),
+                ),
+                logicalExpressionParser = parser,
+            )
+        }
+
+        @Test
+        fun `AND expression evaluates to TRUE when both conditions are TRUE`() {
+            val blackboard = InMemoryBlackboard()
+            blackboard["input"] = UserInput("xyz")
+            blackboard["person"] = PersonWithReverseTool("Rod")
+
+            val parser = FakeLogicalExpressionParser()
+            val bsb = createBlackboardWorldStateDeterminerWithParser(blackboard, parser)
+
+            val result = bsb.determineCondition("expr:it:UserInput AND it:PersonWithReverseTool")
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `AND expression evaluates to FALSE when one condition is FALSE`() {
+            val blackboard = InMemoryBlackboard()
+            blackboard["input"] = UserInput("xyz")
+
+            val parser = FakeLogicalExpressionParser()
+            val bsb = createBlackboardWorldStateDeterminerWithParser(blackboard, parser)
+
+            val result = bsb.determineCondition("expr:it:UserInput AND it:PersonWithReverseTool")
+            assertEquals(ConditionDetermination.FALSE, result)
+        }
+
+        @Test
+        fun `OR expression evaluates to TRUE when one condition is TRUE`() {
+            val blackboard = InMemoryBlackboard()
+            blackboard["input"] = UserInput("xyz")
+
+            val parser = FakeLogicalExpressionParser()
+            val bsb = createBlackboardWorldStateDeterminerWithParser(blackboard, parser)
+
+            val result = bsb.determineCondition("expr:it:UserInput OR it:PersonWithReverseTool")
+            assertEquals(ConditionDetermination.TRUE, result)
+        }
+
+        @Test
+        fun `OR expression evaluates to FALSE when both conditions are FALSE`() {
+            val blackboard = InMemoryBlackboard()
+
+            val parser = FakeLogicalExpressionParser()
+            val bsb = createBlackboardWorldStateDeterminerWithParser(blackboard, parser)
+
+            val result = bsb.determineCondition("expr:it:UserInput OR it:PersonWithReverseTool")
+            assertEquals(ConditionDetermination.FALSE, result)
+        }
+
+        @Test
+        fun `parser returns null for non-expr prefix`() {
+            val parser = FakeLogicalExpressionParser()
+            val result = parser.parse("it:UserInput")
+            assertEquals(null, result)
         }
     }
 

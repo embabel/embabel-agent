@@ -51,7 +51,10 @@ open class SimpleAgentProcess(
     override val llmInvocations: List<LlmInvocation>
         get() = _llmInvocations.toList()
 
-    override val worldStateDeterminer: WorldStateDeterminer = BlackboardWorldStateDeterminer(processContext)
+    override val worldStateDeterminer: WorldStateDeterminer = BlackboardWorldStateDeterminer(
+        processContext = processContext,
+        logicalExpressionParser = platformServices.logicalExpressionParser,
+    )
 
     override val planner: Planner<*, *, *> = plannerFactory.createPlanner(processOptions, worldStateDeterminer)
 

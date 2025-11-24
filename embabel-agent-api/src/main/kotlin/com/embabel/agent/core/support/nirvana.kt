@@ -13,18 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition
+package com.embabel.agent.core.support
 
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
+import com.embabel.agent.core.Goal
+import com.embabel.plan.utility.UtilityPlanner
 
-abstract class AbstractConditionPlanner(
-    protected val worldStateDeterminer: WorldStateDeterminer,
-) : ConditionPlanner {
-
-    protected val logger: Logger = LoggerFactory.getLogger(javaClass)
-
-    final override fun worldState(): ConditionWorldState {
-        return worldStateDeterminer.determineWorldState()
-    }
-}
+/**
+ * Goal of all Utility planners. Reach nirvana, where there is nothing more to do.
+ * It's important that this goal cannot be satisfied, to prevent the planner from ending up prematurely.
+ */
+val NIRVANA = Goal(
+    name = UtilityPlanner.NIRVANA,
+    description = "Nirvana: Nothing more to do",
+    // Preconditions cannot be satisfied
+    pre = setOf("trishna_overcome"),
+    outputType = null,
+)

@@ -28,6 +28,7 @@
         <module>models/embabel-agent-ollama-autoconfigure</module>
         <module>models/embabel-agent-dockermodels-autoconfigure</module>
         <module>models/embabel-agent-deepseek-autoconfigure</module>
+        <module>models/embabel-agent-gemini-autoconfigure</module>
     </modules>
 
     <build>

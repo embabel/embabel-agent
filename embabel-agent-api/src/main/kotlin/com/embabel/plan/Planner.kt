@@ -16,7 +16,7 @@
 package com.embabel.plan
 
 import com.embabel.common.core.types.HasInfoString
-import com.embabel.common.util.loggerFor
+import org.slf4j.LoggerFactory
 
 /**
  * A planning system is a set of actions and goals.
@@ -58,23 +58,25 @@ interface Planner<S : PlanningSystem, W : WorldState, P : Plan> {
      * Return the best plan to each goal from the present world state.
      * The plans (one for each goal) are sorted by net value, descending.
      */
-    fun plansToGoals(system: PlanningSystem): List<P> =
-        system.goals.mapNotNull { goal ->
+    fun plansToGoals(system: PlanningSystem): List<P> {
+        val state = worldState()
+        return system.goals.mapNotNull { goal ->
             val plan = planToGoal(system.actions, goal)
             if (plan != null) {
-                loggerFor<Planner<*, *, *>>().info(
+                LoggerFactory.getLogger(javaClass).info(
                     "Found plan to goal {}: {}",
                     goal.name,
                     plan.infoString(verbose = false),
                 )
             } else {
-                loggerFor<Planner<*, *, *>>().info(
+                LoggerFactory.getLogger(javaClass).info(
                     "No plan found to goal {}",
                     goal.name,
                 )
             }
             plan
-        }.sortedByDescending { p -> p.netValue(state = worldState()) }
+        }.sortedByDescending { p -> p.netValue(state = state) }
+    }
 
     /**
      * Return the best plan to any goal

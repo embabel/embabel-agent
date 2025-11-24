@@ -346,6 +346,9 @@ data class ProcessOptions(
             )
         }
 
+    fun withPlannerType(plannerType: PlannerType): ProcessOptions =
+        this.copy(plannerType = plannerType)
+
     companion object {
 
         @JvmField

@@ -28,6 +28,7 @@ import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.spi.support.InMemoryContextRepository
 import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.common.textio.template.TemplateRenderer
+import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -57,6 +58,7 @@ open class DefaultAgentPlatform(
     private val objectMapper: ObjectMapper,
     private val outputChannel: OutputChannel,
     private val templateRenderer: TemplateRenderer,
+    customLogicalExpressionParser: LogicalExpressionParser? = null,
     private val applicationContext: ApplicationContext? = null,
 ) : AgentPlatform {
 
@@ -79,6 +81,7 @@ open class DefaultAgentPlatform(
         applicationContext = applicationContext,
         outputChannel = outputChannel,
         templateRenderer = templateRenderer,
+        customLogicalExpressionParser = customLogicalExpressionParser,
     )
 
     init {

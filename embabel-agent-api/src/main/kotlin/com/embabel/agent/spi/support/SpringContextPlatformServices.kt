@@ -25,10 +25,17 @@ import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
+import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.getBean
+import org.springframework.beans.factory.getBeansOfType
 import org.springframework.context.ApplicationContext
 
+/**
+ * Uses Spring ApplicationContext to resolve some beans for platform services.
+ * If a custom LogicalExpressionParser is provided, it will be used,
+ * otherwise all LogicalExpressionParsers in the context will be combined.
+ */
 data class SpringContextPlatformServices(
     override val agentPlatform: AgentPlatform,
     override val llmOperations: LlmOperations,
@@ -38,10 +45,14 @@ data class SpringContextPlatformServices(
     override val objectMapper: ObjectMapper,
     override val outputChannel: OutputChannel,
     override val templateRenderer: TemplateRenderer,
+    val customLogicalExpressionParser: LogicalExpressionParser? = null,
     private val applicationContext: ApplicationContext?,
 ) : PlatformServices {
 
-    private val logger = LoggerFactory.getLogger(javaClass)
+    override val logicalExpressionParser = customLogicalExpressionParser ?: run {
+        val parsers = applicationContext?.getBeansOfType<LogicalExpressionParser>()?.values ?: emptyList()
+        LogicalExpressionParser.of(*parsers.toTypedArray())
+    }
 
     override fun withEventListener(agenticEventListener: AgenticEventListener): PlatformServices {
         return copy(
@@ -54,14 +65,14 @@ data class SpringContextPlatformServices(
         if (applicationContext == null) {
             throw IllegalStateException("Application context is not available, cannot retrieve Autonomy bean.")
         }
-        return applicationContext.getBean(Autonomy::class.java)
+        return applicationContext.getBean<Autonomy>()
     }
 
     override fun modelProvider(): ModelProvider {
         if (applicationContext == null) {
             throw IllegalStateException("Application context is not available, cannot retrieve ModelProvider bean.")
         }
-        return applicationContext.getBean(ModelProvider::class.java)
+        return applicationContext.getBean<ModelProvider>()
     }
 
 }

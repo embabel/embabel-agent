@@ -80,6 +80,19 @@ data class ConditionWorldState(
 
     override val timestamp: Instant = Instant.now()
 
+    /**
+     * Apply an action to a state, returning the resulting new state.
+     */
+    operator fun plus(
+        action: ConditionAction,
+    ): ConditionWorldState {
+        val newState = state.toMutableMap()
+        action.effects.forEach { (key, value) ->
+            newState[key] = value
+        }
+        return ConditionWorldState(newState as HashMap<String, ConditionDetermination>)
+    }
+
     fun unknownConditions(): Collection<String> =
         state.entries
             .filter { it.value == ConditionDetermination.UNKNOWN }

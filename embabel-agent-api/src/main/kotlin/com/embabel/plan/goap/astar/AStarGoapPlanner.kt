@@ -113,7 +113,7 @@ internal class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
                 if (!action.isAchievable(current.state)) continue
 
                 // Calculate the new state after applying this action
-                val nextState = applyAction(current.state, action)
+                val nextState = current.state + action
 
                 // Skip if this action doesn't actually change the state (prevents loops)
                 if (nextState == current.state) continue
@@ -226,7 +226,7 @@ internal class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
             if (!action.isAchievable(currentState)) continue
 
             // Apply this action
-            val nextState = applyAction(currentState, action)
+            val nextState = currentState + action
 
             // Check if this action makes progress toward the goal
             val progressMade = nextState != currentState &&
@@ -262,7 +262,7 @@ internal class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
         var currentState = startState
         for (action in actions) {
             if (action.isAchievable(currentState)) {
-                currentState = applyAction(currentState, action)
+                currentState += action
             }
         }
         return currentState
@@ -315,20 +315,6 @@ internal class AStarGoapPlanner(worldStateDeterminer: WorldStateDeterminer) :
         goal: ConditionGoal,
     ): Double {
         return goal.preconditions.count { (key, value) -> state.state[key] != value }.toDouble()
-    }
-
-    /**
-     * Apply an action to a state, returning the resulting new state.
-     */
-    private fun applyAction(
-        currentState: ConditionWorldState,
-        action: ConditionAction,
-    ): ConditionWorldState {
-        val newState = currentState.state.toMutableMap()
-        action.effects.forEach { (key, value) ->
-            newState[key] = value
-        }
-        return ConditionWorldState(newState as HashMap<String, ConditionDetermination>)
     }
 
     /**

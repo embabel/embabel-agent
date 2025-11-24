@@ -54,7 +54,10 @@ data class JvmType @JsonCreator constructor(
 
     @get:JsonIgnore
     val clazz: Class<*> by lazy {
-        Class.forName(className)
+        if (className == "void") {
+            Void.TYPE
+        } else
+            Class.forName(className)
     }
 
     @get:JsonIgnore

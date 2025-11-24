@@ -32,6 +32,7 @@ import com.embabel.agent.spi.support.RegistryToolGroupResolver
 import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
+import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.util.concurrent.Executors
 
@@ -46,6 +47,7 @@ object IntegrationTestUtils {
         llmOperations: LlmOperations? = null,
         listener: AgenticEventListener? = null,
         toolGroupResolver: ToolGroupResolver? = null,
+        logicalExpressionParser: LogicalExpressionParser = LogicalExpressionParser.EMPTY,
     ): AgentPlatform {
         return DefaultAgentPlatform(
             llmOperations = llmOperations ?: DummyObjectCreatingLlmOperations.LoremIpsum,
@@ -63,12 +65,16 @@ object IntegrationTestUtils {
             objectMapper = jacksonObjectMapper(),
             outputChannel = DevNullOutputChannel,
             templateRenderer = JinjavaTemplateRenderer(),
+            customLogicalExpressionParser = logicalExpressionParser,
         )
     }
 
     @JvmStatic
     @JvmOverloads
-    fun dummyPlatformServices(eventListener: AgenticEventListener? = null): PlatformServices {
+    fun dummyPlatformServices(
+        eventListener: AgenticEventListener? = null,
+        logicalExpressionParser: LogicalExpressionParser = LogicalExpressionParser.EMPTY,
+    ): PlatformServices {
         return SpringContextPlatformServices(
             agentPlatform = dummyAgentPlatform(),
             llmOperations = DummyObjectCreatingLlmOperations.LoremIpsum,
@@ -79,6 +85,7 @@ object IntegrationTestUtils {
             applicationContext = null,
             outputChannel = DevNullOutputChannel,
             templateRenderer = JinjavaTemplateRenderer(),
+            customLogicalExpressionParser = logicalExpressionParser,
         )
     }
 

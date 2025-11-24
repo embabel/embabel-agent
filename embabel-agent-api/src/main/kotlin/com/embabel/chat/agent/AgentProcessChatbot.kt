@@ -17,10 +17,12 @@ package com.embabel.chat.agent
 
 import com.embabel.agent.api.channel.LoggingOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannel
+import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.progress.OutputChannelHighlightingEventListener
 import com.embabel.agent.api.identity.User
 import com.embabel.agent.core.*
+import com.embabel.agent.spi.common.Constants.EMBABEL_PROVIDER
 import com.embabel.chat.ChatSession
 import com.embabel.chat.Chatbot
 import com.embabel.chat.Conversation
@@ -58,6 +60,7 @@ class AgentProcessChatbot(
     private val agentPlatform: AgentPlatform,
     private val agentSource: AgentSource,
     private val listenerProvider: ListenerProvider = ListenerProvider { _, _ -> emptyList() },
+    private val plannerType: PlannerType = PlannerType.GOAP,
 ) : Chatbot {
 
     override fun createSession(
@@ -73,7 +76,8 @@ class AgentProcessChatbot(
                 listeners = listeners,
                 identities = Identities(
                     forUser = user,
-                )
+                ),
+                plannerType = plannerType,
             ),
             bindings = emptyMap(),
         )
@@ -114,6 +118,30 @@ class AgentProcessChatbot(
                     ?: throw IllegalArgumentException("No agent found with name $agentName")
             },
             listenerProvider = listenerProvider,
+        )
+
+        /**
+         * Create a chatbot that will use all actions available on the platform,
+         * with utility-based planning.
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun utilityFromPlatform(
+            agentPlatform: AgentPlatform,
+            listenerProvider: ListenerProvider = ListenerProvider { _, outputChannel ->
+                listOf(OutputChannelHighlightingEventListener(outputChannel))
+            },
+        ): Chatbot = AgentProcessChatbot(
+            agentPlatform = agentPlatform,
+            agentSource = {
+                agentPlatform.createAgent(
+                    name = "chatbot-agent",
+                    provider = EMBABEL_PROVIDER,
+                    description = "Chatbot agent",
+                )
+            },
+            listenerProvider = listenerProvider,
+            plannerType = PlannerType.UTILITY,
         )
     }
 
