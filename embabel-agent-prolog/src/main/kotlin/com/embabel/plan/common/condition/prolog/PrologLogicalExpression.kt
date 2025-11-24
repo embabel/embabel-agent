@@ -20,6 +20,26 @@ import com.embabel.plan.common.condition.LogicalExpression
 import org.slf4j.LoggerFactory
 
 /**
+ * Thread-local storage for blackboard objects during condition evaluation.
+ * This allows PrologLogicalExpression to access blackboard objects when evaluating conditions.
+ */
+object PrologEvaluationContext {
+    private val blackboardObjects = ThreadLocal<Collection<Any>>()
+
+    fun setBlackboardObjects(objects: Collection<Any>) {
+        blackboardObjects.set(objects)
+    }
+
+    fun getBlackboardObjects(): Collection<Any> {
+        return blackboardObjects.get() ?: emptyList()
+    }
+
+    fun clear() {
+        blackboardObjects.remove()
+    }
+}
+
+/**
  * A logical expression backed by a Prolog query.
  *
  * This expression can:
@@ -51,15 +71,25 @@ class PrologLogicalExpression(
      */
     override fun evaluate(determineCondition: (String) -> ConditionDetermination): ConditionDetermination {
         return try {
+            // Start with the base engine
+            var scopedEngine = engine
+
+            // Get blackboard objects from the evaluation context and convert them to facts
+            val blackboardObjects = PrologEvaluationContext.getBlackboardObjects()
+            if (blackboardObjects.isNotEmpty()) {
+                val facts = blackboardObjects.flatMap { factConverter.convertToFacts(it) }
+                logger.debug("Asserting {} facts from {} blackboard objects", facts.size, blackboardObjects.size)
+                scopedEngine = scopedEngine.assertFacts(facts)
+            }
+
             // Extract undefined predicates from both the query and the rules
             val queryPredicates = engine.extractZeroArityPredicates(query)
             val rulePredicates = engine.extractUndefinedPredicatesFromRules()
-            val allUndefined = (queryPredicates + rulePredicates).filter { !engine.isPredicateDefined(it) }
+            val allUndefined = (queryPredicates + rulePredicates).filter { !scopedEngine.isPredicateDefined(it) }
 
             logger.debug("Undefined predicates to resolve: {}", allUndefined)
 
             // Resolve conditions and assert facts for TRUE ones
-            var scopedEngine = engine
             var hasUnknownCondition = false
 
             for (predicateName in allUndefined) {
@@ -98,6 +128,16 @@ class PrologLogicalExpression(
             logger.error("Error evaluating Prolog query: {}", query, e)
             ConditionDetermination.UNKNOWN
         }
+    }
+
+    /**
+     * Set the blackboard objects to be converted to facts during evaluation.
+     * This should be called before evaluate() to provide domain objects.
+     */
+    fun withObjects(vararg objects: Any): PrologLogicalExpression {
+        val facts = objects.flatMap { factConverter.convertToFacts(it) }
+        val newEngine = engine.assertFacts(facts)
+        return PrologLogicalExpression(query, newEngine, factConverter)
     }
 
     /**

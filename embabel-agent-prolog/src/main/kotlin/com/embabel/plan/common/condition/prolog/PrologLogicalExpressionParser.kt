@@ -18,6 +18,7 @@ package com.embabel.plan.common.condition.prolog
 import com.embabel.plan.common.condition.LogicalExpression
 import com.embabel.plan.common.condition.LogicalExpressionParser
 import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
 
 /**
  * Parses logical expressions with Prolog syntax.
@@ -27,11 +28,12 @@ import org.slf4j.LoggerFactory
  *
  * @param engine The Prolog engine with pre-loaded rules to use for evaluation
  */
-class PrologExpressionParser(
+@Service
+class PrologLogicalExpressionParser(
     private val engine: TuPrologEngine,
 ) : LogicalExpressionParser {
 
-    private val logger = LoggerFactory.getLogger(PrologExpressionParser::class.java)
+    private val logger = LoggerFactory.getLogger(PrologLogicalExpressionParser::class.java)
 
     companion object {
         const val PREFIX = "prolog:"
@@ -39,39 +41,42 @@ class PrologExpressionParser(
         /**
          * Create a parser with rules loaded from a file.
          */
-        fun fromFile(filePath: String): PrologExpressionParser {
+        fun fromFile(filePath: String): PrologLogicalExpressionParser {
             val loader = PrologRuleLoader()
             val rules = loader.loadFromFile(filePath)
             val engine = TuPrologEngine.create(rules)
-            return PrologExpressionParser(engine)
+            return PrologLogicalExpressionParser(engine)
         }
 
         /**
          * Create a parser with rules loaded from a classpath resource.
          */
-        fun fromResource(resourcePath: String): PrologExpressionParser {
+        fun fromResource(resourcePath: String): PrologLogicalExpressionParser {
             val loader = PrologRuleLoader()
             val rules = loader.loadFromResource(resourcePath)
             val engine = TuPrologEngine.create(rules)
-            return PrologExpressionParser(engine)
+            return PrologLogicalExpressionParser(engine)
         }
 
         /**
          * Create a parser with rules loaded from a class resource.
          */
-        fun fromClassResource(clazz: Class<*>, filename: String): PrologExpressionParser {
+        fun fromClassResource(
+            clazz: Class<*>,
+            filename: String,
+        ): PrologLogicalExpressionParser {
             val loader = PrologRuleLoader()
             val rules = loader.loadFromClassResource(clazz, filename)
             val engine = TuPrologEngine.create(rules)
-            return PrologExpressionParser(engine)
+            return PrologLogicalExpressionParser(engine)
         }
 
         /**
          * Create a parser with rules provided directly as a string.
          */
-        fun fromRules(rules: String): PrologExpressionParser {
+        fun fromRules(rules: String): PrologLogicalExpressionParser {
             val engine = TuPrologEngine.create(rules)
-            return PrologExpressionParser(engine)
+            return PrologLogicalExpressionParser(engine)
         }
     }
 

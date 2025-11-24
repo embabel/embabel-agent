@@ -81,6 +81,7 @@ class PrologIntegrationTest {
     @Test
     fun `PrologFactConverter handles non-annotated objects`() {
         data class NotAnnotated(val name: String)
+
         val obj = NotAnnotated("test")
 
         val converter = PrologFactConverter()
@@ -156,7 +157,7 @@ class PrologIntegrationTest {
             test_predicate(foo).
         """.trimIndent()
 
-        val parser = PrologExpressionParser.fromRules(rules)
+        val parser = PrologLogicalExpressionParser.fromRules(rules)
 
         val expression = parser.parse("prolog:test_predicate(foo)")
         assertNotNull(expression)
@@ -167,7 +168,7 @@ class PrologIntegrationTest {
 
     @Test
     fun `PrologExpressionParser returns null for non-prolog expressions`() {
-        val parser = PrologExpressionParser.fromRules("")
+        val parser = PrologLogicalExpressionParser.fromRules("")
 
         val expression = parser.parse("some_condition:value")
         assertNull(expression)
@@ -186,7 +187,7 @@ class PrologIntegrationTest {
                 Amount > 5000.
         """.trimIndent()
 
-        val parser = PrologExpressionParser.fromRules(rules)
+        val parser = PrologLogicalExpressionParser.fromRules(rules)
         val converter = PrologFactConverter()
 
         val expense = Expense("exp-001", 12000.0, "operational")
@@ -299,7 +300,7 @@ class PrologIntegrationTest {
 
     @Test
     fun `PrologExpressionParser loads from class resource`() {
-        val parser = PrologExpressionParser.fromClassResource(
+        val parser = PrologLogicalExpressionParser.fromClassResource(
             PrologIntegrationTest::class.java,
             "test-rules.pl"
         )
@@ -323,7 +324,7 @@ class PrologIntegrationTest {
 
     @Test
     fun `complex authorization scenario with multiple rules`() {
-        val parser = PrologExpressionParser.fromClassResource(
+        val parser = PrologLogicalExpressionParser.fromClassResource(
             PrologIntegrationTest::class.java,
             "test-rules.pl"
         )
