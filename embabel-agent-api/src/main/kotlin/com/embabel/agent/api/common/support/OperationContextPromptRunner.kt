@@ -28,7 +28,6 @@ import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.prompt.element.ContextualPromptElement
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.streaming.StreamingCapabilityDetector
-import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.agent.tools.agent.AgentToolCallback
