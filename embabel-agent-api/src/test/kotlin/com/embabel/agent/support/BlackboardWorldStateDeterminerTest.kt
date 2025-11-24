@@ -27,9 +27,10 @@ import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.support.BlackboardWorldStateDeterminer
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.domain.io.UserInput
+import com.embabel.agent.spi.expression.LogicalExpression
+import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.plan.common.condition.ConditionDetermination
-import com.embabel.plan.common.condition.LogicalExpressionParser
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -76,10 +77,12 @@ val InterfaceTestAgent = agent("SimpleTest", description = "Simple test agent") 
 class FakeAndExpression(
     private val left: String,
     private val right: String,
-) : com.embabel.plan.common.condition.LogicalExpression {
-    override fun evaluate(determineCondition: (String) -> ConditionDetermination): ConditionDetermination {
-        val leftResult = determineCondition(left)
-        val rightResult = determineCondition(right)
+) : LogicalExpression {
+    override fun evaluate(blackboard: Blackboard): ConditionDetermination {
+        val leftResult =
+            blackboard.getCondition(left)?.let { ConditionDetermination(it) } ?: ConditionDetermination.UNKNOWN
+        val rightResult =
+            blackboard.getCondition(right)?.let { ConditionDetermination(it) } ?: ConditionDetermination.UNKNOWN
 
         return when {
             leftResult == ConditionDetermination.FALSE || rightResult == ConditionDetermination.FALSE ->
@@ -96,10 +99,12 @@ class FakeAndExpression(
 class FakeOrExpression(
     private val left: String,
     private val right: String,
-) : com.embabel.plan.common.condition.LogicalExpression {
-    override fun evaluate(determineCondition: (String) -> ConditionDetermination): ConditionDetermination {
-        val leftResult = determineCondition(left)
-        val rightResult = determineCondition(right)
+) : LogicalExpression {
+    override fun evaluate(blackboard: Blackboard): ConditionDetermination {
+        val leftResult =
+            blackboard.getCondition(left)?.let { ConditionDetermination(it) } ?: ConditionDetermination.UNKNOWN
+        val rightResult =
+            blackboard.getCondition(right)?.let { ConditionDetermination(it) } ?: ConditionDetermination.UNKNOWN
 
         return when {
             leftResult == ConditionDetermination.TRUE || rightResult == ConditionDetermination.TRUE ->
@@ -114,7 +119,7 @@ class FakeOrExpression(
 }
 
 class FakeLogicalExpressionParser : LogicalExpressionParser {
-    override fun parse(expression: String): com.embabel.plan.common.condition.LogicalExpression? {
+    override fun parse(expression: String): LogicalExpression? {
         if (!expression.startsWith("expr:")) return null
 
         val content = expression.substringAfter("expr:")
@@ -328,7 +333,8 @@ class BlackboardWorldStateDeterminerTest {
                 blackboard.get(firstArg())
             }
             every { mockAgentProcess.agent } returns SimpleTestAgent
-            return BlackboardWorldStateDeterminer(
+
+            val bsb = BlackboardWorldStateDeterminer(
                 processContext = ProcessContext(
                     platformServices = mockPlatformServices,
                     agentProcess = mockAgentProcess,
@@ -336,6 +342,16 @@ class BlackboardWorldStateDeterminerTest {
                 ),
                 logicalExpressionParser = parser,
             )
+
+            every { mockAgentProcess.getCondition(any()) } answers {
+                when (val determination = bsb.determineCondition(firstArg())) {
+                    ConditionDetermination.TRUE -> true
+                    ConditionDetermination.FALSE -> false
+                    ConditionDetermination.UNKNOWN -> null
+                }
+            }
+
+            return bsb
         }
 
         @Test

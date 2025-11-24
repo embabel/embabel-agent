@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
 import org.slf4j.LoggerFactory
 import kotlin.reflect.full.memberProperties
@@ -89,7 +89,11 @@ class PrologFactConverter {
      * Format a value as Prolog facts.
      * Returns a list because lists generate multiple facts.
      */
-    private fun formatPrologFact(predicate: String, identifier: String, value: Any?): List<String> {
+    private fun formatPrologFact(
+        predicate: String,
+        identifier: String,
+        value: Any?,
+    ): List<String> {
         return when (value) {
             null -> emptyList()
             is String -> listOf("$predicate('$identifier', '${sanitizePrologString(value)}')")
@@ -102,6 +106,7 @@ class PrologFactConverter {
                     else -> "$predicate('$identifier', '${sanitizePrologString(item.toString())}')"
                 }
             }
+
             else -> listOf("$predicate('$identifier', '${sanitizePrologString(value.toString())}')")
         }
     }

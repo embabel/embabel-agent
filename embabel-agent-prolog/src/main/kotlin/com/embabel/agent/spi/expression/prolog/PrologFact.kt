@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
 /**
  * Marks a data class as convertible to Prolog facts.

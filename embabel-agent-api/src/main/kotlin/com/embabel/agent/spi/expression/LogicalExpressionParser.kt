@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition
+package com.embabel.agent.spi.expression
 
 /**
  * Implemented by classes that can parse logical expressions from strings.

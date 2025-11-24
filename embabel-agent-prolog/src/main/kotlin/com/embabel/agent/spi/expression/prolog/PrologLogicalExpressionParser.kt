@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
-import com.embabel.plan.common.condition.LogicalExpression
-import com.embabel.plan.common.condition.LogicalExpressionParser
+import com.embabel.agent.spi.expression.LogicalExpression
+import com.embabel.agent.spi.expression.LogicalExpressionParser
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 

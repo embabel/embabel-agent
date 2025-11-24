@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.plan.common.condition.ConditionDetermination
 import org.junit.jupiter.api.Assertions.*
@@ -28,7 +29,7 @@ import com.embabel.agent.core.Agent as CoreAgent
 class PrologActionTest {
 
     @Test
-    fun `invoke two actions`() {
+    fun `invoke two actions where second fires`() {
         val reader = AgentMetadataReader()
         val metadata =
             reader.createAgentMetadata(
@@ -46,22 +47,49 @@ class PrologActionTest {
 
         val prologParser = PrologLogicalExpressionParser.fromRules(prologRules)
 
-        // Create a custom platform that sets the Prolog evaluation context
-//        val customParser = object : com.embabel.plan.common.condition.LogicalExpressionParser {
-//            override fun parse(expression: String): com.embabel.plan.common.condition.LogicalExpression? {
-//                val baseExpression = prologParser.parse(expression)
-//                if (baseExpression == null) return null
-//
-//                // Wrap to inject blackboard objects during evaluation
-//                return object : com.embabel.plan.common.condition.LogicalExpression {
-//                    override fun evaluate(determineCondition: (String) -> ConditionDetermination): ConditionDetermination {
-//                        // Note: In real usage, the blackboard would be set by a custom WorldStateDeterminer
-//                        // For this test, we're demonstrating the mechanism works with withObjects()
-//                        return baseExpression.evaluate(determineCondition)
-//                    }
-//                }
-//            }
-//        }
+        val ap = IntegrationTestUtils.dummyAgentPlatform(
+            logicalExpressionParser = prologParser
+        )
+        val agent = metadata as CoreAgent
+        val agentProcess =
+            ap.runAgentFrom(
+                agent,
+                ProcessOptions(plannerType = PlannerType.UTILITY),
+                emptyMap(),
+            )
+
+        assertEquals(
+            AgentProcessStatusCode.STUCK, agentProcess.status,
+            "Should be stuck, not finished: status=${agentProcess.status}",
+        )
+        assertTrue(
+            agentProcess.objects.any { it == Elephant("Zaboya", 30) },
+            "Should have an elephant: blackboard=${agentProcess.objects}"
+        )
+        assertTrue(
+            agentProcess.objects.any { it is Zoo },
+            "Should have a zoo: blackboard=${agentProcess.objects}",
+        )
+    }
+
+    @Test
+    fun `invoke two actions where second does not fire`() {
+        val reader = AgentMetadataReader()
+        val metadata =
+            reader.createAgentMetadata(
+                Prolog2ActionsYoungElephant()
+            )
+        assertNotNull(metadata)
+        assertEquals(2, metadata!!.actions.size)
+
+        // Create Prolog rules for elephant age checking
+        val prologRules = """
+            % elephant_age is automatically generated from the Elephant object
+            % The PrologFactConverter will create facts like:
+            % elephant_age('Zaboya', 30)
+        """.trimIndent()
+
+        val prologParser = PrologLogicalExpressionParser.fromRules(prologRules)
 
         val ap = IntegrationTestUtils.dummyAgentPlatform(
             logicalExpressionParser = prologParser
@@ -73,15 +101,16 @@ class PrologActionTest {
                 ProcessOptions(plannerType = PlannerType.UTILITY),
                 emptyMap(),
             )
+
         assertEquals(
             AgentProcessStatusCode.STUCK, agentProcess.status,
             "Should be stuck, not finished: status=${agentProcess.status}",
         )
         assertTrue(
-            agentProcess.objects.any { it == Elephant("Zaboya", 30) },
+            agentProcess.objects.any { it == Elephant("Dumbo", 15) },
             "Should have an elephant: blackboard=${agentProcess.objects}"
         )
-        assertTrue(
+        assertFalse(
             agentProcess.objects.any { it is Zoo },
             "Should have a zoo: blackboard=${agentProcess.objects}",
         )
@@ -114,7 +143,7 @@ class PrologActionTest {
 
         // Use withObjects to inject the elephant
         val result = expression.withObjects(elephant)
-            .evaluate { ConditionDetermination.UNKNOWN }
+            .evaluate(InMemoryBlackboard())
 
         assertEquals(ConditionDetermination.TRUE, result)
     }
@@ -143,7 +172,7 @@ class PrologActionTest {
         )
 
         val result = expression.withObjects(youngElephant)
-            .evaluate { ConditionDetermination.UNKNOWN }
+            .evaluate(InMemoryBlackboard())
 
         assertEquals(
             ConditionDetermination.FALSE, result,

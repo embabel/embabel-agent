@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent

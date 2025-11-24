@@ -26,13 +26,13 @@ import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties.ProcessType
+import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.spi.support.RegistryToolGroupResolver
 import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.util.concurrent.Executors
 

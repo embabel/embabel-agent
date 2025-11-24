@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
 import it.unibo.tuprolog.core.Atom
 import it.unibo.tuprolog.core.Struct
@@ -174,7 +174,11 @@ class TuPrologEngine private constructor(
         }
     }
 
-    private fun collectAtoms(term: Term, atoms: MutableSet<String>, isGoalPosition: Boolean = true) {
+    private fun collectAtoms(
+        term: Term,
+        atoms: MutableSet<String>,
+        isGoalPosition: Boolean = true,
+    ) {
         when (term) {
             is Atom -> {
                 // Only collect atoms that are in goal position (predicates)
@@ -182,6 +186,7 @@ class TuPrologEngine private constructor(
                     atoms.add(term.value)
                 }
             }
+
             is Struct -> {
                 val functor = term.functor
 
@@ -191,10 +196,12 @@ class TuPrologEngine private constructor(
                         // Conjunction, disjunction, if-then: arguments are goals
                         term.args.forEach { collectAtoms(it, atoms, isGoalPosition = true) }
                     }
+
                     term.arity == 0 && functor != "true" && functor != "false" && isGoalPosition -> {
                         // Zero-arity predicate in goal position
                         atoms.add(functor)
                     }
+
                     else -> {
                         // Regular struct with arguments - arguments are NOT goals
                         // Don't collect anything from arguments

@@ -23,12 +23,12 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.*
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
+import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.spi.support.InMemoryContextRepository
 import com.embabel.agent.spi.support.SpringContextPlatformServices
 import com.embabel.common.textio.template.TemplateRenderer
-import com.embabel.plan.common.condition.LogicalExpressionParser
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired

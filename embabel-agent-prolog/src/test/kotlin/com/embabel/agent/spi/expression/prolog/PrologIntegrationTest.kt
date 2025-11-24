@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
+import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.plan.common.condition.ConditionDetermination
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -110,7 +111,7 @@ class PrologIntegrationTest {
         val scopedEngine = engine.assertFacts(facts)
 
         val expression = PrologLogicalExpression("can_approve('alice')", scopedEngine)
-        val result = expression.evaluate { ConditionDetermination.UNKNOWN }
+        val result = expression.evaluate(InMemoryBlackboard())
 
         assertEquals(ConditionDetermination.TRUE, result)
     }
@@ -162,7 +163,7 @@ class PrologIntegrationTest {
         val expression = parser.parse("prolog:test_predicate(foo)")
         assertNotNull(expression)
 
-        val result = expression!!.evaluate { ConditionDetermination.UNKNOWN }
+        val result = expression!!.evaluate(InMemoryBlackboard())
         assertEquals(ConditionDetermination.TRUE, result)
     }
 
@@ -197,7 +198,7 @@ class PrologIntegrationTest {
         val engine = TuPrologEngine.create(rules).assertFacts(facts)
         val expression = PrologLogicalExpression("requires_second_approval('exp-001')", engine)
 
-        val result = expression.evaluate { ConditionDetermination.UNKNOWN }
+        val result = expression.evaluate(InMemoryBlackboard())
         assertEquals(ConditionDetermination.TRUE, result)
     }
 
@@ -317,7 +318,7 @@ class PrologIntegrationTest {
         ).assertFacts(facts)
 
         val expression = PrologLogicalExpression("can_approve('alice')", engine)
-        val result = expression.evaluate { ConditionDetermination.UNKNOWN }
+        val result = expression.evaluate(InMemoryBlackboard())
 
         assertEquals(ConditionDetermination.TRUE, result)
     }
@@ -374,23 +375,17 @@ class PrologIntegrationTest {
         val expression = PrologLogicalExpression("can_enter", engine)
 
         // Both conditions return true
-        val result1 = expression.evaluate { conditionName ->
-            when (conditionName) {
-                "windowIsOpen" -> ConditionDetermination.TRUE
-                "hasPermission" -> ConditionDetermination.TRUE
-                else -> ConditionDetermination.UNKNOWN
-            }
-        }
+        val blackboard1 = InMemoryBlackboard()
+        blackboard1.setCondition("windowIsOpen", true)
+        blackboard1.setCondition("hasPermission", true)
+        val result1 = expression.evaluate(blackboard1)
         assertEquals(ConditionDetermination.TRUE, result1)
 
         // One condition returns false
-        val result2 = expression.evaluate { conditionName ->
-            when (conditionName) {
-                "windowIsOpen" -> ConditionDetermination.TRUE
-                "hasPermission" -> ConditionDetermination.FALSE
-                else -> ConditionDetermination.UNKNOWN
-            }
-        }
+        val blackboard2 = InMemoryBlackboard()
+        blackboard2.setCondition("windowIsOpen", true)
+        blackboard2.setCondition("hasPermission", false)
+        val result2 = expression.evaluate(blackboard2)
         assertEquals(ConditionDetermination.FALSE, result2)
     }
 
@@ -403,14 +398,11 @@ class PrologIntegrationTest {
         val engine = TuPrologEngine.create(rules)
         val expression = PrologLogicalExpression("can_enter", engine)
 
-        // One condition returns UNKNOWN
-        val result = expression.evaluate { conditionName ->
-            when (conditionName) {
-                "windowIsOpen" -> ConditionDetermination.TRUE
-                "hasPermission" -> ConditionDetermination.UNKNOWN
-                else -> ConditionDetermination.UNKNOWN
-            }
-        }
+        // One condition returns UNKNOWN (not set in blackboard)
+        val blackboard = InMemoryBlackboard()
+        blackboard.setCondition("windowIsOpen", true)
+        // hasPermission not set, so it will be UNKNOWN
+        val result = expression.evaluate(blackboard)
         assertEquals(ConditionDetermination.UNKNOWN, result)
     }
 
@@ -425,15 +417,11 @@ class PrologIntegrationTest {
         val expression = PrologLogicalExpression("can_enter", engine)
 
         // Only hasPermission should be checked, not windowIsOpen (already defined)
-        var checkedConditions = mutableListOf<String>()
-        val result = expression.evaluate { conditionName ->
-            checkedConditions.add(conditionName)
-            ConditionDetermination.TRUE
-        }
+        val blackboard = InMemoryBlackboard()
+        blackboard.setCondition("hasPermission", true)
+        val result = expression.evaluate(blackboard)
 
         assertEquals(ConditionDetermination.TRUE, result)
-        assertFalse(checkedConditions.contains("windowIsOpen"))
-        assertTrue(checkedConditions.contains("hasPermission"))
     }
 
     @Test

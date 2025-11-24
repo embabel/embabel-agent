@@ -13,36 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.spi.expression.LogicalExpression
 import com.embabel.plan.common.condition.ConditionDetermination
-import com.embabel.plan.common.condition.LogicalExpression
 import org.slf4j.LoggerFactory
-
-/**
- * Thread-local storage for blackboard objects during condition evaluation.
- * This allows PrologLogicalExpression to access blackboard objects when evaluating conditions.
- */
-object PrologEvaluationContext {
-    private val blackboardObjects = ThreadLocal<Collection<Any>>()
-
-    fun setBlackboardObjects(objects: Collection<Any>) {
-        blackboardObjects.set(objects)
-    }
-
-    fun getBlackboardObjects(): Collection<Any> {
-        return blackboardObjects.get() ?: emptyList()
-    }
-
-    fun clear() {
-        blackboardObjects.remove()
-    }
-}
 
 /**
  * A logical expression backed by a Prolog query.
  *
- * This expression can:
+ * This expression can:r
  * - Use Prolog rules loaded into the engine
  * - Reference conditions from the world state as Prolog facts
  * - Evaluate complex logical relationships
@@ -62,60 +43,47 @@ class PrologLogicalExpression(
     /**
      * Evaluate the Prolog query.
      *
-     * The determineCondition function is called for any conditions referenced in the query.
-     * These conditions are asserted as Prolog facts before executing the query.
+     * Zero-arity predicates not defined in the Prolog rules are looked up as conditions
+     * from the blackboard. If any such condition cannot be determined (not set in blackboard),
+     * the overall result is UNKNOWN.
      *
-     * For example, if the query is "can_approve(User)" and it depends on conditions like
-     * "windowIsOpen", the determineCondition function will be called to check those conditions.
-     * All zero-arity predicates not defined in the Prolog rules are considered condition references.
+     * For example, if the query is "can_enter" and it depends on conditions like
+     * "windowIsOpen" and "hasPermission", these will be looked up from the blackboard.
      */
-    override fun evaluate(determineCondition: (String) -> ConditionDetermination): ConditionDetermination {
+    override fun evaluate(blackboard: Blackboard): ConditionDetermination {
         return try {
             // Start with the base engine
             var scopedEngine = engine
 
-            // Get blackboard objects from the evaluation context and convert them to facts
-            val blackboardObjects = PrologEvaluationContext.getBlackboardObjects()
+            // Get blackboard objects and convert them to Prolog facts
+            val blackboardObjects = blackboard.objects
             if (blackboardObjects.isNotEmpty()) {
                 val facts = blackboardObjects.flatMap { factConverter.convertToFacts(it) }
                 logger.debug("Asserting {} facts from {} blackboard objects", facts.size, blackboardObjects.size)
                 scopedEngine = scopedEngine.assertFacts(facts)
             }
 
-            // Extract undefined predicates from both the query and the rules
-            val queryPredicates = engine.extractZeroArityPredicates(query)
-            val rulePredicates = engine.extractUndefinedPredicatesFromRules()
-            val allUndefined = (queryPredicates + rulePredicates).filter { !scopedEngine.isPredicateDefined(it) }
+            // Extract zero-arity predicates that might be conditions
+            val undefinedPredicates = scopedEngine.extractUndefinedPredicatesFromRules()
+            val zeroArityPredicates = scopedEngine.extractZeroArityPredicates(query)
+            val potentialConditions = (undefinedPredicates + zeroArityPredicates)
+                .filter { scopedEngine.isPredicateDefined(it).not() }
 
-            logger.debug("Undefined predicates to resolve: {}", allUndefined)
-
-            // Resolve conditions and assert facts for TRUE ones
-            var hasUnknownCondition = false
-
-            for (predicateName in allUndefined) {
-                val determination = determineCondition(predicateName)
-                logger.debug("Condition '{}' resolved to {}", predicateName, determination)
-
-                when (determination) {
-                    ConditionDetermination.TRUE -> {
-                        // Assert as a fact
-                        scopedEngine = scopedEngine.assertFact(predicateName)
-                    }
-                    ConditionDetermination.UNKNOWN -> {
-                        logger.warn("Condition '{}' could not be resolved (UNKNOWN)", predicateName)
-                        hasUnknownCondition = true
-                    }
-                    ConditionDetermination.FALSE -> {
-                        // For FALSE, we don't assert anything - Prolog will fail to find it
-                        logger.debug("Condition '{}' is FALSE, not asserting", predicateName)
-                    }
+            // Look up conditions from blackboard and assert them as facts
+            for (condition in potentialConditions) {
+                val conditionValue = blackboard.getCondition(condition)
+                if (conditionValue == null) {
+                    logger.warn("Condition '{}' referenced in query but not set in blackboard", condition)
+                    return ConditionDetermination.UNKNOWN
                 }
-            }
-
-            // If any condition was unknown, return UNKNOWN overall
-            if (hasUnknownCondition) {
-                logger.warn("Prolog query '{}' contains unresolved conditions, returning UNKNOWN", query)
-                return ConditionDetermination.UNKNOWN
+                // Assert the condition as a Prolog fact
+                scopedEngine = if (conditionValue) {
+                    scopedEngine.assertFacts(listOf(condition))
+                } else {
+                    // Don't assert false conditions - they just won't be present
+                    scopedEngine
+                }
+                logger.debug("Resolved condition '{}' to {}", condition, conditionValue)
             }
 
             // Execute the query
@@ -146,7 +114,7 @@ class PrologLogicalExpression(
      */
     fun evaluateWithObjects(
         vararg objects: Any,
-        determineCondition: (String) -> ConditionDetermination = { ConditionDetermination.UNKNOWN }
+        determineCondition: (String) -> ConditionDetermination = { ConditionDetermination.UNKNOWN },
     ): ConditionDetermination {
         return try {
             // Assert facts from all provided objects

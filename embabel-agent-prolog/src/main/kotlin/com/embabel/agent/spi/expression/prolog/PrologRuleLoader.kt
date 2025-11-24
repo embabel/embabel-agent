@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition.prolog
+package com.embabel.agent.spi.expression.prolog
 
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -42,7 +42,10 @@ class PrologRuleLoader {
      * @param resourcePath Path to the resource, e.g., "/rules/auth.pl"
      * @param classLoader ClassLoader to use for loading the resource
      */
-    fun loadFromResource(resourcePath: String, classLoader: ClassLoader = Thread.currentThread().contextClassLoader): String {
+    fun loadFromResource(
+        resourcePath: String,
+        classLoader: ClassLoader = Thread.currentThread().contextClassLoader,
+    ): String {
         val stream = classLoader.getResourceAsStream(resourcePath.removePrefix("/"))
             ?: throw IllegalArgumentException("Prolog resource not found: $resourcePath")
 
@@ -55,7 +58,10 @@ class PrologRuleLoader {
      * @param clazz The class whose package to search in
      * @param filename The filename to load
      */
-    fun loadFromClassResource(clazz: Class<*>, filename: String): String {
+    fun loadFromClassResource(
+        clazz: Class<*>,
+        filename: String,
+    ): String {
         val packagePath = clazz.packageName.replace('.', '/')
         val resourcePath = "/$packagePath/$filename"
 
@@ -71,7 +77,10 @@ class PrologRuleLoader {
     /**
      * Try to load rules from a class resource, returning null if not found.
      */
-    fun tryLoadFromClassResource(clazz: Class<*>, filename: String): String? {
+    fun tryLoadFromClassResource(
+        clazz: Class<*>,
+        filename: String,
+    ): String? {
         return try {
             loadFromClassResource(clazz, filename)
         } catch (e: IllegalArgumentException) {
