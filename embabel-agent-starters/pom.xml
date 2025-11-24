@@ -30,6 +30,7 @@
         <module>embabel-agent-starter-ollama</module>
         <module>embabel-agent-starter-dockermodels</module>
         <module>embabel-agent-starter-deepseek</module>
+        <module>embabel-agent-starter-a2a</module>
     </modules>
 
 </project>

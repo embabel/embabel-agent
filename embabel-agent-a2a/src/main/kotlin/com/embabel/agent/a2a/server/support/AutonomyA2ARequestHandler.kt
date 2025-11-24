@@ -24,7 +24,6 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.ProcessOptions
 import io.a2a.spec.*
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.LocalDateTime
@@ -36,7 +35,6 @@ import java.util.*
  * in front of this class must handle that.
  */
 @Service
-@Profile("a2a")
 class AutonomyA2ARequestHandler(
     private val autonomy: Autonomy,
     private val agenticEventListener: AgenticEventListener,
