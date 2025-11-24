@@ -27,7 +27,6 @@ import io.a2a.spec.SendStreamingMessageRequest
 import jakarta.servlet.ServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
-import org.springframework.context.annotation.Profile
 import org.springframework.context.event.EventListener
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -44,7 +43,6 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * a distinct endpoint with its own agent card.
  */
 @Component
-@Profile("a2a")
 class A2AEndpointRegistrar(
     private val agentCardHandlers: List<AgentCardHandler>,
     private val requestMappingHandlerMapping: RequestMappingHandlerMapping,
