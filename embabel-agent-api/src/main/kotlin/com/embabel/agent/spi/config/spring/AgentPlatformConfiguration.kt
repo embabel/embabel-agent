@@ -182,6 +182,8 @@ class AgentPlatformConfiguration(
         @Qualifier("ollamaModelsConfig") ollamaModelsConfig: Any?,
         @Autowired(required = false)
         @Qualifier("openAiModelsConfig") openAiModelsConfig: Any?,
+        @Autowired(required = false)
+        @Qualifier("geminiModelsConfig") geminiModelsConfig: Any?,
     ): ModelProvider {
 
         return ConfigurableModelProvider(
