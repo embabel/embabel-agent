@@ -1,0 +1,113 @@
+# ============================================
+# openai-models.yml
+# ============================================
+# OpenAI and compatible models configuration
+
+models:
+  # ========================================
+  # GPT-5 FAMILY (Latest Generation)
+  # ========================================
+
+  # GPT-5 - Most capable model
+  - name: "gpt5"
+    model_id: "gpt-5"
+    display_name: "GPT-5"
+    knowledge_cutoff_date: "2024-10-01"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10.0
+    special_handling:
+      supports_temperature: false  # GPT-5 uses fixed temperature
+
+  # GPT-5 Mini - Balanced performance and cost
+  - name: "gpt5mini"
+    model_id: "gpt-5-mini"
+    display_name: "GPT-5 Mini"
+    knowledge_cutoff_date: "2024-05-31"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.25
+      usd_per1m_output_tokens: 2.0
+    special_handling:
+      supports_temperature: false
+
+  # GPT-5 Nano - Ultra-fast and cost-effective
+  - name: "gpt5nano"
+    model_id: "gpt-5-nano"
+    display_name: "GPT-5 Nano"
+    knowledge_cutoff_date: "2024-05-31"
+    max_tokens: 8192
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.05
+      usd_per1m_output_tokens: 0.40
+    special_handling:
+      supports_temperature: false
+
+  # ========================================
+  # GPT-4.1 FAMILY
+  # ========================================
+
+  # GPT-4.1 - High capability model
+  - name: "gpt41"
+    model_id: "gpt-4.1"
+    display_name: "GPT-4.1"
+    knowledge_cutoff_date: "2024-08-06"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 2.0
+      usd_per1m_output_tokens: 8.0
+
+  # GPT-4.1 Mini - Smaller, faster variant
+  - name: "gpt41mini"
+    model_id: "gpt-4.1-mini"
+    display_name: "GPT-4.1 Mini"
+    knowledge_cutoff_date: "2024-07-18"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.40
+      usd_per1m_output_tokens: 1.6
+
+  # GPT-4.1 Nano - Most efficient variant
+  - name: "gpt41nano"
+    model_id: "gpt-4.1-nano"
+    display_name: "GPT-4.1 Nano"
+    knowledge_cutoff_date: "2024-08-06"
+    max_tokens: 8192
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.1
+      usd_per1m_output_tokens: 0.4
+
+# ========================================
+# EMBEDDING MODELS
+# ========================================
+embedding_models:
+  # Default text embedding model
+  - name: "text_embedding_3_large"
+    model_id: "text-embedding-3-large"
+    display_name: "Text Embedding 3 Large"
+    dimensions: 3072
+    pricing_model:
+      usd_per1m_tokens: 0.13
+
+  # Smaller embedding model
+  - name: "text_embedding_3_small"
+    model_id: "text-embedding-3-small"
+    display_name: "Text Embedding 3 Small"
+    dimensions: 1536
+    pricing_model:
+      usd_per1m_tokens: 0.02
+
+  # Legacy embedding model
+  - name: "text_embedding_ada_002"
+    model_id: "text-embedding-ada-002"
+    display_name: "Text Embedding Ada 002"
+    dimensions: 1536
+    pricing_model:
+      usd_per1m_tokens: 0.10

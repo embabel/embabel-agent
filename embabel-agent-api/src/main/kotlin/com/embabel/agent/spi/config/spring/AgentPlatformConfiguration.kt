@@ -180,6 +180,8 @@ class AgentPlatformConfiguration(
         @Qualifier("dockerLocalModelsConfig") dockerLocalModelsConfig: Any?,
         @Autowired(required = false)
         @Qualifier("ollamaModelsConfig") ollamaModelsConfig: Any?,
+        @Autowired(required = false)
+        @Qualifier("openAiModelsConfig") openAiModelsConfig: Any?,
     ): ModelProvider {
 
         return ConfigurableModelProvider(

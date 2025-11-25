@@ -18,18 +18,19 @@ package com.embabel.agent.config.models.openai
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
+import jakarta.annotation.PostConstruct
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.LocalDate
-
 
 /**
  * Configuration properties for OpenAI model settings.
@@ -60,9 +61,9 @@ class OpenAiProperties : RetryProperties {
 }
 
 /**
- * Configuration for well-known OpenAI language and embedding models.
- * Provides bean definitions for various GPT models with their corresponding
- * capabilities, knowledge cutoff dates, and pricing models.
+ * Configuration for OpenAI language and embedding models.
+ * This class dynamically loads and registers OpenAI models from YAML configuration,
+ * similar to the Anthropic and Bedrock configuration patterns.
  */
 @Configuration(proxyBeanMethods = false)
 @ExcludeFromJacocoGeneratedReport(reason = "OpenAi configuration can't be unit tested")
@@ -77,6 +78,8 @@ class OpenAiModelsConfig(
     embeddingsPath: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: OpenAiProperties,
+    private val configurableBeanFactory: ConfigurableBeanFactory,
+    private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
 ) : OpenAiCompatibleModelFactory(
     baseUrl = baseUrl,
     apiKey = apiKey,
@@ -86,105 +89,100 @@ class OpenAiModelsConfig(
 ) {
 
     init {
-        logger.info("Open AI models are available: {}", properties)
+        logger.info("OpenAI models are available: {}", properties)
     }
 
-    @Bean
-    fun gpt5(): Llm {
-        return openAiCompatibleLlm(
-            model = OpenAiModels.GPT_5,
+    @PostConstruct
+    fun registerModelBeans() {
+        val definitions = modelLoader.loadAutoConfigMetadata()
+
+        // Register LLM models
+        definitions.models.forEach { modelDef ->
+            try {
+                val llm = createOpenAiLlm(modelDef)
+                configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                logger.info(
+                    "Registered OpenAI model bean: {} -> {}",
+                    modelDef.name, modelDef.modelId
+                )
+            } catch (e: Exception) {
+                logger.error(
+                    "Failed to create model: {} ({})",
+                    modelDef.name, modelDef.modelId, e
+                )
+                throw e
+            }
+        }
+
+        // Register embedding models
+        definitions.embeddingModels.forEach { embeddingDef ->
+            try {
+                val embeddingService = createOpenAiEmbedding(embeddingDef)
+                configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
+                logger.info(
+                    "Registered OpenAI embedding model bean: {} -> {}",
+                    embeddingDef.name, embeddingDef.modelId
+                )
+            } catch (e: Exception) {
+                logger.error(
+                    "Failed to create embedding model: {} ({})",
+                    embeddingDef.name, embeddingDef.modelId, e
+                )
+                throw e
+            }
+        }
+    }
+
+    /**
+     * Creates an individual OpenAI LLM from configuration.
+     * Uses custom Llm constructor when pricing model is not available.
+     */
+    private fun createOpenAiLlm(modelDef: OpenAiModelDefinition): Llm {
+        // Determine the appropriate options converter based on model configuration
+        val optionsConverter = if (modelDef.specialHandling?.supportsTemperature == false) {
+            Gpt5ChatOptionsConverter
+        } else {
+            StandardOpenAiOptionsConverter
+        }
+
+        val chatModel = chatModelOf(
+            model = modelDef.modelId,
+            retryTemplate = properties.retryTemplate(modelDef.modelId)
+        )
+
+        // Create pricing model if present
+        val pricingModel = modelDef.pricingModel?.let {
+            PerTokenPricingModel(
+                usdPer1mInputTokens = it.usdPer1mInputTokens,
+                usdPer1mOutputTokens = it.usdPer1mOutputTokens,
+            )
+        }
+
+        // Use Llm constructor directly to handle nullable pricing model
+        return Llm(
+            name = modelDef.modelId,
+            model = chatModel,
             provider = OpenAiModels.PROVIDER,
-            knowledgeCutoffDate = LocalDate.of(2024, 10, 1),
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = 1.25,
-                usdPer1mOutputTokens = 10.0,
-            ),
-            retryTemplate = properties.retryTemplate(OpenAiModels.GPT_5),
-            optionsConverter = Gpt5ChatOptionsConverter,
+            optionsConverter = optionsConverter,
+            knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
+            pricingModel = pricingModel,
         )
     }
 
-    @Bean
-    fun gpt5mini(): Llm {
-        return openAiCompatibleLlm(
-            model = OpenAiModels.GPT_5_MINI,
-            provider = OpenAiModels.PROVIDER,
-            knowledgeCutoffDate = LocalDate.of(2024, 5, 31),
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = .25,
-                usdPer1mOutputTokens = 2.0,
-            ),
-            retryTemplate = properties.retryTemplate(OpenAiModels.GPT_5_MINI),
-            optionsConverter = Gpt5ChatOptionsConverter,
-        )
-    }
-
-    @Bean
-    fun gpt5nano(): Llm {
-        return openAiCompatibleLlm(
-            model = OpenAiModels.GPT_5_NANO,
-            provider = OpenAiModels.PROVIDER,
-            knowledgeCutoffDate = LocalDate.of(2024, 5, 31),
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = .05,
-                usdPer1mOutputTokens = .40,
-            ),
-            optionsConverter = Gpt5ChatOptionsConverter,
-            retryTemplate = properties.retryTemplate(OpenAiModels.GPT_5_NANO),
-        )
-    }
-
-    @Bean
-    fun gpt41mini(): Llm {
-        return openAiCompatibleLlm(
-            model = OpenAiModels.GPT_41_MINI,
-            provider = OpenAiModels.PROVIDER,
-            knowledgeCutoffDate = LocalDate.of(2024, 7, 18),
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = .40,
-                usdPer1mOutputTokens = 1.6,
-            ),
-            retryTemplate = properties.retryTemplate(OpenAiModels.GPT_41_MINI),
-        )
-    }
-
-    @Bean
-    fun gpt41(): Llm {
-        return openAiCompatibleLlm(
-            model = OpenAiModels.GPT_41,
-            provider = OpenAiModels.PROVIDER,
-            knowledgeCutoffDate = LocalDate.of(2024, 8, 6),
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = 2.0,
-                usdPer1mOutputTokens = 8.0,
-            ),
-            retryTemplate = properties.retryTemplate(OpenAiModels.GPT_41),
-        )
-    }
-
-    @Bean
-    fun gpt41nano(): Llm {
-        return openAiCompatibleLlm(
-            model = OpenAiModels.GPT_41_NANO,
-            provider = OpenAiModels.PROVIDER,
-            knowledgeCutoffDate = LocalDate.of(2024, 8, 6),
-            pricingModel = PerTokenPricingModel(
-                usdPer1mInputTokens = .1,
-                usdPer1mOutputTokens = .4,
-            ),
-            retryTemplate = properties.retryTemplate(OpenAiModels.GPT_41_NANO),
-        )
-    }
-
-    @Bean
-    fun defaultOpenAiEmbeddingService(): EmbeddingService {
+    /**
+     * Creates an embedding service from configuration.
+     */
+    private fun createOpenAiEmbedding(embeddingDef: OpenAiEmbeddingModelDefinition): EmbeddingService {
         return openAiCompatibleEmbeddingService(
-            model = OpenAiModels.DEFAULT_TEXT_EMBEDDING_MODEL,
+            model = embeddingDef.modelId,
             provider = OpenAiModels.PROVIDER,
         )
     }
 }
 
+/**
+ * Options converter for GPT-5 models that don't support temperature adjustment.
+ */
 internal object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
 
     override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
@@ -199,7 +197,22 @@ internal object Gpt5ChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
             .maxTokens(options.maxTokens)
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
-//            .topP(options.topP)
+            .build()
+    }
+}
+
+/**
+ * Standard options converter for OpenAI models that support all parameters.
+ */
+internal object StandardOpenAiOptionsConverter : OptionsConverter<OpenAiChatOptions> {
+
+    override fun convertOptions(options: LlmOptions): OpenAiChatOptions {
+        return OpenAiChatOptions.builder()
+            .temperature(options.temperature)
+            .topP(options.topP)
+            .maxTokens(options.maxTokens)
+            .presencePenalty(options.presencePenalty)
+            .frequencyPenalty(options.frequencyPenalty)
             .build()
     }
 }
