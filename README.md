@@ -955,12 +955,19 @@ This makes me sad.
 
 ## Adding Embabel Agent Framework to Your Project
 
+### Maven Central Availability
+
+**Since version 0.2.0**, Embabel Agent Framework is available directly on Maven Central, simplifying dependency management. You no longer need to configure custom repositories for stable releases.
+
+---
+
 ### Maven
 
-The easiest way is to add the Embabel Spring Boot starter dependency to your `pom.xml`:
+#### For version 0.2.0 and above (Recommended)
+
+Simply add the Embabel Spring Boot starter dependency to your `pom.xml`:
 
 ```xml
-
 <dependency>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-starter</artifactId>
@@ -968,9 +975,76 @@ The easiest way is to add the Embabel Spring Boot starter dependency to your `po
 </dependency>
 ```
 
+No additional repository configuration is needed! Maven Central is configured by default.
+
+#### For versions prior to 0.2.0 or for SNAPSHOT versions
+
+You need to add the Embabel repositories to your `pom.xml`:
+
+```xml
+<repositories>
+    <repository>
+        <id>embabel-releases</id>
+        <url>https://repo.embabel.com/artifactory/libs-release</url>
+        <releases>
+            <enabled>true</enabled>
+        </releases>
+        <snapshots>
+            <enabled>false</enabled>
+        </snapshots>
+    </repository>
+    <repository>
+        <id>embabel-snapshots</id>
+        <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
+        <releases>
+            <enabled>false</enabled>
+        </releases>
+        <snapshots>
+            <enabled>true</enabled>
+        </snapshots>
+    </repository>
+</repositories>
+```
+
+Then add the dependency:
+
+```xml
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+```
+
+---
+
 ### Gradle (Kotlin DSL)
 
+#### For version 0.2.0 and above (Recommended)
+
 Add the required repositories to your `build.gradle.kts`:
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven {
+        name = "Spring Milestones"
+        url = uri("https://repo.spring.io/milestone")
+    }
+}
+```
+
+Add the Embabel Agent starter:
+
+```kotlin
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter:${embabelAgentVersion}")
+}
+```
+
+#### For versions prior to 0.2.0 or for SNAPSHOT versions
+
+Add all required repositories to your `build.gradle.kts`:
 
 ```kotlin
 repositories {
@@ -1000,17 +1074,50 @@ Add the Embabel Agent starter:
 
 ```kotlin
 dependencies {
-    implementation('com.embabel.agent:embabel-agent-starter:${embabel-agent.version}')
+    implementation("com.embabel.agent:embabel-agent-starter:${embabelAgentVersion}")
 }
 ```
 
+---
+
 ### Gradle (Groovy DSL)
+
+#### For version 0.2.0 and above (Recommended)
 
 Add the required repositories to your `build.gradle`:
 
 ```groovy
 repositories {
     mavenCentral()
+    maven {
+        name = 'Spring Milestones'
+        url = 'https://repo.spring.io/milestone'
+    }
+}
+```
+
+Add the Embabel Agent starter:
+
+```groovy
+dependencies {
+    implementation "com.embabel.agent:embabel-agent-starter:${embabelAgentVersion}"
+}
+```
+
+#### For versions prior to 0.2.0 or for SNAPSHOT versions
+
+Add all required repositories to your `build.gradle`:
+
+```groovy
+repositories {
+    mavenCentral()
+    maven {
+        name = 'embabel-releases'
+        url = 'https://repo.embabel.com/artifactory/libs-release'
+        mavenContent {
+            releasesOnly()
+        }
+    }
     maven {
         name = 'embabel-snapshots'
         url = 'https://repo.embabel.com/artifactory/libs-snapshot'
@@ -1029,46 +1136,47 @@ Add the Embabel Agent starter:
 
 ```groovy
 dependencies {
-    implementation 'com.embabel.agent:embabel-agent-starter:0.1.0-SNAPSHOT'
+    implementation 'com.embabel.agent:embabel-agent-starter:${embabelAgentVersion}'
 }
 ```
 
-> **Note:** The Spring Milestones repository is required because the Embabel BOM (`embabel-agent-dependencies`) has
-> transitive dependencies on experimental Spring components, specifically the `mcp-bom`. This BOM is not available on
-> Maven Central and is only published to the Spring milestone repository. Unlike Maven, Gradle does not inherit
-> repository
-> configurations declared in parent POMs or BOMs. Therefore, it is necessary to explicitly declare the Spring milestone
-> repository in your repositories block to ensure proper resolution of all transitive dependencies.
+---
 
-## Repository
+### Important Notes
 
-Binary Packages are located in Embabel Maven Repository.
-You would need to add Embabel Snapshot Repository to your pom.xml or configure in settings.xml
+#### Spring Milestones Repository
 
+The Spring Milestones repository is required because the Embabel BOM (`embabel-agent-dependencies`) has transitive dependencies on experimental Spring components, specifically the `mcp-bom`. This BOM is not available on Maven Central and is only published to the Spring milestone repository.
+
+**Note for Gradle users:** Unlike Maven, Gradle does not inherit repository configurations declared in parent POMs or BOMs. Therefore, it is necessary to explicitly declare the Spring milestone repository in your repositories block to ensure proper resolution of all transitive dependencies.
+
+#### Repository Types
+
+- **Maven Central** (since v0.2.0): For stable releases 0.2.0 and above
+- **Embabel Releases Repository**: For stable releases prior to 0.2.0
+- **Embabel Snapshots Repository**: For development/snapshot versions (e.g., `0.3.0-SNAPSHOT`)
+
+---
+
+### Quick Start Examples
+
+#### Maven with latest stable version
 ```xml
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter</artifactId>
+    <version>0.3.0</version>
+</dependency>
+```
 
-<repositories>
-    <repository>
-        <id>embabel-releases</id>
-        <url>https://repo.embabel.com/artifactory/libs-release</url>
-        <releases>
-            <enabled>true</enabled>
-        </releases>
-        <snapshots>
-            <enabled>false</enabled>
-        </snapshots>
-    </repository>
-    <repository>
-        <id>embabel-snapshots</id>
-        <url>https://repo.embabel.com/artifactory/libs-snapshot</url>
-        <releases>
-            <enabled>false</enabled>
-        </releases>
-        <snapshots>
-            <enabled>true</enabled>
-        </snapshots>
-    </repository>
-</repositories>
+#### Gradle Kotlin DSL with latest stable version
+```kotlin
+implementation("com.embabel.agent:embabel-agent-starter:0.3.0")
+```
+
+#### Gradle Groovy DSL with latest stable version
+```groovy
+implementation 'com.embabel.agent:embabel-agent-starter:0.3.0'
 ```
 
 ## Contributing
