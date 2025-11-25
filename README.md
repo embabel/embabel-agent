@@ -701,6 +701,7 @@ The Embabel Agent Framework supports local models from:
 - Ollama: Simply set the `ollama` profile and your local Ollama endpoint will be queries. All local models will be
   available.
 - Docker: Set the `docker` profile and your local Docker endpoint will be queried. All local models will be available.
+- LMStudio: This uses the openAI compatible client. Just include LMStudio as a dependency and make sure your LMStudio server is running.
 
 #### Custom LLMs
 

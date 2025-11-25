@@ -1,18 +1,3 @@
-/*
- * Copyright 2024-2025 Embabel Software, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.embabel.agent.config.models.lmstudio
 
 import com.embabel.agent.api.models.LmStudioModels
@@ -31,7 +16,6 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
-import java.time.Duration
 
 /**
  * Configuration for LM Studio models.
@@ -42,11 +26,13 @@ import java.time.Duration
 class LmStudioModelsConfig(
     @Value("\${spring.ai.lmstudio.base-url:http://127.0.0.1:1234}")
     baseUrl: String,
+    @Value("\${spring.ai.lmstudio.api-key:lm-studio}")
+    apiKey: String,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     observationRegistry: ObjectProvider<ObservationRegistry>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = baseUrl,
-    apiKey = "lm-studio", // Dummy key
+    apiKey = apiKey,
     completionsPath = null,
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
@@ -80,13 +66,11 @@ class LmStudioModelsConfig(
             try {
                 val llm = openAiCompatibleLlm(
                     model = modelId,
-                    pricingModel = PricingModel.ALL_YOU_CAN_EAT, // Local models are free
+                    pricingModel = PricingModel.ALL_YOU_CAN_EAT,
                     provider = LmStudioModels.PROVIDER,
                     knowledgeCutoffDate = null
                 )
 
-                // Register bean with a predictable name
-                // e.g. "lmStudioModel-my-model-name"
                 val beanName = "lmStudioModel-${normalizeModelName(modelId)}"
                 configurableBeanFactory.registerSingleton(beanName, llm)
                 log.debug("Successfully registered LM Studio LLM {} as bean {}", modelId, beanName)
@@ -99,8 +83,6 @@ class LmStudioModelsConfig(
 
     private fun loadModelsFromUrl(): List<String> {
         return try {
-            // We can't use the RestClient from the parent because it's configured for the API
-            // But we can use a simple one here to fetch the list
             val requestFactory = SimpleClientHttpRequestFactory()
             requestFactory.setConnectTimeout(2000)
             requestFactory.setReadTimeout(2000)
@@ -109,8 +91,6 @@ class LmStudioModelsConfig(
                 .requestFactory(requestFactory)
                 .build()
 
-            // baseUrl usually does NOT include /v1 for Spring AI OpenAiApi, but we need it for models endpoint
-            // If baseUrl ends with /, remove it
             val cleanBaseUrl = baseUrl?.trimEnd('/') ?: "http://127.0.0.1:1234"
             // Ensure we hit /v1/models
             val url = if (cleanBaseUrl.endsWith("/v1")) {

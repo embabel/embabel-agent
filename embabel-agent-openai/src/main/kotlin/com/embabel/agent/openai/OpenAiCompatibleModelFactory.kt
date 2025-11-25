@@ -32,11 +32,9 @@ import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.ai.openai.api.OpenAiApi
 import org.springframework.ai.retry.RetryUtils
-import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
-import java.time.Duration
 import java.time.LocalDate
 import kotlin.jvm.javaClass
 
@@ -84,14 +82,9 @@ open class OpenAiCompatibleModelFactory(
         }
 
         //add observation registry to rest and web client builders
-        val requestFactory = SimpleClientHttpRequestFactory()
-        requestFactory.setConnectTimeout(5000)
-        requestFactory.setReadTimeout(60000) // 60 seconds read timeout for LLM generation
-
         builder
             .restClientBuilder(
                 RestClient.builder()
-                    .requestFactory(requestFactory)
                     .observationRegistry(observationRegistry)
             )
         builder
