@@ -1,0 +1,92 @@
+# Gemini Models Configuration
+# This file defines all Google Gemini models available for use in the application.
+# Models are dynamically loaded and registered as Spring beans at startup.
+
+models:
+  # Gemini 3.0 Pro - Most advanced model
+  - name: gemini3pro
+    model_id: gemini-3.0-pro
+    display_name: "Gemini 3.0 Pro"
+    max_tokens: 8192
+    temperature: 1.0
+    knowledge_cutoff_date: 2025-11-01
+    pricing_model:
+      usd_per1m_input_tokens: 2.0
+      usd_per1m_output_tokens: 12.0
+
+  # Gemini 2.5 Pro - High-performance model
+  - name: gemini25pro
+    model_id: gemini-2.5-pro
+    display_name: "Gemini 2.5 Pro"
+    max_tokens: 8192
+    temperature: 1.0
+    knowledge_cutoff_date: 2025-11-01
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10.0
+
+  # Gemini 2.5 Flash - Balanced performance and cost
+  - name: gemini25flash
+    model_id: gemini-2.5-flash
+    display_name: "Gemini 2.5 Flash"
+    max_tokens: 8192
+    temperature: 1.0
+    knowledge_cutoff_date: 2025-01-01
+    pricing_model:
+      usd_per1m_input_tokens: 0.30
+      usd_per1m_output_tokens: 2.50
+
+  # Gemini 2.5 Flash Lite - Cost-effective option
+  - name: gemini25flashlite
+    model_id: gemini-2.5-flash-lite
+    display_name: "Gemini 2.5 Flash Lite"
+    max_tokens: 8192
+    temperature: 1.0
+    knowledge_cutoff_date: 2025-01-01
+    pricing_model:
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.40
+
+  # Gemini 2.0 Flash Experimental - Latest experimental version
+  - name: gemini20flashexp
+    model_id: gemini-2.0-flash-exp
+    display_name: "Gemini 2.0 Flash (Experimental)"
+    max_tokens: 8192
+    temperature: 1.0
+    knowledge_cutoff_date: 2024-08-01
+    pricing_model:
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.40
+
+  # Gemini 1.5 Pro - Previous generation pro model
+  - name: gemini15pro
+    model_id: gemini-1.5-pro
+    display_name: "Gemini 1.5 Pro"
+    max_tokens: 8192
+    temperature: 1.0
+    knowledge_cutoff_date: 2023-11-01
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 5.0
+
+  # Gemini 1.5 Flash - Previous generation fast model
+  - name: gemini15flash
+    model_id: gemini-1.5-flash
+    display_name: "Gemini 1.5 Flash"
+    max_tokens: 8192
+    temperature: 1.0
+    knowledge_cutoff_date: 2024-05-01
+    pricing_model:
+      usd_per1m_input_tokens: 0.075
+      usd_per1m_output_tokens: 0.30
+
+  # Gemini 1.5 Flash 8B - Smallest and most cost-effective model
+  - name: gemini15flash8b
+    model_id: gemini-1.5-flash-8b
+    display_name: "Gemini 1.5 Flash 8B"
+    max_tokens: 8192
+    temperature: 1.0
+    knowledge_cutoff_date: 2024-05-01
+    pricing_model:
+      usd_per1m_input_tokens: 0.0375
+      usd_per1m_output_tokens: 0.15
