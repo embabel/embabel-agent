@@ -12,7 +12,7 @@ models:
     model_id: "gemini-3-pro-preview"
     display_name: "Gemini 3 Pro Preview"
     knowledge_cutoff_date: "2025-01-01"
-    max_output_tokens: 65536
+    max_tokens: 65536
     temperature: 0.7
     pricing_model:
       usd_per1m_input_tokens: 2.00
@@ -27,7 +27,7 @@ models:
     model_id: "gemini-2.5-pro"
     display_name: "Gemini 2.5 Pro"
     knowledge_cutoff_date: "2025-01-01"
-    max_output_tokens: 65536
+    max_tokens: 65536
     temperature: 0.7
     pricing_model:
       usd_per1m_input_tokens: 1.25
@@ -38,7 +38,7 @@ models:
     model_id: "gemini-2.5-flash"
     display_name: "Gemini 2.5 Flash"
     knowledge_cutoff_date: "2025-01-01"
-    max_output_tokens: 65536
+    max_tokens: 65536
     temperature: 0.7
     pricing_model:
       usd_per1m_input_tokens: 0.30
@@ -49,7 +49,7 @@ models:
     model_id: "gemini-2.5-flash-lite"
     display_name: "Gemini 2.5 Flash Lite"
     knowledge_cutoff_date: "2025-01-01"
-    max_output_tokens: 65536
+    max_tokens: 65536
     temperature: 0.7
     pricing_model:
       usd_per1m_input_tokens: 0.10
@@ -64,7 +64,7 @@ models:
     model_id: "gemini-2.0-flash"
     display_name: "Gemini 2.0 Flash"
     knowledge_cutoff_date: "2024-08-01"
-    max_output_tokens: 8192
+    max_tokens: 8192
     temperature: 0.7
     pricing_model:
       usd_per1m_input_tokens: 0.15
@@ -75,7 +75,7 @@ models:
     model_id: "gemini-2.0-flash-lite"
     display_name: "Gemini 2.0 Flash Lite"
     knowledge_cutoff_date: "2024-08-01"
-    max_output_tokens: 8192
+    max_tokens: 8192
     temperature: 0.7
     pricing_model:
       usd_per1m_input_tokens: 0.075

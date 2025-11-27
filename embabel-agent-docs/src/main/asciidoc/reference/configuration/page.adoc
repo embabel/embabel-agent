@@ -351,6 +351,9 @@ The following environment variables control authentication:
 
 NOTE: Either `GOOGLE_API_KEY` or both `GOOGLE_PROJECT_ID` and `GOOGLE_LOCATION` must be set.
 
+IMPORTANT: Gemini 3 models are only available in the `global` location on Vertex AI.
+To use Gemini 3 with Vertex AI, you must set `GOOGLE_LOCATION=global`.
+
 ===== Server-Sent Events
 
 From `AgentPlatformProperties.SseConfig` - server-sent events configuration.

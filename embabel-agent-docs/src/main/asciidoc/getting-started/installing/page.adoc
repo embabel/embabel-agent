@@ -233,6 +233,9 @@ Uses the native Google GenAI SDK for direct access to Gemini models with full fe
 NOTE: Use API key authentication for Google AI Studio, or Vertex AI authentication for Google Cloud deployments.
 Vertex AI authentication requires Application Default Credentials (ADC) to be configured.
 
+IMPORTANT: Gemini 3 models are only available in the `global` location on Vertex AI.
+To use Gemini 3 with Vertex AI, you must set `GOOGLE_LOCATION=global`.
+
 To add Google GenAI support to your project:
 
 [source,xml]
