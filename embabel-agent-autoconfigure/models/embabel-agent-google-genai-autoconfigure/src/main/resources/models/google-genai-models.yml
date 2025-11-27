@@ -18,8 +18,8 @@ models:
     max_output_tokens: 65536
     temperature: 0.7
     pricing_model:
-      usd_per1m_input_tokens: 2.50
-      usd_per1m_output_tokens: 15.00
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 12.00
 
   # ========================================
   # GEMINI 2.5 FAMILY (Stable - Current Generation)
@@ -44,8 +44,8 @@ models:
     max_output_tokens: 65536
     temperature: 0.7
     pricing_model:
-      usd_per1m_input_tokens: 0.15
-      usd_per1m_output_tokens: 0.60
+      usd_per1m_input_tokens: 0.30
+      usd_per1m_output_tokens: 2.50
 
   # Gemini 2.5 Flash Lite - Cost-effective high-throughput model
   - name: "gemini_25_flash_lite"
@@ -55,8 +55,8 @@ models:
     max_output_tokens: 65536
     temperature: 0.7
     pricing_model:
-      usd_per1m_input_tokens: 0.075
-      usd_per1m_output_tokens: 0.30
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.40
 
   # ========================================
   # GEMINI 2.0 FAMILY (Previous Generation)
@@ -70,8 +70,8 @@ models:
     max_output_tokens: 8192
     temperature: 0.7
     pricing_model:
-      usd_per1m_input_tokens: 0.10
-      usd_per1m_output_tokens: 0.40
+      usd_per1m_input_tokens: 0.15
+      usd_per1m_output_tokens: 0.60
 
   # Gemini 2.0 Flash Lite - Lightweight version
   - name: "gemini_20_flash_lite"

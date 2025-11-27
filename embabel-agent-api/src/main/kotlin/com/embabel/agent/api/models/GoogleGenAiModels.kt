@@ -41,7 +41,7 @@ class GoogleGenAiModels {
         const val GEMINI_EMBEDDING_001 = "gemini-embedding-001"
         const val TEXT_EMBEDDING_005 = "text-embedding-005"
         const val TEXT_EMBEDDING_004 = "text-embedding-004"
-        const val DEFAULT_TEXT_EMBEDDING_MODEL = GEMINI_EMBEDDING_001
+        const val DEFAULT_TEXT_EMBEDDING_MODEL = TEXT_EMBEDDING_004
 
         const val PROVIDER = "GoogleGenAI"
     }

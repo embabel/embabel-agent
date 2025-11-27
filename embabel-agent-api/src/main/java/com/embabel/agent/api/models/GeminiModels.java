@@ -26,7 +26,7 @@ public final class GeminiModels {
     }
 
     // Gemini 3.0 Family (Latest)
-    public static final String GEMINI_3_PRO = "gemini-3-pro-preview";
+    public static final String GEMINI_3_PRO_PREVIEW = "gemini-3-pro-preview";
 
     // Gemini 2.5 Family (Current Generation)
     public static final String GEMINI_2_5_PRO = "gemini-2.5-pro";
