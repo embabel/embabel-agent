@@ -31,6 +31,7 @@
         <module>embabel-agent-starter-dockermodels</module>
         <module>embabel-agent-starter-deepseek</module>
         <module>embabel-agent-starter-gemini</module>
+        <module>embabel-agent-starter-google-genai</module>
     </modules>
 
 </project>

@@ -18,7 +18,7 @@ NOTE: Choose the `java` or `kotlin` scripts directory depending on your preferen
 ==== Prerequisites
 
 - Java 21+
-- API Key from OpenAI or Anthropic
+- API Key from OpenAI, Anthropic, or Google
 - Maven 3.9+ (optional)
 
 Set your API keys:
@@ -27,7 +27,10 @@ Set your API keys:
 ----
 export OPENAI_API_KEY="your_openai_key"
 export ANTHROPIC_API_KEY="your_anthropic_key"
+export GOOGLE_API_KEY="your_google_api_key"
 ----
+
+NOTE: For Google GenAI, you can use either `GOOGLE_API_KEY` (Google AI Studio) or Vertex AI authentication with `GOOGLE_PROJECT_ID` and `GOOGLE_LOCATION`.
 
 ==== Using the Shell
 

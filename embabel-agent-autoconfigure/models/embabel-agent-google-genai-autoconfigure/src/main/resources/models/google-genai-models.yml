@@ -1,0 +1,86 @@
+# ============================================
+# google-genai-models.yml
+# ============================================
+# Google GenAI (Gemini) models configuration
+# Updated with latest Gemini models as of November 2025
+# Using native Spring AI Google GenAI support
+
+models:
+  # ========================================
+  # GEMINI 3 FAMILY (Preview - Latest Generation)
+  # ========================================
+
+  # Gemini 3 Pro Preview - Most advanced reasoning model
+  - name: "gemini_3_pro_preview"
+    model_id: "gemini-3-pro-preview"
+    display_name: "Gemini 3 Pro Preview"
+    knowledge_cutoff_date: "2025-01-01"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 2.50
+      usd_per1m_output_tokens: 15.00
+
+  # ========================================
+  # GEMINI 2.5 FAMILY (Stable - Current Generation)
+  # ========================================
+
+  # Gemini 2.5 Pro - High-performance model with thinking
+  - name: "gemini_25_pro"
+    model_id: "gemini-2.5-pro"
+    display_name: "Gemini 2.5 Pro"
+    knowledge_cutoff_date: "2025-01-01"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10.00
+
+  # Gemini 2.5 Flash - Best price-performance model
+  - name: "gemini_25_flash"
+    model_id: "gemini-2.5-flash"
+    display_name: "Gemini 2.5 Flash"
+    knowledge_cutoff_date: "2025-01-01"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.15
+      usd_per1m_output_tokens: 0.60
+
+  # Gemini 2.5 Flash Lite - Cost-effective high-throughput model
+  - name: "gemini_25_flash_lite"
+    model_id: "gemini-2.5-flash-lite"
+    display_name: "Gemini 2.5 Flash Lite"
+    knowledge_cutoff_date: "2025-01-01"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.075
+      usd_per1m_output_tokens: 0.30
+
+  # ========================================
+  # GEMINI 2.0 FAMILY (Previous Generation)
+  # ========================================
+
+  # Gemini 2.0 Flash - Fast and efficient
+  - name: "gemini_20_flash"
+    model_id: "gemini-2.0-flash"
+    display_name: "Gemini 2.0 Flash"
+    knowledge_cutoff_date: "2024-08-01"
+    max_output_tokens: 8192
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.40
+
+  # Gemini 2.0 Flash Lite - Lightweight version
+  - name: "gemini_20_flash_lite"
+    model_id: "gemini-2.0-flash-lite"
+    display_name: "Gemini 2.0 Flash Lite"
+    knowledge_cutoff_date: "2024-08-01"
+    max_output_tokens: 8192
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.075
+      usd_per1m_output_tokens: 0.30
+

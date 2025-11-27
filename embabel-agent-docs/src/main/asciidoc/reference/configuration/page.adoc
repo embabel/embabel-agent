@@ -301,6 +301,56 @@ From `AgentPlatformProperties.ModelsConfig` - model provider integration configu
 
 |===
 
+====== Google GenAI (Native)
+
+Uses the native Google GenAI SDK (`spring-ai-google-genai`) for direct access to Gemini models with full feature support.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.models.googlegenai.max-attempts`
+|Int
+|`10`
+|Maximum retry attempts
+
+|`embabel.agent.platform.models.googlegenai.backoff-millis`
+|Long
+|`5000`
+|Initial backoff time in milliseconds
+
+|`embabel.agent.platform.models.googlegenai.backoff-multiplier`
+|Double
+|`5.0`
+|Backoff multiplier
+
+|`embabel.agent.platform.models.googlegenai.backoff-max-interval`
+|Long
+|`180000`
+|Maximum backoff interval in milliseconds
+
+|===
+
+Google GenAI models are configured via the `embabel-agent-starter-google-genai` starter dependency.
+The following environment variables control authentication:
+
+[cols="2,4",options="header"]
+|===
+|Environment Variable |Description
+
+|`GOOGLE_API_KEY`
+|API key for Google AI Studio authentication
+
+|`GOOGLE_PROJECT_ID`
+|Google Cloud project ID (for Vertex AI authentication)
+
+|`GOOGLE_LOCATION`
+|Google Cloud region, e.g., `us-central1` (for Vertex AI authentication)
+
+|===
+
+NOTE: Either `GOOGLE_API_KEY` or both `GOOGLE_PROJECT_ID` and `GOOGLE_LOCATION` must be set.
+
 ===== Server-Sent Events
 
 From `AgentPlatformProperties.SseConfig` - server-sent events configuration.

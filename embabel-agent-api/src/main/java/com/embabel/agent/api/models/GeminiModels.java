@@ -26,20 +26,18 @@ public final class GeminiModels {
     }
 
     // Gemini 3.0 Family (Latest)
-    public static final String GEMINI_3_PRO = "gemini-3-pro";
+    public static final String GEMINI_3_PRO = "gemini-3-pro-preview";
 
     // Gemini 2.5 Family (Current Generation)
     public static final String GEMINI_2_5_PRO = "gemini-2.5-pro";
     public static final String GEMINI_2_5_FLASH = "gemini-2.5-flash";
     public static final String GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite";
 
-    // Gemini 2.0 Family (Previous Generation)
-    public static final String GEMINI_2_0_FLASH_EXP = "gemini-2.0-flash-exp";
 
-    // Gemini 1.5 Family (Legacy)
-    public static final String GEMINI_1_5_PRO = "gemini-1.5-pro";
-    public static final String GEMINI_1_5_FLASH = "gemini-1.5-flash";
-    public static final String GEMINI_1_5_FLASH_8B = "gemini-1.5-flash-8b";
+    // Gemini 2.0 Family (Previous Generation)
+    public static final String GEMINI_2_0_FLASH = "gemini-2.0-flash";
+    public static final String GEMINI_2_0_FLASH_LITE = "gemini-2.0-flash-lite";
+
 
     public static final String PROVIDER = "Google";
 

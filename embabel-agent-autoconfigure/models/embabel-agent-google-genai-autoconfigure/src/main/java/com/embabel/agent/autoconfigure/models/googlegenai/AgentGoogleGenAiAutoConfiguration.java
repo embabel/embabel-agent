@@ -1,0 +1,39 @@
+/*
+ * Copyright 2024-2025 Embabel Software, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.autoconfigure.models.googlegenai;
+
+import com.embabel.agent.config.models.googlegenai.GoogleGenAiModelsConfig;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.context.annotation.Import;
+
+/**
+ * Autoconfiguration for Google GenAI (Gemini) models in the Embabel Agent system.
+ * <p>
+ * This class serves as a Spring Boot autoconfiguration entry point that:
+ * - Imports the {@link GoogleGenAiModelsConfig} configuration to register Google GenAI model beans
+ * <p>
+ * The configuration is automatically activated when the Google GenAI models
+ * dependencies are present on the classpath.
+ * <p>
+ * Uses native Spring AI Google GenAI support (spring-ai-google-genai) instead of
+ * OpenAI-compatible endpoints.
+ */
+@AutoConfiguration
+@AutoConfigureBefore(name = {"com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration"})
+@Import(GoogleGenAiModelsConfig.class)
+public class AgentGoogleGenAiAutoConfiguration {
+}

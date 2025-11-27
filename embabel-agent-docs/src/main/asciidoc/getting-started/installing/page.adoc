@@ -210,9 +210,73 @@ GEMINI_API_KEY=your_gemini_api_key_here
 * Optional:
 - `DEEPSEEK_BASE_URL`: base URL for DeepSeek API (default: `https://api.deepseek.com`)
 
-===== Google Gemini
+===== Google Gemini (OpenAI Compatible)
+
+Uses the OpenAI-compatible endpoint for Gemini models.
 
 * Required:
 - `GEMINI_API_KEY`: API key for Google Gemini services
 * Optional:
 - `GEMINI_BASE_URL`: base URL for Gemini API (default: `https://generativelanguage.googleapis.com`)
+
+===== Google GenAI (Native)
+
+Uses the native Google GenAI SDK for direct access to Gemini models with full feature support including thinking mode.
+
+* Required (API Key authentication):
+- `GOOGLE_API_KEY`: API key for Google AI Studio
+
+* Required (Vertex AI authentication - alternative to API key):
+- `GOOGLE_PROJECT_ID`: Google Cloud project ID
+- `GOOGLE_LOCATION`: Google Cloud region (e.g., `us-central1`)
+
+NOTE: Use API key authentication for Google AI Studio, or Vertex AI authentication for Google Cloud deployments.
+Vertex AI authentication requires Application Default Credentials (ADC) to be configured.
+
+To add Google GenAI support to your project:
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-google-genai</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+
+Available models include:
+
+* `gemini-3-pro-preview` - Latest Gemini 3 Pro preview with advanced reasoning
+* `gemini-2.5-pro` - High-performance model with thinking support
+* `gemini-2.5-flash` - Best price-performance model
+* `gemini-2.5-flash-lite` - Cost-effective high-throughput model
+* `gemini-2.0-flash` - Fast and efficient
+* `gemini-2.0-flash-lite` - Lightweight version
+
+Example configuration in `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: gemini-2.5-flash  # <1>
+    llms:
+      fast: gemini-2.5-flash
+      best: gemini-2.5-pro
+      reasoning: gemini-3-pro-preview
+
+  agent:
+    platform:
+      models:
+        googlegenai:  # <2>
+          api-key: ${GOOGLE_API_KEY}  # <3>
+          # Or use Vertex AI authentication:
+          # project-id: ${GOOGLE_PROJECT_ID}
+          # location: ${GOOGLE_LOCATION}
+          max-attempts: 10
+          backoff-millis: 5000
+----
+
+<1> Set a Google GenAI model as the default LLM
+<2> Google GenAI specific configuration
+<3> API key can be set here or via environment variable `GOOGLE_API_KEY`

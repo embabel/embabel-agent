@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models.anthropic
+package com.embabel.agent.config.models.googlegenai
 
 import com.embabel.common.ai.autoconfig.AbstractYamlModelLoader
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadata
@@ -24,80 +24,71 @@ import org.springframework.core.io.ResourceLoader
 import java.time.LocalDate
 
 /**
- * Container for Anthropic model definitions loaded from YAML.
+ * Container for Google GenAI model definitions loaded from YAML.
  *
- * Implements [LlmAutoConfigProvider] to supply Anthropic-specific model metadata
+ * Implements [LlmAutoConfigProvider] to supply Google GenAI-specific model metadata
  * for auto-configuration purposes.
  *
- * @property models list of Anthropic model definitions
+ * @property models list of Google GenAI model definitions
  */
-data class AnthropicModelDefinitions(
-    override val models: List<AnthropicModelDefinition> = emptyList()
-) : LlmAutoConfigProvider<AnthropicModelDefinition>
+data class GoogleGenAiModelDefinitions(
+    override val models: List<GoogleGenAiModelDefinition> = emptyList()
+) : LlmAutoConfigProvider<GoogleGenAiModelDefinition>
 
 /**
- * Anthropic-specific model definition.
+ * Google GenAI-specific model definition.
  *
- * Implements [LlmAutoConfigMetadata] with Anthropic-specific features
- * like thinking mode and custom parameter defaults.
+ * Implements [LlmAutoConfigMetadata] with Google GenAI-specific features
+ * like thinking budget and custom parameter defaults.
  *
  * @property name the unique name of the model
- * @property modelId the Anthropic API model identifier
+ * @property modelId the Google GenAI API model identifier
  * @property displayName optional human-readable name
  * @property knowledgeCutoffDate optional knowledge cutoff date
  * @property pricingModel optional per-token pricing information
- * @property maxTokens maximum tokens for completion (default 8192)
- * @property temperature sampling temperature (default 1.0)
+ * @property maxOutputTokens maximum tokens for completion (default 8192)
+ * @property temperature sampling temperature (default 0.7)
  * @property topP nucleus sampling parameter
  * @property topK top-k sampling parameter
- * @property thinking optional thinking mode configuration
+ * @property thinkingBudget optional thinking process token allocation
  */
-data class AnthropicModelDefinition(
+data class GoogleGenAiModelDefinition(
     override val name: String,
     override val modelId: String,
     override val displayName: String? = null,
     override val knowledgeCutoffDate: LocalDate? = null,
     override val pricingModel: PerTokenPricingModel? = null,
-    val maxTokens: Int = 8192,
-    val temperature: Double = 1.0,
+    val maxOutputTokens: Int = 8192,
+    val temperature: Double = 0.7,
     val topP: Double? = null,
     val topK: Int? = null,
-    val thinking: ThinkingConfiguration? = null,
+    val thinkingBudget: Int? = null,
 ) : LlmAutoConfigMetadata
 
 /**
- * Configuration for Anthropic's extended thinking mode.
- *(in the futur for Gemini 3.0 we will add thinking level when Spring AI will support this feature)
- * @property tokenBudget maximum tokens allocated for thinking
- */
-data class ThinkingConfiguration(
-    val tokenBudget: Int? = null
-)
-
-/**
- * Loader for Anthropic model definitions from YAML configuration.
+ * Loader for Google GenAI model definitions from YAML configuration.
  *
- * Reads model metadata from the configured resource path (default: `classpath:models/anthropic-models.yml`)
- * and deserializes it into [AnthropicModelDefinitions]. Validates loaded models to ensure data integrity.
+ * Reads model metadata from the configured resource path (default: `classpath:models/google-genai-models.yml`)
+ * and deserializes it into [GoogleGenAiModelDefinitions]. Validates loaded models to ensure data integrity.
  *
  * @property resourceLoader Spring resource loader for accessing classpath resources
  * @property configPath path to the YAML configuration file
  */
-class AnthropicModelLoader(
+class GoogleGenAiModelLoader(
     resourceLoader: ResourceLoader = DefaultResourceLoader(),
     configPath: String = DEFAULT_CONFIG_PATH
-) : AbstractYamlModelLoader<AnthropicModelDefinitions>(resourceLoader, configPath) {
+) : AbstractYamlModelLoader<GoogleGenAiModelDefinitions>(resourceLoader, configPath) {
 
-    override fun getProviderClass() = AnthropicModelDefinitions::class
+    override fun getProviderClass() = GoogleGenAiModelDefinitions::class
 
-    override fun createEmptyProvider() = AnthropicModelDefinitions()
+    override fun createEmptyProvider() = GoogleGenAiModelDefinitions()
 
-    override fun getProviderName() = "Anthropic"
+    override fun getProviderName() = "GoogleGenAI"
 
-    override fun validateModels(provider: AnthropicModelDefinitions) {
+    override fun validateModels(provider: GoogleGenAiModelDefinitions) {
         provider.models.forEach { model ->
             validateCommonFields(model)
-            require(model.maxTokens > 0) { "Max tokens must be positive for model ${model.name}" }
+            require(model.maxOutputTokens > 0) { "Max output tokens must be positive for model ${model.name}" }
             require(model.temperature in 0.0..2.0) {
                 "Temperature must be between 0 and 2 for model ${model.name}"
             }
@@ -107,16 +98,16 @@ class AnthropicModelLoader(
             model.topK?.let {
                 require(it > 0) { "Top K must be positive for model ${model.name}" }
             }
-            model.thinking?.tokenBudget?.let {
-                require(it > 0) { "Thinking token budget must be positive for model ${model.name}" }
+            model.thinkingBudget?.let {
+                require(it > 0) { "Thinking budget must be positive for model ${model.name}" }
             }
         }
     }
 
     companion object {
         /**
-         * Default path to the Anthropic models YAML configuration file.
+         * Default path to the Google GenAI models YAML configuration file.
          */
-        private const val DEFAULT_CONFIG_PATH = "classpath:models/anthropic-models.yml"
+        private const val DEFAULT_CONFIG_PATH = "classpath:models/google-genai-models.yml"
     }
 }
