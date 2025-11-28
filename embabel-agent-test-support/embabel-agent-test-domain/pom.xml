@@ -6,10 +6,10 @@
         <artifactId>embabel-agent-test-support</artifactId>
         <version>0.3.1-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-test-internal</artifactId>
+    <artifactId>embabel-agent-test-domain</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent Internal Test Framework</name>
-    <description>Test Support Framework internal Modules</description>
+    <name>Embabel Agent Test Domain Types</name>
+    <description>Embabel Agent Test Domain Types</description>
     <url>https://github.com/embabel/embabel-agent</url>
 
     <scm>
@@ -20,20 +20,24 @@
     </scm>
 
     <dependencies>
-        <!-- Main Dependencies -->
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-api</artifactId>
+            <artifactId>embabel-agent-domain</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test</artifactId>
+            <groupId>com.embabel.common</groupId>
+            <artifactId>embabel-common-core</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test-domain</artifactId>
+            <groupId>com.embabel.common</groupId>
+            <artifactId>embabel-common-util</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.common</groupId>
+            <artifactId>embabel-common-ai</artifactId>
         </dependency>
     </dependencies> 
 

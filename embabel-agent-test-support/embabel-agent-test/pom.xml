@@ -19,5 +19,12 @@
         <tag>HEAD</tag>
     </scm>
 
+    <dependencies>
+        <!-- Main Dependencies -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-api</artifactId>
+        </dependency>
+    </dependencies>
 
 </project>
