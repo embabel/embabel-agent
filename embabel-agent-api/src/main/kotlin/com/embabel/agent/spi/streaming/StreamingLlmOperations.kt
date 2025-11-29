@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.spi.streaming
 
+import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.event.LlmRequestEvent
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage

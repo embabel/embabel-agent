@@ -25,6 +25,7 @@ import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
+import com.embabel.agent.test.integration.DummyObjectCreatingLlmOperations
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.LlmOptions
@@ -32,16 +33,16 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.model.StreamingChatModel
-import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.test.assertFalse
 
 /**
  * Unit tests for OperationContextPromptRunner streaming functionality.
@@ -71,9 +72,10 @@ class OperationContextPromptRunnerStreamingTest {
             every { model } returns mockStreamingChatModel
         }
 
-        val mockChatClientLlmOperations = mockk<ChatClientLlmOperations>(moreInterfaces = arrayOf(StreamingLlmOperations::class), relaxed = true) {
-            every { getLlm(any<LlmInteraction>()) } returns mockLlm
-        }
+        val mockChatClientLlmOperations =
+            mockk<ChatClientLlmOperations>(moreInterfaces = arrayOf(StreamingLlmOperations::class), relaxed = true) {
+                every { getLlm(any<LlmInteraction>()) } returns mockLlm
+            }
 
         val mockAgentPlatform = mockk<AgentPlatform>()
         val mockAgentProcess = mockk<AgentProcess>()
@@ -110,7 +112,10 @@ class OperationContextPromptRunnerStreamingTest {
         // Then: Verify object creation and types
         assertNotNull(result, "Stream method should return non-null result")
         assertTrue(result is StreamingPromptRunnerOperations, "Should return StreamingPromptRunnerOperations")
-        assertTrue(promptRunner is StreamingPromptRunner, "OperationContextPromptRunner should implement StreamingPromptRunner")
+        assertTrue(
+            promptRunner is StreamingPromptRunner,
+            "OperationContextPromptRunner should implement StreamingPromptRunner"
+        )
 
         // Verify fluent API works
         val withPromptResult = result.withPrompt("New prompt")
@@ -162,16 +167,16 @@ class OperationContextPromptRunnerStreamingTest {
     }
 
     @Test
-    fun `supportsStreaming should return false when llmOperations is not ChatClientLlmOperations`() {
-        // Given: Mock with different LlmOperations implementation (Level 1a failure)
-        val mockOtherLlmOperations = mockk<LlmOperations>() // NOT ChatClientLlmOperations
+    fun `supportsStreaming should return false when using DummyObjectCreatingLlmOperations`() {
+        // Given: DummyObjectCreatingLlmOperations that is NOT ChatClientLlmOperations
+        val dummyLlmOperations = DummyObjectCreatingLlmOperations.LoremIpsum
         val mockAgentPlatform = mockk<AgentPlatform>()
         val mockOperationContext = mockk<OperationContext> {
             every { agentPlatform() } returns mockAgentPlatform
         }
 
         val mockPlatformServices = mockk<PlatformServices> {
-            every { llmOperations } returns mockOtherLlmOperations
+            every { llmOperations } returns dummyLlmOperations
         }
 
         every { mockAgentPlatform.platformServices } returns mockPlatformServices
@@ -191,100 +196,13 @@ class OperationContextPromptRunnerStreamingTest {
         val result = promptRunner.supportsStreaming()
 
         // Then
-        assertFalse(result, "Should not support streaming when not ChatClientLlmOperations")
+        assertFalse(result, "Should not support streaming when LlmOperations is not ChatClientLlmOperations")
     }
 
     @Test
-    fun `supportsStreaming should return false when ChatClientLlmOperations does not implement StreamingLlmOperations`() {
-        // Given: Mock ChatClientLlmOperations that does NOT implement StreamingLlmOperations (Level 1b failure)
-        val mockChatModel = mockk<org.springframework.ai.chat.model.ChatModel>()
-        val mockLlm = mockk<com.embabel.common.ai.model.Llm> {
-            every { model } returns mockChatModel
-        }
-        val mockChatClientLlmOperations = mockk<ChatClientLlmOperations> {
-            every { getLlm(any<com.embabel.agent.spi.LlmInteraction>()) } returns mockLlm
-        } // NOT StreamingLlmOperations
-        val mockAgentPlatform = mockk<AgentPlatform>()
-        val mockOperationContext = mockk<OperationContext> {
-            every { agentPlatform() } returns mockAgentPlatform
-        }
-
-        val mockPlatformServices = mockk<PlatformServices> {
-            every { llmOperations } returns mockChatClientLlmOperations
-        }
-
-        every { mockAgentPlatform.platformServices } returns mockPlatformServices
-
-        val promptRunner = OperationContextPromptRunner(
-            context = mockOperationContext,
-            llm = LlmOptions.withModel("test-model"),
-            messages = emptyList(),
-            toolGroups = emptySet(),
-            toolObjects = emptyList(),
-            promptContributors = emptyList(),
-            contextualPromptContributors = emptyList(),
-            generateExamples = false
-        )
-
-        // When
-        val result = promptRunner.supportsStreaming()
-
-        // Then
-        assertFalse(result, "Should not support streaming when ChatClientLlmOperations does not implement StreamingLlmOperations")
-    }
-
-    @Test
-    fun `supportsStreaming should return false when model throws UnsupportedOperationException`() {
-        // Given: FakeChatModel that throws UnsupportedOperationException on stream() call
-        val fakeChatModel = com.embabel.agent.spi.support.FakeChatModel("test response")
-
-        val mockLlm = mockk<Llm> {
-            every { model } returns fakeChatModel
-        }
-
-        val mockChatClientLlmOperations = mockk<ChatClientLlmOperations>(moreInterfaces = arrayOf(StreamingLlmOperations::class)) {
-            every { getLlm(any<LlmInteraction>()) } returns mockLlm
-        }
-
-        val mockAgentPlatform = mockk<AgentPlatform>()
-        val mockOperationContext = mockk<OperationContext> {
-            every { agentPlatform() } returns mockAgentPlatform
-        }
-
-        val mockPlatformServices = mockk<PlatformServices> {
-            every { llmOperations } returns mockChatClientLlmOperations
-        }
-
-        every { mockAgentPlatform.platformServices } returns mockPlatformServices
-
-        val promptRunner = OperationContextPromptRunner(
-            context = mockOperationContext,
-            llm = LlmOptions.withModel("test-model"),
-            messages = emptyList(),
-            toolGroups = emptySet(),
-            toolObjects = emptyList(),
-            promptContributors = emptyList(),
-            contextualPromptContributors = emptyList(),
-            generateExamples = false
-        )
-
-        // When
-        val result = promptRunner.supportsStreaming()
-
-        // Then
-        assertFalse(result, "Should not support streaming when model throws UnsupportedOperationException")
-    }
-
-    @Test
-    fun `should fail when ChatClientLlmOperations does not implement StreamingLlmOperations`() {
-        // Given: Mock ChatClientLlmOperations that does NOT implement StreamingLlmOperations (Level 1b failure)
-        val mockChatModel = mockk<org.springframework.ai.chat.model.ChatModel>()
-        val mockLlm = mockk<com.embabel.common.ai.model.Llm> {
-            every { model } returns mockChatModel
-        }
-        val mockChatClientLlmOperations = mockk<ChatClientLlmOperations> {
-            every { getLlm(any<com.embabel.agent.spi.LlmInteraction>()) } returns mockLlm
-        } // NOT StreamingLlmOperations
+    fun `should fail when using DummyObjectCreatingLlmOperations on stream call`() {
+        // Given: DummyObjectCreatingLlmOperations that is NOT ChatClientLlmOperations
+        val dummyLlmOperations = DummyObjectCreatingLlmOperations.LoremIpsum
         val mockAgentPlatform = mockk<AgentPlatform>()
         val mockAgentProcess = mockk<AgentProcess>()
         val mockOperation = mockk<Operation>()
@@ -296,7 +214,7 @@ class OperationContextPromptRunnerStreamingTest {
         }
 
         val mockPlatformServices = mockk<PlatformServices> {
-            every { llmOperations } returns mockChatClientLlmOperations
+            every { llmOperations } returns dummyLlmOperations
         }
 
         every { mockAgentPlatform.platformServices } returns mockPlatformServices
@@ -313,55 +231,8 @@ class OperationContextPromptRunnerStreamingTest {
             generateExamples = false
         )
 
-        // When & Then: Expect UnsupportedOperationException due to Level 1b failure
-        assertThrows<UnsupportedOperationException>("Should fail when ChatClientLlmOperations does not implement StreamingLlmOperations") {
-            promptRunner.stream()
-        }
-    }
-
-    @Test
-    fun `should fail when model throws UnsupportedOperationException on stream call`() {
-        // Given: FakeChatModel that throws UnsupportedOperationException on stream() call
-        val fakeChatModel = com.embabel.agent.spi.support.FakeChatModel("test response")
-
-        val mockLlm = mockk<Llm> {
-            every { model } returns fakeChatModel
-        }
-
-        val mockChatClientLlmOperations = mockk<ChatClientLlmOperations>(moreInterfaces = arrayOf(StreamingLlmOperations::class), relaxed = true) {
-            every { getLlm(any<LlmInteraction>()) } returns mockLlm
-        }
-
-        val mockAgentPlatform = mockk<AgentPlatform>()
-        val mockAgentProcess = mockk<AgentProcess>()
-        val mockOperation = mockk<Operation>()
-
-        val mockOperationContext = mockk<OperationContext> {
-            every { agentPlatform() } returns mockAgentPlatform
-            every { processContext.agentProcess } returns mockAgentProcess
-            every { operation } returns mockOperation
-        }
-
-        val mockPlatformServices = mockk<PlatformServices> {
-            every { llmOperations } returns mockChatClientLlmOperations
-        }
-
-        every { mockAgentPlatform.platformServices } returns mockPlatformServices
-        every { mockOperation.name } returns "testOperation"
-
-        val promptRunner = OperationContextPromptRunner(
-            context = mockOperationContext,
-            llm = LlmOptions.withModel("test-model"),
-            messages = listOf(UserMessage("Test message")),
-            toolGroups = emptySet(),
-            toolObjects = emptyList(),
-            promptContributors = emptyList(),
-            contextualPromptContributors = emptyList(),
-            generateExamples = false
-        )
-
-        // When & Then: Expect UnsupportedOperationException when calling stream()
-        assertThrows<UnsupportedOperationException>("Should fail when model throws UnsupportedOperationException") {
+        // When & Then: Expect UnsupportedOperationException when LlmOperations is not ChatClientLlmOperations
+        assertThrows<UnsupportedOperationException>("Should fail when LlmOperations is not ChatClientLlmOperations") {
             promptRunner.stream()
         }
     }

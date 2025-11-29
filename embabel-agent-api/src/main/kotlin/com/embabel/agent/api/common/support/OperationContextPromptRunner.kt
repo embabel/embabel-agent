@@ -59,7 +59,7 @@ internal data class OperationContextPromptRunner(
     override val generateExamples: Boolean?,
     override val propertyFilter: Predicate<String> = Predicate { true },
     private val otherToolCallbacks: List<ToolCallback> = emptyList(),
-) : PromptRunner {
+) : StreamingPromptRunner {
 
     val action = (context as? ActionContext)?.action
 
@@ -246,6 +246,57 @@ internal data class OperationContextPromptRunner(
             promptRunner = this,
             outputClass = outputClass,
             objectMapper = context.agentPlatform().platformServices.objectMapper,
+        )
+    }
+
+    /**
+     * Check if streaming is supported by the underlying LLM model.
+     * Performs three-level capability detection:
+     * 1. Must be ChatClientLlmOperations for Spring AI integration
+     * 2. Must have StreamingChatModel
+     */
+    override fun supportsStreaming(): Boolean {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+
+        // Level 1: Must be ChatClientLlmOperations for Spring AI integration
+        if (llmOperations !is ChatClientLlmOperations) return false
+
+        // Level 2: Must have actual streaming capability
+        val llm = llmOperations.getLlm(LlmInteraction(
+            id = InteractionId("capability-check"),
+            llm = this.llm
+        ))
+
+        return StreamingCapabilityDetector.supportsStreaming(llm.model)
+    }
+
+    override fun stream(): StreamingPromptRunnerOperations {
+        if (!supportsStreaming()) {
+            throw UnsupportedOperationException(
+                "Streaming not supported by underlying LLM model. " +
+                "Model type: ${context.agentPlatform().platformServices.llmOperations::class.simpleName}. " +
+                "Check supportsStreaming() before calling stream()."
+            )
+        }
+
+        return StreamingPromptRunnerOperationsImpl(
+            streamingLlmOperations = StreamingChatClientOperations(
+                context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
+            ),
+            interaction = LlmInteraction(
+                llm = llm,
+                toolGroups = toolGroups,
+                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
+                promptContributors = promptContributors + contextualPromptContributors.map {
+                    it.toPromptContributor(context)
+                },
+                id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
+                generateExamples = generateExamples,
+                propertyFilter = propertyFilter,
+            ),
+            messages = messages,
+            agentProcess = context.processContext.agentProcess,
+            action = action,
         )
     }
 }
