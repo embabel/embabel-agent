@@ -49,6 +49,7 @@ object StreamingCapabilityDetector {
      */
     fun supportsStreaming(model: ChatModel): Boolean {
         // Cache by model class to avoid repeated tests
+        //return true
         return capabilityCache.computeIfAbsent(model.javaClass) {
             logger.debug(CACHE_MISS_LOG_MESSAGE, model.javaClass.simpleName)
             testStreamingCapability(model)
@@ -63,6 +64,7 @@ object StreamingCapabilityDetector {
 
             // Test if stream can be consumed without errors
             canConsumeStream(stream)
+            true
 
         } catch (e: UnsupportedOperationException) {
             false
@@ -75,11 +77,11 @@ object StreamingCapabilityDetector {
         return try {
             // Test if we can check stream elements without consuming
             stream.hasElements()
-                .timeout(Duration.ofMillis(100))
+                .timeout(Duration.ofMillis(100)) // configure
                 .block()
 
             // If we get here without exceptions, streaming capability exists
-            // (Don't care about the actual result - null, true, or false are all fine)
+
             true
 
         } catch (e: Exception) {
