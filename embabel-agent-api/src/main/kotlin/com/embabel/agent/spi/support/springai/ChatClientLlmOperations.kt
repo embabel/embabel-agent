@@ -79,7 +79,7 @@ internal class ChatClientLlmOperations(
     private val llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
-    private val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+    internal val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
@@ -388,9 +388,14 @@ internal class ChatClientLlmOperations(
     }
 
     /**
+     * Expose LLM selection for streaming operations
+     */
+    internal fun getLlm(interaction: LlmInteraction): Llm = chooseLlm(interaction.llm)
+
+    /**
      * Create a chat client for the given Embabel Llm definition
-     **/
-    private fun createChatClient(llm: Llm): ChatClient {
+     */
+    internal fun createChatClient(llm: Llm): ChatClient {
         return ChatClient
             .builder(
                 llm.model, observationRegistry, DefaultChatClientObservationConvention(),
@@ -405,6 +410,7 @@ internal class ChatClientLlmOperations(
         }
         return llmCall.generateExamples == true
     }
+
 }
 
 /**

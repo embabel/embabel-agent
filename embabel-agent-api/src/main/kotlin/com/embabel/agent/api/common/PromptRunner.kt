@@ -28,6 +28,7 @@ import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
+import com.embabel.common.core.streaming.StreamingCapability
 import com.embabel.common.util.loggerFor
 import org.jetbrains.annotations.ApiStatus
 import java.util.function.Predicate
@@ -337,6 +338,31 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * Allows setting strongly typed examples.
      */
     fun <T> creating(outputClass: Class<T>): ObjectCreator<T>
+
+    /**
+     * Check if true reactive streaming is supported by the underlying LLM model.
+     * Always check this before calling stream() to avoid exceptions.
+     *
+     * @return true if real-time streaming is supported, false if streaming is not available
+     */
+    fun supportsStreaming(): Boolean = false
+
+    /**
+     * Create streaming operations for this prompt runner configuration.
+     *
+     * This follows an explicit failure policy - if streaming is not supported by the
+     * underlying LLM implementation, this method will throw an exception rather than
+     * providing fallback behavior. Always check supportsStreaming() first for safe usage.
+     *
+     * @return StreamingCapability instance providing access to streaming operations
+     * @throws UnsupportedOperationException if streaming is not supported by this implementation
+     */
+    fun stream(): StreamingCapability {
+        throw UnsupportedOperationException(
+            "Streaming not supported by this PromptRunner implementation. " +
+            "Check supportsStreaming() before calling stream()."
+        )
+    }
 
     override fun respond(
         messages: List<Message>,
