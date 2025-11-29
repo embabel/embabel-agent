@@ -629,8 +629,15 @@ Be sure to activate the following MCP tools from the catalog:
 > You can also set up your own MCP tools using Spring AI conventions. See the `application-docker-desktop.yml` file for
 > an example.
 
-If you're running Ollama locally, set the `ollama` profile and Embabel will automatically connect to your Ollama
+If you're running Ollama locally, include the `embabel ollama starter` and Embabel will automatically connect to your Ollama
 endpoint and make all models available.
+
+```xml
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-ollama</artifactId>
+</dependency>
+```
 
 ### Running
 
@@ -698,9 +705,9 @@ x "fact check the following: holden cars are still made in australia; the koel i
 
 The Embabel Agent Framework supports local models from:
 
-- Ollama: Simply set the `ollama` profile and your local Ollama endpoint will be queries. All local models will be
+- Ollama: Simply add `embabel-agent-starter-ollama` starter to your pom.xml and your local Ollama endpoint will be queries. All local models will be
   available.
-- Docker: Set the `docker` profile and your local Docker endpoint will be queried. All local models will be available.
+- Docker: Add the `embabel-agent-starter-dockermodels` starter to your pom.xml and your local Docker endpoint will be queried. All local models will be available.
 - LMStudio: This uses the openAI compatible client. Just include LMStudio as a dependency and make sure your LMStudio server is running.
 
 #### Custom LLMs
@@ -906,16 +913,9 @@ but will not require an internet connection or any external services.
 
 Spring profiles are used to configure the application for different environments and behaviors.
 
-Interaction profiles:
-
-- `shell`: Runs agent in interactive shell. Does not start web process.
-
 Model profiles:
 
-- `ollama`: Looks for Ollama models. You will need to have Ollama installed locally and the relevant models pulled.
-- `docker-desktop`: Looks for Docker-managed local models when running outside Docker but talking to Docker Desktop with
-  the MCP extension. **This is recommended for the best experience, with Docker-provided web tools.**
-- `docker`: Looks for Docker-managed local models when running in a Docker container.
+- `docker-desktop`: Talking to Docker Desktop with the MCP extension. **This is recommended for the best experience, with Docker-provided web tools.**
 
 Logging profiles:
 
