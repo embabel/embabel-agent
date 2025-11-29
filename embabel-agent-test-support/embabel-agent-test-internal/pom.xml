@@ -20,9 +20,20 @@
     </scm>
 
     <dependencies>
+        <!-- Main Dependencies -->
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-api</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-test-domain</artifactId>
         </dependency>
     </dependencies> 
 

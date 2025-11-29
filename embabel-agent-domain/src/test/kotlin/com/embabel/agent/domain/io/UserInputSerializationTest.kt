@@ -16,8 +16,8 @@
 package com.embabel.agent.domain.io
 
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.Test
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import kotlin.test.assertEquals
 
 class UserInputSerializationTest {

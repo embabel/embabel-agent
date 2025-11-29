@@ -17,6 +17,7 @@ package com.embabel.agent.api.dsl
 
 
 import com.embabel.agent.api.common.*
+import com.embabel.agent.api.common.scope.AgentScopeBuilder
 import com.embabel.agent.api.common.support.*
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.Rerun
@@ -26,7 +27,7 @@ import java.util.function.Function as JavaFunction
 
 inline fun <reified A, reified B : Any> doSplit(
     noinline splitter: (InputActionContext<A>) -> List<B>,
-): AgentScopeBuilder<Unit> = doSplit(
+): TypedAgentScopeBuilder<Unit> = doSplit(
     splitter = splitter,
     aClass = A::class.java,
     bClass = B::class.java,
@@ -36,7 +37,7 @@ fun <A, B : Any> doSplit(
     splitter: (InputActionContext<A>) -> List<B>,
     aClass: Class<A>,
     bClass: Class<B>,
-): AgentScopeBuilder<Unit> {
+): TypedAgentScopeBuilder<Unit> {
     val a = ConsumerAction(
         name = "${aClass.name}-<=${bClass.name}",
         description = "${aClass.name}-<=${bClass.name}",
@@ -51,7 +52,7 @@ fun <A, B : Any> doSplit(
         val list = splitter(it)
         it.addAll(list)
     }
-    return AgentScopeBuilder(
+    return TypedAgentScopeBuilder(
         name = a.name,
         actions = listOf(a),
     )
@@ -59,11 +60,11 @@ fun <A, B : Any> doSplit(
 
 inline fun <reified A, reified B : Any> split(
     noinline splitter: (a: A) -> List<B>,
-): AgentScopeBuilder<Unit> = doSplit({ splitter(it.input) }, A::class.java, B::class.java)
+): TypedAgentScopeBuilder<Unit> = doSplit({ splitter(it.input) }, A::class.java, B::class.java)
 
 inline infix fun <reified A, reified B, reified C> ((A) -> B).andThenDo(
     crossinline that: (InputActionContext<B>) -> C,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     val javaFunction1 = JavaFunction<InputActionContext<A>, B> { ctx -> this(ctx.input) }
     val javaFunction2 = JavaFunction<InputActionContext<B>, C> { ctx -> that(ctx) }
 
@@ -78,7 +79,7 @@ inline infix fun <reified A, reified B, reified C> ((A) -> B).andThenDo(
 
 inline infix fun <reified A, reified B, reified C> ((A) -> B).andThen(
     crossinline that: (B) -> C,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     val javaFunction1 = JavaFunction<InputActionContext<A>, B> { ctx -> this(ctx.input) }
     val javaFunction2 = JavaFunction<InputActionContext<B>, C> { ctx -> that(ctx.input) }
 
@@ -94,13 +95,13 @@ inline infix fun <reified A, reified B, reified C> ((A) -> B).andThen(
 
 inline fun <reified A, reified B, reified C> JavaFunction<InputActionContext<A>, B>.javaAndThen(
     that: JavaFunction<InputActionContext<B>, C>,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     return chain({ this.apply(it) }, { that.apply(it) }, A::class.java, B::class.java, C::class.java)
 }
 
 inline fun <reified A, reified B, reified C> JavaFunction<A, B>.andThen(
     that: JavaFunction<InputActionContext<B>, C>,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     return chain({ this.apply(it.input) }, { that.apply(it) }, A::class.java, B::class.java, C::class.java)
 }
 
@@ -109,7 +110,7 @@ fun <A, B, C> JavaFunction<InputActionContext<A>, B>.andThen(
     aClass: Class<A>,
     bClass: Class<B>,
     cClass: Class<C>,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     return chain({ this.apply(it) }, { that.apply(it) }, aClass, bClass, cClass)
 }
 
@@ -122,7 +123,7 @@ fun <A, B, C> chain(
     aClass: Class<A>,
     bClass: Class<B>,
     cClass: Class<C>,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     val actions: List<Action> = listOf(
         TransformationAction(
             name = "chain-0",
@@ -148,7 +149,7 @@ fun <A, B, C> chain(
         ) {
             b.invoke(it)
         })
-    return AgentScopeBuilder(
+    return TypedAgentScopeBuilder(
         name = MobyNameGenerator.generateName(),
         actions = actions,
     )
@@ -164,7 +165,7 @@ fun <A, B, C> branch(
     aClass: Class<A>,
     bClass: Class<B>,
     cClass: Class<C>,
-): AgentScopeBuilder<Branch<B, C>> {
+): TypedAgentScopeBuilder<Branch<B, C>> {
     val branchAction =
         BranchingAction<A, B, C>(
             name = "chain-0",
@@ -179,7 +180,7 @@ fun <A, B, C> branch(
         ) {
             a.invoke(it)
         }
-    return AgentScopeBuilder(
+    return TypedAgentScopeBuilder(
         name = MobyNameGenerator.generateName(),
         actions = listOf(branchAction),
     )
@@ -190,7 +191,7 @@ fun <A, B, C> branch(
  */
 inline fun <reified A, reified B, reified C> branch(
     noinline a: (context: InputActionContext<A>) -> Branch<B, C>,
-): AgentScopeBuilder<Branch<B, C>> {
+): TypedAgentScopeBuilder<Branch<B, C>> {
     return branch(a, A::class.java, B::class.java, C::class.java)
 }
 
@@ -200,7 +201,7 @@ inline fun <reified A, reified B, reified C> branch(
 inline fun <reified A, reified B, reified C> chain(
     noinline a: (context: InputActionContext<A>) -> B,
     noinline b: (context: InputActionContext<B>) -> C,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     return chain(a, b, A::class.java, B::class.java, C::class.java)
 }
 
@@ -211,7 +212,7 @@ fun <A, B, C> aggregate(
     aClass: Class<A>,
     bClass: Class<B>,
     cClass: Class<C>,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     val allCompletedCondition = ComputedBooleanCondition(
         name = "All<${bClass.name}=>${cClass.name}",
         evaluator = { it, condition ->
@@ -249,7 +250,7 @@ fun <A, B, C> aggregate(
         merge(context.objects.filterIsInstance(bClass), context)
     }
     actions += mergeAction
-    return AgentScopeBuilder(
+    return TypedAgentScopeBuilder(
         name = MobyNameGenerator.generateName(),
         actions = actions,
         goals = emptySet(),
@@ -268,7 +269,7 @@ fun <A1, A2, B : Any, C> biAggregate(
     a2Class: Class<A2>,
     bClass: Class<B>,
     cClass: Class<C>,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     val allCompletedCondition = ComputedBooleanCondition(
         name = "List<${bClass.name}>=>${cClass.name}",
         evaluator = { it, condition ->
@@ -314,7 +315,7 @@ fun <A1, A2, B : Any, C> biAggregate(
         merge(cList)
     }
     actions += mergeAction
-    return AgentScopeBuilder(
+    return TypedAgentScopeBuilder(
         name = MobyNameGenerator.generateName(),
         actions = actions,
         goals = emptySet(),
@@ -328,7 +329,7 @@ fun <A1, A2, B : Any, C> biAggregate(
 inline fun <reified A, reified B, reified C> aggregate(
     transforms: List<(context: InputActionContext<A>) -> B>,
     noinline merge: (list: List<B>, context: OperationContext) -> C,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     return aggregate(
         transforms, merge, A::class.java, B::class.java, C::class.java
     )
@@ -349,7 +350,7 @@ data class BiInputActionContext<A1, A2>(
 inline fun <reified A1, reified A2, reified B : Any, reified C> biAggregate(
     transforms: List<(context: BiInputActionContext<A1, A2>) -> B>,
     noinline merge: (list: List<B>) -> C,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     return biAggregate<A1, A2, B, C>(
         transforms,
         merge,
@@ -368,7 +369,7 @@ inline fun <reified A, reified B : Any, reified C> repeatableAggregate(
     startWith: C,
     transforms: List<(context: BiInputActionContext<A, C>) -> B>,
     noinline merge: (list: List<B>) -> C,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     val asb = biAggregate<A, C, B, C>(
         transforms,
         merge,
@@ -397,11 +398,11 @@ inline fun <reified A, reified B : Any, reified C> repeatableAggregate(
 
 
 fun <C> repeat(
-    what: () -> AgentScopeBuilder<C>,
+    what: () -> TypedAgentScopeBuilder<C>,
     // TODO gather this
     until: (c: C, context: OperationContext) -> Boolean,
     cClass: Class<C>,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     val conditionName = "repeat-until-${cClass.name}"
     val untilCondition = ComputedBooleanCondition(
         name = conditionName,
@@ -427,7 +428,7 @@ fun <C> repeat(
     ) {
         TODO()
     }
-    return AgentScopeBuilder(
+    return TypedAgentScopeBuilder(
         name = MobyNameGenerator.generateName(),
         actions = doerScope.actions + completionAction,
         conditions = setOf(untilCondition),
@@ -435,9 +436,9 @@ fun <C> repeat(
 }
 
 inline fun <reified C> repeat(
-    noinline what: () -> AgentScopeBuilder<C>,
+    noinline what: () -> TypedAgentScopeBuilder<C>,
     noinline until: (c: C, context: OperationContext) -> Boolean,
-): AgentScopeBuilder<C> {
+): TypedAgentScopeBuilder<C> {
     return repeat(what, until, C::class.java)
 }
 
@@ -445,15 +446,16 @@ inline fun <reified C> repeat(
  * AgentScopeBuilder that emits actions and can be built on further.
  * @param O the output type of the actions
  */
-data class AgentScopeBuilder<O>(
+data class TypedAgentScopeBuilder<O>(
     val name: String,
     val provider: String = "embabel",
     val actions: List<Action> = emptyList(),
     val goals: Set<Goal> = emptySet(),
     val conditions: Set<Condition> = emptySet(),
     val opaque: Boolean = false,
-) {
-    fun build(): AgentScope {
+) : AgentScopeBuilder {
+
+    override fun build(): AgentScope {
         return AgentScope(
             name = name,
             actions = actions,
@@ -513,12 +515,12 @@ data class AgentScopeBuilder<O>(
 
     inline infix fun <reified F> andThenDo(
         fn: Transformation<O, F>,
-    ): AgentScopeBuilder<F> = andThenDo(fn, F::class.java)
+    ): TypedAgentScopeBuilder<F> = andThenDo(fn, F::class.java)
 
     fun <F> andThenDo(
         fn: Transformation<O, F>,
         fClass: Class<F>,
-    ): AgentScopeBuilder<F> {
+    ): TypedAgentScopeBuilder<F> {
         // TODO is this safe?
         val lastAction = actions.last()
         val extraAction = TransformationAction(
@@ -534,10 +536,10 @@ data class AgentScopeBuilder<O>(
             outputClass = fClass,
             toolGroups = emptySet(),
         ) {
-            loggerFor<AgentScopeBuilder<*>>().info("Running extra action {}", name)
+            loggerFor<TypedAgentScopeBuilder<*>>().info("Running extra action {}", name)
             fn.transform(it as TransformationActionContext<O, F>)
         }
-        return this.copy(actions = this.actions + extraAction) as AgentScopeBuilder<F>
+        return this.copy(actions = this.actions + extraAction) as TypedAgentScopeBuilder<F>
     }
 
     /**
@@ -546,11 +548,11 @@ data class AgentScopeBuilder<O>(
     fun <F> andThen(
         fn: (e: O) -> F,
         fClass: Class<F>,
-    ): AgentScopeBuilder<F> =
+    ): TypedAgentScopeBuilder<F> =
         andThenDo({ fn(it.input) }, fClass)
 
 
-    inline infix fun <reified F> andThen(noinline fn: (e: O) -> F): AgentScopeBuilder<F> {
+    inline infix fun <reified F> andThen(noinline fn: (e: O) -> F): TypedAgentScopeBuilder<F> {
         return andThen(fn, F::class.java)
     }
 }

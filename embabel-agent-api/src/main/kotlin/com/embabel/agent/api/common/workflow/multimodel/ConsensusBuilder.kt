@@ -21,7 +21,7 @@ import com.embabel.agent.api.common.workflow.WorkflowBuilder
 import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
 import com.embabel.agent.api.common.workflow.control.ResultList
 import com.embabel.agent.api.common.workflow.control.ScatterGather
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import java.util.function.Supplier
 
 /**
@@ -83,7 +83,7 @@ class ConsensusBuilder<RESULT : Any>(
         private val consensusFunction: (TransformationActionContext<ResultList<RESULT>, RESULT>) -> RESULT,
     ) : WorkflowBuilder<RESULT>(resultClass, inputClass = null) {
 
-        override fun build(): AgentScopeBuilder<RESULT> {
+        override fun build(): TypedAgentScopeBuilder<RESULT> {
             return ScatterGather(maxConcurrency = maxConcurrency)
                 .forkJoin(
                     generators = generators.map { it::apply } as List<(SupplierActionContext<RESULT>) -> RESULT>,

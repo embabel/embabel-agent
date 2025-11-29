@@ -18,7 +18,7 @@ package com.embabel.agent.api.common.workflow.loop
 import com.embabel.agent.api.common.InputActionContext
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.support.TransformationAction
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.*
 import com.embabel.common.core.MobyNameGenerator
@@ -65,7 +65,7 @@ data class RepeatUntil(
         noinline task: (RepeatUntilActionContext<INPUT, RESULT>) -> RESULT,
         noinline acceptanceCriteria: (RepeatUntilActionContext<INPUT, RESULT>) -> Boolean,
         inputClass: Class<INPUT>,
-    ): AgentScopeBuilder<RESULT> =
+    ): TypedAgentScopeBuilder<RESULT> =
         build(
             task = task,
             accept = acceptanceCriteria,
@@ -79,7 +79,7 @@ data class RepeatUntil(
         accept: (RepeatUntilActionContext<INPUT, RESULT>) -> Boolean,
         resultClass: Class<RESULT>,
         inputClass: Class<out INPUT>,
-    ): AgentScopeBuilder<RESULT> {
+    ): TypedAgentScopeBuilder<RESULT> {
 
         fun findOrBindResultHistory(context: OperationContext): ResultHistory<RESULT> {
             return context.last<ResultHistory<RESULT>>()
@@ -202,7 +202,7 @@ data class RepeatUntil(
         )
         logger.info("Created goal: {}", resultGoal.infoString(verbose = true, indent = 2))
 
-        return AgentScopeBuilder(
+        return TypedAgentScopeBuilder(
             name = MobyNameGenerator.generateName(),
             actions = listOf(
                 taskAction,

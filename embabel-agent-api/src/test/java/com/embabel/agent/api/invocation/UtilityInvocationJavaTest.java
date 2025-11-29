@@ -16,12 +16,12 @@
 package com.embabel.agent.api.invocation;
 
 import com.embabel.agent.api.common.PlannerType;
+import com.embabel.agent.api.common.scope.AgentScopeBuilder;
 import com.embabel.agent.core.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -33,6 +33,7 @@ class UtilityInvocationJavaTest {
 
     private AgentPlatform agentPlatform;
     private AgentScope agentScope;
+    private AgentScopeBuilder agentScopeBuilder;
     private AgentProcess agentProcess;
     private Agent agent;
 
@@ -40,6 +41,7 @@ class UtilityInvocationJavaTest {
     void setUp() {
         agentPlatform = mock(AgentPlatform.class);
         agentScope = mock(AgentScope.class);
+        agentScopeBuilder = mock(AgentScopeBuilder.class);
         agentProcess = mock(AgentProcess.class);
 
         // Create a real Agent instance to avoid mocking data class copy()
@@ -55,6 +57,7 @@ class UtilityInvocationJavaTest {
         );
 
         when(agentPlatform.getName()).thenReturn("test-platform");
+        when(agentScopeBuilder.build()).thenReturn(agentScope);
         when(agentScope.createAgent(anyString(), anyString(), anyString())).thenReturn(agent);
     }
 
@@ -78,7 +81,7 @@ class UtilityInvocationJavaTest {
     void constructorWithAllParameters() {
         var options = ProcessOptions.DEFAULT.withPlannerType(PlannerType.UTILITY);
 
-        var invocation = new UtilityInvocation(agentPlatform, options, agentScope);
+        var invocation = new UtilityInvocation(agentPlatform, options, agentScopeBuilder);
 
         assertNotNull(invocation);
     }
@@ -100,7 +103,7 @@ class UtilityInvocationJavaTest {
     void withScope() {
         var invocation = new UtilityInvocation(agentPlatform);
 
-        var updated = invocation.withScope(agentScope);
+        var updated = invocation.withScope(agentScopeBuilder);
 
         assertNotNull(updated);
         assertNotSame(invocation, updated);
@@ -116,7 +119,7 @@ class UtilityInvocationJavaTest {
         when(agentPlatform.start(agentProcess))
                 .thenReturn(CompletableFuture.completedFuture(agentProcess));
 
-        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScope);
+        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScopeBuilder);
         var input = new TestInput("test");
         var future = invocation.runAsync(input);
 
@@ -140,7 +143,7 @@ class UtilityInvocationJavaTest {
         when(agentPlatform.start(agentProcess))
                 .thenReturn(CompletableFuture.completedFuture(agentProcess));
 
-        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScope);
+        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScopeBuilder);
         var input1 = new TestInput("test1");
         var input2 = new TestInput("test2");
         var future = invocation.runAsync(input1, input2);
@@ -164,7 +167,7 @@ class UtilityInvocationJavaTest {
         when(agentPlatform.start(agentProcess))
                 .thenReturn(CompletableFuture.completedFuture(agentProcess));
 
-        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScope);
+        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScopeBuilder);
         var future = invocation.runAsync(bindings);
 
         assertNotNull(future);
@@ -190,7 +193,7 @@ class UtilityInvocationJavaTest {
         when(agentPlatform.start(agentProcess))
                 .thenReturn(CompletableFuture.completedFuture(agentProcess));
 
-        var invocation = new UtilityInvocation(agentPlatform, options, agentScope);
+        var invocation = new UtilityInvocation(agentPlatform, options, agentScopeBuilder);
         invocation.runAsync(new TestInput("test"));
 
         // Verify that the planner type was overridden to UTILITY
@@ -213,7 +216,7 @@ class UtilityInvocationJavaTest {
         when(agentPlatform.start(agentProcess))
                 .thenReturn(CompletableFuture.completedFuture(agentProcess));
 
-        var invocation = new UtilityInvocation(agentPlatform, options, agentScope);
+        var invocation = new UtilityInvocation(agentPlatform, options, agentScopeBuilder);
         invocation.runAsync(new TestInput("test"));
 
         verify(agentPlatform).createAgentProcessFrom(
@@ -233,7 +236,7 @@ class UtilityInvocationJavaTest {
         when(agentPlatform.start(agentProcess))
                 .thenReturn(CompletableFuture.completedFuture(agentProcess));
 
-        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScope);
+        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScopeBuilder);
         invocation.runAsync(new TestInput("test"));
 
         verify(agentScope).createAgent(
@@ -277,7 +280,7 @@ class UtilityInvocationJavaTest {
         when(agentPlatform.start(agentProcess))
                 .thenReturn(CompletableFuture.completedFuture(agentProcess));
 
-        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScope);
+        var invocation = new UtilityInvocation(agentPlatform, ProcessOptions.DEFAULT, agentScopeBuilder);
         invocation.runAsync(new TestInput("test"));
 
         verify(agentPlatform).createAgentProcessFrom(

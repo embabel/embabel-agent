@@ -20,22 +20,11 @@ import com.embabel.common.core.types.Timestamped
 import java.time.Instant
 
 /**
- * Interface when an object has a single important text component.
- */
-interface HasContent {
-
-    /**
-     * Content associated with this object.
-     */
-    val content: String
-}
-
-
-/**
  * Content asset that can be used in different ways: for example
  * in producing different marketing materials.
  */
 interface ContentAsset : HasContent, Timestamped, PromptContributor
+
 
 /**
  * Blog content, specifying its format in a way that will

@@ -16,7 +16,7 @@
 package com.embabel.agent.api.common
 
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.identity.User
 import com.embabel.agent.api.invocation.AgentInvocation
@@ -151,7 +151,7 @@ private class OperationContextImpl(
  * Run the given agent as a sub-process of this action context.
  */
 inline fun <reified O : Any> ActionContext.asSubProcess(
-    agentScopeBuilder: AgentScopeBuilder<O>,
+    agentScopeBuilder: TypedAgentScopeBuilder<O>,
 ): O = asSubProcess(
     outputClass = O::class.java,
     agentScopeBuilder = agentScopeBuilder,

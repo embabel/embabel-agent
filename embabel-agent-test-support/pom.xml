@@ -21,16 +21,11 @@
 
     <modules>
         <module>embabel-agent-test</module>
+        <module>embabel-agent-test-domain</module>
         <module>embabel-agent-test-internal</module>
     </modules>
 
     <dependencies>
-        <!-- Main Dependencies -->
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-api</artifactId>
-        </dependency>
-
         <!-- Unit and Integration Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

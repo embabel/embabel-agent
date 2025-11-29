@@ -22,7 +22,7 @@ import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
 import com.embabel.agent.api.common.workflow.WorkflowBuilderConsuming
 import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.support.Rerun.hasRunCondition
@@ -79,7 +79,7 @@ data class SimpleAgentBuilder<RESULT : Any>(
             return Emitter(generator, mustRun = true)
         }
 
-        override fun build(): AgentScopeBuilder<RESULT> {
+        override fun build(): TypedAgentScopeBuilder<RESULT> {
             val action = SupplierAction(
                 name = "Generate ${resultClass.simpleName}",
                 description = "Generates a result of type ${resultClass.simpleName}",
@@ -107,7 +107,7 @@ data class SimpleAgentBuilder<RESULT : Any>(
                 description = "Goal to generate a result of type ${resultClass.simpleName}",
                 satisfiedBy = resultClass,
             ).withPreconditions(*preconditions.toTypedArray())
-            return AgentScopeBuilder(
+            return TypedAgentScopeBuilder(
                 name = MobyNameGenerator.generateName(),
                 actions = listOf(action),
                 goals = setOf(goal),
@@ -132,7 +132,7 @@ data class SimpleAgentBuilder<RESULT : Any>(
             private val generator: (TransformationActionContext<INPUT, RESULT>) -> RESULT,
         ) : WorkflowBuilder<RESULT>(resultClass, inputClass) {
 
-            override fun build(): AgentScopeBuilder<RESULT> {
+            override fun build(): TypedAgentScopeBuilder<RESULT> {
                 val action = TransformationAction(
                     name = "Generate ${resultClass.simpleName}",
                     description = "Generates a result of type ${resultClass.simpleName}",
@@ -150,7 +150,7 @@ data class SimpleAgentBuilder<RESULT : Any>(
                     description = "Goal to generate a result of type ${resultClass.simpleName}",
                     satisfiedBy = resultClass,
                 )
-                return AgentScopeBuilder(
+                return TypedAgentScopeBuilder(
                     name = MobyNameGenerator.generateName(),
                     actions = listOf(action),
                     goals = setOf(goal),

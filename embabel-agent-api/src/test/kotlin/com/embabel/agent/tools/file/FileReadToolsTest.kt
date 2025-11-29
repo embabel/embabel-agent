@@ -385,6 +385,53 @@ class FileReadToolsTest {
     }
 
     @Nested
+    inner class FileSize {
+
+        @Test
+        fun `should return size in bytes for small file`() {
+            val content = "hello"
+            Files.writeString(tempDir.resolve("small.txt"), content)
+
+            val result = fileReadTools.fileSize("small.txt")
+
+            assertEquals("${content.length} bytes", result)
+        }
+
+        @Test
+        fun `should return size in KB for file over 1KB`() {
+            val content = "x".repeat(2048)
+            Files.writeString(tempDir.resolve("medium.txt"), content)
+
+            val result = fileReadTools.fileSize("medium.txt")
+
+            assertEquals("2.00 KB", result)
+        }
+
+        @Test
+        fun `should return message for non-existent file`() {
+            val result = fileReadTools.fileSize("nonexistent.txt")
+
+            assertTrue(result.contains("File does not exist"))
+        }
+
+        @Test
+        fun `should return message for directory`() {
+            Files.createDirectory(tempDir.resolve("testdir"))
+
+            val result = fileReadTools.fileSize("testdir")
+
+            assertTrue(result.contains("Path is not a regular file"))
+        }
+
+        @Test
+        fun `should prevent path traversal`() {
+            assertThrows<SecurityException> {
+                fileReadTools.fileSize("../../../etc/passwd")
+            }
+        }
+    }
+
+    @Nested
     inner class FileCount {
 
         @BeforeEach

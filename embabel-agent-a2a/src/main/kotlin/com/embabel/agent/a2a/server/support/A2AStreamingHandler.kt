@@ -23,7 +23,6 @@ import io.a2a.spec.Task
 import io.a2a.spec.TaskArtifactUpdateEvent
 import io.a2a.spec.TaskStatusUpdateEvent
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -36,7 +35,6 @@ import java.util.concurrent.TimeUnit
  * Handles streaming functionality for A2A messages
  */
 @Service
-@Profile("a2a")
 class A2AStreamingHandler(
     private val objectMapper: ObjectMapper,
     private val taskStateManager: TaskStateManager

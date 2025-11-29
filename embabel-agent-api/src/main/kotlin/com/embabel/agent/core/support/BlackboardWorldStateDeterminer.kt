@@ -148,7 +148,7 @@ class BlackboardWorldStateDeterminer(
             }
         }
         if (conditionDetermination == ConditionDetermination.UNKNOWN) {
-            logger.warn(
+            logger.info(
                 "Determined condition {} to be unknown: knownConditions={}, bindings={}",
                 condition,
                 knownConditions.sorted(),

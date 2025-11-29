@@ -19,7 +19,7 @@ import com.embabel.agent.api.channel.MessageOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannelEvent
 import com.embabel.agent.api.channel.ProgressOutputChannelEvent
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.core.*
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
@@ -58,7 +58,7 @@ interface ExecutingOperationContext : OperationContext {
      */
     fun <O : Any> asSubProcess(
         outputClass: Class<O>,
-        agentScopeBuilder: AgentScopeBuilder<O>,
+        agentScopeBuilder: TypedAgentScopeBuilder<O>,
     ): O {
         val agent = agentScopeBuilder.build().createAgent(
             name = agentScopeBuilder.name,

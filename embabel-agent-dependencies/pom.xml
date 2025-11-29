@@ -36,9 +36,15 @@
                 <version>${project.version}</version>
             </dependency>
 
-           <dependency>
+            <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-code</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-domain</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -51,6 +57,12 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-a2a-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -81,6 +93,12 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-ollama-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-lmstudio-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -212,6 +230,12 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-lmstudio</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-starter-mcpserver</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -224,7 +248,19 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-a2a</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-test</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-test-domain</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

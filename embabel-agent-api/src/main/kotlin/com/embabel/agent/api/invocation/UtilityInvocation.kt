@@ -16,6 +16,7 @@
 package com.embabel.agent.api.invocation
 
 import com.embabel.agent.api.common.PlannerType
+import com.embabel.agent.api.common.scope.AgentScopeBuilder
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.NIRVANA
 import com.embabel.agent.spi.common.Constants.EMBABEL_PROVIDER
@@ -28,12 +29,12 @@ import java.util.concurrent.CompletableFuture
  * and apply all their actions and goals
  * @param agentPlatform the agent platform to create and manage agent processes
  * @param processOptions options to configure the agent process
- * @param scope the scope to create the utility agent in
+ * @param agentScopeBuilder emits the scope to create the utility agent in
  */
 data class UtilityInvocation @JvmOverloads constructor(
     private val agentPlatform: AgentPlatform,
     private val processOptions: ProcessOptions = ProcessOptions(),
-    private val scope: AgentScope = agentPlatform,
+    private val agentScopeBuilder: AgentScopeBuilder = AgentScopeBuilder.fromPlatform(agentPlatform),
 ) : UntypedInvocation {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -49,8 +50,8 @@ data class UtilityInvocation @JvmOverloads constructor(
             processOptions.withAdditionalEarlyTerminationPolicy(EarlyTerminationPolicy.ON_STUCK)
         )
 
-    fun withScope(scope: AgentScope): UtilityInvocation =
-        copy(scope = scope)
+    fun withScope(agentScopeBuilder: AgentScopeBuilder): UtilityInvocation =
+        copy(agentScopeBuilder = agentScopeBuilder)
 
     override fun runAsync(
         obj: Any,
@@ -75,11 +76,13 @@ data class UtilityInvocation @JvmOverloads constructor(
     }
 
     private fun createPlatformAgent(): Agent {
-        val agent = scope.createAgent(
-            name = agentPlatform.name,
-            provider = EMBABEL_PROVIDER,
-            description = "Platform utility agent",
-        )
+        val agent = agentScopeBuilder
+            .build()
+            .createAgent(
+                name = agentPlatform.name,
+                provider = EMBABEL_PROVIDER,
+                description = "Platform utility agent",
+            )
         // Ensure the agent has the NIRVANA goal to terminate appropriately
         return agent.copy(goals = agent.goals + NIRVANA)
     }
@@ -88,7 +91,7 @@ data class UtilityInvocation @JvmOverloads constructor(
         return if (processOptions.plannerType == PlannerType.UTILITY) {
             processOptions
         } else {
-            logger.warn("Incorrect usage: Overriding plannerType to {} for UtilityInvoker", PlannerType.UTILITY)
+            logger.info("Correcting plannerType to {} for UtilityInvoker", PlannerType.UTILITY)
             processOptions.copy(
                 plannerType = PlannerType.UTILITY
             )

@@ -18,7 +18,7 @@ package com.embabel.agent.api.common.workflow.loop
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
 import com.embabel.agent.api.common.workflow.WorkflowBuilderConsuming
 import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 
 /**
  * Java friendly builder for RepeatUntilAcceptable workflow.
@@ -121,7 +121,7 @@ data class RepeatUntilAcceptableBuilder<INPUT, RESULT : Any, FEEDBACK : Feedback
          * Build an instance with default acceptance criteria,
          * based on threshold score
          */
-        override fun build(): AgentScopeBuilder<RESULT> {
+        override fun build(): TypedAgentScopeBuilder<RESULT> {
             return withAcceptanceCriteria { it.feedback.score >= scoreThreshold }
                 .build()
         }
@@ -136,7 +136,7 @@ data class RepeatUntilAcceptableBuilder<INPUT, RESULT : Any, FEEDBACK : Feedback
         /**
          * Build the workflow so it can be included in agents
          */
-        override fun build(): AgentScopeBuilder<RESULT> {
+        override fun build(): TypedAgentScopeBuilder<RESULT> {
             return RepeatUntilAcceptable(maxIterations = maxIterations, scoreThreshold = scoreThreshold)
                 .build(
                     task = generator,

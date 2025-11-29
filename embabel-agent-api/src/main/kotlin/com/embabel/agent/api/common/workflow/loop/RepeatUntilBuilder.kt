@@ -18,7 +18,7 @@ package com.embabel.agent.api.common.workflow.loop
 import com.embabel.agent.api.common.workflow.WorkflowBuilder
 import com.embabel.agent.api.common.workflow.WorkflowBuilderConsuming
 import com.embabel.agent.api.common.workflow.WorkflowBuilderReturning
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 
 /**
  * Java friendly builder for RepeatUntil workflow.
@@ -85,7 +85,7 @@ data class RepeatUntilBuilder<INPUT, RESULT : Any>(
         /**
          * Build the workflow so it can be included in agents
          */
-        override fun build(): AgentScopeBuilder<RESULT> {
+        override fun build(): TypedAgentScopeBuilder<RESULT> {
             return RepeatUntil(maxIterations = maxIterations)
                 .build(
                     task = generator,

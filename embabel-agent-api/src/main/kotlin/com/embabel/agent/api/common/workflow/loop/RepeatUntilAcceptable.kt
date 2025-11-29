@@ -18,7 +18,7 @@ package com.embabel.agent.api.common.workflow.loop
 import com.embabel.agent.api.common.InputActionContext
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.support.TransformationAction
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.*
 import com.embabel.common.core.MobyNameGenerator
@@ -100,7 +100,7 @@ data class RepeatUntilAcceptable(
         noinline evaluator: (EvaluationActionContext<INPUT, RESULT, FEEDBACK>) -> FEEDBACK,
         noinline acceptanceCriteria: (AcceptanceActionContext<INPUT, RESULT, FEEDBACK>) -> Boolean = { it.feedback.score >= scoreThreshold },
         inputClass: Class<INPUT>,
-    ): AgentScopeBuilder<RESULT> =
+    ): TypedAgentScopeBuilder<RESULT> =
         build(
             task = task,
             evaluator = evaluator,
@@ -118,7 +118,7 @@ data class RepeatUntilAcceptable(
         resultClass: Class<RESULT>,
         feedbackClass: Class<FEEDBACK>,
         inputClass: Class<out INPUT>,
-    ): AgentScopeBuilder<RESULT> {
+    ): TypedAgentScopeBuilder<RESULT> {
 
         fun findOrBindAttemptHistory(
             context: OperationContext,
@@ -284,7 +284,7 @@ data class RepeatUntilAcceptable(
         )
         logger.info("Created goal: {}", resultGoal.infoString(verbose = true, indent = 2))
 
-        return AgentScopeBuilder(
+        return TypedAgentScopeBuilder(
             name = MobyNameGenerator.generateName(),
             actions = listOf(
                 taskAction,

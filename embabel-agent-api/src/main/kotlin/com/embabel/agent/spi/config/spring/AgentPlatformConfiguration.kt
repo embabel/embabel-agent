@@ -180,6 +180,7 @@ class AgentPlatformConfiguration(
         @Qualifier("dockerLocalModelsConfig") dockerLocalModelsConfig: Any?,
         @Autowired(required = false)
         @Qualifier("googleGenAiModelsConfig") googleGenAiModelsConfig: Any?,
+        @Qualifier("lmStudioModelsConfig") lmStudioModelsConfig: Any?,
         @Autowired(required = false)
         @Qualifier("ollamaModelsConfig") ollamaModelsConfig: Any?,
         @Autowired(required = false)

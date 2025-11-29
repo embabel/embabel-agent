@@ -16,7 +16,7 @@
 package com.embabel.agent.api.common.workflow
 
 import com.embabel.agent.api.common.ActionContext
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.spi.common.Constants
@@ -50,7 +50,7 @@ abstract class WorkflowBuilder<RESULT : Any>(
     private val inputClass: Class<out Any>?,
 ) {
 
-    abstract fun build(): AgentScopeBuilder<RESULT>
+    abstract fun build(): TypedAgentScopeBuilder<RESULT>
 
     /**
      * Build an agent on this RepeatUntil workflow.

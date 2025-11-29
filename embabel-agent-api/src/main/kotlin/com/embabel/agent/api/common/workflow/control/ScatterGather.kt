@@ -19,7 +19,7 @@ import com.embabel.agent.api.common.SupplierActionContext
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.SupplierAction
 import com.embabel.agent.api.common.support.TransformationAction
-import com.embabel.agent.api.dsl.AgentScopeBuilder
+import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.Goal
 import com.embabel.common.core.MobyNameGenerator
@@ -43,7 +43,7 @@ class ScatterGather(
         joinFunction: (TransformationActionContext<ResultList<ELEMENT>, RESULT>) -> RESULT,
         elementClass: Class<ELEMENT>,
         resultClass: Class<RESULT>,
-    ): AgentScopeBuilder<RESULT> {
+    ): TypedAgentScopeBuilder<RESULT> {
         val generateAction = SupplierAction(
             name = "=>${resultClass.name}",
             description = "Generate $resultClass",
@@ -90,7 +90,7 @@ class ScatterGather(
         )
         logger.info("Created goal: {}", resultGoal.infoString(verbose = true, indent = 2))
 
-        return AgentScopeBuilder(
+        return TypedAgentScopeBuilder(
             name = MobyNameGenerator.generateName(),
             actions = listOf(
                 generateAction,
