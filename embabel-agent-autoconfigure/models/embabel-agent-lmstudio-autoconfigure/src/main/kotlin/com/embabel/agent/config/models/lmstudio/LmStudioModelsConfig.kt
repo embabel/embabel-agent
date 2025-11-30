@@ -22,11 +22,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
@@ -66,13 +66,16 @@ class LmStudioModelsConfig(
         @param:JsonProperty("id") val id: String,
     )
 
-    @PostConstruct
-    fun registerModels() {
+    @Bean
+    fun lmStudioModelsInitializer(): String {
         val models = loadModelsFromUrl()
 
         if (models.isEmpty()) {
-            log.warn("No LM Studio models discovered at {}. Ensure LM Studio is running and the server is started.", baseUrl)
-            return
+            log.warn(
+                "No LM Studio models discovered at {}. Ensure LM Studio is running and the server is started.",
+                baseUrl
+            )
+            return "lmStudioModelsInitializer"
         }
 
         log.info("Discovered {} LM Studio models: {}", models.size, models)
@@ -94,6 +97,8 @@ class LmStudioModelsConfig(
                 log.error("Failed to register LM Studio model {}: {}", modelId, e.message)
             }
         }
+
+        return "lmStudioModelsInitializer"
     }
 
     private fun loadModelsFromUrl(): List<String> {

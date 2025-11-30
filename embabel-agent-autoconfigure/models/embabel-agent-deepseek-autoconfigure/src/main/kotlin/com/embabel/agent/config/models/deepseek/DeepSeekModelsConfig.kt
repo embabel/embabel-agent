@@ -30,6 +30,7 @@ import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
@@ -71,6 +72,7 @@ class DeepSeekProperties : RetryProperties {
  * and handles the creation of DeepSeek API clients with proper authentication.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(DeepSeekProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "DeepSeek configuration can't be unit tested")
 class DeepSeekModelsConfig(
     @param:Value("\${DEEPSEEK_BASE_URL:}")

@@ -33,6 +33,14 @@
         <module>models/embabel-agent-google-genai-autoconfigure</module>
     </modules>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <!-- Production Build Plugins -->

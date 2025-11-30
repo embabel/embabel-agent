@@ -43,6 +43,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
@@ -112,8 +113,8 @@ class BedrockModelsConfig(
         logger.info("Bedrock models are available: {}", properties)
     }
 
-    @PostConstruct
-    fun registerModelBeans() {
+    @Bean
+    fun bedrockModelsInitializer(): String  {
         val definitions = modelLoader.loadAutoConfigMetadata()
 
         // Register LLM models
@@ -151,6 +152,8 @@ class BedrockModelsConfig(
                 throw e
             }
         }
+
+        return "bedrockModelsInitializer"
     }
 
     /**

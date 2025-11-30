@@ -91,7 +91,7 @@ class LmStudioModelsConfigTest {
         )
 
         // When
-        config.registerModels()
+        config.lmStudioModelsInitializer()
 
         // Then
         verify {
@@ -113,7 +113,7 @@ class LmStudioModelsConfigTest {
         )
 
         // When
-        config.registerModels()
+        config.lmStudioModelsInitializer()
 
         // Then
         verify(exactly = 0) { mockBeanFactory.registerSingleton(any(), any()) }
@@ -132,7 +132,7 @@ class LmStudioModelsConfigTest {
         )
 
         // When
-        config.registerModels()
+        config.lmStudioModelsInitializer()
 
         // Then
         verify(exactly = 0) { mockBeanFactory.registerSingleton(any(), any()) }
@@ -159,7 +159,7 @@ class LmStudioModelsConfigTest {
         )
 
         // When
-        config.registerModels()
+        config.lmStudioModelsInitializer()
 
         // Then
         // "Organization/Model:Name" -> "organization-model-name"

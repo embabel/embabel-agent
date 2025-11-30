@@ -24,7 +24,6 @@ import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
@@ -34,6 +33,8 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
@@ -76,6 +77,7 @@ class AnthropicProperties : RetryProperties {
  * and handles the creation of Anthropic API clients with proper authentication.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(AnthropicProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "Anthropic configuration can't be unit tested")
 class AnthropicModelsConfig(
     @param:Value("\${ANTHROPIC_BASE_URL:}")
@@ -93,8 +95,8 @@ class AnthropicModelsConfig(
         logger.info("Anthropic models are available: {}", properties)
     }
 
-    @PostConstruct
-    fun registerModelBeans() {
+    @Bean
+    fun anthropicModelsInitializer(): String {
         modelLoader
             .loadAutoConfigMetadata().models.forEach { modelDef ->
                 try {
@@ -116,6 +118,8 @@ class AnthropicModelsConfig(
                     throw e
                 }
             }
+
+        return "anthropicModelsInitialized"
     }
 
     /**

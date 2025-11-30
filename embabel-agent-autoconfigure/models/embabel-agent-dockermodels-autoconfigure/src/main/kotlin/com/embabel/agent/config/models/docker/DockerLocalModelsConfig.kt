@@ -35,6 +35,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
@@ -130,8 +131,8 @@ class DockerLocalModelsConfig(
         }
 
 
-    @PostConstruct
-    fun registerModels() {
+    @Bean
+    fun dockerLocalModelsInitializer() : String {
         logger.info("Docker local models will be discovered at {}", dockerConnectionProperties.baseUrl)
 
         val models = loadModels()
@@ -140,7 +141,7 @@ class DockerLocalModelsConfig(
             models.joinToString("\n") { it.id })
         if (models.isEmpty()) {
             logger.warn("No Docker local models discovered. Check Docker server configuration.")
-            return
+            return "dockerModelsInitializer"
         }
 
         models.forEach { model ->
@@ -160,6 +161,8 @@ class DockerLocalModelsConfig(
                 logger.error("Failed to register Docker model {}", model.id, e)
             }
         }
+
+        return "dockerModelsInitializer"
     }
 
     /**

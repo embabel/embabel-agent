@@ -16,11 +16,9 @@
 package com.embabel.agent.config.models.ollama
 
 import com.embabel.common.ai.model.ConfigurableModelProviderProperties
-import com.fasterxml.jackson.annotation.JsonProperty
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
@@ -28,7 +26,6 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
-import org.springframework.web.client.body
 import kotlin.test.assertEquals
 
 /**
@@ -47,12 +44,15 @@ class OllamaModelsConfigTest {
     private val mockResponseSpec = mockk<RestClient.ResponseSpec>()
 
     // Use reflection to access the actual internal ModelResponse class from OllamaModelsConfig
-    private val modelResponseClass = Class.forName("com.embabel.agent.config.models.ollama.OllamaModelsConfig\$ModelResponse")
-    private val modelDetailsClass = Class.forName("com.embabel.agent.config.models.ollama.OllamaModelsConfig\$ModelDetails")
+    private val modelResponseClass =
+        Class.forName("com.embabel.agent.config.models.ollama.OllamaModelsConfig\$ModelResponse")
+    private val modelDetailsClass =
+        Class.forName("com.embabel.agent.config.models.ollama.OllamaModelsConfig\$ModelDetails")
 
     // Create test data using reflection to match the actual internal classes
     private val testModels by lazy {
-        val modelDetailsConstructor = modelDetailsClass.getDeclaredConstructor(String::class.java, Long::class.java, String::class.java)
+        val modelDetailsConstructor =
+            modelDetailsClass.getDeclaredConstructor(String::class.java, Long::class.java, String::class.java)
         val modelResponseConstructor = modelResponseClass.getDeclaredConstructor(List::class.java)
 
         val modelDetailsList = listOf(
@@ -101,7 +101,7 @@ class OllamaModelsConfigTest {
         val config = createConfig("http://localhost:11434", null)
 
         // When - real method execution triggers HTTP discovery and bean registration
-        config.registerModels()
+        config.ollamaModelsInitializer()
 
         // Then - Verify that actual calls occurred during config.registerModels()
         // Verify HTTP discovery happened
@@ -127,7 +127,7 @@ class OllamaModelsConfigTest {
         val config = createConfig("http://localhost:11434", null)
 
         // When - real method execution processes the mocked models
-        config.registerModels()
+        config.ollamaModelsInitializer()
 
         // Then - Verify that actual calls occurred during config.registerModels()
         // Verify model classification works correctly based on embedding service names
@@ -166,7 +166,7 @@ class OllamaModelsConfigTest {
         val config = createConfig("", nodeProperties)
 
         // When - real method execution processes both nodes sequentially
-        config.registerModels()
+        config.ollamaModelsInitializer()
 
         // Then - Verify that actual calls occurred during config.registerModels()
         // Both nodes should be attempted (2 HTTP calls to different URLs)
@@ -207,7 +207,7 @@ class OllamaModelsConfigTest {
         val config = createConfig("", nodeProperties)
 
         // When - real method execution processes both nodes with identical model responses
-        config.registerModels()
+        config.ollamaModelsInitializer()
 
         // Then - Verify that actual calls occurred during config.registerModels()
         // Both nodes should be attempted (2 HTTP calls to different URLs)
@@ -251,7 +251,7 @@ class OllamaModelsConfigTest {
         val config = createConfig("http://localhost:11434", nodeProperties)
 
         // When - real method execution triggers both default and multi-node registration
-        config.registerModels()
+        config.ollamaModelsInitializer()
 
         // Then - Verify that actual calls occurred during config.registerModels()
         // Should register models for BOTH default and node (8 total beans)
@@ -278,7 +278,7 @@ class OllamaModelsConfigTest {
         val config = createConfig("", null)
 
         // When - real method execution detects invalid configuration
-        config.registerModels()
+        config.ollamaModelsInitializer()
 
         // Then - Verify that actual calls occurred during config.registerModels()
         // Should skip all registration when no valid configuration provided
@@ -294,7 +294,7 @@ class OllamaModelsConfigTest {
         val config = createConfig("http://localhost:11434", null)
 
         // When - real method execution processes empty model list
-        config.registerModels()
+        config.ollamaModelsInitializer()
 
         // Then - Verify that actual calls occurred during config.registerModels()
         // Should complete HTTP discovery but register no beans when no models found
@@ -309,7 +309,8 @@ class OllamaModelsConfigTest {
 
         // Create a mock Model using reflection to access the private class
         val modelClass = Class.forName("com.embabel.agent.config.models.ollama.OllamaModelsConfig\$Model")
-        val modelConstructor = modelClass.getDeclaredConstructor(String::class.java, String::class.java, Long::class.java)
+        val modelConstructor =
+            modelClass.getDeclaredConstructor(String::class.java, String::class.java, Long::class.java)
         val testModel = modelConstructor.newInstance("gemma3-latest", "gemma3:latest", 12345L)
 
         // When - invoke actual private normalizeModelNameForBean method via reflection
@@ -339,7 +340,8 @@ class OllamaModelsConfigTest {
         val config = createConfig("", nodeProperties)
 
         // When - invoke actual private createUniqueModelName method via reflection
-        val uniqueMethod = config.javaClass.getDeclaredMethod("createUniqueModelName", String::class.java, String::class.java)
+        val uniqueMethod =
+            config.javaClass.getDeclaredMethod("createUniqueModelName", String::class.java, String::class.java)
         uniqueMethod.isAccessible = true
 
         // Then - verify node prefix behavior in multi-node context
@@ -356,7 +358,7 @@ class OllamaModelsConfigTest {
         every { mockResponseSpec.body(any<ParameterizedTypeReference<Any>>()) } throws RuntimeException("Connection refused")
         val config = createConfig("http://localhost:11434", null)
         // When - real method execution encounters network error
-        config.registerModels()
+        config.ollamaModelsInitializer()
 
         // Then - Verify that actual calls occurred during config.registerModels()
         // Should handle network errors gracefully and register no beans when HTTP fails

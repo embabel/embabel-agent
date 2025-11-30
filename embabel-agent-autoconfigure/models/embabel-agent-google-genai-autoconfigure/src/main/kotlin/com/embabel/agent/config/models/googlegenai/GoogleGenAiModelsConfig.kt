@@ -25,7 +25,6 @@ import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.google.genai.Client
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.ai.google.genai.GoogleGenAiChatModel
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
@@ -34,6 +33,8 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
@@ -98,6 +99,7 @@ class GoogleGenAiProperties : RetryProperties {
  * Uses native Spring AI Google GenAI support (spring-ai-google-genai).
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(GoogleGenAiProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "Google GenAI configuration can't be unit tested")
 class GoogleGenAiModelsConfig(
     @param:Value("\${GOOGLE_API_KEY:}")
@@ -117,8 +119,8 @@ class GoogleGenAiModelsConfig(
         logger.info("Google GenAI models are available: {}", properties)
     }
 
-    @PostConstruct
-    fun registerModelBeans() {
+    @Bean
+    fun googleGenAiModelsInitializer(): String {
         modelLoader
             .loadAutoConfigMetadata().models.forEach { modelDef ->
                 try {
@@ -140,6 +142,7 @@ class GoogleGenAiModelsConfig(
                     throw e
                 }
             }
+        return "gsoogleGenAiModelsInitialized"
     }
 
     /**
@@ -222,8 +225,8 @@ class GoogleGenAiModelsConfig(
         } else {
             throw IllegalStateException(
                 "Google GenAI requires either api-key or both project-id and location to be set. " +
-                    "Configure via YAML (embabel.agent.platform.models.googlegenai.*) " +
-                    "or environment variables (GOOGLE_API_KEY, GOOGLE_PROJECT_ID, GOOGLE_LOCATION)"
+                        "Configure via YAML (embabel.agent.platform.models.googlegenai.*) " +
+                        "or environment variables (GOOGLE_API_KEY, GOOGLE_PROJECT_ID, GOOGLE_LOCATION)"
             )
         }
 

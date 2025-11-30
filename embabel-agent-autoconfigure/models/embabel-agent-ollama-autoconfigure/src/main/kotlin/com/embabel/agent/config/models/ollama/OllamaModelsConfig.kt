@@ -19,7 +19,6 @@ import com.embabel.agent.api.models.OllamaModels
 import com.embabel.common.ai.model.*
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.ollama.OllamaChatModel
@@ -30,6 +29,8 @@ import org.springframework.ai.ollama.api.OllamaEmbeddingOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
@@ -42,6 +43,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * from Ollama unless the "ollama" profile is set.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(OllamaNodeProperties::class)
 class OllamaModelsConfig(
     @param:Value("\${spring.ai.ollama.base-url}")
     private val baseUrl: String,
@@ -97,8 +99,8 @@ class OllamaModelsConfig(
     }
 
 
-    @PostConstruct
-    fun registerModels() {
+    @Bean
+    fun ollamaModelsInitializer(): String {
         val nodes = nodeProperties?.nodes?.takeIf { it.isNotEmpty() }
         val hasDefaultUrl = baseUrl.isNotBlank()
 
@@ -122,6 +124,7 @@ class OllamaModelsConfig(
                 logger.warn("No Ollama configuration found. Skipping model registration.")
             }
         }
+        return "ollamaModelsInitializer"
     }
 
     private fun ollamaLlmOf(modelName: String, baseUrl: String, nodeName: String? = null): Llm {

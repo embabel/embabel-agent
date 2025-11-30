@@ -23,14 +23,14 @@ import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import java.time.LocalDate
 
 /**
  * Configuration properties for OpenAI model settings.
@@ -66,6 +66,7 @@ class OpenAiProperties : RetryProperties {
  * similar to the Anthropic and Bedrock configuration patterns.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(OpenAiProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "OpenAi configuration can't be unit tested")
 class OpenAiModelsConfig(
     @Value("\${OPENAI_BASE_URL:#{null}}")
@@ -92,8 +93,8 @@ class OpenAiModelsConfig(
         logger.info("OpenAI models are available: {}", properties)
     }
 
-    @PostConstruct
-    fun registerModelBeans() {
+    @Bean
+    fun openAiModelsInitializer(): String {
         val definitions = modelLoader.loadAutoConfigMetadata()
 
         // Register LLM models
@@ -131,6 +132,8 @@ class OpenAiModelsConfig(
                 throw e
             }
         }
+
+        return "openAiModelsInitializer"
     }
 
     /**

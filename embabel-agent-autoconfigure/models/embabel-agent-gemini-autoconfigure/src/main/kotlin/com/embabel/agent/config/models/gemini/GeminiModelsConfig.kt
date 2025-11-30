@@ -25,11 +25,12 @@ import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
@@ -70,6 +71,7 @@ class GeminiProperties : RetryProperties {
  * as Spring beans at startup via @PostConstruct.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(GeminiProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "Gemini configuration can't be unit tested")
 class GeminiModelsConfig(
     @Value("\${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}")
@@ -92,8 +94,8 @@ class GeminiModelsConfig(
         logger.info("Google Gemini models are available: {}", properties)
     }
 
-    @PostConstruct
-    fun registerModelBeans() {
+    @Bean
+    fun geminiModelsInitializer(): String {
         modelLoader
             .loadAutoConfigMetadata().models.forEach { modelDef ->
                 try {
@@ -114,6 +116,7 @@ class GeminiModelsConfig(
                     throw e
                 }
             }
+        return "geminiModelsInitialized"
     }
 
     /**
