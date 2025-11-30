@@ -35,12 +35,26 @@ import org.springframework.context.annotation.Configuration;
  */
 @ConfigurationPropertiesScan(
         basePackages = {
-                "com.embabel.agent"
+                "com.embabel.agent.api",
+                "com.embabel.agent.core",
+                "com.embabel.agent.experimental",
+                "com.embabel.agent.prompt",
+                "com.embabel.agent.spi",
+                "com.embabel.agent.test",
+                "com.embabel.agent.tools",
+                "com.embabel.agent.web"
         }
 )
 @ComponentScan(
         basePackages = {
-                "com.embabel.agent"
+                "com.embabel.agent.api",
+                "com.embabel.agent.core",
+                "com.embabel.agent.experimental",
+                "com.embabel.agent.prompt",
+                "com.embabel.agent.spi",
+                "com.embabel.agent.test",
+                "com.embabel.agent.tools",
+                "com.embabel.agent.web"
         }
 )
 @Configuration
