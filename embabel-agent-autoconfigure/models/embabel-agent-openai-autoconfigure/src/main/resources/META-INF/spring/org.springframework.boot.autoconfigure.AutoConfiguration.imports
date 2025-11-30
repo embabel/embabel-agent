@@ -1,3 +1,4 @@
+#
 # Copyright 2025-2025 the original author or authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-com.embabel.agent.autoconfigure.models.docker.AgentDockerModelsAutoConfiguration
+com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
