@@ -173,20 +173,21 @@ class AgentPlatformConfiguration(
         applicationContext: ApplicationContext,
         properties: ConfigurableModelProviderProperties,
         @Autowired(required = false)
-        @Qualifier("anthropicModelsConfig") anthropicModelsConfig: Any?,
+        @Qualifier("anthropicModelsInitializer") anthropicModelsInitializer: Any?,
         @Autowired(required = false)
-        @Qualifier("bedrockModelsConfig") bedrockModelsConfig: Any?,
+        @Qualifier("bedrockModelsInitializer") bedrockModelsInitializer: Any?,
         @Autowired(required = false)
-        @Qualifier("dockerLocalModelsConfig") dockerLocalModelsConfig: Any?,
+        @Qualifier("dockerLocalModelsInitializer") dockerLocalModelsInitializer: Any?,
         @Autowired(required = false)
-        @Qualifier("googleGenAiModelsConfig") googleGenAiModelsConfig: Any?,
-        @Qualifier("lmStudioModelsConfig") lmStudioModelsConfig: Any?,
+        @Qualifier("googleGenAiModelsInitializer") googleGenAiModelsInitializer: Any?,
         @Autowired(required = false)
-        @Qualifier("ollamaModelsConfig") ollamaModelsConfig: Any?,
+        @Qualifier("lmStudioModelsInitializer") lmStudioModelsInitializer: Any?,
         @Autowired(required = false)
-        @Qualifier("openAiModelsConfig") openAiModelsConfig: Any?,
+        @Qualifier("ollamaModelsInitializer") ollamaModelsInitializer: Any?,
         @Autowired(required = false)
-        @Qualifier("geminiModelsConfig") geminiModelsConfig: Any?,
+        @Qualifier("openAiModelsInitializer") openAiModelsInitializer: Any?,
+        @Autowired(required = false)
+        @Qualifier("geminiModelsInitializer") geminiModelsInitializer: Any?,
     ): ModelProvider {
 
         return ConfigurableModelProvider(
