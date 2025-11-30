@@ -25,7 +25,7 @@ import java.util.function.Predicate
 /**
  * Extension of [JacksonOutputConverter] that allows for filtering of properties of the generated object via a predicate.
  */
-class FilteringJacksonOutputConverter<T> private constructor(
+open class FilteringJacksonOutputConverter<T> private constructor(
     type: Type,
     objectMapper: ObjectMapper,
     private val propertyFilter: Predicate<String>,
