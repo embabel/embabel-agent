@@ -16,20 +16,49 @@
 package com.embabel.agent
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
-import org.springframework.boot.runApplication
 import org.springframework.context.annotation.ComponentScan
 
 @SpringBootApplication
 @ConfigurationPropertiesScan(
     basePackages = [
-        "com.embabel.agent",
-        "com.embabel.example",
+        "com.embabel.agent.api",
+        "com.embabel.agent.core",
+        "com.embabel.agent.experimental",
+        "com.embabel.agent.prompt",
+        "com.embabel.agent.spi",
+        "com.embabel.agent.test",
+        "com.embabel.agent.tools",
+        "com.embabel.agent.web",
+        //Scan Agent Shell, this one should be moved over to Shell Module later
+        "com.embabel.agent.shell",
+        //Scan MCP Packages, this one should be moved over to MCP Module later
+        "com.embabel.agent.mcpserver",
+        //Scan A2A Packages, this one should be moved over to A2A Module later
+        "com.embabel.agent.a2a",
+        //Scan RAG Packages, this one should be moved over to RAG Module later
+        "com.embabel.agent.rag",
     ]
 )
 @ComponentScan(
     basePackages = [
-        "com.embabel.agent",
-        "com.embabel.example",
+        //Scan Agent Framework Core Packages
+        //This can stay here, this is the main autoconfigure module for the Agent Platform
+        "com.embabel.agent.api",
+        "com.embabel.agent.core",
+        "com.embabel.agent.experimental",
+        "com.embabel.agent.prompt",
+        "com.embabel.agent.spi",
+        "com.embabel.agent.test",
+        "com.embabel.agent.tools",
+        "com.embabel.agent.web",
+        //Scan Agent Shell, this one should be moved over to Shell Module later
+        "com.embabel.agent.shell",
+        //Scan MCP Packages, this one should be moved over to MCP Module later
+        "com.embabel.agent.mcpserver",
+        //Scan A2A Packages, this one should be moved over to A2A Module later
+        "com.embabel.agent.a2a",
+        //Scan RAG Packages, this one should be moved over to RAG Module later
+        "com.embabel.agent.rag",
     ]
 )
 class AgentTestApplication {}
