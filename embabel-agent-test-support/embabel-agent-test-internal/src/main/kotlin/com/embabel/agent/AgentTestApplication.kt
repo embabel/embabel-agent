@@ -29,6 +29,7 @@ import org.springframework.context.annotation.ComponentScan
         "com.embabel.agent.test",
         "com.embabel.agent.tools",
         "com.embabel.agent.web",
+        "com.embabel.example",
         //Scan Agent Shell, this one should be moved over to Shell Module later
         "com.embabel.agent.shell",
         //Scan MCP Packages, this one should be moved over to MCP Module later
@@ -51,6 +52,7 @@ import org.springframework.context.annotation.ComponentScan
         "com.embabel.agent.test",
         "com.embabel.agent.tools",
         "com.embabel.agent.web",
+        "com.embabel.example",
         //Scan Agent Shell, this one should be moved over to Shell Module later
         "com.embabel.agent.shell",
         //Scan MCP Packages, this one should be moved over to MCP Module later
