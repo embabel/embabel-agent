@@ -188,6 +188,9 @@ class AgentPlatformConfiguration(
         @Qualifier("openAiModelsInitializer") openAiModelsInitializer: Any?,
         @Autowired(required = false)
         @Qualifier("geminiModelsInitializer") geminiModelsInitializer: Any?,
+        @Autowired(required = false)
+        @Qualifier("mistralAiModelsInitializer") mistralAiModelsInitializer: Any?,
+
     ): ModelProvider {
 
         return ConfigurableModelProvider(

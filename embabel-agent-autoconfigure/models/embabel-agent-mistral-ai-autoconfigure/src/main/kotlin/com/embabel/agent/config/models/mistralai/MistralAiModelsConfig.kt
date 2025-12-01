@@ -23,7 +23,6 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.ai.mistralai.MistralAiChatModel
 import org.springframework.ai.mistralai.MistralAiChatOptions
@@ -33,6 +32,8 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
@@ -43,25 +44,25 @@ import org.springframework.web.reactive.function.client.WebClient
  */
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.mistralai")
 class MistralAiProperties : RetryProperties {
-	/**
-	 * Maximum number of attempts.
-	 */
-	override var maxAttempts: Int = 10
+    /**
+     * Maximum number of attempts.
+     */
+    override var maxAttempts: Int = 10
 
-	/**
-	 * Initial backoff interval (in milliseconds).
-	 */
-	override var backoffMillis: Long = 5_000L
+    /**
+     * Initial backoff interval (in milliseconds).
+     */
+    override var backoffMillis: Long = 5_000L
 
-	/**
-	 * Backoff interval multiplier.
-	 */
-	override var backoffMultiplier: Double = 5.0
+    /**
+     * Backoff interval multiplier.
+     */
+    override var backoffMultiplier: Double = 5.0
 
-	/**
-	 * Maximum backoff interval (in milliseconds).
-	 */
-	override var backoffMaxInterval: Long = 180_000L
+    /**
+     * Maximum backoff interval (in milliseconds).
+     */
+    override var backoffMaxInterval: Long = 180_000L
 }
 
 /**
@@ -70,121 +71,124 @@ class MistralAiProperties : RetryProperties {
  * capabilities, knowledge cutoff dates, and pricing models.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(MistralAiProperties::class)
 class MistralAiModelsConfig(
-	@param:Value("\${MISTRAL_BASE_URL:}")
-	private val baseUrl: String,
-	@param:Value("\${MISTRAL_API_KEY}")
-	private val apiKey: String,
-	private val properties: MistralAiProperties,
-	private val observationRegistry: ObjectProvider<ObservationRegistry>,
-	private val configurableBeanFactory: ConfigurableBeanFactory,
-	private val modelLoader: LlmAutoConfigMetadataLoader<MistralAiModelDefinitions> = MistralAiModelLoader(),
+    @param:Value("\${MISTRAL_BASE_URL:}")
+    private val baseUrl: String,
+    @param:Value("\${MISTRAL_API_KEY}")
+    private val apiKey: String,
+    private val properties: MistralAiProperties,
+    private val observationRegistry: ObjectProvider<ObservationRegistry>,
+    private val configurableBeanFactory: ConfigurableBeanFactory,
+    private val modelLoader: LlmAutoConfigMetadataLoader<MistralAiModelDefinitions> = MistralAiModelLoader(),
 ) {
-	private val logger = LoggerFactory.getLogger(MistralAiModelsConfig::class.java)
+    private val logger = LoggerFactory.getLogger(MistralAiModelsConfig::class.java)
 
-	init {
-		logger.info("Mistral AI models are available: {}", properties)
-	}
+    init {
+        logger.info("Mistral AI models are available: {}", properties)
+    }
 
-	@PostConstruct
-	fun registerModelBeans() {
-		modelLoader
-			.loadAutoConfigMetadata().models.forEach { modelDef ->
-				try {
-					val llm = createMistralAiLlm(modelDef)
+    @Bean
+    fun mistralAiModelsInitializer(): String {
+        modelLoader
+            .loadAutoConfigMetadata().models.forEach { modelDef ->
+                try {
+                    val llm = createMistralAiLlm(modelDef)
 
-					// Register as singleton bean with the configured bean name
-					configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                    // Register as singleton bean with the configured bean name
+                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
 
-					logger.info(
-						"Registered Mistral AI model bean: {} -> {}",
-						modelDef.name, modelDef.modelId
-					)
+                    logger.info(
+                        "Registered Mistral AI model bean: {} -> {}",
+                        modelDef.name, modelDef.modelId
+                    )
 
-				} catch (e: Exception) {
-					logger.error(
-						"Failed to create model: {} ({})",
-						modelDef.name, modelDef.modelId, e
-					)
-					throw e
-				}
-			}
-	}
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create model: {} ({})",
+                        modelDef.name, modelDef.modelId, e
+                    )
+                    throw e
+                }
+            }
 
-	/**
-	 * Creates an individual Mistral AI model from configuration.
-	 */
-	private fun createMistralAiLlm(modelDef: MistralAiModelDefinition): Llm {
-		val chatModel = MistralAiChatModel
-			.builder()
-			.defaultOptions(createDefaultOptions(modelDef))
-			.mistralAiApi(createMistralAiApi())
-			.toolCallingManager(
-				ToolCallingManager.builder()
-					.observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-					.build()
-			)
-			.retryTemplate(properties.retryTemplate("mistral-ai-${modelDef.modelId}"))
-			.observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-			.build()
+        return "mistralAiModelsInitializer"
+    }
 
-		return Llm(
-			name = modelDef.modelId,
-			model = chatModel,
-			provider = MistralAiModels.PROVIDER,
-			optionsConverter = MistralAiOptionsConverter,
-			knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
-			pricingModel = modelDef.pricingModel?.let {
-				PerTokenPricingModel(
-					usdPer1mInputTokens = it.usdPer1mInputTokens,
-					usdPer1mOutputTokens = it.usdPer1mOutputTokens,
-				)
-			}
-		)
-	}
+    /**
+     * Creates an individual Mistral AI model from configuration.
+     */
+    private fun createMistralAiLlm(modelDef: MistralAiModelDefinition): Llm {
+        val chatModel = MistralAiChatModel
+            .builder()
+            .defaultOptions(createDefaultOptions(modelDef))
+            .mistralAiApi(createMistralAiApi())
+            .toolCallingManager(
+                ToolCallingManager.builder()
+                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                    .build()
+            )
+            .retryTemplate(properties.retryTemplate("mistral-ai-${modelDef.modelId}"))
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            .build()
 
-	/**
-	 * Creates default options for a model based on YAML configuration.
-	 */
-	private fun createDefaultOptions(modelDef: MistralAiModelDefinition): MistralAiChatOptions {
-		return MistralAiChatOptions.builder()
-			.model(modelDef.modelId)
-			.maxTokens(modelDef.maxTokens)
-			.temperature(modelDef.temperature)
-			.apply {
-				modelDef.topP?.let { topP(it) }
-			}
-			.build()
-	}
+        return Llm(
+            name = modelDef.modelId,
+            model = chatModel,
+            provider = MistralAiModels.PROVIDER,
+            optionsConverter = MistralAiOptionsConverter,
+            knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
+            pricingModel = modelDef.pricingModel?.let {
+                PerTokenPricingModel(
+                    usdPer1mInputTokens = it.usdPer1mInputTokens,
+                    usdPer1mOutputTokens = it.usdPer1mOutputTokens,
+                )
+            }
+        )
+    }
 
-	private fun createMistralAiApi(): MistralAiApi {
-		val builder = MistralAiApi.builder().apiKey(apiKey)
-		if (baseUrl.isNotBlank()) {
-			logger.info("Using custom Mistral AI base URL: {}", baseUrl)
-			builder.baseUrl(baseUrl)
-		}
-		// add observation registry to rest and web client builders
-		builder
-			.restClientBuilder(
-				RestClient.builder()
-					.observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-			)
-		builder
-			.webClientBuilder(
-				WebClient.builder()
-					.observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-			)
+    /**
+     * Creates default options for a model based on YAML configuration.
+     */
+    private fun createDefaultOptions(modelDef: MistralAiModelDefinition): MistralAiChatOptions {
+        return MistralAiChatOptions.builder()
+            .model(modelDef.modelId)
+            .maxTokens(modelDef.maxTokens)
+            .temperature(modelDef.temperature)
+            .apply {
+                modelDef.topP?.let { topP(it) }
+            }
+            .build()
+    }
 
-		return builder.build()
-	}
+    private fun createMistralAiApi(): MistralAiApi {
+        val builder = MistralAiApi.builder().apiKey(apiKey)
+        if (baseUrl.isNotBlank()) {
+            logger.info("Using custom Mistral AI base URL: {}", baseUrl)
+            builder.baseUrl(baseUrl)
+        }
+        // add observation registry to rest and web client builders
+        builder
+            .restClientBuilder(
+                RestClient.builder()
+                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            )
+        builder
+            .webClientBuilder(
+                WebClient.builder()
+                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            )
+
+        return builder.build()
+    }
 }
 
 object MistralAiOptionsConverter : OptionsConverter<MistralAiChatOptions> {
 
-	override fun convertOptions(options: LlmOptions): MistralAiChatOptions =
-		MistralAiChatOptions.builder()
-			.temperature(options.temperature)
-			.topP(options.topP)
-			.maxTokens(options.maxTokens)
-			.build()
+    override fun convertOptions(options: LlmOptions): MistralAiChatOptions =
+        MistralAiChatOptions.builder()
+            .temperature(options.temperature)
+            .topP(options.topP)
+            .maxTokens(options.maxTokens)
+            .build()
 }
