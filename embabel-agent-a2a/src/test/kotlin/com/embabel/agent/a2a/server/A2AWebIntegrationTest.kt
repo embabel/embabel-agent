@@ -15,33 +15,16 @@
  */
 package com.embabel.agent.a2a.server
 
-import com.embabel.agent.api.annotation.support.AgentMetadataReader
-import com.embabel.agent.core.AgentPlatform
-import com.embabel.agent.a2a.server.config.FakeAiConfiguration
-import com.embabel.agent.a2a.server.config.FakeRankerConfiguration
 import com.embabel.agent.a2a.example.simple.horoscope.TestHoroscopeService
 import com.embabel.agent.a2a.example.simple.horoscope.kotlin.TestStarNewsFinder
+import com.embabel.agent.a2a.server.config.A2AConfiguration
+import com.embabel.agent.a2a.server.config.FakeAiConfiguration
+import com.embabel.agent.a2a.server.config.FakeRankerConfiguration
+import com.embabel.agent.api.annotation.support.AgentMetadataReader
+import com.embabel.agent.core.AgentPlatform
 import com.embabel.common.core.types.Semver.Companion.DEFAULT_VERSION
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.a2a.spec.AgentCard
-import io.a2a.spec.CancelTaskResponse
-import io.a2a.spec.GetTaskPushNotificationConfigResponse
-import io.a2a.spec.GetTaskResponse
-import io.a2a.spec.JSONRPCRequest
-import io.a2a.spec.Message
-import io.a2a.spec.MessageSendParams
-import io.a2a.spec.PushNotificationAuthenticationInfo
-import io.a2a.spec.PushNotificationConfig
-import io.a2a.spec.SendMessageRequest
-import io.a2a.spec.SendMessageResponse
-import io.a2a.spec.SendStreamingMessageRequest
-import io.a2a.spec.SetTaskPushNotificationConfigResponse
-import io.a2a.spec.Task
-import io.a2a.spec.TaskIdParams
-import io.a2a.spec.TaskPushNotificationConfig
-import io.a2a.spec.TaskQueryParams
-import io.a2a.spec.TaskState
-import io.a2a.spec.TextPart
+import io.a2a.spec.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
@@ -50,23 +33,26 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
-import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @SpringBootTest
-@ActiveProfiles(value = ["test", "a2a"])
+@ActiveProfiles(value = ["test"])
 @AutoConfigureMockMvc(addFilters = false)
 @EnableAutoConfiguration
+@ComponentScan(basePackages = ["com.embabel.agent.a2a"])
 @Import(
     value = [
+        A2AConfiguration::class,
         FakeAiConfiguration::class,
         FakeRankerConfiguration::class,
     ]
@@ -144,7 +130,7 @@ class A2AWebIntegrationTest(
                 .taskId("task-123")
                 .contextId("ctx-123")
                 .build()
-            val params =  MessageSendParams.Builder().message(message).build()
+            val params = MessageSendParams.Builder().message(message).build()
             val request = SendMessageRequest.Builder()
                 .jsonrpc(JSONRPCRequest.JSONRPC_VERSION)
                 .method(SendMessageRequest.METHOD)

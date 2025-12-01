@@ -19,7 +19,6 @@ import io.a2a.spec.StreamingEventKind
 import io.a2a.spec.Task
 import io.a2a.spec.TaskState
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
@@ -29,7 +28,6 @@ import java.util.concurrent.ConcurrentHashMap
  * Tracks active tasks, completed tasks, and their event history.
  */
 @Service
-@Profile("a2a")
 class TaskStateManager {
     private val logger = LoggerFactory.getLogger(TaskStateManager::class.java)
 
