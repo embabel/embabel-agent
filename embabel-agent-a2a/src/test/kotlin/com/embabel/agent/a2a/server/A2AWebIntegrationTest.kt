@@ -17,7 +17,6 @@ package com.embabel.agent.a2a.server
 
 import com.embabel.agent.a2a.example.simple.horoscope.TestHoroscopeService
 import com.embabel.agent.a2a.example.simple.horoscope.kotlin.TestStarNewsFinder
-import com.embabel.agent.a2a.server.config.A2AConfiguration
 import com.embabel.agent.a2a.server.config.FakeAiConfiguration
 import com.embabel.agent.a2a.server.config.FakeRankerConfiguration
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
@@ -36,10 +35,10 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
+import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
-import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -52,7 +51,6 @@ import kotlin.test.assertTrue
 @ComponentScan(basePackages = ["com.embabel.agent.a2a"])
 @Import(
     value = [
-        A2AConfiguration::class,
         FakeAiConfiguration::class,
         FakeRankerConfiguration::class,
     ]
