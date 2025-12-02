@@ -23,7 +23,7 @@ import java.time.Instant
 data class ProviderInitialization(
     val provider: String,
     val registeredLlms: List<RegisteredModel>,
-    val registeredEmbeddings: List<RegisteredModel>,
+    val registeredEmbeddings: List<RegisteredModel> = emptyList(),
     val initializedAt: Instant = Instant.now()
 ) {
     val totalLlms: Int get() = registeredLlms.size
