@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.config.models.lmstudio
 
-import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.common.ai.autoconfig.ProviderInitialization
@@ -70,7 +69,7 @@ class LmStudioModelsConfig(
     )
 
     @Bean
-    fun lmStudioModelsInitializer(): Any {
+    fun lmStudioModelsInitializer(): ProviderInitialization {
         val models = loadModelsFromUrl()
 
         if (models.isEmpty()) {
@@ -78,7 +77,6 @@ class LmStudioModelsConfig(
                 "No LM Studio models discovered at {}. Ensure LM Studio is running and the server is started.",
                 baseUrl
             )
-            return "lmStudioModelsInitializer"
         }
 
         log.info("Discovered {} LM Studio models: {}", models.size, models)
