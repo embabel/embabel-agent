@@ -128,21 +128,13 @@ class LLMStreamingIT(
 
         assertTrue(runner.supportsStreaming(), "Test LLM should support streaming") // ADD THIS DEBUG BLOCK:
 
-
         // When: Subscribe with real reactive callbacks
         val receivedEvents = mutableListOf<String>()
         var errorOccurred: Throwable? = null
         var completionCalled = false
-        var prompt = """
-            What is the most hottest month in Florida.
-            minimum 2 sentences.
-            first sentence should include month only,
-            no other description.
-            every sentence per new line with new-line character
-            """.trimIndent()
-        // above detailed prompt is not required, see format in [StreamingJacksonConverterJ
-        prompt = """
-            What is the most hottest month in Florida.
+
+        val prompt = """
+            What are two the most hottest months in Florida.
             """.trimIndent()
 
         val results = runner.asStreaming()
