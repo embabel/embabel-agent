@@ -18,10 +18,11 @@ package com.embabel.agent.config.models.docker
 import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.common.ai.autoconfig.ProviderInitialization
+import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.ai.document.MetadataMode
 import org.springframework.ai.model.NoopApiKey
@@ -132,7 +133,7 @@ class DockerLocalModelsConfig(
 
 
     @Bean
-    fun dockerLocalModelsInitializer() : String {
+    fun dockerLocalModelsInitializer(): ProviderInitialization {
         logger.info("Docker local models will be discovered at {}", dockerConnectionProperties.baseUrl)
 
         val models = loadModels()
@@ -141,28 +142,33 @@ class DockerLocalModelsConfig(
             models.joinToString("\n") { it.id })
         if (models.isEmpty()) {
             logger.warn("No Docker local models discovered. Check Docker server configuration.")
-            return "dockerModelsInitializer"
         }
 
-        models.forEach { model ->
-            try {
-                val beanName = "dockerModel-${model.id}"
-                val dockerModel = dockerModelOf(model)
+        val registeredLlms = buildList {
+            models.forEach { model ->
+                try {
+                    val beanName = "dockerModel-${model.id}"
+                    val dockerModel = dockerModelOf(model)
 
-                // Use registerSingleton with a more descriptive bean name
-                configurableBeanFactory.registerSingleton(beanName, dockerModel)
-                logger.debug(
-                    "Successfully registered Docker {} {} as bean {}",
-                    dockerModel.model.javaClass.simpleName,
-                    model.id,
-                    beanName,
-                )
-            } catch (e: Exception) {
-                logger.error("Failed to register Docker model {}", model.id, e)
+                    // Use registerSingleton with a more descriptive bean name
+                    configurableBeanFactory.registerSingleton(beanName, dockerModel)
+                    add(RegisteredModel(beanName = beanName, modelId = model.id))
+                    logger.debug(
+                        "Successfully registered Docker {} {} as bean {}",
+                        dockerModel.model.javaClass.simpleName,
+                        model.id,
+                        beanName,
+                    )
+                } catch (e: Exception) {
+                    logger.error("Failed to register Docker model {}", model.id, e)
+                }
             }
         }
 
-        return "dockerModelsInitializer"
+        return ProviderInitialization(
+            provider = PROVIDER,
+            registeredLlms = registeredLlms,
+        ).also { logger.info(it.summary()) }
     }
 
     /**

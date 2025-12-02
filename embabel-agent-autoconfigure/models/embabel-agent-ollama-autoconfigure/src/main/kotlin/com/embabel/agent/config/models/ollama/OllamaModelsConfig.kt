@@ -16,6 +16,8 @@
 package com.embabel.agent.config.models.ollama
 
 import com.embabel.agent.api.models.OllamaModels
+import com.embabel.common.ai.autoconfig.ProviderInitialization
+import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.micrometer.observation.ObservationRegistry
@@ -70,6 +72,12 @@ class OllamaModelsConfig(
         val size: Long,
     )
 
+    private var providerInitialization: ProviderInitialization = ProviderInitialization(
+        provider = OllamaModels.PROVIDER,
+        registeredLlms = emptyList(),
+        registeredEmbeddings = emptyList()
+    )
+
     private fun loadModelsFromUrl(baseUrl: String): List<Model> =
         try {
             val restClient = RestClient.create()
@@ -100,7 +108,7 @@ class OllamaModelsConfig(
 
 
     @Bean
-    fun ollamaModelsInitializer(): String {
+    fun ollamaModelsInitializer(): ProviderInitialization {
         val nodes = nodeProperties?.nodes?.takeIf { it.isNotEmpty() }
         val hasDefaultUrl = baseUrl.isNotBlank()
 
@@ -124,7 +132,7 @@ class OllamaModelsConfig(
                 logger.warn("No Ollama configuration found. Skipping model registration.")
             }
         }
-        return "ollamaModelsInitializer"
+        return this.providerInitialization
     }
 
     private fun ollamaLlmOf(modelName: String, baseUrl: String, nodeName: String? = null): Llm {
@@ -230,6 +238,9 @@ class OllamaModelsConfig(
             logger.info("Discovered {} Ollama models from {}: {}", models.size, contextName, models.map { it.name })
         }
 
+        var registeredLlms = mutableListOf<RegisteredModel>()
+        var registeredEmbeddings = mutableListOf<RegisteredModel>()
+
         models.forEach { model ->
             try {
                 if (properties.allWellKnownEmbeddingServiceNames().contains(model.model)) {
@@ -239,6 +250,7 @@ class OllamaModelsConfig(
                     beanNameProvider(model).forEach { beanName ->
                         val embeddingBeanName = beanName.replace("ollamaModel-", "ollamaEmbeddingModel-")
                         configurableBeanFactory.registerSingleton(embeddingBeanName, embeddingService)
+                        registeredEmbeddings.add(RegisteredModel(beanName = beanName, modelId = model.name))
                         logger.debug(
                             "Successfully registered Ollama embedding service {} as bean {}",
                             model.name,
@@ -251,17 +263,25 @@ class OllamaModelsConfig(
                     // Register with all provided bean names
                     beanNameProvider(model).forEach { beanName ->
                         configurableBeanFactory.registerSingleton(beanName, llm)
+                        registeredLlms.add(RegisteredModel(beanName = beanName, modelId = model.name))
                         logger.debug(
                             "Successfully registered Ollama LLM {} as bean {}",
                             model.name,
                             beanName,
                         )
                     }
-                }
+                    }
+
             } catch (e: Exception) {
                 logger.error("Failed to register Ollama model {}: {}", model.name, e.message)
             }
         }
+
+         this.providerInitialization = ProviderInitialization(
+            provider = OllamaModels.PROVIDER,
+            registeredLlms = registeredLlms,
+            registeredEmbeddings = registeredEmbeddings
+        ).also { logger.info(it.summary()) }
     }
 
     private fun registerDefaultMode() {

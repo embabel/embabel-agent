@@ -18,6 +18,8 @@ package com.embabel.agent.config.models.googlegenai
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
+import com.embabel.common.ai.autoconfig.ProviderInitialization
+import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
@@ -120,29 +122,36 @@ class GoogleGenAiModelsConfig(
     }
 
     @Bean
-    fun googleGenAiModelsInitializer(): String {
-        modelLoader
-            .loadAutoConfigMetadata().models.forEach { modelDef ->
-                try {
-                    val llm = createGoogleGenAiLlm(modelDef)
+    fun googleGenAiModelsInitializer(): ProviderInitialization {
+        val registeredLlms = buildList {
+            modelLoader
+                .loadAutoConfigMetadata().models.forEach { modelDef ->
+                    try {
+                        val llm = createGoogleGenAiLlm(modelDef)
 
-                    // Register as singleton bean with the configured bean name
-                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                        // Register as singleton bean with the configured bean name
+                        configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                        add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
 
-                    logger.info(
-                        "Registered Google GenAI model bean: {} -> {}",
-                        modelDef.name, modelDef.modelId
-                    )
+                        logger.info(
+                            "Registered Google GenAI model bean: {} -> {}",
+                            modelDef.name, modelDef.modelId
+                        )
 
-                } catch (e: Exception) {
-                    logger.error(
-                        "Failed to create model: {} ({})",
-                        modelDef.name, modelDef.modelId, e
-                    )
-                    throw e
+                    } catch (e: Exception) {
+                        logger.error(
+                            "Failed to create model: {} ({})",
+                            modelDef.name, modelDef.modelId, e
+                        )
+                        throw e
+                    }
                 }
-            }
-        return "gsoogleGenAiModelsInitialized"
+        }
+
+        return ProviderInitialization(
+            provider = GoogleGenAiModels.PROVIDER,
+            registeredLlms = registeredLlms,
+        ).also { logger.info(it.summary()) }
     }
 
     /**

@@ -16,8 +16,11 @@
 package com.embabel.agent.config.models.anthropic
 
 import com.embabel.agent.api.models.AnthropicModels
+import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
+import com.embabel.common.ai.autoconfig.ProviderInitialization
+import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
@@ -96,30 +99,36 @@ class AnthropicModelsConfig(
     }
 
     @Bean
-    fun anthropicModelsInitializer(): String {
-        modelLoader
-            .loadAutoConfigMetadata().models.forEach { modelDef ->
-                try {
-                    val llm = createAnthropicLlm(modelDef)
+    fun anthropicModelsInitializer(): ProviderInitialization {
+        val registeredLlms = buildList {
+            modelLoader
+                .loadAutoConfigMetadata().models.forEach { modelDef ->
+                    try {
+                        val llm = createAnthropicLlm(modelDef)
 
-                    // Register as singleton bean with the configured bean name
-                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                        // Register as singleton bean with the configured bean name
+                        configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                        add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
 
-                    logger.info(
-                        "Registered Anthropic model bean: {} -> {}",
-                        modelDef.name, modelDef.modelId
-                    )
+                        logger.info(
+                            "Registered Anthropic model bean: {} -> {}",
+                            modelDef.name, modelDef.modelId
+                        )
 
-                } catch (e: Exception) {
-                    logger.error(
-                        "Failed to create model: {} ({})",
-                        modelDef.name, modelDef.modelId, e
-                    )
-                    throw e
+                    } catch (e: Exception) {
+                        logger.error(
+                            "Failed to create model: {} ({})",
+                            modelDef.name, modelDef.modelId, e
+                        )
+                        throw e
+                    }
                 }
-            }
+        }
 
-        return "anthropicModelsInitialized"
+        return ProviderInitialization(
+            provider = AnthropicModels.PROVIDER,
+            registeredLlms = registeredLlms,
+        ).also { logger.info(it.summary()) }
     }
 
     /**

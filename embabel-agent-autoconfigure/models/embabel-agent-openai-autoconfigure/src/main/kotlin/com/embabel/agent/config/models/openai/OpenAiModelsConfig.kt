@@ -19,6 +19,8 @@ import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
+import com.embabel.common.ai.autoconfig.ProviderInitialization
+import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.embabel.common.util.loggerFor
@@ -94,46 +96,56 @@ class OpenAiModelsConfig(
     }
 
     @Bean
-    fun openAiModelsInitializer(): String {
+    fun openAiModelsInitializer(): ProviderInitialization {
         val definitions = modelLoader.loadAutoConfigMetadata()
 
-        // Register LLM models
-        definitions.models.forEach { modelDef ->
-            try {
-                val llm = createOpenAiLlm(modelDef)
-                configurableBeanFactory.registerSingleton(modelDef.name, llm)
-                logger.info(
-                    "Registered OpenAI model bean: {} -> {}",
-                    modelDef.name, modelDef.modelId
-                )
-            } catch (e: Exception) {
-                logger.error(
-                    "Failed to create model: {} ({})",
-                    modelDef.name, modelDef.modelId, e
-                )
-                throw e
+        val registeredLlms = buildList {
+            // Register LLM models
+            definitions.models.forEach { modelDef ->
+                try {
+                    val llm = createOpenAiLlm(modelDef)
+                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                    add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
+                    logger.info(
+                        "Registered OpenAI model bean: {} -> {}",
+                        modelDef.name, modelDef.modelId
+                    )
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create model: {} ({})",
+                        modelDef.name, modelDef.modelId, e
+                    )
+                    throw e
+                }
             }
         }
 
-        // Register embedding models
-        definitions.embeddingModels.forEach { embeddingDef ->
-            try {
-                val embeddingService = createOpenAiEmbedding(embeddingDef)
-                configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
-                logger.info(
-                    "Registered OpenAI embedding model bean: {} -> {}",
-                    embeddingDef.name, embeddingDef.modelId
-                )
-            } catch (e: Exception) {
-                logger.error(
-                    "Failed to create embedding model: {} ({})",
-                    embeddingDef.name, embeddingDef.modelId, e
-                )
-                throw e
+        val registeredEmbeddings = buildList {
+            // Register embedding models
+            definitions.embeddingModels.forEach { embeddingDef ->
+                try {
+                    val embeddingService = createOpenAiEmbedding(embeddingDef)
+                    configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
+                    add(RegisteredModel(beanName = embeddingDef.name, modelId = embeddingDef.modelId))
+                    logger.info(
+                        "Registered OpenAI embedding model bean: {} -> {}",
+                        embeddingDef.name, embeddingDef.modelId
+                    )
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create embedding model: {} ({})",
+                        embeddingDef.name, embeddingDef.modelId, e
+                    )
+                    throw e
+                }
             }
         }
 
-        return "openAiModelsInitializer"
+        return ProviderInitialization(
+            provider = OpenAiModels.PROVIDER,
+            registeredLlms = registeredLlms,
+            registeredEmbeddings = registeredEmbeddings
+        ).also { logger.info(it.summary()) }
     }
 
     /**

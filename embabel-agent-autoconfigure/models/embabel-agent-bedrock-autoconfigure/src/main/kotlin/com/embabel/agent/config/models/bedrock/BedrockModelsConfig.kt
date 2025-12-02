@@ -17,10 +17,11 @@ package com.embabel.agent.config.models.bedrock
 
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
+import com.embabel.common.ai.autoconfig.ProviderInitialization
+import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.ai.bedrock.cohere.BedrockCohereEmbeddingModel
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi
@@ -114,46 +115,56 @@ class BedrockModelsConfig(
     }
 
     @Bean
-    fun bedrockModelsInitializer(): String  {
+    fun bedrockModelsInitializer(): ProviderInitialization {
         val definitions = modelLoader.loadAutoConfigMetadata()
 
         // Register LLM models
-        definitions.models.forEach { modelDef ->
-            try {
-                val llm = createBedrockLlm(modelDef)
-                configurableBeanFactory.registerSingleton("bedrockModel-" + modelDef.name, llm)
-                logger.info(
-                    "Registered Bedrock model bean: {} -> {} (region: {})",
-                    modelDef.name, modelDef.modelId, modelDef.region
-                )
-            } catch (e: Exception) {
-                logger.error(
-                    "Failed to create model: {} ({})",
-                    modelDef.name, modelDef.modelId, e
-                )
-                throw e
+        val registeredLlms = buildList {
+            definitions.models.forEach { modelDef ->
+                try {
+                    val llm = createBedrockLlm(modelDef)
+                    configurableBeanFactory.registerSingleton("bedrockModel-" + modelDef.name, llm)
+                    add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
+                    logger.info(
+                        "Registered Bedrock model bean: {} -> {} (region: {})",
+                        modelDef.name, modelDef.modelId, modelDef.region
+                    )
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create model: {} ({})",
+                        modelDef.name, modelDef.modelId, e
+                    )
+                    throw e
+                }
             }
         }
 
         // Register embedding models
-        definitions.embeddingModels.forEach { embeddingDef ->
-            try {
-                val embeddingService = createBedrockEmbedding(embeddingDef)
-                configurableBeanFactory.registerSingleton("bedrockModel-" + embeddingDef.name, embeddingService)
-                logger.info(
-                    "Registered Bedrock embedding model bean: {} -> {} (type: {})",
-                    embeddingDef.name, embeddingDef.modelId, embeddingDef.modelType
-                )
-            } catch (e: Exception) {
-                logger.error(
-                    "Failed to create embedding model: {} ({})",
-                    embeddingDef.name, embeddingDef.modelId, e
-                )
-                throw e
+        val registeredEmbeddings = buildList {
+            definitions.embeddingModels.forEach { embeddingDef ->
+                try {
+                    val embeddingService = createBedrockEmbedding(embeddingDef)
+                    configurableBeanFactory.registerSingleton("bedrockModel-" + embeddingDef.name, embeddingService)
+                    add(RegisteredModel(beanName = embeddingDef.name, modelId = embeddingDef.modelId))
+                    logger.info(
+                        "Registered Bedrock embedding model bean: {} -> {} (type: {})",
+                        embeddingDef.name, embeddingDef.modelId, embeddingDef.modelType
+                    )
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create embedding model: {} ({})",
+                        embeddingDef.name, embeddingDef.modelId, e
+                    )
+                    throw e
+                }
             }
         }
 
-        return "bedrockModelsInitializer"
+        return ProviderInitialization(
+            provider = PROVIDER,
+            registeredLlms = registeredLlms,
+            registeredEmbeddings = registeredEmbeddings
+        ).also { logger.info(it.summary()) }
     }
 
     /**

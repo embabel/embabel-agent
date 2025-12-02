@@ -20,6 +20,8 @@ import com.embabel.agent.openai.OpenAiChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
+import com.embabel.common.ai.autoconfig.ProviderInitialization
+import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
@@ -95,28 +97,35 @@ class GeminiModelsConfig(
     }
 
     @Bean
-    fun geminiModelsInitializer(): String {
-        modelLoader
-            .loadAutoConfigMetadata().models.forEach { modelDef ->
-                try {
-                    val llm = createGeminiLlm(modelDef)
+    fun geminiModelsInitializer(): ProviderInitialization {
+        val registeredLlms = buildList {
+            modelLoader
+                .loadAutoConfigMetadata().models.forEach { modelDef ->
+                    try {
+                        val llm = createGeminiLlm(modelDef)
 
-                    // Register as singleton bean with the configured bean name
-                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                        // Register as singleton bean with the configured bean name
+                        configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                        add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
 
-                    logger.info(
-                        "Registered Gemini model bean: {} -> {}",
-                        modelDef.name, modelDef.modelId
-                    )
-                } catch (e: Exception) {
-                    logger.error(
-                        "Failed to create model: {} ({})",
-                        modelDef.name, modelDef.modelId, e
-                    )
-                    throw e
+                        logger.info(
+                            "Registered Gemini model bean: {} -> {}",
+                            modelDef.name, modelDef.modelId
+                        )
+                    } catch (e: Exception) {
+                        logger.error(
+                            "Failed to create model: {} ({})",
+                            modelDef.name, modelDef.modelId, e
+                        )
+                        throw e
+                    }
                 }
-            }
-        return "geminiModelsInitialized"
+        }
+
+        return ProviderInitialization(
+            provider = GeminiModels.PROVIDER,
+            registeredLlms = registeredLlms,
+        ).also { logger.info(it.summary()) }
     }
 
     /**
