@@ -4,12 +4,18 @@ name: Deploy Snapshots
 
 on:
   workflow_dispatch:  # Enables manual triggering
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
 
     runs-on: ubuntu-latest
-
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 21
