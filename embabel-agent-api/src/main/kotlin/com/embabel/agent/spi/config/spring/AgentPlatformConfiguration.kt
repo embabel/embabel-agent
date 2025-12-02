@@ -25,6 +25,7 @@ import com.embabel.agent.spi.logging.DefaultColorPalette
 import com.embabel.agent.spi.logging.LoggingAgenticEventListener
 import com.embabel.agent.spi.support.*
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator
+import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.model.*
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.NameGenerator
@@ -35,8 +36,6 @@ import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext
@@ -172,25 +171,7 @@ class AgentPlatformConfiguration(
     fun modelProvider(
         applicationContext: ApplicationContext,
         properties: ConfigurableModelProviderProperties,
-        @Autowired(required = false)
-        @Qualifier("anthropicModelsInitializer") anthropicModelsInitializer: Any?,
-        @Autowired(required = false)
-        @Qualifier("bedrockModelsInitializer") bedrockModelsInitializer: Any?,
-        @Autowired(required = false)
-        @Qualifier("dockerLocalModelsInitializer") dockerLocalModelsInitializer: Any?,
-        @Autowired(required = false)
-        @Qualifier("googleGenAiModelsInitializer") googleGenAiModelsInitializer: Any?,
-        @Autowired(required = false)
-        @Qualifier("lmStudioModelsInitializer") lmStudioModelsInitializer: Any?,
-        @Autowired(required = false)
-        @Qualifier("ollamaModelsInitializer") ollamaModelsInitializer: Any?,
-        @Autowired(required = false)
-        @Qualifier("openAiModelsInitializer") openAiModelsInitializer: Any?,
-        @Autowired(required = false)
-        @Qualifier("geminiModelsInitializer") geminiModelsInitializer: Any?,
-        @Autowired(required = false)
-        @Qualifier("mistralAiModelsInitializer") mistralAiModelsInitializer: Any?,
-
+        providerInitialization: List<ProviderInitialization>, // models ingested dynamically
     ): ModelProvider {
 
         return ConfigurableModelProvider(
