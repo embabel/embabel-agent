@@ -47,8 +47,6 @@ import org.springframework.context.annotation.Configuration;
                 "com.embabel.agent.shell",
                 //Scan MCP Packages, this one should be moved over to MCP Module later
                 "com.embabel.agent.mcpserver",
-                //Scan A2A Packages, this one should be moved over to A2A Module later
-                "com.embabel.agent.a2a",
                 //Scan RAG Packages, this one should be moved over to RAG Module later
                 "com.embabel.agent.rag",
         }
@@ -69,8 +67,6 @@ import org.springframework.context.annotation.Configuration;
                 "com.embabel.agent.shell",
                 //Scan MCP Packages, this one should be moved over to MCP Module later
                 "com.embabel.agent.mcpserver",
-                //Scan A2A Packages, this one should be moved over to A2A Module later
-                "com.embabel.agent.a2a",
                 //Scan RAG Packages, this one should be moved over to RAG Module later
                 "com.embabel.agent.rag",
         }
