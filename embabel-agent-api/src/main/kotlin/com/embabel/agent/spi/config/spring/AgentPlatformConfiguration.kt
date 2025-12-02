@@ -163,8 +163,7 @@ class AgentPlatformConfiguration(
      *
      * @param applicationContext the Spring application context used to discover model beans
      * @param properties configuration properties for the model provider
-     * @param dockerLocalModelsConfig optional marker bean for docker-local models auto-configuration
-     * @param ollamaModelsConfig optional marker bean for Ollama models auto-configuration
+     * @param providerInitialization list of provider initializations for dynamic model ingestion
      * @return a configured [ModelProvider] instance that exposes discovered LLMs and embedding services
      */
     @Bean(name = ["modelProvider"])
