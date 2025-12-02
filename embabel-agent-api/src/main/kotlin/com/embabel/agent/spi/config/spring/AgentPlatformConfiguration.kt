@@ -157,10 +157,6 @@ class AgentPlatformConfiguration(
      * [ApplicationContext] and constructs a [ConfigurableModelProvider] configured
      * with the supplied [ConfigurableModelProviderProperties].
      *
-     * The parameters `dockerLocalModelsConfig` and `ollamaModelsConfig` are
-     * optional markers used to trigger related auto-configuration when present;
-     * they are not accessed directly by this method.
-     *
      * @param applicationContext the Spring application context used to discover model beans
      * @param properties configuration properties for the model provider
      * @param providerInitialization list of provider initializations for dynamic model ingestion
