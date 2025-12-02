@@ -72,6 +72,8 @@ class OllamaModelsConfig(
         val size: Long,
     )
 
+    //AH, consider refactoring (create issue) to avoid mutable state
+    // but for now it's simpler this way
     private var providerInitialization: ProviderInitialization = ProviderInitialization(
         provider = OllamaModels.PROVIDER,
         registeredLlms = emptyList(),
