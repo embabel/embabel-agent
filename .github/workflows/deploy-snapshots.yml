@@ -33,3 +33,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         
         run: mvn -U -P flatten-pom -DskipTests=true clean deploy
+
+      - name: Trigger examples repo workflow
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          repository: embabel/embabel-agent-examples
+          event-type: agent-snapshots-deployed
