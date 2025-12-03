@@ -29,7 +29,7 @@ import com.embabel.agent.api.common.PromptRunner
  * val streamingRunner = context.ai().withAutoLlm() as StreamingPromptRunner
  * val restaurantStream = streamingRunner.stream()
  *     .withPrompt("Find 5 restaurants in Paris")
- *     .createObjectList(Restaurant::class.java)
+ *     .createObjectStream(Restaurant::class.java)
  * ```
  */
 interface StreamingPromptRunner : PromptRunner {

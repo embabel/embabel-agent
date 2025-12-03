@@ -201,7 +201,7 @@ class LLMStreamingIntegrationTest(
             is StreamingPromptRunnerOperations -> {
                 val results = streamingOperations
                     .withPrompt("Test streaming")
-                    .createObjectList(SimpleItem::class.java)
+                    .createObjectStream(SimpleItem::class.java)
                 val firstResult = results.blockFirst()
                 assertNotNull(firstResult, "Should receive streaming result")
             }
@@ -251,7 +251,7 @@ class LLMStreamingIntegrationTest(
             is StreamingPromptRunnerOperations -> {
                 val results = streamingOperations
                     .withPrompt("Test streaming")
-                    .createObjectList(SimpleItem::class.java)
+                    .createObjectStream(SimpleItem::class.java)
                     .collectList()
                     .block()
 
@@ -282,7 +282,7 @@ class LLMStreamingIntegrationTest(
         // Use extension function instead of manual casting
         val results = runner.asStreaming()
             .withPrompt("Test streaming")
-            .createObjectList(SimpleItem::class.java)
+            .createObjectStream(SimpleItem::class.java)
             .collectList()
             .block()
 
@@ -307,7 +307,7 @@ class LLMStreamingIntegrationTest(
 
         val results = runner.asStreaming()
             .withPrompt("Test integration streaming")
-            .createObjectListWithThinking(SimpleItem::class.java)
+            .createObjectStreamWithThinking(SimpleItem::class.java)
 
         results
             .doOnNext { event ->

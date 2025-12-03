@@ -60,7 +60,7 @@ internal class StreamingPromptRunnerOperationsImpl(
         return copy(messages = messages)
     }
 
-    override fun <T> createObjectList(itemClass: Class<T>): Flux<T> {
+    override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
         return streamingLlmOperations.createObjectStream(
             messages = messages,
             interaction = interaction,
@@ -70,7 +70,7 @@ internal class StreamingPromptRunnerOperationsImpl(
         )
     }
 
-    override fun <T> createObjectListWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>> {
+    override fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>> {
         return streamingLlmOperations.createObjectStreamWithThinking(
             messages = messages,
             interaction = interaction,

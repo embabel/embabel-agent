@@ -83,7 +83,7 @@ interface StreamingLlmOperations {
      * Each line in the LLM response should be a valid JSON object matching the output class.
      * Objects are emitted to the Flux as they are parsed from individual lines.
      *
-     * Supports the API layer createObjectList() method.
+     * Supports the API layer createObjectStream() method.
      *
      * @param messages messages in the conversation so far
      * @param interaction Llm options and tool callbacks to use, plus unique identifier
@@ -126,7 +126,7 @@ interface StreamingLlmOperations {
      * Returns StreamingEvent objects that can contain either typed objects or thinking content.
      *
      * This enables real-time visibility into LLM reasoning process alongside structured results.
-     * Supports the API layer createObjectListWithThinking() method.
+     * Supports the API layer createObjectStreamWithThinking() method.
      *
      * @param messages messages in the conversation so far
      * @param interaction Llm options and tool callbacks to use, plus unique identifier

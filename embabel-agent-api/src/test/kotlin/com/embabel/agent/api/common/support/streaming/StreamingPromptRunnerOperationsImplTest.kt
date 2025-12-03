@@ -80,7 +80,7 @@ class StreamingPromptRunnerOperationsImplTest {
     }
 
     @Test
-    fun `should delegate createObjectList to StreamingLlmOperations`() {
+    fun `should delegate createObjectStream to StreamingLlmOperations`() {
         // Given
         val outputClass = TestItem::class.java
         val mockStream = Flux.just(TestItem("test", 42))
@@ -91,7 +91,7 @@ class StreamingPromptRunnerOperationsImplTest {
         } returns mockStream
 
         // When
-        val result = streamingOperations.createObjectList(outputClass)
+        val result = streamingOperations.createObjectStream(outputClass)
 
         // Then
         verify {
@@ -107,7 +107,7 @@ class StreamingPromptRunnerOperationsImplTest {
     }
 
     @Test
-    fun `should delegate createObjectListWithThinking to StreamingLlmOperations`() {
+    fun `should delegate createObjectStreamWithThinking to StreamingLlmOperations`() {
         // Given
         val outputClass = TestItem::class.java
         val mockStream = Flux.just(
@@ -121,7 +121,7 @@ class StreamingPromptRunnerOperationsImplTest {
         } returns mockStream
 
         // When
-        val result = streamingOperations.createObjectListWithThinking(outputClass)
+        val result = streamingOperations.createObjectStreamWithThinking(outputClass)
 
         // Then
         verify {
@@ -150,7 +150,7 @@ class StreamingPromptRunnerOperationsImplTest {
         // When
         streamingOperations
             .withPrompt(newPrompt)
-            .createObjectList(outputClass)
+            .createObjectStream(outputClass)
 
         // Then
         verify {
@@ -180,7 +180,7 @@ class StreamingPromptRunnerOperationsImplTest {
         // When
         streamingOperations
             .withMessages(additionalMessages)
-            .createObjectList(outputClass)
+            .createObjectStream(outputClass)
 
         // Then
         verify {
@@ -210,7 +210,7 @@ class StreamingPromptRunnerOperationsImplTest {
         streamingOperations
             .withPrompt("New prompt")
             .withMessages(listOf(UserMessage("Additional")))
-            .createObjectList(outputClass)
+            .createObjectStream(outputClass)
 
         // Then
         verify {

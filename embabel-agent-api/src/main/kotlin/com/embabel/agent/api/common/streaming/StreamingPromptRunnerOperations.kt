@@ -51,7 +51,7 @@ interface StreamingPromptRunnerOperations : StreamingCapability {
      * @param itemClass The class of objects to create
      * @return Flux emitting objects as they are parsed from the LLM response
      */
-    fun <T> createObjectList(itemClass: Class<T>): Flux<T>
+    fun <T> createObjectStream(itemClass: Class<T>): Flux<T>
 
     /**
      * Create a reactive stream with both objects and thinking content.
@@ -60,7 +60,7 @@ interface StreamingPromptRunnerOperations : StreamingCapability {
      * @param itemClass The class of objects to create
      * @return Flux emitting StreamingEvent instances for objects and thinking
      */
-    fun <T> createObjectListWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>>
+    fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>>
 }
 
 /**

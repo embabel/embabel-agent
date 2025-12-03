@@ -139,7 +139,7 @@ class LLMStreamingIT(
 
         val results = runner.asStreaming()
             .withPrompt(prompt)
-            .createObjectListWithThinking(MonthItem::class.java)
+            .createObjectStreamWithThinking(MonthItem::class.java)
 
         results
             .timeout(Duration.ofSeconds(30))
