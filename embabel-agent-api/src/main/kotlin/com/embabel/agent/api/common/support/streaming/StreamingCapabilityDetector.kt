@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.streaming
+package com.embabel.agent.api.common.support.streaming
 
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.chat.messages.UserMessage
@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap
  * This detector performs lightweight behavioral testing to determine if a model
  * actually supports streaming operations.
  */
-object StreamingCapabilityDetector {
+internal object StreamingCapabilityDetector {
     private val logger = loggerFor<StreamingCapabilityDetector>()
     private val capabilityCache = ConcurrentHashMap<Class<*>, Boolean>()
 

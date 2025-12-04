@@ -29,7 +29,7 @@ import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.streaming.StreamingCapabilityDetector
+import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.agent.tools.agent.AgentToolCallback

@@ -285,6 +285,7 @@ internal class StreamingChatClientOperations(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
+        @Suppress("UNUSED_PARAMETER")
         llmRequestEvent: LlmRequestEvent<O>?,
     ): Flux<StreamingEvent<O>> {
         // Common setup - delegate to ChatClientLlmOperations for LLM setup
