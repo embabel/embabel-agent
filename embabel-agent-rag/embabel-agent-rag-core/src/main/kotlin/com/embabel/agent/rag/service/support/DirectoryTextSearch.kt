@@ -25,6 +25,7 @@ import com.embabel.common.core.types.TextSimilaritySearchRequest
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.io.path.invariantSeparatorsPathString
 import kotlin.io.path.isRegularFile
 import kotlin.io.path.name
 import kotlin.io.path.pathString
@@ -233,7 +234,7 @@ class DirectoryTextSearch @JvmOverloads constructor(
     }
 
     private fun relativePath(path: Path): String {
-        return rootPath.relativize(path).pathString
+        return rootPath.relativize(path).invariantSeparatorsPathString
     }
 
     /**
@@ -274,7 +275,7 @@ class DirectoryTextSearch @JvmOverloads constructor(
     ): List<Chunk> {
         val relativePath = relativePath(filePath)
         val baseMetadata = mapOf(
-            "file_path" to filePath.pathString,
+            "file_path" to filePath.invariantSeparatorsPathString,
             "relative_path" to relativePath,
             "file_name" to filePath.name,
             "source" to "directory:$directory",
