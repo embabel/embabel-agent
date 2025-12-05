@@ -15,6 +15,8 @@
  */
 package architecture
 
+import com.tngtech.archunit.core.importer.ImportOption
+import com.tngtech.archunit.core.importer.Location
 import com.tngtech.archunit.junit.AnalyzeClasses
 import com.tngtech.archunit.junit.ArchTest
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition
@@ -31,7 +33,10 @@ import org.junit.jupiter.api.Tag
  *
  */
 @Tag("architecture")
-@AnalyzeClasses(packages = ["com.embabel.agent"])
+@AnalyzeClasses(
+    packages = ["com.embabel.agent"],
+    importOptions = [ExcludeExperimentalOption::class, ImportOption.DoNotIncludeTests::class]
+)
 class ArchitectureRules {
 
     @ArchTest
@@ -43,4 +48,12 @@ class ArchitectureRules {
     val noClassCycles = SlicesRuleDefinition.slices()
         .matching("com.embabel.agent.(*)")
         .should().beFreeOfCycles()
+}
+
+class ExcludeExperimentalOption : ImportOption {
+
+    override fun includes(location: Location?): Boolean {
+        return location?.contains("experimental") == false;
+    }
+
 }
