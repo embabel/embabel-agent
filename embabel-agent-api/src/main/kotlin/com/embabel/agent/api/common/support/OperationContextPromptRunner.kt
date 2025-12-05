@@ -19,6 +19,9 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
+import com.embabel.agent.api.common.streaming.StreamingPromptRunner
+import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
+import com.embabel.agent.api.common.support.streaming.StreamingPromptRunnerOperationsImpl
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -26,6 +29,9 @@ import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
+import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
+import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.agent.tools.agent.AgentToolCallback
 import com.embabel.agent.tools.agent.Handoffs
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
@@ -53,7 +59,7 @@ internal data class OperationContextPromptRunner(
     override val generateExamples: Boolean?,
     override val propertyFilter: Predicate<String> = Predicate { true },
     private val otherToolCallbacks: List<ToolCallback> = emptyList(),
-) : PromptRunner {
+) : StreamingPromptRunner {
 
     val action = (context as? ActionContext)?.action
 
@@ -240,6 +246,49 @@ internal data class OperationContextPromptRunner(
             promptRunner = this,
             outputClass = outputClass,
             objectMapper = context.agentPlatform().platformServices.objectMapper,
+        )
+    }
+
+    /**
+     * Check if streaming is supported by the underlying LLM model.
+     * Performs three-level capability detection:
+     * 1. Must be ChatClientLlmOperations for Spring AI integration
+     * 2. Must have StreamingChatModel
+     */
+    override fun supportsStreaming(): Boolean {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+
+
+        return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)
+    }
+
+    override fun stream(): StreamingPromptRunnerOperations {
+        if (!supportsStreaming()) {
+            throw UnsupportedOperationException(
+                "Streaming not supported by underlying LLM model. " +
+                "Model type: ${context.agentPlatform().platformServices.llmOperations::class.simpleName}. " +
+                "Check supportsStreaming() before calling stream()."
+            )
+        }
+
+        return StreamingPromptRunnerOperationsImpl(
+            streamingLlmOperations = StreamingChatClientOperations(
+                context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
+            ),
+            interaction = LlmInteraction(
+                llm = llm,
+                toolGroups = toolGroups,
+                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
+                promptContributors = promptContributors + contextualPromptContributors.map {
+                    it.toPromptContributor(context)
+                },
+                id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
+                generateExamples = generateExamples,
+                propertyFilter = propertyFilter,
+            ),
+            messages = messages,
+            agentProcess = context.processContext.agentProcess,
+            action = action,
         )
     }
 }

@@ -178,5 +178,6 @@ object OpenAiChatOptionsConverter : OptionsConverter<OpenAiChatOptions> {
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .topP(options.topP)
+            //.streamUsage(true)  additional feature note
             .build()
 }
