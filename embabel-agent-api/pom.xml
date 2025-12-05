@@ -20,6 +20,10 @@
         <tag>HEAD</tag>
     </scm>
 
+    <properties>
+        <archunit.version>1.3.0</archunit.version>
+    </properties>
+
     <dependencies>
 
         <dependency>
@@ -151,6 +155,20 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+
     </dependencies>
 
 
@@ -243,6 +261,7 @@
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                         <exclude>**/*IT.kt</exclude>
+                        <exclude>**/architecture/**</exclude>
                     </excludes>
                 </configuration>
             </plugin>
