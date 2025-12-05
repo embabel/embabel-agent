@@ -258,16 +258,8 @@ internal data class OperationContextPromptRunner(
     override fun supportsStreaming(): Boolean {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
-        // Level 1: Must be ChatClientLlmOperations for Spring AI integration
-        if (llmOperations !is ChatClientLlmOperations) return false
 
-        // Level 2: Must have actual streaming capability
-        val llm = llmOperations.getLlm(LlmInteraction(
-            id = InteractionId("capability-check"),
-            llm = this.llm
-        ))
-
-        return StreamingCapabilityDetector.supportsStreaming(llm.model)
+        return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)
     }
 
     override fun stream(): StreamingPromptRunnerOperations {
