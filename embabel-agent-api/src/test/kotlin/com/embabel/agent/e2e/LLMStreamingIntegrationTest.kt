@@ -266,7 +266,7 @@ class LLMStreamingIntegrationTest(
 
         // Verify that withToolObject actually registered the tool
         assertEquals(1, runner.toolObjects.size, "Should have one tool object registered")
-        assertEquals(simpleTool, runner.toolObjects[0].obj, "Tool object should be our SimpleTool instance")
+        assertEquals(simpleTool, runner.toolObjects[0].objects[0], "Tool object should be our SimpleTool instance")
     }
 
     @Test
@@ -292,7 +292,7 @@ class LLMStreamingIntegrationTest(
 
         // Verify tool registration
         assertEquals(1, runner.toolObjects.size, "Should have one tool object registered")
-        assertEquals(simpleTool, runner.toolObjects[0].obj, "Tool object should be our SimpleTool instance")
+        assertEquals(simpleTool, runner.toolObjects[0].objects[0], "Tool object should be our SimpleTool instance")
     }
 
     @Test
