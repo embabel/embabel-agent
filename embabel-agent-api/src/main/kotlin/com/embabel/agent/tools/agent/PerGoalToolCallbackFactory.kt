@@ -138,7 +138,7 @@ class PerGoalToolCallbackFactory(
         return goal.export.startingInputTypes.map { inputType ->
             GoalToolCallback(
                 autonomy = autonomy,
-                name = "${inputType.simpleName}_$goalName",
+                name = goalName,
                 description = goal.description,
                 goal = goal,
                 inputType = inputType,
