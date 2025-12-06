@@ -26,6 +26,6 @@ class DeepSeekModels {
         const val DEEPSEEK_CHAT = "deepseek-chat";
         const val DEEPSEEK_REASONER = "deepseek-reasoner";
 
-        const val PROVIDER = "deepseek";
+        const val PROVIDER = "Deepseek";
     }
 }
