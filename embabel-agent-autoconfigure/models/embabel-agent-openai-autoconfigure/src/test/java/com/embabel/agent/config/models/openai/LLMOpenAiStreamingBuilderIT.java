@@ -97,7 +97,7 @@ import static org.junit.jupiter.api.Assertions.*;
     }
 )
 @Import({StreamingTestConfig.class, AgentOpenAiAutoConfiguration.class})
-public class LLMOpenAiStreamingBuilderIT {
+class LLMOpenAiStreamingBuilderIT {
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOpenAiStreamingBuilderIT.class);
 
@@ -160,7 +160,7 @@ public class LLMOpenAiStreamingBuilderIT {
         }
 
     @Test
-    public void realStreamingIntegrationWithReactiveCallbacks() {
+    void realStreamingIntegrationWithReactiveCallbacks() {
         // Enable Reactor debugging
         reactor.util.Loggers.useVerboseConsoleLoggers();
 
@@ -211,13 +211,6 @@ public class LLMOpenAiStreamingBuilderIT {
         assertNull(errorOccurred.get(), "Integration streaming should not produce errors");
         assertTrue(completionCalled.get(), "Integration stream should complete successfully");
         assertFalse(receivedEvents.isEmpty(), "Should receive object events");
-
-        // Verify we received object events
-        long objectEvents = receivedEvents.stream()
-            .filter(event -> event.startsWith("OBJECT:"))
-            .count();
-        // Note: Commenting out assertion as per original Kotlin test
-        // assertTrue(objectEvents > 0, "Should receive object events from integration streaming");
 
         logger.info("Integration streaming test completed successfully with {} total events", receivedEvents.size());
     }
