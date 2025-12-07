@@ -40,7 +40,7 @@ import javax.validation.constraints.Pattern;
  */
 @Validated
 @ConfigurationProperties(prefix = "embabel.agent.shell")
-public class AgentShellStarterProperties {
+public class AgentShellProperties {
 
     /**
      * Spring Boot web application type for shell mode.

@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.shell.spi;
 
-import com.embabel.agent.autoconfigure.shell.AgentShellStarterProperties;
+import com.embabel.agent.autoconfigure.shell.AgentShellProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
@@ -74,18 +74,18 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
      */
     private ShellConfiguration resolveShellConfiguration(ConfigurableEnvironment environment) {
         try {
-            AgentShellStarterProperties properties = Binder.get(environment)
-                    .bind(SHELL_CONFIG_PREFIX, AgentShellStarterProperties.class)
-                    .orElseGet(AgentShellStarterProperties::new);
+            AgentShellProperties properties = Binder.get(environment)
+                    .bind(SHELL_CONFIG_PREFIX, AgentShellProperties.class)
+                    .orElseGet(AgentShellProperties::new);
 
             return new ShellConfiguration(properties);
         } catch (BindException e) {
             logger.warn("Failed to bind shell properties from '{}', using defaults: {}",
                     SHELL_CONFIG_PREFIX, e.getMessage());
-            return new ShellConfiguration(new AgentShellStarterProperties());
+            return new ShellConfiguration(new AgentShellProperties());
         } catch (Exception e) {
             logger.error("Unexpected error while resolving shell configuration, using defaults", e);
-            return new ShellConfiguration(new AgentShellStarterProperties());
+            return new ShellConfiguration(new AgentShellProperties());
         }
     }
 
@@ -134,9 +134,9 @@ public class ShellEnvironmentPostProcessor implements EnvironmentPostProcessor, 
      * This provides a clean abstraction over the raw properties and encapsulates shell-specific logic.
      */
     private static class ShellConfiguration {
-        private final AgentShellStarterProperties properties;
+        private final AgentShellProperties properties;
 
-        public ShellConfiguration(AgentShellStarterProperties properties) {
+        public ShellConfiguration(AgentShellProperties properties) {
             this.properties = properties;
         }
 

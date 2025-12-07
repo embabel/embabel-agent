@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.autoconfigure.shell.spi;
 
-import com.embabel.agent.autoconfigure.shell.AgentShellStarterProperties;
+import com.embabel.agent.autoconfigure.shell.AgentShellProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -119,16 +119,16 @@ class ShellEnvironmentPostProcessorTest {
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
-        AgentShellStarterProperties properties = createDefaultProperties();
+        AgentShellProperties properties = createDefaultProperties();
 
         try (MockedStatic<Binder> binderMock = mockStatic(Binder.class)) {
             Binder binder = mock(Binder.class);
-            BindResult<AgentShellStarterProperties> bindResult = mock(BindResult.class);
+            BindResult<AgentShellProperties> bindResult = mock(BindResult.class);
 
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
 
             lenient().when(binder.bind(anyString(), any(Bindable.class))).thenReturn(bindResult);
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class))).thenReturn(bindResult);
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class))).thenReturn(bindResult);
             lenient().when(bindResult.isBound()).thenReturn(true);
             lenient().when(bindResult.get()).thenReturn(properties);
             lenient().when(bindResult.orElse(any())).thenReturn(properties);
@@ -151,16 +151,16 @@ class ShellEnvironmentPostProcessorTest {
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
-        AgentShellStarterProperties defaultProperties = createDefaultProperties();
+        AgentShellProperties defaultProperties = createDefaultProperties();
 
         try (MockedStatic<Binder> binderMock = mockStatic(Binder.class)) {
             Binder binder = mock(Binder.class);
-            BindResult<AgentShellStarterProperties> bindResult = mock(BindResult.class);
+            BindResult<AgentShellProperties> bindResult = mock(BindResult.class);
 
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
 
             lenient().when(binder.bind(anyString(), any(Bindable.class))).thenReturn(bindResult);
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class))).thenReturn(bindResult);
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class))).thenReturn(bindResult);
             lenient().when(bindResult.isBound()).thenReturn(false);
             lenient().when(bindResult.orElse(any())).thenReturn(defaultProperties);
             lenient().when(bindResult.orElseGet(any())).thenReturn(defaultProperties);
@@ -188,7 +188,7 @@ class ShellEnvironmentPostProcessorTest {
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
             lenient().when(binder.bind(anyString(), any(Bindable.class)))
                     .thenThrow(new IllegalArgumentException("Invalid binding configuration"));
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class)))
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class)))
                     .thenThrow(new IllegalArgumentException("Invalid binding configuration"));
 
             // When - should handle binding exceptions gracefully
@@ -214,7 +214,7 @@ class ShellEnvironmentPostProcessorTest {
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
             lenient().when(binder.bind(anyString(), any(Bindable.class)))
                     .thenThrow(new IllegalStateException("Unexpected error"));
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class)))
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class)))
                     .thenThrow(new IllegalStateException("Unexpected error"));
 
             // When - should handle general exceptions gracefully
@@ -234,7 +234,7 @@ class ShellEnvironmentPostProcessorTest {
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
-        AgentShellStarterProperties properties = new AgentShellStarterProperties();
+        AgentShellProperties properties = new AgentShellProperties();
         properties.setWebApplicationType("servlet");
         properties.getCommand().setExitEnabled(true);
         properties.getCommand().setQuitEnabled(true);
@@ -243,12 +243,12 @@ class ShellEnvironmentPostProcessorTest {
 
         try (MockedStatic<Binder> binderMock = mockStatic(Binder.class)) {
             Binder binder = mock(Binder.class);
-            BindResult<AgentShellStarterProperties> bindResult = mock(BindResult.class);
+            BindResult<AgentShellProperties> bindResult = mock(BindResult.class);
 
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
 
             lenient().when(binder.bind(anyString(), any(Bindable.class))).thenReturn(bindResult);
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class))).thenReturn(bindResult);
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class))).thenReturn(bindResult);
             lenient().when(bindResult.isBound()).thenReturn(true);
             lenient().when(bindResult.get()).thenReturn(properties);
             lenient().when(bindResult.orElse(any())).thenReturn(properties);
@@ -280,16 +280,16 @@ class ShellEnvironmentPostProcessorTest {
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
-        AgentShellStarterProperties defaultProperties = createDefaultProperties();
+        AgentShellProperties defaultProperties = createDefaultProperties();
 
         try (MockedStatic<Binder> binderMock = mockStatic(Binder.class)) {
             Binder binder = mock(Binder.class);
-            BindResult<AgentShellStarterProperties> bindResult = mock(BindResult.class);
+            BindResult<AgentShellProperties> bindResult = mock(BindResult.class);
 
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
 
             lenient().when(binder.bind(anyString(), any(Bindable.class))).thenReturn(bindResult);
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class))).thenReturn(bindResult);
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class))).thenReturn(bindResult);
             lenient().when(bindResult.isBound()).thenReturn(false);
             lenient().when(bindResult.orElse(any())).thenReturn(defaultProperties);
             lenient().when(bindResult.orElseGet(any())).thenReturn(defaultProperties);
@@ -322,17 +322,17 @@ class ShellEnvironmentPostProcessorTest {
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
-        AgentShellStarterProperties properties = new AgentShellStarterProperties();
+        AgentShellProperties properties = new AgentShellProperties();
         properties.setWebApplicationType(null);
 
         try (MockedStatic<Binder> binderMock = mockStatic(Binder.class)) {
             Binder binder = mock(Binder.class);
-            BindResult<AgentShellStarterProperties> bindResult = mock(BindResult.class);
+            BindResult<AgentShellProperties> bindResult = mock(BindResult.class);
 
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
 
             lenient().when(binder.bind(anyString(), any(Bindable.class))).thenReturn(bindResult);
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class))).thenReturn(bindResult);
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class))).thenReturn(bindResult);
             lenient().when(bindResult.isBound()).thenReturn(true);
             lenient().when(bindResult.get()).thenReturn(properties);
             lenient().when(bindResult.orElse(any())).thenReturn(properties);
@@ -363,16 +363,16 @@ class ShellEnvironmentPostProcessorTest {
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
-        AgentShellStarterProperties properties = createDefaultProperties();
+        AgentShellProperties properties = createDefaultProperties();
 
         try (MockedStatic<Binder> binderMock = mockStatic(Binder.class)) {
             Binder binder = mock(Binder.class);
-            BindResult<AgentShellStarterProperties> bindResult = mock(BindResult.class);
+            BindResult<AgentShellProperties> bindResult = mock(BindResult.class);
 
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
 
             lenient().when(binder.bind(anyString(), any(Bindable.class))).thenReturn(bindResult);
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class))).thenReturn(bindResult);
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class))).thenReturn(bindResult);
             lenient().when(bindResult.isBound()).thenReturn(true);
             lenient().when(bindResult.get()).thenReturn(properties);
             lenient().when(bindResult.orElse(any())).thenReturn(properties);
@@ -405,16 +405,16 @@ class ShellEnvironmentPostProcessorTest {
         when(application.getAllSources()).thenReturn(sources);
         when(environment.getPropertySources()).thenReturn(propertySources);
 
-        AgentShellStarterProperties properties = createDefaultProperties();
+        AgentShellProperties properties = createDefaultProperties();
 
         try (MockedStatic<Binder> binderMock = mockStatic(Binder.class)) {
             Binder binder = mock(Binder.class);
-            BindResult<AgentShellStarterProperties> bindResult = mock(BindResult.class);
+            BindResult<AgentShellProperties> bindResult = mock(BindResult.class);
 
             binderMock.when(() -> Binder.get(environment)).thenReturn(binder);
 
             lenient().when(binder.bind(anyString(), any(Bindable.class))).thenReturn(bindResult);
-            lenient().when(binder.bind(anyString(), eq(AgentShellStarterProperties.class))).thenReturn(bindResult);
+            lenient().when(binder.bind(anyString(), eq(AgentShellProperties.class))).thenReturn(bindResult);
             lenient().when(bindResult.isBound()).thenReturn(true);
             lenient().when(bindResult.get()).thenReturn(properties);
             lenient().when(bindResult.orElse(any())).thenReturn(properties);
@@ -428,8 +428,8 @@ class ShellEnvironmentPostProcessorTest {
         }
     }
 
-    private AgentShellStarterProperties createDefaultProperties() {
-        AgentShellStarterProperties properties = new AgentShellStarterProperties();
+    private AgentShellProperties createDefaultProperties() {
+        AgentShellProperties properties = new AgentShellProperties();
         properties.setWebApplicationType("none");
         properties.getCommand().setExitEnabled(false);
         properties.getCommand().setQuitEnabled(false);

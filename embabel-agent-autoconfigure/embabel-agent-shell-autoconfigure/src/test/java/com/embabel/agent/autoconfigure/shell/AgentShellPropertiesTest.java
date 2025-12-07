@@ -19,11 +19,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class AgentShellStarterPropertiesTest {
+class AgentShellPropertiesTest {
 
     @Test
     void testDefaultValues() {
-        AgentShellStarterProperties properties = new AgentShellStarterProperties();
+        AgentShellProperties properties = new AgentShellProperties();
 
         assertEquals("none", properties.getWebApplicationType());
         assertNotNull(properties.getCommand());
@@ -40,7 +40,7 @@ class AgentShellStarterPropertiesTest {
 
     @Test
     void testSettersAndGetters() {
-        AgentShellStarterProperties properties = new AgentShellStarterProperties();
+        AgentShellProperties properties = new AgentShellProperties();
 
         // Main properties
         properties.setWebApplicationType("servlet");
@@ -66,7 +66,7 @@ class AgentShellStarterPropertiesTest {
 
     @Test
     void testCommandSettersAndGetters() {
-        AgentShellStarterProperties.Command cmd = new AgentShellStarterProperties.Command();
+        AgentShellProperties.Command cmd = new AgentShellProperties.Command();
 
         // Test setting to false (since default is now true)
         cmd.setExitEnabled(false);
@@ -85,7 +85,7 @@ class AgentShellStarterPropertiesTest {
 
     @Test
     void testInteractiveSettersAndGetters() {
-        AgentShellStarterProperties.Interactive interactive = new AgentShellStarterProperties.Interactive();
+        AgentShellProperties.Interactive interactive = new AgentShellProperties.Interactive();
 
         interactive.setEnabled(false);
         interactive.setHistoryEnabled(false);
@@ -102,7 +102,7 @@ class AgentShellStarterPropertiesTest {
 
     @Test
     void testWebApplicationTypeValidation() {
-        AgentShellStarterProperties properties = new AgentShellStarterProperties();
+        AgentShellProperties properties = new AgentShellProperties();
 
         // Test valid values
         properties.setWebApplicationType("none");
@@ -117,7 +117,7 @@ class AgentShellStarterPropertiesTest {
 
     @Test
     void testNullValues() {
-        AgentShellStarterProperties properties = new AgentShellStarterProperties();
+        AgentShellProperties properties = new AgentShellProperties();
 
         // Test setting null webApplicationType
         properties.setWebApplicationType(null);
@@ -131,15 +131,15 @@ class AgentShellStarterPropertiesTest {
 
     @Test
     void testNestedObjectsAreFinal() {
-        AgentShellStarterProperties properties = new AgentShellStarterProperties();
+        AgentShellProperties properties = new AgentShellProperties();
 
         // Get references to nested objects
-        AgentShellStarterProperties.Command command1 = properties.getCommand();
-        AgentShellStarterProperties.Interactive interactive1 = properties.getInteractive();
+        AgentShellProperties.Command command1 = properties.getCommand();
+        AgentShellProperties.Interactive interactive1 = properties.getInteractive();
 
         // Get references again
-        AgentShellStarterProperties.Command command2 = properties.getCommand();
-        AgentShellStarterProperties.Interactive interactive2 = properties.getInteractive();
+        AgentShellProperties.Command command2 = properties.getCommand();
+        AgentShellProperties.Interactive interactive2 = properties.getInteractive();
 
         // Should be the same instances since they're final
         assertSame(command1, command2);
