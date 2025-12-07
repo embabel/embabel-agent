@@ -131,6 +131,11 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     val messages: List<Message>
 
     /**
+     * Images added to this PromptRunner
+     */
+    val images: List<AgentImage>
+
+    /**
      * Set an interaction id for this prompt runner.
      */
     fun withInteractionId(interactionId: InteractionId): PromptRunner
@@ -155,6 +160,18 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
 
     fun withMessages(vararg message: Message): PromptRunner =
         withMessages(message.toList())
+
+    /**
+     * Add an image that will be included in the final prompt.
+     * Images will be combined with the prompt text when operations are executed.
+     */
+    fun withImage(image: AgentImage): PromptRunner =
+        withImages(listOf(image))
+
+    fun withImages(images: List<AgentImage>): PromptRunner
+
+    fun withImages(vararg images: AgentImage): PromptRunner =
+        withImages(images.toList())
 
     /**
      * Add a tool group to the PromptRunner

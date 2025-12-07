@@ -49,6 +49,7 @@ data class LlmInvocation(
 data class FakePromptRunner(
     override val llm: LlmOptions?,
     override val messages: List<Message> = emptyList(),
+    override val images: List<AgentImage> = emptyList(),
     override val toolGroups: Set<ToolGroupRequirement>,
     override val toolObjects: List<ToolObject>,
     override val promptContributors: List<PromptContributor>,
@@ -73,6 +74,9 @@ data class FakePromptRunner(
 
     override fun withMessages(messages: List<Message>): PromptRunner =
         copy(messages = this.messages + messages)
+
+    override fun withImages(images: List<AgentImage>): PromptRunner =
+        copy(images = this.images + images)
 
     /**
      * Add a response to the list of expected responses.

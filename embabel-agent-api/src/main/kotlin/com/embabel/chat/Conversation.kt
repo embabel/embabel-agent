@@ -76,31 +76,74 @@ enum class Role {
 }
 
 /**
- * Message class for agent system
- * @param role Role of the message sender. AI system specific
- * @param content Content of the message
+ * Message class for agent system - now supports multimodal content
+ * @param role Role of the message sender
+ * @param parts List of content parts (text, images, etc.)
  * @param name of the sender, if available
+ * @param timestamp when the message was created
  */
 sealed class Message(
     val role: Role,
-    override val content: String,
+    val parts: List<ContentPart>,
     val name: String? = null,
     override val timestamp: Instant = Instant.now(),
 ) : HasContent, Timestamped {
+
+    init {
+        require(parts.isNotEmpty()) { "Message must contain at least one content part" }
+    }
+
+    /**
+     * Maintains backward compatibility with HasContent interface.
+     * Returns concatenated text from all TextParts.
+     */
+    override val content: String
+        get() = textContent
+
+    /**
+     * Returns the text content of the message by concatenating all TextParts.
+     */
+    val textContent: String
+        get() = parts.filterIsInstance<TextPart>().joinToString("") { it.text }
+
+    /**
+     * Returns all image parts in this message.
+     */
+    val imageParts: List<ImagePart>
+        get() = parts.filterIsInstance<ImagePart>()
+
+    /**
+     * Returns true if this message contains any non-text content.
+     */
+    val isMultimodal: Boolean
+        get() = parts.any { it !is TextPart }
 
     val sender: String get() = name ?: role.name.lowercase().replaceFirstChar { it.uppercase() }
 }
 
 /**
- * Message sent by the user.
- * @param content Content of the message
- * @param name Name of the user, if available
+ * Message sent by the user - supports multimodal content
  */
-class UserMessage @JvmOverloads constructor(
-    content: String,
-    name: String? = null,
-    override val timestamp: Instant = Instant.now(),
-) : Message(role = Role.USER, content = content, name = name, timestamp = timestamp), UserContent {
+class UserMessage : Message, UserContent {
+
+    /**
+     * Primary constructor for multimodal messages
+     */
+    constructor(
+        parts: List<ContentPart>,
+        name: String? = null,
+        timestamp: Instant = Instant.now()
+    ) : super(role = Role.USER, parts = parts, name = name, timestamp = timestamp)
+
+    /**
+     * Convenience constructor for text-only messages (backward compatibility)
+     */
+    @JvmOverloads
+    constructor(
+        content: String,
+        name: String? = null,
+        timestamp: Instant = Instant.now()
+    ) : this(parts = listOf(TextPart(content)), name = name, timestamp = timestamp)
 
     override fun toString(): String {
         return "UserMessage(from='${sender}', content='${trim(content, 80, 10)}')"
@@ -108,7 +151,7 @@ class UserMessage @JvmOverloads constructor(
 }
 
 /**
- * Message sent by the assistant.
+ * Message sent by the assistant - currently text-only
  * @param content Content of the message
  * @param name Name of the assistant, if available
  * @param awaitable Awaitable associated with this message, if any
@@ -119,7 +162,7 @@ open class AssistantMessage @JvmOverloads constructor(
     name: String? = null,
     val awaitable: Awaitable<*, *>? = null,
     override val timestamp: Instant = Instant.now(),
-) : Message(role = Role.ASSISTANT, content = content, name = name, timestamp = timestamp), AssistantContent {
+) : Message(role = Role.ASSISTANT, parts = listOf(TextPart(content)), name = name, timestamp = timestamp), AssistantContent {
 
     override fun toString(): String {
         return "AssistantMessage(from='${sender}', content='${trim(content, 80, 10)}')"
@@ -162,10 +205,13 @@ open class AssistantMessage @JvmOverloads constructor(
     }
 }
 
+/**
+ * System message - text-only
+ */
 class SystemMessage @JvmOverloads constructor(
     content: String,
     override val timestamp: Instant = Instant.now(),
-) : Message(role = Role.SYSTEM, content = content, name = null, timestamp = timestamp) {
+) : Message(role = Role.SYSTEM, parts = listOf(TextPart(content)), name = null, timestamp = timestamp) {
 
     override fun toString(): String {
         return "SystemMessage(content='${trim(content, 80, 10)}')"

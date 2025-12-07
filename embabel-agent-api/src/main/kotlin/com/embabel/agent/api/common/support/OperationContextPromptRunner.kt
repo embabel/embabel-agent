@@ -35,7 +35,9 @@ import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOpera
 import com.embabel.agent.tools.agent.AgentToolCallback
 import com.embabel.agent.tools.agent.Handoffs
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
+import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
@@ -52,6 +54,7 @@ internal data class OperationContextPromptRunner(
     private val interactionId: InteractionId? = null,
     override val llm: LlmOptions,
     override val messages: List<Message> = emptyList(),
+    override val images: List<AgentImage> = emptyList(),
     override val toolGroups: Set<ToolGroupRequirement>,
     override val toolObjects: List<ToolObject>,
     override val promptContributors: List<PromptContributor>,
@@ -70,11 +73,45 @@ internal data class OperationContextPromptRunner(
         return InteractionId("${context.operation.name}-${outputClass.name}")
     }
 
+    /**
+     * Combine stored images with messages.
+     * If there are images, they are added to the last message or a new UserMessage is created.
+     */
+    private fun combineImagesWithMessages(messages: List<Message>): List<Message> {
+        if (images.isEmpty()) {
+            return messages
+        }
+
+        val imageParts = images.map { ImagePart(it.mimeType, it.data) }
+
+        // If there are no messages, create a UserMessage with just images
+        if (messages.isEmpty()) {
+            return listOf(UserMessage(parts = imageParts))
+        }
+
+        // Add images to the last message if it's a UserMessage
+        val lastMessage = messages.last()
+        if (lastMessage is UserMessage) {
+            val updatedLastMessage = UserMessage(
+                parts = lastMessage.parts + imageParts,
+                name = lastMessage.name,
+                timestamp = lastMessage.timestamp
+            )
+            return messages.dropLast(1) + updatedLastMessage
+        } else {
+            // If last message is not a UserMessage, append a new UserMessage with images
+            return messages + UserMessage(parts = imageParts)
+        }
+    }
+
     override fun withInteractionId(interactionId: InteractionId): PromptRunner =
         copy(interactionId = interactionId)
 
     override fun withMessages(messages: List<Message>): PromptRunner =
         copy(messages = this.messages + messages)
+
+    override fun withImages(images: List<AgentImage>): PromptRunner =
+        copy(images = this.images + images)
 
     override fun <T> createObject(
         messages: List<Message>,
@@ -85,8 +122,9 @@ internal data class OperationContextPromptRunner(
                 context
             )
         }
+        val combinedMessages = combineImagesWithMessages(this.messages + messages)
         return context.processContext.createObject(
-            messages = this.messages + messages,
+            messages = combinedMessages,
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
@@ -106,8 +144,9 @@ internal data class OperationContextPromptRunner(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T? {
+        val combinedMessages = combineImagesWithMessages(this.messages + messages)
         val result = context.processContext.createObjectIfPossible<T>(
-            messages = messages,
+            messages = combinedMessages,
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,

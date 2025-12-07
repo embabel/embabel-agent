@@ -75,6 +75,8 @@ TIP: Normally you want to use one of the `createObject` methods to ensure the re
 - `withToolGroup(String)`: Add <<reference.tools__tool-groups, tool groups>> for LLM access
 - `withToolObject(Object)`: Add domain objects with <<reference.tools, @Tool>> methods
 - `withPromptContributor(PromptContributor)`: Add <<reference.prompt-contributors, context>> contributors
+- `withImage(AgentImage)`: Add an image to the prompt for vision-capable LLMs
+- `withImages(AgentImage...)`: Add multiple images to the prompt
 
 **LLM Configuration:**
 
@@ -110,6 +112,21 @@ var story = context.ai()
 ----
 
 <1> **Example**: The example will be included in the prompt in JSON format to guide the LLM.
+
+**Working with Images:**
+
+[source,java]
+----
+var image = AgentImage.fromFile(imageFile);
+
+var answer = context.ai()
+    .withLlm(AnthropicModels.CLAUDE_35_HAIKU)  // <1>
+    .withImage(image)  // <2>
+    .generateText("What is in this image?");
+----
+
+<1> **Vision-capable model required**: Use Claude 3.x, GPT-4 Vision, or other multimodal LLMs
+<2> **Add image**: Images are sent with the text prompt to the LLM. Can be used multiple times for multiple images.
 
 **Advanced Features:**
 
@@ -207,6 +224,19 @@ public class PalindromeValidator implements ConstraintValidator<MustBePalindrome
 <4> Spring will inject the validator with dependencies, such as the `Ai` instance in this case
 
 Thus we have standard JSR-280 validation with full Spring dependency injection support.
+
+==== AgentImage
+
+Represents an image for use with vision-capable LLMs.
+
+**Factory Methods:**
+
+- `AgentImage.fromFile(File)`: Load from file (auto-detects MIME type from common extensions)
+- `AgentImage.fromPath(Path)`: Load from path (auto-detects MIME type)
+- `AgentImage.create(String, byte[])`: Create with explicit MIME type and byte array
+- `AgentImage.fromBytes(String, byte[])`: Create from filename and bytes (auto-detects MIME type)
+
+For uncommon image formats or if auto-detection fails, use `AgentImage.create()` with an explicit MIME type.
 
 
 // TODO: (jasper notes) Add links to subagent and evaluateCondition

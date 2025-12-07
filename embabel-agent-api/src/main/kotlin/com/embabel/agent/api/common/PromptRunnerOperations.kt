@@ -77,6 +77,46 @@ interface PromptRunnerOperations {
     ): T
 
     /**
+     * Generate text from multimodal content (text + images)
+     */
+    fun generateText(content: MultimodalContent): String =
+        createObject(
+            content = content,
+            outputClass = String::class.java,
+        )
+
+    /**
+     * Create an object from multimodal content (text + images)
+     */
+    fun <T> createObject(
+        content: MultimodalContent,
+        outputClass: Class<T>,
+    ): T = createObject(
+        messages = listOf(UserMessage(content.toContentParts())),
+        outputClass = outputClass,
+    )
+
+    /**
+     * Try to create an object from multimodal content (text + images)
+     */
+    fun <T> createObjectIfPossible(
+        content: MultimodalContent,
+        outputClass: Class<T>,
+    ): T? = createObjectIfPossible(
+        listOf(UserMessage(content.toContentParts())),
+        outputClass
+    )
+
+    /**
+     * Respond in a conversation with multimodal content
+     */
+    fun respond(
+        content: MultimodalContent,
+    ): AssistantMessage = respond(
+        listOf(UserMessage(content.toContentParts()))
+    )
+
+    /**
      * Respond in a conversation
      */
     fun respond(
