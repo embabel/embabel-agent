@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.starter.shell;
+package com.embabel.agent.autoconfigure.shell;
 
 import org.junit.jupiter.api.Test;
 

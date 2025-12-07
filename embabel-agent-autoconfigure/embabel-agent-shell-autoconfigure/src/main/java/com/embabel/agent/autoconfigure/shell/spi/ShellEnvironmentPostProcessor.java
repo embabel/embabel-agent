@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.starter.shell.spi;
+package com.embabel.agent.autoconfigure.shell.spi;
 
-import com.embabel.agent.starter.shell.AgentShellStarterProperties;
+import com.embabel.agent.autoconfigure.shell.AgentShellStarterProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;

@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.starter.shell.spi;
+package com.embabel.agent.autoconfigure.shell.spi;
 
-import com.embabel.agent.starter.shell.AgentShellStarterProperties;
+import com.embabel.agent.autoconfigure.shell.AgentShellStarterProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
