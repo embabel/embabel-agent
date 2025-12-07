@@ -43,8 +43,6 @@ import org.springframework.context.annotation.Configuration;
                 "com.embabel.agent.test",
                 "com.embabel.agent.tools",
                 "com.embabel.agent.web",
-                //Scan MCP Packages, this one should be moved over to MCP Module later
-                "com.embabel.agent.mcpserver",
                 //Scan RAG Packages, this one should be moved over to RAG Module later
                 "com.embabel.agent.rag",
         }
@@ -61,8 +59,6 @@ import org.springframework.context.annotation.Configuration;
                 "com.embabel.agent.test",
                 "com.embabel.agent.tools",
                 "com.embabel.agent.web",
-                //Scan MCP Packages, this one should be moved over to MCP Module later
-                "com.embabel.agent.mcpserver",
                 //Scan RAG Packages, this one should be moved over to RAG Module later
                 "com.embabel.agent.rag",
         }
