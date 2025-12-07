@@ -21,13 +21,13 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Import;
 
 /**
- * Auto-configuration class for Embabel Agent Shell.
+ * Auto-configuration class for Embabel Agent MCP Server.
  *
- * <p>This class enables component scanning for the {@code com.embabel.agent.shell} package,
- * allowing Spring to detect and register shell-related components, commands, and services
- * when the application is started in shell mode.
+ * <p>This class imports the configurations for both synchronous and asynchronous
+ * MCP server setups, enabling the necessary components and services for handling
+ * multi-channel processing in the agent.
  *
- * @since 0.3.1
+ * @since 1.0
  */
 @AutoConfiguration
 @Import({McpSyncServerConfiguration.class, McpAsyncServerConfiguration.class})
