@@ -15,10 +15,8 @@
  */
 package com.embabel.agent.autoconfigure.mcpserver;
 
-import com.embabel.agent.mcpserver.async.config.McpAsyncServerConfiguration;
-import com.embabel.agent.mcpserver.sync.config.McpSyncServerConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
  * Auto-configuration class for Embabel Agent MCP Server.
@@ -30,6 +28,6 @@ import org.springframework.context.annotation.Import;
  * @since 1.0
  */
 @AutoConfiguration
-@Import({McpSyncServerConfiguration.class, McpAsyncServerConfiguration.class})
+@ComponentScan(basePackages = "com.embabel.agent.mcpserver")
 public class AgentMcpServerAutoConfiguration {
 }
