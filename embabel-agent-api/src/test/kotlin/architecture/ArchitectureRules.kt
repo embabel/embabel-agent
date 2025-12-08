@@ -19,7 +19,8 @@ import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.core.importer.Location
 import com.tngtech.archunit.junit.AnalyzeClasses
 import com.tngtech.archunit.junit.ArchTest
-import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
+import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 import org.junit.jupiter.api.Tag
 
 
@@ -40,14 +41,25 @@ import org.junit.jupiter.api.Tag
 class ArchitectureRules {
 
     @ArchTest
-    val noPackageCycles = SlicesRuleDefinition.slices()
+    val noPackageCycles = slices()
         .matching("com.embabel.agent.(*)..")
         .should().beFreeOfCycles()
 
     @ArchTest
-    val noClassCycles = SlicesRuleDefinition.slices()
+    val noClassCycles = slices()
         .matching("com.embabel.agent.(*)")
         .should().beFreeOfCycles()
+
+    @ArchTest
+    val coreShouldNotDependOnApi =
+        noClasses().that().resideInAPackage("..core..")
+            .should().dependOnClassesThat().resideInAPackage("..api..")
+
+    @ArchTest
+    val apiShouldNotDependOnSpi =
+        noClasses().that().resideInAPackage("..api..")
+            .should().dependOnClassesThat().resideInAPackage("..spi..")
+
 }
 
 class ExcludeExperimentalOption : ImportOption {
