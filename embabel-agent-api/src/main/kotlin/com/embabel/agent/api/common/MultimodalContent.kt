@@ -49,17 +49,20 @@ data class MultimodalContent(
         /**
          * Create text-only multimodal content
          */
-        fun text(content: String): MultimodalContent = MultimodalContent(content)
+        @JvmStatic
+        fun fromText(content: String): MultimodalContent = MultimodalContent(content)
 
         /**
          * Create multimodal content with text and a single image
          */
+        @JvmStatic
         fun withImage(text: String, image: AgentImage): MultimodalContent =
             MultimodalContent(text, listOf(image))
 
         /**
          * Create multimodal content with text and multiple images
          */
+        @JvmStatic
         fun withImages(text: String, images: List<AgentImage>): MultimodalContent =
             MultimodalContent(text, images)
     }
@@ -89,6 +92,7 @@ data class AgentImage(
         /**
          * Create an AgentImage from a file, auto-detecting MIME type
          */
+        @JvmStatic
         fun fromFile(file: File): AgentImage {
             val mimeType = detectMimeType(file.extension)
             return AgentImage(mimeType, file.readBytes())
@@ -97,16 +101,19 @@ data class AgentImage(
         /**
          * Create an AgentImage from a Path, auto-detecting MIME type
          */
+        @JvmStatic
         fun fromPath(path: Path): AgentImage = fromFile(path.toFile())
 
         /**
          * Create an AgentImage with explicit MIME type and data
          */
+        @JvmStatic
         fun create(mimeType: String, data: ByteArray): AgentImage = AgentImage(mimeType, data)
 
         /**
          * Create an AgentImage from raw bytes, auto-detecting MIME type based on file extension
          */
+        @JvmStatic
         fun fromBytes(filename: String, data: ByteArray): AgentImage {
             val extension = filename.substringAfterLast('.', "")
             val mimeType = detectMimeType(extension)

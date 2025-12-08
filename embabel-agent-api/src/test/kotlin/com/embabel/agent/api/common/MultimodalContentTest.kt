@@ -44,7 +44,7 @@ class MultimodalContentTest {
     @Test
     fun `can create multimodal content with factory methods`() {
         // Text only
-        val content1 = MultimodalContent.text("Text only content")
+        val content1 = MultimodalContent.fromText("Text only content")
         assertThat(content1.text).isEqualTo("Text only content")
         assertThat(content1.images).isEmpty()
 
