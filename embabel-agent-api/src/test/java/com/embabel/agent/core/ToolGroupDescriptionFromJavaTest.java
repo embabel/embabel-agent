@@ -17,11 +17,22 @@ package com.embabel.agent.core;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 class ToolGroupDescriptionFromJavaTest {
 
     @Test
-    void testCanInstantiate() {
-        var td = ToolGroupDescription.create("d", "r");
-    }
+    void canInstantiate() {
 
+       // Prepare
+       var description = "d";
+       var role = "r";
+
+       // Execute
+       var td = ToolGroupDescription.create(description, role);
+
+       // Validate
+       assertEquals(description, td.getDescription());
+       assertEquals(role, td.getRole());
+    }
 }
