@@ -23,6 +23,7 @@ import org.springframework.ai.tool.annotation.ToolParam
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
@@ -191,7 +192,14 @@ interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToo
             ZipInputStream(FileInputStream(zipFile)).use { zipInputStream ->
                 var zipEntry = zipInputStream.nextEntry
                 while (zipEntry != null) {
+
+                    // Ensure zip entry name can be used as a file path
                     val newFile = File(projectDir, zipEntry.name)
+                    val canonicalPath = newFile.canonicalPath
+                    val prefix = if (projectDir.canonicalPath.endsWith(File.separator)) projectDir.canonicalPath else projectDir.canonicalPath + File.separator
+                    if (!canonicalPath.startsWith(prefix, false)) {
+                        throw IOException("Invalid zip entry name: ${zipEntry.name}")
+                    }
 
                     // Create directories if needed
                     if (zipEntry.isDirectory) {
