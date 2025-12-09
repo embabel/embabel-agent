@@ -15,7 +15,9 @@
  */
 package com.embabel.agent.config.annotation.spi;
 
-import com.embabel.agent.config.annotation.*;
+import com.embabel.agent.config.annotation.EnableAgents;
+import com.embabel.agent.config.annotation.LoggingThemes;
+import com.embabel.agent.config.annotation.McpServers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -81,27 +83,18 @@ class EnvironmentPostProcessorTest {
         }
         when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
 
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles()).containsExactly(LoggingThemes.STAR_WARS);
-    }
-
-    @Test
-    void testEnableAgentsWithLocalModels() {
-        // Given
-        @EnableAgents(localModels = {LocalModels.OLLAMA, LocalModels.DOCKER})
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
+        assertThat(environment.containsProperty(EnvironmentPostProcessor.LOGGING_THEME_PROPERTY))
+                .isFalse(); //should not be there yet
 
         // When
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(getAddedProfiles()).containsExactlyInAnyOrder(LocalModels.OLLAMA, LocalModels.DOCKER);
+        assertThat(environment.containsProperty(EnvironmentPostProcessor.LOGGING_THEME_PROPERTY));
+        assertThat(environment.getProperty(EnvironmentPostProcessor.LOGGING_THEME_PROPERTY))
+                .isEqualTo("starwars");
     }
+
 
     @Test
     void testEnableAgentsWithMcpServers() {
@@ -123,7 +116,6 @@ class EnvironmentPostProcessorTest {
         // Given
         @EnableAgents(
                 loggingTheme = LoggingThemes.STAR_WARS,
-                localModels = {LocalModels.OLLAMA},
                 mcpServers = {McpServers.DOCKER_DESKTOP}
         )
         class TestApp {
@@ -135,7 +127,7 @@ class EnvironmentPostProcessorTest {
 
         // Then
         assertThat(getAddedProfiles())
-                .containsExactlyInAnyOrder(LoggingThemes.STAR_WARS, LocalModels.OLLAMA, McpServers.DOCKER_DESKTOP);
+                .containsExactlyInAnyOrder(McpServers.DOCKER_DESKTOP);
     }
 
     @Test
@@ -143,7 +135,7 @@ class EnvironmentPostProcessorTest {
         // Given
         System.setProperty("spring.profiles.active", "existing,profiles");
 
-        @EnableAgents(loggingTheme = LoggingThemes.STAR_WARS)
+        @EnableAgents(mcpServers = McpServers.DOCKER_DESKTOP)
         class TestApp {
         }
         when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
@@ -152,14 +144,14 @@ class EnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(getAddedProfiles()).containsExactlyInAnyOrder("existing", "profiles", LoggingThemes.STAR_WARS);
+        assertThat(getAddedProfiles()).containsExactlyInAnyOrder("existing", "profiles", McpServers.DOCKER_DESKTOP);
 
     }
 
     @Test
     void testEmptyEnableAgents() {
         // Given
-        @EnableAgents(loggingTheme = "", localModels = {}, mcpServers = {})
+        @EnableAgents(loggingTheme = "", mcpServers = {})
         class TestApp {
         }
         when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
@@ -198,4 +190,5 @@ class EnvironmentPostProcessorTest {
         return Arrays.stream(environment.getActiveProfiles())
                 .collect(Collectors.toSet());
     }
+
 }

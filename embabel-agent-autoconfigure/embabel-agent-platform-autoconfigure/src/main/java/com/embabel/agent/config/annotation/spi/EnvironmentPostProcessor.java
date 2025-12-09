@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.config.annotation.spi;
 
-import com.embabel.agent.config.annotation.AgentPlatform;
 import com.embabel.agent.config.annotation.EnableAgents;
 import com.embabel.common.util.WinUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -24,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationUtils;
-import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 import java.util.Arrays;
@@ -32,7 +30,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Environment post-processor that activates Spring profiles based on Embabel Agent annotations.
+ * Environment post-processor that activates Spring profiles and sets properties
+ * used to bootstrap framework components based on Embabel Agent annotations.
  *
  * <p>This processor runs very early in the Spring Boot startup sequence and examines
  * the application's main class for agent-related annotations. It then activates
@@ -40,9 +39,7 @@ import java.util.Set;
  *
  * <h3>Processing Order:</h3>
  * <ol>
- *   <li><b>Platform Profiles</b> - From {@code @AgentPlatform} or meta-annotations like {@code @EnableAgentShell}</li>
  *   <li><b>Logging Theme</b> - From {@code @EnableAgents(loggingTheme="...")}</li>
- *   <li><b>Local Models</b> - From {@code @EnableAgents(localModels={...})}</li>
  *   <li><b>MCP Servers</b> - From {@code @EnableAgents(mcpServers={...})}</li>
  * </ol>
  *
@@ -56,10 +53,8 @@ import java.util.Set;
  * <h3>Example:</h3>
  * <pre>{@code
  * @SpringBootApplication
- * @EnableAgentShell  // Activates "shell" profile
  * @EnableAgents(
  *     loggingTheme = LoggingThemes.START_WARS
- *     localModels = {LocalModels.OLAMA},
  *     mcpServer = {McpServers.DOCKER_DESKTOP}
  * )
  * public class MyApp {
@@ -78,11 +73,12 @@ import java.util.Set;
  *
  * @author Embabel Team
  * @see EnableAgents
- * @see AgentPlatform
  * @see org.springframework.boot.env.EnvironmentPostProcessor
  * @since 1.0
  */
 public class EnvironmentPostProcessor implements org.springframework.boot.env.EnvironmentPostProcessor, Ordered {
+
+    public static final String LOGGING_THEME_PROPERTY = "embabel.agent.platform.logging.personality";
 
     private final Logger logger = LoggerFactory.getLogger(EnvironmentPostProcessor.class);
 
@@ -108,28 +104,17 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
         // Use LinkedHashSet to maintain order and avoid duplicates
         var allProfiles = new LinkedHashSet<String>();
 
-        // 1. Get platform profiles from @AgentPlatform
-        var agentProfiles = findPlatformProfiles(application);
-        if (agentProfiles.length > 0) {
-            allProfiles.addAll(Arrays.asList(agentProfiles));
-            logger.debug("Found platform profiles: {}", Arrays.toString(agentProfiles));
+        // 1. Get loggingTheme and set corresponding properties
+        var loggingTheme = findLoggingTheme(application);
+        if (loggingTheme != null && !loggingTheme.isEmpty()) {
+            environment.getPropertySources().addFirst(
+                    new org.springframework.core.env.MapPropertySource("loggingThemeSource",
+                            java.util.Collections.singletonMap(LOGGING_THEME_PROPERTY, loggingTheme)));
+            logger.info("Found loggingTheme '{}' - adding property: {}", LOGGING_THEME_PROPERTY, loggingTheme);
         }
 
-        // 2. Get profile from loggingTheme
-        var themeProfile = findLoggingTheme(application);
-        if (themeProfile != null && !themeProfile.isEmpty()) {
-            allProfiles.add(themeProfile);
-            logger.info("Found loggingTheme '{}' - adding profile: {}", themeProfile, themeProfile);
-        }
 
-        // 3. Get profiles from localModels
-        var localModelsProfiles = findLocalModels(application);
-        if (ArrayUtils.isNotEmpty(localModelsProfiles)) {
-            allProfiles.addAll(Arrays.asList(localModelsProfiles));
-            logger.info("Found localModels - adding profiles: {}", Arrays.toString(localModelsProfiles));
-        }
-
-        // 4. Get profiles from mcpServers
+        // 2. Get profiles from mcpServers
         var mcpServerProfiles = findMcpServers(application);
         if (ArrayUtils.isNotEmpty(mcpServerProfiles)) {
             allProfiles.addAll(Arrays.asList(mcpServerProfiles));
@@ -142,35 +127,6 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
         }
     }
 
-    /**
-     * Finds platform profiles from {@code @AgentPlatform} annotations.
-     *
-     * <p>This method handles both direct usage and meta-annotations
-     * (e.g., {@code @EnableAgentShell} which has {@code @AgentPlatform("shell")}).
-     *
-     * @param application the Spring application
-     * @return array of platform profile names, empty if none found
-     */
-    private String[] findPlatformProfiles(SpringApplication application) {
-        var allPlatformProfiles = new LinkedHashSet<String>();
-
-        for (Object source : application.getAllSources()) {
-            if (source instanceof Class<?> clazz) {
-                // Use MergedAnnotations to find ALL occurrences of @AgentPlatform
-                MergedAnnotations annotations = MergedAnnotations.from(clazz);
-
-                // Stream through all @AgentPlatform annotations (direct and meta)
-                annotations.stream(AgentPlatform.class)
-                        .forEach(mergedAnnotation -> {
-                            String[] values = mergedAnnotation.getStringArray("value");
-                            allPlatformProfiles.addAll(Arrays.asList(values));
-                        });
-            }
-        }
-
-        logger.debug("Collected all platform profiles: {}", allPlatformProfiles);
-        return allPlatformProfiles.toArray(new String[0]);
-    }
 
     /**
      * Finds the logging theme from {@code @EnableAgents} annotation.
@@ -184,17 +140,6 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
         return enableAgents != null ? enableAgents.loggingTheme() : "";
     }
 
-    /**
-     * Finds local model profiles from {@code @EnableAgents} annotation.
-     *
-     * @param application the Spring application
-     * @return array of local model names, empty if none specified
-     */
-    private String[] findLocalModels(SpringApplication application) {
-        EnableAgents enableAgents = findEnableAgentsAnnotation(application);
-        // Return array or empty array to avoid null
-        return enableAgents != null ? enableAgents.localModels() : new String[0];
-    }
 
     /**
      * Finds MCP server profile from {@code @EnableAgents} annotation.
@@ -237,7 +182,7 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
     private void activateProfiles(ConfigurableEnvironment environment, Set<String> profiles) {
         // Get existing profiles from system property
         String existingProfiles = System.getProperty(SPRING_PROFILES_ACTIVE);
-        
+
         if (existingProfiles != null && !existingProfiles.isEmpty()) {
             // Merge with existing profiles, maintaining uniqueness
             var mergedProfiles = new LinkedHashSet<String>();
