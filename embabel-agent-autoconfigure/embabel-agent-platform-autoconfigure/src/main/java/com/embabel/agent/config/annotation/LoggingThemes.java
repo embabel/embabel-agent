@@ -15,6 +15,15 @@
  */
 package com.embabel.agent.config.annotation;
 
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties(prefix = "embabel.agent.platform.logging")
+record LoggingPersonalityProperties(
+        LoggingThemes personality
+) {
+}
+
 /**
  * Well-known logging themes for Embabel Agent applications.
  */
@@ -42,6 +51,11 @@ public class LoggingThemes {
     /**
      * loggingTheme value for Hitchhiker's Guide to the Galaxy themed logging messages.
      */
-    private static final String HITCHHIKERS_GUIDE = "hh";
+    public static final String HITCHHIKERS_GUIDE = "hitchhiker";
+
+    /**
+     * loggingTheme value for Monty Python themed logging messages.
+     */
+    public static final String MONTYPYTHON = "montypython";
 
 }
