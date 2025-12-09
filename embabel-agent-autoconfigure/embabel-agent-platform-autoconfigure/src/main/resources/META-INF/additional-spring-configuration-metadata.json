@@ -1,0 +1,14 @@
+{
+  "hints": [
+    {
+      "name": "embabel.agent.platform.logging.personality",
+      "values": [
+        { "value": "starwars", "description": "Star Wars themed logging messages" },
+        { "value": "severance", "description": "Severance themed logging messages. Praise Kier" },
+        { "value": "colossus", "description": "Colossus: The Forbin Project themed messages" },
+        { "value": "hitchhiker", "description": "Hitchhiker's Guide to the Galaxy themed messages" },
+        { "value": "montypython", "description": "Monty Python themed logging messages" }
+      ]
+    }
+  ]
+}
