@@ -18,7 +18,7 @@ package com.embabel.agent.shell.personality.hitchhiker
 import com.embabel.agent.shell.MessageGeneratorPromptProvider
 import com.embabel.agent.spi.logging.personality.hitchhiker.HitchhikerColorPalette
 import com.embabel.common.util.RandomFromFileMessageGenerator
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 
@@ -45,7 +45,7 @@ val GuideEntries = listOf(
 )
 
 @Component
-@Profile("hh")
+@ConditionalOnProperty(name = ["embabel.agent.platform.logging.personality"], havingValue = "hitchhiker")
 class HitchhikerPromptProvider : MessageGeneratorPromptProvider(
     color = HitchhikerColorPalette.BABEL_GREEN,
     prompt = GuideEntries.random(),

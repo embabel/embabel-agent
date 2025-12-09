@@ -18,11 +18,11 @@ package com.embabel.agent.shell.personality.montypython
 import com.embabel.agent.shell.MessageGeneratorPromptProvider
 import com.embabel.agent.spi.logging.personality.montypython.MontyPythonColorPalette
 import com.embabel.common.util.RandomFromFileMessageGenerator
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("montypython")
+@ConditionalOnProperty(name = ["embabel.agent.platform.logging.personality"], havingValue = "montypython")
 class MontyPythonPromptProvider : MessageGeneratorPromptProvider(
     color = MontyPythonColorPalette.BRIGHT_RED,
     prompt = "pythons",

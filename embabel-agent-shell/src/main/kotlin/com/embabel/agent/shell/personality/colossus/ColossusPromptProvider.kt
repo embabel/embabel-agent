@@ -18,11 +18,11 @@ package com.embabel.agent.shell.personality.colossus
 import com.embabel.agent.shell.MessageGeneratorPromptProvider
 import com.embabel.agent.spi.logging.personality.colossus.ColossusColorPalette
 import com.embabel.common.util.RandomFromFileMessageGenerator
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("colossus")
+@ConditionalOnProperty(name = ["embabel.agent.platform.logging.personality"], havingValue = "colossus")
 class ColossusPromptProvider : MessageGeneratorPromptProvider(
     color = ColossusColorPalette.PANEL,
     prompt = "Colossus",
