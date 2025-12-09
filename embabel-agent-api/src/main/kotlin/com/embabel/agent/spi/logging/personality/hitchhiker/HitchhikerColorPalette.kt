@@ -16,11 +16,14 @@
 package com.embabel.agent.spi.logging.personality.hitchhiker
 
 import com.embabel.agent.spi.logging.ColorPalette
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("hh")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "hitchhiker"
+)
 object HitchhikerColorPalette : ColorPalette {
     const val BABEL_GREEN: Int = 0x00ff66 // Guide text green
     const val TOWEL_YELLOW: Int = 0xffe066

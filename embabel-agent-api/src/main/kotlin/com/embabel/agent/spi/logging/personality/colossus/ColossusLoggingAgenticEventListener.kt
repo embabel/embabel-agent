@@ -22,7 +22,7 @@ import com.embabel.agent.spi.logging.LoggingAgenticEventListener
 import com.embabel.common.util.color
 import com.embabel.common.util.hexToRgb
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
 
 /**
@@ -40,7 +40,10 @@ import org.springframework.stereotype.Service
  * machine superiority, styled with the Colossus color palette.
  */
 @Service
-@Profile("colossus")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "colossus"
+)
 class ColossusLoggingAgenticEventListener : LoggingAgenticEventListener(
     url = "https://www.imdb.com/title/tt0064177/",
     logger = LoggerFactory.getLogger("Colossus"),

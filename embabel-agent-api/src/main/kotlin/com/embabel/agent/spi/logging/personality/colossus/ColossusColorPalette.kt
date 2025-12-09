@@ -16,11 +16,14 @@
 package com.embabel.agent.spi.logging.personality.colossus
 
 import com.embabel.agent.spi.logging.ColorPalette
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("colossus")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "colossus"
+)
 object ColossusColorPalette : ColorPalette {
     const val CAVE_SHADOW: Int = 0x2d2d30
     const val BRONZE_FIRE: Int = 0xcd7f32

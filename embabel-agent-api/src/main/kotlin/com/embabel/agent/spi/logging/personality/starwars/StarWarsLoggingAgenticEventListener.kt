@@ -20,14 +20,17 @@ import com.embabel.agent.spi.logging.LoggingAgenticEventListener
 import com.embabel.common.util.color
 import com.embabel.common.util.indentLines
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 /**
  * May the force be with you
  */
 @Component
-@Profile("starwars")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "starwars"
+)
 class StarWarsLoggingAgenticEventListener : LoggingAgenticEventListener(
     logger = LoggerFactory.getLogger("starwars"),
     welcomeMessage = """

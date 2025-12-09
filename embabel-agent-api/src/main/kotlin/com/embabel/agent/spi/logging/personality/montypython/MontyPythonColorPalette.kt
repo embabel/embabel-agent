@@ -16,11 +16,14 @@
 package com.embabel.agent.spi.logging.personality.montypython
 
 import com.embabel.agent.spi.logging.ColorPalette
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("montypython")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "montypython"
+)
 object MontyPythonColorPalette : ColorPalette {
     const val HOLY_GRAIL_GOLD: Int = 0xffd700
     const val SPAM_PINK: Int = 0xffc0cb

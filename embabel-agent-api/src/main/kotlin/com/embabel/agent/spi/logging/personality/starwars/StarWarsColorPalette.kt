@@ -16,11 +16,14 @@
 package com.embabel.agent.spi.logging.personality.starwars
 
 import com.embabel.agent.spi.logging.ColorPalette
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("starwars")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "starwars"
+)
 object StarWarsColorPalette : ColorPalette {
     const val LIGHTSABER_BLUE: Int = 0x00bfff
     const val LIGHTSABER_GREEN: Int = 0x00ff00

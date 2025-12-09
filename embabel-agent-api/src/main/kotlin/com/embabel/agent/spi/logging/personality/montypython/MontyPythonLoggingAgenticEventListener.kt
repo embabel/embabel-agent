@@ -19,14 +19,17 @@ import com.embabel.agent.api.event.*
 import com.embabel.agent.spi.logging.LoggingAgenticEventListener
 import com.embabel.common.util.color
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 /**
  * And now for something completely different
  */
 @Component
-@Profile("montypython")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "montypython"
+)
 class MontyPythonLoggingAgenticEventListener : LoggingAgenticEventListener(
     logger = LoggerFactory.getLogger("FlyingCircus"),
     welcomeMessage = """

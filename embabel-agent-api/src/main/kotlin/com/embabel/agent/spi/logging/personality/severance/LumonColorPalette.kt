@@ -16,11 +16,14 @@
 package com.embabel.agent.spi.logging.personality.severance
 
 import com.embabel.agent.spi.logging.ColorPalette
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("severance")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "severance"
+)
 object LumonColorPalette : ColorPalette {
     const val MEMBRANE: Int = 0xbeb780
     const val WELLNESS: Int = 0xf5f5dc

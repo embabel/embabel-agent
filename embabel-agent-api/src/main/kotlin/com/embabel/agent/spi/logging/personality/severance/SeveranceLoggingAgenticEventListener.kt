@@ -22,7 +22,7 @@ import com.embabel.agent.spi.logging.LoggingPersonality.Companion.BANNER_WIDTH
 import com.embabel.common.util.color
 import com.embabel.common.util.hexToRgb
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
 
 val LumonDepartments = listOf(
@@ -75,7 +75,10 @@ const val BANNER_CHAR = "."
  * Thanks to Kier
  */
 @Service
-@Profile("severance")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "severance"
+)
 class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(
     url = "https://www.imdb.com/title/tt11280740/",
     logger = LoggerFactory.getLogger("MDR"),

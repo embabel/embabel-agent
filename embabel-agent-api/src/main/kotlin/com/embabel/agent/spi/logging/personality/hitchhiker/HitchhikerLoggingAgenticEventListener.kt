@@ -21,7 +21,7 @@ import com.embabel.agent.spi.logging.LoggingAgenticEventListener
 import com.embabel.common.util.color
 import com.embabel.common.util.hexToRgb
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
 
 val TransformSuccessResponses = listOf(
@@ -54,7 +54,10 @@ fun highlight(text: String) = "<$text>".color(HitchhikerColorPalette.BABEL_GREEN
  * Don't Panic! This is just a Hitchhiker's Guide themed logging implementation.
  */
 @Service
-@Profile("hh")
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.logging.personality"],
+    havingValue = "hitchhiker"
+)
 class HitchhikerLoggingAgenticEventListener : LoggingAgenticEventListener(
     url = "https://en.wikipedia.org/wiki/The_Hitchhiker%27s_Guide_to_the_Galaxy",
     logger = LoggerFactory.getLogger("Guide"),
