@@ -33,8 +33,7 @@ import java.lang.annotation.Target;
  * @SpringBootApplication
  * @EnableAgents(
  *     loggingTheme = "starwars",
- *     localModels = {"ollama", "docker"},
- *     mcpClients = {"filesystem", "github"}
+ *     mcpServers = {"filesystem", "github"}
  * )
  * public class MyAgentApplication {
  *     public static void main(String[] args) {
@@ -48,18 +47,14 @@ import java.lang.annotation.Target;
  * <ul>
  *   <li>{@code loggingTheme} - Activates a theme-specific profile (e.g., "starwars", "severance")</li>
  *   <li>{@code localModels} - Activates profiles for local AI model providers</li>
- *   <li>{@code mcpClients} - Activates profiles for Model Context Protocol clients</li>
+ *   <li>{@code mcpServers} - Activates profiles for Model Context Protocol</li>
  * </ul>
  *
  * @author Embabel Team
- * @see AgentPlatform
- * @see EnableAgentShell
- * @see EnableAgentMcpServer
  * @since 0.1.0
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@AgentPlatform
 public @interface EnableAgents {
 
     /**
@@ -85,30 +80,6 @@ public @interface EnableAgents {
      */
     String loggingTheme() default "";
 
-    /**
-     * Specifies local AI model providers to enable.
-     *
-     * <p>This attribute configures which local model providers should be
-     * initialized and made available to agents. Each value activates a
-     * corresponding Spring profile and loads provider-specific configuration.
-     *
-     * <h4>Common providers:</h4>
-     * <ul>
-     *   <li>{@code "ollama"} - Ollama local model server</li>
-     *   <li>{@code "docker"} - Docker-based model containers</li>
-     *   <li>{@code "llamacpp"} - LLaMA C++ implementation</li>
-     * </ul>
-     *
-     * <h4>Example:</h4>
-     * <pre>{@code
-     * @EnableAgents(localModels = {LocalModels.OLLAMA, LocalModels.DOCKER"})
-     * // Enables both Ollama and Docker-based models
-     * }</pre>
-     *
-     * @return array of local model provider identifiers
-     */
-    @Deprecated(since = "0.1.3", forRemoval = true)
-    String[] localModels() default {};
 
     /**
      * Specifies Model Context Protocol (MCP) clients to enable.

@@ -149,7 +149,6 @@ class EnableAgentsWithAttributesIT {
                 .as("Should contain all configured profiles")
                 .contains(
                         LoggingThemes.STAR_WARS,       // From loggingTheme
-                        LocalModels.OLLAMA,            // From localModels
                         McpServers.DOCKER_DESKTOP      // From mcpClients
                 );
     }
@@ -157,7 +156,6 @@ class EnableAgentsWithAttributesIT {
     @SpringBootApplication
     @EnableAgents(
             loggingTheme = LoggingThemes.STAR_WARS,
-            localModels = {LocalModels.OLLAMA},
             mcpServers = {McpServers.DOCKER_DESKTOP}
     )
     static class CustomAttributesTestApplication {

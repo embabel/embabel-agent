@@ -58,15 +58,15 @@ public class ShellAgentApplication {
 The `@EnableAgents` annotation provides additional configuration options:
 
 ```java
-import com.embabel.agent.config.annotation.LocalModels;
+
 import com.embabel.agent.config.annotation.LoggingThemes;
 import com.embabel.agent.config.annotation.McpServers;
 
 @SpringBootApplication
 @EnableAgents(
         loggingTheme = LoggingThemes.STAR_WARS,         // Activates "starwars" profile
-        localModels =  {LocalModels.OLLAMA},            // Activates "ollama" profile
-        mcpServers =   {McpServers.DOCKER_DESKTOP}      // Activates "filesystem" profile
+        localModels = {LocalModels.OLLAMA},            // Activates "ollama" profile
+        mcpServers = {McpServers.DOCKER_DESKTOP}      // Activates "filesystem" profile
 )
 public class CustomAgentApplication {
     public static void main(String[] args) {
@@ -78,7 +78,7 @@ public class CustomAgentApplication {
 ### Combining Platform and Agent Annotations
 
 ```java
-import com.embabel.agent.config.annotation.LocalModels;
+
 import com.embabel.agent.config.annotation.LoggingThemes;
 import com.embabel.agent.config.annotation.McpServers;
 
@@ -89,7 +89,7 @@ import com.embabel.agent.config.annotation.McpServers;
         localModels = {LocalModels.OLLAMA},             // Activates "ollama" and "llamacpp" profiles
         mcpServers = {McpServers.DOCKER_DESKTOP}        // Activates "docker" and "github" profiles
 )
-public class AdvancedAgentApplication { 
+public class AdvancedAgentApplication {
     public static void main(String[] args) {
         SpringApplication.run(AdvancedAgentApplication.class, args);
     }
