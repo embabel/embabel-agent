@@ -6,7 +6,7 @@ Core library for building intelligent agent applications with Spring Boot integr
 
 The Embabel Agent Framework provides a library-centric approach to agent development, supporting multiple configuration methods and seamless integration with existing Spring Boot applications.
 
-## Strategic Direction: Enhanced Configurability
+## Configurability
 
 The framework is undergoing transformation from profile-based to property-based configuration for enhanced library usability and developer experience.
 
@@ -64,7 +64,11 @@ embabel.agent.platform.test.mock-mode=true
 - ⚠️ **Override with caution** - can break platform assumptions
 
 ### Application Properties (`embabel.agent.*`)
-**File:** Developer's `application.yml`  
+**File:**
+```embabel-agent/embabel-agent-api/src/main/resources/agent-application.properties```
+
+**Developer's overrides** in ```application.yml``` (example below)
+
 **Purpose:** Business logic and deployment choices
 
 ```yaml
@@ -110,50 +114,6 @@ embabel:
 - ✅ **Business decisions** - model choices, thresholds, services
 - ✅ **Infrastructure bindings** - endpoints, credentials, features
 
-## Strategic Migration from Profiles
-
-### Current Challenge
-```yaml
-# ❌ Profile-based (being phased out)
-spring:
-  profiles:
-    active: bedrock,shell,observability
-
-# Multiple application-{profile}.yml files to maintain
-application-bedrock.yml     # Mixed framework + app concerns
-application-shell.yml       # Framework behavior
-application-observability.yml  # Infrastructure setup
-```
-
-### Target Architecture
-```yaml
-# ✅ Property-based (target)
-embabel:
-  agent:
-    platform:
-      # Platform internals (library defaults)
-      scanning:
-        annotation: true
-      test:
-        mockMode: false
-    
-    # Application choices (developer config)
-    models:
-      provider: bedrock
-      bedrock:
-        region: us-east-1
-    infrastructure:
-      observability:
-        enabled: true
-```
-
-### Migration Benefits
-- **🎯 Explicit configuration** - clear what features are enabled
-- **🔧 Enhanced configurability** - granular control over behavior  
-- **📚 Better IDE support** - auto-completion and validation
-- **🏗️ Library-centric design** - suitable for embedded usage
-- **🔄 Environment flexibility** - easy override with env vars
-- **📖 Self-documenting** - configuration structure shows capabilities
 
 ## Property Precedence
 
@@ -174,15 +134,8 @@ Configuration follows Spring Boot precedence (highest to lowest):
 
 ## Spring Boot Integration
 
-```kotlin
-@SpringBootApplication
-@EnableConfigurationProperties(AgentPlatformProperties::class)
-class MyAgentApplication
-
-fun main(args: Array<String>) {
-    runApplication<MyAgentApplication>(*args)
-}
-```
+- relies on autoconfiguration, please refer to ```embabel-agent/embabel-agent-autoconfigure```
+- developers to apply dependencies on proper starter, please refer to ```embabel-agent/embabel-agent-starters```
 
 ## Module Independence
 
@@ -192,158 +145,17 @@ fun main(args: Array<String>) {
 - **Independence:** Works standalone without shell module
 
 ### Shell Module (`embabel-agent-shell`)  
-- **Prefix:** `embabel.shell.*`
+- **Prefix:** `embabel.agent.shell.*`
 - **Scope:** Interactive CLI interface and terminal services
 - **Independence:** Optional dependency with separate configuration
 
 ### Autoconfigure Module (`embabel-agent-autoconfigure`)
-- **Annotation-driven:** `@EnableAgentBedrock`, `@EnableAgentShell`
-- **Profile activation:** Maintains profiles for annotation convenience
+- **Profile activation:** Maintains theme profiles for annotation convenience
 - **Consumer choice:** Developers choose activation method
 
-## Configuration Examples & Templates
 
-The framework provides **granular, composable templates** in `src/main/resources/application-templates/`:
 
-### Template Structure
-```
-application-templates/
-├── base/                        # Granular building blocks
-│   ├── platform-defaults.yml   # Platform internal settings
-│   ├── logging-starwars.yml     # StarWars personality configuration
-│   ├── models-openai.yml        # OpenAI model configuration
-│   └── infrastructure-neo4j.yml # Neo4j infrastructure configuration
-├── environments/               # Environment-specific overrides
-│   ├── development-overrides.yml
-│   └── production-overrides.yml
-└── composed/                   # Example compositions using imports
-    ├── application-development.yml
-    ├── application-production.yml
-    └── application-minimal.yml
-```
-
-### Import-Based Composition
-Templates are designed for **composition using Spring Boot imports**, not copy-paste.
-
-### Development Environment Example
-```yaml
-# application.yml.unused - Import-based composition
-spring:
-  config:
-    import:
-      - classpath:application-templates/base/platform-defaults.yml
-      - classpath:application-templates/base/logging-starwars.yml
-      - classpath:application-templates/base/models-openai.yml
-      - classpath:application-templates/base/infrastructure-neo4j.yml
-      - classpath:application-templates/environments/development-overrides.yml
-
-# Application-specific configuration
-server:
-  port: 8080
-```
-
-### Production Environment Example
-```yaml
-# application.yml.unused - Import-based composition
-spring:
-  config:
-    import:
-      - classpath:application-templates/base/platform-defaults.yml
-      - classpath:application-templates/base/logging-severance.yml
-      - classpath:application-templates/base/models-bedrock.yml
-      - classpath:application-templates/base/infrastructure-neo4j.yml
-      - classpath:application-templates/base/infrastructure-observability.yml
-      - classpath:application-templates/environments/production-overrides.yml
-
-# Application-specific configuration
-server:
-  port: 8443
-```
-
-### Custom Composition Example
-```yaml
-# application.yml.unused - Mix and match as needed
-spring:
-  config:
-    import:
-      - classpath:application-templates/base/logging-starwars.yml
-      - classpath:application-templates/base/models-anthropic.yml  # Custom mix
-      - classpath:shell-templates/base/shell-enabled.yml          # From shell module
-
-# Your application configuration
-myapp:
-  custom:
-    setting: value
-```
-
-**Usage:** Compose exactly what you need using Spring Boot's `spring.config.import` feature.
-
-## Property Migration (v1.x → v2.0)
-
-### **Platform Property Namespace Consolidation**
-
-The framework consolidates internal platform properties under unified namespaces for better organization and clarity:
-
-| Old Property Namespace | New Property Namespace | Purpose |
-|------------------------|------------------------|---------|
-| `embabel.agent-platform.*` | `embabel.agent.platform.*` | Agent scanning, ranking settings |
-| `embabel.autonomy.*` | `embabel.agent.platform.autonomy.*` | Autonomy confidence thresholds |
-| `embabel.process-id-generation.*` | `embabel.agent.platform.process-id-generation.*` | Process ID generation settings |
-| `embabel.llm-operations.*` | `embabel.agent.platform.llm-operations.*` | LLM operation retry and prompt settings |
-| `embabel.sse.*` | `embabel.agent.platform.sse.*` | Server-sent events configuration |
-| `embabel.anthropic.*` | `embabel.agent.platform.models.anthropic.*` | Anthropic provider retry settings |
-
-### **Action Required**
-
-**If you customized any platform properties**, update your `application.yml`:
-
-```yaml
-# OLD - Will be ignored
-embabel:
-  agent-platform:
-    ranking:
-      max-attempts: 10
-  autonomy:
-    agent-confidence-cut-off: 0.8
-
-# NEW - Required  
-embabel:
-  agent:
-    platform:
-      ranking:
-        max-attempts: 10
-      autonomy:
-        agent-confidence-cut-off: 0.8
-```
-
-### **Migration Detection**
-
-The framework provides automatic detection of deprecated property usage with production-safe defaults:
-
-```yaml
-# Migration system is DISABLED by default for zero production impact
-# Enable only when you need migration guidance:
-embabel:
-  agent:
-    platform:
-      migration:
-        scanning:
-          enabled: true                    # Activates comprehensive migration detection
-          include-packages:
-            - "com.yourcompany"            # Scan your packages for deprecated usage
-            - "com.yourthirdparty"         # Include third-party integration packages
-        warnings:
-          enabled: true                    # Automatically enabled when scanning is on
-          individual-logging: true         # Log each deprecated property individually
-```
-
-**Key Features:**
-- ✅ **Production Safe**: Completely disabled by default (zero overhead)
-- ✅ **Comprehensive**: Detects both `@ConditionalOnProperty` and `@ConfigurationProperties` deprecated usage
-- ✅ **Environment Variables**: Automatically detects deprecated properties from any source
-- ✅ **Verbose Feedback**: Individual warnings plus aggregated summary
-
-**Full Migration Guide**: [PROFILES_MIGRATION_GUIDE.md - Property Namespace Migration](PROFILES_MIGRATION_GUIDE.md#phase-0-platform-property-consolidation)
+**Usage:** Compose exactly what you need using starters.
 
 ### **Spring Boot + Kotlin Configuration Patterns**
 
@@ -374,57 +186,6 @@ data class SimpleConfig(
 ```
 
 **Reference**: See comprehensive analysis in `AgentPlatformPropertiesIntegrationTest`
-
-## Phase 1: Library-Centric Transformation
-
-Current transformation status:
-
-- ✅ **Property Segregation** - Platform vs application concerns clearly defined
-- 🔄 **Profile Migration** - Moving from profile-based to property-based activation  
-- ✅ **Shell Independence** - Complete separation achieved
-- 🔄 **Enhanced Configurability** - Granular property control
-- 📋 **Annotation Support** - Maintained for developer convenience
-
-### Personality Plugin Infrastructure (In Progress)
-
-**Current State**: Profile-based personality activation
-```yaml
-# Current (being migrated away from)
-spring:
-  profiles:
-    active: starwars
-```
-
-**Target State**: Property-based with plugin architecture
-```yaml
-# Target library-centric approach
-embabel:
-  agent:
-    logging:
-      personality: starwars
-      verbosity: debug
-      enableRuntimeSwitching: true
-```
-
-**Plugin Architecture Features**:
-- ✅ **Property-based activation** - No Spring profile dependencies
-- 🔄 **Dynamic discovery** - Auto-find personality providers
-- 🔄 **Runtime switching** - Change personalities without restart
-- 🔄 **Plugin interface** - Clean provider contract for extensions
-
-**Implementation**: 
-- **Detailed Steps**: [ITERATIVE_PLAN.md](ITERATIVE_PLAN.md) 
-- **Profile-Specific Changes**: [PROFILES_MIGRATION_GUIDE.md - Personality Profiles](PROFILES_MIGRATION_GUIDE.md#0-personality-profiles-migration)
-
-## Migration from Profiles
-
-For detailed migration instructions from profile-based configuration (`application-{profile}.yml`) to property-based configuration, see [PROFILES_MIGRATION_GUIDE.md](PROFILES_MIGRATION_GUIDE.md).
-
-### Next Phase Goals
-- **Complete profile departure** from core framework configuration
-- **Plugin architecture expansion** for personalities and model providers
-- **Enhanced property dynamism** matching profile flexibility
-- **Developer experience improvements** with better IDE support
 
 --------------------
 (c) Embabel Software Inc 2024-2025.
