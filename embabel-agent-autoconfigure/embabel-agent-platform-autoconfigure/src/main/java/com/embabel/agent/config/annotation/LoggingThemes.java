@@ -20,7 +20,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "embabel.agent.platform.logging")
 record LoggingPersonalityProperties(
-        LoggingThemes personality
+        String personality
 ) {
 }
 
