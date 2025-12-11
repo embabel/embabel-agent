@@ -78,7 +78,7 @@ import java.util.Set;
  */
 public class EnvironmentPostProcessor implements org.springframework.boot.env.EnvironmentPostProcessor, Ordered {
 
-    public static final String LOGGING_THEME_PROPERTY = "embabel.agent.platform.logging.personality";
+    public static final String LOGGING_THEME_PROPERTY = "embabel.agent.logging.personality";
 
     private final Logger logger = LoggerFactory.getLogger(EnvironmentPostProcessor.class);
 

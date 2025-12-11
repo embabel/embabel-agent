@@ -22,7 +22,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@ConditionalOnProperty(name = ["embabel.agent.platform.logging.personality"], havingValue = "colossus")
+@ConditionalOnProperty(name = ["embabel.agent.logging.personality"], havingValue = "colossus")
 class ColossusPromptProvider : MessageGeneratorPromptProvider(
     color = ColossusColorPalette.PANEL,
     prompt = "Colossus",

@@ -35,7 +35,7 @@ val LumonDepartments = listOf(
 )
 
 @Component
-@ConditionalOnProperty(name = ["embabel.agent.platform.logging.personality"], havingValue = "severance")
+@ConditionalOnProperty(name = ["embabel.agent.logging.personality"], havingValue = "severance")
 class SeverancePromptProvider : MessageGeneratorPromptProvider(
     color = LumonColorPalette.MEMBRANE,
     prompt = LumonDepartments.random(),

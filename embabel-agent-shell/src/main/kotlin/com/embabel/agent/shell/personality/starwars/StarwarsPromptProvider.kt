@@ -22,7 +22,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 @Component
-@ConditionalOnProperty(name = ["embabel.agent.platform.logging.personality"], havingValue = "starwars")
+@ConditionalOnProperty(name = ["embabel.agent.logging.personality"], havingValue = "starwars")
 class StarWarsPromptProvider : MessageGeneratorPromptProvider(
     color = StarWarsColorPalette.YELLOW_ACCENT,
     prompt = "starwars",

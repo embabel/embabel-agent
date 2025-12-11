@@ -1,7 +1,7 @@
 {
   "hints": [
     {
-      "name": "embabel.agent.platform.logging.personality",
+      "name": "embabel.agent.logging.personality",
       "values": [
         { "value": "starwars", "description": "Star Wars themed logging messages" },
         { "value": "severance", "description": "Severance themed logging messages. Praise Kier" },

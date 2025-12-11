@@ -18,7 +18,7 @@ package com.embabel.agent.config.annotation;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "embabel.agent.platform.logging")
+@ConfigurationProperties(prefix = "embabel.agent.logging")
 record LoggingPersonalityProperties(
         String personality
 ) {

@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component
  */
 @Component
 @ConditionalOnProperty(
-    name = ["embabel.agent.platform.logging.personality"],
+    name = ["embabel.agent.logging.personality"],
     havingValue = "montypython"
 )
 class MontyPythonLoggingAgenticEventListener : LoggingAgenticEventListener(

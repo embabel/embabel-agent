@@ -45,7 +45,7 @@ val GuideEntries = listOf(
 )
 
 @Component
-@ConditionalOnProperty(name = ["embabel.agent.platform.logging.personality"], havingValue = "hitchhiker")
+@ConditionalOnProperty(name = ["embabel.agent.logging.personality"], havingValue = "hitchhiker")
 class HitchhikerPromptProvider : MessageGeneratorPromptProvider(
     color = HitchhikerColorPalette.BABEL_GREEN,
     prompt = GuideEntries.random(),

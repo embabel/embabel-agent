@@ -55,7 +55,7 @@ fun highlight(text: String) = "<$text>".color(HitchhikerColorPalette.BABEL_GREEN
  */
 @Service
 @ConditionalOnProperty(
-    name = ["embabel.agent.platform.logging.personality"],
+    name = ["embabel.agent.logging.personality"],
     havingValue = "hitchhiker"
 )
 class HitchhikerLoggingAgenticEventListener : LoggingAgenticEventListener(

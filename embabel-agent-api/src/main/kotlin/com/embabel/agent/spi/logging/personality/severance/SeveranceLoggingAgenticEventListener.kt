@@ -76,7 +76,7 @@ const val BANNER_CHAR = "."
  */
 @Service
 @ConditionalOnProperty(
-    name = ["embabel.agent.platform.logging.personality"],
+    name = ["embabel.agent.logging.personality"],
     havingValue = "severance"
 )
 class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(

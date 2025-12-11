@@ -41,7 +41,7 @@ import org.springframework.stereotype.Service
  */
 @Service
 @ConditionalOnProperty(
-    name = ["embabel.agent.platform.logging.personality"],
+    name = ["embabel.agent.logging.personality"],
     havingValue = "colossus"
 )
 class ColossusLoggingAgenticEventListener : LoggingAgenticEventListener(
