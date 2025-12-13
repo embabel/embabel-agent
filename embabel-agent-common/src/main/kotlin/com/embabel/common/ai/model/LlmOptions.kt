@@ -81,8 +81,8 @@ interface LlmHyperparameters {
     description = "Options for LLM use",
 )
 data class LlmOptions @JvmOverloads constructor(
-    // Note we use vars to allow Spring configuration properties binding
-    val modelSelectionCriteria: ModelSelectionCriteria? = null,
+    // We use vars to allow Spring configuration properties binding
+    var modelSelectionCriteria: ModelSelectionCriteria? = null,
     var model: String? = null,
     var role: String? = null,
     override var temperature: Double? = null,
