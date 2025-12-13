@@ -59,6 +59,70 @@ spring:
         type: ASYNC
 ----
 
+====== Transport Protocols
+
+The transport protocol determines how external clients connect to your MCP server.
+
+**SSE Transport** (Default)::
+Server-Sent Events transport at `http://localhost:8080/sse`.
+Compatible with Claude Desktop, MCP Inspector, Cursor, and most desktop MCP clients.
+
+[source,yaml]
+----
+spring:
+  ai:
+    mcp:
+      server:
+        # SSE is the default - no explicit configuration needed
+----
+
+**Streamable HTTP Transport**::
+Modern HTTP-based transport using a single `/mcp` endpoint.
+Required for OpenWebUI and other web-based clients that don't support SSE.
+
+[source,yaml]
+----
+spring:
+  ai:
+    mcp:
+      server:
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp
+          keep-alive-interval: 30s
+----
+
+Requires the WebMVC starter dependency:
+
+[source,xml]
+----
+<dependency>
+    <groupId>org.springframework.ai</groupId>
+    <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+</dependency>
+----
+
+**Client Compatibility**::
+[cols="2,1,1"]
+|===
+|Client |SSE |Streamable HTTP
+
+|Claude Desktop |✅ |✅ (via mcp-remote)
+|MCP Inspector |✅ |✅
+|OpenWebUI |❌ |✅
+|Cursor |✅ |❌
+|===
+
+**Bridging SSE to Streamable HTTP**::
+If your client requires Streamable HTTP but your server uses SSE, use the `mcpo` proxy:
+
+[source,bash]
+----
+uvx mcpo --port 8000 --server-type sse -- http://localhost:8080/sse
+----
+
+Then connect your client to `http://localhost:8000`.
+
 ====== Automatic Publishing
 
 **Tools**::
@@ -198,4 +262,3 @@ Every MCP server includes a built-in `helloBanner` tool that displays server inf
 
 [[reference.integrations__a2a]]
 ==== A2A
-
