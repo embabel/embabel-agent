@@ -38,7 +38,7 @@ class SingleShotRagServiceSearchTools(
         query: String,
     ): String {
         val ragResponse = options.ragService.search(options.toRequest(query))
-        val asString = options.ragResponseFormatter.format(ragResponse)
+        val asString = options.retrievableResultsFormatter.formatResults(ragResponse)
         loggerFor<SingleShotRagServiceSearchTools>().debug("RagResponse for query [{}]:\n{}", query, asString)
         return asString
     }

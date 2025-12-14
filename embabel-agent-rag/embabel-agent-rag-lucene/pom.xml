@@ -24,10 +24,10 @@
     </properties>
 
     <dependencies>
-        <!-- Embabel RAG Core Framework -->
+        <!-- Embabel RAG Framework -->
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-rag-core</artifactId>
+            <artifactId>embabel-agent-rag-pipeline</artifactId>
         </dependency>
 
         <!-- Lucene Dependencies -->

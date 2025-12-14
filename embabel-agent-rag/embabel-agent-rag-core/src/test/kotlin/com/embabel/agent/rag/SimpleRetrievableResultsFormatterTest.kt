@@ -15,12 +15,11 @@
  */
 package com.embabel.agent.rag
 
+import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.SimpleEntityData
 import com.embabel.agent.rag.model.SimpleNamedEntityData
-import com.embabel.agent.rag.service.RagRequest
-import com.embabel.agent.rag.service.RagResponse
-import com.embabel.agent.rag.service.RagService
-import com.embabel.agent.rag.service.SimpleRagResponseFormatter
+import com.embabel.agent.rag.service.SimilarityResults
+import com.embabel.agent.rag.service.SimpleRetrievableResultsFormatter
 import com.embabel.agent.rag.service.spring.DocumentSimilarityResult
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -29,46 +28,41 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.document.Document
 import kotlin.test.assertEquals
 
-class SimpleRagRagResponseFormatterTest {
+class SimpleRetrievableResultsFormatterTest {
 
     @Test
     fun empty() {
-        val rr = RagService.empty()
-        val results = rr.search(RagRequest("any query at all"))
-        val output = SimpleRagResponseFormatter.format(results)
+        val results = SimilarityResults.fromList<Chunk>(emptyList())
+        val output = SimpleRetrievableResultsFormatter.formatResults(results)
         assertEquals("0 results:", output)
     }
 
     @Test
     fun chunksOnly() {
-        val results = RagResponse(
-            request = RagRequest("any query at all"),
-            service = "test",
-            results = listOf(
+        val results = SimilarityResults.fromList(
+            listOf(
                 DocumentSimilarityResult(
                     Document("foo"),
                     1.0,
                 )
             )
         )
-        val output = SimpleRagResponseFormatter.format(results)
+        val output = SimpleRetrievableResultsFormatter.formatResults(results)
         assertTrue(output.startsWith("1 results:"))
         assertTrue(output.contains("foo"))
     }
 
     @Test
     fun `chunk with url includes url header`() {
-        val results = RagResponse(
-            request = RagRequest("any query at all"),
-            service = "test",
-            results = listOf(
+        val results = SimilarityResults.fromList(
+            listOf(
                 DocumentSimilarityResult(
                     Document("foo", mapOf("url" to "https://example.com/page")),
                     0.95,
                 )
             )
         )
-        val output = SimpleRagResponseFormatter.format(results)
+        val output = SimpleRetrievableResultsFormatter.formatResults(results)
         assertTrue(output.contains("url: https://example.com/page"))
         assertTrue(output.contains("0.95 - foo"))
     }
@@ -76,26 +70,22 @@ class SimpleRagRagResponseFormatterTest {
     @Test
     fun `chunks only with big content`() {
         val longContent = "foo ".repeat(10000).trim()
-        val results = RagResponse(
-            request = RagRequest("any query at all"),
-            service = "test",
-            results = listOf(
+        val results = SimilarityResults.fromList(
+            listOf(
                 DocumentSimilarityResult(
                     Document(longContent),
                     1.0,
                 )
             )
         )
-        val output = SimpleRagResponseFormatter.format(results)
+        val output = SimpleRetrievableResultsFormatter.formatResults(results)
         assertTrue(output.contains(longContent))
     }
 
     @Test
     fun `does not expose entity embedding for SimpleEntityData`() {
-        val results = RagResponse(
-            request = RagRequest("any query at all"),
-            service = "test",
-            results = listOf(
+        val results = SimilarityResults.fromList(
+            listOf(
                 SimpleSimilaritySearchResult(
                     match = SimpleEntityData(
                         "id",
@@ -109,17 +99,15 @@ class SimpleRagRagResponseFormatterTest {
                 )
             )
         )
-        val output = SimpleRagResponseFormatter.format(results)
+        val output = SimpleRetrievableResultsFormatter.formatResults(results)
         assertTrue(output.contains("foo"))
         assertFalse(output.contains("embedding"), "Should suppress embedding, have \n$output")
     }
 
     @Test
     fun `does not expose entity embedding for SimpleNamedEntityData`() {
-        val results = RagResponse(
-            request = RagRequest("any query at all"),
-            service = "test",
-            results = listOf(
+        val results = SimilarityResults.fromList(
+            listOf(
                 SimpleSimilaritySearchResult(
                     match = SimpleNamedEntityData(
                         "id",
@@ -136,7 +124,7 @@ class SimpleRagRagResponseFormatterTest {
                 )
             )
         )
-        val output = SimpleRagResponseFormatter.format(results)
+        val output = SimpleRetrievableResultsFormatter.formatResults(results)
         assertTrue(output.contains("foo"), "Should contain properties: Have \n$output")
         assertFalse(output.contains("embedding"), "Should suppress embedding: Have \n$output")
         // Should contain name1 only once

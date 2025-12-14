@@ -381,13 +381,13 @@ class ToolishRagTest {
                 searchOperations = vectorSearch
             )
 
-            assertEquals(SimpleRagResponseFormatter, toolishRag.formatter)
+            assertEquals(SimpleRetrievableResultsFormatter, toolishRag.formatter)
         }
 
         @Test
         fun `should accept custom formatter`() {
             val vectorSearch = mockk<VectorSearch>()
-            val customFormatter = mockk<RagResponseFormatter>()
+            val customFormatter = mockk<RetrievableResultsFormatter>()
 
             val toolishRag = ToolishRag(
                 name = "test",
