@@ -44,7 +44,7 @@ class DualShotRagServiceSearchTools(
         val ragResponse = options.ragService.search(options.toRequest(query))
         val agentProcess = AgentProcess.get()
         if (agentProcess == null) {
-            return "RagResponse for query [$query]:\n${options.ragResponseFormatter.format(ragResponse)}"
+            return "RagResponse for query [$query]:\n${options.retrievableResultsFormatter.formatResults(ragResponse)}"
         }
         agentProcess.addObject(ragResponse.withoutHistory())
         val summary = summarizer.summarize(ragResponse)
@@ -61,7 +61,7 @@ class DualShotRagServiceSearchTools(
     ): String {
         val ragResponse = AgentProcess.get()?.lastResult() as? RagResponse
             ?: return "No RagResponse available, call search tool before"
-        val asString = options.ragResponseFormatter.format(ragResponse)
+        val asString = options.retrievableResultsFormatter.formatResults(ragResponse)
         return asString
     }
 

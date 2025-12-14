@@ -31,7 +31,7 @@ data class DualShotConfig(
  * @param similarityThreshold minimum similarity threshold for results (0.0 to 1.0)
  * @param topK maximum number of results to return
  * returned. If set, only the given entities will be searched for.
- * @param ragResponseFormatter formatter to convert RagResponse to String
+ * @param retrievableResultsFormatter formatter to convert retrieval results to String
  * @param dualShot whether to use dual-shot RAG,
  * where the first tool returns a summary and the second tool returns detailed results.
  */
@@ -44,7 +44,7 @@ data class RagOptions @JvmOverloads constructor(
     val llm: LlmOptions = LlmOptions.withAutoLlm(),
     override val contentElementSearch: ContentElementSearch = ContentElementSearch.CHUNKS_ONLY,
     override val entitySearch: EntitySearch? = null,
-    val ragResponseFormatter: RagResponseFormatter = SimpleRagResponseFormatter,
+    val retrievableResultsFormatter: RetrievableResultsFormatter = SimpleRetrievableResultsFormatter,
     val dualShot: DualShotConfig? = null,
 ) : RagRequestRefinement<RagOptions> {
 

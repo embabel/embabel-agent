@@ -27,23 +27,15 @@ data class Cluster<E>(
 )
 
 data class ClusterRetrievalRequest<E> @JvmOverloads constructor(
-    override val entitySearch: EntitySearch? = null,
-    override val contentElementSearch: ContentElementSearch = ContentElementSearch.NONE,
-    override val similarityThreshold: ZeroToOne = 0.7,
-    override val topK: Int = 10,
+    val similarityThreshold: ZeroToOne = 0.7,
+    val topK: Int = 10,
     val vectorIndex: String = "embabel-entity-index",
-) : RetrievalFilters<ClusterRetrievalRequest<E>> {
+) {
 
-    override fun withSimilarityThreshold(similarityThreshold: ZeroToOne): ClusterRetrievalRequest<E> =
+    fun withSimilarityThreshold(similarityThreshold: ZeroToOne): ClusterRetrievalRequest<E> =
         copy(similarityThreshold = similarityThreshold)
 
-    override fun withTopK(topK: Int): ClusterRetrievalRequest<E> = copy(topK = topK)
-
-    override fun withEntitySearch(entitySearch: EntitySearch): ClusterRetrievalRequest<E> =
-        copy(entitySearch = entitySearch)
-
-    override fun withContentElementSearch(contentElementSearch: ContentElementSearch): ClusterRetrievalRequest<E> =
-        copy(contentElementSearch = contentElementSearch)
+    fun withTopK(topK: Int): ClusterRetrievalRequest<E> = copy(topK = topK)
 }
 
 interface ClusterFinder {

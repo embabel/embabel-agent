@@ -36,7 +36,7 @@ class PromptRunnerRagResponseSummarizer(
                 Limit the summary to approximately ${options.dualShot?.summaryWords ?: 100} words.
                 <query>${ragResponse.request.query}</query>
                 <context>
-                ${options.ragResponseFormatter.format(ragResponse)}
+                ${options.retrievableResultsFormatter.formatResults(ragResponse)}
                 </context>
             """.trimIndent(),
             )

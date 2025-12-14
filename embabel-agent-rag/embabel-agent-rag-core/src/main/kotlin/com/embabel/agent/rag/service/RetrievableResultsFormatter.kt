@@ -21,26 +21,18 @@ import com.embabel.agent.rag.model.Fact
 import com.embabel.agent.rag.model.Retrievable
 
 /**
- * Implemented by classes that can format RagResponse objects into a string
+ * Implemented by classes that can format SimilarityResults objects into a string
  * for inclusion in tool responses or prompts.
  */
-fun interface RagResponseFormatter {
-
-    /**
-     * Formats the given RagResponse into a string for inclusion in tool responses or prompts.
-     * @param ragResponse The RagResponse to format.
-     * @return A string representation of the RagResponse.
-     */
-    fun format(ragResponse: RagResponse): String =
-        formatResults(ragResponse)
+fun interface RetrievableResultsFormatter {
 
     fun formatResults(similarityResults: SimilarityResults<out Retrievable>): String
 }
 
 /**
- * Sensible default RagResponseFormatter
+ * Sensible default RetrievableResultsFormatter
  */
-object SimpleRagResponseFormatter : RagResponseFormatter {
+object SimpleRetrievableResultsFormatter : RetrievableResultsFormatter {
 
     override fun formatResults(similarityResults: SimilarityResults<out Retrievable>): String {
         val results = similarityResults.results

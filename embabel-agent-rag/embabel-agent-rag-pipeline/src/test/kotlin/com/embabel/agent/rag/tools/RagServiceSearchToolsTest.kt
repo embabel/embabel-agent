@@ -36,7 +36,7 @@ class RagServiceSearchToolsTest {
         val ragTools = SingleShotRagServiceSearchTools(options)
 
         assertEquals(options, ragTools.options)
-        assertEquals(SimpleRagResponseFormatter, ragTools.options.ragResponseFormatter)
+        assertEquals(SimpleRetrievableResultsFormatter, ragTools.options.retrievableResultsFormatter)
     }
 
     @Test
@@ -116,26 +116,26 @@ class RagServiceSearchToolsTest {
         assertEquals(0.7, options.similarityThreshold.toDouble(), 0.001)
         assertEquals(8, options.topK)
         assertNull(options.entitySearch)
-        assertEquals(SimpleRagResponseFormatter, options.ragResponseFormatter)
+        assertEquals(SimpleRetrievableResultsFormatter, options.retrievableResultsFormatter)
     }
 
     @Test
     fun `should create RagServiceToolsOptions with custom values`() {
         val mockRagService = mockk<RagService>()
         val entitySearch = EntitySearch(setOf("custom-label"))
-        val customFormatter = mockk<RagResponseFormatter>()
+        val customFormatter = mockk<RetrievableResultsFormatter>()
         val options = RagOptions(
             ragService = mockRagService,
             similarityThreshold = 0.9,
             topK = 10,
             entitySearch = entitySearch,
-            ragResponseFormatter = customFormatter
+            retrievableResultsFormatter = customFormatter
         )
 
         assertEquals(0.9, options.similarityThreshold.toDouble(), 0.001)
         assertEquals(10, options.topK)
         assertEquals(entitySearch, options.entitySearch)
-        assertEquals(customFormatter, options.ragResponseFormatter)
+        assertEquals(customFormatter, options.retrievableResultsFormatter)
     }
 
     @Test
@@ -149,7 +149,7 @@ class RagServiceSearchToolsTest {
         assertEquals(newThreshold, updatedOptions.similarityThreshold)
         assertEquals(options.topK, updatedOptions.topK)
         assertEquals(options.entitySearch, updatedOptions.entitySearch)
-        assertEquals(options.ragResponseFormatter, updatedOptions.ragResponseFormatter)
+        assertEquals(options.retrievableResultsFormatter, updatedOptions.retrievableResultsFormatter)
     }
 
     @Test
@@ -163,7 +163,7 @@ class RagServiceSearchToolsTest {
         assertEquals(options.similarityThreshold, updatedOptions.similarityThreshold)
         assertEquals(newTopK, updatedOptions.topK)
         assertEquals(options.entitySearch, updatedOptions.entitySearch)
-        assertEquals(options.ragResponseFormatter, updatedOptions.ragResponseFormatter)
+        assertEquals(options.retrievableResultsFormatter, updatedOptions.retrievableResultsFormatter)
     }
 
     @Test
@@ -183,18 +183,18 @@ class RagServiceSearchToolsTest {
     @Test
     fun `should use custom formatter when provided in options`() {
         val mockRagService = mockk<RagService>()
-        val customFormatter = mockk<RagResponseFormatter>()
-        val options = RagOptions(mockRagService, ragResponseFormatter = customFormatter)
+        val customFormatter = mockk<RetrievableResultsFormatter>()
+        val options = RagOptions(mockRagService, retrievableResultsFormatter = customFormatter)
         val ragTools = SingleShotRagServiceSearchTools(options)
 
         val mockResponse = RagResponse(RagRequest("test query"), "test-service", emptyList())
         every { mockRagService.search(any()) } returns mockResponse
-        every { customFormatter.format(any()) } returns "Custom formatted response"
+        every { customFormatter.formatResults(any()) } returns "Custom formatted response"
 
         val result = ragTools.search("test query")
 
         assertEquals("Custom formatted response", result)
-        verify { customFormatter.format(mockResponse) }
+        verify { customFormatter.formatResults(mockResponse) }
     }
 
     @Test

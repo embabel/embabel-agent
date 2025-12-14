@@ -46,6 +46,11 @@
         
         <!-- Test dependencies - versions managed by parent -->
         <dependency>
+            <groupId>com.embabel.common</groupId>
+            <artifactId>embabel-common-test-ai</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>

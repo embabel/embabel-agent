@@ -20,23 +20,6 @@ import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.ZeroToOne
 import java.time.Instant
 
-interface SimilarityResults<R : Retrievable> {
-
-    val results: List<SimilarityResult<out R>>
-
-    companion object {
-
-        @JvmStatic
-        fun <R : Retrievable> fromList(
-            results: List<SimilarityResult<R>>,
-        ): SimilarityResults<Retrievable> {
-            return object : SimilarityResults<Retrievable> {
-                override val results = results
-            }
-        }
-    }
-}
-
 /**
  * Rag response
  * RagResponses can contain results from multiple RAG services.
