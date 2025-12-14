@@ -39,8 +39,9 @@ public record StreamingPromptRunnerBuilder(PromptRunner runner) {
         }
 
         StreamingCapability capability = runner.stream();
-        if (capability instanceof StreamingPromptRunnerOperations) {
-            return (StreamingPromptRunnerOperations) capability;
+        if (capability instanceof StreamingPromptRunnerOperations
+                streamingPromptRunnerOperations) {
+            return streamingPromptRunnerOperations;
         }
 
         throw new IllegalStateException(

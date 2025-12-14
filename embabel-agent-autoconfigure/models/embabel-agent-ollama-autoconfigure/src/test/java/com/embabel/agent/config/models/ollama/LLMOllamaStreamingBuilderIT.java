@@ -222,6 +222,8 @@ class LLMOllamaStreamingBuilderIT {
     void testSpringOllamaStreamingDirectly() {
         reactor.util.Loggers.useVerboseConsoleLoggers();
 
+        List<String> receivedEvents = new CopyOnWriteArrayList<>();
+
         try {
             // Get the raw Spring AI ChatModel directly
             Llm llm = llms.stream()
@@ -241,6 +243,7 @@ class LLMOllamaStreamingBuilderIT {
             ((org.springframework.ai.chat.model.ChatModel) chatModel)
                     .stream(prompt)
                     .doOnNext(chatResponse -> {
+                        receivedEvents.add( chatResponse.getResults().toString());
                         System.out.println("DEBUG: Got ChatResponse: " +
                                 chatResponse.getResults().size() + " generations");
                     })
@@ -256,8 +259,10 @@ class LLMOllamaStreamingBuilderIT {
                     )
                     .timeout(Duration.ofSeconds(10))
                     .subscribe();
-
+            //NOSONAR
             Thread.sleep(12000);
+
+            assertFalse(receivedEvents.isEmpty());
 
         } catch (Exception e) {
             System.out.println("DEBUG: Test failed: " + e);
