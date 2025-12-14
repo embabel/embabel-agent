@@ -13,18 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models.openai;
+package com.embabel.agent.config.models.anthropic;
 
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.streaming.StreamingPromptRunnerBuilder;
-import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration;
+import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
 import com.embabel.common.ai.model.Llm;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,15 +43,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Java integration test for OpenAI streaming functionality using builder pattern.
+ * Java integration test for Anthropic streaming functionality using builder pattern.
  * Tests the Java equivalent of Kotlin's asStreaming() extension function.
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.cheapest=gpt-4.1-mini",
-                "embabel.models..best=gpt-4.1-mini",
-                "embabel.models.default-llm=gpt-4.1-mini",
+                "embabel.models.cheapest=claude_-sonnet-4-5",
+                "embabel.models.best=claude_-sonnet-4-5",
+                "embabel.models.default-llm=claude-sonnet-4-5",
                 "spring.main.allow-bean-definition-overriding=true",
+
+                // Streaming Infrastructure logging
+                "logging.level.com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations=DEBUG",
 
                 // Spring AI Debug Logging
                 "logging.level.org.springframework.ai=DEBUG",
@@ -94,10 +98,10 @@ import static org.junit.jupiter.api.Assertions.*;
                 )
         }
 )
-@Import({StreamingTestConfig.class, AgentOpenAiAutoConfiguration.class})
-class LLMOpenAiStreamingBuilderIT {
+@Import({AgentAnthropicAutoConfiguration.class})
+class LLMAnthropicStreamingBuilderIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(LLMOpenAiStreamingBuilderIT.class);
+    private static final Logger logger = LoggerFactory.getLogger(LLMAnthropicStreamingBuilderIT.class);
 
     @Autowired
     private Autonomy autonomy;
@@ -114,11 +118,18 @@ class LLMOpenAiStreamingBuilderIT {
     static class MonthItem {
         private String name;
 
+        private Short temperature;
+
         public MonthItem() {
         }
 
         public MonthItem(String name) {
             this.name = name;
+        }
+
+        public MonthItem(String name, Short temperature) {
+            this.name = name;
+            this.temperature = temperature;
         }
 
         public String getName() {
@@ -128,16 +139,35 @@ class LLMOpenAiStreamingBuilderIT {
         public void setName(String name) {
             this.name = name;
         }
+
+        public Short getTemperature() {
+            return temperature;
+        }
+
+        public void setTemperature(Short temperature) {
+            this.temperature = temperature;
+        }
     }
 
+    /**
+     * Tool
+     */
+    static class Tooling {
+
+        @Tool
+        Short convertFromCelsiusToFahrenheit(Short inputTemp) {
+            return (short) ((inputTemp * 2) + 32);
+        }
+    }
 
     @Test
-    void realStreamingIntegrationWithReactiveCallbacks() {
+    void realStreamingAnthropicIntegrationWithReactiveCallbacks() {
         // Enable Reactor debugging
         reactor.util.Loggers.useVerboseConsoleLoggers();
 
         // Given: Use the existing streaming test LLM (configured as "best")
-        PromptRunner runner = ai.withLlm("gpt-4.1-mini");
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5");
+               // .withToolObject(Tooling.class);
         assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");
 
         // When: Subscribe with real reactive callbacks using builder pattern
@@ -145,7 +175,7 @@ class LLMOpenAiStreamingBuilderIT {
         AtomicReference<Throwable> errorOccurred = new AtomicReference<>();
         AtomicBoolean completionCalled = new AtomicBoolean(false);
 
-        String prompt = "What are two the most hottest months in Florida.";
+        String prompt = "What are exactly two the most hottest months in Florida and their respective highest temperatures";
 
         // Use StreamingPromptBuilder instead of Kotlin extension function
         Flux<StreamingEvent<MonthItem>> results = new StreamingPromptRunnerBuilder(runner)
@@ -154,7 +184,7 @@ class LLMOpenAiStreamingBuilderIT {
                 .createObjectStreamWithThinking(MonthItem.class);
 
         results
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofSeconds(60))
                 .doOnSubscribe(subscription -> {
                     logger.info("Stream subscription started");
                 })
