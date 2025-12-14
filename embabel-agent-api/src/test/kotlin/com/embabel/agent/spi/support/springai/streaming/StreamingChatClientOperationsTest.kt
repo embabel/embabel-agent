@@ -23,17 +23,19 @@ import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.Llm
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import io.mockk.*
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.tool.ToolCallback
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.time.Duration
-import org.slf4j.LoggerFactory
 
 /**
  * Unit tests for StreamingChatClientOperations.
@@ -149,7 +151,13 @@ class StreamingChatClientOperationsTest {
         val outputClass = TestItem::class.java
 
         // When
-        streamingOperations.createObjectStreamWithThinking(messages, mockInteraction, outputClass, mockAgentProcess, mockAction)
+        streamingOperations.createObjectStreamWithThinking(
+            messages,
+            mockInteraction,
+            outputClass,
+            mockAgentProcess,
+            mockAction
+        )
 
         // Then
         verify { mockChatClientLlmOperations.getLlm(mockInteraction) }
@@ -162,7 +170,13 @@ class StreamingChatClientOperationsTest {
         val outputClass = TestItem::class.java
 
         // When
-        streamingOperations.createObjectStreamWithThinking(messages, mockInteraction, outputClass, mockAgentProcess, mockAction)
+        streamingOperations.createObjectStreamWithThinking(
+            messages,
+            mockInteraction,
+            outputClass,
+            mockAgentProcess,
+            mockAction
+        )
 
         // Then
         verify { mockChatClientLlmOperations.createChatClient(mockLlm) }
@@ -188,7 +202,8 @@ class StreamingChatClientOperationsTest {
         val outputClass = TestItem::class.java
 
         // When
-        val result = streamingOperations.createObjectStream(messages, mockInteraction, outputClass, mockAgentProcess, mockAction)
+        val result =
+            streamingOperations.createObjectStream(messages, mockInteraction, outputClass, mockAgentProcess, mockAction)
 
         // Then
         assertNotNull(result)
@@ -202,7 +217,13 @@ class StreamingChatClientOperationsTest {
         val outputClass = TestItem::class.java
 
         // When
-        val result = streamingOperations.createObjectStreamWithThinking(messages, mockInteraction, outputClass, mockAgentProcess, mockAction)
+        val result = streamingOperations.createObjectStreamWithThinking(
+            messages,
+            mockInteraction,
+            outputClass,
+            mockAgentProcess,
+            mockAction
+        )
 
         // Then
         assertNotNull(result)
@@ -216,7 +237,13 @@ class StreamingChatClientOperationsTest {
         val outputClass = TestItem::class.java
 
         // When
-        val result = streamingOperations.createObjectStreamIfPossible(messages, mockInteraction, outputClass, mockAgentProcess, mockAction)
+        val result = streamingOperations.createObjectStreamIfPossible(
+            messages,
+            mockInteraction,
+            outputClass,
+            mockAgentProcess,
+            mockAction
+        )
 
         // Then
         assertNotNull(result)
@@ -360,6 +387,7 @@ class StreamingChatClientOperationsTest {
                         receivedEvents.add("THINKING: $content")
                         logger.info("Received thinking: {}", content)
                     }
+
                     event.isObject() -> {
                         val obj = event.getObject()!!
                         receivedEvents.add("OBJECT: ${obj.name}=${obj.value}")
@@ -389,6 +417,56 @@ class StreamingChatClientOperationsTest {
         assertEquals("OBJECT: Item2=200", receivedEvents[2])
         assertEquals("THINKING: Request completed", receivedEvents[3])
     }
+
+    @Test
+    fun `rawChunksToLines should handle single line chunks`() {
+        val chunks = Flux.just("line1\n", "line2\n")
+
+        val result = streamingOperations.rawChunksToLines(chunks)
+
+        StepVerifier.create(result)
+            .expectNext("line1")
+            .expectNext("line2")
+            .verifyComplete()
+    }
+
+    @Test
+    fun `rawChunksToLines should handle multi-line chunks from Anthropic`() {
+        val chunks = Flux.just(".\n</think>\n\n{\"")
+
+        val result = streamingOperations.rawChunksToLines(chunks)
+
+        StepVerifier.create(result)
+            .expectNext(".")
+            .expectNext("</think>")
+            .expectNext("{\"")
+            .verifyComplete()
+    }
+
+    @Test
+    fun `rawChunksToLines should handle incomplete lines across chunks`() {
+        val chunks = Flux.just("partial", " line\n", "complete\n")
+
+        val result = streamingOperations.rawChunksToLines(chunks)
+
+        StepVerifier.create(result)
+            .expectNext("partial line")
+            .expectNext("complete")
+            .verifyComplete()
+    }
+
+    @Test
+    fun `rawChunksToLines should emit final incomplete line`() {
+        val chunks = Flux.just("line1\n", "incomplete")
+
+        val result = streamingOperations.rawChunksToLines(chunks)
+
+        StepVerifier.create(result)
+            .expectNext("line1")
+            .expectNext("incomplete")
+            .verifyComplete()
+    }
+
 
     private fun mockChatClientForStreaming(chunkFlux: Flux<String>) {
         val mockRequestSpec = mockk<ChatClient.ChatClientRequestSpec>(relaxed = true)
