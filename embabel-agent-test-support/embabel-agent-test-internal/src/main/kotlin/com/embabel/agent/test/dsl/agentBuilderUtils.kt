@@ -22,16 +22,6 @@ import com.embabel.agent.test.domain.*
 import com.embabel.agent.test.type.Wumpus
 import com.embabel.common.core.MobyNameGenerator
 
-/**
- *  A name used to create a [GeneratedName].
- */
-private const val NAME_MONEY_COM = "money.com"
-
-/**
- * A reason used to create a [GeneratedName].
- */
-private const val REASON_HELPS_MAKE_MONEY = "Helps make money"
-
 fun splitGarden() = agent("splitter", description = "splitter0") {
 
     transformation<UserInput, Garden> { Garden(it.input.content) }
@@ -123,8 +113,8 @@ fun simpleNamer(transformListener: () -> Unit = {}) =
                         GeneratedNames(
                             names = listOf(
                                 GeneratedName(
-                                    NAME_MONEY_COM,
-                                    REASON_HELPS_MAKE_MONEY
+                                    "money.com",
+                                    "Helps make money"
                                 )
                             )
                         )
@@ -159,12 +149,12 @@ fun redoNamer() =
                                     names = listOf(
                                         GeneratedName(
                                             MobyNameGenerator.generateName(),
-                                            REASON_HELPS_MAKE_MONEY
+                                            "Helps make money"
                                         )
                                     )
                                 )
                             },
-                            { GeneratedNames(names = listOf(GeneratedName(NAME_MONEY_COM, REASON_HELPS_MAKE_MONEY))) }),
+                            { GeneratedNames(names = listOf(GeneratedName("money.com", "Helps make money"))) }),
                         merge = { generatedNamesList ->
                             AllNames(
                                 accepted = generatedNamesList.flatMap { it.names }.distinctBy { it.name },
@@ -191,7 +181,7 @@ fun nestingByName() = agent("nesting test", description = "Nesting test") {
         aggregate<Thing, GeneratedNames, AllNames>(
             transforms = listOf(
                 { GeneratedNames(names = emptyList()) },
-                { GeneratedNames(names = listOf(GeneratedName(NAME_MONEY_COM, REASON_HELPS_MAKE_MONEY))) }),
+                { GeneratedNames(names = listOf(GeneratedName("money.com", "Helps make money"))) }),
             merge = { generatedNamesList, _ ->
                 AllNames(
                     accepted = generatedNamesList.flatMap { it.names }.distinctBy { it.name },
@@ -217,7 +207,7 @@ fun nestingByReference() = agent("nesting test", description = "Nesting test") {
         aggregate<Thing, GeneratedNames, AllNames>(
             transforms = listOf(
                 { GeneratedNames(names = emptyList()) },
-                { GeneratedNames(names = listOf(GeneratedName(NAME_MONEY_COM, REASON_HELPS_MAKE_MONEY))) }),
+                { GeneratedNames(names = listOf(GeneratedName("money.com", "Helps make money"))) }),
             merge = { generatedNamesList, _ ->
                 AllNames(
                     accepted = generatedNamesList.flatMap { it.names }.distinctBy { it.name },
@@ -240,7 +230,7 @@ fun biAggregate() = agent("biAggregate", description = "Nesting test") {
         biAggregate<UserInput, Thing, GeneratedNames, AllNames>(
             transforms = listOf(
                 { GeneratedNames(names = emptyList()) },
-                { GeneratedNames(names = listOf(GeneratedName(NAME_MONEY_COM, REASON_HELPS_MAKE_MONEY))) }),
+                { GeneratedNames(names = listOf(GeneratedName("money.com", "Helps make money"))) }),
             merge = { generatedNamesList ->
                 AllNames(
                     accepted = generatedNamesList.flatMap { it.names }.distinctBy { it.name },
