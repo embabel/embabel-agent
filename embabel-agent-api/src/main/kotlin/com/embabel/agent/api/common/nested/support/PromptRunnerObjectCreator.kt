@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.chat.Message
 import com.embabel.common.ai.prompt.PromptContributor
 import com.fasterxml.jackson.databind.ObjectMapper
+import java.util.function.Predicate
 
 internal data class PromptRunnerObjectCreator<T>(
     internal val promptRunner: PromptRunner,
@@ -42,6 +43,15 @@ internal data class PromptRunnerObjectCreator<T>(
                         """.trimIndent()
                     )
                 )
+        )
+    }
+
+    override fun withPropertyFilter(
+        filter: Predicate<String>
+    ): ObjectCreator<T> {
+        return copy(
+            promptRunner = promptRunner
+                .withPropertyFilter(filter)
         )
     }
 

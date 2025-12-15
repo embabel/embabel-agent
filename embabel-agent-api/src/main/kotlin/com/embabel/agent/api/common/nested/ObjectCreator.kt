@@ -17,6 +17,8 @@ package com.embabel.agent.api.common.nested
 
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import java.util.function.Predicate
+import kotlin.reflect.KProperty1
 
 /**
  * Interface to create objects of the given type from a prompt or messages.
@@ -34,6 +36,33 @@ interface ObjectCreator<T> {
         description: String,
         value: T,
     ): ObjectCreator<T>
+
+    /**
+     * Adds a filter that determines which properties are to be included when creating an object.
+     *
+     * Note that each predicate is applied *in addition to* previously registered predicates, including
+     * [withProperties] and [withoutProperties].
+     * @param filter the property predicate to be added
+     */
+    fun withPropertyFilter(filter: Predicate<String>): ObjectCreator<T>
+
+    /**
+     * Includes the given properties when creating an object.
+     *
+     * Note that each predicate is applied *in addition to* previously registered predicates, including
+     * [withPropertyFilter] and [withoutProperties].
+     * @param properties the properties that are to be included
+     */
+    fun withProperties(vararg properties: String): ObjectCreator<T> = withPropertyFilter { properties.contains(it) }
+
+    /**
+     * Excludes the given properties when creating an object.
+     *
+     * Note that each predicate is applied *in addition to* previously registered predicates, including
+     * [withPropertyFilter] and [withProperties].
+     * @param properties the properties that are to be included
+     */
+    fun withoutProperties(vararg properties: String): ObjectCreator<T> = withPropertyFilter { !properties.contains(it) }
 
     /**
      * Create an object of the desired type using the given prompt and LLM options from context
@@ -64,3 +93,29 @@ interface ObjectCreator<T> {
     ): T
 
 }
+
+/**
+ * Includes the given properties when creating an object.
+ *
+ * Note that each predicate is applied *in addition to* previously registered predicates, including
+ * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
+ * and [withoutProperties].
+ * @param properties the properties that are to be included
+ */
+fun <T> ObjectCreator<T>.withProperties(
+    vararg properties: KProperty1<T, Any>,
+): ObjectCreator<T> =
+    withProperties(*properties.map { it.name }.toTypedArray())
+
+/**
+ * Excludes the given properties when creating an object.
+ *
+ * Note that each predicate is applied *in addition to* previously registered predicates, including
+ * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
+ * and [withProperties].
+ * @param properties the properties that are to be included
+ */
+fun <T> ObjectCreator<T>.withoutProperties(
+    vararg properties: KProperty1<T, Any>,
+): ObjectCreator<T> =
+    withoutProperties(*properties.map { it.name }.toTypedArray())
