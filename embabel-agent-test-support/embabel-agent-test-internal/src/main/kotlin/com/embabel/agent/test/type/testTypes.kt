@@ -30,6 +30,11 @@ import com.embabel.common.ai.model.LlmOptions
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.springframework.ai.tool.annotation.Tool
 
+/**
+ * A prompt used by classes [FromPersonUsesDomainObjectTools], [FromPersonUsesObjectToolsViaContext], [FromPersonUsesObjectToolsViaUsing] and [FromPersonUsesDomainObjectToolsViaContext].
+ */
+private const val CREATE_A_USER_INPUT = "Create a UserInput"
+
 data class PersonWithReverseTool(val name: String) {
 
     @Tool
@@ -530,7 +535,7 @@ class FromPersonUsesDomainObjectTools {
         person: PersonWithReverseTool,
         context: OperationContext,
     ): UserInput {
-        return context.ai().withDefaultLlm().createObject("Create a UserInput")
+        return context.ai().withDefaultLlm().createObject(CREATE_A_USER_INPUT)
     }
 }
 
@@ -542,7 +547,7 @@ class FromPersonUsesDomainObjectToolsViaContext {
         person: PersonWithReverseTool,
         context: ActionContext,
     ): UserInput {
-        return context.promptRunner().createObject("Create a UserInput")
+        return context.promptRunner().createObject(CREATE_A_USER_INPUT)
     }
 }
 
@@ -554,7 +559,7 @@ class FromPersonUsesObjectToolsViaUsing {
         person: PersonWithReverseTool,
         context: ActionContext,
     ): UserInput {
-        return context.promptRunner(toolObjects = listOf(ToolObject(FunnyTool()))).createObject("Create a UserInput")
+        return context.promptRunner(toolObjects = listOf(ToolObject(FunnyTool()))).createObject(CREATE_A_USER_INPUT)
     }
 }
 
@@ -566,7 +571,7 @@ class FromPersonUsesObjectToolsViaContext {
         person: PersonWithReverseTool,
         context: ActionContext,
     ): UserInput {
-        return context.promptRunner(toolObjects = listOf(ToolObject(FunnyTool()))).createObject("Create a UserInput")
+        return context.promptRunner(toolObjects = listOf(ToolObject(FunnyTool()))).createObject(CREATE_A_USER_INPUT)
     }
 }
 
