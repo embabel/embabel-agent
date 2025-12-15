@@ -42,9 +42,7 @@ import org.springframework.context.annotation.Configuration;
                 "com.embabel.agent.spi",
                 "com.embabel.agent.test",
                 "com.embabel.agent.tools",
-                "com.embabel.agent.web",
-                //Scan RAG Packages, this one should be moved over to RAG Module later
-                "com.embabel.agent.rag",
+                "com.embabel.agent.web"
         }
 )
 @ComponentScan(
@@ -58,9 +56,7 @@ import org.springframework.context.annotation.Configuration;
                 "com.embabel.agent.spi",
                 "com.embabel.agent.test",
                 "com.embabel.agent.tools",
-                "com.embabel.agent.web",
-                //Scan RAG Packages, this one should be moved over to RAG Module later
-                "com.embabel.agent.rag",
+                "com.embabel.agent.web"
         }
 )
 @Configuration

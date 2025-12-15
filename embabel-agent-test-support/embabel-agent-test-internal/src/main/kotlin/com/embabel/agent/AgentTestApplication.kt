@@ -34,8 +34,7 @@ import org.springframework.context.annotation.ComponentScan
         "com.embabel.agent.shell",
         //Scan MCP Packages, this one should be moved over to MCP Module later
         "com.embabel.agent.mcpserver",
-        //Scan RAG Packages, this one should be moved over to RAG Module later
-        "com.embabel.agent.rag",
+
     ]
 )
 @ComponentScan(
@@ -55,8 +54,6 @@ import org.springframework.context.annotation.ComponentScan
         "com.embabel.agent.shell",
         //Scan MCP Packages, this one should be moved over to MCP Module later
         "com.embabel.agent.mcpserver",
-        //Scan RAG Packages, this one should be moved over to RAG Module later
-        "com.embabel.agent.rag",
     ]
 )
 class AgentTestApplication {}
