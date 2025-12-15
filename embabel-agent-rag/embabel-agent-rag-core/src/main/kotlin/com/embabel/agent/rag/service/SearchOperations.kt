@@ -87,17 +87,20 @@ interface TextSearch : SearchOperations {
         clazz: Class<T>,
     ): List<SimilarityResult<T>>
 
-    fun <T : Retrievable> regexSearch(
-        regex: Regex,
-        topK: Int,
-        clazz: Class<T>,
-    ): List<SimilarityResult<T>>
-
     /**
      * Notes on how much Lucene syntax is supported by this implementation
      * to help LLMs and users craft effective queries.
      */
     val luceneSyntaxNotes: String
+}
+
+interface RegexSearchOperations : SearchOperations {
+
+    fun <T : Retrievable> regexSearch(
+        regex: Regex,
+        topK: Int,
+        clazz: Class<T>,
+    ): List<SimilarityResult<T>>
 }
 
 /**

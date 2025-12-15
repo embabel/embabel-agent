@@ -18,6 +18,8 @@ package com.embabel.agent.tools.file
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -418,37 +420,41 @@ class FileWriteToolsTest {
     @Nested
     inner class ExtractZipFile {
 
+        private val file1Txt = "file1.txt"
+        private val subdirFile2Txt = "subdir/file2.txt"
+        private val content1 = "content1"
+        private val content2 = "content2"
+        private val badTxt = "bad.txt"
+
+
+        private lateinit var baseDir: File
         private lateinit var zipFile: File
         private lateinit var extractDir: File
 
         @BeforeEach
-        fun createZipFile() {
-            // Create a zip file with test content
-            zipFile = File(tempDir, "test.zip")
-            ZipOutputStream(zipFile.outputStream()).use { zipOut ->
-                // Add a file
-                val entry1 = ZipEntry("file1.txt")
-                zipOut.putNextEntry(entry1)
-                zipOut.write("content1".toByteArray())
-                zipOut.closeEntry()
-
-                // Add a file in a subdirectory
-                val entry2 = ZipEntry("subdir/file2.txt")
-                zipOut.putNextEntry(entry2)
-                zipOut.write("content2".toByteArray())
-                zipOut.closeEntry()
+        fun setup() {
+            baseDir = Files.createTempDirectory("zipbase").toFile()
+            zipFile = File(baseDir, "test.zip")
+            ZipOutputStream(FileOutputStream(zipFile)).use { zos ->
+                zos.putNextEntry(ZipEntry("test/$file1Txt"))
+                zos.write(content1.toByteArray())
+                zos.closeEntry()
+                zos.putNextEntry(ZipEntry("test/subdir/"))
+                zos.closeEntry()
+                zos.putNextEntry(ZipEntry("test/$subdirFile2Txt"))
+                zos.write(content2.toByteArray())
+                zos.closeEntry()
             }
-
             extractDir = FileWriteTools.createTempDir("extract-test")
         }
 
         @AfterEach
         fun cleanup() {
+            baseDir.deleteRecursively()
             extractDir.deleteRecursively()
         }
 
         @Test
-        @Disabled("not yet working")
         fun `should extract zip file contents`() {
             val result = FileWriteTools.extractZipFile(
                 zipFile,
@@ -460,21 +466,88 @@ class FileWriteToolsTest {
                 result.exists(),
                 "Zip file content should exist at ${result.absolutePath}",
             )
+            assertTrue(result.isDirectory)
             assertEquals("test", result.name)
 
-            val file1 = File(extractDir, "file1.txt")
-            val file2 = File(extractDir, "subdir/file2.txt")
+            val file1 = File(result, file1Txt)
+            val file2 = File(result, subdirFile2Txt)
 
             assertTrue(file1.exists())
             assertTrue(file2.exists())
-            assertEquals("content1", Files.readString(file1.toPath()))
-            assertEquals("content2", Files.readString(file2.toPath()))
+            assertEquals(content1, file1.readText())
+            assertEquals(content2, file2.readText())
+            assertTrue(zipFile.exists())
         }
 
         @Test
         fun `should delete zip file when delete is true`() {
-            FileWriteTools.extractZipFile(zipFile, extractDir, true)
+            val result = FileWriteTools.extractZipFile(zipFile, extractDir, delete = true)
+
             assertFalse(zipFile.exists())
+
+            assertTrue(
+                result.exists(),
+                "Zip file content should exist at ${result.absolutePath}",
+            )
+            assertTrue(result.isDirectory)
+            assertEquals("test", result.name)
+
+            val file1 = File(result, file1Txt)
+            val file2 = File(result, subdirFile2Txt)
+
+            assertTrue(file1.exists())
+            assertTrue(file2.exists())
+            assertEquals(content1, file1.readText())
+            assertEquals(content2, file2.readText())
+        }
+
+        @Test
+        fun `should throw on zip slip`() {
+            val malZip = File(baseDir, "malicious.zip")
+            ZipOutputStream(FileOutputStream(malZip)).use { zos ->
+                zos.putNextEntry(ZipEntry("../$badTxt"))
+                zos.write("bad".toByteArray())
+                zos.closeEntry()
+            }
+
+            val exception = assertThrows(IOException::class.java) {
+                FileWriteTools.extractZipFile(malZip, extractDir, false)
+            }
+            assertEquals("Invalid zip entry name: ../$badTxt", exception.message)
+        }
+
+        @Test
+        fun `should handle empty zip`() {
+            val emptyZip = File(baseDir, "empty.zip")
+            ZipOutputStream(FileOutputStream(emptyZip)).use { /* empty */ }
+
+            val extracted = FileWriteTools.extractZipFile(emptyZip, extractDir, false)
+
+            assertEquals(File(extractDir, "empty"), extracted)
+            assertFalse(extracted.exists()) // No entries, so directory not created
+            assertTrue(emptyZip.exists())
+        }
+
+        @Test
+        fun `should throw on prefix spoof zip slip when path does not end with separator`() {
+            val canonical = extractDir.canonicalPath
+            assertFalse(canonical.endsWith(File.separator))
+
+            val dirName = extractDir.name
+            val spoofName = dirName + "spoof"
+            val entryName = "../$spoofName/$badTxt"
+
+            val malZip = File(baseDir, "malicious.zip")
+            ZipOutputStream(FileOutputStream(malZip)).use { zos ->
+                zos.putNextEntry(ZipEntry(entryName))
+                zos.write("bad".toByteArray())
+                zos.closeEntry()
+            }
+
+            val exception = assertThrows(IOException::class.java) {
+                FileWriteTools.extractZipFile(malZip, extractDir, false)
+            }
+            assertEquals("Invalid zip entry name: $entryName", exception.message)
         }
     }
 

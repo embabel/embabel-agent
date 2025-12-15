@@ -47,14 +47,18 @@ override fun toolInstances(): List<Any> =
         if (searchOperations is ResultExpander) {
             add(ResultExpanderTools(searchOperations))
         }
+        if (searchOperations is RegexSearchOperations) {
+            add(RegexSearchTools(searchOperations))
+        }
     }
 ----
 
 This means:
 
-- A Lucene store exposes vector search, text search, AND result expansion tools
+- A Lucene store exposes vector search, text search, regex search, AND result expansion tools
 - A Spring AI VectorStore adapter exposes only vector search tools
 - A basic text-only store exposes only text search tools
+- A directory-based text search exposes text search and regex search
 
 The LLM sees only the tools that actually work with the configured store, preventing runtime errors from unsupported operations.
 
@@ -106,7 +110,7 @@ This hierarchical model enables advanced RAG capabilities like "zoom out" to par
 
 ==== SearchOperations
 
-`SearchOperations` is the tag interface for search functionality. Concrete implementations implement one or more subinterfaces:
+`SearchOperations` is the tag interface for search functionality. Concrete implementations implement one or more subinterfaces based on their capabilities. This design allows stores to implement only what's natural and efficient for them—a vector database need not pretend to support full-text search, and a text search engine need not fake vector similarity.
 
 ===== VectorSearch
 
@@ -164,6 +168,34 @@ Expansion methods:
 - `SEQUENCE` - expand to previous and next chunks
 - `ZOOM_OUT` - expand to enclosing section
 
+===== RegexSearchOperations
+
+Pattern-based search across content:
+
+[source,kotlin]
+----
+interface RegexSearchOperations : SearchOperations {
+    fun <T : Retrievable> regexSearch(
+        regex: Regex,
+        topK: Int,
+        clazz: Class<T>,
+    ): List<SimilarityResult<T>>
+}
+----
+
+Useful for finding specific patterns like error codes, identifiers, or structured content that doesn't match well with semantic or keyword search.
+
+===== CoreSearchOperations
+
+A convenience interface combining the most common search capabilities:
+
+[source,kotlin]
+----
+interface CoreSearchOperations : VectorSearch, TextSearch
+----
+
+Stores that support both vector and text search can implement this single interface for convenience.
+
 ==== ToolishRag
 
 `ToolishRag` is an `LlmReference` that exposes `SearchOperations` as LLM tools. This gives the LLM fine-grained control over RAG searches.
@@ -205,7 +237,8 @@ void respond(Conversation conversation, ActionContext context) {
 Based on the capabilities of the underlying `SearchOperations`, `ToolishRag` exposes:
 
 - **VectorSearchTools**: `vectorSearch(query, topK, threshold)` - semantic similarity search
-- **TextSearchTools**: `textSearch(query, topK, threshold)` - BM25 full-text search, `regexSearch(regex, topK)`
+- **TextSearchTools**: `textSearch(query, topK, threshold)` - BM25 full-text search with Lucene syntax
+- **RegexSearchTools**: `regexSearch(regex, topK)` - pattern-based search using regular expressions
 - **ResultExpanderTools**: `broadenChunk(chunkId, chunksToAdd)` - expand to adjacent chunks, `zoomOut(id)` - expand to parent section
 
 The LLM autonomously decides when to use these tools based on user queries.
@@ -326,12 +359,31 @@ This allows integration with Pinecone, Weaviate, Milvus, Chroma, and other store
 
 ==== Implementing Your Own RAG Store
 
-To implement a custom RAG store, implement as many of the `SearchOperations` subinterfaces as your store supports:
+To implement a custom RAG store, implement only the `SearchOperations` subinterfaces that are natural and efficient for your store. This is a key design principle: **stores should only implement what they can do well**.
+
+For example:
+
+- A **vector database** like Pinecone might implement only `VectorSearch` since that's its strength
+- A **full-text search engine** might implement `TextSearch` and `RegexSearchOperations`
+- A **hierarchical document store** might add `ResultExpander` for context expansion
+- A **full-featured store** like Lucene can implement all interfaces
+
+The `ToolishRag` facade automatically exposes only the tools that your store supports. This means you don't need to provide stub implementations or throw "not supported" exceptions—simply don't implement interfaces that don't fit your store's capabilities.
 
 [source,kotlin]
 ----
-class MyCustomSearchOperations : VectorSearch, TextSearch {
+// A store that only supports vector search
+class MyVectorOnlyStore : VectorSearch {
+    override fun <T : Retrievable> vectorSearch(
+        request: TextSimilaritySearchRequest,
+        clazz: Class<T>,
+    ): List<SimilarityResult<T>> {
+        // Implement vector similarity search
+    }
+}
 
+// A store that supports both vector and text search
+class MyFullTextStore : VectorSearch, TextSearch {
     override fun <T : Retrievable> vectorSearch(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,

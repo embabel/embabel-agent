@@ -1442,101 +1442,18 @@ class LuceneSearchOperationsTest {
         }
 
         @Test
-        fun `regexSearch should find documents matching regex pattern`() {
-            val documents = listOf(
-                Document("doc1", "Error code E001: Connection failed", emptyMap<String, Any>()),
-                Document("doc2", "Error code E002: Timeout occurred", emptyMap<String, Any>()),
-                Document("doc3", "Success: Operation completed", emptyMap<String, Any>())
-            )
-
-            ragService.acceptDocuments(documents)
-
-            val results = ragService.regexSearch(
-                regex = Regex("E\\d{3}"),
-                topK = 10,
-                clazz = Chunk::class.java
-            )
-
-            assertEquals(2, results.size)
-            assertTrue(results.all { it.match.id in listOf("doc1", "doc2") })
-        }
-
-        @Test
-        fun `regexSearch should respect topK parameter`() {
-            val documents = (1..10).map { i ->
-                Document("doc$i", "Error E00$i occurred", emptyMap<String, Any>())
-            }
-
-            ragService.acceptDocuments(documents)
-
-            val results = ragService.regexSearch(
-                regex = Regex("E\\d+"),
-                topK = 3,
-                clazz = Chunk::class.java
-            )
-
-            assertEquals(3, results.size)
-        }
-
-        @Test
-        fun `regexSearch should return empty when no matches`() {
-            val documents = listOf(
-                Document("doc1", "Normal text without patterns", emptyMap<String, Any>())
-            )
-
-            ragService.acceptDocuments(documents)
-
-            val results = ragService.regexSearch(
-                regex = Regex("E\\d{3}"),
-                topK = 10,
-                clazz = Chunk::class.java
-            )
-
-            assertTrue(results.isEmpty())
-        }
-
-        @Test
-        fun `regexSearch should find complex patterns`() {
-            val documents = listOf(
-                Document("doc1", "Email: user@example.com is valid", emptyMap<String, Any>()),
-                Document("doc2", "Contact admin@test.org for help", emptyMap<String, Any>()),
-                Document("doc3", "No email here", emptyMap<String, Any>())
-            )
-
-            ragService.acceptDocuments(documents)
-
-            val results = ragService.regexSearch(
-                regex = Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"),
-                topK = 10,
-                clazz = Chunk::class.java
-            )
-
-            assertEquals(2, results.size)
-            assertTrue(results.none { it.match.id == "doc3" })
-        }
-
-        @Test
-        fun `all search methods should return results with score`() {
+        fun `textSearch should return results with score`() {
             val documents = listOf(
                 Document("doc1", "Machine learning algorithms", emptyMap<String, Any>())
             )
 
             ragService.acceptDocuments(documents)
 
-            // textSearch
             val textResults = ragService.textSearch(
                 RagRequest.query("machine").withSimilarityThreshold(0.0),
                 Chunk::class.java
             )
             assertTrue(textResults.all { it.score > 0 })
-
-            // regexSearch
-            val regexResults = ragService.regexSearch(
-                regex = Regex("machine"),
-                topK = 10,
-                clazz = Chunk::class.java
-            )
-            assertTrue(regexResults.all { it.score == 1.0 }) // regex returns 1.0 for matches
         }
     }
 

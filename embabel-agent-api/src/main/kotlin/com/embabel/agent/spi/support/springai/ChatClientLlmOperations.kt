@@ -112,7 +112,13 @@ internal class ChatClientLlmOperations(
             logger.warn("LLM Prompts: Using fallback defaults")
         }
 
-        logger.info("Current LLM settings: maxAttempts=${dataBindingProperties.maxAttempts}, fixedBackoffMillis=${dataBindingProperties.fixedBackoffMillis}ms, timeout=${llmOperationsPromptsProperties.defaultTimeout.seconds}s")
+        logger.info(
+            "Current LLM settings: maxAttempts=${dataBindingProperties.maxAttempts}, fixedBackoffMillis=${
+                dataBindingProperties.fixedBackoffMillis
+            }ms, timeout=${
+                llmOperationsPromptsProperties.defaultTimeout.seconds
+            }s"
+        )
     }
 
     override fun <O> doTransform(

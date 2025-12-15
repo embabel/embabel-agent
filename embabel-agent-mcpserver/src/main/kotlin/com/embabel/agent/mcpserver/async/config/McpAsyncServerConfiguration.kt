@@ -26,6 +26,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.mcp.McpToolUtils
 import org.springframework.ai.tool.ToolCallbackProvider
 import org.springframework.ai.tool.method.MethodToolCallbackProvider
+import org.springframework.beans.factory.getBean
+import org.springframework.beans.factory.getBeansOfType
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.*
 import org.springframework.core.type.AnnotatedTypeMetadata
@@ -70,7 +72,7 @@ class McpAsyncServerConfiguration(
      * @return the McpServerStrategy for async operations
      */
     override fun createServerStrategy(): McpServerStrategy {
-        val asyncServer = applicationContext.getBean(McpAsyncServer::class.java)
+        val asyncServer = applicationContext.getBean<McpAsyncServer>()
         return AsyncServerStrategy(asyncServer)
     }
 
@@ -98,7 +100,7 @@ class McpAsyncServerConfiguration(
      * @return a list of `McpToolExportCallbackPublisher` instances
      */
     override fun getToolPublishers(): List<McpExportToolCallbackPublisher> {
-        return applicationContext.getBeansOfType(McpExportToolCallbackPublisher::class.java).values.toList()
+        return applicationContext.getBeansOfType<McpExportToolCallbackPublisher>().values.toList()
     }
 
     /**
@@ -110,7 +112,7 @@ class McpAsyncServerConfiguration(
      * @return a list of `McpAsyncResourcePublisher` instances
      */
     override fun getResourcePublishers(): List<McpAsyncResourcePublisher> {
-        return applicationContext.getBeansOfType(McpAsyncResourcePublisher::class.java).values.toList()
+        return applicationContext.getBeansOfType<McpAsyncResourcePublisher>().values.toList()
     }
 
     /**
@@ -122,7 +124,7 @@ class McpAsyncServerConfiguration(
      * @return a list of `McpAsyncPromptPublisher` instances
      */
     override fun getPromptPublishers(): List<McpAsyncPromptPublisher> {
-        return applicationContext.getBeansOfType(McpAsyncPromptPublisher::class.java).values.toList()
+        return applicationContext.getBeansOfType<McpAsyncPromptPublisher>().values.toList()
     }
 
 

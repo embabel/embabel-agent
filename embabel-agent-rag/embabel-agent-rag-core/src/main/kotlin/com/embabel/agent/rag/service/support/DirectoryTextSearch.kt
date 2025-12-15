@@ -17,6 +17,7 @@ package com.embabel.agent.rag.service.support
 
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
+import com.embabel.agent.rag.service.RegexSearchOperations
 import com.embabel.agent.rag.service.TextSearch
 import com.embabel.agent.tools.file.FileTools
 import com.embabel.common.core.types.SimilarityResult
@@ -54,7 +55,7 @@ import kotlin.io.path.name
 class DirectoryTextSearch @JvmOverloads constructor(
     private val directory: String,
     private val config: Config = Config(),
-) : TextSearch {
+) : TextSearch, RegexSearchOperations {
 
     /**
      * Configuration for [DirectoryTextSearch].

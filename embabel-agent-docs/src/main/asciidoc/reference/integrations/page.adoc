@@ -128,6 +128,106 @@ public class RagMcpTools {
 <1> Your bean should be of type `McpToolExport`
 <2> Use `McpToolExport.fromLlmReference` to return the instance
 
+====== Naming Strategies
+
+When exporting tools, you can control how tool names are transformed using a naming strategy.
+This is useful for namespacing tools when exporting from multiple sources to avoid naming conflicts.
+
+**Using ToolObject with a naming strategy:**
+
+[source,kotlin]
+----
+@Bean
+fun prefixedTools(): McpToolExport {
+    return McpToolExport.fromToolObject(
+        ToolObject(
+            objects = listOf(myToolInstance),
+            namingStrategy = { "myservice_$it" }  // <1>
+        )
+    )
+}
+----
+
+<1> All tool names will be prefixed with `myservice_`
+
+Common naming strategies include:
+
+* **Prefix**: `{ "namespace_$it" }` - adds a prefix to avoid conflicts
+* **Uppercase**: `{ it.uppercase() }` - converts to uppercase
+* **Identity**: `StringTransformer.IDENTITY` - preserves original names (default)
+
+**LlmReference naming:**
+
+When using `fromLlmReference`, the reference's built-in naming strategy is applied automatically.
+This prefixes tool names with the lowercased, normalized reference name.
+For example, an `LlmReference` named "MyAPI" will prefix all tools with `myapi_`.
+
+[source,kotlin]
+----
+// Reference named "WeatherService" will prefix tools with "weatherservice_"
+val reference = MyWeatherReference()  // name = "WeatherService"
+McpToolExport.fromLlmReference(reference)
+// Tool "getWeather" becomes "weatherservice_getWeather"
+----
+
+**Exporting multiple sources with different prefixes:**
+
+[source,kotlin]
+----
+@Bean
+fun multiSourceTools(): McpToolExport {
+    return McpToolExport.fromToolObjects(
+        listOf(
+            ToolObject(
+                objects = listOf(weatherTools),
+                namingStrategy = { "weather_$it" }
+            ),
+            ToolObject(
+                objects = listOf(stockTools),
+                namingStrategy = { "stocks_$it" }
+            )
+        )
+    )
+}
+----
+
+====== Filtering Tools
+
+You can filter which tools are exported using the `filter` property on `ToolObject`:
+
+[source,kotlin]
+----
+@Bean
+fun filteredTools(): McpToolExport {
+    return McpToolExport.fromToolObject(
+        ToolObject(
+            objects = listOf(myToolInstance),
+            filter = { it.startsWith("public_") }  // <1>
+        )
+    )
+}
+----
+
+<1> Only tools whose names start with `public_` will be exported
+
+You can combine naming strategies and filters:
+
+[source,kotlin]
+----
+@Bean
+fun combinedTools(): McpToolExport {
+    return McpToolExport.fromToolObject(
+        ToolObject(
+            objects = listOf(myToolInstance),
+            namingStrategy = { "api_$it" },
+            filter = { !it.startsWith("internal") }  // <1>
+        )
+    )
+}
+----
+
+<1> The filter is applied to the original tool name before the naming strategy transforms it
+
 ====== Exposing Tools on Spring Components in Spring AI style
 
 It is also possible to expose tools on Spring components as with regular Spring AI.

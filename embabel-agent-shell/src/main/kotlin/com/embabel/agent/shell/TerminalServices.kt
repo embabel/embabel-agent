@@ -72,6 +72,9 @@ class TerminalServices(
         doWithLineReader { it.printAbove(what) }
     }
 
+    /**
+     * Run a chat session in the terminal
+     */
     @JvmOverloads
     fun chat(
         chatSession: ChatSession,

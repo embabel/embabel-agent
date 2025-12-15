@@ -78,7 +78,12 @@ class LuceneSearchOperations @JvmOverloads constructor(
     private val vectorWeight: Double = 0.5,
     chunkerConfig: ContentChunker.Config = ContentChunker.DefaultConfig(),
     private val indexPath: Path? = null,
-) : RagFacetProvider, AbstractChunkingContentElementRepository(chunkerConfig), HasInfoString, Closeable, CoreSearchOperations, ResultExpander {
+) : RagFacetProvider,
+    AbstractChunkingContentElementRepository(chunkerConfig),
+    HasInfoString,
+    Closeable,
+    CoreSearchOperations,
+    ResultExpander {
 
     private val analyzer = StandardAnalyzer()
     private val directory: Directory = indexPath?.let { FSDirectory.open(it) } ?: ByteBuffersDirectory()
@@ -620,34 +625,6 @@ class LuceneSearchOperations @JvmOverloads constructor(
         logger.info(
             "Text search for query '{}' found {} results",
             request.query,
-            results.size,
-        )
-        return results
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : Retrievable> regexSearch(
-        regex: Regex,
-        topK: Int,
-        clazz: Class<T>,
-    ): List<SimilarityResult<T>> {
-        ensureChunksLoaded()
-
-        val results = contentElementStorage.values
-            .filterIsInstance(clazz)
-            .filter { retrievable ->
-                val text = when (retrievable) {
-                    is Chunk -> retrievable.text
-                    else -> retrievable.embeddableValue()
-                }
-                regex.containsMatchIn(text)
-            }
-            .take(topK)
-            .map { SimpleSimilaritySearchResult(match = it as T, score = 1.0) }
-
-        logger.info(
-            "Regex search for pattern '{}' found {} results",
-            regex.pattern,
             results.size,
         )
         return results

@@ -255,20 +255,25 @@ class ToolishRagTest {
             assertEquals("0 results:", result)
         }
 
+    }
+
+    @Nested
+    inner class RegexSearchToolsTests {
+
         @Test
-        fun `regexSearch should delegate to TextSearch with correct parameters`() {
-            val textSearch = mockk<TextSearch>()
+        fun `regexSearch should delegate to RegexSearchOperations with correct parameters`() {
+            val regexSearch = mockk<RegexSearchOperations>()
             val chunk = createChunk("chunk1", "Error E001 occurred")
 
             every {
-                textSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
+                regexSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 1.0))
 
-            val tools = TextSearchTools(textSearch)
+            val tools = RegexSearchTools(regexSearch)
             val result = tools.regexSearch("E\\d{3}", 10)
 
             verify {
-                textSearch.regexSearch(
+                regexSearch.regexSearch(
                     match<Regex> { it.pattern == "E\\d{3}" },
                     10,
                     Chunk::class.java
@@ -281,13 +286,13 @@ class ToolishRagTest {
 
         @Test
         fun `regexSearch should return formatted empty results`() {
-            val textSearch = mockk<TextSearch>()
+            val regexSearch = mockk<RegexSearchOperations>()
 
             every {
-                textSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
+                regexSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
             } returns emptyList()
 
-            val tools = TextSearchTools(textSearch)
+            val tools = RegexSearchTools(regexSearch)
             val result = tools.regexSearch("nonexistent pattern", 10)
 
             assertEquals("0 results:", result)
@@ -295,18 +300,18 @@ class ToolishRagTest {
 
         @Test
         fun `regexSearch should handle multiple matches`() {
-            val textSearch = mockk<TextSearch>()
+            val regexSearch = mockk<RegexSearchOperations>()
             val chunk1 = createChunk("chunk1", "Error E001")
             val chunk2 = createChunk("chunk2", "Error E002")
 
             every {
-                textSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
+                regexSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
             } returns listOf(
                 SimpleSimilaritySearchResult(match = chunk1, score = 1.0),
                 SimpleSimilaritySearchResult(match = chunk2, score = 1.0)
             )
 
-            val tools = TextSearchTools(textSearch)
+            val tools = RegexSearchTools(regexSearch)
             val result = tools.regexSearch("E\\d{3}", 10)
 
             assertTrue(result.contains("2 results:"))
