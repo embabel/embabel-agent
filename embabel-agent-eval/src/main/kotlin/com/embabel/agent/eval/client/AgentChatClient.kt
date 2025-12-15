@@ -47,6 +47,7 @@ class AgentChatClient(
     private val boogieHost: String = "http://localhost:8080",
     private val boogieContextPath: String = "/api/v1/graphs",
     private val apiKey: String = "treehorn",
+    private val noResponseMessage: String = "No response body",
 ) {
 
     // TODO share with the BoogieClient
@@ -63,7 +64,7 @@ class AgentChatClient(
             .body(knowledgeContext)
             .retrieve()
             .body<String>()
-            ?: throw IllegalStateException("No response body")
+            ?: throw IllegalStateException(noResponseMessage)
     }
 
     fun createSession(sessionCreationRequest: SessionCreationRequest): SessionCreationResponse {
@@ -74,7 +75,7 @@ class AgentChatClient(
             .body(sessionCreationRequest)
             .retrieve()
             .body<SessionCreationResponse>()
-            ?: throw IllegalStateException("No response body")
+            ?: throw IllegalStateException(noResponseMessage)
     }
 
 //    fun ingestDocument(knowledgeContext: KnowledgeContext): String {
@@ -84,7 +85,7 @@ class AgentChatClient(
 //            HttpMethod.PUT,
 //            entity,
 //            String::class.java,
-//        ).body ?: throw IllegalStateException("No response body")
+//        ).body ?: throw IllegalStateException(noResponseMessage)
 //    }
 
     fun getObjectContext(id: String): ObjectContext {
@@ -93,7 +94,7 @@ class AgentChatClient(
             .uri("${agentHost}/${agentChatPath}/objectContexts/{id}", id)
             .retrieve()
             .body<ObjectContext>()
-            ?: throw IllegalStateException("No response body")
+            ?: throw IllegalStateException(noResponseMessage)
     }
 
     fun respond(chatRequest: ChatRequest): MessageResponse {
@@ -103,7 +104,7 @@ class AgentChatClient(
             .body(chatRequest)
             .retrieve()
             .body<MessageResponse>()
-            ?: throw IllegalStateException("No response body")
+            ?: throw IllegalStateException(noResponseMessage)
     }
 
 }
