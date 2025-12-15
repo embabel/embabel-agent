@@ -19,13 +19,7 @@ import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.Embeddable
-import com.embabel.agent.rag.service.RetrievableResultsFormatter
-import com.embabel.agent.rag.service.ResultExpander
-import com.embabel.agent.rag.service.SearchOperations
-import com.embabel.agent.rag.service.SimilarityResults
-import com.embabel.agent.rag.service.SimpleRetrievableResultsFormatter
-import com.embabel.agent.rag.service.TextSearch
-import com.embabel.agent.rag.service.VectorSearch
+import com.embabel.agent.rag.service.*
 import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
@@ -200,12 +194,6 @@ class RegexSearchTools(
         val results = textSearch.regexSearch(Regex(regex), topK, Chunk::class.java)
         return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.Companion.fromList(results))
     }
-}
-
-// entity search
-
-// get entity
-
 }
 
 /**
