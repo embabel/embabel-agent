@@ -16,7 +16,6 @@
 package com.embabel.agent.config.annotation;
 
 import com.embabel.agent.api.event.AgenticEventListener;
-import com.embabel.agent.rag.service.RagService;
 import com.embabel.agent.spi.Ranker;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,9 +65,6 @@ class EnableAgentsAnnotationIT {
     @Autowired
     private Ranker ranker;
 
-    @Autowired
-    private RagService defaultSpringVectorStore;
-
     @Test
     @DisplayName("Should auto-configure all required agent platform beans")
     void testAutoConfiguredBeanPresence() {
@@ -81,9 +77,6 @@ class EnableAgentsAnnotationIT {
                 .as("Ranker should be auto-configured")
                 .isNotNull();
 
-        assertThat(defaultSpringVectorStore)
-                .as("RagService should be auto-configured")
-                .isNotNull();
     }
 
     @Test

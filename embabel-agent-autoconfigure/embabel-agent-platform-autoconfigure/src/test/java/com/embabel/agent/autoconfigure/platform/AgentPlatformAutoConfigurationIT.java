@@ -16,7 +16,6 @@
 package com.embabel.agent.autoconfigure.platform;
 
 import com.embabel.agent.api.event.AgenticEventListener;
-import com.embabel.agent.rag.service.RagService;
 import com.embabel.agent.spi.Ranker;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -46,9 +45,6 @@ class AgentPlatformAutoConfigurationIT {
     @Autowired
     private Ranker ranker;
 
-    @Autowired
-    private RagService defaultSpringVectorStore;
-
     @BeforeEach
     void setUp() {
     }
@@ -63,8 +59,6 @@ class AgentPlatformAutoConfigurationIT {
     public void testAutoConfiguredBeanPresence() {
         Assertions.assertNotNull(eventListener, "Event Listener should be Auto-Configured");
         Assertions.assertNotNull(ranker, "Ranker should be Auto-Configured");
-        Assertions.assertNotNull(defaultSpringVectorStore, "RagService should be Auto-Configured");
-
     }
 
 

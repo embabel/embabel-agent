@@ -37,13 +37,6 @@
             <artifactId>spring-ai-autoconfigure-model-chat-client</artifactId>
         </dependency>
 
-        <!-- Test Dependencies -->
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-rag-pipeline</artifactId>
-            <scope>test</scope>
-        </dependency>
-
     </dependencies>
 
 </project>
