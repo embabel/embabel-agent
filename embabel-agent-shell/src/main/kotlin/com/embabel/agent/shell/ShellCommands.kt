@@ -402,6 +402,7 @@ class ShellCommands(
         basis: Any,
         run: () -> AgentProcessExecution,
     ): String {
+        val errorMessageCannotDoIt = "I'm sorry. I don't know how to do that.\n"
         try {
             val result = run()
             logger.debug("Result: {}\n", result)
@@ -417,7 +418,7 @@ class ShellCommands(
                     """.trimIndent().color(0xbfb8b8)
                 )
             }
-            return "I'm sorry. I don't know how to do that.\n"
+            return errorMessageCannotDoIt
         } catch (gna: GoalNotApproved) {
             if (verbosity.debug) {
                 logger.info(
@@ -427,7 +428,7 @@ class ShellCommands(
                     """.trimIndent().color(0xbfb8b8)
                 )
             }
-            return "I'm sorry. I don't know how to do that.\n"
+            return errorMessageCannotDoIt
         } catch (naf: NoAgentFound) {
             if (verbosity.debug) {
                 logger.info(
@@ -438,7 +439,7 @@ class ShellCommands(
                     """.trimIndent().color(0xbfb8b8)
                 )
             }
-            return "I'm sorry. I don't know how to do that.\n"
+            return errorMessageCannotDoIt
         } catch (pese: ProcessExecutionStuckException) {
             pese.agentProcess?.let {
                 recordAgentProcess(it)
