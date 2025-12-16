@@ -59,6 +59,22 @@ spring:
         type: ASYNC
 ----
 
+====== Transport Protocol
+
+Embabel Agent uses **SSE (Server-Sent Events) transport**, exposing your MCP server at `http://localhost:8080/sse`.
+This is compatible with Claude Desktop, MCP Inspector, Cursor, and most desktop MCP clients.
+
+**Clients requiring Streamable HTTP**::
+Some clients (e.g., OpenWebUI) require Streamable HTTP transport instead of SSE.
+Use the `mcpo` proxy to bridge your SSE server:
+
+[source,bash]
+----
+uvx mcpo --port 8000 --server-type sse -- http://localhost:8080/sse
+----
+
+Then connect your client to `http://localhost:8000`.
+
 ====== Automatic Publishing
 
 **Tools**::
@@ -298,4 +314,3 @@ Every MCP server includes a built-in `helloBanner` tool that displays server inf
 
 [[reference.integrations__a2a]]
 ==== A2A
-
