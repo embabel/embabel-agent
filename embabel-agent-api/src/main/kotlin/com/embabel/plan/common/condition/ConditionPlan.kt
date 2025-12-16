@@ -19,6 +19,9 @@ import com.embabel.plan.Action
 import com.embabel.plan.Goal
 import com.embabel.plan.Plan
 
+/**
+ * Plan towards a goal using a ConditionWorldState
+ */
 class ConditionPlan(
     actions: List<Action>,
     goal: Goal,

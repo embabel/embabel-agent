@@ -222,19 +222,53 @@ class AgentMetadataReader(
         }
 
         val agent = if (agenticInfo.agentAnnotation != null) {
-            CoreAgent(
-                name = agenticInfo.agentName(),
-                provider = agenticInfo.agentAnnotation.provider.ifBlank {
-                    instance.javaClass.`package`.name
-                },
-                description = agenticInfo.agentAnnotation.description,
-                version = Semver(agenticInfo.agentAnnotation.version),
-                conditions = conditions,
-                actions = allActions,
-                goals = goals,
-                stuckHandler = instance as? StuckHandler,
-                opaque = agenticInfo.agentAnnotation.opaque,
-            )
+            if (plannerType == PlannerType.SUPERVISOR) {
+                // Find the goal action (the action with @AchievesGoal)
+                val goalActions = actionMethods.filter { it.isAnnotationPresent(AchievesGoal::class.java) }
+                if (goalActions.isEmpty()) {
+                    logger.warn(
+                        "SUPERVISOR planner requires at least one @AchievesGoal action on {}",
+                        targetType.name,
+                    )
+                    return null
+                }
+                if (goalActions.size > 1) {
+                    logger.warn(
+                        "SUPERVISOR planner currently supports only one @AchievesGoal action, found {} on {}",
+                        goalActions.size,
+                        targetType.name,
+                    )
+                    return null
+                }
+                val goalAction = allActions.find { action ->
+                    goalActions.any { method ->
+                        action.name.endsWith(".${method.name}")
+                    }
+                } ?: error("Goal action not found in allActions")
+
+                createSupervisorAgent(
+                    agenticInfo = agenticInfo,
+                    instance = instance,
+                    goalAction = goalAction,
+                    allActions = allActions,
+                    goals = goals,
+                    conditions = conditions,
+                )
+            } else {
+                CoreAgent(
+                    name = agenticInfo.agentName(),
+                    provider = agenticInfo.agentAnnotation.provider.ifBlank {
+                        instance.javaClass.`package`.name
+                    },
+                    description = agenticInfo.agentAnnotation.description,
+                    version = Semver(agenticInfo.agentAnnotation.version),
+                    conditions = conditions,
+                    actions = allActions,
+                    goals = goals,
+                    stuckHandler = instance as? StuckHandler,
+                    opaque = agenticInfo.agentAnnotation.opaque,
+                )
+            }
         } else {
             AgentScope(
                 name = agenticInfo.type.name,
@@ -619,6 +653,28 @@ class AgentMetadataReader(
             logger.warn("Error invoking condition method ${method.name} with args $args", t)
             false
         }
+    }
+
+    /**
+     * Create an agent using the supervisor pattern, where an LLM acts as a supervisor
+     * that orchestrates actions and @Tool methods to achieve a goal.
+     *
+     * @param agenticInfo Information about the agent class
+     * @param instance The agent instance
+     * @param goalAction The action that achieves the goal (has @AchievesGoal)
+     * @param allActions All actions defined on the agent
+     * @param goals All goals defined on the agent
+     * @param conditions All conditions defined on the agent
+     */
+    private fun createSupervisorAgent(
+        agenticInfo: AgenticInfo,
+        instance: Any,
+        goalAction: CoreAction,
+        allActions: List<CoreAction>,
+        goals: Set<AgentCoreGoal>,
+        conditions: Set<CoreCondition>,
+    ): CoreAgent {
+        TODO("Supervisor agent creation not yet implemented. Goal action: ${goalAction.name}")
     }
 
     /**
