@@ -1,16 +1,20 @@
 [[getting-started.installing]]
 === Getting the Binaries
 
-The easiest way to get started with Embabel Agent is to add the Spring Boot starter dependency to your project.
+The easiest way to get started with Embabel Agent is to add the Spring Boot starter dependency to your project. Embabel release binaries are published to Maven Central.
 
-==== Maven
+==== Build Configuration
 
-Add the appropriate Embabel Agent Spring Boot starter to your `pom.xml` depending on your application type:
+Add the appropriate Embabel Agent Spring Boot starter to your build file depending on your choice of application type:
 
 ===== Shell Starter
 
 Starts the application in console mode with an interactive shell powered by Embabel.
 
+[tabs]
+====
+Maven (pom.xml)::
++
 [source,xml]
 ----
 <dependency>
@@ -19,6 +23,25 @@ Starts the application in console mode with an interactive shell powered by Emba
     <version>${embabel-agent.version}</version>
 </dependency>
 ----
+
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-shell:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-shell:${embabel-agent.version}'
+}
+----
+====
 
 *Features:*
 
@@ -30,8 +53,12 @@ Starts the application in console mode with an interactive shell powered by Emba
 
 ===== MCP Server Starter
 
-Starts the application with HTTP listener where agents are autodiscovered and registered as MCP servers, available for integration via SSE protocol.
+Starts the application with HTTP listener where agents are autodiscovered and registered as MCP servers, available for integration via SSE, Streamable-HTTP or Stateless Streamable-HTTP protocols.
 
+[tabs]
+====
+Maven (pom.xml)::
++
 [source,xml]
 ----
 <dependency>
@@ -41,11 +68,30 @@ Starts the application with HTTP listener where agents are autodiscovered and re
 </dependency>
 ----
 
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-mcpserver:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-mcpserver:${embabel-agent.version}'
+}
+----
+====
+
 *Features:*
 
 * ✅️ MCP protocol server implementation
 * ✅️ Tool registration and discovery
-* ✅️ JSON-RPC communication via SSE (Server-Sent Events)
+* ✅️ JSON-RPC communication via SSE (Server-Sent Events), Streamable-HTTP or Stateless Streamable-HTTP
 * ✅️ Integration with MCP-compatible clients
 * ✅️ Security and sandboxing
 
@@ -55,6 +101,10 @@ Initializes Embabel Agent Platform in the Spring Container.
 Platform beans are available via Spring Dependency Injection mechanism.
 Application startup mode (web, console, microservice, etc.) is determined by the Application Designer.
 
+[tabs]
+====
+Maven (pom.xml)::
++
 [source,xml]
 ----
 <dependency>
@@ -64,6 +114,25 @@ Application startup mode (web, console, microservice, etc.) is determined by the
 </dependency>
 ----
 
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter:${embabel-agent.version}'
+}
+----
+====
+
 *Features:*
 
 * ✅️ Application decides on startup mode (console, web application, etc)
@@ -72,9 +141,13 @@ Application startup mode (web, console, microservice, etc.) is determined by the
 * ✅️ Progress tracking and logging
 * ✅️ Development-friendly error handling
 
-Embabel release binaries are in Maven Central.
-If you want to use Embabel snapshots, you'll need to add the Embabel repository to your `pom.xml`:
+===== Embabel Snapshots
+If you want to use Embabel snapshots, you'll need to add the Embabel repository to your build.
 
+[tabs]
+====
+Maven (pom.xml)::
++
 [source,xml]
 ----
 <repositories>
@@ -108,10 +181,8 @@ If you want to use Embabel snapshots, you'll need to add the Embabel repository 
 </repositories>
 ----
 
-==== Gradle (for Embabel snapshots)
-
-Add the required repositories to your `build.gradle.kts`:
-
+Gradle Kotlin DSL (build.gradle.kts)::
++
 [source,kotlin]
 ----
 repositories {
@@ -137,17 +208,8 @@ repositories {
 }
 ----
 
-Add the Embabel Agent starter dependency of choice:
-
-[source,kotlin]
-----
-dependencies {
-    implementation("com.embabel.agent:embabel-agent-starter-shell:${embabel-agent.version}")
-}
-----
-
-For Gradle Groovy DSL (`build.gradle`):
-
+Gradle Groovy DSL (build.gradle)::
++
 [source,groovy]
 ----
 repositories {
@@ -176,6 +238,7 @@ dependencies {
     implementation 'com.embabel.agent:embabel-agent-starter-shell:${embabel-agent.version}'
 }
 ----
+====
 
 ==== Environment Setup
 

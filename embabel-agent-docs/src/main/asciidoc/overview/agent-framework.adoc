@@ -3,13 +3,15 @@
 
 Aren’t LLMs smart enough to solve our problems directly?
 Aren’t MCP tools all we need to allow them to solve complex problems?
+Well, LLMs currently seem to get more capable almost by the day and MCPs can
+give LLMs access to a lot of empowering tools, making them even more capable.
 
-But there are many reasons that a higher level orchestration technology is needed, especially for business applications.
+But there are still many reasons that a higher level orchestration technology is needed, especially for business applications.
 Here are some of the most important:
 
 - *Explainability*: Why were choices made in solving a problem?
 - *Discoverability*: How do we find the right tools at each point, and ensure that models aren’t confused in choosing between them?
-- *Ability to mix models*, so that we are not reliant on God models but can use local, cheaper, private models for many tasks
+- *Ability to mix models*, so that we are not reliant only on the largest models but can use local, cheaper, private models for many tasks
 - *Ability to inject guardrails* at any point in a flow
 - *Ability to manage flow execution* and introduce greater resilience
 - *Composability of flows at scale*.
