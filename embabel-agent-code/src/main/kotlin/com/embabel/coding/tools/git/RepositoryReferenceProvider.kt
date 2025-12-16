@@ -148,13 +148,13 @@ data class RepositoryReferenceProvider(
 
     private fun callCloneCommand(
         url: String,
-        tempDir: Path,
+        targetDir: Path,
         branch: String? = null,
         depth: Int? = null,
     ) {
         val cloneCommand = Git.cloneRepository()
             .setURI(url)
-            .setDirectory(tempDir.toFile())
+            .setDirectory(targetDir.toFile())
             .setCloneAllBranches(branch == null)
 
         branch?.let { cloneCommand.setBranch(it) }
@@ -162,7 +162,7 @@ data class RepositoryReferenceProvider(
 
         cloneCommand.call().use { git ->
             // Verify clone was successful
-            if (!Files.exists(tempDir.resolve(".git"))) {
+            if (!Files.exists(targetDir.resolve(".git"))) {
                 throw IllegalStateException("Clone operation completed but .git directory not found")
             }
         }
