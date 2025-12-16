@@ -23,7 +23,7 @@ import com.embabel.agent.test.type.Wumpus
 import com.embabel.common.core.MobyNameGenerator
 
 /**
- * A description to used to define a goal.
+ * A description used to define a goal.
  */
 private const val DESCRIPTION_WE_ARE_SATISFIED_WITH_GENERATED_NAMES = "We are satisfied with generated names"
 
