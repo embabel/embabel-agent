@@ -34,6 +34,12 @@ import java.util.concurrent.CompletableFuture
  */
 interface AgentInvocation<T> : UntypedInvocation {
 
+    fun withAgentPlatform(agentPlatform: AgentPlatform): AgentInvocation<T>
+
+    fun withProcessOptions(processOptions: ProcessOptions): AgentInvocation<T>
+
+    fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U>
+
     /**
      * Invokes the agent with one or more arguments.
      *
@@ -165,11 +171,22 @@ inline fun <reified T : Any> AgentInvocation.Builder.build(): AgentInvocation<T>
     return build(T::class.java)
 }
 
-internal class DefaultAgentInvocation<T : Any>(
-    private val agentPlatform: AgentPlatform,
-    private val processOptions: ProcessOptions,
-    private val resultType: Class<T>,
+internal data class DefaultAgentInvocation<T : Any>(
+    internal val agentPlatform: AgentPlatform,
+    internal val processOptions: ProcessOptions,
+    internal val resultType: Class<T>,
 ) : AgentInvocation<T> {
+
+    override fun withAgentPlatform(agentPlatform: AgentPlatform): AgentInvocation<T> =
+        copy(agentPlatform = agentPlatform)
+
+    override fun withProcessOptions(processOptions: ProcessOptions): AgentInvocation<T> =
+        copy(processOptions = processOptions)
+
+    override fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U> =
+        AgentInvocation.builder(this.agentPlatform)
+            .options(this.processOptions)
+            .build(resultType)
 
     override fun invokeAsync(
         obj: Any,
