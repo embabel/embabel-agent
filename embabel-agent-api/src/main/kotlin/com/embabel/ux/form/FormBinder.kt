@@ -225,13 +225,8 @@ internal open class JavaFormBinder<T : Any>(
                 when {
                     targetType.isAssignableFrom(List::class.java) -> controlValue.values
                     targetType.isArray -> {
-                        val componentType = targetType.componentType
-                        when (componentType) {
-                            String::class.java -> controlValue.values.toTypedArray()
-                            else -> controlValue.values.toTypedArray()
-                        }
+                        controlValue.values.toTypedArray()
                     }
-
                     else -> controlValue.values
                 }
             }

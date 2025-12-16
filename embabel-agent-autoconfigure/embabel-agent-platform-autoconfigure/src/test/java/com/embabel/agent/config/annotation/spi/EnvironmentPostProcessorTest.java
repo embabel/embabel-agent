@@ -90,7 +90,8 @@ class EnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, application);
 
         // Then
-        assertThat(environment.containsProperty(EnvironmentPostProcessor.LOGGING_THEME_PROPERTY));
+        assertThat(environment.containsProperty(EnvironmentPostProcessor.LOGGING_THEME_PROPERTY))
+                .isTrue();
         assertThat(environment.getProperty(EnvironmentPostProcessor.LOGGING_THEME_PROPERTY))
                 .isEqualTo("starwars");
     }

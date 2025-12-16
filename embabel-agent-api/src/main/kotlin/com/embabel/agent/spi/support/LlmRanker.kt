@@ -125,7 +125,6 @@ internal class LlmRanker(
                     thingNames.map { "'$it'" }
                 }, raw=$rankingResponse"
             )
-            return Rankings(emptyList())
         }
 
         return Rankings(

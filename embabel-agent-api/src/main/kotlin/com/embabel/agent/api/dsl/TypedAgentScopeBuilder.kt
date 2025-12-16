@@ -139,7 +139,7 @@ fun <A, B, C> chain(
         },
         TransformationAction(
             name = "chain-1",
-            description = "chain element 0",
+            description = "chain element 1",
             cost = { 0.0 },
             value = { 0.0 },
             canRerun = false,
