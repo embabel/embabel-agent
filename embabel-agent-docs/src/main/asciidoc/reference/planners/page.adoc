@@ -2,7 +2,7 @@
 === Choosing a Planner
 
 Embabel supports multiple planning strategies.
-All are deterministic, but their behaviour differs--although it is always predictable.
+Most are deterministic, but their behaviour differs--although it is always predictable.
 
 All planning strategies are entirely typesafe in Java or Kotlin.
 
@@ -19,6 +19,10 @@ The planning strategies currently supported out of the box are:
 |*Utility*
 |Exploration and event-driven systems
 |Selects the highest-value available action at each step. Ideal when you don't know the outcome upfront.
+
+|*Supervisor*
+|Flexible multi-step workflows
+|LLM-orchestrated composition. An LLM selects which actions to call based on type schemas and gathered artifacts.
 |===
 
 As most of the documentation covers GOAP, this section discusses the alternative planners and nested workflows.
@@ -239,3 +243,276 @@ This pattern works well when:
 * Classification determines the processing path
 * Each category has distinct handling requirements
 * The final output type is the same across all categories
+
+[[reference.planners__supervisor]]
+==== Supervisor
+
+The Supervisor planner uses an LLM to orchestrate actions dynamically.
+This is a popular pattern in frameworks like https://langchain-ai.github.io/langgraph/concepts/agentic_concepts/#supervisor[LangGraph] and https://google.github.io/adk-docs/agents/multi-agents/#supervisor-agent-sample[Google ADK], where a supervisor LLM decides which tools to call and in what order.
+
+[NOTE]
+====
+Unlike GOAP and Utility, the Supervisor planner is *non-deterministic*.
+The LLM may choose different action sequences for the same inputs.
+This makes it less suitable for business-critical workflows requiring reproducibility.
+====
+
+===== Type-Informed vs Type-Driven
+
+A key design decision in supervisor architectures is how types relate to composition:
+
+[cols="1,3",options="header"]
+|===
+|Approach |Description
+
+|*Type-Driven* (GOAP)
+|Types _constrain_ composition. An action requiring `MarketData` can only run after an action produces `MarketData`. This is deterministic but rigid.
+
+|*Type-Informed* (Supervisor)
+|Types _inform_ composition. The LLM sees type schemas and decides what to call based on semantic understanding. This is flexible but non-deterministic.
+|===
+
+Embabel's Supervisor planner takes the *type-informed* approach while maximizing the benefits of types:
+
+* Actions return *typed outputs* that are validated
+* The LLM sees *type schemas* to understand what each action produces
+* Results are stored on the *typed blackboard* for later actions
+* The same actions work with *any planner* (GOAP, Utility, or Supervisor)
+
+This is a "typed supervisor" pattern--a middle ground between fully type-driven (GOAP) and untyped string-passing (typical LangGraph).
+
+===== When to Use Supervisor
+
+Supervisor is appropriate when:
+
+* Action ordering is *context-dependent* and hard to predefine
+* You want an LLM to *synthesize information* across multiple sources
+* The workflow benefits from *flexible composition* rather than strict sequencing
+* Non-determinism is acceptable for your use case
+
+Supervisor is *not* recommended when:
+
+* You need *reproducible*, auditable execution paths
+* Actions have strict *dependency ordering* that must be enforced
+* Latency and cost matter (each decision requires an LLM call)
+
+===== Using Supervisor
+
+To use Supervisor, annotate your agent with `planner = PlannerType.SUPERVISOR` and mark one action with `@AchievesGoal`:
+
+[source,kotlin]
+----
+@Agent(
+    planner = PlannerType.SUPERVISOR,
+    description = "Market research report generator"
+)
+class MarketResearchAgent {
+
+    data class MarketDataRequest(val topic: String)
+    data class MarketData(val revenues: Map<String, String>, val marketShare: Map<String, Double>)
+
+    data class CompetitorAnalysisRequest(val companies: List<String>)
+    data class CompetitorAnalysis(val strengths: Map<String, List<String>>)
+
+    data class ReportRequest(val topic: String, val companies: List<String>)
+    data class FinalReport(val title: String, val sections: List<String>)
+
+    @Action(description = "Gather market data including revenues and market share")  // <1>
+    fun gatherMarketData(request: MarketDataRequest, ai: Ai): MarketData {
+        return ai.withDefaultLlm().createObject(
+            "Generate market data for: ${request.topic}"
+        )
+    }
+
+    @Action(description = "Analyze competitors: strengths and positioning")
+    fun analyzeCompetitors(request: CompetitorAnalysisRequest, ai: Ai): CompetitorAnalysis {
+        return ai.withDefaultLlm().createObject(
+            "Analyze competitors: ${request.companies.joinToString()}"
+        )
+    }
+
+    @AchievesGoal(description = "Compile all information into a final report")  // <2>
+    @Action(description = "Compile the final report")
+    fun compileReport(request: ReportRequest, ai: Ai): FinalReport {
+        return ai.withDefaultLlm().createObject(
+            "Create a market research report for ${request.topic}"
+        )
+    }
+}
+----
+
+<1> Tool actions have descriptions visible to the supervisor LLM
+<2> The goal action is called when the supervisor has gathered enough information
+
+The supervisor LLM sees type schemas for available actions:
+
+[source]
+----
+Available actions:
+- gatherMarketData(request: MarketDataRequest) -> MarketData
+    Schema: { revenues: Map, marketShare: Map }
+- analyzeCompetitors(request: CompetitorAnalysisRequest) -> CompetitorAnalysis
+    Schema: { strengths: Map }
+
+Current artifacts on blackboard:
+- MarketData: { revenues: {"CompanyA": "$10B"}, marketShare: {...} }
+
+Goal: FinalReport
+----
+
+The LLM decides action ordering based on this information, making informed decisions without being constrained by declared dependencies.
+
+===== Interoperability
+
+Using wrapper request types (like `MarketDataRequest`) enables actions to work with *any planner*:
+
+* *GOAP*: Request types flow through the blackboard based on preconditions/effects
+* *Utility*: Actions fire when their request types are available with highest net value
+* *Supervisor*: The LLM constructs request objects to call actions
+
+This means you can switch planners without changing your action code--useful for testing with deterministic planners (GOAP) and deploying with flexible planners (Supervisor).
+
+===== Comparison with LangGraph
+
+https://github.com/langchain-ai/langgraph-supervisor-py[LangGraph's supervisor pattern] is a popular approach for multi-agent orchestration.
+Here's how a similar workflow looks in LangGraph vs Embabel:
+
+.LangGraph (Python)
+[source,python]
+----
+from langgraph_supervisor import create_supervisor
+from langgraph.prebuilt import create_react_agent
+
+# Tools return strings - no type information
+def gather_market_data(topic: str) -> str:
+    """Gather market data for a topic."""
+    return f"Revenue data for {topic}..."  # <1>
+
+def analyze_competitors(companies: str) -> str:
+    """Analyze competitors."""
+    return f"Analysis of {companies}..."  # <1>
+
+# Create agents with tools
+research_agent = create_react_agent(
+    model="openai:gpt-4o",
+    tools=[gather_market_data, analyze_competitors],
+    name="research_expert",
+)
+
+# Supervisor sees all tools, always  # <2>
+workflow = create_supervisor([research_agent], model=model)
+app = workflow.compile()
+
+# State is a dict of messages  # <3>
+result = app.invoke({"messages": [{"role": "user", "content": "Research cloud market"}]})
+----
+
+<1> Tools return strings--the LLM must parse and interpret results
+<2> All tools always visible--no filtering based on context
+<3> State is untyped message history
+
+.Embabel (Kotlin)
+[source,kotlin]
+----
+@Agent(planner = PlannerType.SUPERVISOR)
+class MarketResearchAgent {
+
+    // Tools return typed objects with schemas  // <1>
+    @Action(description = "Gather market data for a topic")
+    fun gatherMarketData(request: MarketDataRequest, ai: Ai): MarketData {
+        return ai.withDefaultLlm().createObject("Generate market data for ${request.topic}")
+    }
+
+    @Action(description = "Analyze competitors")
+    fun analyzeCompetitors(request: CompetitorAnalysisRequest, ai: Ai): CompetitorAnalysis {
+        return ai.withDefaultLlm().createObject("Analyze ${request.companies}")
+    }
+
+    @AchievesGoal
+    @Action
+    fun compileReport(request: ReportRequest, ai: Ai): FinalReport { ... }
+}
+
+// State is a typed blackboard  // <2>
+// Tools are filtered based on available inputs  // <3>
+----
+
+<1> Tools return typed, validated objects--`MarketData`, `CompetitorAnalysis`
+<2> Blackboard holds typed artifacts, not just message strings
+<3> Tools with satisfied inputs are prioritized via currying
+
+===== Key Advantages
+
+Embabel's Supervisor offers several advantages over typical supervisor implementations:
+
+[cols="1,2,2",options="header"]
+|===
+|Aspect |Typical Supervisor (LangGraph) |Embabel Supervisor
+
+|*Output Types*
+|Strings--LLM must parse
+|Typed objects--validated and structured
+
+|*Tool Visibility*
+|All tools always available
+|Tools filtered by blackboard state (currying)
+
+|*Domain Awareness*
+|None--tools are opaque functions
+|Type schemas visible to LLM
+
+|*Determinism*
+|Fully non-deterministic
+|Semi-deterministic: tool availability constrained by types
+
+|*State*
+|Untyped message history
+|Typed blackboard with named artifacts
+|===
+
+====== Blackboard-Driven Tool Filtering
+
+A key differentiator is *curried tool filtering*.
+When an action's inputs are already on the blackboard, those parameters are "curried out"--the tool signature simplifies.
+
+[NOTE]
+.What is Currying?
+====
+https://en.wikipedia.org/wiki/Currying[Currying] is a functional programming technique where a function with multiple parameters is transformed into a sequence of functions, each taking a single parameter.
+
+In Embabel's context: if an action requires `(MarketDataRequest, Ai)` and `MarketDataRequest` is already on the blackboard, we "curry out" that parameter--the tool exposed to the LLM only needs to provide any remaining parameters.
+This simplifies the LLM's task and signals which tools are "ready" to run.
+====
+
+[source]
+----
+# Initial state: empty blackboard
+Available tools:
+- gatherMarketData(request: MarketDataRequest) -> MarketData
+- analyzeCompetitors(request: CompetitorAnalysisRequest) -> CompetitorAnalysis
+
+# After MarketData is gathered:
+Available tools:
+- gatherMarketData(request: MarketDataRequest) -> MarketData  [READY - 0 params needed]
+- analyzeCompetitors(request: CompetitorAnalysisRequest) -> CompetitorAnalysis
+----
+
+This reduces the LLM's decision space and guides it toward logical next steps--tools with satisfied inputs appear "ready" with fewer parameters.
+This is more deterministic than showing all tools equally, while remaining more flexible than GOAP's strict ordering.
+
+====== Semi-Determinism
+
+While still LLM-orchestrated, Embabel's Supervisor is *more deterministic* than typical implementations:
+
+1. *Type constraints*: Actions can only produce specific types--no arbitrary string outputs
+2. *Input filtering*: Tools unavailable until their input types exist
+3. *Schema guidance*: LLM sees what each action produces, not just descriptions
+4. *Validated outputs*: Results must conform to declared types
+
+This makes debugging easier and behaviour more predictable, while retaining the flexibility that makes supervisor patterns valuable.
+
+====== When Embabel's Approach Excels
+
+* *Domain-rich workflows*: When your domain has clear types (reports, analyses, forecasts), schemas help the LLM understand relationships
+* *Multi-step synthesis*: When actions build on each other's outputs, typed blackboard tracks progress clearly
+* *Hybrid determinism*: When you want more predictability than pure LLM orchestration but more flexibility than GOAP

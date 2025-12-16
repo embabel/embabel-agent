@@ -117,6 +117,8 @@ class AgentMetadataReader(
     private val requireInterfaceDeserializationAnnotations: Boolean = false,
 ) {
 
+    private val supervisorAgentFactory = SupervisorAgentFactory()
+
     private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
 
     private val agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
@@ -246,7 +248,7 @@ class AgentMetadataReader(
                     }
                 } ?: error("Goal action not found in allActions")
 
-                createSupervisorAgent(
+                supervisorAgentFactory.createSupervisorAgent(
                     agenticInfo = agenticInfo,
                     instance = instance,
                     goalAction = goalAction,
@@ -653,28 +655,6 @@ class AgentMetadataReader(
             logger.warn("Error invoking condition method ${method.name} with args $args", t)
             false
         }
-    }
-
-    /**
-     * Create an agent using the supervisor pattern, where an LLM acts as a supervisor
-     * that orchestrates actions and @Tool methods to achieve a goal.
-     *
-     * @param agenticInfo Information about the agent class
-     * @param instance The agent instance
-     * @param goalAction The action that achieves the goal (has @AchievesGoal)
-     * @param allActions All actions defined on the agent
-     * @param goals All goals defined on the agent
-     * @param conditions All conditions defined on the agent
-     */
-    private fun createSupervisorAgent(
-        agenticInfo: AgenticInfo,
-        instance: Any,
-        goalAction: CoreAction,
-        allActions: List<CoreAction>,
-        goals: Set<AgentCoreGoal>,
-        conditions: Set<CoreCondition>,
-    ): CoreAgent {
-        TODO("Supervisor agent creation not yet implemented. Goal action: ${goalAction.name}")
     }
 
     /**
