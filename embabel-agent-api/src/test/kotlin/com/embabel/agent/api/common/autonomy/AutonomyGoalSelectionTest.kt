@@ -16,11 +16,11 @@
 package com.embabel.agent.api.common.autonomy
 
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.ranking.Ranking
+import com.embabel.agent.api.ranking.Rankings
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.domain.library.HasContent
-import com.embabel.agent.spi.Ranking
-import com.embabel.agent.spi.Rankings
 import com.embabel.agent.test.integration.FakeRanker
 import com.embabel.agent.test.integration.forAutonomyTesting
 import com.embabel.common.core.types.Described

@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.api.annotation.support
 
+import com.embabel.agent.api.LlmInteraction
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.channel.DevNullOutputChannel
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.dsl.Frog
@@ -25,8 +27,6 @@ import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.core.support.SimpleAgentProcess
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.support.Dog
 import com.embabel.agent.test.integration.IntegrationTestUtils

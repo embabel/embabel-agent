@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai
 
-import com.embabel.agent.spi.InvalidLlmReturnFormatException
+import com.embabel.agent.api.InvalidLlmReturnFormatException
 import org.slf4j.LoggerFactory
 import org.springframework.ai.converter.StructuredOutputConverter
 

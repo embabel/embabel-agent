@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.tools.agent
 
+import com.embabel.agent.api.LlmInteraction
 import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.ProcessWaitingException
@@ -22,7 +23,6 @@ import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.hitl.ConfirmationResponse
 import com.embabel.agent.core.hitl.FormBindingRequest
 import com.embabel.agent.core.hitl.ResponseImpact
-import com.embabel.agent.spi.LlmInteraction
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import org.slf4j.LoggerFactory

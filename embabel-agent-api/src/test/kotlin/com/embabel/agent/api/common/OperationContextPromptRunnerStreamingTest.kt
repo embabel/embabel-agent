@@ -15,14 +15,14 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.LlmInteraction
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Operation
-import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.test.integration.DummyObjectCreatingLlmOperations

@@ -16,9 +16,9 @@
 package com.embabel.agent.validation
 
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
-import com.embabel.agent.spi.validation.AgentStructureValidator
-import com.embabel.agent.spi.validation.DefaultAgentValidationManager
-import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
+import com.embabel.agent.api.validation.validation.AgentStructureValidator
+import com.embabel.agent.api.validation.validation.DefaultAgentValidationManager
+import com.embabel.agent.api.validation.validation.GoapPathToCompletionValidator
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.context.support.GenericApplicationContext

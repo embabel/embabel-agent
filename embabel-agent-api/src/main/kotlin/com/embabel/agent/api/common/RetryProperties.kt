@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.common
 
-import com.embabel.agent.api.common.support.LlmDataBindingProperties.Companion.isRateLimitError
+package com.embabel.agent.api.common
+
+import com.embabel.agent.api.common.support.LlmDataBindingProperties
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.retry.TransientAiException
@@ -56,7 +57,7 @@ interface RetryProperties : RetryTemplateProvider {
                     callback: RetryCallback<T, E>,
                     throwable: Throwable,
                 ) {
-                    if (isRateLimitError(throwable)) {
+                    if (LlmDataBindingProperties.Companion.isRateLimitError(throwable)) {
                         loggerFor<RetryProperties>().info(
                             "🔒 LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
                             name,

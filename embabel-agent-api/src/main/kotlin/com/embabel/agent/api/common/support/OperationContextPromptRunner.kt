@@ -15,12 +15,14 @@
  */
 package com.embabel.agent.api.common.support
 
+import com.embabel.agent.api.LlmInteraction
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
+import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.common.support.streaming.StreamingPromptRunnerOperationsImpl
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
@@ -28,8 +30,6 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.experimental.primitive.Determination
-import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.agent.tools.agent.AgentToolCallback

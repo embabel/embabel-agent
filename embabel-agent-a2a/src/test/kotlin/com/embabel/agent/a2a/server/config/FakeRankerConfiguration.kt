@@ -16,8 +16,8 @@
 package com.embabel.agent.a2a.server.config
 
 import com.embabel.agent.a2a.example.simple.horoscope.TestHoroscopeService
-import com.embabel.agent.spi.Ranking
-import com.embabel.agent.spi.Rankings
+import com.embabel.agent.api.ranking.Ranking
+import com.embabel.agent.api.ranking.Rankings
 import com.embabel.agent.test.integration.FakeRanker
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named

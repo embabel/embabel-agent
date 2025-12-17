@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.config.models.docker
 
+import com.embabel.agent.api.common.RetryProperties
 import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
-import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*

@@ -15,18 +15,19 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.api.InvalidLlmReturnFormatException
+import com.embabel.agent.api.InvalidLlmReturnTypeException
+import com.embabel.agent.api.LlmInteraction
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.annotation.support.Wumpus
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.common.support.LlmDataBindingProperties
+import com.embabel.agent.api.validation.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.spi.InvalidLlmReturnFormatException
-import com.embabel.agent.spi.InvalidLlmReturnTypeException
-import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.spi.support.springai.MaybeReturn
-import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.chat.SystemMessage

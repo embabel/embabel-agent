@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.config.models.deepseek
 
+import com.embabel.agent.api.common.RetryProperties
 import com.embabel.agent.api.models.DeepSeekModels
-import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel

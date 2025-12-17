@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.spi.config.spring
 
-import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
-import com.embabel.agent.spi.validation.ValidationPromptGenerator
+import com.embabel.agent.api.validation.validation.DefaultValidationPromptGenerator
+import com.embabel.agent.api.validation.validation.ValidationPromptGenerator
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean

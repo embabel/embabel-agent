@@ -15,18 +15,18 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import com.embabel.agent.api.LlmCall
+import com.embabel.agent.api.LlmInteraction
+import com.embabel.agent.api.common.support.LlmDataBindingProperties
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.validation.validation.DefaultValidationPromptGenerator
+import com.embabel.agent.api.validation.validation.ValidationPromptGenerator
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.support.AbstractLlmOperations
 import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
-import com.embabel.agent.spi.LlmCall
-import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.ToolDecorator
-import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
-import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
-import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.model.Llm

@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.dsl
 
+import com.embabel.agent.api.LlmCall
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.Transformation
 import com.embabel.agent.api.common.TransformationActionContext
@@ -23,7 +24,6 @@ import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.api.dsl.support.promptTransformer
 import com.embabel.agent.core.*
 import com.embabel.agent.experimental.primitive.PromptCondition
-import com.embabel.agent.spi.LlmCall
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer

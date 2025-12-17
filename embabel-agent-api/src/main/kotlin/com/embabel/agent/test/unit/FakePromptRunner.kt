@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.test.unit
 
+import com.embabel.agent.api.LlmInteraction
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
@@ -22,7 +23,6 @@ import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.safelyGetToolCallbacks
-import com.embabel.agent.spi.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions

@@ -15,9 +15,13 @@
  */
 package com.embabel.agent.spi.config.spring
 
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.channel.DevNullOutputChannel
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.ranking.LlmRanker
+import com.embabel.agent.api.ranking.Ranker
+import com.embabel.agent.api.ranking.RankingProperties
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.logging.ColorPalette

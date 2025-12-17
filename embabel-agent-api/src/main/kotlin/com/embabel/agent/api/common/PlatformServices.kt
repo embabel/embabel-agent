@@ -15,12 +15,12 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.spi.AgentProcessRepository
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.common.ai.model.ModelProvider

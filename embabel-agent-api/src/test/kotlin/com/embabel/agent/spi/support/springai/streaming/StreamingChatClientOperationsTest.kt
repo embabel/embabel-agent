@@ -15,25 +15,27 @@
  */
 package com.embabel.agent.spi.support.springai.streaming
 
+import com.embabel.agent.api.LlmInteraction
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.Llm
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import io.mockk.*
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.tool.ToolCallback
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.time.Duration
-import org.slf4j.LoggerFactory
 
 /**
  * Unit tests for StreamingChatClientOperations.

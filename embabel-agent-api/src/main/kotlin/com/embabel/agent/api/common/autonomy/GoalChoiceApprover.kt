@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.api.common.autonomy
 
+import com.embabel.agent.api.ranking.Rankings
 import com.embabel.agent.core.Goal
-import com.embabel.agent.spi.Rankings
 import com.embabel.common.core.types.ZeroToOne
 
 data class GoalChoiceApprovalRequest(

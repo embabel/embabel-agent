@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.config.models.googlegenai
 
+import com.embabel.agent.api.common.RetryProperties
 import com.embabel.agent.api.models.GoogleGenAiModels
-import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel

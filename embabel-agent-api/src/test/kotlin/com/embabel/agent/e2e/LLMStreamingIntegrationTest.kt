@@ -16,13 +16,13 @@
 package com.embabel.agent.e2e
 
 import com.embabel.agent.AgentApiTestApplication
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.streaming.asStreaming
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.core.AgentPlatform
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.FakeChatModel
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations

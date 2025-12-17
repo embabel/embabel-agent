@@ -15,11 +15,11 @@
  */
 package com.embabel.agent.test.integration
 
+import com.embabel.agent.api.LlmInteraction
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.chat.Message
 import com.embabel.common.util.DummyInstanceCreator
 

@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.support
 
-import com.embabel.agent.spi.common.RetryTemplateProvider
+package com.embabel.agent.api.common.support
+
+import com.embabel.agent.api.common.RetryTemplateProvider
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.retry.RetryCallback

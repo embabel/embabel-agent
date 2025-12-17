@@ -16,10 +16,10 @@
 package com.embabel.agent.api.common.autonomy
 
 import com.embabel.agent.api.event.AgentPlatformEvent
+import com.embabel.agent.api.ranking.Rankings
 import com.embabel.agent.core.*
 import com.embabel.agent.core.hitl.Awaitable
 import com.embabel.agent.core.hitl.AwaitableResponse
-import com.embabel.agent.spi.Rankings
 import com.embabel.common.core.types.HasInfoString
 import java.time.Instant
 

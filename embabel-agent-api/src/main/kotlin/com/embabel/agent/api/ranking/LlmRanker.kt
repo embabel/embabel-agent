@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.support
 
+package com.embabel.agent.api.ranking
+
+import com.embabel.agent.api.LlmInteraction
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.spi.*
-import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.api.common.RetryProperties
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
-import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
 import com.fasterxml.jackson.annotation.JsonClassDescription
@@ -55,14 +56,14 @@ internal class LlmRanker(
 
     private val logger = LoggerFactory.getLogger(this.javaClass)
 
-    private val llm = LlmOptions(
+    private val llm = LlmOptions.Companion(
         criteria =
             if (rankingProperties.llm != null) {
                 logger.info("Using LLM '{}' for ranking", rankingProperties.llm)
-                byName(rankingProperties.llm)
+                ModelSelectionCriteria.Companion.byName(rankingProperties.llm)
             } else {
                 logger.info("Using auto LLM for ranking")
-                ModelSelectionCriteria.Auto
+                ModelSelectionCriteria.Companion.Auto
             }
     )
 

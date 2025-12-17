@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.validation
+package com.embabel.agent.api.validation.validation
 
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator

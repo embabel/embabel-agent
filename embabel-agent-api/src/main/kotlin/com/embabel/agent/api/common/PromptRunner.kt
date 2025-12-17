@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.LlmUse
 import com.embabel.agent.api.annotation.support.AgenticInfo
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
@@ -22,7 +23,6 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.spi.LlmUse
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
@@ -115,7 +115,7 @@ class Subagent private constructor(
  * generateText or other LLM invocation methods.
  * Thus, a PromptRunner can be reused within an action implementation.
  * A contextual facade to LlmOperations.
- * @see com.embabel.agent.spi.LlmOperations
+ * @see com.embabel.agent.api.LlmOperations
  */
 interface PromptRunner : LlmUse, PromptRunnerOperations {
 

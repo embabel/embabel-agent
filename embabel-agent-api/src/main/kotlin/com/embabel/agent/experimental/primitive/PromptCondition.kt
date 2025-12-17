@@ -15,11 +15,11 @@
  */
 package com.embabel.agent.experimental.primitive
 
+import com.embabel.agent.api.LlmCall
+import com.embabel.agent.api.LlmInteraction
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.core.Condition
-import com.embabel.agent.spi.LlmCall
-import com.embabel.agent.spi.LlmInteraction
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.plan.common.condition.ConditionDetermination

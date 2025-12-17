@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.test.integration
 
-import com.embabel.agent.spi.Ranker
-import com.embabel.agent.spi.Ranking
-import com.embabel.agent.spi.Rankings
+import com.embabel.agent.api.ranking.Ranker
+import com.embabel.agent.api.ranking.Ranking
+import com.embabel.agent.api.ranking.Rankings
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.Named
 import kotlin.random.Random

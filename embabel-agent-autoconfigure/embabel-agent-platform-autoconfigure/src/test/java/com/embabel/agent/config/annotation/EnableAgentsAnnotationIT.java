@@ -16,7 +16,7 @@
 package com.embabel.agent.config.annotation;
 
 import com.embabel.agent.api.event.AgenticEventListener;
-import com.embabel.agent.spi.Ranker;
+import com.embabel.agent.api.ranking.Ranker;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;

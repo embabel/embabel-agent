@@ -16,7 +16,7 @@
 package com.embabel.agent.autoconfigure.platform;
 
 import com.embabel.agent.api.event.AgenticEventListener;
-import com.embabel.agent.spi.Ranker;
+import com.embabel.agent.api.ranking.Ranker;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;

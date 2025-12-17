@@ -15,11 +15,11 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.MulticastAgenticEventListener
-import com.embabel.agent.spi.LlmOperations
 
 /**
  * Process state and services. Created by the platform,

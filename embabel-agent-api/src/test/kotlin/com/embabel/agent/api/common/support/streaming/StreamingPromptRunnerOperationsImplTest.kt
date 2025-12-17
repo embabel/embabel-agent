@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.api.common.support.streaming
 
+import com.embabel.agent.api.LlmInteraction
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage

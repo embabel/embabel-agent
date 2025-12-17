@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.api.event
 
+import com.embabel.agent.api.LlmInteraction
 import com.embabel.agent.core.*
-import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatModelCallEvent
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.Llm
