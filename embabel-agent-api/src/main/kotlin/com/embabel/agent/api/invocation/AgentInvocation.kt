@@ -32,53 +32,13 @@ import java.util.concurrent.CompletableFuture
  *
  * @param T type of result returned by the invocation
  */
-interface AgentInvocation<T> : UntypedInvocation {
+interface AgentInvocation<T : Any> : TypedInvocation<T> {
 
     fun withAgentPlatform(agentPlatform: AgentPlatform): AgentInvocation<T>
 
     fun withProcessOptions(processOptions: ProcessOptions): AgentInvocation<T>
 
     fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U>
-
-    /**
-     * Invokes the agent with one or more arguments.
-     *
-     * @param obj the first (and possibly only) input value to be added to the blackboard
-     * @param objs additional input values to add to the blackboard
-     * @return the result of type [T] from the agent invocation
-     */
-    fun invoke(
-        obj: Any,
-        vararg objs: Any,
-    ): T = invokeAsync(obj, *objs).get()
-
-    /**
-     * Invokes the agent with a map of named inputs.
-     *
-     * @param map A [Map] that initializes the blackboard
-     * @return the result of type [T] from the agent invocation
-     */
-    fun invoke(map: Map<String, Any>): T = invokeAsync(map).get()
-
-    /**
-     * Invokes the agent asynchronously with one or more arguments.
-     *
-     * @param obj the first (and possibly only) input value to be added to the blackboard
-     * @param objs additional input values to add to the blackboard
-     * @return the result of type [T] from the agent invocation
-     */
-    fun invokeAsync(
-        obj: Any,
-        vararg objs: Any,
-    ): CompletableFuture<T>
-
-    /**
-     * Invokes the agent asynchronously with a map of named inputs.
-     *
-     * @param map A [Map] that initializes the blackboard
-     * @return the result of type [T] from the agent invocation
-     */
-    fun invokeAsync(map: Map<String, Any>): CompletableFuture<T>
 
     companion object {
 
@@ -174,7 +134,7 @@ inline fun <reified T : Any> AgentInvocation.Builder.build(): AgentInvocation<T>
 internal data class DefaultAgentInvocation<T : Any>(
     internal val agentPlatform: AgentPlatform,
     internal val processOptions: ProcessOptions,
-    internal val resultType: Class<T>,
+    override val resultType: Class<T>,
 ) : AgentInvocation<T> {
 
     override fun withAgentPlatform(agentPlatform: AgentPlatform): AgentInvocation<T> =
@@ -187,14 +147,6 @@ internal data class DefaultAgentInvocation<T : Any>(
         AgentInvocation.builder(this.agentPlatform)
             .options(this.processOptions)
             .build(resultType)
-
-    override fun invokeAsync(
-        obj: Any,
-        vararg objs: Any,
-    ): CompletableFuture<T> = runAsync(obj, *objs).thenApply { it.last(resultType) }
-
-    override fun invokeAsync(map: Map<String, Any>): CompletableFuture<T> =
-        runAsync(map).thenApply { it.last(resultType) }
 
     override fun runAsync(
         obj: Any,
