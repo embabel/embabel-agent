@@ -321,12 +321,12 @@ internal class StreamingChatClientOperations(
             .stream()
             .content()
             .filter { it.isNotEmpty() }
-            .doOnNext { chunk -> logger.debug("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
+            .doOnNext { chunk -> logger.trace("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
 
         // Step 2: Transform raw chunks to complete newline-delimited lines
         val lineFlux: Flux<String> = rawChunkFlux
             .transform { chunkFlux -> rawChunksToLines(chunkFlux) }
-            .doOnNext { line -> logger.debug("COMPLETE LINE: '$line'") }
+            .doOnNext { line -> logger.trace("COMPLETE LINE: '$line'") }
 
         // Step 3: Final flux of StreamingEvent (thinking + objects)
         val event = lineFlux
@@ -343,7 +343,7 @@ internal class StreamingChatClientOperations(
      * - line spanning many chunks
      */
     fun rawChunksToLines(raw: Flux<String>): Flux<String> {
-        val buffer = StringBuffer()
+        val buffer = StringBuilder()
         return raw.concatMap { chunk ->  // ONLY CHANGE: handle → concatMap
             buffer.append(chunk)
             val lines = mutableListOf<String>()
@@ -362,7 +362,7 @@ internal class StreamingChatClientOperations(
             if (buffer.isNotEmpty()) {
                 val finalLine = buffer.toString().trim()
                 if (finalLine.isNotEmpty()) {
-                    logger.debug("FINAL LINE: '$finalLine'")
+                    logger.trace("FINAL LINE: '$finalLine'")
                 }
             }
         }.concatWith(

@@ -54,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.*;
                 "spring.main.allow-bean-definition-overriding=true",
 
                 // Streaming Infrastructure logging
-                "logging.level.com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations=DEBUG",
+                "logging.level.com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations=TRACE",
 
                 // Spring AI Debug Logging
                 "logging.level.org.springframework.ai=DEBUG",
