@@ -17,9 +17,6 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
-import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.config.spring.executingOperationContextFor
-import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
@@ -28,6 +25,7 @@ import kotlin.reflect.KParameter
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.hasAnnotation
+import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
 
 /**
@@ -56,6 +54,8 @@ interface Tool {
      * Framework-agnostic tool definition.
      */
     interface Definition {
+
+
         /** Unique name for the tool. Used by LLM to invoke it. */
         val name: String
 
@@ -65,8 +65,23 @@ interface Tool {
         /** Schema describing the input parameters. */
         val inputSchema: InputSchema
 
+        fun withParameter(parameter: Parameter): Definition =
+            SimpleDefinition(
+                name = name,
+                description = description,
+                inputSchema = inputSchema.withParameter(parameter),
+            )
+
         companion object {
+
             operator fun invoke(
+                name: String,
+                description: String,
+                inputSchema: InputSchema,
+            ): Definition = SimpleDefinition(name, description, inputSchema)
+
+            @JvmStatic
+            fun create(
                 name: String,
                 description: String,
                 inputSchema: InputSchema,
@@ -78,13 +93,18 @@ interface Tool {
      * Input schema for a tool, supporting both simple and complex parameters.
      */
     interface InputSchema {
+
         /** JSON Schema representation for LLM consumption */
         fun toJsonSchema(): String
 
         /** Parameter definitions */
         val parameters: List<Parameter>
 
+        fun withParameter(parameter: Parameter): InputSchema =
+            SimpleInputSchema(parameters + parameter)
+
         companion object {
+
             @JvmStatic
             fun of(vararg parameters: Parameter): InputSchema =
                 SimpleInputSchema(parameters.toList())
@@ -96,14 +116,50 @@ interface Tool {
 
     /**
      * A single parameter for a tool.
+     * @param name Parameter name
+     * @param type Parameter type
+     * @param description Parameter description. Defaults to name if not provided.
+     * @param required Whether the parameter is required. Defaults to true.
+     * @param enumValues Optional list of allowed values (for enum parameters)
      */
-    data class Parameter(
+    data class Parameter @JvmOverloads constructor(
         val name: String,
         val type: ParameterType,
-        val description: String,
+        val description: String = name,
         val required: Boolean = true,
         val enumValues: List<String>? = null,
-    )
+    ) {
+
+        companion object {
+
+            @JvmStatic
+            @JvmOverloads
+            fun string(
+                name: String,
+                description: String = name,
+                required: Boolean = true,
+                enumValues: List<String>? = null,
+            ): Parameter = Parameter(name, ParameterType.STRING, description, required, enumValues)
+
+            @JvmStatic
+            @JvmOverloads
+            fun integer(
+                name: String,
+                description: String = name,
+                required: Boolean = true,
+                enumValues: List<String>? = null,
+            ): Parameter = Parameter(name, ParameterType.INTEGER, description, required, enumValues)
+
+            @JvmStatic
+            @JvmOverloads
+            fun double(
+                name: String,
+                description: String = name,
+                required: Boolean = true,
+                enumValues: List<String>? = null,
+            ): Parameter = Parameter(name, ParameterType.NUMBER, description, required, enumValues)
+        }
+    }
 
     /**
      * Supported parameter types.
@@ -199,189 +255,6 @@ interface Tool {
         fun handle(input: String): Result
     }
 
-    /**
-     * An agentic tool that uses an LLM to orchestrate other tools.
-     *
-     * Unlike a regular [Tool] which executes deterministic logic, an [Agentic] tool
-     * uses an LLM to decide which sub-tools to call based on a prompt.
-     *
-     * @param definition Tool definition (name, description, input schema)
-     * @param metadata Optional tool metadata
-     * @param model Optional model name for LLM selection. Takes precedence over role.
-     * @param role Optional role for LLM selection. Used if model is not specified.
-     * @param tools Sub-tools available for the LLM to orchestrate
-     * @param prompt Prompt template for the LLM. Use {input} for the tool input.
-     */
-    class Agentic(
-        override val definition: Definition,
-        override val metadata: Metadata = Metadata.DEFAULT,
-        val model: String? = null,
-        val role: String? = null,
-        val tools: List<Tool>,
-        val prompt: String,
-    ) : Tool {
-
-        init {
-            require(tools.isNotEmpty()) { "Agentic tool must have at least one sub-tool" }
-            require(prompt.isNotBlank()) { "Agentic tool prompt must not be blank" }
-        }
-
-        override fun call(input: String): Result {
-            val agentProcess = AgentProcess.get()
-                ?: run {
-                    loggerFor<Agentic>().error(
-                        "No AgentProcess context available for Agentic tool '{}'",
-                        definition.name,
-                    )
-                    return Result.error("No AgentProcess context available for Agentic tool")
-                }
-            val ai = executingOperationContextFor(agentProcess).ai()
-            val promptRunner = when {
-                model != null -> ai.withLlm(model)
-                role != null -> ai.withLlmByRole(role)
-                else -> {
-                    loggerFor<Agentic>().warn(
-                        "No model or role specified for Agentic tool '{}', using default LLM",
-                        definition.name,
-                    )
-                    ai.withDefaultLlm()
-                }
-            }
-            val output = promptRunner
-                .withTools(tools)
-                .withSystemPrompt(prompt)
-                .generateText(input)
-
-            return Result.text(output)
-        }
-
-        /**
-         * Create a copy with different model.
-         */
-        fun withModel(model: String): Agentic = Agentic(
-            definition = definition,
-            metadata = metadata,
-            model = model,
-            role = role,
-            tools = tools,
-            prompt = prompt,
-        )
-
-        /**
-         * Create a copy with different role.
-         */
-        fun withRole(role: String): Agentic = Agentic(
-            definition = definition,
-            metadata = metadata,
-            model = model,
-            role = role,
-            tools = tools,
-            prompt = prompt,
-        )
-
-        /**
-         * Create a copy with additional tools.
-         */
-        fun withTools(vararg additionalTools: Tool): Agentic = Agentic(
-            definition = definition,
-            metadata = metadata,
-            model = model,
-            role = role,
-            tools = tools + additionalTools,
-            prompt = prompt,
-        )
-
-        /**
-         * Create a copy with different prompt.
-         */
-        fun withPrompt(prompt: String): Agentic = Agentic(
-            definition = definition,
-            metadata = metadata,
-            model = model,
-            role = role,
-            tools = tools,
-            prompt = prompt,
-        )
-
-        companion object {
-
-            /**
-             * Create an agentic tool with the given configuration.
-             */
-            @JvmStatic
-            @JvmOverloads
-            fun create(
-                name: String,
-                description: String,
-                tools: List<Tool>,
-                prompt: String,
-                model: String? = null,
-                role: String? = null,
-                inputSchema: InputSchema = InputSchema.empty(),
-                metadata: Metadata = Metadata.DEFAULT,
-            ): Agentic = Agentic(
-                definition = Definition(name, description, inputSchema),
-                metadata = metadata,
-                model = model,
-                role = role,
-                tools = tools,
-                prompt = prompt,
-            )
-
-            /**
-             * Create an agentic tool with vararg tools.
-             */
-            @JvmStatic
-            fun create(
-                name: String,
-                description: String,
-                prompt: String,
-                vararg tools: Tool,
-            ): Agentic = create(
-                name = name,
-                description = description,
-                tools = tools.toList(),
-                prompt = prompt,
-            )
-
-            /**
-             * Create an agentic tool with model specified.
-             */
-            @JvmStatic
-            fun withModel(
-                name: String,
-                description: String,
-                model: String,
-                tools: List<Tool>,
-                prompt: String,
-            ): Agentic = create(
-                name = name,
-                description = description,
-                model = model,
-                tools = tools,
-                prompt = prompt,
-            )
-
-            /**
-             * Create an agentic tool with role specified.
-             */
-            @JvmStatic
-            fun withRole(
-                name: String,
-                description: String,
-                role: String,
-                tools: List<Tool>,
-                prompt: String,
-            ): Agentic = create(
-                name = name,
-                description = description,
-                role = role,
-                tools = tools,
-                prompt = prompt,
-            )
-        }
-    }
-
     companion object {
         private val logger = LoggerFactory.getLogger(Tool::class.java)
 
@@ -409,8 +282,6 @@ interface Tool {
             metadata: Metadata = Metadata.DEFAULT,
             function: Function,
         ): Tool = of(name, description, InputSchema.empty(), metadata, function)
-
-        // Java-friendly factory methods using Handler interface
 
         /**
          * Create a tool with no parameters (Java-friendly).
@@ -537,6 +408,8 @@ interface Tool {
          * @return List of Tools, one for each annotated method
          * @throws IllegalArgumentException if no methods are annotated with @Tool.Method
          */
+        @JvmStatic
+        @JvmOverloads
         fun fromInstance(
             instance: Any,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
@@ -562,6 +435,8 @@ interface Tool {
          * @param objectMapper ObjectMapper for JSON parsing (optional)
          * @return List of Tools, or empty list if no annotated methods found
          */
+        @JvmStatic
+        @JvmOverloads
         fun safelyFromInstance(
             instance: Any,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
@@ -743,6 +618,8 @@ private class MethodTool(
             }
         }
 
+        // Make method accessible for non-public classes/methods (e.g., package-protected Java classes)
+        method.javaMethod?.isAccessible = true
         return method.callBy(callArgs)
     }
 
