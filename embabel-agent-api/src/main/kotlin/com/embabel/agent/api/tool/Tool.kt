@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.util.loggerFor
@@ -196,27 +198,6 @@ interface Tool {
     fun interface Handler {
         fun handle(input: String): Result
     }
-
-    /**
-     * Marks a method as a tool that can be invoked by an LLM.
-     * Use with [Tool.fromInstance] or [Tool.fromMethod] to create Tool instances.
-     */
-    @Target(AnnotationTarget.FUNCTION)
-    @Retention(AnnotationRetention.RUNTIME)
-    annotation class Method(
-        /**
-         * Tool name. Defaults to method name if empty.
-         */
-        val name: String = "",
-        /**
-         * Description of what the tool does. Used by LLM to decide when to call it.
-         */
-        val description: String,
-        /**
-         * Whether to return the result directly without further LLM processing.
-         */
-        val returnDirect: Boolean = false,
-    )
 
     /**
      * An agentic tool that uses an LLM to orchestrate other tools.
@@ -401,23 +382,6 @@ interface Tool {
         }
     }
 
-    /**
-     * Describes a tool parameter. Apply to method parameters.
-     */
-    @Target(AnnotationTarget.VALUE_PARAMETER)
-    @Retention(AnnotationRetention.RUNTIME)
-    annotation class Param(
-        /**
-         * Description of the parameter. Used by LLM to understand what value to provide.
-         */
-        val description: String,
-        /**
-         * Whether this parameter is required. Defaults to true.
-         * For optional parameters, the method parameter should have a default value.
-         */
-        val required: Boolean = true,
-    )
-
     companion object {
         private val logger = LoggerFactory.getLogger(Tool::class.java)
 
@@ -539,7 +503,7 @@ interface Tool {
         )
 
         /**
-         * Create a Tool from a method annotated with [Tool.Method].
+         * Create a Tool from a method annotated with [com.embabel.agent.api.annotation.LlmTool].
          *
          * @param instance The object instance containing the method
          * @param method The method to wrap as a tool
@@ -552,7 +516,7 @@ interface Tool {
             method: KFunction<*>,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): Tool {
-            val annotation = method.findAnnotation<Method>()
+            val annotation = method.findAnnotation<LlmTool>()
                 ?: throw IllegalArgumentException(
                     "Method ${method.name} is not annotated with @Tool.Method"
                 )
@@ -566,7 +530,7 @@ interface Tool {
         }
 
         /**
-         * Create Tools from all methods annotated with [Tool.Method] on an instance.
+         * Create Tools from all methods annotated with [LlmTool] on an instance.
          *
          * @param instance The object instance to scan for annotated methods
          * @param objectMapper ObjectMapper for JSON parsing (optional)
@@ -578,7 +542,7 @@ interface Tool {
             objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): List<Tool> {
             val tools = instance::class.functions
-                .filter { it.hasAnnotation<Method>() }
+                .filter { it.hasAnnotation<LlmTool>() }
                 .map { fromMethod(instance, it, objectMapper) }
 
             if (tools.isEmpty()) {
@@ -679,7 +643,7 @@ private class FunctionalTool(
 private class MethodTool(
     private val instance: Any,
     private val method: KFunction<*>,
-    annotation: Tool.Method,
+    annotation: LlmTool,
     private val objectMapper: ObjectMapper,
 ) : Tool {
 
@@ -705,13 +669,13 @@ private class MethodTool(
 
     private fun createDefinition(
         method: KFunction<*>,
-        annotation: Tool.Method,
+        annotation: LlmTool,
     ): Tool.Definition {
         val name = annotation.name.ifEmpty { method.name }
         val parameters = method.parameters
             .filter { it.kind == KParameter.Kind.VALUE }
             .map { param ->
-                val paramAnnotation = param.findAnnotation<Tool.Param>()
+                val paramAnnotation = param.findAnnotation<Param>()
                 Tool.Parameter(
                     name = param.name ?: "arg${param.index}",
                     type = mapKotlinTypeToParameterType(param.type),

@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.support.Wumpus
 import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
@@ -516,7 +518,11 @@ class OperationContextPromptRunnerTest {
             val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
 
             assertEquals(1, toolCallbacks.size, "Must have one tool callback from reference")
-            assertEquals("reference_tool", toolCallbacks[0].toolDefinition.name(), "Tool from reference not added correctly")
+            assertEquals(
+                "reference_tool",
+                toolCallbacks[0].toolDefinition.name(),
+                "Tool from reference not added correctly"
+            )
             assertEquals("A tool from the reference", toolCallbacks[0].toolDefinition.description())
         }
 
@@ -610,7 +616,11 @@ class OperationContextPromptRunnerTest {
 
             assertEquals(1, toolCallbacks.size, "Must have one tool callback")
             assertEquals("test_tool", toolCallbacks[0].toolDefinition.name(), "Tool name not converted correctly")
-            assertEquals("A test tool", toolCallbacks[0].toolDefinition.description(), "Tool description not converted correctly")
+            assertEquals(
+                "A test tool",
+                toolCallbacks[0].toolDefinition.description(),
+                "Tool description not converted correctly"
+            )
         }
 
         @Test
@@ -681,10 +691,10 @@ class OperationContextPromptRunnerTest {
         @Test
         fun `test withTool with annotated method tools`() {
             class MyTools {
-                @Tool.Method(description = "Add two numbers")
+                @LlmTool(description = "Add two numbers")
                 fun add(
-                    @Tool.Param(description = "First number") a: Int,
-                    @Tool.Param(description = "Second number") b: Int,
+                    @Param(description = "First number") a: Int,
+                    @Param(description = "Second number") b: Int,
                 ): Int = a + b
             }
 

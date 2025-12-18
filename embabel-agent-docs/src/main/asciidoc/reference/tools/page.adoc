@@ -398,7 +398,7 @@ val directTool = Tool.of(
 
 ===== Creating Tools from Annotated Methods
 
-Embabel provides `@Tool.Method` and `@Tool.Param` annotations for creating tools from annotated methods.
+Embabel provides `@LlmTool` and `@LlmTool.Param` annotations for creating tools from annotated methods.
 This approach is similar to Spring AI's `@Tool` but uses Embabel's framework-agnostic abstractions.
 
 [tabs]
@@ -409,17 +409,17 @@ Java::
 ----
 public class MathService {
 
-    @Tool.Method(description = "Adds two numbers together")
+    @LlmTool(description = "Adds two numbers together")
     public int add(
-            @Tool.Param(description = "First number") int a,
-            @Tool.Param(description = "Second number") int b) {
+            @LlmTool.Param(description = "First number") int a,
+            @LlmTool.Param(description = "Second number") int b) {
         return a + b;
     }
 
-    @Tool.Method(description = "Multiplies two numbers")
+    @LlmTool(description = "Multiplies two numbers")
     public int multiply(
-            @Tool.Param(description = "First number") int a,
-            @Tool.Param(description = "Second number") int b) {
+            @LlmTool.Param(description = "First number") int a,
+            @LlmTool.Param(description = "Second number") int b) {
         return a * b;
     }
 }
@@ -437,16 +437,16 @@ Kotlin::
 ----
 class MathService {
 
-    @Tool.Method(description = "Adds two numbers together")
+    @LlmTool(description = "Adds two numbers together")
     fun add(
-        @Tool.Param(description = "First number") a: Int,
-        @Tool.Param(description = "Second number") b: Int,
+        @LlmTool.Param(description = "First number") a: Int,
+        @LlmTool.Param(description = "Second number") b: Int,
     ): Int = a + b
 
-    @Tool.Method(description = "Multiplies two numbers")
+    @LlmTool(description = "Multiplies two numbers")
     fun multiply(
-        @Tool.Param(description = "First number") a: Int,
-        @Tool.Param(description = "Second number") b: Int,
+        @LlmTool.Param(description = "First number") a: Int,
+        @LlmTool.Param(description = "Second number") b: Int,
     ): Int = a * b
 }
 
@@ -458,13 +458,13 @@ val tools = Tool.safelyFromInstance(someObject)
 ----
 ====
 
-The `@Tool.Method` annotation supports:
+The `@LlmTool` annotation supports:
 
 - `name`: Tool name (defaults to method name if empty)
 - `description`: Description of what the tool does (required)
 - `returnDirect`: Whether to return the result directly without further LLM processing
 
-The `@Tool.Param` annotation supports:
+The `@LlmTool.Param` annotation supports:
 
 - `description`: Description of the parameter (helps the LLM understand what to provide)
 - `required`: Whether the parameter is required (defaults to true)
@@ -564,7 +564,7 @@ Tool.Result.error("Failed to process request", exception)
 |`Tool.create()` / `Tool.of()`
 |You need programmatic tool creation, want framework independence, or are creating tools dynamically
 
-|`@Tool.Method` / `@Tool.Param`
+|`@LlmTool` / `@LlmTool.Param`
 |You prefer annotation-based tools but want Embabel's framework-agnostic abstractions
 
 |Tool Groups

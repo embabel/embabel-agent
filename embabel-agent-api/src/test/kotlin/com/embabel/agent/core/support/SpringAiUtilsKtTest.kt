@@ -15,10 +15,10 @@
  */
 package com.embabel.agent.core.support
 
+import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.support.FunnyTool
 import com.embabel.agent.api.annotation.support.PersonWithReverseTool
 import com.embabel.agent.api.common.ToolObject
-import com.embabel.agent.api.tool.Tool
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -32,11 +32,17 @@ class SpringAiUtilsKtTest {
      * Test class using Embabel's @Tool.Method annotation
      */
     class EmbabelToolMethodExample {
-        @Tool.Method(description = "Adds two numbers")
-        fun add(a: Int, b: Int): Int = a + b
+        @LlmTool(description = "Adds two numbers")
+        fun add(
+            a: Int,
+            b: Int,
+        ): Int = a + b
 
-        @Tool.Method(description = "Multiplies two numbers")
-        fun multiply(a: Int, b: Int): Int = a * b
+        @LlmTool(description = "Multiplies two numbers")
+        fun multiply(
+            a: Int,
+            b: Int,
+        ): Int = a * b
     }
 
     /**
@@ -46,7 +52,7 @@ class SpringAiUtilsKtTest {
         @org.springframework.ai.tool.annotation.Tool(description = "Spring tool")
         fun springTool(): String = "spring"
 
-        @Tool.Method(description = "Embabel tool")
+        @LlmTool(description = "Embabel tool")
         fun embabelTool(): String = "embabel"
     }
 

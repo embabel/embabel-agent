@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.LlmTool.Param
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -24,23 +26,23 @@ class ToolTest {
 
     // Test fixtures for annotation-based tools
     class WeatherTools {
-        @Tool.Method(description = "Get current weather for a city")
+        @LlmTool(description = "Get current weather for a city")
         fun getWeather(
-            @Tool.Param(description = "City name") city: String,
-            @Tool.Param(description = "Temperature units", required = false) units: String = "celsius",
+            @Param(description = "City name") city: String,
+            @Param(description = "Temperature units", required = false) units: String = "celsius",
         ): String {
             return "Weather in $city: sunny, 22 $units"
         }
 
-        @Tool.Method(name = "calculate_sum", description = "Add two numbers")
+        @LlmTool(name = "calculate_sum", description = "Add two numbers")
         fun addNumbers(
-            @Tool.Param(description = "First number") a: Int,
-            @Tool.Param(description = "Second number") b: Int,
+            @Param(description = "First number") a: Int,
+            @Param(description = "Second number") b: Int,
         ): Int {
             return a + b
         }
 
-        @Tool.Method(description = "Tool that returns directly", returnDirect = true)
+        @LlmTool(description = "Tool that returns directly", returnDirect = true)
         fun directReturn(): String {
             return "Direct result"
         }
@@ -51,7 +53,7 @@ class ToolTest {
     }
 
     class MixedMethods {
-        @Tool.Method(description = "A tool method")
+        @LlmTool(description = "A tool method")
         fun toolMethod(): String = "tool"
 
         fun regularMethod(): String = "not a tool"
@@ -63,16 +65,16 @@ class ToolTest {
     )
 
     class ComplexTools {
-        @Tool.Method(description = "Create a person")
+        @LlmTool(description = "Create a person")
         fun createPerson(
-            @Tool.Param(description = "Person's name") name: String,
-            @Tool.Param(description = "Person's age") age: Int,
+            @Param(description = "Person's name") name: String,
+            @Param(description = "Person's age") age: Int,
         ): Person {
             return Person(name, age)
         }
 
-        @Tool.Method(description = "Tool that can return custom result")
-        fun customResult(@Tool.Param(description = "Input") input: String): Tool.Result {
+        @LlmTool(description = "Tool that can return custom result")
+        fun customResult(@Param(description = "Input") input: String): Tool.Result {
             return Tool.Result.withArtifact("Processed: $input", mapOf("data" to input))
         }
     }
@@ -502,7 +504,7 @@ class ToolTest {
         @Test
         fun `handles execution errors gracefully`() {
             class FailingTools {
-                @Tool.Method(description = "Always fails")
+                @LlmTool(description = "Always fails")
                 fun fail(): String {
                     throw RuntimeException("Intentional failure")
                 }
