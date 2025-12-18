@@ -66,6 +66,22 @@ class OpenAiProperties : RetryProperties {
  * Configuration for OpenAI language and embedding models.
  * This class dynamically loads and registers OpenAI models from YAML configuration,
  * similar to the Anthropic and Bedrock configuration patterns.
+ *
+ * In addition to the predefined models, you can specify custom models via the
+ * `OPENAI_CUSTOM_MODELS` environment variable (comma-separated list). This is useful
+ * when using OpenAI-compatible APIs (like Groq, Together AI, etc.) that may use
+ * different model names.
+ *
+ * Example:
+ * ```
+ * OPENAI_BASE_URL=https://api.groq.com/openai/v1
+ * OPENAI_API_KEY=your-api-key
+ * OPENAI_CUSTOM_MODELS=llama-3.3-70b-versatile,mixtral-8x7b-32768,gemma2-9b-it
+ * EMBABEL_MODELS_DEFAULT_LLM=llama-3.3-70b-versatile
+ * ```
+ *
+ * All custom models will be registered and available. Use `EMBABEL_MODELS_DEFAULT_LLM`
+ * to specify which model should be the default.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(OpenAiProperties::class)
@@ -79,6 +95,8 @@ class OpenAiModelsConfig(
     completionsPath: String?,
     @Value("\${OPENAI_EMBEDDINGS_PATH:#{null}}")
     embeddingsPath: String?,
+    @Value("\${OPENAI_CUSTOM_MODELS:#{null}}")
+    private val customModels: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: OpenAiProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
@@ -91,61 +109,98 @@ class OpenAiModelsConfig(
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
 ) {
 
+    private val customModelList: List<String> = customModels
+        ?.split(",")
+        ?.map { it.trim() }
+        ?.filter { it.isNotBlank() }
+        ?: emptyList()
+
     init {
         logger.info("OpenAI models are available: {}", properties)
+        if (customModelList.isNotEmpty()) {
+            logger.info("Custom OpenAI-compatible models configured: {}", customModelList)
+        }
     }
 
     @Bean
     fun openAiModelsInitializer(): ProviderInitialization {
         val definitions = modelLoader.loadAutoConfigMetadata()
 
-        val registeredLlms = buildList {
-            // Register LLM models
-            definitions.models.forEach { modelDef ->
-                try {
-                    val llm = createOpenAiLlm(modelDef)
-                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
-                    add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
-                    logger.info(
-                        "Registered OpenAI model bean: {} -> {}",
-                        modelDef.name, modelDef.modelId
-                    )
-                } catch (e: Exception) {
-                    logger.error(
-                        "Failed to create model: {} ({})",
-                        modelDef.name, modelDef.modelId, e
-                    )
-                    throw e
-                }
-            }
-        }
+        val registeredLlms = registerLlmModels(definitions) + registerCustomModels()
 
-        val registeredEmbeddings = buildList {
-            // Register embedding models
-            definitions.embeddingModels.forEach { embeddingDef ->
-                try {
-                    val embeddingService = createOpenAiEmbedding(embeddingDef)
-                    configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
-                    add(RegisteredModel(beanName = embeddingDef.name, modelId = embeddingDef.modelId))
-                    logger.info(
-                        "Registered OpenAI embedding model bean: {} -> {}",
-                        embeddingDef.name, embeddingDef.modelId
-                    )
-                } catch (e: Exception) {
-                    logger.error(
-                        "Failed to create embedding model: {} ({})",
-                        embeddingDef.name, embeddingDef.modelId, e
-                    )
-                    throw e
-                }
-            }
-        }
+        val registeredEmbeddings = registerEmbeddingModels(definitions)
 
         return ProviderInitialization(
             provider = OpenAiModels.PROVIDER,
             registeredLlms = registeredLlms,
             registeredEmbeddings = registeredEmbeddings
         ).also { logger.info(it.summary()) }
+    }
+
+    /**
+     * Registers LLM models from YAML configuration.
+     */
+    private fun registerLlmModels(definitions: OpenAiModelDefinitions): List<RegisteredModel> {
+        return definitions.models.map { modelDef ->
+            try {
+                val llm = createOpenAiLlm(modelDef)
+                configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                logger.info(
+                    "Registered OpenAI model bean: {} -> {}",
+                    modelDef.name, modelDef.modelId
+                )
+                RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId)
+            } catch (e: Exception) {
+                logger.error(
+                    "Failed to create model: {} ({})",
+                    modelDef.name, modelDef.modelId, e
+                )
+                throw e
+            }
+        }
+    }
+
+    /**
+     * Registers custom models specified via OPENAI_CUSTOM_MODELS environment variable.
+     */
+    private fun registerCustomModels(): List<RegisteredModel> {
+        return customModelList.map { modelId ->
+            try {
+                val llm = createCustomLlm(modelId)
+                configurableBeanFactory.registerSingleton(modelId, llm)
+                logger.info(
+                    "Registered custom OpenAI-compatible model bean: {}",
+                    modelId
+                )
+                RegisteredModel(beanName = modelId, modelId = modelId)
+            } catch (e: Exception) {
+                logger.error("Failed to create custom model: {}", modelId, e)
+                throw e
+            }
+        }
+    }
+
+    /**
+     * Registers embedding models from YAML configuration.
+     */
+    private fun registerEmbeddingModels(definitions: OpenAiModelDefinitions): List<RegisteredModel> {
+        return definitions.embeddingModels.map { embeddingDef ->
+            try {
+                val embeddingService = createOpenAiEmbedding(embeddingDef)
+                configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
+                logger.info(
+                    "Registered OpenAI embedding model bean: {} -> {}",
+                    embeddingDef.name, embeddingDef.modelId
+                )
+                RegisteredModel(beanName = embeddingDef.name, modelId = embeddingDef.modelId)
+            } catch (e: Exception) {
+                logger.error(
+                    "Failed to create embedding model: {} ({})",
+                    embeddingDef.name, embeddingDef.modelId, e
+                )
+                throw e
+            }
+        }
     }
 
     /**
@@ -192,6 +247,28 @@ class OpenAiModelsConfig(
             model = embeddingDef.modelId,
             provider = OpenAiModels.PROVIDER,
         )
+    }
+
+    /**
+     * Creates an LLM for a custom model specified via OPENAI_CUSTOM_MODELS.
+     * Uses standard OpenAI options converter since we don't know the model's capabilities.
+     */
+    private fun createCustomLlm(modelId: String): Llm {
+        val chatModel = chatModelOf(
+            model = modelId,
+            retryTemplate = properties.retryTemplate(modelId)
+        )
+
+        return Llm(
+            name = modelId,
+            model = chatModel,
+            provider = CUSTOM_PROVIDER,
+            optionsConverter = StandardOpenAiOptionsConverter,
+        )
+    }
+
+    companion object {
+        private const val CUSTOM_PROVIDER = "OpenAI-Compatible"
     }
 }
 

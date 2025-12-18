@@ -198,6 +198,19 @@ MISTRAL_API_KEY=your_mistral_api_key_here
 - `OPENAI_BASE_URL`: base URL of the OpenAI deployment (for Azure AI use `https://{resource-name}.openai.azure.com/openai`)
 - `OPENAI_COMPLETIONS_PATH`: custom path for completions endpoint (default: `/v1/completions`)
 - `OPENAI_EMBEDDINGS_PATH`: custom path for embeddings endpoint (default: `/v1/embeddings`)
+- `OPENAI_CUSTOM_MODELS`: comma-separated list of custom model names to register (useful for OpenAI-compatible providers like Groq, Together AI, etc.)
+
+When using `OPENAI_CUSTOM_MODELS`, set `EMBABEL_MODELS_DEFAULT_LLM` to specify which model to use as the default.
+
+Example for using Groq:
+
+[source,bash]
+----
+export OPENAI_BASE_URL="https://api.groq.com/openai/v1"
+export OPENAI_API_KEY="your-groq-api-key"
+export OPENAI_CUSTOM_MODELS="llama-3.3-70b-versatile,mixtral-8x7b-32768"
+export EMBABEL_MODELS_DEFAULT_LLM="llama-3.3-70b-versatile"
+----
 
 ===== Anthropic (Claude 3.x, etc.)
 
