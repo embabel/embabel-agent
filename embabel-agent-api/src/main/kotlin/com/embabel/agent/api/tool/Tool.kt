@@ -15,10 +15,12 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.spi.config.spring.executingOperationContextFor
+import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
-import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.findAnnotation
@@ -143,6 +145,7 @@ interface Tool {
      * Result of tool execution with optional artifacts.
      */
     sealed interface Result {
+
         /** Simple text result */
         data class Text(val content: String) : Result
 
@@ -159,15 +162,22 @@ interface Tool {
         ) : Result
 
         companion object {
+
             @JvmStatic
             fun text(content: String): Result = Text(content)
 
             @JvmStatic
-            fun withArtifact(content: String, artifact: Any): Result = WithArtifact(content, artifact)
+            fun withArtifact(
+                content: String,
+                artifact: Any,
+            ): Result = WithArtifact(content, artifact)
 
             @JvmStatic
             @JvmOverloads
-            fun error(message: String, cause: Throwable? = null): Result = Error(message, cause)
+            fun error(
+                message: String,
+                cause: Throwable? = null,
+            ): Result = Error(message, cause)
         }
     }
 
@@ -207,6 +217,189 @@ interface Tool {
          */
         val returnDirect: Boolean = false,
     )
+
+    /**
+     * An agentic tool that uses an LLM to orchestrate other tools.
+     *
+     * Unlike a regular [Tool] which executes deterministic logic, an [Agentic] tool
+     * uses an LLM to decide which sub-tools to call based on a prompt.
+     *
+     * @param definition Tool definition (name, description, input schema)
+     * @param metadata Optional tool metadata
+     * @param model Optional model name for LLM selection. Takes precedence over role.
+     * @param role Optional role for LLM selection. Used if model is not specified.
+     * @param tools Sub-tools available for the LLM to orchestrate
+     * @param prompt Prompt template for the LLM. Use {input} for the tool input.
+     */
+    class Agentic(
+        override val definition: Definition,
+        override val metadata: Metadata = Metadata.DEFAULT,
+        val model: String? = null,
+        val role: String? = null,
+        val tools: List<Tool>,
+        val prompt: String,
+    ) : Tool {
+
+        init {
+            require(tools.isNotEmpty()) { "Agentic tool must have at least one sub-tool" }
+            require(prompt.isNotBlank()) { "Agentic tool prompt must not be blank" }
+        }
+
+        override fun call(input: String): Result {
+            val agentProcess = AgentProcess.get()
+                ?: run {
+                    loggerFor<Agentic>().error(
+                        "No AgentProcess context available for Agentic tool '{}'",
+                        definition.name,
+                    )
+                    return Result.error("No AgentProcess context available for Agentic tool")
+                }
+            val ai = executingOperationContextFor(agentProcess).ai()
+            val promptRunner = when {
+                model != null -> ai.withLlm(model)
+                role != null -> ai.withLlmByRole(role)
+                else -> {
+                    loggerFor<Agentic>().warn(
+                        "No model or role specified for Agentic tool '{}', using default LLM",
+                        definition.name,
+                    )
+                    ai.withDefaultLlm()
+                }
+            }
+            val output = promptRunner
+                .withTools(tools)
+                .withSystemPrompt(prompt)
+                .generateText(input)
+
+            return Result.text(output)
+        }
+
+        /**
+         * Create a copy with different model.
+         */
+        fun withModel(model: String): Agentic = Agentic(
+            definition = definition,
+            metadata = metadata,
+            model = model,
+            role = role,
+            tools = tools,
+            prompt = prompt,
+        )
+
+        /**
+         * Create a copy with different role.
+         */
+        fun withRole(role: String): Agentic = Agentic(
+            definition = definition,
+            metadata = metadata,
+            model = model,
+            role = role,
+            tools = tools,
+            prompt = prompt,
+        )
+
+        /**
+         * Create a copy with additional tools.
+         */
+        fun withTools(vararg additionalTools: Tool): Agentic = Agentic(
+            definition = definition,
+            metadata = metadata,
+            model = model,
+            role = role,
+            tools = tools + additionalTools,
+            prompt = prompt,
+        )
+
+        /**
+         * Create a copy with different prompt.
+         */
+        fun withPrompt(prompt: String): Agentic = Agentic(
+            definition = definition,
+            metadata = metadata,
+            model = model,
+            role = role,
+            tools = tools,
+            prompt = prompt,
+        )
+
+        companion object {
+
+            /**
+             * Create an agentic tool with the given configuration.
+             */
+            @JvmStatic
+            @JvmOverloads
+            fun create(
+                name: String,
+                description: String,
+                tools: List<Tool>,
+                prompt: String,
+                model: String? = null,
+                role: String? = null,
+                inputSchema: InputSchema = InputSchema.empty(),
+                metadata: Metadata = Metadata.DEFAULT,
+            ): Agentic = Agentic(
+                definition = Definition(name, description, inputSchema),
+                metadata = metadata,
+                model = model,
+                role = role,
+                tools = tools,
+                prompt = prompt,
+            )
+
+            /**
+             * Create an agentic tool with vararg tools.
+             */
+            @JvmStatic
+            fun create(
+                name: String,
+                description: String,
+                prompt: String,
+                vararg tools: Tool,
+            ): Agentic = create(
+                name = name,
+                description = description,
+                tools = tools.toList(),
+                prompt = prompt,
+            )
+
+            /**
+             * Create an agentic tool with model specified.
+             */
+            @JvmStatic
+            fun withModel(
+                name: String,
+                description: String,
+                model: String,
+                tools: List<Tool>,
+                prompt: String,
+            ): Agentic = create(
+                name = name,
+                description = description,
+                model = model,
+                tools = tools,
+                prompt = prompt,
+            )
+
+            /**
+             * Create an agentic tool with role specified.
+             */
+            @JvmStatic
+            fun withRole(
+                name: String,
+                description: String,
+                role: String,
+                tools: List<Tool>,
+                prompt: String,
+            ): Agentic = create(
+                name = name,
+                description = description,
+                role = role,
+                tools = tools,
+                prompt = prompt,
+            )
+        }
+    }
 
     /**
      * Describes a tool parameter. Apply to method parameters.
@@ -414,6 +607,14 @@ interface Tool {
             } catch (e: IllegalArgumentException) {
                 logger.debug("No @Tool.Method annotations found on {}: {}", instance::class.simpleName, e.message)
                 emptyList()
+            } catch (e: Throwable) {
+                // Kotlin reflection can fail on some Java classes with KotlinReflectionInternalError (an Error, not Exception)
+                logger.debug(
+                    "Failed to scan {} for @Tool.Method annotations: {}",
+                    instance::class.simpleName,
+                    e.message,
+                )
+                emptyList()
             }
         }
     }
@@ -502,7 +703,10 @@ private class MethodTool(
         }
     }
 
-    private fun createDefinition(method: KFunction<*>, annotation: Tool.Method): Tool.Definition {
+    private fun createDefinition(
+        method: KFunction<*>,
+        annotation: Tool.Method,
+    ): Tool.Definition {
         val name = annotation.name.ifEmpty { method.name }
         val parameters = method.parameters
             .filter { it.kind == KParameter.Kind.VALUE }
@@ -570,6 +774,7 @@ private class MethodTool(
                     }
                     // If optional and no value provided, skip to use default
                 }
+
                 else -> {} // Skip extension receivers etc.
             }
         }
@@ -577,7 +782,10 @@ private class MethodTool(
         return method.callBy(callArgs)
     }
 
-    private fun convertToExpectedType(value: Any, param: KParameter): Any? {
+    private fun convertToExpectedType(
+        value: Any,
+        param: KParameter,
+    ): Any? {
         val targetType = param.type.javaType
 
         // If already correct type, return as-is

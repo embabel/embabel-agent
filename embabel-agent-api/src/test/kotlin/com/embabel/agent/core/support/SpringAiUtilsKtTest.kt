@@ -18,6 +18,7 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.annotation.support.FunnyTool
 import com.embabel.agent.api.annotation.support.PersonWithReverseTool
 import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.tool.Tool
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -26,6 +27,28 @@ import org.springframework.ai.tool.ToolCallback
 import kotlin.test.assertEquals
 
 class SpringAiUtilsKtTest {
+
+    /**
+     * Test class using Embabel's @Tool.Method annotation
+     */
+    class EmbabelToolMethodExample {
+        @Tool.Method(description = "Adds two numbers")
+        fun add(a: Int, b: Int): Int = a + b
+
+        @Tool.Method(description = "Multiplies two numbers")
+        fun multiply(a: Int, b: Int): Int = a * b
+    }
+
+    /**
+     * Test class using both Spring AI @Tool and Embabel @Tool.Method
+     */
+    class MixedToolExample {
+        @org.springframework.ai.tool.annotation.Tool(description = "Spring tool")
+        fun springTool(): String = "spring"
+
+        @Tool.Method(description = "Embabel tool")
+        fun embabelTool(): String = "embabel"
+    }
 
     @Test
     fun `safelyGetTools from empty collection`() {
@@ -164,6 +187,55 @@ class SpringAiUtilsKtTest {
         assertEquals(2, result.size)
         assertTrue(result.any { it.toolDefinition.name() == "mockTool" })
         assertTrue(result.any { it.toolDefinition.name() == "reverse" })
+    }
+
+    @Test
+    fun `safelyGetTools scans for Embabel Tool_Method annotations`() {
+        val result = safelyGetToolCallbacks(
+            listOf(ToolObject(EmbabelToolMethodExample()))
+        )
+        assertEquals(2, result.size)
+        assertTrue(result.any { it.toolDefinition.name() == "add" })
+        assertTrue(result.any { it.toolDefinition.name() == "multiply" })
+    }
+
+    @Test
+    fun `safelyGetTools scans both Spring AI and Embabel annotations`() {
+        val result = safelyGetToolCallbacks(
+            listOf(ToolObject(MixedToolExample()))
+        )
+        assertEquals(2, result.size)
+        assertTrue(result.any { it.toolDefinition.name() == "springTool" })
+        assertTrue(result.any { it.toolDefinition.name() == "embabelTool" })
+    }
+
+    @Test
+    fun `safelyGetTools applies naming strategy to Embabel tools`() {
+        val result = safelyGetToolCallbacks(
+            listOf(
+                ToolObject(
+                    objects = listOf(EmbabelToolMethodExample()),
+                    namingStrategy = { "prefixed_$it" },
+                )
+            )
+        )
+        assertEquals(2, result.size)
+        assertTrue(result.any { it.toolDefinition.name() == "prefixed_add" })
+        assertTrue(result.any { it.toolDefinition.name() == "prefixed_multiply" })
+    }
+
+    @Test
+    fun `safelyGetTools applies filter to Embabel tools`() {
+        val result = safelyGetToolCallbacks(
+            listOf(
+                ToolObject(
+                    objects = listOf(EmbabelToolMethodExample()),
+                    filter = { it == "add" },
+                )
+            )
+        )
+        assertEquals(1, result.size)
+        assertEquals("add", result[0].toolDefinition.name())
     }
 
 }

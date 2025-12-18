@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.AiBuilder
 import com.embabel.agent.api.common.ExecutingOperationContext
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Verbosity
 import org.springframework.context.annotation.Bean
@@ -53,9 +54,20 @@ class InfrastructureInjectionConfiguration {
 
 }
 
+internal fun executingOperationContextFor(
+    agentProcess: AgentProcess,
+): ExecutingOperationContext {
+    return createExecutingOperationContext(
+        agentPlatform = agentProcess.processContext.platformServices.agentPlatform,
+        processOptions = agentProcess.processOptions,
+        agentProcess = agentProcess,
+    )
+}
+
 private fun createExecutingOperationContext(
     agentPlatform: AgentPlatform,
     processOptions: ProcessOptions,
+    agentProcess: AgentProcess? = null,
 ): ExecutingOperationContext {
     val callingClassName = findFirstUserClass()
     val agentForIdOnly = agent(
@@ -66,7 +78,7 @@ private fun createExecutingOperationContext(
     }
     return ExecutingOperationContext(
         name = callingClassName,
-        agentProcess = agentPlatform.createAgentProcess(
+        agentProcess = agentProcess ?: agentPlatform.createAgentProcess(
             agentForIdOnly,
             processOptions = processOptions,
             bindings = emptyMap(),
