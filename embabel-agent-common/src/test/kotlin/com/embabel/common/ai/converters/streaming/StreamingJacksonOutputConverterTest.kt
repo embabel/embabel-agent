@@ -16,6 +16,7 @@
 package com.embabel.common.ai.converters.streaming
 
 import com.embabel.common.core.streaming.StreamingEvent
+import com.embabel.common.core.streaming.ThinkingState
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -214,19 +215,22 @@ class StreamingJacksonOutputConverterTest {
     }
 
     @Test
-    fun `convertStream should fail on malformed JSON`() {
+    fun `convertStream should filter out malformed JSON treated as thinking continuation`() {
         // Given
         val converter = StreamingJacksonOutputConverter(SimpleItem::class.java, objectMapper)
         val invalidJson = "invalid json line"
 
-        // When & Then - Should error on malformed JSON
-        assertThrows<RuntimeException> {
-            converter.convertStream(invalidJson).collectList().block()
-        }
+        // When - malformed JSON is treated as thinking continuation and filtered out
+        val result = converter.convertStream(invalidJson)
+
+        // Then - no objects should be emitted (malformed JSON becomes thinking which is filtered)
+        val items = result.collectList().block()
+        assertNotNull(items)
+        assertTrue(items!!.isEmpty())
     }
 
     @Test
-    fun `convertStreamWithThinking should fail on malformed JSON in mixed content`() {
+    fun `convertStreamWithThinking should treat malformed JSON as thinking continuation`() {
         // Given
         val converter = StreamingJacksonOutputConverter(SimpleItem::class.java, objectMapper)
         val mixedContent = """
@@ -234,10 +238,19 @@ class StreamingJacksonOutputConverterTest {
             invalid json here
         """.trimIndent()
 
-        // When & Then - Should error on malformed JSON
-        assertThrows<RuntimeException> {
-            converter.convertStreamWithThinking(mixedContent).collectList().block()
-        }
+        // When - malformed JSON becomes thinking continuation
+        val result = converter.convertStreamWithThinking(mixedContent)
+
+        // Then - should get 2 thinking events: explicit + continuation
+        val events = result.collectList().block()
+        assertNotNull(events)
+        assertEquals(2, events!!.size)
+
+        assertTrue(events[0] is StreamingEvent.Thinking)
+        assertEquals("this is fine", (events[0] as StreamingEvent.Thinking).content)
+
+        assertTrue(events[1] is StreamingEvent.Thinking)
+        assertEquals("invalid json here", (events[1] as StreamingEvent.Thinking).content)
     }
 
     @Test
@@ -354,5 +367,161 @@ class StreamingJacksonOutputConverterTest {
         // Verify streaming preserved order
         assertEquals("Alice", streamedPeople[0].name)
         assertEquals("Bob", streamedPeople[1].name)
+    }
+
+    @Test
+    fun `convertStreamWithThinking should handle multi-line thinking blocks`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(SimpleItem::class.java, objectMapper)
+        val multiLineContent = """
+            <think>
+            This is a multi-line
+            thinking block that spans
+            several lines
+            </think>
+            {"name": "result"}
+        """.trimIndent()
+
+        // When
+        val result = converter.convertStreamWithThinking(multiLineContent)
+
+        // Then - should get 4 thinking events + 1 object
+        val events = result.collectList().block()
+        assertNotNull(events)
+
+
+        assertEquals(6, events.size)  // 5 thinking + 1 object
+
+        // Verify thinking events with proper states
+        assertTrue(events[0] is StreamingEvent.Thinking)
+        assertEquals("<think>", (events[0] as StreamingEvent.Thinking).content)
+        assertEquals(ThinkingState.START, (events[0] as StreamingEvent.Thinking).state)
+
+        assertTrue(events[1] is StreamingEvent.Thinking)
+        assertEquals("This is a multi-line", (events[1] as StreamingEvent.Thinking).content)
+        assertEquals(ThinkingState.CONTINUATION, (events[1] as StreamingEvent.Thinking).state)
+
+        assertTrue(events[2] is StreamingEvent.Thinking)
+        assertEquals("thinking block that spans", (events[2] as StreamingEvent.Thinking).content)
+        assertEquals(ThinkingState.CONTINUATION, (events[2] as StreamingEvent.Thinking).state)
+
+        assertTrue(events[3] is StreamingEvent.Thinking)
+        assertEquals("several lines", (events[3] as StreamingEvent.Thinking).content)
+        assertEquals(ThinkingState.CONTINUATION, (events[3] as StreamingEvent.Thinking).state)
+
+        assertTrue(events[4] is StreamingEvent.Thinking)
+        assertEquals("</think>", (events[4] as StreamingEvent.Thinking).content)
+        assertEquals(ThinkingState.END, (events[4] as StreamingEvent.Thinking).state)
+
+        // Verify the JSON object event
+        assertTrue(events[5] is StreamingEvent.Object<*>)
+        assertEquals("result", (events[5] as StreamingEvent.Object<SimpleItem>).item.name)
+    }
+
+    @Test
+    fun `convertStreamWithThinking should classify thinking states correctly`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(SimpleItem::class.java, objectMapper)
+        val mixedStatesContent = """
+            <think>complete single line</think>
+            <think>
+            starting block
+            continuing thought
+            </think>
+            random text without tags
+            {"name": "object"}
+            more random text
+        """.trimIndent()
+
+        // When
+        val result = converter.convertStreamWithThinking(mixedStatesContent)
+
+        // Then
+        val events = result.collectList().block()
+        assertNotNull(events)
+
+
+        val thinkingEvents = events.filterIsInstance<StreamingEvent.Thinking>()
+        val objectEvents = events.filterIsInstance<StreamingEvent.Object<*>>()
+
+
+        assertEquals(1, objectEvents.size)
+        assertEquals(7, thinkingEvents.size)  // includes "more random text" line
+
+        // Verify specific states
+        assertEquals(ThinkingState.BOTH, thinkingEvents[0].state) // complete single line
+        assertEquals(ThinkingState.START, thinkingEvents[1].state) // <think>
+        assertEquals(ThinkingState.CONTINUATION, thinkingEvents[2].state) // starting block
+        assertEquals(ThinkingState.CONTINUATION, thinkingEvents[3].state) // continuing thought
+        assertEquals(ThinkingState.END, thinkingEvents[4].state) // </think>
+        assertEquals(ThinkingState.CONTINUATION, thinkingEvents[5].state) // random text without tags
+        assertEquals(ThinkingState.CONTINUATION, thinkingEvents[6].state) // more random text
+    }
+
+    @Test
+    fun `convertStreamWithThinking should handle mixed JSON and thinking continuation`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(SimpleItem::class.java, objectMapper)
+        val mixedContent = """
+            {"name": "first"}
+            some random text
+            {"name": "second"}
+            invalid json { broken
+            {"name": "third"}
+        """.trimIndent()
+
+        // When
+        val result = converter.convertStreamWithThinking(mixedContent)
+
+        // Then
+        val events = result.collectList().block()
+        assertNotNull(events)
+
+        val objectEvents = events!!.filterIsInstance<StreamingEvent.Object<*>>()
+        val thinkingEvents = events.filterIsInstance<StreamingEvent.Thinking>()
+
+        assertEquals(3, objectEvents.size, "Should get 3 valid JSON objects")
+        assertEquals(2, thinkingEvents.size, "Should get 2 thinking continuation events")
+
+        // Verify objects
+        assertEquals("first", (objectEvents[0].item as SimpleItem).name)
+        assertEquals("second", (objectEvents[1].item as SimpleItem).name)
+        assertEquals("third", (objectEvents[2].item as SimpleItem).name)
+
+        // Verify thinking continuations
+        assertEquals("some random text", thinkingEvents[0].content)
+        assertEquals(ThinkingState.CONTINUATION, thinkingEvents[0].state)
+        assertEquals("invalid json { broken", thinkingEvents[1].content)
+        assertEquals(ThinkingState.CONTINUATION, thinkingEvents[1].state)
+    }
+
+    @Test
+    fun `convertStreamWithThinking should support all thinking tag formats`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(SimpleItem::class.java, objectMapper)
+        val allFormatsContent = """
+            <think>standard format</think>
+            <analysis>qwen format</analysis>
+            <thought>llama format</thought>
+            [REASONING]mistral format[/REASONING]
+            //THINKING: legacy format
+        """.trimIndent()
+
+        // When
+        val result = converter.convertStreamWithThinking(allFormatsContent)
+
+        // Then
+        val events = result.collectList().block()
+        assertNotNull(events)
+        assertEquals(5, events!!.size)
+
+        val thinkingEvents = events.filterIsInstance<StreamingEvent.Thinking>()
+        assertEquals(5, thinkingEvents.size)
+
+        assertEquals("standard format", thinkingEvents[0].content)
+        assertEquals("qwen format", thinkingEvents[1].content)
+        assertEquals("llama format", thinkingEvents[2].content)
+        assertEquals("mistral format", thinkingEvents[3].content)
+        assertEquals("legacy format", thinkingEvents[4].content)
     }
 }

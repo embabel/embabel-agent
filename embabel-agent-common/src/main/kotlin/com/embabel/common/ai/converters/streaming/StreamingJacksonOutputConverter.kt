@@ -16,8 +16,9 @@
 package com.embabel.common.ai.converters.streaming
 
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
+import com.embabel.common.ai.converters.streaming.support.ThinkingDetector
 import com.embabel.common.core.streaming.StreamingEvent
-import com.embabel.common.core.streaming.StreamingUtils
+import com.embabel.common.core.streaming.ThinkingState
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.core.ParameterizedTypeReference
 import reactor.core.publisher.Flux
@@ -76,21 +77,25 @@ class StreamingJacksonOutputConverter<T> : FilteringJacksonOutputConverter<T> {
             .filter { it.isNotBlank() }
             .handle { line, sink ->
                 try {
-                    when {
-                        StreamingUtils.isThinkingLine(line) -> {
-                            val thinkingContent = StreamingUtils.extractThinkingContent(line)
-                            sink.next(StreamingEvent.Thinking(thinkingContent))
-                        }
-                        else -> {
+                    // Detect thinking state for the line
+                    val thinkingState = ThinkingDetector.detectThinkingState(line)
+
+                    when (thinkingState) {
+                        ThinkingState.NONE -> {
+                            // Line is JSON content
                             val result = super.convert(line)
                             if (result != null) {
                                 sink.next(StreamingEvent.Object(result))
-                            // Continue processing other lines
                             }
+                        }
+                        else -> {
+                            // Line contains thinking content with detected state
+                            val thinkingContent = ThinkingDetector.extractThinkingContent(line)
+                            sink.next(StreamingEvent.Thinking(thinkingContent, thinkingState))
                         }
                     }
                 } catch (e: Exception) {
-                    sink.error(e)
+                   sink.error(e)
                 }
             }
     }
@@ -107,8 +112,10 @@ class StreamingJacksonOutputConverter<T> : FilteringJacksonOutputConverter<T> {
            |Do not include markdown code blocks or wrap responses in arrays.
            |Ensure RFC7464 compliant JSON Lines, one valid JSON object per line.
            |
-           |You may include reasoning content using thinking blocks:
-           |<think>your reasoning here</think>
+           |You may include reasoning content using thinking blocks.
+           |Use EXACTLY the <think> tag format - do not use variations like <thinking>, <thought>, or <analysis>.
+           |<think>your reasoning here
+           |another line of thinking</think>
            |
            |Thinking blocks are separate from JSON objects and can appear before, between, or after JSON lines as needed for your analysis.
            |
