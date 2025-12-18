@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core.support
 
-import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.api.event.GoalAchievedEvent
 import com.embabel.agent.core.*

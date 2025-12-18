@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.spi.common.Constants
 import java.util.concurrent.CompletableFuture

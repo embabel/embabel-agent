@@ -15,10 +15,10 @@
  */
 package com.embabel.agent.spi.support
 
-import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.ToolCallRequestEvent
 import com.embabel.agent.api.event.ToolCallResponseEvent
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.PlatformServices
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.support.springai.withEventPublication
 import com.embabel.agent.test.common.EventSavingAgenticEventListener

@@ -17,6 +17,7 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Operation
+import com.embabel.agent.core.PlatformServices
 import com.embabel.agent.core.ProcessContext
 import com.embabel.common.ai.model.*
 import io.mockk.every

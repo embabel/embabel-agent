@@ -18,10 +18,10 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.LlmOperations
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.Asyncer
-import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.PlatformServices
 import com.embabel.agent.spi.AgentProcessRepository
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.expression.LogicalExpressionParser
