@@ -19,15 +19,6 @@ import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 
 /**
- * Tag interface to indicate that an implementing type should be built from the context from its bound fields.
- * Provides a strongly typed way to wait on combined results.
- * Makes a megazord!
- * An aggregation should have multiple non-nullable fields, each of which will be bound to the blackboard.
- * An aggregation is used as an input to the action.
- */
-interface Aggregation
-
-/**
  * Tag interface used as an action return type. Indicates that some of the fields will be bound to the blackboard.
  * Fields are usually nullable.
  */

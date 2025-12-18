@@ -17,7 +17,6 @@ package com.embabel.agent.support
 
 import com.embabel.agent.api.annotation.support.PersonWithReverseTool
 import com.embabel.agent.api.channel.DevNullOutputChannel
-import com.embabel.agent.api.common.Aggregation
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.BlackboardWorldStateDeterminer

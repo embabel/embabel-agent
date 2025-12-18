@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.Aggregation
 import com.embabel.agent.api.common.Transformation
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.core.*

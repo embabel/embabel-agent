@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.common.Aggregation
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.findAllSupertypes
 import com.embabel.common.util.loggerFor
