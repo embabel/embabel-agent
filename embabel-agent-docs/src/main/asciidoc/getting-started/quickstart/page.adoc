@@ -12,4 +12,4 @@ Or you can use our https://github.com/embabel/project-creator[project creator] t
 ----
 uvx --from git+https://github.com/embabel/project-creator.git project-creator
 ----
-NOTE: The `uvx` command can be installed from the https://docs.astral.sh/uv/[astral-uv] package. It is a Python package and project manager used to run the Embable https://github.com/embabel/project-creator[project creator] scripts.
+NOTE: The `uvx` command can be installed from the https://docs.astral.sh/uv/[astral-uv] package. It is a Python package and project manager used to run the Embabel https://github.com/embabel/project-creator[project creator] scripts.

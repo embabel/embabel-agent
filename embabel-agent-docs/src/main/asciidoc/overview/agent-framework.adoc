@@ -3,7 +3,7 @@
 
 Aren’t LLMs smart enough to solve our problems directly?
 Aren’t MCP tools all we need to allow them to solve complex problems?
-Well, LLMs currently seem to get more capable almost by the day and MCPs can
+LLMs seem to get more capable by the day and MCPs can
 give LLMs access to a lot of empowering tools, making them even more capable.
 
 But there are still many reasons that a higher level orchestration technology is needed, especially for business applications.

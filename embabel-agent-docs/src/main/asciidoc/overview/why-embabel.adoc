@@ -1,7 +1,7 @@
 [[overview__why-embabel]]
 === Embabel Differentiators
 
-So how does Embable differ from other agent frameworks? We like to believe the Embable agent framework is to be the best fit for developing agentic AI in the enterprise.
+So how does Embabel differ from other agent frameworks? We like to believe the Embabel agent framework is to be the best fit for developing agentic AI in the enterprise.
 
 ==== Sophisticated Planning
 
