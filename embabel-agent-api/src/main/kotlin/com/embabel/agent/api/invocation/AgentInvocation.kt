@@ -36,7 +36,10 @@ interface AgentInvocation<T : Any> : TypedInvocation<T, AgentInvocation<T>> {
 
     fun withAgentPlatform(agentPlatform: AgentPlatform): AgentInvocation<T>
 
-    fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U>
+    @Deprecated("Use returning instead", ReplaceWith("returning(resultType)"))
+    fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U> = returning(resultType)
+
+    fun <U : Any> returning(resultType: Class<U>): AgentInvocation<U>
 
     companion object {
 
@@ -55,6 +58,11 @@ interface AgentInvocation<T : Any> : TypedInvocation<T, AgentInvocation<T>> {
         ): AgentInvocation<T> {
             return builder(agentPlatform).build(resultType)
         }
+
+        @JvmStatic
+        fun on(
+            agentPlatform: AgentPlatform,
+        ): AgentInvocation<Any> = create(agentPlatform, Any::class.java)
 
         /**
          * Create a new [AgentInvocation] for the given platform, inferring the result type
@@ -141,7 +149,7 @@ internal data class DefaultAgentInvocation<T : Any>(
     override fun withProcessOptions(options: ProcessOptions): AgentInvocation<T> =
         copy(processOptions = options)
 
-    override fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U> =
+    override fun <U : Any> returning(resultType: Class<U>): AgentInvocation<U> =
         AgentInvocation.builder(this.agentPlatform)
             .options(this.processOptions)
             .build(resultType)

@@ -36,7 +36,10 @@ class MarketDataActions {
 
     @Action(description = "Gather market data including revenues, market share, and growth rates")
     @Suppress("UNUSED_PARAMETER")
-    fun gatherMarketData(request: MarketDataRequest, ai: Ai): MarketData {
+    fun gatherMarketData(
+        request: MarketDataRequest,
+        ai: Ai,
+    ): MarketData {
         return MarketData(
             revenues = mapOf("CompanyA" to "$10B", "CompanyB" to "$8B"),
             marketShare = mapOf("CompanyA" to 0.4, "CompanyB" to 0.3),
@@ -50,7 +53,10 @@ class CompetitorActions {
 
     @Action(description = "Analyze competitors: identify strengths, weaknesses, and market positioning")
     @Suppress("UNUSED_PARAMETER")
-    fun analyzeCompetitors(request: CompetitorAnalysisRequest, ai: Ai): CompetitorAnalysis {
+    fun analyzeCompetitors(
+        request: CompetitorAnalysisRequest,
+        ai: Ai,
+    ): CompetitorAnalysis {
         return CompetitorAnalysis(
             strengths = request.companies.associateWith { listOf("Strong brand", "Market leader") },
             weaknesses = request.companies.associateWith { listOf("High costs", "Slow innovation") },
@@ -64,7 +70,10 @@ class TrendAndReportActions {
 
     @Action(description = "Forecast trends and predictions for a sector")
     @Suppress("UNUSED_PARAMETER")
-    fun forecastTrends(request: TrendForecastRequest, ai: Ai): TrendForecast {
+    fun forecastTrends(
+        request: TrendForecastRequest,
+        ai: Ai,
+    ): TrendForecast {
         return TrendForecast(
             trends = listOf("AI adoption", "Cloud migration", "Sustainability"),
             predictions = mapOf("2025" to "Market grows 20%", "2026" to "Consolidation expected"),
@@ -74,7 +83,11 @@ class TrendAndReportActions {
 
     @Action(description = "Compile artifacts into the final report")
     @Suppress("UNUSED_PARAMETER")
-    fun compileReport(request: ReportRequest, gatheredInfo: GatheredInfo, ai: Ai): FinalReport {
+    fun compileReport(
+        request: ReportRequest,
+        gatheredInfo: GatheredInfo,
+        ai: Ai,
+    ): FinalReport {
         return FinalReport(
             title = "Market Research Report: ${request.topic}",
             executiveSummary = "This report analyzes ${request.companies.joinToString(", ")} in the ${request.topic} sector.",
@@ -190,7 +203,8 @@ class SupervisorInvocationTest {
         val ap = dummyAgentPlatform(llmOperations = scriptedLlm)
 
         // Use reified inline function
-        val invocation = SupervisorInvocation.on<MarketData>(ap)
+        val invocation = SupervisorInvocation
+            .returning<MarketData>(ap)
             .withScope(AgentScopeBuilder.fromInstances(MarketDataActions()))
 
         val agent = invocation.createSupervisorAgent()

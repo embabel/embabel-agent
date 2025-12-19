@@ -57,6 +57,15 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
     override fun withProcessOptions(options: ProcessOptions): SupervisorInvocation<T> =
         copy(processOptions = options)
 
+    fun <U : Any> returning(resultType: Class<U>): SupervisorInvocation<U> =
+        SupervisorInvocation(
+            agentPlatform = this.agentPlatform,
+            goalType = resultType,
+            goalDescription = "Produce ${resultType.simpleName}",
+            processOptions = this.processOptions,
+            agentScopeBuilder = this.agentScopeBuilder,
+        )
+
     fun withGoalDescription(description: String): SupervisorInvocation<T> =
         copy(goalDescription = description)
 
@@ -191,10 +200,15 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
                 goalType = goalType,
             )
 
+        @JvmStatic
+        fun on(
+            agentPlatform: AgentPlatform,
+        ): SupervisorInvocation<Any> = on(agentPlatform, Any::class.java)
+
         /**
          * Kotlin-friendly factory using reified type.
          */
-        inline fun <reified T : Any> on(
+        inline fun <reified T : Any> returning(
             agentPlatform: AgentPlatform,
         ): SupervisorInvocation<T> =
             on(agentPlatform, T::class.java)
