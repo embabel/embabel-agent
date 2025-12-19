@@ -117,6 +117,8 @@ class AgentMetadataReader(
     private val requireInterfaceDeserializationAnnotations: Boolean = false,
 ) {
 
+    private val supervisorAgentFactory = SupervisorAgentFactory()
+
     private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
 
     private val agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
@@ -222,19 +224,53 @@ class AgentMetadataReader(
         }
 
         val agent = if (agenticInfo.agentAnnotation != null) {
-            CoreAgent(
-                name = agenticInfo.agentName(),
-                provider = agenticInfo.agentAnnotation.provider.ifBlank {
-                    instance.javaClass.`package`.name
-                },
-                description = agenticInfo.agentAnnotation.description,
-                version = Semver(agenticInfo.agentAnnotation.version),
-                conditions = conditions,
-                actions = allActions,
-                goals = goals,
-                stuckHandler = instance as? StuckHandler,
-                opaque = agenticInfo.agentAnnotation.opaque,
-            )
+            if (plannerType == PlannerType.SUPERVISOR) {
+                // Find the goal action (the action with @AchievesGoal)
+                val goalActions = actionMethods.filter { it.isAnnotationPresent(AchievesGoal::class.java) }
+                if (goalActions.isEmpty()) {
+                    logger.warn(
+                        "SUPERVISOR planner requires at least one @AchievesGoal action on {}",
+                        targetType.name,
+                    )
+                    return null
+                }
+                if (goalActions.size > 1) {
+                    logger.warn(
+                        "SUPERVISOR planner currently supports only one @AchievesGoal action, found {} on {}",
+                        goalActions.size,
+                        targetType.name,
+                    )
+                    return null
+                }
+                val goalAction = allActions.find { action ->
+                    goalActions.any { method ->
+                        action.name.endsWith(".${method.name}")
+                    }
+                } ?: error("Goal action not found in allActions")
+
+                supervisorAgentFactory.createSupervisorAgent(
+                    agenticInfo = agenticInfo,
+                    instance = instance,
+                    goalAction = goalAction,
+                    allActions = allActions,
+                    goals = goals,
+                    conditions = conditions,
+                )
+            } else {
+                CoreAgent(
+                    name = agenticInfo.agentName(),
+                    provider = agenticInfo.agentAnnotation.provider.ifBlank {
+                        instance.javaClass.`package`.name
+                    },
+                    description = agenticInfo.agentAnnotation.description,
+                    version = Semver(agenticInfo.agentAnnotation.version),
+                    conditions = conditions,
+                    actions = allActions,
+                    goals = goals,
+                    stuckHandler = instance as? StuckHandler,
+                    opaque = agenticInfo.agentAnnotation.opaque,
+                )
+            }
         } else {
             AgentScope(
                 name = agenticInfo.type.name,

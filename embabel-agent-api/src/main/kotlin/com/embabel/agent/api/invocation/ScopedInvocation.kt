@@ -13,22 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.plan.common.condition
+package com.embabel.agent.api.invocation
 
-import com.embabel.plan.Action
-import com.embabel.plan.Goal
-import com.embabel.plan.Plan
+import com.embabel.agent.api.common.scope.AgentScopeBuilder
 
 /**
- * Plan towards a goal using a ConditionWorldState
+ * Invocation with a defined scope of actions and goals
  */
-class ConditionPlan(
-    actions: List<Action>,
-    goal: Goal,
-    val worldState: ConditionWorldState,
-) : Plan(actions, goal) {
+interface ScopedInvocation<THIS : ScopedInvocation<THIS>> : BaseInvocation<THIS> {
 
-    override fun toString(): String {
-        return infoString(verbose = false)
-    }
+    /**
+     * Set the scope of actions and goals
+     */
+    fun withScope(agentScopeBuilder: AgentScopeBuilder): THIS
+
 }
