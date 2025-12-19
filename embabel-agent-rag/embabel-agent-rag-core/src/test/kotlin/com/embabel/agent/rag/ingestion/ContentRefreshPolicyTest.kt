@@ -18,10 +18,12 @@ package com.embabel.agent.rag.ingestion
 import com.embabel.agent.rag.model.MaterializedDocument
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.store.ChunkingContentElementRepository
+import com.embabel.agent.rag.store.DocumentDeletionResult
 import io.mockk.clearAllMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -202,9 +204,10 @@ class ContentRefreshPolicyTest {
             )
 
             // Verify flow: shouldReread returned true (document parsed),
-            // and shouldRefreshDocument returned true (document written)
-            verify(exactly = 1) { mockRepository.existsRootWithUri(uri) }
+            // and shouldRefreshDocument returned true (new document written, no delete for new doc)
+            verify(exactly = 2) { mockRepository.existsRootWithUri(uri) } // Once for shouldReread, once for delete check
             verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 0) { mockRepository.deleteRootAndDescendants(uri) } // Not called for new documents
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
             assertEquals(document, result, "Should return the document when it is refreshed")
         }
@@ -271,15 +274,16 @@ class ContentRefreshPolicyTest {
                 rootUri = uri
             )
 
-            // Should parse and ingest (because shouldRefreshDocument always returns true when reached)
-            verify(exactly = 1) { mockRepository.existsRootWithUri(uri) }
+            // Should parse and ingest (no delete for new documents)
+            verify(exactly = 2) { mockRepository.existsRootWithUri(uri) } // Once for shouldReread, once for delete check
             verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 0) { mockRepository.deleteRootAndDescendants(uri) }
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
         }
 
         @Test
         fun `ingestUriIfNeeded ingests when both shouldReread and shouldRefreshDocument return true`() {
-            val uri = "test://new-document"
+            val uri = "test://existing-document"
             val document = MaterializedDocument(
                 id = "doc1",
                 uri = uri,
@@ -300,7 +304,9 @@ class ContentRefreshPolicyTest {
                 ): Boolean = true
             }
 
+            every { mockRepository.existsRootWithUri(uri) } returns true
             every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.deleteRootAndDescendants(uri) } returns DocumentDeletionResult(uri, 5)
             every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
             policy.ingestUriIfNeeded(
@@ -309,8 +315,9 @@ class ContentRefreshPolicyTest {
                 rootUri = uri
             )
 
-            // Should parse and ingest
+            // Should delete old content, then parse and ingest
             verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 1) { mockRepository.deleteRootAndDescendants(uri) }
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
         }
 
@@ -351,6 +358,7 @@ class ContentRefreshPolicyTest {
             )
 
             verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+            verify(exactly = 0) { mockRepository.deleteRootAndDescendants(any()) }
 
             // Try with new URI
             policy.ingestUriIfNeeded(
@@ -359,12 +367,14 @@ class ContentRefreshPolicyTest {
                 rootUri = newUri
             )
 
+            // No delete for new documents, but should write
+            verify(exactly = 0) { mockRepository.deleteRootAndDescendants(any()) }
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(newDocument) }
         }
 
         @Test
         fun `ingestUriIfNeeded calls writeAndChunkDocument with parsed document`() {
-            val uri = "test://document"
+            val uri = "test://existing-document"
             val document = MaterializedDocument(
                 id = "doc1",
                 uri = uri,
@@ -384,7 +394,9 @@ class ContentRefreshPolicyTest {
                 ): Boolean = true
             }
 
+            every { mockRepository.existsRootWithUri(uri) } returns true
             every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.deleteRootAndDescendants(uri) } returns DocumentDeletionResult(uri, 3)
             every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
             policy.ingestUriIfNeeded(
@@ -393,6 +405,7 @@ class ContentRefreshPolicyTest {
                 rootUri = uri
             )
 
+            verify(exactly = 1) { mockRepository.deleteRootAndDescendants(uri) }
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
         }
 
@@ -419,7 +432,9 @@ class ContentRefreshPolicyTest {
                 ): Boolean = root.title.contains("Conditional")
             }
 
+            every { mockRepository.existsRootWithUri(uri) } returns true
             every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.deleteRootAndDescendants(uri) } returns DocumentDeletionResult(uri, 2)
             every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
             policy.ingestUriIfNeeded(
@@ -428,6 +443,7 @@ class ContentRefreshPolicyTest {
                 rootUri = uri
             )
 
+            verify(exactly = 1) { mockRepository.deleteRootAndDescendants(uri) }
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
 
             // Test with non-matching document
@@ -438,6 +454,7 @@ class ContentRefreshPolicyTest {
                 children = emptyList()
             )
 
+            every { mockRepository.existsRootWithUri("test://other") } returns true
             every { mockReader.parseUrl("test://other") } returns otherDocument
 
             policy.ingestUriIfNeeded(
@@ -446,9 +463,10 @@ class ContentRefreshPolicyTest {
                 rootUri = "test://other"
             )
 
-            // Should still only have 1 call (from the first document)
+            // Should still only have 1 call (from the first document) - no delete or write for non-matching
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(any()) }
             verify(exactly = 0) { mockRepository.writeAndChunkDocument(otherDocument) }
+            verify(exactly = 1) { mockRepository.deleteRootAndDescendants(any()) }
         }
 
         @Test
@@ -502,6 +520,319 @@ class ContentRefreshPolicyTest {
 
             verify(exactly = 0) { mockReader.parseUrl(any()) }
             verify(exactly = 0) { mockRepository.writeAndChunkDocument(any()) }
+            verify(exactly = 0) { mockRepository.deleteRootAndDescendants(any()) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded deletes old content before writing new content`() {
+            val uri = "test://existing-document"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = true
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = true
+            }
+
+            every { mockRepository.existsRootWithUri(uri) } returns true
+            every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.deleteRootAndDescendants(uri) } returns DocumentDeletionResult(uri, 10)
+            every { mockRepository.writeAndChunkDocument(document) } returns listOf("chunk1", "chunk2")
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            // Verify order: delete must happen before write
+            verifyOrder {
+                mockRepository.deleteRootAndDescendants(uri)
+                mockRepository.writeAndChunkDocument(document)
+            }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded does not delete when document does not exist`() {
+            val uri = "test://new-document"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "New Document",
+                children = emptyList()
+            )
+
+            val policy = object : ContentRefreshPolicy {
+                override fun shouldReread(
+                    repository: ChunkingContentElementRepository,
+                    rootUri: String,
+                ): Boolean = true
+
+                override fun shouldRefreshDocument(
+                    repository: ChunkingContentElementRepository,
+                    root: NavigableDocument,
+                ): Boolean = true
+            }
+
+            every { mockRepository.existsRootWithUri(uri) } returns false
+            every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns listOf("chunk1")
+
+            policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            // Should NOT call delete for new documents, but should write
+            verify(exactly = 0) { mockRepository.deleteRootAndDescendants(uri) }
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+        }
+    }
+
+    @Nested
+    inner class AlwaysRefreshContentRefreshPolicyTest {
+
+        @Test
+        fun `shouldReread always returns true`() {
+            val uri = "test://any-document"
+            every { mockRepository.existsRootWithUri(uri) } returns true
+
+            val result = AlwaysRefreshContentRefreshPolicy.shouldReread(mockRepository, uri)
+
+            assertTrue(result)
+        }
+
+        @Test
+        fun `shouldReread returns true even when document does not exist`() {
+            val uri = "test://new-document"
+            every { mockRepository.existsRootWithUri(uri) } returns false
+
+            val result = AlwaysRefreshContentRefreshPolicy.shouldReread(mockRepository, uri)
+
+            assertTrue(result)
+        }
+
+        @Test
+        fun `shouldRefreshDocument always returns true`() {
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = "test://document",
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            val result = AlwaysRefreshContentRefreshPolicy.shouldRefreshDocument(mockRepository, document)
+
+            assertTrue(result)
+        }
+
+        @Test
+        fun `ingestUriIfNeeded always refreshes existing document`() {
+            val uri = "test://existing-document"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            every { mockRepository.existsRootWithUri(uri) } returns true
+            every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.deleteRootAndDescendants(uri) } returns DocumentDeletionResult(uri, 5)
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
+
+            val result = AlwaysRefreshContentRefreshPolicy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            assertEquals(document, result)
+            verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 1) { mockRepository.deleteRootAndDescendants(uri) }
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded ingests new document without delete`() {
+            val uri = "test://new-document"
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = uri,
+                title = "New Document",
+                children = emptyList()
+            )
+
+            every { mockRepository.existsRootWithUri(uri) } returns false
+            every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
+
+            val result = AlwaysRefreshContentRefreshPolicy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = uri
+            )
+
+            assertEquals(document, result)
+            verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 0) { mockRepository.deleteRootAndDescendants(uri) }
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+        }
+    }
+
+    @Nested
+    inner class UrlSpecificContentRefreshPolicyTest {
+
+        @Test
+        fun `shouldReread returns true when document does not exist`() {
+            val uri = "test://new-document"
+            val policy = UrlSpecificContentRefreshPolicy { false }
+
+            every { mockRepository.existsRootWithUri(uri) } returns false
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertTrue(result, "Should reread when document does not exist")
+        }
+
+        @Test
+        fun `shouldReread returns true when function returns true for existing document`() {
+            val uri = "test://refresh-me"
+            val policy = UrlSpecificContentRefreshPolicy { it.contains("refresh") }
+
+            every { mockRepository.existsRootWithUri(uri) } returns true
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertTrue(result, "Should reread when function returns true")
+        }
+
+        @Test
+        fun `shouldReread returns false when function returns false for existing document`() {
+            val uri = "test://keep-me"
+            val policy = UrlSpecificContentRefreshPolicy { it.contains("refresh") }
+
+            every { mockRepository.existsRootWithUri(uri) } returns true
+
+            val result = policy.shouldReread(mockRepository, uri)
+
+            assertFalse(result, "Should not reread when function returns false")
+        }
+
+        @Test
+        fun `shouldRefreshDocument always returns true`() {
+            val policy = UrlSpecificContentRefreshPolicy { true }
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = "test://document",
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            val result = policy.shouldRefreshDocument(mockRepository, document)
+
+            assertTrue(result)
+        }
+
+        @Test
+        fun `matchingPattern factory creates policy that matches regex`() {
+            val policy = UrlSpecificContentRefreshPolicy.matchingPattern(Regex(".*\\.html$"))
+
+            every { mockRepository.existsRootWithUri(any()) } returns true
+
+            assertTrue(policy.shouldReread(mockRepository, "test://page.html"))
+            assertFalse(policy.shouldReread(mockRepository, "test://page.json"))
+            assertTrue(policy.shouldReread(mockRepository, "test://folder/index.html"))
+        }
+
+        @Test
+        fun `containingAny factory creates policy that matches substrings`() {
+            val policy = UrlSpecificContentRefreshPolicy.containingAny("news", "blog")
+
+            every { mockRepository.existsRootWithUri(any()) } returns true
+
+            assertTrue(policy.shouldReread(mockRepository, "test://news/article"))
+            assertTrue(policy.shouldReread(mockRepository, "test://blog/post"))
+            assertFalse(policy.shouldReread(mockRepository, "test://static/page"))
+        }
+
+        @Test
+        fun `ingestUriIfNeeded refreshes matching URIs`() {
+            val matchingUri = "test://refresh-this"
+            val nonMatchingUri = "test://keep-this"
+            val policy = UrlSpecificContentRefreshPolicy { it.contains("refresh") }
+
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = matchingUri,
+                title = "Test Document",
+                children = emptyList()
+            )
+
+            every { mockRepository.existsRootWithUri(matchingUri) } returns true
+            every { mockRepository.existsRootWithUri(nonMatchingUri) } returns true
+            every { mockReader.parseUrl(matchingUri) } returns document
+            every { mockRepository.deleteRootAndDescendants(matchingUri) } returns DocumentDeletionResult(matchingUri, 3)
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
+
+            // Matching URI should be refreshed
+            val result1 = policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = matchingUri
+            )
+            assertEquals(document, result1)
+
+            // Non-matching URI should not be refreshed
+            val result2 = policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = nonMatchingUri
+            )
+            assertNull(result2)
+
+            verify(exactly = 1) { mockReader.parseUrl(matchingUri) }
+            verify(exactly = 0) { mockReader.parseUrl(nonMatchingUri) }
+        }
+
+        @Test
+        fun `ingestUriIfNeeded refreshes new URIs regardless of function result`() {
+            val newUri = "test://new-document"
+            val policy = UrlSpecificContentRefreshPolicy { false } // Function always returns false
+
+            val document = MaterializedDocument(
+                id = "doc1",
+                uri = newUri,
+                title = "New Document",
+                children = emptyList()
+            )
+
+            every { mockRepository.existsRootWithUri(newUri) } returns false
+            every { mockReader.parseUrl(newUri) } returns document
+            every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
+
+            val result = policy.ingestUriIfNeeded(
+                repository = mockRepository,
+                hierarchicalContentReader = mockReader,
+                rootUri = newUri
+            )
+
+            assertEquals(document, result, "New documents should always be ingested")
+            verify(exactly = 1) { mockReader.parseUrl(newUri) }
+            verify(exactly = 0) { mockRepository.deleteRootAndDescendants(newUri) } // No delete for new docs
+            verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
         }
     }
 
@@ -568,7 +899,9 @@ class ContentRefreshPolicyTest {
             }
 
             every { mockRepository.count() } returns 50
+            every { mockRepository.existsRootWithUri(uri) } returns true
             every { mockReader.parseUrl(uri) } returns document
+            every { mockRepository.deleteRootAndDescendants(uri) } returns DocumentDeletionResult(uri, 3)
             every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
             policy.ingestUriIfNeeded(
@@ -577,6 +910,7 @@ class ContentRefreshPolicyTest {
                 rootUri = uri
             )
 
+            verify(exactly = 1) { mockRepository.deleteRootAndDescendants(uri) }
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
 
             // Test when repository is full
@@ -590,6 +924,7 @@ class ContentRefreshPolicyTest {
 
             // Should still only have 1 call (from the first ingest)
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
+            verify(exactly = 1) { mockRepository.deleteRootAndDescendants(uri) }
         }
     }
 
@@ -814,7 +1149,9 @@ class ContentRefreshPolicyTest {
             )
 
             every { mockRepository.findContentRootByUri(uri) } returns oldDocument
+            every { mockRepository.existsRootWithUri(uri) } returns true
             every { mockReader.parseUrl(uri) } returns newDocument
+            every { mockRepository.deleteRootAndDescendants(uri) } returns DocumentDeletionResult(uri, 5)
             every { mockRepository.writeAndChunkDocument(any()) } returns emptyList()
 
             policy.ingestUriIfNeeded(
@@ -823,9 +1160,10 @@ class ContentRefreshPolicyTest {
                 rootUri = uri,
             )
 
-            // Should parse and ingest since document is expired
+            // Should delete old content, then parse and ingest since document is expired
             verify(exactly = 1) { mockRepository.findContentRootByUri(uri) }
             verify(exactly = 1) { mockReader.parseUrl(uri) }
+            verify(exactly = 1) { mockRepository.deleteRootAndDescendants(uri) }
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(newDocument) }
         }
     }

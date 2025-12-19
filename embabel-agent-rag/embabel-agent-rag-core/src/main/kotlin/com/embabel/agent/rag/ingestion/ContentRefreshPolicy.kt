@@ -17,6 +17,7 @@ package com.embabel.agent.rag.ingestion
 
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.store.ChunkingContentElementRepository
+import com.embabel.common.util.loggerFor
 
 /**
  * Policy to determine whether content should be refreshed
@@ -55,6 +56,18 @@ interface ContentRefreshPolicy {
         if (shouldReread(repository, rootUri)) {
             val document = hierarchicalContentReader.parseUrl(rootUri)
             if (shouldRefreshDocument(repository, document)) {
+                if (repository.existsRootWithUri(rootUri)) {
+                    loggerFor<ContentRefreshPolicy>().info(
+                        "Refreshing EXISTING document at uri {}: Deleting old content",
+                        rootUri,
+                    )
+                    repository.deleteRootAndDescendants(rootUri)
+                } else {
+                    loggerFor<ContentRefreshPolicy>().info(
+                        "Ingesting NEW document at uri {}",
+                        rootUri,
+                    )
+                }
                 repository.writeAndChunkDocument(document)
                 return document
             }
