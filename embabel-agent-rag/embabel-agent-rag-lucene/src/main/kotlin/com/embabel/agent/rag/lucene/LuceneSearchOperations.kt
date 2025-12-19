@@ -29,6 +29,7 @@ import com.embabel.agent.rag.service.support.RagFacet
 import com.embabel.agent.rag.service.support.RagFacetProvider
 import com.embabel.agent.rag.service.support.RagFacetResults
 import com.embabel.agent.rag.store.AbstractChunkingContentElementRepository
+import com.embabel.agent.rag.store.ContentElementRepositoryInfo
 import com.embabel.agent.rag.store.DocumentDeletionResult
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.SimilarityResult
@@ -1207,10 +1208,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         return count
     }
 
-    /**
-     * Get statistics about the current state
-     */
-    fun getStatistics(): LuceneStatistics {
+    fun info(): LuceneStatistics {
         val docCount = try {
             refreshReaderIfNeeded()
             directoryReader?.numDocs() ?: 0
@@ -1237,11 +1235,11 @@ class LuceneSearchOperations @JvmOverloads constructor(
  * Statistics about the Lucene RAG service state
  */
 data class LuceneStatistics(
-    val totalChunks: Int,
-    val totalDocuments: Int,
+    override val totalChunks: Int,
+    override val totalDocuments: Int,
     val averageChunkLength: Double,
-    val hasEmbeddings: Boolean,
+    override val hasEmbeddings: Boolean,
     val vectorWeight: Double,
-    val isPersistent: Boolean,
+    override val isPersistent: Boolean,
     val indexPath: String?,
-)
+) : ContentElementRepositoryInfo

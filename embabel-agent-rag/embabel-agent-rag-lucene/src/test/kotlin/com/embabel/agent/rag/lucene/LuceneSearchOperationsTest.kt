@@ -464,7 +464,7 @@ class LuceneSearchOperationsTest {
 
         @Test
         fun `should get correct statistics`() {
-            val stats = ragService.getStatistics()
+            val stats = ragService.info()
             assertEquals(0, stats.totalChunks)
             assertEquals(0, stats.totalDocuments)
             assertEquals(0.0, stats.averageChunkLength)
@@ -479,7 +479,7 @@ class LuceneSearchOperationsTest {
 
             ragService.acceptDocuments(documents)
 
-            val updatedStats = ragService.getStatistics()
+            val updatedStats = ragService.info()
             assertEquals(2, updatedStats.totalChunks)
             assertEquals(2, updatedStats.totalDocuments)
             assertTrue(updatedStats.averageChunkLength > 0)

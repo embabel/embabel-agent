@@ -20,6 +20,13 @@ import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.HierarchicalContentElement
 import com.embabel.common.core.types.Named
 
+interface ContentElementRepositoryInfo {
+    val totalChunks: Int
+    val totalDocuments: Int
+    val hasEmbeddings: Boolean
+    val isPersistent: Boolean
+}
+
 /**
  * Repository for ContentElements.
  */
@@ -31,6 +38,9 @@ interface ContentElementRepository : Named {
     fun provision() {
         // Default no-op
     }
+
+    // TODO add when we can: Not yet uncommented because of backboard compatibility
+//    fun info(): ContentElementRepositoryInfo
 
     fun findAllChunksById(chunkIds: List<String>): Iterable<Chunk>
 
