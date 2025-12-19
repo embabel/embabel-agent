@@ -822,7 +822,7 @@ class LuceneSearchOperationsTest {
 
             // Verify initial count
             assertEquals(3, ragService.count())
-            val initialStats = ragService.getStatistics()
+            val initialStats = ragService.info()
             assertEquals(3, initialStats.totalChunks)
             assertEquals(3, initialStats.totalDocuments)
 
@@ -836,7 +836,7 @@ class LuceneSearchOperationsTest {
 
             // Count should still be 3 (not 5 due to deleted docs)
             assertEquals(3, ragService.count(), "Count should remain 3 after keyword updates")
-            val afterUpdateStats = ragService.getStatistics()
+            val afterUpdateStats = ragService.info()
             assertEquals(3, afterUpdateStats.totalChunks, "Total chunks should remain 3")
             assertEquals(3, afterUpdateStats.totalDocuments, "Total documents should remain 3")
 
