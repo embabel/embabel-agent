@@ -516,3 +516,162 @@ This makes debugging easier and behaviour more predictable, while retaining the 
 * *Domain-rich workflows*: When your domain has clear types (reports, analyses, forecasts), schemas help the LLM understand relationships
 * *Multi-step synthesis*: When actions build on each other's outputs, typed blackboard tracks progress clearly
 * *Hybrid determinism*: When you want more predictability than pure LLM orchestration but more flexibility than GOAP
+
+[[reference.planners__supervisor-invocation]]
+===== SupervisorInvocation: Lightweight Supervisor Pattern
+
+For simple supervisor workflows, you don't need to create an `@Agent` class.
+`SupervisorInvocation` provides a fluent API to run supervisor-orchestrated workflows directly from `@EmbabelComponent` actions.
+
+This is ideal when:
+
+* You have a small set of related actions in an `@EmbabelComponent`
+* You want LLM-orchestrated composition without creating a full agent
+* You're prototyping or exploring supervisor patterns before committing to a full agent design
+
+====== Example: Meal Preparation Workflow
+
+Here's a complete example from the https://github.com/embabel/embabel-agent-examples[embabel-agent-examples] repository:
+
+.Stages.java - Actions as @EmbabelComponent
+[source,java]
+----
+@EmbabelComponent
+public class Stages {
+
+    public record Cook(String name, int age) {}
+
+    public record Order(String dish, int quantity) {}
+
+    public record Meal(String dish, int quantity, String orderedBy, String cookedBy) {}
+
+    @Action
+    public Cook chooseCook(UserInput userInput, Ai ai) {
+        return ai.withAutoLlm().createObject(
+                """
+                From the following user input, choose a cook.
+                User input: %s
+                """.formatted(userInput),
+                Cook.class
+        );
+    }
+
+    @Action
+    public Order takeOrder(UserInput userInput, Ai ai) {
+        return ai.withAutoLlm().createObject(
+                """
+                From the following user input, take a food order
+                User input: %s
+                """.formatted(userInput),
+                Order.class
+        );
+    }
+
+    @Action
+    @AchievesGoal(description = "Cook the meal according to the order")
+    public Meal prepareMeal(Cook cook, Order order, UserInput userInput, Ai ai) {
+        // The model will get the orderedBy from UserInput
+        return ai.withAutoLlm().createObject(
+                """
+                Prepare a meal based on the cook and order details and target customer
+                Cook: %s, age %d
+                Order: %d x %s
+                User input: %s
+                """.formatted(cook.name(), cook.age(), order.quantity(), order.dish(), userInput.getContent()),
+                Meal.class
+        );
+    }
+}
+----
+
+.Invoking with SupervisorInvocation
+[source,java]
+----
+Stages stages = new Stages();
+
+Meal meal = SupervisorInvocation.on(agentPlatform)
+    .returning(Stages.Meal.class)
+    .withScope(AgentScopeBuilder.fromInstance(stages))
+    .invoke(new UserInput(request));
+----
+
+The supervisor LLM sees:
+
+1. *Available actions* with their type signatures and schemas
+2. *Current artifacts* on the blackboard (including `UserInput` content)
+3. *Goal* to produce a `Meal`
+
+It then orchestrates the actions—calling `chooseCook` and `takeOrder` (possibly in parallel), then `prepareMeal` when the dependencies are satisfied.
+
+====== Key Design Points
+
+1. **Actions use UserInput explicitly**: Each action receives `UserInput` and includes it in the LLM prompt, ensuring the actual user request is used.
+2. **@AchievesGoal marks the target**: The `prepareMeal` action is marked with `@AchievesGoal` to indicate it produces the final output.
+3. **Type-driven dependencies**: `prepareMeal` requires `Cook` and `Order`, which guides the supervisor's orchestration.
+
+====== SupervisorInvocation vs @Agent with planner = SUPERVISOR
+
+[cols="1,2,2",options="header"]
+|===
+|Aspect |SupervisorInvocation |@Agent(planner = SUPERVISOR)
+
+|*Declaration*
+|Fluent API, no class annotation
+|Annotated agent class
+
+|*Action source*
+|`@EmbabelComponent` or multiple components
+|Single `@Agent` class
+
+|*Best for*
+|Quick prototypes, simple workflows
+|Formalized, reusable agents
+
+|*Goal specification*
+|`.returning(Class)` fluent method
+|`@AchievesGoal` on action
+
+|*Scope*
+|Explicit via `AgentScopeBuilder`
+|Implicit from agent class
+|===
+
+====== Comparison with AgenticTool
+
+Both `SupervisorInvocation` and <<reference.tools__agentic-tools,AgenticTool>> provide LLM-orchestrated composition, but at different levels:
+
+[cols="1,2,2",options="header"]
+|===
+|Aspect |AgenticTool |SupervisorInvocation
+
+|*Level*
+|Tool (can be used within actions)
+|Invocation (runs a complete workflow)
+
+|*Sub-components*
+|Other `Tool` instances
+|`@Action` methods from `@EmbabelComponent`
+
+|*Output*
+|`Tool.Result` (text, artifact, or error)
+|Typed goal object (e.g., `Meal`)
+
+|*State management*
+|Minimal (LLM conversation only)
+|Full blackboard with typed artifacts
+
+|*Type awareness*
+|Tools have names and descriptions
+|Actions have typed inputs/outputs with schemas
+
+|*Currying*
+|None
+|Inputs on blackboard are curried out
+
+|*Use case*
+|Mini-orchestration within an action
+|Complete multi-step workflow with typed results
+|===
+
+Use `AgenticTool` when you need a tool that internally orchestrates other tools.
+Use `SupervisorInvocation` when you need a complete workflow that produces a typed result with full blackboard state management.

@@ -897,3 +897,5 @@ However, for anything beyond simple orchestration, Embabel offers far more power
 
 These provide *deterministic, typesafe planning* that is far more predictable and powerful than supervisor-style LLM orchestration.
 Use `AgenticTool` for simple cases or as a migration stepping stone; graduate to GOAP, Utility, or @State for production workflows where predictability matters.
+
+TIP: For supervisor-style orchestration with typed outputs and full blackboard state management, see <<reference.planners__supervisor-invocation,SupervisorInvocation>>. It operates at a higher level than `AgenticTool`, orchestrating `@Action` methods rather than `Tool` instances, and produces typed goal objects with currying support.

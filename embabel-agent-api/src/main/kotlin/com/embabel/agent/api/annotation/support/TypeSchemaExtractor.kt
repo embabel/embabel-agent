@@ -184,12 +184,13 @@ object TypeSchemaExtractor {
         if (className.startsWith("java.") || className.startsWith("kotlin.")) return true
 
         // Filter framework internal types, but not domain types in test packages
+        // Note: com.embabel.agent.domain.io (UserInput, etc.) should NOT be filtered
+        // as these contain user-provided data the LLM needs to see
         val frameworkPrefixes = listOf(
             "com.embabel.agent.core.",
             "com.embabel.agent.spi.",
             "com.embabel.agent.api.common.",
             "com.embabel.agent.api.event.",
-            "com.embabel.agent.domain.",
         )
         return frameworkPrefixes.any { className.startsWith(it) }
     }

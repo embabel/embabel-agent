@@ -16,11 +16,7 @@
 package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.Action
-import com.embabel.agent.core.ActionStatusCode
-import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.core.Blackboard
-import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
@@ -40,7 +36,7 @@ import org.slf4j.LoggerFactory
  * @param blackboard The blackboard to check for existing values
  * @param objectMapper Object mapper for JSON parsing
  */
-class CurriedActionTool(
+internal class CurriedActionTool(
     private val action: Action,
     private val blackboard: Blackboard,
     private val objectMapper: ObjectMapper,
@@ -53,6 +49,13 @@ class CurriedActionTool(
      * This is computed at construction time based on current blackboard state.
      */
     private val requiredInputs: Set<IoBinding> = computeRequiredInputs()
+
+    /**
+     * Mapping from tool parameter names (as exposed to LLM) to IoBinding objects.
+     * This handles the case where multiple bindings have the default name "it" -
+     * we derive unique names from their types for the tool schema.
+     */
+    private val parameterNameToBinding: Map<String, IoBinding> by lazy { computeParameterNameMapping() }
 
     private fun computeRequiredInputs(): Set<IoBinding> {
         // Check both map values and objects list for available inputs
@@ -98,10 +101,39 @@ class CurriedActionTool(
         }
     }
 
+    /**
+     * Compute unique parameter names for tool schema, mapping them back to IoBindings.
+     */
+    private fun computeParameterNameMapping(): Map<String, IoBinding> {
+        val usedNames = mutableSetOf<String>()
+        val mapping = mutableMapOf<String, IoBinding>()
+
+        for (input in requiredInputs) {
+            // Derive a unique parameter name. If the binding name is the default "it",
+            // use a type-derived name to avoid duplicate parameter names in tool schema.
+            val baseName = if (input.name == IoBinding.DEFAULT_BINDING) {
+                // Use simple class name in camelCase as parameter name
+                input.type.substringAfterLast(".").replaceFirstChar { it.lowercase() }
+            } else {
+                input.name
+            }
+            // Ensure uniqueness by appending suffix if needed
+            var uniqueName = baseName
+            var suffix = 2
+            while (usedNames.contains(uniqueName)) {
+                uniqueName = "$baseName$suffix"
+                suffix++
+            }
+            usedNames.add(uniqueName)
+            mapping[uniqueName] = input
+        }
+        return mapping
+    }
+
     private fun buildInputSchema(): Tool.InputSchema {
-        val parameters = requiredInputs.map { input ->
+        val parameters = parameterNameToBinding.map { (paramName, input) ->
             Tool.Parameter(
-                name = input.name,
+                name = paramName,
                 type = mapToToolParameterType(input.type),
                 description = "Input of type ${input.type}",
                 required = true,
@@ -119,7 +151,7 @@ class CurriedActionTool(
                 Tool.ParameterType.INTEGER
 
             typeName == "kotlin.Double" || typeName == "java.lang.Double" || typeName == "double" ||
-                typeName == "kotlin.Float" || typeName == "java.lang.Float" || typeName == "float" ->
+                    typeName == "kotlin.Float" || typeName == "java.lang.Float" || typeName == "float" ->
                 Tool.ParameterType.NUMBER
 
             typeName == "kotlin.Boolean" || typeName == "java.lang.Boolean" || typeName == "boolean" ->
@@ -167,22 +199,36 @@ class CurriedActionTool(
         }
     }
 
-    private fun parseAndBindInputs(toolInput: String, agentProcess: AgentProcess) {
+    private fun parseAndBindInputs(
+        toolInput: String,
+        agentProcess: AgentProcess,
+    ) {
         @Suppress("UNCHECKED_CAST")
         val inputMap = objectMapper.readValue(toolInput, Map::class.java) as Map<String, Any>
 
-        for (input in requiredInputs) {
-            val value = inputMap[input.name]
+        // Use the parameter name mapping to find values by their tool schema names
+        for ((paramName, binding) in parameterNameToBinding) {
+            val value = inputMap[paramName]
             if (value != null) {
                 // Try to convert the value to the expected type
-                val convertedValue = convertToType(value, input.type)
-                agentProcess[input.name] = convertedValue
-                logger.debug("Bound input '{}' = {} (type: {})", input.name, convertedValue, input.type)
+                val convertedValue = convertToType(value, binding.type)
+                // Bind using the original binding name (may be "it" or a specific name)
+                agentProcess[binding.name] = convertedValue
+                logger.debug(
+                    "Bound input '{}' (param '{}') = {} (type: {})",
+                    binding.name,
+                    paramName,
+                    convertedValue,
+                    binding.type
+                )
             }
         }
     }
 
-    private fun convertToType(value: Any, targetType: String): Any {
+    private fun convertToType(
+        value: Any,
+        targetType: String,
+    ): Any {
         // If already the right type, return as-is
         if (Companion.isCompatibleType(value, targetType)) {
             return value
@@ -234,7 +280,10 @@ class CurriedActionTool(
          * Check if a value is compatible with the expected type.
          */
         @JvmStatic
-        fun isCompatibleType(value: Any, expectedType: String): Boolean {
+        fun isCompatibleType(
+            value: Any,
+            expectedType: String,
+        ): Boolean {
             val valueClass = value::class.java
             return try {
                 val expectedClass = Class.forName(expectedType)
