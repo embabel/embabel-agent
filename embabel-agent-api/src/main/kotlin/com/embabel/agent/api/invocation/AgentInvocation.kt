@@ -32,11 +32,9 @@ import java.util.concurrent.CompletableFuture
  *
  * @param T type of result returned by the invocation
  */
-interface AgentInvocation<T : Any> : TypedInvocation<T> {
+interface AgentInvocation<T : Any> : TypedInvocation<T, AgentInvocation<T>> {
 
     fun withAgentPlatform(agentPlatform: AgentPlatform): AgentInvocation<T>
-
-    fun withProcessOptions(processOptions: ProcessOptions): AgentInvocation<T>
 
     fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U>
 
@@ -140,8 +138,8 @@ internal data class DefaultAgentInvocation<T : Any>(
     override fun withAgentPlatform(agentPlatform: AgentPlatform): AgentInvocation<T> =
         copy(agentPlatform = agentPlatform)
 
-    override fun withProcessOptions(processOptions: ProcessOptions): AgentInvocation<T> =
-        copy(processOptions = processOptions)
+    override fun withProcessOptions(options: ProcessOptions): AgentInvocation<T> =
+        copy(processOptions = options)
 
     override fun <U : Any> withResultType(resultType: Class<U>): AgentInvocation<U> =
         AgentInvocation.builder(this.agentPlatform)

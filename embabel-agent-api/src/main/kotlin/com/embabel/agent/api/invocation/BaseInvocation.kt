@@ -16,6 +16,7 @@
 package com.embabel.agent.api.invocation
 
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.ProcessOptions
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -26,7 +27,9 @@ import java.util.concurrent.CompletableFuture
  * before creation.
  * Once created, [run] or [runAsync] is used to run the agent.
  */
-interface UntypedInvocation {
+interface BaseInvocation<THIS : BaseInvocation<THIS>> {
+
+    fun withProcessOptions(options: ProcessOptions): THIS
 
     /**
      * Runs the agent with one or more arguments

@@ -48,19 +48,19 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
     private val goalDescription: String = "Produce ${goalType.simpleName}",
     private val processOptions: ProcessOptions = ProcessOptions(),
     private val agentScopeBuilder: AgentScopeBuilder = AgentScopeBuilder.fromPlatform(agentPlatform),
-) : TypedInvocation<T> {
+) : TypedInvocation<T, SupervisorInvocation<T>>, ScopedInvocation<SupervisorInvocation<T>> {
 
     override val resultType: Class<T> get() = goalType
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun withProcessOptions(options: ProcessOptions): SupervisorInvocation<T> =
+    override fun withProcessOptions(options: ProcessOptions): SupervisorInvocation<T> =
         copy(processOptions = options)
 
     fun withGoalDescription(description: String): SupervisorInvocation<T> =
         copy(goalDescription = description)
 
-    fun withScope(agentScopeBuilder: AgentScopeBuilder): SupervisorInvocation<T> =
+    override fun withScope(agentScopeBuilder: AgentScopeBuilder): SupervisorInvocation<T> =
         copy(agentScopeBuilder = agentScopeBuilder)
 
     override fun runAsync(

@@ -35,11 +35,11 @@ data class UtilityInvocation @JvmOverloads constructor(
     private val agentPlatform: AgentPlatform,
     private val processOptions: ProcessOptions = ProcessOptions(),
     private val agentScopeBuilder: AgentScopeBuilder = AgentScopeBuilder.fromPlatform(agentPlatform),
-) : UntypedInvocation {
+) : BaseInvocation<UtilityInvocation>, ScopedInvocation<UtilityInvocation> {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun withProcessOptions(options: ProcessOptions): UtilityInvocation =
+    override fun withProcessOptions(options: ProcessOptions): UtilityInvocation =
         copy(processOptions = options)
 
     /**
@@ -50,7 +50,7 @@ data class UtilityInvocation @JvmOverloads constructor(
             processOptions.withAdditionalEarlyTerminationPolicy(EarlyTerminationPolicy.ON_STUCK)
         )
 
-    fun withScope(agentScopeBuilder: AgentScopeBuilder): UtilityInvocation =
+    override fun withScope(agentScopeBuilder: AgentScopeBuilder): UtilityInvocation =
         copy(agentScopeBuilder = agentScopeBuilder)
 
     override fun runAsync(

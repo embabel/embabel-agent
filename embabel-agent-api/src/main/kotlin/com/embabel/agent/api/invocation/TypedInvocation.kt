@@ -20,12 +20,12 @@ import java.util.concurrent.CompletableFuture
 /**
  * Defines the contract for invoking an agent with a specific return type.
  *
- * Extends [UntypedInvocation] to add typed [invoke] and [invokeAsync] methods
+ * Extends [BaseInvocation] to add typed [invoke] and [invokeAsync] methods
  * that extract and return a result of type [T] from the completed agent process.
  *
  * @param T type of result returned by the invocation
  */
-interface TypedInvocation<T : Any> : UntypedInvocation {
+interface TypedInvocation<T : Any, THIS : BaseInvocation<THIS>> : BaseInvocation<THIS> {
 
     /**
      * The class of the result type this invocation will produce.
