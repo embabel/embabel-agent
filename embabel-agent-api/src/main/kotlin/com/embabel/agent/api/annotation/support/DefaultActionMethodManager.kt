@@ -17,16 +17,13 @@ package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.annotation.AwaitableResponseException
 import com.embabel.agent.api.annotation.RequireNameMatch
+import com.embabel.agent.api.annotation.SpecialReturnException
 import com.embabel.agent.api.annotation.State
+import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.MultiTransformationAction
-import com.embabel.agent.core.Action
-import com.embabel.agent.core.Blackboard
-import com.embabel.agent.core.DataDictionary
-import com.embabel.agent.core.DomainType
-import com.embabel.agent.core.IoBinding
-import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.*
 import com.embabel.agent.core.support.BlackboardWorldState
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.plan.CostComputation
@@ -45,6 +42,7 @@ import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.kotlinFunction
 
 /**
+ * Handles creation and invocation of Actions from annotated methods.
  * Implementation that creates dummy instances of domain objects to discover tools,
  * before re-reading the tool callbacks from the actual domain object instances at invocation time.
  */
@@ -296,6 +294,8 @@ internal class DefaultActionMethodManager(
             } catch (ite: InvocationTargetException) {
                 ReflectionUtils.handleInvocationTargetException(ite)
             }
+        } catch (sre: SpecialReturnException) {
+            handleSpecial(sre, actionContext)
         } catch (awe: AwaitableResponseException) {
             handleAwaitableResponseException(instance.javaClass.name, kFunction.name, awe)
         } catch (t: Throwable) {
@@ -345,6 +345,11 @@ internal class DefaultActionMethodManager(
         )
         throw awe
     }
+
+    private fun handleSpecial(
+        sre: SpecialReturnException,
+        actionContext: ActionContext,
+    ): Any = sre.handle(actionContext)
 
     private fun handleThrowable(
         instanceName: String,
