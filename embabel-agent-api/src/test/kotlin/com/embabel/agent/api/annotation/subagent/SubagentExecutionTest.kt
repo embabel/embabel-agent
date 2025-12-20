@@ -18,7 +18,7 @@ package com.embabel.agent.api.annotation.subagent
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
-import com.embabel.agent.api.annotation.Nesting
+import com.embabel.agent.api.annotation.RunSubagent
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.core.AgentProcessStatusCode
@@ -39,7 +39,7 @@ data class SubagentTaskOutput(val result: String)
  * Outer agent that delegates to a sub-agent via asSubProcess
  */
 @Agent(description = "Outer agent via subprocess")
-class OuterAgentViaSubprocess {
+class OuterAgentViaSubprocessInvocation {
 
     @Action
     fun start(
@@ -56,12 +56,63 @@ class OuterAgentViaSubprocess {
 }
 
 @Agent(description = "Outer agent via instance return")
-class OuterAgentViaAgentInstanceReturn {
+class OuterAgentViaAnnotatedAgentNestingReturn {
 
     @Action
     fun start(
         input: UserInput,
-    ): SubagentTaskOutput = Nesting.runSubagent(SubAgent(), SubagentTaskOutput::class.java)
+    ): SubagentTaskOutput = RunSubagent.fromAnnotatedInstance(SubAgent(), SubagentTaskOutput::class.java)
+
+    @Action
+    @AchievesGoal(description = "All stages complete")
+    fun done(taskOutput: SubagentTaskOutput): SubagentTaskOutput = taskOutput
+}
+
+@Agent(description = "Outer agent via agent nesting return")
+class OuterAgentViaAgentSubagentReturn {
+
+    @Action
+    fun start(
+        input: UserInput,
+    ): SubagentTaskOutput = RunSubagent.fromAnnotatedInstance(
+        AgentMetadataReader().createAgentMetadata(SubAgent()) as com.embabel.agent.core.Agent,
+        SubagentTaskOutput::class.java
+    )
+
+    @Action
+    @AchievesGoal(description = "All stages complete")
+    fun done(taskOutput: SubagentTaskOutput): SubagentTaskOutput = taskOutput
+}
+
+/**
+ * Outer agent using reified runAnnotatedSubagent (annotated instance with inferred type)
+ */
+@Agent(description = "Outer agent via reified annotated subagent")
+class OuterAgentViaReifiedAnnotatedSubagent {
+
+    @Action
+    fun start(
+        input: UserInput,
+    ): SubagentTaskOutput = RunSubagent.fromAnnotatedInstance(SubAgent())
+
+    @Action
+    @AchievesGoal(description = "All stages complete")
+    fun done(taskOutput: SubagentTaskOutput): SubagentTaskOutput = taskOutput
+}
+
+/**
+ * Outer agent using reified runSubagent (Agent instance with inferred type)
+ */
+@Agent(description = "Outer agent via reified agent subagent")
+class OuterAgentViaReifiedAgentSubagent {
+
+    @Action
+    fun start(
+        input: UserInput,
+    ): SubagentTaskOutput {
+        val agent = AgentMetadataReader().createAgentMetadata(SubAgent()) as CoreAgent
+        return RunSubagent.instance(agent)
+    }
 
     @Action
     @AchievesGoal(description = "All stages complete")
@@ -131,13 +182,13 @@ class SubagentExecutionTest {
 
         @Test
         fun `outer agent metadata is valid`() {
-            val agentMetadata = reader.createAgentMetadata(OuterAgentViaSubprocess())
+            val agentMetadata = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation())
             assertNotNull(agentMetadata, "Agent metadata should not be null")
         }
 
         @Test
         fun `outer agent with subprocess has correct structure`() {
-            val agent = reader.createAgentMetadata(OuterAgentViaSubprocess()) as CoreAgent
+            val agent = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation()) as CoreAgent
             assertNotNull(agent, "Agent should not be null")
             assertTrue(agent.actions.any { it.name.contains("start") }, "Should have start action")
             assertTrue(agent.actions.any { it.name.contains("done") }, "Should have done action")
@@ -173,22 +224,52 @@ class SubagentExecutionTest {
 
         @Test
         fun `outer agent produces correct output via inner subagent`() {
-            testWithOuterAgentInstance(OuterAgentViaSubprocess())
+            testWithOuterAgentInstance(OuterAgentViaSubprocessInvocation())
+        }
+
+        @Test
+        fun `outer agent produces correct output via annotated subagent return`() {
+            testWithOuterAgentInstance(OuterAgentViaAnnotatedAgentNestingReturn())
         }
 
         @Test
         fun `outer agent produces correct output via subagent return`() {
-            testWithOuterAgentInstance(OuterAgentViaAgentInstanceReturn())
+            testWithOuterAgentInstance(OuterAgentViaAgentSubagentReturn())
         }
 
         @Test
         fun `outer agent via subprocess executes all steps`() {
-            testOuterAgentExecutesSteps(OuterAgentViaSubprocess())
+            testOuterAgentExecutesSteps(OuterAgentViaSubprocessInvocation())
+        }
+
+        @Test
+        fun `outer agent via annotated agent instance return executes all steps`() {
+            testOuterAgentExecutesSteps(OuterAgentViaAnnotatedAgentNestingReturn())
         }
 
         @Test
         fun `outer agent via agent instance return executes all steps`() {
-            testOuterAgentExecutesSteps(OuterAgentViaAgentInstanceReturn())
+            testOuterAgentExecutesSteps(OuterAgentViaAgentSubagentReturn())
+        }
+
+        @Test
+        fun `outer agent produces correct output via reified annotated subagent`() {
+            testWithOuterAgentInstance(OuterAgentViaReifiedAnnotatedSubagent())
+        }
+
+        @Test
+        fun `outer agent produces correct output via reified agent subagent`() {
+            testWithOuterAgentInstance(OuterAgentViaReifiedAgentSubagent())
+        }
+
+        @Test
+        fun `outer agent via reified annotated subagent executes all steps`() {
+            testOuterAgentExecutesSteps(OuterAgentViaReifiedAnnotatedSubagent())
+        }
+
+        @Test
+        fun `outer agent via reified agent subagent executes all steps`() {
+            testOuterAgentExecutesSteps(OuterAgentViaReifiedAgentSubagent())
         }
     }
 }
