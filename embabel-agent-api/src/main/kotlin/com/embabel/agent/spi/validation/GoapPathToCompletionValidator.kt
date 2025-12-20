@@ -23,7 +23,6 @@ import com.embabel.plan.common.condition.ConditionGoal
 import com.embabel.plan.common.condition.WorldStateDeterminer
 import com.embabel.plan.goap.astar.AStarGoapPlanner
 import org.slf4j.LoggerFactory
-import org.springframework.stereotype.Component
 
 /**
  * Validator that checks whether an agent definition has at least one possible path
@@ -32,8 +31,7 @@ import org.springframework.stereotype.Component
  * Uses the GOAP planner to validate that goals can be achieved through a sequence of actions.
  * Reports specific errors when no such path exists.
  */
-@Component
-class GoapPathToCompletionValidator : AgentValidator {
+class GoapPathToCompletionValidator : PathToCompletionAgentValidator {
 
     private val logger = LoggerFactory.getLogger(GoapPathToCompletionValidator::class.java)
 

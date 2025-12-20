@@ -21,6 +21,7 @@ import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.core.AgentScope
 import com.embabel.common.util.loggerFor
 import org.springframework.beans.factory.InitializingBean
+import org.springframework.beans.factory.getBeansWithAnnotation
 import org.springframework.context.ApplicationContext
 import org.springframework.stereotype.Component
 
@@ -39,12 +40,12 @@ import org.springframework.stereotype.Component
  * agents are registered or used in the system.
  */
 @Component
-class AgentStructureValidator(
+class DefaultAgentStructureValidator(
     val context: ApplicationContext,
-) : InitializingBean, AgentValidator {
+) : InitializingBean, AgentStructureAgentValidator {
 
     override fun afterPropertiesSet() {
-        val agentBeans = context.getBeansWithAnnotation(Agent::class.java)
+        val agentBeans = context.getBeansWithAnnotation<Agent>()
         agentBeans.values.forEach { bean ->
             val clazz = getOriginalClass(bean.javaClass)
             val actionMethods = clazz.declaredMethods.filter { it.isAnnotationPresent(Action::class.java) }
@@ -65,7 +66,7 @@ class AgentStructureValidator(
                         component = clazz.name
                     )
                 )
-                loggerFor<AgentStructureValidator>().warn(error.toString())
+                loggerFor<DefaultAgentStructureValidator>().warn(error.toString())
             }
         }
     }
