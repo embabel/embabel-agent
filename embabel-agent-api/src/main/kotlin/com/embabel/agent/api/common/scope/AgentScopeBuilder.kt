@@ -24,6 +24,9 @@ import com.embabel.agent.core.AgentScope
  */
 interface AgentScopeBuilder {
 
+    /**
+     * Emit an AgentScope
+     */
     fun build(): AgentScope
 
     companion object {
@@ -43,15 +46,6 @@ interface AgentScopeBuilder {
         @JvmStatic
         fun fromInstances(vararg instances: Any): AgentScopeBuilder {
             return FromInstancesAgentScopeBuilder(instances.toList())
-        }
-
-        /**
-         * Create an AgentScopeBuilder from an AgentPlatform,
-         * exposing all actions and goals
-         */
-        @JvmStatic
-        fun fromPlatform(agentPlatform: AgentPlatform): AgentScopeBuilder {
-            return FromPlatformAgentScopeBuilder(agentPlatform)
         }
     }
 }

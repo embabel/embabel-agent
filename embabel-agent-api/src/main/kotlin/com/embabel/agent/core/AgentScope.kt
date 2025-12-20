@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.common.scope.AgentScopeBuilder
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Named
@@ -41,7 +42,7 @@ interface ActionSource {
  * Defines the scope of an agent or agents: Goals, conditions and actions.
  * Both Agents and AgentPlatforms are AgentScopes.
  */
-interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString {
+interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString, AgentScopeBuilder {
 
     /**
      * Whether to hide the agent's actions and conditions
@@ -117,6 +118,8 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
             )
         }
     }
+
+    override fun build(): AgentScope = this
 }
 
 private data class AgentScopeImpl(

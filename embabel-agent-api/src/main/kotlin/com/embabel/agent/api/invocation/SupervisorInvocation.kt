@@ -47,7 +47,7 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
     private val goalType: Class<T>,
     private val goalDescription: String = "Produce ${goalType.simpleName}",
     private val processOptions: ProcessOptions = ProcessOptions(),
-    private val agentScopeBuilder: AgentScopeBuilder = AgentScopeBuilder.fromPlatform(agentPlatform),
+    private val agentScopeBuilder: AgentScopeBuilder = agentPlatform,
 ) : TypedInvocation<T, SupervisorInvocation<T>>, ScopedInvocation<SupervisorInvocation<T>> {
 
     override val resultType: Class<T> get() = goalType

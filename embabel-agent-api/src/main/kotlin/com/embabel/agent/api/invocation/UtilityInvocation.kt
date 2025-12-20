@@ -34,7 +34,7 @@ import java.util.concurrent.CompletableFuture
 data class UtilityInvocation @JvmOverloads constructor(
     private val agentPlatform: AgentPlatform,
     private val processOptions: ProcessOptions = ProcessOptions(),
-    private val agentScopeBuilder: AgentScopeBuilder = AgentScopeBuilder.fromPlatform(agentPlatform),
+    private val agentScopeBuilder: AgentScopeBuilder = agentPlatform,
 ) : BaseInvocation<UtilityInvocation>, ScopedInvocation<UtilityInvocation> {
 
     private val logger = LoggerFactory.getLogger(javaClass)
