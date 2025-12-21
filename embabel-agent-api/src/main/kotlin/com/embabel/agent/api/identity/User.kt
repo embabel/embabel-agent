@@ -35,3 +35,13 @@ interface User {
 
     val email: String?
 }
+
+/**
+ * Convenient implementation class for a user
+ */
+data class SimpleUser(
+    override val id: String,
+    override val displayName: String,
+    override val username: String,
+    override val email: String?
+) : User
