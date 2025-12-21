@@ -87,7 +87,7 @@ data class RepositoryReferenceProvider(
         url: String,
         description: String,
         branch: String? = null,
-        depth: Int? = null,
+        depth: Int = 1,
     ): ClonedRepositoryReference {
         val tempDir = createTempDirectory()
 
@@ -96,10 +96,9 @@ data class RepositoryReferenceProvider(
             val cloneCommand = Git.cloneRepository()
                 .setURI(url)
                 .setDirectory(tempDir.toFile())
-                .setCloneAllBranches(branch == null)
+                .setDepth(depth)
 
             branch?.let { cloneCommand.setBranch(it) }
-            depth?.let { cloneCommand.setDepth(it) }
 
             cloneCommand.call().use { git ->
                 // Verify clone was successful
@@ -108,7 +107,7 @@ data class RepositoryReferenceProvider(
                 }
             }
 
-            logger.info("✅ Cloned Git repository from {} into temp dir {}", url, tempDir.absolutePathString())
+            logger.info("✅ Cloned Git repository {} into temp dir {}", url, tempDir.absolutePathString())
             return ClonedRepositoryReference(
                 url = url,
                 description = description,
@@ -140,7 +139,7 @@ data class RepositoryReferenceProvider(
         description: String,
         targetDirectory: Path,
         branch: String? = null,
-        depth: Int? = null,
+        depth: Int = 1,
     ): ClonedRepositoryReference {
         if (Files.exists(targetDirectory) && Files.list(targetDirectory).use { it.findFirst().isPresent }) {
             throw IllegalArgumentException("Target directory $targetDirectory already exists and is not empty")
@@ -151,10 +150,9 @@ data class RepositoryReferenceProvider(
         val cloneCommand = Git.cloneRepository()
             .setURI(url)
             .setDirectory(targetDirectory.toFile())
-            .setCloneAllBranches(branch == null)
+            .setDepth(depth)
 
         branch?.let { cloneCommand.setBranch(it) }
-        depth?.let { cloneCommand.setDepth(it) }
 
         cloneCommand.call().use { git ->
             // Verify clone was successful
