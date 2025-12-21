@@ -19,11 +19,7 @@ import com.embabel.agent.rag.model.MaterializedDocument
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.store.ChunkingContentElementRepository
 import com.embabel.agent.rag.store.DocumentDeletionResult
-import io.mockk.clearAllMocks
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
-import io.mockk.verifyOrder
+import io.mockk.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -144,10 +140,10 @@ class ContentRefreshPolicyTest {
             every { mockRepository.existsRootWithUri(any()) } returns false
             assertTrue(NeverRefreshExistingDocumentContentPolicy.shouldRefreshDocument(mockRepository, document))
 
-            every { mockRepository.count() } returns 0
+            every { mockRepository.info().contentElementCount } returns 0
             assertTrue(NeverRefreshExistingDocumentContentPolicy.shouldRefreshDocument(mockRepository, document))
 
-            every { mockRepository.count() } returns 1000
+            every { mockRepository.info().contentElementCount } returns 1000
             assertTrue(NeverRefreshExistingDocumentContentPolicy.shouldRefreshDocument(mockRepository, document))
         }
 
@@ -180,7 +176,12 @@ class ContentRefreshPolicyTest {
                 children = emptyList()
             )
 
-            assertTrue(NeverRefreshExistingDocumentContentPolicy.shouldRefreshDocument(mockRepository, documentWithTimestamp))
+            assertTrue(
+                NeverRefreshExistingDocumentContentPolicy.shouldRefreshDocument(
+                    mockRepository,
+                    documentWithTimestamp
+                )
+            )
         }
 
         @Test
@@ -784,7 +785,10 @@ class ContentRefreshPolicyTest {
             every { mockRepository.existsRootWithUri(matchingUri) } returns true
             every { mockRepository.existsRootWithUri(nonMatchingUri) } returns true
             every { mockReader.parseUrl(matchingUri) } returns document
-            every { mockRepository.deleteRootAndDescendants(matchingUri) } returns DocumentDeletionResult(matchingUri, 3)
+            every { mockRepository.deleteRootAndDescendants(matchingUri) } returns DocumentDeletionResult(
+                matchingUri,
+                3
+            )
             every { mockRepository.writeAndChunkDocument(document) } returns emptyList()
 
             // Matching URI should be refreshed
@@ -890,7 +894,7 @@ class ContentRefreshPolicyTest {
                 override fun shouldReread(
                     repository: ChunkingContentElementRepository,
                     rootUri: String,
-                ): Boolean = repository.count() < 100
+                ): Boolean = repository.info().contentElementCount < 100
 
                 override fun shouldRefreshDocument(
                     repository: ChunkingContentElementRepository,
@@ -898,7 +902,7 @@ class ContentRefreshPolicyTest {
                 ): Boolean = true
             }
 
-            every { mockRepository.count() } returns 50
+            every { mockRepository.info().contentElementCount } returns 50
             every { mockRepository.existsRootWithUri(uri) } returns true
             every { mockReader.parseUrl(uri) } returns document
             every { mockRepository.deleteRootAndDescendants(uri) } returns DocumentDeletionResult(uri, 3)
@@ -914,7 +918,7 @@ class ContentRefreshPolicyTest {
             verify(exactly = 1) { mockRepository.writeAndChunkDocument(document) }
 
             // Test when repository is full
-            every { mockRepository.count() } returns 150
+            every { mockRepository.info().contentElementCount } returns 150
 
             policy.ingestUriIfNeeded(
                 repository = mockRepository,

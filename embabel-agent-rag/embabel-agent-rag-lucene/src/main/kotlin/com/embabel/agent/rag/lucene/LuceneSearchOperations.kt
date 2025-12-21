@@ -185,10 +185,6 @@ class LuceneSearchOperations @JvmOverloads constructor(
         TODO("Entities not supported in LuceneRagService")
     }
 
-    override fun count(): Int =
-        contentElementStorage.size
-
-
     override fun findById(id: String): ContentElement? {
         return contentElementStorage[id]
     }
@@ -1208,7 +1204,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         return count
     }
 
-    fun info(): LuceneStatistics {
+    override fun info(): LuceneStatistics {
         val docCount = try {
             refreshReaderIfNeeded()
             directoryReader?.numDocs() ?: 0
@@ -1217,8 +1213,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
         }
 
         return LuceneStatistics(
-            totalChunks = contentElementStorage.size,
-            totalDocuments = docCount,
+            chunkCount = findAll(Chunk::class.java).size,
+            contentElementCount = contentElementStorage.size,
+            documentCount = docCount,
             averageChunkLength = if (contentElementStorage.isNotEmpty()) {
                 contentElementStorage.values.filterIsInstance<Chunk>().map { it.text.length }.average()
             } else 0.0,
@@ -1235,8 +1232,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
  * Statistics about the Lucene RAG service state
  */
 data class LuceneStatistics(
-    override val totalChunks: Int,
-    override val totalDocuments: Int,
+    override val chunkCount: Int,
+    override val documentCount: Int,
+    override val contentElementCount: Int,
     val averageChunkLength: Double,
     override val hasEmbeddings: Boolean,
     val vectorWeight: Double,
