@@ -162,6 +162,46 @@ class GitHubSkillDefinitionLoader(
         }
     }
 
+    /**
+     * Load skills from a GitHub URL.
+     *
+     * Parses URLs in the following formats:
+     * - `https://github.com/owner/repo`
+     * - `https://github.com/owner/repo/tree/branch`
+     * - `https://github.com/owner/repo/tree/branch/path/to/skills`
+     * - `https://github.com/owner/repo/blob/branch/path/to/skill`
+     *
+     * @param url the GitHub URL to parse and load from
+     * @return list of loaded skills
+     * @throws SkillLoadException if the URL is invalid or skills cannot be loaded
+     */
+    fun fromGitHubUrl(url: String): List<LoadedSkill> {
+        val parsed = parseGitHubUrl(url)
+        return fromGitHub(
+            owner = parsed.owner,
+            repo = parsed.repo,
+            branch = parsed.branch,
+            skillsPath = parsed.path,
+        )
+    }
+
+    /**
+     * Load a single skill from a GitHub URL pointing to a skill directory.
+     *
+     * @param url the GitHub URL pointing to a skill directory
+     * @return the loaded skill
+     * @throws SkillLoadException if the URL is invalid or skill cannot be loaded
+     */
+    fun loadSkillFromGitHubUrl(url: String): LoadedSkill {
+        val parsed = parseGitHubUrl(url)
+        return loadSkillFromGitHub(
+            owner = parsed.owner,
+            repo = parsed.repo,
+            skillPath = parsed.path ?: throw SkillLoadException("URL must include a path to the skill: $url"),
+            branch = parsed.branch,
+        )
+    }
+
     companion object {
 
         /**
@@ -169,5 +209,44 @@ class GitHubSkillDefinitionLoader(
          */
         @JvmStatic
         fun create(): GitHubSkillDefinitionLoader = GitHubSkillDefinitionLoader()
+
+        /**
+         * Parse a GitHub URL into its components.
+         *
+         * @param url the GitHub URL to parse
+         * @return parsed components
+         * @throws SkillLoadException if the URL is not a valid GitHub URL
+         */
+        @JvmStatic
+        fun parseGitHubUrl(url: String): ParsedGitHubUrl {
+            val cleanUrl = url.trimEnd('/')
+
+            // Match: https://github.com/owner/repo[/tree|blob/branch[/path]]
+            val pattern = Regex(
+                """^https?://github\.com/([^/]+)/([^/]+)(?:/(tree|blob)/([^/]+)(?:/(.+))?)?$"""
+            )
+
+            val match = pattern.matchEntire(cleanUrl)
+                ?: throw SkillLoadException("Invalid GitHub URL format: $url")
+
+            val (owner, repo, _, branch, path) = match.destructured
+
+            return ParsedGitHubUrl(
+                owner = owner,
+                repo = repo.removeSuffix(".git"),
+                branch = branch.takeIf { it.isNotEmpty() },
+                path = path.takeIf { it.isNotEmpty() },
+            )
+        }
     }
 }
+
+/**
+ * Parsed components of a GitHub URL.
+ */
+data class ParsedGitHubUrl(
+    val owner: String,
+    val repo: String,
+    val branch: String?,
+    val path: String?,
+)

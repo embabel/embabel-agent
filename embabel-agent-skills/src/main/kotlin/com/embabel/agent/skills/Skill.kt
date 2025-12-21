@@ -118,6 +118,27 @@ data class Skills @JvmOverloads constructor(
         return copy(skills = skills + loadedSkills)
     }
 
+    /**
+     * Load skills from a GitHub URL.
+     *
+     * Parses URLs in the following formats:
+     * - `https://github.com/owner/repo`
+     * - `https://github.com/owner/repo/tree/branch`
+     * - `https://github.com/owner/repo/tree/branch/path/to/skills`
+     * - `https://github.com/owner/repo/blob/branch/path/to/skill`
+     *
+     * @param url the GitHub URL to load skills from
+     */
+    fun withGitHubUrl(url: String): Skills {
+        val loadedSkills = gitHubSkillDefinitionLoader.fromGitHubUrl(url)
+        if (loadedSkills.isEmpty()) {
+            logger.warn("No skills found at GitHub URL: $url")
+        } else {
+            logger.info("Loaded ${loadedSkills.size} skills from GitHub URL: $url")
+        }
+        return copy(skills = skills + loadedSkills)
+    }
+
     private val tools: List<Tool> = buildList { }
 
     override fun tools(): List<Tool> = tools

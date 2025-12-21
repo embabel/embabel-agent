@@ -10,7 +10,7 @@ val skills = Skills(
     description = "Skills for my agent"
 )
     .withLocalSkills("/path/to/skills")
-    .withGitHubSkills(owner = "myorg", repo = "my-skills-repo")
+    .withGitHubUrl("https://github.com/anthropics/skills/tree/main/skills")
 ```
 
 ## Loading Behavior
@@ -43,11 +43,22 @@ skills/
 
 ### GitHub Loading
 
-**Repository loading** (`withGitHubSkills`): Performs a shallow clone (depth=1) of the repository.
+**URL-based loading** (`withGitHubUrl`): Load skills directly from a GitHub URL. The URL is parsed to extract owner, repo, branch, and path.
 
-- If the target path contains `SKILL.md` at root, loads as a single skill
-- Otherwise, scans immediate subdirectories for skills (same as local loading)
-- Repository is automatically cleaned up after loading
+```kotlin
+// Load from a GitHub URL (owner, repo, branch, path inferred)
+skills.withGitHubUrl("https://github.com/anthropics/skills/tree/main/skills")
+
+// Single skill from URL
+skills.withGitHubUrl("https://github.com/owner/repo/tree/main/path/to/my-skill")
+```
+
+Supported URL formats:
+- `https://github.com/owner/repo`
+- `https://github.com/owner/repo/tree/branch`
+- `https://github.com/owner/repo/tree/branch/path/to/skills`
+
+**Explicit parameters** (`withGitHubSkills`): Performs a shallow clone (depth=1) of the repository.
 
 ```kotlin
 // Load all skills from repo root
@@ -68,7 +79,10 @@ skills.withGitHubSkills(
 )
 ```
 
-**Single skill** (`loadSkillFromGitHub` on `GitHubSkillDefinitionLoader`): Loads one skill from a specific path in the repository.
+**Behavior:**
+- If the target path contains `SKILL.md` at root, loads as a single skill
+- Otherwise, scans immediate subdirectories for skills (same as local loading)
+- Repository is automatically cleaned up after loading
 
 ### Git URL Loading
 
