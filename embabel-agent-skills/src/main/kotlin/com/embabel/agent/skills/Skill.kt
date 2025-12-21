@@ -152,6 +152,9 @@ data class Skills @JvmOverloads constructor(
             ${frontMatterFormatter.format(skills)}
 
             Use these skills to assist in completing the user's request.
+            You use a particular skill by calling the "activate" tool with the skill's name
+            as parameter. You can also load skill resources (scripts, references, or assets)
+            using the "listResources" and "readResource" tools.
         """.trimIndent()
     }
 
