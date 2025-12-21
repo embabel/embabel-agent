@@ -37,6 +37,8 @@ include::customizing/page.adoc[]
 
 include::integrations/page.adoc[]
 
+include::agent_skills/page.adoc[]
+
 include::testing/page.adoc[]
 
 include::architecture/page.adoc[]

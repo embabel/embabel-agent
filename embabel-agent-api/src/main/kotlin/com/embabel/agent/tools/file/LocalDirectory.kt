@@ -21,7 +21,7 @@ import com.embabel.common.util.StringTransformer
 /**
  * Readonly access to a project on the local filesystem.
  */
-class LocalDirectory(
+data class LocalDirectory @JvmOverloads constructor(
     override val root: String,
     override val description: String,
     val notes: String = "",
@@ -34,4 +34,9 @@ class LocalDirectory(
     override val name: String get() = root.substringAfterLast('/')
 
     override fun notes() = notes
+
+    /**
+     * Returns a copy of this LocalDirectory with the given usage notes.
+     */
+    fun withUsageNotes(notes: String) = copy(notes = notes)
 }
