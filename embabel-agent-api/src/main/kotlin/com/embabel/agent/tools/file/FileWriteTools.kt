@@ -222,7 +222,10 @@ interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToo
             logger.info("Extracted zip file project to {}", projectDir.absolutePath)
 
             if (delete) {
-                zipFile.delete()
+                val deleted = zipFile.delete()
+                if (!deleted) {
+                    logger.warn("Failed to delete zip file at {}", zipFile.absolutePath)
+                }
             }
             return File(projectDir, zipFile.nameWithoutExtension)
         }
