@@ -89,16 +89,30 @@ internal fun triggerPrecondition(triggerType: Class<*>): String =
 
 /**
  * Check if a class is a @State type.
- * Respects inheritance - returns true if the class itself or any of its
- * superclasses has the @State annotation.
+ * Respects inheritance - returns true if the class itself, any of its
+ * superclasses, or any implemented interfaces has the @State annotation.
  */
 internal fun isStateType(clazz: Class<*>): Boolean {
-    var current: Class<*>? = clazz
-    while (current != null && current != Any::class.java) {
-        if (current.isAnnotationPresent(State::class.java)) {
+    val visited = mutableSetOf<Class<*>>()
+    return isStateTypeRecursive(clazz, visited)
+}
+
+private fun isStateTypeRecursive(clazz: Class<*>?, visited: MutableSet<Class<*>>): Boolean {
+    if (clazz == null || clazz == Any::class.java || !visited.add(clazz)) {
+        return false
+    }
+    if (clazz.isAnnotationPresent(State::class.java)) {
+        return true
+    }
+    // Check superclass
+    if (isStateTypeRecursive(clazz.superclass, visited)) {
+        return true
+    }
+    // Check all interfaces
+    for (iface in clazz.interfaces) {
+        if (isStateTypeRecursive(iface, visited)) {
             return true
         }
-        current = current.superclass
     }
     return false
 }

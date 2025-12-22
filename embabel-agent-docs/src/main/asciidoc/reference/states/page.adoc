@@ -46,7 +46,35 @@ record ProcessingState(String data) {
 }
 ----
 
-When an action returns a `@State`-annotated class:
+===== Inheritance
+
+The `@State` annotation is inherited through the class hierarchy.
+If a superclass or interface is annotated with `@State`, all subclasses and implementing classes are automatically considered state types.
+This means you don't need to annotate every class in a hierarchy - just annotate the base type.
+
+[source,java]
+----
+@State
+interface Stage {}  // <1>
+
+record AssessStory(String content) implements Stage { ... }  // <2>
+record ReviseStory(String content) implements Stage { ... }
+record Done(String content) implements Stage { ... }
+----
+
+<1> Only the parent interface needs `@State`
+<2> Implementing records are automatically treated as state types
+
+This works with:
+
+- **Interfaces**: Classes implementing a `@State` interface are state types
+- **Abstract classes**: Classes extending a `@State` abstract class are state types
+- **Concrete classes**: Classes extending a `@State` class are state types
+- **Deep hierarchies**: The annotation is inherited through multiple levels
+
+===== Behavior
+
+When an action returns a `@State`-annotated class (or a class that inherits `@State`):
 
 - The returned object is bound to the blackboard (as `it`)
 - All other objects on the blackboard are cleared
@@ -59,15 +87,15 @@ For example, in the `WriteAndReviewAgent` below, each state carries `userInput`,
 
 ==== Parent State Interface Pattern
 
-For dynamic choice between states, define a parent interface (or sealed interface/class) that child states implement:
+For dynamic choice between states, define a parent interface (or sealed interface/class) that child states implement.
+Thanks to <<Inheritance,inheritance>>, you only need to annotate the parent interface - all implementing classes are automatically state types:
 
 [source,java]
 ----
 @State
-interface Stage {}
+interface Stage {}  // <1>
 
-@State
-record AssessStory(String content) implements Stage {
+record AssessStory(String content) implements Stage {  // <2>
     @Action
     Stage assess() {
         if (isAcceptable()) {
@@ -78,7 +106,6 @@ record AssessStory(String content) implements Stage {
     }
 }
 
-@State
 record ReviseStory(String content) implements Stage {
     @Action
     AssessStory revise() {
@@ -86,7 +113,6 @@ record ReviseStory(String content) implements Stage {
     }
 }
 
-@State
 record Done(String content) implements Stage {
     @AchievesGoal(description = "Processing complete")
     @Action
@@ -95,6 +121,9 @@ record Done(String content) implements Stage {
     }
 }
 ----
+
+<1> `@State` on the parent interface
+<2> No `@State` needed on implementing records - they inherit it from `Stage`
 
 This pattern enables:
 
@@ -380,7 +409,8 @@ In Kotlin, data classes declared inside a class are inner by default; use top-le
 
 ==== Key Points
 
-- Annotate state classes with `@State`
+- Annotate state classes with `@State` (or inherit from a `@State`-annotated type)
+- `@State` is inherited through class hierarchies - annotate only the base type
 - Use **static nested classes** (Java records) or **top-level classes** to avoid persistence issues
 - Use a parent interface for polymorphic state returns
 - State actions are automatically discovered and registered

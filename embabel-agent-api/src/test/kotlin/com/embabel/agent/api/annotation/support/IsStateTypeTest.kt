@@ -41,6 +41,33 @@ class IsStateTypeTest {
 
     private class DeepSubclass : IntermediateNonStateClass()
 
+    // Interface inheritance tests
+    @State
+    private interface StateInterface
+
+    private class ImplementsStateInterface : StateInterface
+
+    private interface NonStateInterface
+
+    private class ImplementsNonStateInterface : NonStateInterface
+
+    @State
+    private interface BaseStateInterface
+
+    private interface ExtendedStateInterface : BaseStateInterface
+
+    private class ImplementsExtendedStateInterface : ExtendedStateInterface
+
+    // Multiple interface inheritance
+    private interface RegularInterface
+
+    private class ImplementsMultipleIncludingState : RegularInterface, StateInterface
+
+    // Class extends class and implements @State interface
+    private open class RegularClass
+
+    private class ExtendsClassImplementsStateInterface : RegularClass(), StateInterface
+
     @Test
     fun `returns true for class directly annotated with State`() {
         assertTrue(isStateType(DirectStateClass::class.java))
@@ -75,5 +102,37 @@ class IsStateTypeTest {
     fun `returns false for primitive wrapper types`() {
         assertFalse(isStateType(String::class.java))
         assertFalse(isStateType(Int::class.java))
+    }
+
+    // Interface inheritance tests
+
+    @Test
+    fun `returns true for interface directly annotated with State`() {
+        assertTrue(isStateType(StateInterface::class.java))
+    }
+
+    @Test
+    fun `returns true for class implementing State-annotated interface`() {
+        assertTrue(isStateType(ImplementsStateInterface::class.java))
+    }
+
+    @Test
+    fun `returns false for class implementing non-State interface`() {
+        assertFalse(isStateType(ImplementsNonStateInterface::class.java))
+    }
+
+    @Test
+    fun `returns true for class implementing interface that extends State-annotated interface`() {
+        assertTrue(isStateType(ImplementsExtendedStateInterface::class.java))
+    }
+
+    @Test
+    fun `returns true for class implementing multiple interfaces including State`() {
+        assertTrue(isStateType(ImplementsMultipleIncludingState::class.java))
+    }
+
+    @Test
+    fun `returns true for class extending regular class and implementing State interface`() {
+        assertTrue(isStateType(ExtendsClassImplementsStateInterface::class.java))
     }
 }
