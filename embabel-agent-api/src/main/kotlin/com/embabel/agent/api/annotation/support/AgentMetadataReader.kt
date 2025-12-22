@@ -340,7 +340,7 @@ class AgentMetadataReader(
     private fun findStateClasses(type: Class<*>): List<Class<*>> {
         val result = mutableListOf<Class<*>>()
         // Check if the type itself is a @State
-        if (type.isAnnotationPresent(State::class.java)) {
+        if (isStateType(type)) {
             validateStateClass(type)
             result.add(type)
         }
@@ -349,7 +349,7 @@ class AgentMetadataReader(
         val jvmType = JvmType(type)
         val children = jvmType.children()
         for (child in children) {
-            if (child.clazz.isAnnotationPresent(State::class.java)) {
+            if (isStateType(child.clazz)) {
                 validateStateClass(child.clazz)
                 result.add(child.clazz)
             }

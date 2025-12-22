@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.annotation.State
+import com.embabel.agent.api.annotation.support.isStateType
 import com.embabel.agent.api.common.SomeOf
 import com.embabel.agent.api.common.Transformation
 import com.embabel.agent.api.common.TransformationActionContext
@@ -96,7 +96,7 @@ class MultiTransformationAction<O : Any>(
                 processContext.blackboard.clear()
             }
 
-            if (output.javaClass.isAnnotationPresent(State::class.java)) {
+            if (isStateType(output.javaClass)) {
                 processContext.onProcessEvent(
                     StateTransitionEvent(
                         agentProcess = processContext.agentProcess,

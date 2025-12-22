@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.annotation.support
 
+import com.embabel.agent.api.annotation.State
 import com.embabel.agent.api.annotation.Action as ActionAnnotation
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.core.Action
@@ -85,3 +86,19 @@ internal fun findTriggerType(method: Method): Class<*>? {
  */
 internal fun triggerPrecondition(triggerType: Class<*>): String =
     "${IoBinding.LAST_RESULT_BINDING}:${triggerType.name}"
+
+/**
+ * Check if a class is a @State type.
+ * Respects inheritance - returns true if the class itself or any of its
+ * superclasses has the @State annotation.
+ */
+internal fun isStateType(clazz: Class<*>): Boolean {
+    var current: Class<*>? = clazz
+    while (current != null && current != Any::class.java) {
+        if (current.isAnnotationPresent(State::class.java)) {
+            return true
+        }
+        current = current.superclass
+    }
+    return false
+}

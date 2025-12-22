@@ -18,7 +18,6 @@ package com.embabel.agent.api.annotation.support
 import com.embabel.agent.api.annotation.AwaitableResponseException
 import com.embabel.agent.api.annotation.RequireNameMatch
 import com.embabel.agent.api.annotation.SpecialReturnException
-import com.embabel.agent.api.annotation.State
 import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
@@ -73,7 +72,7 @@ internal class DefaultActionMethodManager(
         val inputs = resolveInputBindings(method)
 
         require(method.returnType != null) { "Action method ${method.name} must have a return type" }
-        val clearBlackboard = method.returnType.isAnnotationPresent(State::class.java) ||
+        val clearBlackboard = isStateType(method.returnType) ||
                 actionAnnotation.clearBlackboard
 
         // Check for @Trigger parameter and create precondition
