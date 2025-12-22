@@ -17,17 +17,12 @@ package com.embabel.agent.config.annotation.spi;
 
 import com.embabel.agent.config.annotation.EnableAgents;
 import com.embabel.common.util.WinUtils;
-import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.env.ConfigurableEnvironment;
-
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 /**
  * Environment post-processor that activates Spring profiles and sets properties
@@ -40,7 +35,6 @@ import java.util.Set;
  * <h3>Processing Order:</h3>
  * <ol>
  *   <li><b>Logging Theme</b> - From {@code @EnableAgents(loggingTheme="...")}</li>
- *   <li><b>MCP Servers</b> - From {@code @EnableAgents(mcpServers={...})}</li>
  * </ol>
  *
  * <h3>Profile Activation:</h3>
@@ -50,18 +44,7 @@ import java.util.Set;
  *   <li>Environment API: {@code environment.addActiveProfile()} - for direct activation</li>
  * </ul>
  *
- * <h3>Example:</h3>
- * <pre>{@code
- * @SpringBootApplication
- * @EnableAgents(
- *     loggingTheme = LoggingThemes.START_WARS
- *     mcpServer = {McpServers.DOCKER_DESKTOP}
- * )
- * public class MyApp {
- *     // Result: Application comes up with Start Wars Theme, Local Models for Ollama
- *     // and will try to connect to Docker Desktop MCP server.
- * }
- * }</pre>
+ * </pre>
  *
  * <h3>Implementation Notes:</h3>
  * <ul>
@@ -101,8 +84,6 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
      */
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        // Use LinkedHashSet to maintain order and avoid duplicates
-        var allProfiles = new LinkedHashSet<String>();
 
         // 1. Get loggingTheme and set corresponding properties
         var loggingTheme = findLoggingTheme(application);
@@ -113,18 +94,6 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
             logger.info("Found loggingTheme '{}' - adding property: {}", LOGGING_THEME_PROPERTY, loggingTheme);
         }
 
-
-        // 2. Get profiles from mcpServers
-        var mcpServerProfiles = findMcpServers(application);
-        if (ArrayUtils.isNotEmpty(mcpServerProfiles)) {
-            allProfiles.addAll(Arrays.asList(mcpServerProfiles));
-            logger.info("Found mcpServers - adding profiles: {}", Arrays.toString(mcpServerProfiles));
-        }
-
-        // Apply all collected profiles
-        if (!allProfiles.isEmpty()) {
-            activateProfiles(environment, allProfiles);
-        }
     }
 
 
@@ -138,19 +107,6 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
         EnableAgents enableAgents = findEnableAgentsAnnotation(application);
         // Return theme or empty string to avoid null handling
         return enableAgents != null ? enableAgents.loggingTheme() : "";
-    }
-
-
-    /**
-     * Finds MCP server profile from {@code @EnableAgents} annotation.
-     *
-     * @param application the Spring application
-     * @return array of MCP server names, empty if none specified
-     */
-    private String[] findMcpServers(SpringApplication application) {
-        EnableAgents enableAgents = findEnableAgentsAnnotation(application);
-        // Return array or empty array to avoid null
-        return enableAgents != null ? enableAgents.mcpServers() : new String[0];
     }
 
     /**
@@ -171,34 +127,6 @@ public class EnvironmentPostProcessor implements org.springframework.boot.env.En
             }
         }
         return null;
-    }
-
-    /**
-     * Activates the collected profiles in both system properties and the environment.
-     *
-     * @param environment the Spring environment
-     * @param profiles    the profiles to activate
-     */
-    private void activateProfiles(ConfigurableEnvironment environment, Set<String> profiles) {
-        // Get existing profiles from system property
-        String existingProfiles = System.getProperty(SPRING_PROFILES_ACTIVE);
-
-        if (existingProfiles != null && !existingProfiles.isEmpty()) {
-            // Merge with existing profiles, maintaining uniqueness
-            var mergedProfiles = new LinkedHashSet<String>();
-            // Add existing profiles first to maintain order
-            mergedProfiles.addAll(Arrays.asList(existingProfiles.split(",")));
-            // Add new profiles
-            mergedProfiles.addAll(profiles);
-            // Update environment
-            mergedProfiles.forEach(environment::addActiveProfile);
-        } else {
-            profiles.forEach(environment::addActiveProfile);
-        }
-
-
-        // Log the final state for debugging
-        logger.info("Activated Spring profiles: {}", (Object[]) environment.getActiveProfiles());
     }
 
     /**

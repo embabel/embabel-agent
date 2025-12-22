@@ -18,6 +18,7 @@ package com.embabel.agent.config.annotation;
 /**
  * Well-known provides of MCP tools
  */
+@Deprecated(since = "0.3.1", forRemoval = true)
 public class McpServers {
 
     public static final String DOCKER = "docker-ce";
