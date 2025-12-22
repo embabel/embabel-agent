@@ -108,7 +108,7 @@ class OnMcpConnectionCondition : Condition {
 
             val exists = environment.containsProperty(stdioKey) || environment.containsProperty(sseKey)
 
-            logger.info("MCP connection '{}': exists={}", connectionName, exists)
+            logger.debug("MCP connection '{}': exists={}", connectionName, exists)
             connectionName to exists
         }
 
