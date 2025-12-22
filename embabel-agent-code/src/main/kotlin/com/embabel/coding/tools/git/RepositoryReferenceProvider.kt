@@ -150,7 +150,7 @@ data class RepositoryReferenceProvider(
         url: String,
         targetDir: Path,
         branch: String? = null,
-        depth: Int? = null,
+        depth: Int,
     ) {
         val cloneCommand = Git.cloneRepository()
             .setURI(url)
