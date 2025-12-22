@@ -21,7 +21,9 @@ import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
+import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.common.support.streaming.StreamingPromptRunnerOperationsImpl
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -29,9 +31,9 @@ import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
+import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.embabel.agent.tools.agent.AgentToolCallback
 import com.embabel.agent.tools.agent.Handoffs
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
@@ -224,6 +226,9 @@ internal data class OperationContextPromptRunner(
 
     override fun withToolObject(toolObject: ToolObject): PromptRunner =
         copy(toolObjects = this.toolObjects + toolObject)
+
+    override fun withTool(tool: Tool): PromptRunner =
+        copy(otherToolCallbacks = this.otherToolCallbacks + tool.toSpringToolCallback())
 
     override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner {
         val handoffs = Handoffs(

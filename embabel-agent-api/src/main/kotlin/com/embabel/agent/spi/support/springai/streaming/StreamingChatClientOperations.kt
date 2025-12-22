@@ -321,12 +321,12 @@ internal class StreamingChatClientOperations(
             .stream()
             .content()
             .filter { it.isNotEmpty() }
-            .doOnNext { chunk -> logger.info("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
+            .doOnNext { chunk -> logger.trace("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
 
         // Step 2: Transform raw chunks to complete newline-delimited lines
         val lineFlux: Flux<String> = rawChunkFlux
             .transform { chunkFlux -> rawChunksToLines(chunkFlux) }
-            .doOnNext { line -> logger.info("COMPLETE LINE: '$line'") }
+            .doOnNext { line -> logger.trace("COMPLETE LINE: '$line'") }
 
         // Step 3: Final flux of StreamingEvent (thinking + objects)
         val event = lineFlux
@@ -343,22 +343,26 @@ internal class StreamingChatClientOperations(
      * - line spanning many chunks
      */
     fun rawChunksToLines(raw: Flux<String>): Flux<String> {
-        val buffer = StringBuffer()
-        return raw.handle { chunk, sink ->
+        val buffer = StringBuilder()
+        return raw.concatMap { chunk ->  // ONLY CHANGE: handle → concatMap
             buffer.append(chunk)
+            val lines = mutableListOf<String>()
             while (true) {
                 val idx = buffer.indexOf('\n')
                 if (idx < 0) break
                 val line = buffer.substring(0, idx).trim()
-                if (line.isNotEmpty()) sink.next(line)
+                if (line.isNotEmpty()) lines.add(line)
                 buffer.delete(0, idx + 1)
             }
+
+            Flux.fromIterable(lines)  // emit multiple lines
+
         }.doOnComplete {
             // Log any remaining buffer content when stream ends
             if (buffer.isNotEmpty()) {
                 val finalLine = buffer.toString().trim()
                 if (finalLine.isNotEmpty()) {
-                    logger.info("FINAL LINE: '$finalLine'")
+                    logger.trace("FINAL LINE: '$finalLine'")
                 }
             }
         }.concatWith(

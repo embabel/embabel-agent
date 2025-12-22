@@ -418,6 +418,100 @@ class ToolishRagTest {
     }
 
     @Nested
+    inner class ResultsListenerTests {
+
+        @Test
+        fun `vectorSearch should publish event with non-negative running time`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val chunk = createChunk("chunk1", "Test content")
+            var capturedEvent: ResultsEvent? = null
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9))
+
+            val listener = ResultsListener { event -> capturedEvent = event }
+            val tools = VectorSearchTools(vectorSearch, listener)
+            tools.vectorSearch("test query", 10, 0.5)
+
+            assertTrue(capturedEvent != null)
+            assertTrue(capturedEvent!!.runningTime >= java.time.Duration.ZERO)
+            assertTrue(capturedEvent!!.timestamp <= java.time.Instant.now())
+            assertEquals("test query", capturedEvent!!.query)
+            assertEquals(1, capturedEvent!!.results.size)
+        }
+
+        @Test
+        fun `textSearch should publish event with non-negative running time`() {
+            val textSearch = mockk<TextSearch>()
+            val chunk = createChunk("chunk1", "Test content")
+            var capturedEvent: ResultsEvent? = null
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.85))
+
+            val listener = ResultsListener { event -> capturedEvent = event }
+            val tools = TextSearchTools(textSearch, listener)
+            tools.textSearch("+kotlin", 5, 0.7)
+
+            assertTrue(capturedEvent != null)
+            assertTrue(capturedEvent!!.runningTime >= java.time.Duration.ZERO)
+            assertTrue(capturedEvent!!.timestamp <= java.time.Instant.now())
+            assertEquals("+kotlin", capturedEvent!!.query)
+            assertEquals(1, capturedEvent!!.results.size)
+        }
+
+        @Test
+        fun `regexSearch should publish event with non-negative running time`() {
+            val regexSearch = mockk<RegexSearchOperations>()
+            val chunk = createChunk("chunk1", "Error E001")
+            var capturedEvent: ResultsEvent? = null
+
+            every {
+                regexSearch.regexSearch(any<Regex>(), any(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 1.0))
+
+            val listener = ResultsListener { event -> capturedEvent = event }
+            val tools = RegexSearchTools(regexSearch, listener)
+            tools.regexSearch("E\\d{3}", 10)
+
+            assertTrue(capturedEvent != null)
+            assertTrue(capturedEvent!!.runningTime >= java.time.Duration.ZERO)
+            assertTrue(capturedEvent!!.timestamp <= java.time.Instant.now())
+            assertEquals("E\\d{3}", capturedEvent!!.query)
+            assertEquals(1, capturedEvent!!.results.size)
+        }
+
+        @Test
+        fun `timestamp should represent start time calculated from running time`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val chunk = createChunk("chunk1", "Test content")
+            var capturedEvent: ResultsEvent? = null
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } answers {
+                Thread.sleep(50) // Simulate 50ms search time
+                listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9))
+            }
+
+            val beforeSearch = java.time.Instant.now()
+            val listener = ResultsListener { event -> capturedEvent = event }
+            val tools = VectorSearchTools(vectorSearch, listener)
+            tools.vectorSearch("test query", 10, 0.5)
+            val afterSearch = java.time.Instant.now()
+
+            assertTrue(capturedEvent != null)
+            assertTrue(capturedEvent!!.runningTime >= java.time.Duration.ofMillis(50))
+            assertTrue(capturedEvent!!.runningTime < java.time.Duration.ofSeconds(1))
+            // Timestamp should be the start time (before or at beforeSearch)
+            assertTrue(capturedEvent!!.timestamp >= beforeSearch.minusMillis(10))
+            assertTrue(capturedEvent!!.timestamp <= afterSearch.minus(capturedEvent!!.runningTime).plusMillis(10))
+        }
+    }
+
+    @Nested
     inner class IntegrationTests {
 
         @Test

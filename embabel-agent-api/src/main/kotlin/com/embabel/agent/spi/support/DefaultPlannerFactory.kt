@@ -39,6 +39,7 @@ object DefaultPlannerFactory : PlannerFactory {
         return when (processOptions.plannerType) {
             PlannerType.GOAP -> AStarGoapPlanner(worldStateDeterminer)
             PlannerType.UTILITY -> UtilityPlanner(worldStateDeterminer)
+            PlannerType.SUPERVISOR -> AStarGoapPlanner(worldStateDeterminer)
         }
     }
 }

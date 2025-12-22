@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.NamedAndDescribed
 import com.embabel.common.util.StringTransformer
@@ -70,4 +71,17 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * they will be added automatically.
      */
     fun notes(): String
+
+    /**
+     * Return framework-agnostic tools provided by this reference.
+     * These tools will be added to the PromptRunner when the reference is added.
+     * Defaults to empty list for backward compatibility.
+     *
+     * Use this method to provide tools defined using the [Tool] abstraction,
+     * which is framework-agnostic and can work with different LLM backends.
+     *
+     * @see Tool
+     * @see toolInstances for Spring AI @Tool annotated objects
+     */
+    fun tools(): List<Tool> = emptyList()
 }

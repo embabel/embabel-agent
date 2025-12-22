@@ -30,8 +30,11 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
+import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.ai.tool.ToolCallback
 import java.util.function.Predicate
 
 enum class Method {
@@ -59,6 +62,7 @@ data class FakePromptRunner(
     private val context: OperationContext,
     private val _llmInvocations: MutableList<LlmInvocation> = mutableListOf(),
     private val responses: MutableList<Any?> = mutableListOf(),
+    private val otherToolCallbacks: List<ToolCallback> = emptyList(),
 ) : PromptRunner {
 
     private val logger = LoggerFactory.getLogger(FakePromptRunner::class.java)
@@ -188,7 +192,7 @@ data class FakePromptRunner(
         LlmInteraction(
             llm = llm ?: LlmOptions(),
             toolGroups = this.toolGroups + toolGroups,
-            toolCallbacks = safelyGetToolCallbacks(toolObjects),
+            toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
             promptContributors = promptContributors + contextualPromptContributors.map {
                 it.toPromptContributor(
                     context
@@ -220,6 +224,9 @@ data class FakePromptRunner(
     override fun withToolGroup(toolGroup: ToolGroup): PromptRunner {
         TODO("Not yet implemented")
     }
+
+    override fun withTool(tool: Tool): PromptRunner =
+        copy(otherToolCallbacks = this.otherToolCallbacks + tool.toSpringToolCallback())
 
     override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
         return PromptRunnerObjectCreator(this, outputClass, jacksonObjectMapper())

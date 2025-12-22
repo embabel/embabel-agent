@@ -22,20 +22,26 @@ import com.embabel.agent.rag.model.Embeddable
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.*
 import com.embabel.common.ai.prompt.PromptContributor
-import com.embabel.common.core.types.SimilarityResult
-import com.embabel.common.core.types.TextSimilaritySearchRequest
-import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.core.types.*
 import com.embabel.common.util.loggerFor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
+import java.time.Duration
+import java.time.Instant
 
+/**
+ * Event representing results from a RAG search operation
+ * @param source the source of the event, e.g. the ToolishRag instance
+ */
 data class ResultsEvent(
-    val source: Any,
+    val source: SearchTools,
     val query: String,
     val results: List<SimilarityResult<out Retrievable>>,
-)
+    override val runningTime: Duration,
+    override val timestamp: Instant = Instant.now().minus(runningTime),
+) : Timed, Timestamped
 
 fun interface ResultsListener {
 
@@ -50,6 +56,15 @@ fun interface ResultsListener {
  * If a ResultListener is provided, results will be sent to it as they are retrieved.
  * This enables logging, monitoring, or putting results on a blackboard for later use,
  * versus relying on the LLM to remember them.
+ * @param name the name of the RAG reference
+ * @param description the description of the RAG reference. Important to guide LLM to correct usage
+ * @param searchOperations the search operations to use. If this implements the SearchTools tag interface,
+ * its own tools will be exposed. For example, a Neo store might expose Cypher-driven search
+ * or a relational database SQL-driven search.
+ * @param goal the goal for acceptance criteria when searching
+ * @param formatter the formatter to use for formatting results
+ * @param hints list of hints to provide to the LLM
+ * @param listener optional listener to receive raw structured results as they are retrieved
  */
 data class ToolishRag @JvmOverloads constructor(
     override val name: String,
@@ -67,6 +82,10 @@ data class ToolishRag @JvmOverloads constructor(
 
     private val toolInstances: List<Any> = run {
         buildList {
+            if (searchOperations is SearchTools) {
+                logger.info("Adding existing SearchTools to ToolishRag tools {}", name)
+                add(searchOperations)
+            }
             if (searchOperations is VectorSearch) {
                 logger.info("Adding VectorSearchTools to ToolishRag tools {}", name)
                 add(VectorSearchTools(searchOperations, listener))
@@ -138,12 +157,17 @@ data class ToolishRag @JvmOverloads constructor(
 }
 
 /**
+ * Marker interface for RAG search tools
+ */
+interface SearchTools
+
+/**
  * Classic vector search
  */
 class VectorSearchTools(
     private val vectorSearch: VectorSearch,
     private val resultsListener: ResultsListener? = null,
-) {
+) : SearchTools {
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -154,11 +178,13 @@ class VectorSearchTools(
         @ToolParam(description = "similarity threshold from 0-1") threshold: ZeroToOne,
     ): String {
         logger.info("Performing vector search with query='{}', topK={}, threshold={}", query, topK, threshold)
+        val start = Instant.now()
         val results = vectorSearch.vectorSearch(
             SimpleSearchRequest(query, threshold, topK),
             Chunk::class.java
         )
-        resultsListener?.onResultsEvent(ResultsEvent(this, query, results))
+        val runningTime = Duration.between(start, Instant.now())
+        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, runningTime))
         return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList(results))
     }
 }
@@ -168,7 +194,7 @@ class VectorSearchTools(
  */
 class ResultExpanderTools(
     private val resultExpander: ResultExpander,
-) {
+) : SearchTools {
 
     @Tool(description = "given a chunk ID, expand to surrounding chunks")
     fun broadenChunk(
@@ -203,7 +229,7 @@ class ResultExpanderTools(
 class TextSearchTools(
     private val textSearch: TextSearch,
     private val resultsListener: ResultsListener? = null,
-) {
+) : SearchTools {
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
     @Tool(
@@ -226,11 +252,13 @@ class TextSearchTools(
         @ToolParam(description = "similarity threshold from 0-1") threshold: ZeroToOne,
     ): String {
         logger.info("Performing text search with query='{}', topK={}, threshold={}", query, topK, threshold)
+        val start = Instant.now()
         val results = textSearch.textSearch(
             SimpleSearchRequest(query, threshold, topK),
             Chunk::class.java
         )
-        resultsListener?.onResultsEvent(ResultsEvent(this, query, results))
+        val runningTime = Duration.between(start, Instant.now())
+        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, runningTime))
         return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList(results))
     }
 }
@@ -238,7 +266,7 @@ class TextSearchTools(
 class RegexSearchTools(
     private val textSearch: RegexSearchOperations,
     private val resultsListener: ResultsListener? = null,
-) {
+) : SearchTools {
 
     @Tool(description = "Perform regex search across content elements. Specify topK")
     fun regexSearch(
@@ -246,9 +274,11 @@ class RegexSearchTools(
         topK: Int,
     ): String {
         loggerFor<RegexSearchTools>().info("Performing regex search with regex='{}', topK={}", regex, topK)
+        val start = Instant.now()
         val results = textSearch.regexSearch(Regex(regex), topK, Chunk::class.java)
-        resultsListener?.onResultsEvent(ResultsEvent(this, regex, results))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.Companion.fromList(results))
+        val runningTime = Duration.between(start, Instant.now())
+        resultsListener?.onResultsEvent(ResultsEvent(this, regex, results, runningTime))
+        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList(results))
     }
 }
 

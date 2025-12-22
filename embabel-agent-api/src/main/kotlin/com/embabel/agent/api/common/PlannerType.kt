@@ -33,4 +33,6 @@ enum class PlannerType(val needsGoals: Boolean) {
      * This planner uses utility functions to evaluate actions.
      */
     UTILITY(needsGoals = false),
+
+    SUPERVISOR(needsGoals = true),
 }

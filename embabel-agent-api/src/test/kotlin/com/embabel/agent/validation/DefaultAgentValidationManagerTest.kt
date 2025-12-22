@@ -16,7 +16,7 @@
 package com.embabel.agent.validation
 
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
-import com.embabel.agent.spi.validation.AgentStructureValidator
+import com.embabel.agent.spi.validation.DefaultAgentStructureValidator
 import com.embabel.agent.spi.validation.DefaultAgentValidationManager
 import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -31,7 +31,7 @@ class DefaultAgentValidationManagerTest {
         ac.refresh()
         val manager = DefaultAgentValidationManager(
             validators = listOf(
-                AgentStructureValidator(ac),
+                DefaultAgentStructureValidator(ac),
                 GoapPathToCompletionValidator(),
             )
         )

@@ -24,6 +24,9 @@ import com.embabel.agent.core.AgentScope
  */
 interface AgentScopeBuilder {
 
+    /**
+     * Emit an AgentScope
+     */
     fun build(): AgentScope
 
     companion object {
@@ -37,12 +40,12 @@ interface AgentScopeBuilder {
         }
 
         /**
-         * Create an AgentScopeBuilder from an AgentPlatform,
-         * exposing all actions and goals
+         * Create an AgentScopeBuilder from multiple instances of classes annotated with @Agent or @EmbabelComponent.
+         * Combines all actions, goals, and conditions from the provided instances.
          */
         @JvmStatic
-        fun fromPlatform(agentPlatform: AgentPlatform): AgentScopeBuilder {
-            return FromPlatformAgentScopeBuilder(agentPlatform)
+        fun fromInstances(vararg instances: Any): AgentScopeBuilder {
+            return FromInstancesAgentScopeBuilder(instances.toList())
         }
     }
 }
@@ -54,6 +57,27 @@ private class FromInstanceAgentScopeBuilder(
     override fun build(): AgentScope {
         return AgentMetadataReader().createAgentMetadata(instance)
             ?: throw IllegalArgumentException("$instance does not have agent metadata: @Agent or @EmbabelComponent annotation required")
+    }
+}
+
+private class FromInstancesAgentScopeBuilder(
+    private val instances: List<Any>,
+) : AgentScopeBuilder {
+
+    override fun build(): AgentScope {
+        val reader = AgentMetadataReader()
+        val scopes = instances.map { instance ->
+            reader.createAgentMetadata(instance)
+                ?: throw IllegalArgumentException("$instance does not have agent metadata: @Agent or @EmbabelComponent annotation required")
+        }
+
+        return AgentScope(
+            name = "combined-scope",
+            description = "Combined scope from ${instances.size} instances",
+            actions = scopes.flatMap { it.actions },
+            goals = scopes.flatMap { it.goals }.toSet(),
+            conditions = scopes.flatMap { it.conditions }.toSet(),
+        )
     }
 }
 

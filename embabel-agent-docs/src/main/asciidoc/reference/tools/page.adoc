@@ -303,3 +303,599 @@ context.ai()
 - `withTools(vararg String)`: Convenient method to add multiple tool groups
 - `withToolObject(Any)`: Add domain object with @Tool methods
 - `withToolObject(ToolObject)`: Add ToolObject with custom configuration
+- `withTool(Tool)`: Add a framework-agnostic Tool instance
+- `withTools(List<Tool>)`: Add multiple framework-agnostic Tool instances
+
+[[reference.tools__framework-agnostic]]
+==== Framework-Agnostic Tool Interface
+
+In addition to Spring AI's `@Tool` annotation, Embabel provides its own framework-agnostic `Tool` interface in the `com.embabel.agent.api.tool` package.
+This allows you to create tools that are not tied to any specific LLM framework, making your code more portable and testable.
+
+The `Tool` interface includes nested types to avoid naming conflicts with framework-specific types:
+
+- `Tool.Definition` - Describes the tool (name, description, input schema)
+- `Tool.InputSchema` - Defines the parameters the tool accepts
+- `Tool.Parameter` - A single parameter with name, type, and description
+- `Tool.Result` - The result returned by a tool (text, artifact, or error)
+- `Tool.Handler` - Functional interface for implementing tool logic
+
+===== Creating Tools Programmatically
+
+You can create tools using the `Tool.create()` factory methods:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Simple tool with no parameters
+Tool greetTool = Tool.create(
+    "greet",
+    "Greets the user",
+    (input) -> Tool.Result.text("Hello!")
+);
+
+// Tool with parameters
+Tool addTool = Tool.create(
+    "add",
+    "Adds two numbers together",
+    Tool.InputSchema.of(
+        new Tool.Parameter("a", Tool.ParameterType.INTEGER, "First number", true, null),
+        new Tool.Parameter("b", Tool.ParameterType.INTEGER, "Second number", true, null)
+    ),
+    (input) -> {
+        // Parse input JSON and compute result
+        return Tool.Result.text("42");
+    }
+);
+
+// Tool with metadata (e.g., return directly without LLM processing)
+Tool directTool = Tool.create(
+    "lookup",
+    "Looks up data directly",
+    Tool.Metadata.create(true), // returnDirect = true
+    (input) -> Tool.Result.text("Direct result")
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Simple tool with no parameters
+val greetTool = Tool.of(
+    name = "greet",
+    description = "Greets the user"
+) { _ ->
+    Tool.Result.text("Hello!")
+}
+
+// Tool with parameters
+val addTool = Tool.of(
+    name = "add",
+    description = "Adds two numbers together",
+    inputSchema = Tool.InputSchema.of(
+        Tool.Parameter("a", Tool.ParameterType.INTEGER, "First number", true, null),
+        Tool.Parameter("b", Tool.ParameterType.INTEGER, "Second number", true, null)
+    )
+) { input ->
+    // Parse input JSON and compute result
+    Tool.Result.text("42")
+}
+
+// Tool with metadata
+val directTool = Tool.of(
+    name = "lookup",
+    description = "Looks up data directly",
+    metadata = Tool.Metadata(returnDirect = true)
+) { _ ->
+    Tool.Result.text("Direct result")
+}
+----
+====
+
+===== Creating Tools from Annotated Methods
+
+Embabel provides `@LlmTool` and `@LlmTool.Param` annotations for creating tools from annotated methods.
+This approach is similar to Spring AI's `@Tool` but uses Embabel's framework-agnostic abstractions.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class MathService {
+
+    @LlmTool(description = "Adds two numbers together")
+    public int add(
+            @LlmTool.Param(description = "First number") int a,
+            @LlmTool.Param(description = "Second number") int b) {
+        return a + b;
+    }
+
+    @LlmTool(description = "Multiplies two numbers")
+    public int multiply(
+            @LlmTool.Param(description = "First number") int a,
+            @LlmTool.Param(description = "Second number") int b) {
+        return a * b;
+    }
+}
+
+// Create tools from all annotated methods on an instance
+List<Tool> mathTools = Tool.fromInstance(new MathService());
+
+// Or safely create tools (returns empty list if no annotations found)
+List<Tool> tools = Tool.safelyFromInstance(someObject);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+class MathService {
+
+    @LlmTool(description = "Adds two numbers together")
+    fun add(
+        @LlmTool.Param(description = "First number") a: Int,
+        @LlmTool.Param(description = "Second number") b: Int,
+    ): Int = a + b
+
+    @LlmTool(description = "Multiplies two numbers")
+    fun multiply(
+        @LlmTool.Param(description = "First number") a: Int,
+        @LlmTool.Param(description = "Second number") b: Int,
+    ): Int = a * b
+}
+
+// Create tools from all annotated methods on an instance
+val mathTools = Tool.fromInstance(MathService())
+
+// Or safely create tools (returns empty list if no annotations found)
+val tools = Tool.safelyFromInstance(someObject)
+----
+====
+
+The `@LlmTool` annotation supports:
+
+- `name`: Tool name (defaults to method name if empty)
+- `description`: Description of what the tool does (required)
+- `returnDirect`: Whether to return the result directly without further LLM processing
+
+The `@LlmTool.Param` annotation supports:
+
+- `description`: Description of the parameter (helps the LLM understand what to provide)
+- `required`: Whether the parameter is required (defaults to true)
+
+===== Adding Framework-Agnostic Tools via PromptRunner
+
+Use `withTool()` or `withTools()` to add framework-agnostic tools to a `PromptRunner`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Add a single tool
+Tool calculatorTool = Tool.create("calculate", "Performs calculations",
+    (input) -> Tool.Result.text("Result: 42"));
+
+context.ai()
+    .withDefaultLlm()
+    .withTool(calculatorTool)
+    .createObject("Calculate 6 * 7", MathResult.class);
+
+// Add tools from annotated methods
+List<Tool> mathTools = Tool.fromInstance(new MathService());
+
+context.ai()
+    .withDefaultLlm()
+    .withTools(mathTools)
+    .createObject("Add 5 and 3", MathResult.class);
+
+// Combine with other tool sources
+context.ai()
+    .withDefaultLlm()
+    .withToolGroup(CoreToolGroups.WEB)  // Tool group
+    .withToolObject(domainObject)        // Spring AI @Tool methods
+    .withTools(mathTools)                // Framework-agnostic tools
+    .createObject("Research and calculate", Report.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Add a single tool
+val calculatorTool = Tool.of("calculate", "Performs calculations") { _ ->
+    Tool.Result.text("Result: 42")
+}
+
+context.ai()
+    .withDefaultLlm()
+    .withTool(calculatorTool)
+    .createObject("Calculate 6 * 7", MathResult::class.java)
+
+// Add tools from annotated methods
+val mathTools = Tool.fromInstance(MathService())
+
+context.ai()
+    .withDefaultLlm()
+    .withTools(mathTools)
+    .createObject("Add 5 and 3", MathResult::class.java)
+
+// Combine with other tool sources
+context.ai()
+    .withDefaultLlm()
+    .withToolGroup(CoreToolGroups.WEB)  // Tool group
+    .withToolObject(domainObject)        // Spring AI @Tool methods
+    .withTools(mathTools)                // Framework-agnostic tools
+    .createObject("Research and calculate", Report::class.java)
+----
+====
+
+===== Tool Results
+
+Tools return `Tool.Result` which can be one of three types:
+
+[source,kotlin]
+----
+// Text result (most common)
+Tool.Result.text("The answer is 42")
+
+// Result with an artifact (e.g., generated file, image)
+Tool.Result.withArtifact("Generated report", reportBytes)
+
+// Error result
+Tool.Result.error("Failed to process request", exception)
+----
+
+===== When to Use Each Approach
+
+|===
+|Approach |Use When
+
+|Spring AI `@Tool`
+|You're comfortable with Spring AI and want IDE support for tool annotations on domain objects
+
+|`Tool.create()` / `Tool.of()`
+|You need programmatic tool creation, want framework independence, or are creating tools dynamically
+
+|`@LlmTool` / `@LlmTool.Param`
+|You prefer annotation-based tools but want Embabel's framework-agnostic abstractions
+
+|Tool Groups
+|You need to organize related tools, use MCP servers, or control tool availability at deployment time
+|===
+
+[[reference.tools__agentic-tools]]
+==== Agentic Tools
+
+An *agentic tool* is a tool that uses an LLM to orchestrate other tools.
+Unlike a regular tool which executes deterministic logic, an agentic tool delegates to an LLM that decides which sub-tools to call based on a prompt.
+
+This pattern is useful for encapsulating a mini-orchestration as a single tool that can be used in larger workflows.
+
+===== When to Use Agentic Tools
+
+Agentic tools are appropriate when:
+
+* You have a set of related tools that work together
+* The orchestration logic is simple enough that an LLM can handle it with a prompt
+* You want to expose a high-level capability as a single tool
+
+IMPORTANT: For complex workflows with defined outputs, branching logic, loops, or state management, use Embabel's <<reference.planners,GOAP planner>>, <<reference.planners__utility,Utility AI>>, or <<reference.states,@State workflows>> instead.
+These provide deterministic, typesafe planning that is far more powerful and predictable than LLM-driven orchestration.
+
+===== Creating Agentic Tools
+
+Create agentic tools using the constructor and fluent `with*` methods:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Create sub-tools
+Tool addTool = Tool.create("add", "Adds two numbers", input -> {
+    // Parse JSON input and compute result
+    return Tool.Result.text("5");
+});
+
+Tool multiplyTool = Tool.create("multiply", "Multiplies two numbers", input -> {
+    return Tool.Result.text("6");
+});
+
+// Create the agentic tool
+AgenticTool mathOrchestrator = new AgenticTool("math-orchestrator", "Orchestrates math operations")
+    .withTools(addTool, multiplyTool)
+    .withLlm(LlmOptions.withModel("gpt-4"))
+    .withSystemPrompt("Use the available tools to solve the given math problem");
+
+// Use it like any other tool
+context.ai()
+    .withDefaultLlm()
+    .withTool(mathOrchestrator)
+    .generateText("What is 5 + 3 * 2?");
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Create sub-tools
+val addTool = Tool.of("add", "Adds two numbers") { input ->
+    // Parse JSON input and compute result
+    Tool.Result.text("5")
+}
+
+val multiplyTool = Tool.of("multiply", "Multiplies two numbers") { input ->
+    Tool.Result.text("6")
+}
+
+// Create the agentic tool
+val mathOrchestrator = AgenticTool("math-orchestrator", "Orchestrates math operations")
+    .withTools(addTool, multiplyTool)
+    .withLlm(LlmOptions(model = "gpt-4"))
+    .withSystemPrompt("Use the available tools to solve the given math problem")
+
+// Use it like any other tool
+context.ai()
+    .withDefaultLlm()
+    .withTool(mathOrchestrator)
+    .generateText("What is 5 + 3 * 2?")
+----
+====
+
+TIP: The `withSystemPrompt` call is optional. By default, `AgenticTool` generates a system prompt from the tool's description: _"You are an intelligent agent that can use tools to help you complete tasks. Use the provided tools to perform the following task: {description}"_. Only call `withSystemPrompt` if you need custom orchestration instructions.
+
+===== Defining Input Parameters
+
+IMPORTANT: You must define input parameters for your `AgenticTool` so the LLM knows what arguments to pass when calling it. Without parameters, the LLM won't know what input format to use.
+
+Use the `withParameter` method with `Tool.Parameter` factory methods for concise parameter definitions:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Research tool that requires a topic parameter
+AgenticTool researcher = new AgenticTool("researcher", "Research a topic thoroughly")
+    .withParameter(Tool.Parameter.string("topic", "The topic to research"))
+    .withToolObjects(new SearchTools(), new SummarizerTools());
+
+// Calculator with multiple parameters
+AgenticTool calculator = new AgenticTool("smart-calculator", "Perform complex calculations")
+    .withParameter(Tool.Parameter.string("expression", "Mathematical expression to evaluate"))
+    .withParameter(Tool.Parameter.integer("precision", "Decimal places for result", false))  // optional
+    .withToolObject(new MathTools());
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Research tool that requires a topic parameter
+val researcher = AgenticTool("researcher", "Research a topic thoroughly")
+    .withParameter(Tool.Parameter.string("topic", "The topic to research"))
+    .withToolObjects(SearchTools(), SummarizerTools())
+
+// Calculator with multiple parameters
+val calculator = AgenticTool("smart-calculator", "Perform complex calculations")
+    .withParameter(Tool.Parameter.string("expression", "Mathematical expression to evaluate"))
+    .withParameter(Tool.Parameter.integer("precision", "Decimal places for result", required = false))  // optional
+    .withToolObject(MathTools())
+----
+====
+
+Available parameter factory methods:
+
+- `Tool.Parameter.string(name, description, required?)` - String parameter
+- `Tool.Parameter.integer(name, description, required?)` - Integer parameter
+- `Tool.Parameter.double(name, description, required?)` - Floating-point parameter
+
+All factory methods default to `required = true`. Set `required = false` for optional parameters.
+
+===== Creating Agentic Tools from Annotated Objects
+
+Use `withToolObject` or `withToolObjects` to add tools from objects with `@LlmTool`-annotated methods:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Tool classes with @LlmTool methods
+public class SearchTools {
+    @LlmTool(description = "Search the web")
+    public String search(String query) { return "Results for: " + query; }
+}
+
+public class CalculatorTools {
+    @LlmTool(description = "Add two numbers")
+    public int add(int a, int b) { return a + b; }
+
+    @LlmTool(description = "Multiply two numbers")
+    public int multiply(int a, int b) { return a * b; }
+}
+
+// Create agentic tool with tools from multiple objects
+// Uses default system prompt based on description
+AgenticTool assistant = new AgenticTool("assistant", "Multi-capability assistant")
+    .withToolObjects(new SearchTools(), new CalculatorTools());
+
+// With LLM options and custom system prompt
+AgenticTool smartAssistant = new AgenticTool("smart-assistant", "Smart assistant")
+    .withToolObjects(new SearchTools(), new CalculatorTools())
+    .withLlm(LlmOptions.withModel("gpt-4"))
+    .withSystemPrompt("Use tools intelligently");
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Tool classes with @LlmTool methods
+class SearchTools {
+    @LlmTool(description = "Search the web")
+    fun search(query: String): String = "Results for: $query"
+}
+
+class CalculatorTools {
+    @LlmTool(description = "Add two numbers")
+    fun add(a: Int, b: Int): Int = a + b
+
+    @LlmTool(description = "Multiply two numbers")
+    fun multiply(a: Int, b: Int): Int = a * b
+}
+
+// Create agentic tool with tools from multiple objects
+// Uses default system prompt based on description
+val assistant = AgenticTool("assistant", "Multi-capability assistant")
+    .withToolObjects(SearchTools(), CalculatorTools())
+
+// With LLM options and custom system prompt
+val smartAssistant = AgenticTool("smart-assistant", "Smart assistant")
+    .withToolObjects(SearchTools(), CalculatorTools())
+    .withLlm(LlmOptions(model = "gpt-4"))
+    .withSystemPrompt("Use tools intelligently")
+----
+====
+
+Objects without `@LlmTool` methods are silently ignored, allowing you to mix objects safely.
+
+===== Agentic Tools with Spring Dependency Injection
+
+Agentic tools can encapsulate stateful services via dependency injection:
+
+[source,kotlin]
+----
+@Component
+class ResearchOrchestrator(
+    private val webSearchService: WebSearchService,
+    private val summarizerService: SummarizerService,
+) {
+    @LlmTool(description = "Search the web for information")
+    fun search(query: String): List<SearchResult> =
+        webSearchService.search(query)
+
+    @LlmTool(description = "Summarize text content")
+    fun summarize(content: String): String =
+        summarizerService.summarize(content)
+}
+
+// In your configuration
+@Configuration
+class ToolConfiguration {
+
+    @Bean
+    fun researchTool(orchestrator: ResearchOrchestrator): AgenticTool =
+        AgenticTool("research-assistant", "Research topics using web search and summarization")
+            .withToolObject(orchestrator)
+            .withLlm(LlmOptions(role = "smart"))
+            // Uses default system prompt based on description
+}
+----
+
+===== How Agentic Tools Execute
+
+When an agentic tool's `call()` method is invoked:
+
+1. The tool retrieves the current `AgentProcess` context
+2. It configures a `PromptRunner` with the specified `LlmOptions`
+3. It adds all sub-tools to the prompt runner
+4. It executes the prompt with the input, allowing the LLM to orchestrate the sub-tools
+5. The final LLM response is returned as the tool result
+
+This means agentic tools create a nested LLM interaction: the outer LLM decides to call the agentic tool, then the inner LLM orchestrates the sub-tools.
+
+===== Modifying Agentic Tools
+
+Use the `with*` methods to create modified copies:
+
+[source,kotlin]
+----
+val base = AgenticTool("base", "Base orchestrator")
+    .withTools(tool1)
+    .withSystemPrompt("Original prompt")
+
+// Create copies with modifications
+val withNewLlm = base.withLlm(LlmOptions(model = "gpt-4"))
+val withMoreTools = base.withTools(tool2, tool3)
+val withNewPrompt = base.withSystemPrompt("Updated prompt")
+
+// Add input parameters
+val withParams = base.withParameter(Tool.Parameter.string("query", "Search query"))
+
+// Add tools from an object with @LlmTool methods
+val withAnnotatedTools = base.withToolObject(calculatorService)
+
+// Add tools from multiple objects
+val withMultipleObjects = base.withToolObjects(searchService, calculatorService)
+
+// Dynamic system prompt based on AgentProcess context
+val withDynamicPrompt = base.withSystemPromptCreator { agentProcess ->
+    val userId = agentProcess.blackboard.get("userId", String::class.java)
+    "Process requests for user $userId using the available tools"
+}
+----
+
+The available modification methods are:
+
+- `withParameter(Tool.Parameter)`: Add an input parameter (use `Tool.Parameter.string()`, `.integer()`, `.double()`)
+- `withLlm(LlmOptions)`: Set LLM configuration
+- `withTools(vararg Tool)`: Add additional Tool instances
+- `withToolObject(Any)`: Add tools from an object with `@LlmTool` methods
+- `withToolObjects(vararg Any)`: Add tools from multiple annotated objects
+- `withSystemPrompt(String)`: Set a fixed system prompt
+- `withSystemPromptCreator((AgentProcess) -> String)`: Set a dynamic prompt based on runtime context
+
+[[reference.tools__agentic-tools-migration]]
+===== Migration from Other Frameworks
+
+If you're coming from frameworks like LangChain or Google ADK, `AgenticTool` provides a familiar pattern similar to their "supervisor" architectures:
+
+|===
+|Framework |Pattern |Embabel Equivalent
+
+|LangChain/LangGraph
+|Supervisor agent with worker agents
+|`AgenticTool` with sub-tools
+
+|Google ADK
+|Coordinator with `sub_agents` / `AgentTool`
+|`AgenticTool` with sub-tools
+|===
+
+The key differences:
+
+* **Tool-centric**: Embabel's agentic tools operate at the tool level, not the agent level. They're lightweight and can be mixed freely with regular tools.
+* **Simpler model**: No graph-based workflows or explicit Sequential/Parallel/Loop patterns—just LLM-driven orchestration.
+* **Composable**: An agentic tool is still "just a tool" that can be used anywhere tools are accepted.
+
+However, for anything beyond simple orchestration, Embabel offers far more powerful alternatives:
+
+|===
+|Scenario |Use This Instead
+
+|Business processes with defined outputs
+|<<reference.planners,GOAP planner>> - deterministic, goal-oriented planning with preconditions and effects
+
+|Exploration and event-driven systems
+|<<reference.planners__utility,Utility AI>> - selects highest-value action at each step
+
+|Branching, looping, or stateful workflows
+|<<reference.states,@State workflows>> - typesafe state machines with GOAP planning within each state
+|===
+
+These provide *deterministic, typesafe planning* that is far more predictable and powerful than supervisor-style LLM orchestration.
+Use `AgenticTool` for simple cases or as a migration stepping stone; graduate to GOAP, Utility, or @State for production workflows where predictability matters.
+
+TIP: For supervisor-style orchestration with typed outputs and full blackboard state management, see <<reference.planners__supervisor-invocation,SupervisorInvocation>>. It operates at a higher level than `AgenticTool`, orchestrating `@Action` methods rather than `Tool` instances, and produces typed goal objects with currying support.

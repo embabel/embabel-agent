@@ -15,9 +15,12 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.support.Wumpus
 import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Operation
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.support.Dog
@@ -341,6 +344,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference.notes() } returns "Test API documentation"
             every { mockReference.contribution() } returns "Reference: TestAPI\nDescription: Test API\nTool prefix: testapi\nNotes: Test API documentation"
             every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.tools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReference(mockReference)
@@ -367,6 +371,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference.notes() } returns "Test API v2 documentation"
             every { mockReference.contribution() } returns "Reference: Test-API@v2!\nDescription: Test API v2\nTool prefix: test-api_v2_\nNotes: Test API v2 documentation"
             every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.tools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReference(mockReference)
@@ -390,6 +395,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.notes() } returns "API 1 documentation"
             every { mockReference1.contribution() } returns "Reference: API1\nDescription: API 1\nTool prefix: api1\nNotes: API 1 documentation"
             every { mockReference1.toolObject() } returns ToolObject(mockReference1)
+            every { mockReference1.tools() } returns emptyList()
 
             val mockReference2 = mockk<LlmReference>()
             every { mockReference2.name } returns "API2"
@@ -398,6 +404,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.notes() } returns "API 2 documentation"
             every { mockReference2.contribution() } returns "Reference: API2\nDescription: API 2\nTool prefix: api2\nNotes: API 2 documentation"
             every { mockReference2.toolObject() } returns ToolObject(mockReference2)
+            every { mockReference2.tools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReferences(listOf(mockReference1, mockReference2))
@@ -432,6 +439,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.notes() } returns "API 1 documentation"
             every { mockReference1.contribution() } returns "Reference: API1\nDescription: API 1\nTool prefix: api1\nNotes: API 1 documentation"
             every { mockReference1.toolObject() } returns ToolObject(mockReference1)
+            every { mockReference1.tools() } returns emptyList()
 
             val mockReference2 = mockk<LlmReference>()
             every { mockReference2.name } returns "API2"
@@ -440,6 +448,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.notes() } returns "API 2 documentation"
             every { mockReference2.contribution() } returns "Reference: API2\nDescription: API 2\nTool prefix: api2\nNotes: API 2 documentation"
             every { mockReference2.toolObject() } returns ToolObject(mockReference2)
+            every { mockReference2.tools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withReferences(mockReference1, mockReference2)
@@ -457,6 +466,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference.notes() } returns "Test API documentation"
             every { mockReference.contribution() } returns "Reference: TestAPI\nDescription: Test API\nTool prefix: testapi\nNotes: Test API documentation"
             every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.tools() } returns emptyList()
 
             val systemPrompt = "You are a helpful assistant."
 
@@ -479,6 +489,233 @@ class OperationContextPromptRunnerTest {
                 "System prompt not found in prompt contributors"
             )
         }
+
+        @Test
+        fun `test withReference picks up tools from LlmReference tools method`() {
+            val referenceTool = Tool.of(
+                name = "reference_tool",
+                description = "A tool from the reference",
+            ) { _ ->
+                Tool.Result.text("reference result")
+            }
+
+            val mockReference = mockk<LlmReference>()
+            every { mockReference.name } returns "ToolsAPI"
+            every { mockReference.description } returns "API with tools"
+            every { mockReference.toolPrefix() } returns "toolsapi"
+            every { mockReference.notes() } returns "API documentation"
+            every { mockReference.contribution() } returns "Reference: ToolsAPI"
+            every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.tools() } returns listOf(referenceTool)
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withReference(mockReference) as OperationContextPromptRunner
+
+            // Verify tools from the reference are added to otherToolCallbacks
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherToolCallbacks")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
+
+            assertEquals(1, toolCallbacks.size, "Must have one tool callback from reference")
+            assertEquals(
+                "reference_tool",
+                toolCallbacks[0].toolDefinition.name(),
+                "Tool from reference not added correctly"
+            )
+            assertEquals("A tool from the reference", toolCallbacks[0].toolDefinition.description())
+        }
+
+        @Test
+        fun `test withReference picks up multiple tools from LlmReference`() {
+            val tool1 = Tool.of("ref_tool1", "First reference tool") { _ -> Tool.Result.text("1") }
+            val tool2 = Tool.of("ref_tool2", "Second reference tool") { _ -> Tool.Result.text("2") }
+
+            val mockReference = mockk<LlmReference>()
+            every { mockReference.name } returns "MultiToolAPI"
+            every { mockReference.description } returns "API with multiple tools"
+            every { mockReference.toolPrefix() } returns "multitoolapi"
+            every { mockReference.notes() } returns "API documentation"
+            every { mockReference.contribution() } returns "Reference: MultiToolAPI"
+            every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.tools() } returns listOf(tool1, tool2)
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withReference(mockReference) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherToolCallbacks")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
+
+            assertEquals(2, toolCallbacks.size, "Must have two tool callbacks from reference")
+            val names = toolCallbacks.map { it.toolDefinition.name() }
+            assertTrue(names.contains("ref_tool1"), "First tool not found")
+            assertTrue(names.contains("ref_tool2"), "Second tool not found")
+        }
+
+        @Test
+        fun `test withReferences aggregates tools from multiple references`() {
+            val tool1 = Tool.of("api1_tool", "Tool from API1") { _ -> Tool.Result.text("1") }
+            val tool2 = Tool.of("api2_tool", "Tool from API2") { _ -> Tool.Result.text("2") }
+
+            val mockReference1 = mockk<LlmReference>()
+            every { mockReference1.name } returns "API1"
+            every { mockReference1.description } returns "API 1"
+            every { mockReference1.toolPrefix() } returns "api1"
+            every { mockReference1.notes() } returns "API 1 docs"
+            every { mockReference1.contribution() } returns "Reference: API1"
+            every { mockReference1.toolObject() } returns ToolObject(mockReference1)
+            every { mockReference1.tools() } returns listOf(tool1)
+
+            val mockReference2 = mockk<LlmReference>()
+            every { mockReference2.name } returns "API2"
+            every { mockReference2.description } returns "API 2"
+            every { mockReference2.toolPrefix() } returns "api2"
+            every { mockReference2.notes() } returns "API 2 docs"
+            every { mockReference2.contribution() } returns "Reference: API2"
+            every { mockReference2.toolObject() } returns ToolObject(mockReference2)
+            every { mockReference2.tools() } returns listOf(tool2)
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withReferences(mockReference1, mockReference2) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherToolCallbacks")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
+
+            assertEquals(2, toolCallbacks.size, "Must have tool callbacks from both references")
+            val names = toolCallbacks.map { it.toolDefinition.name() }
+            assertTrue(names.contains("api1_tool"), "Tool from API1 not found")
+            assertTrue(names.contains("api2_tool"), "Tool from API2 not found")
+        }
+    }
+
+    @Nested
+    inner class WithToolTests {
+
+        @Test
+        fun `test withTool adds tool as Spring ToolCallback`() {
+            val tool = Tool.of(
+                name = "test_tool",
+                description = "A test tool",
+            ) { _ ->
+                Tool.Result.text("result")
+            }
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withTool(tool) as OperationContextPromptRunner
+
+            // The tool should be added to otherToolCallbacks (accessed via reflection or by checking behavior)
+            // We verify it was converted to a Spring ToolCallback by checking the tool definition
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherToolCallbacks")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
+
+            assertEquals(1, toolCallbacks.size, "Must have one tool callback")
+            assertEquals("test_tool", toolCallbacks[0].toolDefinition.name(), "Tool name not converted correctly")
+            assertEquals(
+                "A test tool",
+                toolCallbacks[0].toolDefinition.description(),
+                "Tool description not converted correctly"
+            )
+        }
+
+        @Test
+        fun `test withTool converts Tool to Spring ToolCallback that is executable`() {
+            var toolWasExecuted = false
+            val tool = Tool.of(
+                name = "executable_tool",
+                description = "An executable tool",
+            ) { _ ->
+                toolWasExecuted = true
+                Tool.Result.text("executed!")
+            }
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withTool(tool) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherToolCallbacks")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
+
+            // Execute the tool callback
+            val result = toolCallbacks[0].call("{}")
+
+            assertTrue(toolWasExecuted, "Tool should have been executed")
+            assertEquals("executed!", result, "Tool result not returned correctly")
+        }
+
+        @Test
+        fun `test withTools list adds multiple tools`() {
+            val tool1 = Tool.of("tool1", "First tool") { _ -> Tool.Result.text("1") }
+            val tool2 = Tool.of("tool2", "Second tool") { _ -> Tool.Result.text("2") }
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withTools(listOf(tool1, tool2)) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherToolCallbacks")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
+
+            assertEquals(2, toolCallbacks.size, "Must have two tool callbacks")
+            assertEquals("tool1", toolCallbacks[0].toolDefinition.name())
+            assertEquals("tool2", toolCallbacks[1].toolDefinition.name())
+        }
+
+        @Test
+        fun `test withFunctionTools varargs adds multiple tools`() {
+            val tool1 = Tool.of("vararg_tool1", "First") { _ -> Tool.Result.text("1") }
+            val tool2 = Tool.of("vararg_tool2", "Second") { _ -> Tool.Result.text("2") }
+            val tool3 = Tool.of("vararg_tool3", "Third") { _ -> Tool.Result.text("3") }
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withFunctionTools(tool1, tool2, tool3) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherToolCallbacks")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
+
+            assertEquals(3, toolCallbacks.size, "Must have three tool callbacks")
+            val names = toolCallbacks.map { it.toolDefinition.name() }
+            assertTrue(names.contains("vararg_tool1"))
+            assertTrue(names.contains("vararg_tool2"))
+            assertTrue(names.contains("vararg_tool3"))
+        }
+
+        @Test
+        fun `test withTool with annotated method tools`() {
+            class MyTools {
+                @LlmTool(description = "Add two numbers")
+                fun add(
+                    @Param(description = "First number") a: Int,
+                    @Param(description = "Second number") b: Int,
+                ): Int = a + b
+            }
+
+            val tools = Tool.fromInstance(MyTools())
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withTools(tools) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherToolCallbacks")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolCallbacks = field.get(ocpr) as List<org.springframework.ai.tool.ToolCallback>
+
+            assertEquals(1, toolCallbacks.size, "Must have one tool callback from annotated method")
+            assertEquals("add", toolCallbacks[0].toolDefinition.name())
+            assertTrue(toolCallbacks[0].toolDefinition.description()!!.contains("Add two numbers"))
+
+            // Verify it executes correctly
+            val result = toolCallbacks[0].call("""{"a": 5, "b": 3}""")
+            assertEquals("8", result, "Tool should return sum as string")
+        }
+
     }
 
 }

@@ -17,8 +17,8 @@ package com.embabel.agent.rag.store
 
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
-import com.embabel.agent.rag.model.HierarchicalContentElement
 import com.embabel.agent.rag.model.LeafSection
+import com.embabel.agent.rag.store.ContentElementRepositoryInfo
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.*
@@ -46,7 +46,13 @@ class ContentElementRepositoryPathFromRootTest {
             return element
         }
 
-        override fun count(): Int = elements.size
+        override fun info(): ContentElementRepositoryInfo = object : ContentElementRepositoryInfo {
+            override val chunkCount: Int = elements.values.count { it is Chunk }
+            override val documentCount: Int = 0
+            override val contentElementCount: Int = elements.size
+            override val hasEmbeddings: Boolean = false
+            override val isPersistent: Boolean = false
+        }
 
         override fun findChunksForEntity(entityId: String): List<Chunk> =
             elements.values.filterIsInstance<Chunk>()

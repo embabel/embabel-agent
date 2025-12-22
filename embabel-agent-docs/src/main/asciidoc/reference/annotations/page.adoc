@@ -444,3 +444,157 @@ fun report(
     ))
 ----
 
+==== Running Subagents with `RunSubagent`
+
+The `RunSubagent` utility provides a convenient way to run a nested agent from within an `@Action` method without needing direct access to `ActionContext`.
+This is particularly useful when you want to delegate work to another `@Agent`-annotated class or an `Agent` instance.
+
+===== Running an `@Agent`-annotated Instance
+
+Use `RunSubagent.fromAnnotatedInstance()` when you have an instance of a class annotated with `@Agent`:
+
+NOTE: The annotated instance can be Spring-injected into your agent class.
+Since `@Agent` is a Spring stereotype annotation, you can inject one agent into another and run it as a subagent.
+This enables clean separation of concerns while maintaining testability.
+
+[source,java]
+----
+@Agent(description = "Outer agent that delegates to an injected subagent")
+public class OuterAgent {
+
+    private final InnerSubAgent innerSubAgent;
+
+    public OuterAgent(InnerSubAgent innerSubAgent) {  // <1>
+        this.innerSubAgent = innerSubAgent;
+    }
+
+    @Action
+    public TaskOutput start(UserInput input) {
+        return RunSubagent.fromAnnotatedInstance(
+            innerSubAgent,  // <2>
+            TaskOutput.class
+        );
+    }
+
+    @Action
+    @AchievesGoal(description = "Processing complete")
+    public TaskOutput done(TaskOutput output) {
+        return output;
+    }
+}
+
+@Agent(description = "Inner subagent that processes input")
+public class InnerSubAgent {
+
+    @Action
+    public Intermediate stepOne(UserInput input) {
+        return new Intermediate(input.getContent());
+    }
+
+    @Action
+    @AchievesGoal(description = "Subagent complete")
+    public TaskOutput stepTwo(Intermediate data) {
+        return new TaskOutput(data.value().toUpperCase());
+    }
+}
+----
+
+<1> Spring injects the `InnerSubAgent` bean via constructor injection.
+<2> The injected instance is passed to `RunSubagent.fromAnnotatedInstance()`.
+
+In Kotlin, you can use the reified version for a more concise syntax:
+
+[source,kotlin]
+----
+@Agent(description = "Outer agent via reified subagent")
+class OuterAgentReified {
+
+    @Action
+    fun start(input: UserInput): TaskOutput =
+        RunSubagent.fromAnnotatedInstance<TaskOutput>(InnerSubAgent())
+
+    @Action
+    @AchievesGoal(description = "Processing complete")
+    fun done(output: TaskOutput): TaskOutput = output
+}
+----
+
+===== Running an `Agent` Instance
+
+Use `RunSubagent.instance()` when you already have an `Agent` object (for example, one created programmatically or via `AgentMetadataReader`):
+
+[source,java]
+----
+@Agent(description = "Outer agent with Agent instance")
+public class OuterAgentWithAgentInstance {
+
+    @Action
+    public TaskOutput start(UserInput input) {
+        Agent agent = (Agent) new AgentMetadataReader()
+            .createAgentMetadata(new InnerSubAgent());
+        return RunSubagent.instance(agent, TaskOutput.class);
+    }
+
+    @Action
+    @AchievesGoal(description = "Processing complete")
+    public TaskOutput done(TaskOutput output) {
+        return output;
+    }
+}
+----
+
+In Kotlin with reified types:
+
+[source,kotlin]
+----
+@Agent(description = "Outer agent via reified agent instance")
+class OuterAgentReifiedInstance {
+
+    @Action
+    fun start(input: UserInput): TaskOutput {
+        val agent = AgentMetadataReader().createAgentMetadata(InnerSubAgent()) as Agent
+        return RunSubagent.instance<TaskOutput>(agent)
+    }
+
+    @Action
+    @AchievesGoal(description = "Processing complete")
+    fun done(output: TaskOutput): TaskOutput = output
+}
+----
+
+===== How It Works
+
+`RunSubagent` methods throw a `SubagentExecutionRequest` exception that is caught by the framework.
+The framework then executes the subagent as a subprocess within the current agent process, sharing the same blackboard context.
+The result of the subagent's goal-achieving action is returned to the calling action.
+
+This approach has several advantages:
+
+* **Cleaner syntax**: No need to pass `ActionContext` to the action method
+* **Type safety**: The return type is enforced at compile time
+* **Composition**: Easily compose complex workflows from simpler agents
+* **Reusability**: The same subagent can be used in multiple contexts
+
+===== Comparison with `ActionContext.asSubProcess`
+
+Both `RunSubagent` and `ActionContext.asSubProcess` achieve the same result, but differ in style:
+
+[cols="1,1,2"]
+|===
+| Approach | When to use | Example
+
+| `RunSubagent.fromAnnotatedInstance()`
+| When you have an `@Agent`-annotated instance and don't need `ActionContext`
+| `RunSubagent.fromAnnotatedInstance(new SubAgent(), Result.class)`
+
+| `RunSubagent.instance()`
+| When you have an `Agent` object
+| `RunSubagent.instance(agent, Result.class)`
+
+| `ActionContext.asSubProcess()`
+| When you need access to `ActionContext` for other operations
+| `context.asSubProcess(Result.class, agent)`
+|===
+
+TIP: Use `RunSubagent` when your action method only needs to delegate to a subagent.
+Use `ActionContext.asSubProcess()` when you need additional context operations.

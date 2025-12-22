@@ -1,0 +1,62 @@
+[[reference.streaming]]
+=== Working with Streams
+
+Developer can choose piping data from LLM gradually, using Embabel streaming capabilities.
+
+Streams include LLM reasoning events, so-called "thinking", and stream of objects.
+This feature is well aligned with Embabel focus on object-oriented programming model
+
+==== Concepts
+
+- ``StreamingEvent`` - wraps Thinking or user Object
+-  ```StreamingPromptRunnerBuilder``` - runner with streaming capabilities
+- Spring Reactive Programming Support for Spring AI ChatClient as underlying infrastructure
+- All reactive callbacks, such as _doOnNext_, _doOnComplete_, etc. are at developer's disposal
+
+==== Example - Simple Streaming with Callbacks
+
+[source,java]
+----
+
+        PromptRunner runner = ai.withLlm("qwen3:latest")
+                                .withToolObject(Tooling.class);
+
+        String prompt = "What are exactly two the most hottest months in Florida and their respective highest temperatures";
+
+        // Use StreamingPromptBuilder instead of Kotlin extension function
+        Flux<StreamingEvent<MonthItem>> results = new StreamingPromptRunnerBuilder(runner)
+                .withStreaming()
+                .withPrompt(prompt)
+                .createObjectStreamWithThinking(MonthItem.class);
+
+        // Subscribe with real reactive callbacks using builder pattern
+        results
+                .timeout(Duration.ofSeconds(150))
+                .doOnSubscribe(subscription -> {
+                    logger.info("Stream subscription started");
+                })
+                .doOnNext(event -> {
+                    if (event.isThinking()) {
+                        String content = event.getThinking();
+                        receivedEvents.add("THINKING: " + content);
+                        logger.info("Integration test received thinking: {}", content);
+                    } else if (event.isObject()) {
+                        MonthItem obj = event.getObject();
+                        receivedEvents.add("OBJECT: " + obj.getName());
+                        logger.info("Integration test received object: {}", obj.getName());
+                    }
+                })
+                .doOnError(error -> {
+                    errorOccurred.set(error);
+                    logger.error("Integration test stream error: {}", error.getMessage());
+                })
+                .doOnComplete(() -> {
+                    completionCalled.set(true);
+                    logger.info("Integration test stream completed successfully");
+                })
+                .blockLast(Duration.ofSeconds(6000));
+----
+
+
+
+

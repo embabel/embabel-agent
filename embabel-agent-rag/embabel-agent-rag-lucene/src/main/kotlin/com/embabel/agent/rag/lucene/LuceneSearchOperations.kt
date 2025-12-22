@@ -184,10 +184,6 @@ class LuceneSearchOperations @JvmOverloads constructor(
         TODO("Entities not supported in LuceneRagService")
     }
 
-    override fun count(): Int =
-        contentElementStorage.size
-
-
     override fun findById(id: String): ContentElement? {
         return contentElementStorage[id]
     }
@@ -1009,7 +1005,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
                         val element = createContentElementFromLuceneDocument(doc, elementType)
                         if (element != null) {
                             contentElementStorage[element.id] = element
-                            logger.info(
+                            logger.debug(
                                 "✅ Loaded {} with id={}",
                                 elementType ?: "Chunk",
                                 element.id,
@@ -1063,21 +1059,15 @@ class LuceneSearchOperations @JvmOverloads constructor(
         verbose: Boolean?,
         indent: Int,
     ): String {
-        val docCount = try {
-            refreshReaderIfNeeded()
-            directoryReader?.numDocs() ?: 0
-        } catch (_: Exception) {
-            0
-        }
-
-        val chunkCount = contentElementStorage.size
+        val stats = info()
         val storageType = if (indexPath != null) "disk" else "memory"
-        val basicInfo = "LuceneRagService: $name ($docCount documents, $chunkCount chunks, $storageType)"
+        val basicInfo =
+            "LuceneRagService: $name (${stats.documentCount} documents, ${stats.chunkCount} chunks, $storageType)"
 
         return if (verbose == true) {
-            val embeddingInfo = if (embeddingModel != null) "with embeddings" else "text-only"
-            val vectorWeightInfo = if (embeddingModel != null) ", vector weight: $vectorWeight" else ""
-            val pathInfo = if (indexPath != null) ", path: $indexPath" else ""
+            val embeddingInfo = if (stats.hasEmbeddings) "with embeddings" else "text-only"
+            val vectorWeightInfo = if (stats.hasEmbeddings) ", vector weight: ${stats.vectorWeight}" else ""
+            val pathInfo = stats.indexPath?.let { ", path: $it" } ?: ""
             "$basicInfo ($embeddingInfo$vectorWeightInfo$pathInfo)".indent(indent)
         } else {
             basicInfo.indent(indent)
@@ -1207,20 +1197,11 @@ class LuceneSearchOperations @JvmOverloads constructor(
         return count
     }
 
-    /**
-     * Get statistics about the current state
-     */
-    fun getStatistics(): LuceneStatistics {
-        val docCount = try {
-            refreshReaderIfNeeded()
-            directoryReader?.numDocs() ?: 0
-        } catch (_: Exception) {
-            0
-        }
-
+    override fun info(): LuceneStatistics {
         return LuceneStatistics(
-            totalChunks = contentElementStorage.size,
-            totalDocuments = docCount,
+            chunkCount = findAll(Chunk::class.java).size,
+            contentElementCount = contentElementStorage.size,
+            documentCount = contentElementStorage.values.count { it is NavigableDocument },
             averageChunkLength = if (contentElementStorage.isNotEmpty()) {
                 contentElementStorage.values.filterIsInstance<Chunk>().map { it.text.length }.average()
             } else 0.0,
@@ -1232,16 +1213,3 @@ class LuceneSearchOperations @JvmOverloads constructor(
     }
 
 }
-
-/**
- * Statistics about the Lucene RAG service state
- */
-data class LuceneStatistics(
-    val totalChunks: Int,
-    val totalDocuments: Int,
-    val averageChunkLength: Double,
-    val hasEmbeddings: Boolean,
-    val vectorWeight: Double,
-    val isPersistent: Boolean,
-    val indexPath: String?,
-)

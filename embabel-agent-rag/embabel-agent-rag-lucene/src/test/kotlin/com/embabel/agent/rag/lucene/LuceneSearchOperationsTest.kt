@@ -180,10 +180,10 @@ class LuceneSearchOperationsTest {
         assertTrue(infoString.contains("lucene-rag"))
         assertTrue(infoString.contains("0 documents"))
 
-        // After adding documents using acceptDocuments
+        // After adding documents using acceptDocuments (creates Chunks, not NavigableDocuments)
         ragService.acceptDocuments(listOf(Document("doc1", "test content", emptyMap<String, Any>())))
         val infoStringAfter = ragService.infoString(verbose = false, indent = 0)
-        assertTrue(infoStringAfter.contains("1 documents"))
+        assertTrue(infoStringAfter.contains("0 documents")) // acceptDocuments creates Chunks only
     }
 
     @Test
@@ -464,9 +464,9 @@ class LuceneSearchOperationsTest {
 
         @Test
         fun `should get correct statistics`() {
-            val stats = ragService.getStatistics()
-            assertEquals(0, stats.totalChunks)
-            assertEquals(0, stats.totalDocuments)
+            val stats = ragService.info()
+            assertEquals(0, stats.chunkCount)
+            assertEquals(0, stats.documentCount)
             assertEquals(0.0, stats.averageChunkLength)
             assertFalse(stats.hasEmbeddings)
             assertEquals(0.5, stats.vectorWeight) // Default vector weight
@@ -479,9 +479,9 @@ class LuceneSearchOperationsTest {
 
             ragService.acceptDocuments(documents)
 
-            val updatedStats = ragService.getStatistics()
-            assertEquals(2, updatedStats.totalChunks)
-            assertEquals(2, updatedStats.totalDocuments)
+            val updatedStats = ragService.info()
+            assertEquals(2, updatedStats.chunkCount)
+            assertEquals(0, updatedStats.documentCount) // acceptDocuments creates Chunks, not NavigableDocuments
             assertTrue(updatedStats.averageChunkLength > 0)
 
             // Average should be (5 + 25) / 2 = 15.0
@@ -496,7 +496,7 @@ class LuceneSearchOperationsTest {
             ragService.acceptDocuments(listOf(Document("test-doc", "Test content", emptyMap<String, Any>())))
 
             val infoStringAfter = ragService.infoString(verbose = false, indent = 0)
-            assertTrue(infoStringAfter.contains("1 documents, 1 chunks"))
+            assertTrue(infoStringAfter.contains("0 documents, 1 chunks")) // acceptDocuments creates Chunks only
         }
 
         @Test
@@ -821,10 +821,10 @@ class LuceneSearchOperationsTest {
             ragService.acceptDocuments(documents)
 
             // Verify initial count
-            assertEquals(3, ragService.count())
-            val initialStats = ragService.getStatistics()
-            assertEquals(3, initialStats.totalChunks)
-            assertEquals(3, initialStats.totalDocuments)
+            assertEquals(3, ragService.info().contentElementCount)
+            val initialStats = ragService.info()
+            assertEquals(3, initialStats.chunkCount)
+            assertEquals(0, initialStats.documentCount) // acceptDocuments creates Chunks, not NavigableDocuments
 
             // Update keywords for doc1 and doc2 (this deletes old documents and adds new ones)
             ragService.updateKeywords(
@@ -835,10 +835,10 @@ class LuceneSearchOperationsTest {
             )
 
             // Count should still be 3 (not 5 due to deleted docs)
-            assertEquals(3, ragService.count(), "Count should remain 3 after keyword updates")
-            val afterUpdateStats = ragService.getStatistics()
-            assertEquals(3, afterUpdateStats.totalChunks, "Total chunks should remain 3")
-            assertEquals(3, afterUpdateStats.totalDocuments, "Total documents should remain 3")
+            assertEquals(3, ragService.info().contentElementCount, "Count should remain 3 after keyword updates")
+            val afterUpdateStats = ragService.info()
+            assertEquals(3, afterUpdateStats.chunkCount, "Total chunks should remain 3")
+            assertEquals(0, afterUpdateStats.documentCount, "documentCount should be 0 (only Chunks, no NavigableDocuments)")
 
             // Verify all chunks are still accessible
             val allChunks = ragService.findAll()
@@ -890,7 +890,7 @@ class LuceneSearchOperationsTest {
             ragService.commitChanges()
 
             // Verify elements exist
-            assertEquals(4, ragService.count())
+            assertEquals(4, ragService.info().contentElementCount)
 
             // Delete document and descendants
             val result = ragService.deleteRootAndDescendants(documentUri)
@@ -900,7 +900,7 @@ class LuceneSearchOperationsTest {
             assertEquals(4, result.deletedCount)
 
             // Verify all elements are deleted
-            assertEquals(0, ragService.count())
+            assertEquals(0, ragService.info().contentElementCount)
             assertNull(ragService.findById("doc1"))
             assertNull(ragService.findById("section1"))
             assertTrue(ragService.findAllChunksById(listOf("chunk1", "chunk2")).isEmpty())
@@ -951,7 +951,7 @@ class LuceneSearchOperationsTest {
             ragService.onNewRetrievables(listOf(chunk1, chunk2))
             ragService.commitChanges()
 
-            assertEquals(4, ragService.count())
+            assertEquals(4, ragService.info().contentElementCount)
 
             // Delete only doc1
             val result = ragService.deleteRootAndDescendants(doc1Uri)
@@ -960,7 +960,7 @@ class LuceneSearchOperationsTest {
             assertEquals(2, result!!.deletedCount)
 
             // Verify doc1 and its chunk are deleted
-            assertEquals(2, ragService.count())
+            assertEquals(2, ragService.info().contentElementCount)
             assertNull(ragService.findById("doc1"))
             assertTrue(ragService.findAllChunksById(listOf("chunk1")).isEmpty())
 
@@ -1018,14 +1018,14 @@ class LuceneSearchOperationsTest {
             ragService.onNewRetrievables(listOf(chunk))
             ragService.commitChanges()
 
-            assertEquals(5, ragService.count())
+            assertEquals(5, ragService.info().contentElementCount)
 
             // Delete root and all descendants
             val result = ragService.deleteRootAndDescendants(documentUri)
 
             assertNotNull(result)
             assertEquals(5, result!!.deletedCount)
-            assertEquals(0, ragService.count())
+            assertEquals(0, ragService.info().contentElementCount)
         }
 
         @Test
@@ -1104,14 +1104,14 @@ class LuceneSearchOperationsTest {
             ragService.onNewRetrievables(chunks)
             ragService.commitChanges()
 
-            assertEquals(8, ragService.count())
+            assertEquals(8, ragService.info().contentElementCount)
 
             // Delete all
             val result = ragService.deleteRootAndDescendants(documentUri)
 
             assertNotNull(result)
             assertEquals(8, result!!.deletedCount)
-            assertEquals(0, ragService.count())
+            assertEquals(0, ragService.info().contentElementCount)
         }
     }
 
@@ -2422,7 +2422,7 @@ class LuceneSearchOperationsTest {
             )
 
             val chunkIds = service1.writeAndChunkDocument(document)
-            val countBefore = service1.count()
+            val countBefore = service1.info().contentElementCount
 
             service1.close()
 
@@ -2433,7 +2433,7 @@ class LuceneSearchOperationsTest {
             )
             service2.loadExistingChunksFromDisk()
 
-            val countAfter = service2.count()
+            val countAfter = service2.info().contentElementCount
 
             // We expect: root + section + 2 leaves + chunks
             assertEquals(

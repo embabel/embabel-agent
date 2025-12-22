@@ -16,13 +16,13 @@
 package com.embabel.agent.validation
 
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
-import com.embabel.agent.spi.validation.AgentStructureValidator
+import com.embabel.agent.spi.validation.DefaultAgentStructureValidator
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.context.support.GenericApplicationContext
 
-class AgentStructureValidatorTest {
+class DefaultAgentStructureValidatorTest {
 
     @Nested
     inner class Valid {
@@ -31,7 +31,7 @@ class AgentStructureValidatorTest {
         fun `no agents`() {
             val applicationContext = GenericApplicationContext()
             applicationContext.refresh()
-            val validator = AgentStructureValidator(applicationContext)
+            val validator = DefaultAgentStructureValidator(applicationContext)
             validator.afterPropertiesSet()
         }
 
@@ -39,7 +39,7 @@ class AgentStructureValidatorTest {
         fun `evil wizard`() {
             val applicationContext = GenericApplicationContext()
             applicationContext.refresh()
-            val validator = AgentStructureValidator(applicationContext)
+            val validator = DefaultAgentStructureValidator(applicationContext)
             val result = validator.validate(evenMoreEvilWizard())
             assertEquals(0, result.errors.size, "Expected no validation errors for evenMoreEvilWizard")
         }

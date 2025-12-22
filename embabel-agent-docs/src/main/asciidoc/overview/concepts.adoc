@@ -8,7 +8,7 @@ Embabel models agentic flows in terms of:
 - **Actions**: Steps an agent takes.
 These are the building blocks of agent behavior.
 - **Goals**: What an agent is trying to achieve.
-- ** Conditions**: Conditions to while planning.
+- ** Conditions**: Conditions to do evaluations while planning.
 Conditions are reassessed after each action is executed.
 - **Domain Model**: Objects underpinning the flow and informing Actions, Goals and Conditions.
 
@@ -17,7 +17,7 @@ Plans are dynamically formulated by the system, not the programmer.
 The system replans after the completion of each action, allowing it to adapt to new information as well as observe the effects of the previous action.
 This is effectively an https://en.wikipedia.org/wiki/OODA_loop[OODA loop].
 
-NOTE: Application developers don't usually have to deal with these concepts directly, as most conditions result from data flow defined in code, allowing the system to infer pre and post conditions.
+NOTE: Application developers don't usually have to deal with conditions and planning directly, as most conditions result from data flow defined in code, allowing the system to infer pre and post conditions to (re-)evaluate the plan.
 
 ==== Complete Example
 
@@ -137,11 +137,11 @@ This ensures the LLM has all the context it needs from earlier actions.
 
 <17> **Final Output**: Returns `Writeup`, completing the agent's goal with personalized content.
 
-State is managed by the framework, through the process blackboard
+State is managed by the framework, through the process blackboard.
 
-==== The Inferred Execution Plan
+==== The Inferred Execution Plan for the Example
 
-Based on the type signatures alone, Embabel automatically infers this execution plan:
+Based on the type signatures alone, Embabel automatically infers this execution plan for the example agent above:
 
 **Goal**: Produce a `Writeup` (final return type of `@AchievesGoal` action)
 

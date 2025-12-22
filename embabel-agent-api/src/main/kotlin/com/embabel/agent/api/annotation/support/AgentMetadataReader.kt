@@ -16,9 +16,6 @@
 package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.annotation.*
-import com.embabel.agent.api.annotation.Action
-import com.embabel.agent.api.annotation.Agent
-import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.common.StuckHandler
@@ -28,10 +25,7 @@ import com.embabel.agent.core.Export
 import com.embabel.agent.core.support.NIRVANA
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
-import com.embabel.agent.spi.validation.AgentStructureValidator
-import com.embabel.agent.spi.validation.AgentValidationManager
-import com.embabel.agent.spi.validation.DefaultAgentValidationManager
-import com.embabel.agent.spi.validation.GoapPathToCompletionValidator
+import com.embabel.agent.spi.validation.*
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.NameUtils
 import com.embabel.common.util.loggerFor
@@ -40,7 +34,6 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.cglib.proxy.Enhancer
-import org.springframework.context.support.StaticApplicationContext
 import org.springframework.stereotype.Service
 import org.springframework.util.ClassUtils
 import org.springframework.util.ReflectionUtils
@@ -112,17 +105,19 @@ internal data class AgenticInfo(
 class AgentMetadataReader(
     private val actionMethodManager: ActionMethodManager = DefaultActionMethodManager(),
     private val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
-    agentStructureValidator: AgentStructureValidator = AgentStructureValidator(StaticApplicationContext()),
-    goapPathToCompletionValidator: GoapPathToCompletionValidator = GoapPathToCompletionValidator(),
+    agentStructureValidator: AgentStructureAgentValidator = AgentStructureAgentValidator.PERMIT_ALL,
+    pathToCompletionValidator: PathToCompletionAgentValidator = GoapPathToCompletionValidator(),
     private val requireInterfaceDeserializationAnnotations: Boolean = false,
 ) {
+
+    private val supervisorAgentFactory = SupervisorAgentFactory()
 
     private val logger = LoggerFactory.getLogger(AgentMetadataReader::class.java)
 
     private val agentValidationManager: AgentValidationManager = DefaultAgentValidationManager(
         listOf(
             agentStructureValidator,
-            goapPathToCompletionValidator
+            pathToCompletionValidator
         )
     )
 
@@ -222,19 +217,53 @@ class AgentMetadataReader(
         }
 
         val agent = if (agenticInfo.agentAnnotation != null) {
-            CoreAgent(
-                name = agenticInfo.agentName(),
-                provider = agenticInfo.agentAnnotation.provider.ifBlank {
-                    instance.javaClass.`package`.name
-                },
-                description = agenticInfo.agentAnnotation.description,
-                version = Semver(agenticInfo.agentAnnotation.version),
-                conditions = conditions,
-                actions = allActions,
-                goals = goals,
-                stuckHandler = instance as? StuckHandler,
-                opaque = agenticInfo.agentAnnotation.opaque,
-            )
+            if (plannerType == PlannerType.SUPERVISOR) {
+                // Find the goal action (the action with @AchievesGoal)
+                val goalActions = actionMethods.filter { it.isAnnotationPresent(AchievesGoal::class.java) }
+                if (goalActions.isEmpty()) {
+                    logger.warn(
+                        "SUPERVISOR planner requires at least one @AchievesGoal action on {}",
+                        targetType.name,
+                    )
+                    return null
+                }
+                if (goalActions.size > 1) {
+                    logger.warn(
+                        "SUPERVISOR planner currently supports only one @AchievesGoal action, found {} on {}",
+                        goalActions.size,
+                        targetType.name,
+                    )
+                    return null
+                }
+                val goalAction = allActions.find { action ->
+                    goalActions.any { method ->
+                        action.name.endsWith(".${method.name}")
+                    }
+                } ?: error("Goal action not found in allActions")
+
+                supervisorAgentFactory.createSupervisorAgent(
+                    agenticInfo = agenticInfo,
+                    instance = instance,
+                    goalAction = goalAction,
+                    allActions = allActions,
+                    goals = goals,
+                    conditions = conditions,
+                )
+            } else {
+                CoreAgent(
+                    name = agenticInfo.agentName(),
+                    provider = agenticInfo.agentAnnotation.provider.ifBlank {
+                        instance.javaClass.`package`.name
+                    },
+                    description = agenticInfo.agentAnnotation.description,
+                    version = Semver(agenticInfo.agentAnnotation.version),
+                    conditions = conditions,
+                    actions = allActions,
+                    goals = goals,
+                    stuckHandler = instance as? StuckHandler,
+                    opaque = agenticInfo.agentAnnotation.opaque,
+                )
+            }
         } else {
             AgentScope(
                 name = agenticInfo.type.name,
@@ -415,7 +444,10 @@ class AgentMetadataReader(
     /**
      * Find all @Cost methods on the type and return a map of cost method name -> CostMethodInfo.
      */
-    private fun findCostMethods(type: Class<*>, instance: Any): Map<String, CostMethodInfo> {
+    private fun findCostMethods(
+        type: Class<*>,
+        instance: Any,
+    ): Map<String, CostMethodInfo> {
         val costMethods = mutableMapOf<String, CostMethodInfo>()
         ReflectionUtils.doWithMethods(
             type,

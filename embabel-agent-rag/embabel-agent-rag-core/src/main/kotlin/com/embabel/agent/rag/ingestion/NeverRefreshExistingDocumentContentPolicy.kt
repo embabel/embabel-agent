@@ -21,6 +21,7 @@ import com.embabel.agent.rag.store.ChunkingContentElementRepository
 /**
  * Never refresh an existing document. Existing documents
  * will remain unchanged till the end of time.
+ * Even a snapshot URL would remain unchanged.
  */
 object NeverRefreshExistingDocumentContentPolicy : ContentRefreshPolicy {
 

@@ -18,6 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.annotation.support.AgenticInfo
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ToolGroup
@@ -226,10 +227,37 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
 
     /**
+     * Add a framework-agnostic [Tool] to the prompt runner.
+     *
+     * @param tool the tool to add
+     * @return PromptRunner instance with the added tool
+     */
+    fun withTool(tool: Tool): PromptRunner
+
+    /**
+     * Add multiple framework-agnostic [Tool]s to the prompt runner.
+     *
+     * @param tools the tools to add
+     * @return PromptRunner instance with the added tools
+     */
+    fun withTools(tools: List<Tool>): PromptRunner =
+        tools.fold(this) { acc, tool -> acc.withTool(tool) }
+
+    /**
+     * Add multiple framework-agnostic [Tool]s to the prompt runner (varargs version).
+     *
+     * @param tools the tools to add
+     * @return PromptRunner instance with the added tools
+     */
+    fun withFunctionTools(vararg tools: Tool): PromptRunner =
+        withTools(tools.toList())
+
+    /**
      * Add a reference which provides tools and prompt contribution.
      */
     fun withReference(reference: LlmReference): PromptRunner {
         return withToolObject(reference.toolObject())
+            .withTools(reference.tools())
             .withPromptContributor(reference)
     }
 

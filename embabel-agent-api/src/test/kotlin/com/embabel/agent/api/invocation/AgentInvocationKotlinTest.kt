@@ -20,9 +20,11 @@ import com.embabel.agent.api.common.autonomy.Foo
 import com.embabel.agent.core.*
 import io.mockk.every
 import io.mockk.mockk
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 
 class AgentInvocationKotlinTest {
 
@@ -38,7 +40,7 @@ class AgentInvocationKotlinTest {
     fun `default varargs invocation`() {
         val foo = Foo()
         val expected = Bar()
-        val invocation: AgentInvocation<Bar> = AgentInvocation.Companion.create(agentPlatform)
+        val invocation: AgentInvocation<Bar> = AgentInvocation.create(agentPlatform)
 
         every { agentPlatform.agents() } returns listOf(agent)
         every { agent.goals } returns setOf(goal)
@@ -64,7 +66,7 @@ class AgentInvocationKotlinTest {
         val foo = Foo()
         val map = mapOf("id" to foo)
         val expected = Bar()
-        val invocation: AgentInvocation<Bar> = AgentInvocation.Companion.create(agentPlatform)
+        val invocation: AgentInvocation<Bar> = AgentInvocation.create(agentPlatform)
 
         every { agentPlatform.agents() } returns listOf(agent)
         every { agent.goals } returns setOf(goal)
@@ -88,7 +90,7 @@ class AgentInvocationKotlinTest {
     @Test
     fun `custom processing options`() {
         val processOptions = ProcessOptions(verbosity = Verbosity(debug = true))
-        val invocation: AgentInvocation<Bar> = AgentInvocation.Companion.builder(agentPlatform)
+        val invocation: AgentInvocation<Bar> = AgentInvocation.builder(agentPlatform)
             .options(processOptions)
             .build()
 
@@ -106,6 +108,38 @@ class AgentInvocationKotlinTest {
 
 
         invocation.invoke(Foo())
+    }
+
+    @Nested
+    inner class Withers {
+
+        @Test
+        fun withAgentPlatform() {
+            val invocation: AgentInvocation<Foo> = AgentInvocation.create(agentPlatform)
+
+            val agentPlatform2 = mockk<AgentPlatform>()
+            val invocation2 = invocation.withAgentPlatform(agentPlatform2) as DefaultAgentInvocation<Foo>
+
+            assertSame(expected = agentPlatform2, actual = invocation2.agentPlatform)
+        }
+
+        @Test
+        fun withProcessOptions() {
+            val invocation: AgentInvocation<Foo> = AgentInvocation.create(agentPlatform)
+            val processOptions = ProcessOptions(verbosity = Verbosity(debug = true))
+            val invocation2 = invocation.withProcessOptions(processOptions) as DefaultAgentInvocation<Foo>
+
+            assertSame(expected = processOptions, actual = invocation2.processOptions)
+        }
+
+        @Test
+        fun withResultType() {
+            val invocation: AgentInvocation<Foo> = AgentInvocation.create(agentPlatform)
+            val resultType = Bar::class.java
+            val invocation2 = invocation.withResultType(resultType) as DefaultAgentInvocation<Bar>
+
+            assertSame(expected = resultType, actual = invocation2.resultType)
+        }
     }
 
 }

@@ -251,6 +251,7 @@ class UtilityInvocationJavaTest {
         // When scope is not provided, it defaults to agentPlatform
         // Since AgentPlatform extends AgentScope, we can test this by checking
         // that createAgent is called on agentPlatform when no scope is provided
+        when(agentPlatform.build()).thenReturn(agentPlatform);
         when(agentPlatform.createAgent(anyString(), anyString(), anyString())).thenReturn(agent);
         when(agentPlatform.createAgentProcessFrom(
                 any(Agent.class),

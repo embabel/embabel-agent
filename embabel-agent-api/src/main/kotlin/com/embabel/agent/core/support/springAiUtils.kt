@@ -16,7 +16,9 @@
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
+import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import org.springframework.ai.support.ToolCallbacks
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.DefaultToolDefinition
@@ -35,12 +37,19 @@ fun safelyGetToolCallbacks(instances: Collection<ToolObject>): List<ToolCallback
 fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallback> {
     val callbacks = mutableListOf<ToolCallback>()
     toolObject.objects.forEach { obj ->
+        // Handle ToolCallback instances directly
+        if (obj is ToolCallback) {
+            callbacks.add(obj)
+            return@forEach
+        }
+
+        // Scan for Embabel @Tool.Method annotations
+        val embabelTools = Tool.safelyFromInstance(obj)
+        callbacks.addAll(embabelTools.map { it.toSpringToolCallback() })
+
+        // Scan for Spring AI @Tool annotations
         try {
-            when (obj) {
-                is ToolCallback -> callbacks.add(obj)
-                else ->
-                    callbacks.addAll(ToolCallbacks.from(obj).toList())
-            }
+            callbacks.addAll(ToolCallbacks.from(obj).toList())
         } catch (_: IllegalStateException) {
             // Ignore this exception from Spring AI.
             // Passing in object without @Tool annotations is not a problem:
