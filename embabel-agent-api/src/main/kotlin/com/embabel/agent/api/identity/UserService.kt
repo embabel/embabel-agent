@@ -15,9 +15,18 @@
  */
 package com.embabel.agent.api.identity
 
+/**
+ * Common interface for working with users in the system.
+ * Applications don't need to use this,
+ * but may find it useful
+ */
 interface UserService<U : User> {
 
     fun findById(id: String): U?
+
+    fun findByUsername(username: String): U?
+
+    fun findByEmail(email: String): U?
 
     /**
      * Add the user to the system.

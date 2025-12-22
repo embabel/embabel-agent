@@ -16,6 +16,7 @@
 package com.embabel.agent.prompt.persona
 
 import com.embabel.common.ai.prompt.PromptContributor
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 /**
  * CrewAI style backstory prompt.
@@ -24,11 +25,11 @@ import com.embabel.common.ai.prompt.PromptContributor
  * but merely a PromptContributor that can be used
  * in any action implementation.
  */
-data class RoleGoalBackstory(
-    override val role: String,
-    val goal: String,
-    val backstory: String,
-) : PromptContributor {
+@JsonDeserialize(`as` = RoleGoalBackstoryImpl::class)
+interface RoleGoalBackstory : PromptContributor {
+
+    val goal: String
+    val backstory: String
 
     override fun contribution(): String = """
         Role: $role
@@ -37,6 +38,27 @@ data class RoleGoalBackstory(
     """.trimIndent()
 
     companion object {
+
+        @JvmStatic
+        fun create(
+            role: String,
+            goal: String,
+            backstory: String,
+        ): RoleGoalBackstory = RoleGoalBackstoryImpl(
+            role,
+            goal,
+            backstory,
+        )
+
+        operator fun invoke(
+            role: String,
+            goal: String,
+            backstory: String,
+        ): RoleGoalBackstory = RoleGoalBackstoryImpl(
+            role,
+            goal,
+            backstory,
+        )
 
         /**
          * Convenient Java-friendly way to start building a RoleGoalBackstory in fluent style.
@@ -58,7 +80,13 @@ data class RoleGoalBackstory(
     ) {
 
         fun andBackstory(backstory: String): RoleGoalBackstory =
-            RoleGoalBackstory(role, goal, backstory)
+            RoleGoalBackstoryImpl(role, goal, backstory)
 
     }
 }
+
+private data class RoleGoalBackstoryImpl(
+    override val role: String,
+    override val goal: String,
+    override val backstory: String,
+) : RoleGoalBackstory

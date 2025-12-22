@@ -37,7 +37,7 @@ abstract class Personas {
             .andGoal("Write engaging and imaginative stories")
             .andBackstory("Has a PhD in French literature; used to work in a circus");
 
-    static final Persona REVIEWER = new Persona(
+    static final Persona REVIEWER = Persona.create(
             "Media Book Review",
             "New York Times Book Reviewer",
             "Professional and insightful",

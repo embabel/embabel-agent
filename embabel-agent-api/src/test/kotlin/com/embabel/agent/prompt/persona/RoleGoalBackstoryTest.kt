@@ -164,22 +164,6 @@ class RoleGoalBackstoryTest {
     }
 
     @Test
-    fun `should support copy functionality`() {
-        val original = RoleGoalBackstory(
-            role = "Original Role",
-            goal = "Original Goal",
-            backstory = "Original Backstory"
-        )
-
-        val copied = original.copy(role = "New Role")
-
-        assertEquals("New Role", copied.role)
-        assertEquals("Original Goal", copied.goal)
-        assertEquals("Original Backstory", copied.backstory)
-        assertNotEquals(original, copied)
-    }
-
-    @Test
     fun `builder should chain methods correctly`() {
         val roleBuilder = RoleGoalBackstory.withRole("Test Role")
         assertNotNull(roleBuilder)
