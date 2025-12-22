@@ -29,11 +29,12 @@ interface UserService<U : User> {
     fun findByEmail(email: String): U?
 
     /**
-     * Add the user to the system.
+     * Add the user to the system given core information.
+     * Implementations may consider their own subtypes.
      * Default implementation refuses to do so.
      */
     fun provisionUser(
-        userInfo: U,
+        userInfo: User,
     ): U {
         error("User cannot be provisioned: $userInfo")
     }
