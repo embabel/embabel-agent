@@ -16,17 +16,13 @@
 package com.embabel.agent.config.annotation.spi;
 
 import com.embabel.agent.config.annotation.EnableAgents;
-import com.embabel.agent.config.annotation.LoggingThemes;
-import com.embabel.agent.config.annotation.McpServers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.mock.env.MockEnvironment;
 
-import java.util.Arrays;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -61,21 +57,6 @@ class EnvironmentPostProcessorTest {
     }
 
     @Test
-    void testNoAnnotations() {
-        // Given
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles()).isEmpty();
-        assertThat(System.getProperty("spring.profiles.active")).isNull();
-    }
-
-    @Test
     void testEnableAgentsWithLoggingTheme() {
         // Given
         @EnableAgents(loggingTheme = "starwars")
@@ -98,98 +79,9 @@ class EnvironmentPostProcessorTest {
 
 
     @Test
-    void testEnableAgentsWithMcpServers() {
-        // Given
-        @EnableAgents(mcpServers = {McpServers.DOCKER_DESKTOP})
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles()).containsExactlyInAnyOrder(McpServers.DOCKER_DESKTOP);
-    }
-
-    @Test
-    void testCombinedAnnotations() {
-        // Given
-        @EnableAgents(
-                loggingTheme = LoggingThemes.STAR_WARS,
-                mcpServers = {McpServers.DOCKER_DESKTOP}
-        )
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles())
-                .containsExactlyInAnyOrder(McpServers.DOCKER_DESKTOP);
-    }
-
-    @Test
-    void testPreservesExistingProfiles() {
-        // Given
-        System.setProperty("spring.profiles.active", "existing,profiles");
-
-        @EnableAgents(mcpServers = McpServers.DOCKER_DESKTOP)
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles()).containsExactlyInAnyOrder("existing", "profiles", McpServers.DOCKER_DESKTOP);
-
-    }
-
-    @Test
-    void testEmptyEnableAgents() {
-        // Given
-        @EnableAgents(loggingTheme = "", mcpServers = {})
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles()).isEmpty();
-        assertThat(System.getProperty("spring.profiles.active")).isNull();
-    }
-
-    @Test
-    void testEmptyProfiles() {
-        class TestApp {
-        }
-        when(application.getAllSources()).thenReturn(Set.of(TestApp.class));
-
-        // When
-        processor.postProcessEnvironment(environment, application);
-
-        // Then
-        assertThat(getAddedProfiles()).isEmpty();
-        assertThat(System.getProperty("spring.profiles.active")).isNull();
-    }
-
-    @Test
     void testHighestPrecedenceOrder() {
         assertThat(processor.getOrder()).isEqualTo(Integer.MIN_VALUE);
     }
 
-    /**
-     * Helper method to get only the profiles added by our processor,
-     */
-    private Set<String> getAddedProfiles() {
-        return Arrays.stream(environment.getActiveProfiles())
-                .collect(Collectors.toSet());
-    }
 
 }

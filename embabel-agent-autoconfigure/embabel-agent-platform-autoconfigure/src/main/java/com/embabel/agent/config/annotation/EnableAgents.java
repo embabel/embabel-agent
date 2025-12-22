@@ -55,6 +55,7 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
+@Deprecated(since = "0.3.1", forRemoval = true)
 public @interface EnableAgents {
 
     /**

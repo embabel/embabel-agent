@@ -27,10 +27,15 @@ import com.embabel.common.core.types.Semver
 import io.modelcontextprotocol.client.McpSyncClient
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Condition
+import org.springframework.context.annotation.ConditionContext
+import org.springframework.context.annotation.Conditional
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.type.AnnotatedTypeMetadata
 
 data class GroupConfig(
     val description: String? = null,
@@ -40,6 +45,89 @@ data class GroupConfig(
 
     fun include(tool: ToolCallback): Boolean {
         return tools.any { exclude -> tool.toolDefinition.name().endsWith(exclude) }
+    }
+}
+
+/**
+ * Conditional annotation that enables bean creation only when a specific
+ * MCP connection is configured in Spring AI properties.
+ *
+ * Checks for the presence of:
+ *   spring.ai.mcp.client.stdio.connections.{connectionName}.command
+ *   spring.ai.mcp.client.sse.connections.{connectionName}.url
+ *
+ * @param value The connection name(s) as defined in spring.ai.mcp.client.stdio.connections
+ *
+ * Example usage:
+ * ```kotlin
+ * @Bean
+ * @ConditionalOnMcpConnection("github-mcp")
+ * fun githubToolsGroup(): ToolGroup { ... }
+ *
+ * // Multiple connections - ANY match
+ * @Bean
+ * @ConditionalOnMcpConnection("brave-search-mcp", "fetch-mcp")
+ * fun webToolsGroup(): ToolGroup { ... }
+ * ```
+ */
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+@Conditional(OnMcpConnectionCondition::class)
+annotation class ConditionalOnMcpConnection(
+    /**
+     * The MCP connection name(s) as defined in spring.ai.mcp.client.stdio.connections
+     */
+    vararg val value: String,
+)
+
+/**
+ * Condition that checks if an MCP connection is configured in Spring AI properties.
+ *
+ * This evaluates during bean definition phase by checking property keys,
+ * avoiding the lifecycle timing issues of checking for instantiated beans.
+ */
+class OnMcpConnectionCondition : Condition {
+
+    private val logger = LoggerFactory.getLogger(OnMcpConnectionCondition::class.java)
+
+    companion object {
+        private const val STDIO_PREFIX = "spring.ai.mcp.client.stdio.connections"
+        private const val SSE_PREFIX = "spring.ai.mcp.client.sse.connections"
+    }
+
+    override fun matches(context: ConditionContext, metadata: AnnotatedTypeMetadata): Boolean {
+        val attributes = metadata.getAnnotationAttributes(ConditionalOnMcpConnection::class.java.name)
+            ?: return false
+
+        val connectionNames = attributes["value"] as? Array<String> ?: return false
+        val environment = context.environment
+
+        val results = connectionNames.map { connectionName ->
+            val stdioKey = "$STDIO_PREFIX.$connectionName.command"
+            val sseKey = "$SSE_PREFIX.$connectionName.url"
+
+            val exists = environment.containsProperty(stdioKey) || environment.containsProperty(sseKey)
+
+            logger.info("MCP connection '{}': exists={}", connectionName, exists)
+            connectionName to exists
+        }
+
+        val match =
+            results.any { it.second }
+
+        if (match) {
+            logger.debug(
+                "MCP connection condition MATCHED for [{}]",
+                connectionNames.joinToString(", ")
+            )
+        } else {
+            logger.info(
+                "MCP connection condition NOT matched for [{}]",
+                connectionNames.joinToString(", ")
+            )
+        }
+
+        return match
     }
 }
 
@@ -65,6 +153,7 @@ class ToolGroupsProperties {
 }
 
 @Configuration
+@ConditionalOnClass(McpSyncClient::class)
 @EnableConfigurationProperties(
     ToolGroupsProperties::class,
 )
@@ -119,6 +208,7 @@ class ToolGroupsConfiguration(
     }
 
     @Bean
+    @ConditionalOnMcpConnection("brave-search-mcp", "fetch-mcp", "wikipedia-mcp", "docker-mcp")
     fun mcpWebToolsGroup(): ToolGroup {
         val wikipediaTools = setOf(
             "get_related_topics",
@@ -145,6 +235,7 @@ class ToolGroupsConfiguration(
     }
 
     @Bean
+    @ConditionalOnMcpConnection("google-maps-mcp", "docker-mcp")
     fun mapsToolsGroup(): ToolGroup {
         return McpToolGroup(
             description = CoreToolGroups.MAPS_DESCRIPTION,
@@ -161,6 +252,7 @@ class ToolGroupsConfiguration(
     }
 
     @Bean
+    @ConditionalOnMcpConnection("puppeteer-mcp", "docker-mcp")
     fun browserAutomationWebToolsGroup(): ToolGroup {
         return McpToolGroup(
             description = CoreToolGroups.BROWSER_AUTOMATION_DESCRIPTION,
@@ -185,6 +277,7 @@ class ToolGroupsConfiguration(
     )
 
     @Bean
+    @ConditionalOnMcpConnection("github-mcp", "docker-mcp")
     fun githubToolsGroup(): ToolGroup {
         return McpToolGroup(
             description = CoreToolGroups.GITHUB_DESCRIPTION,
