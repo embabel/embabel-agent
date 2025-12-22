@@ -180,10 +180,10 @@ class LuceneSearchOperationsTest {
         assertTrue(infoString.contains("lucene-rag"))
         assertTrue(infoString.contains("0 documents"))
 
-        // After adding documents using acceptDocuments
+        // After adding documents using acceptDocuments (creates Chunks, not NavigableDocuments)
         ragService.acceptDocuments(listOf(Document("doc1", "test content", emptyMap<String, Any>())))
         val infoStringAfter = ragService.infoString(verbose = false, indent = 0)
-        assertTrue(infoStringAfter.contains("1 documents"))
+        assertTrue(infoStringAfter.contains("0 documents")) // acceptDocuments creates Chunks only
     }
 
     @Test
@@ -481,7 +481,7 @@ class LuceneSearchOperationsTest {
 
             val updatedStats = ragService.info()
             assertEquals(2, updatedStats.chunkCount)
-            assertEquals(2, updatedStats.documentCount)
+            assertEquals(0, updatedStats.documentCount) // acceptDocuments creates Chunks, not NavigableDocuments
             assertTrue(updatedStats.averageChunkLength > 0)
 
             // Average should be (5 + 25) / 2 = 15.0
@@ -496,7 +496,7 @@ class LuceneSearchOperationsTest {
             ragService.acceptDocuments(listOf(Document("test-doc", "Test content", emptyMap<String, Any>())))
 
             val infoStringAfter = ragService.infoString(verbose = false, indent = 0)
-            assertTrue(infoStringAfter.contains("1 documents, 1 chunks"))
+            assertTrue(infoStringAfter.contains("0 documents, 1 chunks")) // acceptDocuments creates Chunks only
         }
 
         @Test
@@ -824,7 +824,7 @@ class LuceneSearchOperationsTest {
             assertEquals(3, ragService.info().contentElementCount)
             val initialStats = ragService.info()
             assertEquals(3, initialStats.chunkCount)
-            assertEquals(3, initialStats.documentCount)
+            assertEquals(0, initialStats.documentCount) // acceptDocuments creates Chunks, not NavigableDocuments
 
             // Update keywords for doc1 and doc2 (this deletes old documents and adds new ones)
             ragService.updateKeywords(
@@ -838,7 +838,7 @@ class LuceneSearchOperationsTest {
             assertEquals(3, ragService.info().contentElementCount, "Count should remain 3 after keyword updates")
             val afterUpdateStats = ragService.info()
             assertEquals(3, afterUpdateStats.chunkCount, "Total chunks should remain 3")
-            assertEquals(3, afterUpdateStats.documentCount, "Total documents should remain 3")
+            assertEquals(0, afterUpdateStats.documentCount, "documentCount should be 0 (only Chunks, no NavigableDocuments)")
 
             // Verify all chunks are still accessible
             val allChunks = ragService.findAll()
