@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.api.annotation.support
 
-import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
@@ -50,7 +49,6 @@ internal class StateActionMethodManager(
     ): CoreAction {
         requireNonAmbiguousParameters(method)
         val actionAnnotation = method.getAnnotation(Action::class.java)
-        val achievesGoalAnnotation = method.getAnnotation(AchievesGoal::class.java)
         val inputClasses = method.parameters.map { it.type }
         val inputs = resolveInputBindings(method)
         // Add the state class itself as an input
@@ -66,12 +64,7 @@ internal class StateActionMethodManager(
             description = actionAnnotation.description.ifBlank { method.name },
             cost = { actionAnnotation.cost },
             inputs = allInputs.toSet(),
-            // State actions that transition between states use canRerun=true because state
-            // transitions clear the blackboard, which resets type-based preconditions.
-            // This avoids hasRun blocking re-entry into states during loops.
-            // However, @AchievesGoal actions are terminal and should NOT be rerunnable
-            // to prevent infinite loops with Utility planner.
-            canRerun = achievesGoalAnnotation == null,
+            canRerun = actionAnnotation.canRerun,
             clearBlackboard = computeClearBlackboard(method, actionAnnotation),
             pre = actionAnnotation.pre.toList() + computeTriggerPreconditions(method),
             post = actionAnnotation.post.toList(),

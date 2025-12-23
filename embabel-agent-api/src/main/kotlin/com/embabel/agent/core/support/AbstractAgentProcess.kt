@@ -360,6 +360,9 @@ abstract class AbstractAgentProcess(
             }
         }
 
+        // Capture blackboard state before execution to detect if it was cleared
+        val blackboardObjectsBefore = blackboard.objects.toList()
+
         val timestamp = Instant.now()
         val actionStatus = action.qos.retryTemplate("Action-${action.name}").execute<ActionStatus, Throwable> {
             action.execute(
@@ -372,6 +375,21 @@ abstract class AbstractAgentProcess(
             timestamp = timestamp,
             runningTime = runningTime,
         )
+
+        // Set hasRun condition on blackboard after action execution.
+        // This must be set for ALL actions (not just canRerun=false) because other
+        // actions may depend on hasRun as a precondition (e.g., aggregate actions).
+        // The canRerun flag controls whether hasRun=FALSE is a precondition, not
+        // whether to track that the action ran.
+        // Only set if the blackboard wasn't cleared during execution.
+        // For state-clearing actions, the blackboard reset naturally prevents re-runs
+        // since inputs are gone. Setting hasRun on the NEW state's blackboard would
+        // incorrectly block actions that haven't run in the new state.
+        val blackboardWasCleared = blackboard.objects.none { it in blackboardObjectsBefore }
+        if (!blackboardWasCleared) {
+            blackboard.setCondition(Rerun.hasRunCondition(action), true)
+        }
+
         platformServices.eventListener.onProcessEvent(
             actionExecutionStartEvent.resultEvent(
                 actionStatus = actionStatus,

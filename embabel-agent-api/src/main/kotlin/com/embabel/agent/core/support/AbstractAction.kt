@@ -47,6 +47,8 @@ object Rerun {
  * @param inputs the input bindings
  * @param outputs the output bindings
  * @param canRerun can we rerun this action?
+ * @param clearBlackboard if true, clears the blackboard on completion (e.g., state transitions).
+ *        When true, output=FALSE preconditions are skipped since the blackboard resets anyway.
  * @param qos quality of service requirements
  */
 abstract class AbstractAction(
@@ -60,6 +62,12 @@ abstract class AbstractAction(
     override val outputs: Set<IoBinding> = emptySet(),
     override val toolGroups: Set<ToolGroupRequirement>,
     override val canRerun: Boolean,
+    /**
+     * Whether this action clears the blackboard on completion (e.g., state transitions).
+     * When true, output=FALSE preconditions are skipped since the blackboard resets anyway.
+     * Subclasses can override this to enable blackboard clearing.
+     */
+    internal val clearBlackboard: Boolean = false,
     override val qos: ActionQos = ActionQos(),
 ) : Action {
 
@@ -73,22 +81,28 @@ abstract class AbstractAction(
                 conditions[input.value] = ConditionDetermination(true)
             }
             if (!canRerun) {
-                outputs.filter { output ->
-                    // Skip if output is already in inputs
-                    if (inputs.contains(output)) return@filter false
-                    // Skip if any input is a subtype of this output
-                    // (e.g., input AssessStory implements output Stage)
-                    val outputType = output.resolveJvmType()
-                    if (outputType != null) {
-                        val hasSubtypeInput = inputs.any { input ->
-                            val inputType = input.resolveJvmType()
-                            inputType != null && outputType.isAssignableFrom(inputType)
+                // Only add output preconditions if NOT clearing blackboard.
+                // State-clearing actions may return polymorphic types (e.g., Stage interface),
+                // where static effects include all child types. Adding output=FALSE preconditions
+                // for these would incorrectly block sibling state transitions.
+                if (!clearBlackboard) {
+                    outputs.filter { output ->
+                        // Skip if output is already in inputs
+                        if (inputs.contains(output)) return@filter false
+                        // Skip if any input is a subtype of this output
+                        // (e.g., input AssessStory implements output Stage)
+                        val outputType = output.resolveJvmType()
+                        if (outputType != null) {
+                            val hasSubtypeInput = inputs.any { input ->
+                                val inputType = input.resolveJvmType()
+                                inputType != null && outputType.isAssignableFrom(inputType)
+                            }
+                            if (hasSubtypeInput) return@filter false
                         }
-                        if (hasSubtypeInput) return@filter false
+                        true
+                    }.forEach { output ->
+                        conditions[output.value] = ConditionDetermination(false)
                     }
-                    true
-                }.forEach { output ->
-                    conditions[output.value] = ConditionDetermination(false)
                 }
                 conditions[Rerun.hasRunCondition(this)] = ConditionDetermination(false)
             }

@@ -106,8 +106,9 @@ class InMemoryBlackboard(
         key: String,
         value: Boolean,
     ): Blackboard {
+        // Only store in _map, not in _entries. Conditions should not appear
+        // in the objects list or affect lastResult().
         _map[key] = value
-        _entries.add(value)
         return this
     }
 

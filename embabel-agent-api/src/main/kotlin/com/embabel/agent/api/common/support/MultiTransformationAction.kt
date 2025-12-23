@@ -20,7 +20,6 @@ import com.embabel.agent.api.common.SomeOf
 import com.embabel.agent.api.common.Transformation
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.event.StateTransitionEvent
-import com.embabel.agent.core.ActionVoidResult
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.plan.CostComputation
@@ -40,7 +39,7 @@ class MultiTransformationAction<O : Any>(
     cost: CostComputation = { 0.0 },
     value: CostComputation = { 0.0 },
     canRerun: Boolean = false,
-    val clearBlackboard: Boolean = false,
+    clearBlackboard: Boolean = false,
     qos: ActionQos = ActionQos(),
     inputs: Set<IoBinding>,
     private val inputClasses: List<Class<*>>,
@@ -60,6 +59,7 @@ class MultiTransformationAction<O : Any>(
     outputs = calculateOutputs(outputVarName, outputClass),
     toolGroups = toolGroups,
     canRerun = canRerun,
+    clearBlackboard = clearBlackboard,
     qos = qos,
 ) {
 

@@ -163,6 +163,9 @@ class BlackboardWorldStateDeterminerTest {
         every { mockAgentProcess.get(any()) } answers {
             blackboard.get(firstArg())
         }
+        every { mockAgentProcess.getCondition(any()) } answers {
+            blackboard.getCondition(firstArg())
+        }
         every { mockAgentProcess.agent } returns SimpleTestAgent
         val bsb = BlackboardWorldStateDeterminer(
             processContext = ProcessContext(
