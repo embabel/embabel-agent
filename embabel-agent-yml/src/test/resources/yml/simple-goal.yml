@@ -1,0 +1,4 @@
+stepType: goal
+name: generateReport
+description: Generate a complete report from analysis
+outputTypeName: Report

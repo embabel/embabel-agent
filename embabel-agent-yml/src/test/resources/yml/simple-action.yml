@@ -1,0 +1,7 @@
+stepType: action
+name: summarize
+description: Summarize the input text
+inputTypeNames:
+  - UserInput
+outputTypeName: Summary
+prompt: "Summarize the following: {{userInput.content}}"
