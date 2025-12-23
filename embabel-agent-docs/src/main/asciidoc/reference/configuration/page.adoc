@@ -10,10 +10,6 @@ Example:
 [source,java]
 ----
 @SpringBootApplication
-@EnableAgents(
-    loggingTheme = LoggingThemes.STAR_WARS,
-    mcpClients = { "docker" }
-)
 class MyAgentApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyAgentApplication.class, args);
@@ -23,10 +19,6 @@ class MyAgentApplication {
 
 This is a normal Spring Boot application class.
 You can add other Spring Boot annotations as needed.
-`@EnableAgents` enables the agent framework.
-It allows you to specify a logging theme (optional) and well-known sources of local models and MCP tools.
-In this case we're using Docker as a source of MCP tools.
-
 Add the following dependency to your `pom.xml` to include the Ollama model provider starter:
 
 [source,xml]
@@ -114,6 +106,52 @@ From `AgentPlatformProperties` - unified configuration for all agent platform pr
 |Platform description
 
 |===
+
+===== Logging Personality
+
+Configuration for agent logging output style and theming.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.logging.personality`
+|String
+|_(none)_
+|Themed logging messages to add personality to agent output
+
+|===
+
+.Available Personality Values
+[cols="2,5",options="header"]
+|===
+|Value |Description
+
+|`starwars`
+|Star Wars themed logging messages
+
+|`severance`
+|Severance themed logging messages. Praise Kier
+
+|`colossus`
+|Colossus: The Forbin Project themed messages
+
+|`hitchhiker`
+|Hitchhiker's Guide to the Galaxy themed messages
+
+|`montypython`
+|Monty Python themed logging messages
+
+|===
+
+.Example Configuration
+[source,yaml]
+----
+embabel:
+  agent:
+    logging:
+      personality: hitchhiker
+----
 
 ===== Agent Scanning
 

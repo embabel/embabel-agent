@@ -113,23 +113,14 @@ You can also configure logging via a `logback-spring.xml` file if you have more 
 See the https://docs.spring.io/spring-boot/reference/features/logging.html[Spring Boot Logging] reference.
 
 By default, many Embabel examples use personality-based logging experiences such as Star Wars.
-You can disable this via the `@EnableAgents` annotation on your main application class:
+You can disable this by updating application.properties accordingly.
 
-[source,java]
+[source,text]
 ----
-@SpringBootApplication
-@ConfigurationPropertiesScan
-@EnableAgents(
-        loggingTheme = LoggingThemes.STAR_WARS
-)
-class MyAwesomeApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(GuideApplication.class, args);
-    }
-}
+embabel.agent.logging.personality=severance
 ----
 
-Remove the `loggingTheme` attribute to disable personality-based logging.
+Remove the `embabel.agent.logging.personality` key to disable personality-based logging.
 
 As all logging results from listening to events via an `AgenticEventListener`, you can also easily create your own customized logging.
 
