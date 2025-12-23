@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.common</groupId>
         <artifactId>embabel-common-parent</artifactId>
-        <version>0.1.7</version>
+        <version>0.1.8-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-common-ai</artifactId>
     <packaging>jar</packaging>
@@ -16,7 +16,7 @@
         <url>https://github.com/embabel/embabel-common</url>
         <connection>scm:git:https://github.com/embabel/embabel-common.git</connection>
         <developerConnection>scm:git:https://github.com/embabel/embabel-common.git</developerConnection>
-        <tag>v0.1.7</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <dependencies>
