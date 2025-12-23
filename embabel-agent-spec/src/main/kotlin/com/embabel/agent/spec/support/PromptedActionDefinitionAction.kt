@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.yml.support
+package com.embabel.agent.spec.support
 
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.yml.PromptedActionDefinition
+import com.embabel.agent.spec.model.PromptedActionDefinition
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne

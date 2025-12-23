@@ -13,8 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.yml
+package com.embabel.agent.spec
 
+import com.embabel.agent.spec.model.GoalDefinition
+import com.embabel.agent.spec.model.PromptedActionDefinition
+import com.embabel.agent.spec.model.StepDefinition
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule

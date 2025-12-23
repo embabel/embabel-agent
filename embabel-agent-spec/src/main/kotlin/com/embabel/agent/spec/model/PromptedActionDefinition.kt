@@ -13,22 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.yml
+package com.embabel.agent.spec.model
 
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.yml.support.PromptedActionDefinitionAction
+import com.embabel.agent.spec.support.PromptedActionDefinitionAction
 import com.embabel.common.ai.model.LlmOptions
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
-
-
-/**
- * Declarative action
- */
-sealed interface ActionDefinition : StepDefinition<Action> {
-
-}
 
 /**
  * Serializable action spec

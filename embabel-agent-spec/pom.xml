@@ -6,10 +6,10 @@
         <artifactId>embabel-agent-parent</artifactId>
         <version>0.3.2-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-yml</artifactId>
+    <artifactId>embabel-agent-spec</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent YML</name>
-    <description>Embabel Agent YML Support</description>
+    <name>Embabel Agent Spec</name>
+    <description>Embabel Agent Spec - Serializable Step Definitions</description>
     <url>https://github.com/embabel/embabel-agent</url>
 
     <scm>

@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.yml.persistence
+package com.embabel.agent.spec.yml
 
-import com.embabel.agent.yml.StepDefinition
+import com.embabel.agent.spec.model.StepDefinition
+import com.embabel.agent.spec.persistence.StepDefinitionRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
@@ -24,9 +25,12 @@ import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.slf4j.LoggerFactory
 import java.io.File
 
-class YmlStepDataRepository(
+/**
+ * Look for YML files in a directory to load and save StepDefinition entities
+ */
+class YmlStepDefinitionRepository(
     val dir: String = System.getProperty("user.dir") + "/steps",
-) : StepDataRepository {
+) : StepDefinitionRepository {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 

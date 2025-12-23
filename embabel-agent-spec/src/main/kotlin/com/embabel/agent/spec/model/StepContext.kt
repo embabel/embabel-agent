@@ -13,18 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.yml.persistence
+package com.embabel.agent.spec.model
 
-import com.embabel.agent.yml.StepDefinition
+import com.embabel.agent.core.DataDictionary
+import com.embabel.agent.core.ToolGroupDescription
 
-interface StepDataRepository {
-
-    fun save(entity: StepDefinition<*>): StepDefinition<*>
-
-    fun saveAll(entities: Iterable<StepDefinition<*>>): Iterable<StepDefinition<*>> {
-        return entities.map { save(it) }
-    }
-
-    fun findAll(): Iterable<StepDefinition<*>>
-
-}
+/**
+ * Environment in which actions and goals are defined.
+ */
+data class StepContext(
+    val name: String,
+    val dataDictionary: DataDictionary,
+    val toolGroups: Set<ToolGroupDescription>,
+)

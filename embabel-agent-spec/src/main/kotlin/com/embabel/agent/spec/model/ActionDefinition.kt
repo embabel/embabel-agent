@@ -13,16 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.yml
+package com.embabel.agent.spec.model
 
-import com.embabel.agent.core.DataDictionary
-import com.embabel.agent.core.ToolGroupDescription
+import com.embabel.agent.core.Action
+
 
 /**
- * Environment in which actions and goals are defined.
+ * Declarative action
  */
-data class StepContext(
-    val name: String,
-    val dataDictionary: DataDictionary,
-    val toolGroups: Set<ToolGroupDescription>,
-)
+interface ActionDefinition : StepDefinition<Action>
