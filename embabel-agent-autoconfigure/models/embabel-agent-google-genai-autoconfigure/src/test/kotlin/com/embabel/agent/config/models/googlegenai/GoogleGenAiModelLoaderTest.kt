@@ -382,6 +382,10 @@ class GoogleGenAiModelLoaderTest {
         assertEquals("gemini-3-pro-preview", gemini3ProPreview?.modelId)
     }
 
+    /**
+     * Gemini 3 Flash Preview - Fast model with thinking capabilities
+     * Added as part of the Gemini 3 family support
+     */
     @Test
     fun `should load Gemini 3 Flash preview model`() {
         // Arrange
