@@ -21,6 +21,17 @@ models:
       usd_per1m_input_tokens: 2.00
       usd_per1m_output_tokens: 12.00
 
+  # Gemini 3 Flash Preview - Fast model with thinking capabilities
+  - name: "gemini_3_flash_preview"
+    model_id: "gemini-3-flash-preview"
+    display_name: "Gemini 3 Flash Preview"
+    knowledge_cutoff_date: "2025-01-01"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.50
+      usd_per1m_output_tokens: 3.00
+
   # ========================================
   # GEMINI 2.5 FAMILY (Stable - Current Generation)
   # ========================================

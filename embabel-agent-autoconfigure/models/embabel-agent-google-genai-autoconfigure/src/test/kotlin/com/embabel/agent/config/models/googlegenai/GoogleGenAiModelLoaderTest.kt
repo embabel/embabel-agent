@@ -383,6 +383,21 @@ class GoogleGenAiModelLoaderTest {
     }
 
     @Test
+    fun `should load Gemini 3 Flash preview model`() {
+        // Arrange
+        val loader = GoogleGenAiModelLoader()
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert - verify Gemini 3 Flash preview is present
+        val gemini3FlashPreview = result.models.find { it.modelId == "gemini-3-flash-preview" }
+        assertNotNull(gemini3FlashPreview, "Gemini 3 Flash preview should be loaded")
+        assertEquals("gemini_3_flash_preview", gemini3FlashPreview?.name)
+        assertEquals("gemini-3-flash-preview", gemini3FlashPreview?.modelId)
+    }
+
+    @Test
     fun `should load Gemini 25 Flash model`() {
         // Arrange
         val loader = GoogleGenAiModelLoader()
