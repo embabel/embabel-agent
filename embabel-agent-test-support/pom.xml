@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>0.3.1</version>
+        <version>0.3.2-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-test-support</artifactId>
     <packaging>pom</packaging>
@@ -16,7 +16,7 @@
         <url>https://github.com/embabel/embabel-agent</url>
         <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
         <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
-        <tag>v0.3.1</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <modules>
