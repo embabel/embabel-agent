@@ -20,6 +20,7 @@ import com.embabel.agent.api.annotation.Action as ActionAnnotation
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.ToolGroupRequirement
 import org.springframework.ai.tool.ToolCallback
 import java.lang.reflect.Method
 
@@ -116,3 +117,30 @@ private fun isStateTypeRecursive(clazz: Class<*>?, visited: MutableSet<Class<*>>
     }
     return false
 }
+
+/**
+ * Compute whether an action should clear the blackboard.
+ * Returns true if the method returns a @State type or if explicitly set in annotation.
+ */
+internal fun computeClearBlackboard(method: Method, actionAnnotation: ActionAnnotation): Boolean =
+    isStateType(method.returnType) || actionAnnotation.clearBlackboard
+
+/**
+ * Compute trigger preconditions for an action method.
+ * Returns a list containing the trigger precondition if @Action.trigger is set.
+ */
+internal fun computeTriggerPreconditions(method: Method): List<String> {
+    val triggerType = findTriggerType(method)
+    return if (triggerType != null) {
+        listOf(triggerPrecondition(triggerType))
+    } else {
+        emptyList()
+    }
+}
+
+/**
+ * Compute tool group requirements from an @Action annotation.
+ */
+internal fun computeToolGroups(actionAnnotation: ActionAnnotation): Set<ToolGroupRequirement> =
+    (actionAnnotation.toolGroupRequirements.map { ToolGroupRequirement(it.role) } +
+            actionAnnotation.toolGroups.map { ToolGroupRequirement(it) }).toSet()

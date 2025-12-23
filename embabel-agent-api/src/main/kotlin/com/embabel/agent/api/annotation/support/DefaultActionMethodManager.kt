@@ -72,16 +72,6 @@ internal class DefaultActionMethodManager(
         val inputs = resolveInputBindings(method)
 
         require(method.returnType != null) { "Action method ${method.name} must have a return type" }
-        val clearBlackboard = isStateType(method.returnType) ||
-                actionAnnotation.clearBlackboard
-
-        // Check for @Trigger parameter and create precondition
-        val triggerType = findTriggerType(method)
-        val triggerPreconditions = if (triggerType != null) {
-            listOf(triggerPrecondition(triggerType))
-        } else {
-            emptyList()
-        }
 
         // Create cost computation - either from @Cost method or static value
         val costComputation = resolveCostComputation(
@@ -106,17 +96,13 @@ internal class DefaultActionMethodManager(
             value = valueComputation,
             inputs = inputs.toSet(),
             canRerun = actionAnnotation.canRerun,
-            clearBlackboard = clearBlackboard,
-            pre = actionAnnotation.pre.toList() + triggerPreconditions,
+            clearBlackboard = computeClearBlackboard(method, actionAnnotation),
+            pre = actionAnnotation.pre.toList() + computeTriggerPreconditions(method),
             post = actionAnnotation.post.toList(),
             inputClasses = inputClasses,
             outputClass = method.returnType,
             outputVarName = actionAnnotation.outputBinding,
-            toolGroups = (actionAnnotation.toolGroupRequirements.map { ToolGroupRequirement(it.role) } + actionAnnotation.toolGroups.map {
-                ToolGroupRequirement(
-                    it
-                )
-            }).toSet(),
+            toolGroups = computeToolGroups(actionAnnotation),
         ) { context ->
             invokeActionMethod(
                 method = method,

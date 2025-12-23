@@ -20,7 +20,6 @@ import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.MultiTransformationAction
 import com.embabel.agent.core.IoBinding
-import com.embabel.agent.core.ToolGroupRequirement
 import org.slf4j.LoggerFactory
 import org.springframework.core.KotlinDetector
 import org.springframework.util.ReflectionUtils
@@ -61,16 +60,6 @@ internal class StateActionMethodManager(
         )
         val allInputs = inputs + stateInput
         require(method.returnType != null) { "Action method ${method.name} must have a return type" }
-        val clearBlackboard = isStateType(method.returnType) ||
-                actionAnnotation.clearBlackboard
-
-        // Check for @Trigger parameter and create precondition
-        val triggerType = findTriggerType(method)
-        val triggerPreconditions = if (triggerType != null) {
-            listOf(triggerPrecondition(triggerType))
-        } else {
-            emptyList()
-        }
 
         return MultiTransformationAction(
             name = "${stateClass.simpleName}.${method.name}",
@@ -83,19 +72,17 @@ internal class StateActionMethodManager(
             // However, @AchievesGoal actions are terminal and should NOT be rerunnable
             // to prevent infinite loops with Utility planner.
             canRerun = achievesGoalAnnotation == null,
-            clearBlackboard = clearBlackboard,
-            pre = actionAnnotation.pre.toList() + triggerPreconditions,
+            clearBlackboard = computeClearBlackboard(method, actionAnnotation),
+            pre = actionAnnotation.pre.toList() + computeTriggerPreconditions(method),
             post = actionAnnotation.post.toList(),
             inputClasses = inputClasses + stateClass,
             outputClass = method.returnType,
             outputVarName = actionAnnotation.outputBinding,
-            toolGroups = (actionAnnotation.toolGroupRequirements.map { ToolGroupRequirement(it.role) } +
-                    actionAnnotation.toolGroups.map { ToolGroupRequirement(it) }).toSet(),
+            toolGroups = computeToolGroups(actionAnnotation),
         ) { context ->
             invokeStateActionMethod(
                 method = method,
                 stateClass = stateClass,
-                agentInstance = agentInstance,
                 actionContext = context,
             )
         }
@@ -121,7 +108,6 @@ internal class StateActionMethodManager(
     private fun <O> invokeStateActionMethod(
         method: Method,
         stateClass: Class<*>,
-        agentInstance: Any,
         actionContext: TransformationActionContext<List<Any>, O>,
     ): O {
         logger.debug("Invoking state action method {}.{}", stateClass.simpleName, method.name)
