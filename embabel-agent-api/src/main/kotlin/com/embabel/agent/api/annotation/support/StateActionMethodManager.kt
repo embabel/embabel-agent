@@ -17,6 +17,7 @@ package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
+import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.MultiTransformationAction
 import com.embabel.agent.core.IoBinding
@@ -46,7 +47,6 @@ internal class StateActionMethodManager(
     fun createAction(
         method: Method,
         stateClass: Class<*>,
-        agentInstance: Any,
     ): CoreAction {
         requireNonAmbiguousParameters(method)
         val actionAnnotation = method.getAnnotation(Action::class.java)
@@ -104,6 +104,18 @@ internal class StateActionMethodManager(
         return result
     }
 
+    private fun resolveStateInstance(
+        context: OperationContext,
+        stateClass: Class<*>,
+    ): Any {
+        return context.processContext.agentProcess.getValue(
+            variable = IoBinding.DEFAULT_BINDING,
+            type = stateClass.name,
+        ) ?: throw IllegalStateException(
+            "State instance of type ${stateClass.name} not found in blackboard"
+        )
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun <O> invokeStateActionMethod(
         method: Method,
@@ -112,11 +124,10 @@ internal class StateActionMethodManager(
     ): O {
         logger.debug("Invoking state action method {}.{}", stateClass.simpleName, method.name)
         // First, get the state instance from the blackboard
-        val stateInstance = actionContext.processContext.agentProcess.getValue(
-            variable = IoBinding.DEFAULT_BINDING,
-            type = stateClass.name,
-        ) ?: throw IllegalStateException(
-            "State instance of type ${stateClass.name} not found in blackboard"
+
+        val stateInstance = resolveStateInstance(
+            context = actionContext,
+            stateClass = stateClass,
         )
 
         // TODO Arjen to review reflection usage

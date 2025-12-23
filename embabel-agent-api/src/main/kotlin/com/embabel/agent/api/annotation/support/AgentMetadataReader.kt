@@ -16,6 +16,9 @@
 package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.annotation.*
+import com.embabel.agent.api.annotation.Action
+import com.embabel.agent.api.annotation.Agent
+import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.common.StuckHandler
@@ -312,7 +315,6 @@ class AgentMetadataReader(
                 val action = createActionFromStateMethod(
                     actionMethod,
                     stateClass,
-                    agentInstance,
                 )
                 allActions.add(action)
                 createGoalFromStateActionMethod(actionMethod, action, stateClass, agentInstance)?.let {
@@ -385,11 +387,10 @@ class AgentMetadataReader(
     private fun createActionFromStateMethod(
         method: Method,
         stateClass: Class<*>,
-        agentInstance: Any,
     ): CoreAction {
         return StateActionMethodManager(
             actionMethodManager = actionMethodManager,
-        ).createAction(method, stateClass, agentInstance)
+        ).createAction(method, stateClass)
     }
 
     /**
