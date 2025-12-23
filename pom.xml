@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-build-parent</artifactId>
-        <version>0.1.8</version>
+        <version>0.1.9-SNAPSHOT</version>
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-parent</artifactId>
@@ -15,7 +15,7 @@
     <url>https://github.com/embabel/embabel-agent</url>
 
     <properties>
-        <embabel-common.version>0.1.7</embabel-common.version>
+        <embabel-common.version>0.1.8-SNAPSHOT</embabel-common.version>
         <netty.version>4.1.125.Final</netty.version>
     </properties>
 
