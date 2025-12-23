@@ -312,5 +312,114 @@ Every MCP server includes a built-in `helloBanner` tool that displays server inf
 }
 ----
 
+[[reference.integrations__mcp_consuming]]
+===== Consuming
+
+Embabel Agent can consume external MCP servers as tool sources, automatically organizing them into Tool Groups that agents can use.
+
+[[reference.integrations__mcp_docker]]
+====== Docker Tools Integration
+
+====== Configuration Approaches
+
+**Docker MCP Gateway** (Recommended)::
+Uses Docker Desktop's MCP Toolkit extension as a single gateway to multiple tools:
+
+[source,yaml]
+----
+spring:
+  ai:
+    mcp:
+      client:
+        type: SYNC
+        stdio:
+          connections:
+            docker-mcp:
+              command: docker
+              args: [mcp, gateway, run]
+----
+
+**Individual Containers**::
+Run each MCP server as a separate Docker container:
+
+[source,yaml]
+----
+spring:
+  ai:
+    mcp:
+      client:
+        type: SYNC
+        stdio:
+          connections:
+            brave-search-mcp:
+              command: docker
+              args: [run, -i, --rm, -e, BRAVE_API_KEY, mcp/brave-search]
+              env:
+                BRAVE_API_KEY: ${BRAVE_API_KEY}
+----
+
+====== Available Tool Groups
+
+Tool Groups are conditionally created based on configured MCP connections using `@ConditionalOnMcpConnection`:
+
+[cols="1,2,3"]
+|===
+|Tool Group |Required Connections |Capabilities
+
+|Web Tools
+|`brave-search-mcp`, `fetch-mcp`, `wikipedia-mcp`, or `docker-mcp`
+|Web search, URL fetching, Wikipedia queries
+
+|Maps
+|`google-maps-mcp` or `docker-mcp`
+|Geocoding, directions, place search
+
+|Browser Automation
+|`puppeteer-mcp` or `docker-mcp`
+|Page navigation, screenshots, form interaction
+
+|GitHub
+|`github-mcp` or `docker-mcp`
+|Issues, pull requests, comments
+|===
+
+====== How It Works
+
+The `@ConditionalOnMcpConnection` annotation checks for configured connections at startup:
+
+[source,kotlin]
+----
+@Bean
+@ConditionalOnMcpConnection("github-mcp", "docker-mcp")  // <1>
+fun githubToolsGroup(): ToolGroup {
+    return McpToolGroup(
+        description = CoreToolGroups.GITHUB_DESCRIPTION,
+        name = "docker-github",
+        clients = mcpSyncClients,
+        filter = { it.toolDefinition.name().contains("create_issue") }  // <2>
+    )
+}
+----
+<1> Bean created if *any* listed connection is configured
+<2> Filter selects which MCP tools belong to this group
+
+====== Custom Tool Groups
+
+Define custom groups via configuration properties:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      tools:
+        includes:
+          my-tools:
+            description: "Custom tool collection"
+            provider: "MyOrg"
+            tools:
+              - tool_name_suffix
+----
+
 [[reference.integrations__a2a]]
 ==== A2A
