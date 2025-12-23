@@ -27,6 +27,7 @@ class GoogleGenAiModels {
 
         // Gemini 3 Family (Preview - Latest Generation)
         const val GEMINI_3_PRO_PREVIEW = "gemini-3-pro-preview"
+        const val GEMINI_3_FLASH_PREVIEW = "gemini-3-flash-preview"
 
         // Gemini 2.5 Family (Stable - Current Generation)
         const val GEMINI_2_5_PRO = "gemini-2.5-pro"
