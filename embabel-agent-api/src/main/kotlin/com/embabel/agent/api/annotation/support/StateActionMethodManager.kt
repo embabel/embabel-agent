@@ -132,13 +132,33 @@ internal class StateActionMethodManager(
         ) ?: throw IllegalStateException(
             "State instance of type ${stateClass.name} not found in blackboard"
         )
+
         // TODO Arjen to review reflection usage
-        val result = if (KotlinDetector.isKotlinReflectPresent()) {
-            val kFunction = method.kotlinFunction
-            if (kFunction != null) invokeStateActionMethodKotlinReflect(method, kFunction, stateInstance, actionContext)
-            else invokeStateActionMethodJavaReflect(method, stateInstance, actionContext)
+
+        // Re-lookup the method from the actual instance's class to handle classloader differences
+        // (e.g., when using Spring DevTools hot reload, the class may have been reloaded)
+        val actualMethod = if (stateInstance.javaClass == stateClass) {
+            method
         } else {
-            invokeStateActionMethodJavaReflect(method, stateInstance, actionContext)
+            logger.debug(
+                "State class mismatch: expected {} but got {}. Re-looking up method.",
+                stateClass.name,
+                stateInstance.javaClass.name,
+            )
+            stateInstance.javaClass.getMethod(method.name, *method.parameterTypes)
+        }
+
+        val result = if (KotlinDetector.isKotlinReflectPresent()) {
+            val kFunction = actualMethod.kotlinFunction
+            if (kFunction != null) invokeStateActionMethodKotlinReflect(
+                actualMethod,
+                kFunction,
+                stateInstance,
+                actionContext
+            )
+            else invokeStateActionMethodJavaReflect(actualMethod, stateInstance, actionContext)
+        } else {
+            invokeStateActionMethodJavaReflect(actualMethod, stateInstance, actionContext)
         }
         logger.debug(
             "Result of invoking state action method {}.{} was {}",
