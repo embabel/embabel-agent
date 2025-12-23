@@ -19,7 +19,7 @@ Then run:
 ```bash
 mvn generate-resources -Dasciidoctor.attributes='toc!'
 
-docling  ./target/generated-docs/index.pdf --from pdf --to md --output ./target/generated-docs --image-export-mode placeholder
+docling  ./target/generated-docs/index.html --from html --to md --output ./target/generated-docs --image-export-mode placeholder
 ```
 
 This will create `index.md` in the `target/generated-docs` folder.
