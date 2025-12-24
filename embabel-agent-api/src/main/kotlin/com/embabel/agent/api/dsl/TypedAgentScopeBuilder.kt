@@ -413,7 +413,7 @@ fun <C> repeat(
             }
             until(input, it)
         })
-    val doerScope = what.invoke().build()
+    val doerScope = what.invoke().createAgentScope()
     val completionAction = TransformationAction(
         name = "repeat",
         description = "Repeat until condition is met",
@@ -455,7 +455,7 @@ data class TypedAgentScopeBuilder<O>(
     val opaque: Boolean = false,
 ) : AgentScopeBuilder {
 
-    override fun build(): AgentScope {
+    override fun createAgentScope(): AgentScope {
         return AgentScope(
             name = name,
             actions = actions,

@@ -42,7 +42,8 @@ interface ActionSource {
  * Defines the scope of an agent or agents: Goals, conditions and actions.
  * Both Agents and AgentPlatforms are AgentScopes.
  */
-interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString, AgentScopeBuilder {
+interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSource, DataDictionary, HasInfoString,
+    AgentScopeBuilder {
 
     /**
      * Whether to hide the agent's actions and conditions
@@ -119,7 +120,7 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
         }
     }
 
-    override fun build(): AgentScope = this
+    override fun createAgentScope(): AgentScope = this
 }
 
 private data class AgentScopeImpl(

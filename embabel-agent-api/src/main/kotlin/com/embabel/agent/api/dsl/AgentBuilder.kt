@@ -108,7 +108,7 @@ class AgentBuilder(
      * Must be used if you have multiple actions
      */
     fun flow(block: AgentBuilder.() -> TypedAgentScopeBuilder<*>) {
-        val agentScope = block().build()
+        val agentScope = block().createAgentScope()
         logger.info(
             "Adding actions from agent scope {}: {}",
             agentScope.name,

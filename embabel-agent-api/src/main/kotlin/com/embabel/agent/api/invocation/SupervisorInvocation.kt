@@ -101,7 +101,7 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
      * to orchestrate them toward the goal.
      */
     fun createSupervisorAgent(): Agent {
-        val scope = agentScopeBuilder.build()
+        val scope = agentScopeBuilder.createAgentScope()
 
         // Get all actions from the scope (excluding any existing goal actions)
         val allActions = scope.actions.toList()

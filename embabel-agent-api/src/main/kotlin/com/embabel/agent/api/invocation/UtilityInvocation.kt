@@ -80,7 +80,7 @@ data class UtilityInvocation @JvmOverloads constructor(
      */
     fun createPlatformAgent(): Agent {
         val agent = agentScopeBuilder
-            .build()
+            .createAgentScope()
             .createAgent(
                 name = agentPlatform.name,
                 provider = EMBABEL_PROVIDER,

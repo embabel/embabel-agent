@@ -62,7 +62,7 @@ abstract class WorkflowBuilder<RESULT : Any>(
         description: String,
     ): Agent {
         return build()
-            .build()
+            .createAgentScope()
             .createAgent(
                 name = name,
                 provider = Constants.EMBABEL_PROVIDER,

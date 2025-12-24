@@ -60,7 +60,7 @@ interface ExecutingOperationContext : OperationContext {
         outputClass: Class<O>,
         agentScopeBuilder: TypedAgentScopeBuilder<O>,
     ): O {
-        val agent = agentScopeBuilder.build().createAgent(
+        val agent = agentScopeBuilder.createAgentScope().createAgent(
             name = agentScopeBuilder.name,
             provider = agentScopeBuilder.provider,
             description = agentScopeBuilder.name,
