@@ -22,7 +22,7 @@ import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 
 /**
- * Remote a remote REST endpoint described in the specs
+ * Exposes a remote REST endpoint described in the specs
  */
 internal class RestAction(
     val serverRegistration: RestServerRegistration,

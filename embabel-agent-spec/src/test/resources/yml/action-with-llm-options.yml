@@ -1,0 +1,14 @@
+stepType: action
+name: analyze
+description: Analyze the input data with specific LLM settings
+llm:
+  temperature: 0.7
+  model: gpt-4
+inputTypeNames:
+  - RawData
+outputTypeName: Analysis
+prompt: "Analyze this data: {{rawData}}"
+toolGroups:
+  - search
+  - web
+nullable: true

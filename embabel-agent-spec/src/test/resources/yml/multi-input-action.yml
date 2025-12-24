@@ -1,0 +1,14 @@
+stepType: action
+name: compareDocuments
+description: Compare two documents and produce a diff summary
+inputTypeNames:
+  - Document
+  - ReferenceDocument
+outputTypeName: ComparisonResult
+prompt: |
+  Compare the following documents and summarize their differences:
+
+  Document 1: {{document}}
+  Document 2: {{referenceDocument}}
+
+  Provide a structured comparison.
