@@ -21,4 +21,4 @@ import com.embabel.agent.core.Action
 /**
  * Declarative action
  */
-interface ActionDefinition : StepDefinition<Action>
+interface ActionSpec : StepSpec<Action>

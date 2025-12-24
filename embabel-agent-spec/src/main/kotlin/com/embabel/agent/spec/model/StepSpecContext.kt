@@ -21,8 +21,8 @@ import com.embabel.agent.core.ToolGroupDescription
 /**
  * Environment in which actions and goals are defined.
  */
-data class StepContext(
+data class StepSpecContext(
     val name: String,
     val dataDictionary: DataDictionary,
-    val toolGroups: Set<ToolGroupDescription>,
+    val toolGroups: List<ToolGroupDescription>,
 )

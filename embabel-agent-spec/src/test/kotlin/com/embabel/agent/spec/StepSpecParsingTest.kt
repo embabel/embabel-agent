@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.spec
 
-import com.embabel.agent.spec.model.GoalDefinition
-import com.embabel.agent.spec.model.PromptedActionDefinition
-import com.embabel.agent.spec.model.StepDefinition
+import com.embabel.agent.spec.model.GoalSpec
+import com.embabel.agent.spec.model.PromptedActionSpec
+import com.embabel.agent.spec.model.StepSpec
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-class StepDefinitionParsingTest {
+class StepSpecParsingTest {
 
     private lateinit var yamlMapper: ObjectMapper
 
@@ -42,10 +42,10 @@ class StepDefinitionParsingTest {
         fun `parse simple action from yaml`() {
             val yaml = loadYamlResource("yml/simple-action.yml")
 
-            val result = yamlMapper.readValue(yaml, StepDefinition::class.java)
+            val result = yamlMapper.readValue(yaml, StepSpec::class.java)
 
-            assertInstanceOf(PromptedActionDefinition::class.java, result)
-            val action = result as PromptedActionDefinition
+            assertInstanceOf(PromptedActionSpec::class.java, result)
+            val action = result as PromptedActionSpec
             assertEquals("summarize", action.name)
             assertEquals("Summarize the input text", action.description)
             assertEquals(setOf("UserInput"), action.inputTypeNames)
@@ -60,10 +60,10 @@ class StepDefinitionParsingTest {
         fun `parse action with llm options from yaml`() {
             val yaml = loadYamlResource("yml/action-with-llm-options.yml")
 
-            val result = yamlMapper.readValue(yaml, StepDefinition::class.java)
+            val result = yamlMapper.readValue(yaml, StepSpec::class.java)
 
-            assertInstanceOf(PromptedActionDefinition::class.java, result)
-            val action = result as PromptedActionDefinition
+            assertInstanceOf(PromptedActionSpec::class.java, result)
+            val action = result as PromptedActionSpec
             assertEquals("analyze", action.name)
             assertEquals("Analyze the input data with specific LLM settings", action.description)
             assertEquals(0.7, action.llm.temperature)
@@ -78,10 +78,10 @@ class StepDefinitionParsingTest {
         fun `parse multi-input action from yaml`() {
             val yaml = loadYamlResource("yml/multi-input-action.yml")
 
-            val result = yamlMapper.readValue(yaml, StepDefinition::class.java)
+            val result = yamlMapper.readValue(yaml, StepSpec::class.java)
 
-            assertInstanceOf(PromptedActionDefinition::class.java, result)
-            val action = result as PromptedActionDefinition
+            assertInstanceOf(PromptedActionSpec::class.java, result)
+            val action = result as PromptedActionSpec
             assertEquals("compareDocuments", action.name)
             assertEquals(setOf("Document", "ReferenceDocument"), action.inputTypeNames)
             assertEquals("ComparisonResult", action.outputTypeName)
@@ -98,10 +98,10 @@ class StepDefinitionParsingTest {
         fun `parse simple goal from yaml`() {
             val yaml = loadYamlResource("yml/simple-goal.yml")
 
-            val result = yamlMapper.readValue(yaml, StepDefinition::class.java)
+            val result = yamlMapper.readValue(yaml, StepSpec::class.java)
 
-            assertInstanceOf(GoalDefinition::class.java, result)
-            val goal = result as GoalDefinition
+            assertInstanceOf(GoalSpec::class.java, result)
+            val goal = result as GoalSpec
             assertEquals("generateReport", goal.name)
             assertEquals("Generate a complete report from analysis", goal.description)
             assertEquals("Report", goal.outputTypeName)
@@ -114,19 +114,19 @@ class StepDefinitionParsingTest {
 
         @Test
         fun `variableNameFor decapitalizes simple type name`() {
-            val result = PromptedActionDefinition.variableNameFor("UserInput")
+            val result = PromptedActionSpec.variableNameFor("UserInput")
             assertEquals("userInput", result)
         }
 
         @Test
         fun `variableNameFor handles fully qualified type name`() {
-            val result = PromptedActionDefinition.variableNameFor("com.example.UserInput")
+            val result = PromptedActionSpec.variableNameFor("com.example.UserInput")
             assertEquals("userInput", result)
         }
 
         @Test
         fun `variableNameFor handles single character type name`() {
-            val result = PromptedActionDefinition.variableNameFor("X")
+            val result = PromptedActionSpec.variableNameFor("X")
             assertEquals("x", result)
         }
     }

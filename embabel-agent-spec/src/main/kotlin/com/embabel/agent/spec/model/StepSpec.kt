@@ -29,13 +29,16 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
     property = "stepType"
 )
 @JsonSubTypes(
-    JsonSubTypes.Type(value = PromptedActionDefinition::class, name = "action"),
-    JsonSubTypes.Type(value = GoalDefinition::class, name = "goal")
+    JsonSubTypes.Type(value = PromptedActionSpec::class, name = "action"),
+    JsonSubTypes.Type(value = GoalSpec::class, name = "goal")
 )
-interface StepDefinition<T : AgentSystemStep> : NamedAndDescribed {
+interface StepSpec<T : AgentSystemStep> : NamedAndDescribed {
 
     val stepType: String
 
-    fun emit(stepContext: StepContext): T
+    /**
+     * Emit an instance of the step for execution
+     */
+    fun emit(stepContext: StepSpecContext): T
 
 }

@@ -22,19 +22,19 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription
 /**
  * Serializable Goal data
  */
-data class GoalDefinition(
+data class GoalSpec(
     override val name: String,
     override val description: String,
     val outputTypeName: String,
     @param:JsonPropertyDescription("Type of step, must be 'goal'")
     override val stepType: String = "goal",
-) : StepDefinition<Goal> {
+) : StepSpec<Goal> {
 
-    override fun emit(stepContext: StepContext): Goal {
+    override fun emit(stepContext: StepSpecContext): Goal {
         return Goal(
             description = description,
             name = name,
-            inputs = setOf(IoBinding(PromptedActionDefinition.variableNameFor(outputTypeName), outputTypeName))
+            inputs = setOf(IoBinding(PromptedActionSpec.variableNameFor(outputTypeName), outputTypeName))
         )
     }
 }

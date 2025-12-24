@@ -15,19 +15,19 @@
  */
 package com.embabel.agent.spec.persistence
 
-import com.embabel.agent.spec.model.StepDefinition
+import com.embabel.agent.spec.model.StepSpec
 
 /**
  * Repository for StepDefinition entities
  */
-interface StepDefinitionRepository {
+interface StepSpecRepository {
 
-    fun save(entity: StepDefinition<*>): StepDefinition<*>
+    fun save(entity: StepSpec<*>): StepSpec<*>
 
-    fun saveAll(entities: Iterable<StepDefinition<*>>): Iterable<StepDefinition<*>> {
+    fun saveAll(entities: Iterable<StepSpec<*>>): Iterable<StepSpec<*>> {
         return entities.map { save(it) }
     }
 
-    fun findAll(): Iterable<StepDefinition<*>>
+    fun findAll(): Iterable<StepSpec<*>>
 
 }

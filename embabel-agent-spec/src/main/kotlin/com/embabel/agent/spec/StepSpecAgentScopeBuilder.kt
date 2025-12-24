@@ -17,22 +17,22 @@ package com.embabel.agent.spec
 
 import com.embabel.agent.api.common.scope.AgentScopeBuilder
 import com.embabel.agent.core.*
-import com.embabel.agent.spec.model.StepContext
-import com.embabel.agent.spec.persistence.StepDefinitionRepository
-import com.embabel.agent.spec.yml.YmlStepDefinitionRepository
+import com.embabel.agent.spec.model.StepSpecContext
+import com.embabel.agent.spec.persistence.StepSpecRepository
+import com.embabel.agent.spec.yml.YmlStepSpecRepository
 import org.slf4j.LoggerFactory
 
 /**
- * Deploys step definitions from a repository as an AgentScope.
+ * Deploys step specs from a repository as an AgentScope.
  * Steps (actions and goals) are loaded from YAML files and converted
  * to executable Actions and Goals.
  */
-class StepDefinitionAgentScopeBuilder(
+class StepSpecAgentScopeBuilder(
     private val name: String = "yml-steps",
     private val agentPlatform: AgentPlatform,
-    private val repository: StepDefinitionRepository = YmlStepDefinitionRepository(System.getProperty("user.dir") + "/steps"),
+    private val repository: StepSpecRepository = YmlStepSpecRepository(System.getProperty("user.dir") + "/steps"),
     private val dataDictionary: DataDictionary = agentPlatform,
-    private val toolGroups: Set<ToolGroupDescription> = emptySet(),
+    private val toolGroups: List<ToolGroupDescription> = agentPlatform.toolGroupResolver.availableToolGroups()
 ) : AgentScopeBuilder {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -41,7 +41,7 @@ class StepDefinitionAgentScopeBuilder(
         val steps = repository.findAll().toList()
         logger.info("Building AgentScope from {} step definitions", steps.size)
 
-        val stepContext = StepContext(
+        val stepContext = StepSpecContext(
             name = name,
             dataDictionary = dataDictionary,
             toolGroups = toolGroups,
@@ -75,6 +75,9 @@ class StepDefinitionAgentScopeBuilder(
         )
     }
 
+    /**
+     * Convenience method to create and deploy the AgentScope
+     */
     fun deploy(): AgentScope {
         val agentScope = createAgentScope()
         agentPlatform.deploy(agentScope)

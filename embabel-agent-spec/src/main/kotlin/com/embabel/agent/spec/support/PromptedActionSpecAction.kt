@@ -19,24 +19,18 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.spec.model.PromptedActionDefinition
-import com.embabel.common.ai.model.LlmOptions
+import com.embabel.agent.spec.model.PromptedActionSpec
 import com.embabel.common.ai.prompt.PromptContributor
-import com.embabel.common.core.types.ZeroToOne
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 /**
  * Action implementation that executes the relevant metadata
  */
-internal open class PromptedActionDefinitionAction(
-    val spec: PromptedActionDefinition,
-    private val llm: LlmOptions,
+internal open class PromptedActionSpecAction(
+    val spec: PromptedActionSpec,
     inputs: Set<IoBinding>,
     pre: List<String>,
     post: List<String>,
-    cost: ZeroToOne = 0.0,
-    value: ZeroToOne = 0.0,
-    canRerun: Boolean = false,
     qos: ActionQos = ActionQos(),
     private val outputVarName: String = spec.outputTypeName.decapitalize(),
     toolGroups: Set<ToolGroupRequirement> = spec.toolGroups.map {
@@ -48,8 +42,9 @@ internal open class PromptedActionDefinitionAction(
     description = spec.description,
     pre = pre,
     post = post,
-    cost = { cost },
-    value = { value },
+    cost = { spec.cost },
+    value = { spec.value },
+    canRerun = spec.canRerun,
     inputs = inputs,
     outputs = setOf(
         IoBinding(
@@ -58,7 +53,6 @@ internal open class PromptedActionDefinitionAction(
         )
     ),
     toolGroups = toolGroups,
-    canRerun = canRerun,
     qos = qos,
 ) {
 
@@ -97,7 +91,7 @@ internal open class PromptedActionDefinitionAction(
             .renderLiteralTemplate(spec.prompt, templateModel)
 
         val result = context.ai()
-            .withLlm(llm)
+            .withLlm(spec.llm)
             .withId("action:${name}")
             .withToolGroups(toolGroups.map { it.role }.toSet())
             .createObject(prompt, outputType.clazz)
@@ -126,7 +120,7 @@ internal open class PromptedActionDefinitionAction(
             .renderLiteralTemplate(spec.prompt, templateModel)
 
         val result = context.ai()
-            .withLlm(llm)
+            .withLlm(spec.llm)
             .withId("action:${name}")
             .withToolGroups(toolGroups.map { it.role }.toSet())
             .withPromptContributor(

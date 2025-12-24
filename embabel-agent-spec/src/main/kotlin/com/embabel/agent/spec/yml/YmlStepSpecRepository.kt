@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.spec.yml
 
-import com.embabel.agent.spec.model.StepDefinition
-import com.embabel.agent.spec.persistence.StepDefinitionRepository
+import com.embabel.agent.spec.model.StepSpec
+import com.embabel.agent.spec.persistence.StepSpecRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
@@ -27,10 +27,11 @@ import java.io.File
 
 /**
  * Look for YML files in a directory to load and save StepDefinition entities
+ * @param dir Directory to load/save YML files
  */
-class YmlStepDefinitionRepository(
-    val dir: String = System.getProperty("user.dir") + "/steps",
-) : StepDefinitionRepository {
+class YmlStepSpecRepository(
+    val dir: String,
+) : StepSpecRepository {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -39,7 +40,7 @@ class YmlStepDefinitionRepository(
         enable(SerializationFeature.INDENT_OUTPUT)
     }
 
-    override fun save(entity: StepDefinition<*>): StepDefinition<*> {
+    override fun save(entity: StepSpec<*>): StepSpec<*> {
         val dirFile = File(dir)
         if (!dirFile.exists()) {
             dirFile.mkdirs()
@@ -51,7 +52,7 @@ class YmlStepDefinitionRepository(
         return entity
     }
 
-    override fun findAll(): Iterable<StepDefinition<*>> {
+    override fun findAll(): Iterable<StepSpec<*>> {
         val dirFile = File(dir)
         if (!dirFile.exists()) {
             return emptyList()
@@ -60,7 +61,7 @@ class YmlStepDefinitionRepository(
         return dirFile.listFiles { file -> file.extension == "yml" }
             ?.mapNotNull { file ->
                 try {
-                    yamlMapper.readValue<StepDefinition<*>>(file)
+                    yamlMapper.readValue<StepSpec<*>>(file)
                 } catch (e: Exception) {
                     logger.warn("Failed to read {}: {}", file.name, e.message)
                     null

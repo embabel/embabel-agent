@@ -18,9 +18,9 @@ package com.embabel.agent.spec
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentScope
 import com.embabel.agent.core.DataDictionary
-import com.embabel.agent.spec.model.GoalDefinition
-import com.embabel.agent.spec.model.PromptedActionDefinition
-import com.embabel.agent.spec.persistence.StepDefinitionRepository
+import com.embabel.agent.spec.model.GoalSpec
+import com.embabel.agent.spec.model.PromptedActionSpec
+import com.embabel.agent.spec.persistence.StepSpecRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -30,10 +30,10 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-class StepDefinitionAgentScopeBuilderTest {
+class StepSpecAgentScopeBuilderTest {
 
     private lateinit var agentPlatform: AgentPlatform
-    private lateinit var repository: StepDefinitionRepository
+    private lateinit var repository: StepSpecRepository
     private lateinit var dataDictionary: DataDictionary
 
     @BeforeEach
@@ -51,7 +51,7 @@ class StepDefinitionAgentScopeBuilderTest {
         fun `build returns empty scope when repository is empty`() {
             every { repository.findAll() } returns emptyList()
 
-            val deployer = StepDefinitionAgentScopeBuilder(
+            val deployer = StepSpecAgentScopeBuilder(
                 name = "test-scope",
                 agentPlatform = agentPlatform,
                 repository = repository,
@@ -67,7 +67,7 @@ class StepDefinitionAgentScopeBuilderTest {
 
         @Test
         fun `build converts action definitions to actions`() {
-            val actionDef = PromptedActionDefinition(
+            val actionDef = PromptedActionSpec(
                 name = "summarize",
                 description = "Summarize text",
                 inputTypeNames = setOf("UserInput"),
@@ -76,7 +76,7 @@ class StepDefinitionAgentScopeBuilderTest {
             )
             every { repository.findAll() } returns listOf(actionDef)
 
-            val deployer = StepDefinitionAgentScopeBuilder(
+            val deployer = StepSpecAgentScopeBuilder(
                 name = "test-scope",
                 agentPlatform = agentPlatform,
                 repository = repository,
@@ -93,14 +93,14 @@ class StepDefinitionAgentScopeBuilderTest {
 
         @Test
         fun `build converts goal definitions to goals`() {
-            val goalDef = GoalDefinition(
+            val goalDef = GoalSpec(
                 name = "generateReport",
                 description = "Generate a report",
                 outputTypeName = "Report",
             )
             every { repository.findAll() } returns listOf(goalDef)
 
-            val deployer = StepDefinitionAgentScopeBuilder(
+            val deployer = StepSpecAgentScopeBuilder(
                 name = "test-scope",
                 agentPlatform = agentPlatform,
                 repository = repository,
@@ -117,21 +117,21 @@ class StepDefinitionAgentScopeBuilderTest {
 
         @Test
         fun `build handles mixed actions and goals`() {
-            val actionDef = PromptedActionDefinition(
+            val actionDef = PromptedActionSpec(
                 name = "analyze",
                 description = "Analyze data",
                 inputTypeNames = setOf("Data"),
                 outputTypeName = "Analysis",
                 prompt = "Analyze: {{data}}",
             )
-            val goalDef = GoalDefinition(
+            val goalDef = GoalSpec(
                 name = "completeAnalysis",
                 description = "Complete the analysis",
                 outputTypeName = "Analysis",
             )
             every { repository.findAll() } returns listOf(actionDef, goalDef)
 
-            val deployer = StepDefinitionAgentScopeBuilder(
+            val deployer = StepSpecAgentScopeBuilder(
                 name = "mixed-scope",
                 agentPlatform = agentPlatform,
                 repository = repository,
@@ -148,7 +148,7 @@ class StepDefinitionAgentScopeBuilderTest {
 
         @Test
         fun `build preserves action input and output bindings`() {
-            val actionDef = PromptedActionDefinition(
+            val actionDef = PromptedActionSpec(
                 name = "transform",
                 description = "Transform input to output",
                 inputTypeNames = setOf("InputA", "InputB"),
@@ -157,7 +157,7 @@ class StepDefinitionAgentScopeBuilderTest {
             )
             every { repository.findAll() } returns listOf(actionDef)
 
-            val deployer = StepDefinitionAgentScopeBuilder(
+            val deployer = StepSpecAgentScopeBuilder(
                 name = "test-scope",
                 agentPlatform = agentPlatform,
                 repository = repository,
@@ -183,7 +183,7 @@ class StepDefinitionAgentScopeBuilderTest {
             every { repository.findAll() } returns emptyList()
             every { agentPlatform.deploy(any<AgentScope>()) } returns agentPlatform
 
-            val deployer = StepDefinitionAgentScopeBuilder(
+            val deployer = StepSpecAgentScopeBuilder(
                 name = "deploy-test",
                 agentPlatform = agentPlatform,
                 repository = repository,

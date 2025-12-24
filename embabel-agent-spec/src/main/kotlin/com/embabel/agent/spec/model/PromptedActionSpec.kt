@@ -18,8 +18,9 @@ package com.embabel.agent.spec.model
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.spec.support.PromptedActionDefinitionAction
+import com.embabel.agent.spec.support.PromptedActionSpecAction
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.core.types.ZeroToOne
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
 
 /**
@@ -29,30 +30,29 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription
  * @param nullable whether the output can be null,
  * which will drive replanning
  */
-data class PromptedActionDefinition(
+data class PromptedActionSpec(
     override val name: String,
     override val description: String,
     val llm: LlmOptions = LlmOptions(),
     val inputTypeNames: Set<String>,
     val outputTypeName: String,
+    val cost: ZeroToOne = 0.0,
+    val value: ZeroToOne = 0.0,
+    val canRerun: Boolean = false,
     val prompt: String,
     val toolGroups: List<String> = emptyList(),
     val nullable: Boolean = false,
     @param:JsonPropertyDescription("Type of step, must be 'action'")
     override val stepType: String = "action",
-) : ActionDefinition {
+) : ActionSpec {
 
-    override fun emit(stepContext: StepContext): Action {
+    override fun emit(stepContext: StepSpecContext): Action {
         val inputs = inputTypeNames.map { IoBinding(variableNameFor(it), it) }.toSet()
-        return PromptedActionDefinitionAction(
+        return PromptedActionSpecAction(
             spec = this,
-            llm = llm,
             inputs = inputs,
             pre = emptyList(),
             post = emptyList(),
-            cost = 0.0,
-            value = 0.0,
-            canRerun = false,
             outputVarName = variableNameFor(outputTypeName),
             toolGroups = toolGroups.map { ToolGroupRequirement(it) }.toSet(),
             domainTypes = stepContext.dataDictionary.domainTypes,
