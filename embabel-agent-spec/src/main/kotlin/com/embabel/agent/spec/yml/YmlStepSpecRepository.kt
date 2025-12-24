@@ -17,9 +17,11 @@ package com.embabel.agent.spec.yml
 
 import com.embabel.agent.spec.model.StepSpec
 import com.embabel.agent.spec.persistence.StepSpecRepository
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.slf4j.LoggerFactory
@@ -35,9 +37,12 @@ class YmlStepSpecRepository(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    private val yamlMapper = ObjectMapper(YAMLFactory()).apply {
+    private val yamlMapper = ObjectMapper(
+        YAMLFactory().disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID)
+    ).apply {
         registerKotlinModule()
         enable(SerializationFeature.INDENT_OUTPUT)
+        disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
     }
 
     override fun save(entity: StepSpec<*>): StepSpec<*> {
