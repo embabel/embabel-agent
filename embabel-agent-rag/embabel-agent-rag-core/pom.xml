@@ -21,8 +21,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.embabel.common</groupId>
-            <artifactId>embabel-common-test-ai</artifactId>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-test-common</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

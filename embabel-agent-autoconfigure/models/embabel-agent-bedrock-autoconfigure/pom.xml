@@ -52,12 +52,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.embabel.common</groupId>
-            <artifactId>embabel-common-test-ai</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>
             <scope>test</scope>
