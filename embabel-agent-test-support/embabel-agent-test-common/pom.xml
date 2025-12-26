@@ -6,11 +6,11 @@
         <artifactId>embabel-agent-test-support</artifactId>
         <version>0.3.2-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-test-domain</artifactId>
+    <artifactId>embabel-agent-test-common</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent Test Domain Types</name>
-    <description>Embabel Agent Test Domain Types</description>
-    <url>https://github.com/embabel/embabel-agent</url>
+    <name>Embabel Agent Test Common</name>
+    <description>Embabel Agent Common Framework for Unit and Integration Tests</description>
+    <url>https://github.com/embabel/embabel-common</url>
 
     <scm>
         <url>https://github.com/embabel/embabel-agent</url>
@@ -21,20 +21,20 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-domain</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.embabel.common</groupId>
-            <artifactId>embabel-common-core</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>com.embabel.common</groupId>
             <artifactId>embabel-common-util</artifactId>
         </dependency>
 
-    </dependencies> 
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-common</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.mockk</groupId>
+            <artifactId>mockk-jvm</artifactId>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
 
 </project>
