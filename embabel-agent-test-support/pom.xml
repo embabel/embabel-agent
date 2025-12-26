@@ -23,6 +23,7 @@
         <module>embabel-agent-test</module>
         <module>embabel-agent-test-domain</module>
         <module>embabel-agent-test-internal</module>
+        <module>embabel-agent-test-common</module>
     </modules>
 
     <dependencies>
