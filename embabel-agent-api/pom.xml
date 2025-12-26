@@ -45,6 +45,11 @@
 
         <dependency>
             <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-common</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-domain</artifactId>
             <scope>test</scope>
         </dependency>
@@ -57,11 +62,6 @@
         <dependency>
             <groupId>com.embabel.common</groupId>
             <artifactId>embabel-common-util</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.embabel.common</groupId>
-            <artifactId>embabel-common-ai</artifactId>
         </dependency>
 
         <dependency>
@@ -144,8 +144,8 @@
         <!-- Most common testing dependencies are in the embabel-agent-parent -->
         <!-- If something is missing, add it here -->
         <dependency>
-            <groupId>com.embabel.common</groupId>
-            <artifactId>embabel-common-test-ai</artifactId>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-test-common</artifactId>
             <scope>test</scope>
         </dependency>
 
