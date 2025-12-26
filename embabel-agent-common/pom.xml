@@ -2,20 +2,20 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.embabel.common</groupId>
-        <artifactId>embabel-common-parent</artifactId>
-        <version>0.1.8-SNAPSHOT</version>
+        <groupId>com.embabel.agent</groupId>
+        <artifactId>embabel-agent-parent</artifactId>
+        <version>0.3.2-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-common-ai</artifactId>
+    <artifactId>embabel-agent-common</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Common AI</name>
-    <description>Embabel AI common framework</description>
-    <url>https://github.com/embabel/embabel-common</url>
+    <name>Embabel Agent Common</name>
+    <description>Embabel Agent Common Framework</description>
+    <url>https://github.com/embabel/embabel-agent</url>
 
     <scm>
-        <url>https://github.com/embabel/embabel-common</url>
-        <connection>scm:git:https://github.com/embabel/embabel-common.git</connection>
-        <developerConnection>scm:git:https://github.com/embabel/embabel-common.git</developerConnection>
+        <url>https://github.com/embabel/embabel-agent</url>
+        <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
+        <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
 
