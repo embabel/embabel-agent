@@ -7,6 +7,10 @@
 name: Publish Docs
 
 on:
+  # Triggered from Build workflow when .adoc files change
+  repository_dispatch:
+    types: [publish-docs]
+
   workflow_dispatch:  # Enables manual triggering
     inputs:
       environment:
@@ -34,14 +38,7 @@ on:
     branches:
       - main
     paths:
-      - 'embabel-agent/embabel-agent-docs/**'
-  
-  # Also trigger on pull requests to docs
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'embabel-agent/embabel-agent-docs/**'
+      - 'embabel-agent-docs/**/*.adoc'
   
 env:
   PROJECT_ID: ${{ github.event.inputs.environment || 'embabel-dev' }}
