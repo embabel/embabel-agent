@@ -40,13 +40,6 @@ on:
     paths:
       - 'embabel-agent-docs/**/*.adoc'
   
-  # Also trigger on pull requests to docs
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'embabel-agent-docs/**/*.adoc'
-  
 env:
   PROJECT_ID: ${{ github.event.inputs.environment || 'embabel-dev' }}
   SERVICE_ACCOUNT: embabel-ci-build@embabel-dev.iam.gserviceaccount.com
