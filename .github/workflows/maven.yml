@@ -11,6 +11,20 @@ on:
     types: [ opened, synchronize, reopened ]
 
 jobs:
+  # Detect if docs changed - runs first, in parallel with nothing
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-changed: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - 'embabel-agent-docs/**/*.adoc'
+
   build:
     runs-on: ${{ matrix.os }}
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
@@ -67,3 +81,19 @@ jobs:
           echo "testcontainers.reuse.enable=true" > /home/runner/.testcontainers.properties
           # Build without Sonar Cloud
           mvn -U -B test verify
+
+  # Trigger docs workflow if .adoc files changed (only on main branch push)
+  trigger-docs:
+    needs: [detect-changes, build]
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' && 
+      github.ref == 'refs/heads/main' && 
+      needs.detect-changes.outputs.docs-changed == 'true'
+    steps:
+      - name: Trigger Publish Docs workflow
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          repository: ${{ github.repository }}
+          event-type: publish-docs
