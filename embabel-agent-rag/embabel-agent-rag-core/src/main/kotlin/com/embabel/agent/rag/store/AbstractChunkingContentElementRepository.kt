@@ -20,6 +20,7 @@ import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.util.VisualizableTask
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -126,16 +127,30 @@ abstract class AbstractChunkingContentElementRepository(
         }
 
         val embeddings = mutableMapOf<String, FloatArray>()
+        val batches = chunks.chunked(chunkerConfig.embeddingBatchSize)
+        val totalBatches = batches.size
 
-        chunks.chunked(chunkerConfig.embeddingBatchSize).forEach { batch ->
+        fun logProgress(current: Int) {
+            val progress = VisualizableTask(
+                name = "Generating embeddings",
+                current = current,
+                total = totalBatches
+            )
+            logger.info(progress.createProgressBar())
+        }
+
+        logProgress(0)
+
+        batches.forEachIndexed { index, batch ->
             try {
                 val texts = batch.map { it.embeddableValue() }
-                val batchEmbeddings = embeddingService.embed(texts)
+                val batchEmbeddings = embeddingService!!.embed(texts)
 
                 batch.zip(batchEmbeddings).forEach { (chunk, embedding) ->
                     embeddings[chunk.id] = embedding
                 }
-                logger.debug("Generated embeddings for batch of {} chunks", batch.size)
+
+                logProgress(index + 1)
             } catch (e: Exception) {
                 logger.warn(
                     "Failed to generate embeddings for batch of {} chunks: {}",

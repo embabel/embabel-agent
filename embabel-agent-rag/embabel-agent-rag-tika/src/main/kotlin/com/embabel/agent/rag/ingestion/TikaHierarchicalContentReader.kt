@@ -20,6 +20,7 @@ import com.embabel.agent.rag.model.LeafSection
 import com.embabel.agent.rag.model.MaterializedDocument
 import com.embabel.agent.rag.model.NavigableSection
 import com.embabel.agent.tools.file.FileReadTools
+import com.embabel.common.util.VisualizableTask
 import org.apache.tika.detect.DefaultDetector
 import org.apache.tika.detect.Detector
 import org.apache.tika.exception.ZeroByteFileException
@@ -855,11 +856,18 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
 
         logger.info("Processing {} files for parsing", files.size)
 
-        for ((index, filePath) in files.withIndex()) {
-            if ((index + 1) % 100 == 0) {
-                logger.info("Progress: {}/{} files processed", index + 1, files.size)
-            }
+        fun logProgress(current: Int) {
+            val progress = VisualizableTask(
+                name = "Parsing files",
+                current = current,
+                total = files.size
+            )
+            logger.info(progress.createProgressBar())
+        }
 
+        logProgress(0)
+
+        for ((index, filePath) in files.withIndex()) {
             try {
                 val result = parseFile(fileTools, filePath)
                 if (result != null) {
@@ -879,6 +887,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
                 errors.add(error)
                 logger.error(error, e)
             }
+            logProgress(index + 1)
         }
 
         val processingTime = Duration.between(startTime, Instant.now())
