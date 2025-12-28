@@ -57,29 +57,27 @@ import kotlin.math.sqrt
 
 
 /**
- * Lucene RAG facet with optional vector search support via an EmbeddingModel.
+ * Lucene RAG facet with optional vector search support via an EmbeddingService.
  * Supports both in-memory and disk-based persistence.
  * Implements WritableContentElementRepository so we can add to the store.
  *
  * @param name Name of this RAG service
- * @param embeddingService Optional embedding model for vector search; if null, only text search is
- * supported
- * @param keywordExtractor Optional keyword extractor for keyword-based search; if null, keyword
- * search is disabled
+ * @param embeddingService Optional embedding service for vector search; if null, only text search is supported
+ * @param keywordExtractor Optional keyword extractor for keyword-based search; if null, keyword search is disabled
  * @param vectorWeight Weighting for vector similarity in hybrid search (0.0 to 1.0)
- * @param chunkerConfig Configuration for content chunking
+ * @param chunkerConfig Configuration for content chunking (includes embeddingBatchSize)
  * @param indexPath Optional path for disk-based index storage; if null, uses in-memory storage
  */
 class LuceneSearchOperations @JvmOverloads constructor(
     override val name: String,
     override val enhancers: List<RetrievableEnhancer> = emptyList(),
-    private val embeddingService: EmbeddingService? = null,
+    embeddingService: EmbeddingService? = null,
     private val keywordExtractor: KeywordExtractor? = null,
     private val vectorWeight: Double = 0.5,
     chunkerConfig: ContentChunker.Config = ContentChunker.DefaultConfig(),
     private val indexPath: Path? = null,
 ) : RagFacetProvider,
-    AbstractChunkingContentElementRepository(chunkerConfig),
+    AbstractChunkingContentElementRepository(chunkerConfig, embeddingService),
     HasInfoString,
     Closeable,
     CoreSearchOperations,
@@ -119,10 +117,6 @@ class LuceneSearchOperations @JvmOverloads constructor(
     }
 
     init {
-        if (embeddingService == null) {
-            logger.warn("No embedding model configured; only text search will be supported.")
-        }
-
         if (indexPath != null) {
             logger.info("Using disk-based Lucene index at: {}", indexPath)
             // Defer chunk loading until after object is fully constructed
@@ -190,7 +184,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
 
     override fun save(element: ContentElement): ContentElement {
         contentElementStorage[element.id] = element
-        // Persist structural elements to Lucene (Chunks are handled separately in onNewRetrievable)
+        // Persist structural elements to Lucene (Chunks are handled separately in persistChunksWithEmbeddings)
         if (element !is Chunk) {
             persistStructuralElement(element)
         }
@@ -199,7 +193,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
 
     /**
      * Persist a structural element (Document, Section, etc.) to Lucene for recovery after restart.
-     * Chunks are handled separately via onNewRetrievable which also handles embeddings.
+     * Chunks are handled separately via persistChunksWithEmbeddings which also handles embeddings.
      */
     private fun persistStructuralElement(element: ContentElement) {
         val luceneDoc = Document().apply {
@@ -305,7 +299,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
 
                 if (embeddingService != null && chunk.metadata.containsKey("embedding")) {
                     // Preserve existing embedding if it exists
-                    val embedding = embeddingService.embed(chunk.embeddableValue())
+                    val embedding = embeddingService!!.embed(chunk.embeddableValue())
                     val embeddingBytes = floatArrayToBytes(embedding)
                     add(StoredField("embedding", embeddingBytes))
                 }
@@ -844,71 +838,46 @@ class LuceneSearchOperations @JvmOverloads constructor(
         }
     }
 
-    override fun onNewRetrievables(retrievables: List<Retrievable>) {
-        retrievables.forEach { onNewRetrievable(it) }
-    }
-
-    private fun onNewRetrievable(
-        retrievable: Retrievable,
-    ) {
-        // Only process Chunks here - structural elements are persisted via save() -> persistStructuralElement()
-        if (retrievable !is Chunk) {
-            logger.debug(
-                "Skipping non-Chunk retrievable with id='{}' (type={})",
-                retrievable.id,
-                retrievable.javaClass.simpleName
-            )
-            return
+    override fun persistChunksWithEmbeddings(chunks: List<Chunk>, embeddings: Map<String, FloatArray>) {
+        // Store all chunks in content storage
+        chunks.forEach { chunk ->
+            contentElementStorage[chunk.id] = chunk
         }
 
-        // Get keywords from metadata only
-        val keywords = when (val keywordsMeta = retrievable.metadata[KEYWORDS_FIELD]) {
+        // Create and index Lucene documents
+        chunks.forEach { chunk ->
+            val luceneDoc = createLuceneDocument(chunk, embeddings[chunk.id])
+            indexWriter.addDocument(luceneDoc)
+        }
+
+        logger.info("Indexed {} chunks", chunks.size)
+    }
+
+    private fun createLuceneDocument(chunk: Chunk, embedding: FloatArray?): Document {
+        val keywords = when (val keywordsMeta = chunk.metadata[KEYWORDS_FIELD]) {
             is Collection<*> -> keywordsMeta.filterIsInstance<String>()
             is String -> listOf(keywordsMeta)
             else -> emptyList()
         }
 
-        contentElementStorage[retrievable.id] = retrievable
+        return Document().apply {
+            add(StringField(ID_FIELD, chunk.id, Field.Store.YES))
+            add(TextField(CONTENT_FIELD, chunk.embeddableValue(), Field.Store.YES))
 
-        // Create Lucene document for indexing
-        val luceneDoc = Document().apply {
-            add(StringField(ID_FIELD, retrievable.id, Field.Store.YES))
-            add(TextField(CONTENT_FIELD, retrievable.embeddableValue(), Field.Store.YES))
-
-            // Add keywords as a multi-valued field
             keywords.forEach { keyword ->
                 add(TextField(KEYWORDS_FIELD, keyword.lowercase(), Field.Store.YES))
             }
 
-            if (embeddingService != null) {
-                try {
-                    val embedding = embeddingService.embed(retrievable.embeddableValue())
-                    val embeddingBytes = floatArrayToBytes(embedding)
-                    add(StoredField("embedding", embeddingBytes))
-                    logger.info("Added embedding for retrievable with id {}", retrievable.id)
-                } catch (e: Exception) {
-                    logger.warn(
-                        "Unable to generate embedding for retrievable id='{}': {}",
-                        retrievable.id,
-                        e.message,
-                        e
-                    )
-                }
+            if (embedding != null) {
+                add(StoredField("embedding", floatArrayToBytes(embedding)))
             }
 
-            retrievable.metadata.forEach { (key, value) ->
-                if (key != KEYWORDS_FIELD) { // Don't duplicate keywords field
+            chunk.metadata.forEach { (key, value) ->
+                if (key != KEYWORDS_FIELD) {
                     add(StringField(key, value.toString(), Field.Store.YES))
                 }
             }
         }
-        indexWriter.addDocument(luceneDoc)
-        logger.debug(
-            "Indexed and stored retrievable with id='{}', text length={}, keywords={}",
-            retrievable.id,
-            retrievable.embeddableValue().length,
-            keywords
-        )
     }
 
     override fun commit() {

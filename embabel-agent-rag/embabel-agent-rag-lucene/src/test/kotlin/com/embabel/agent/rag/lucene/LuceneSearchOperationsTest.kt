@@ -2670,6 +2670,10 @@ class MockEmbeddingModel : EmbeddingModel {
         return embedding.map { it.toFloat() }.toFloatArray()
     }
 
+    override fun embed(texts: MutableList<String>): MutableList<FloatArray> {
+        return texts.map { embed(it) }.toMutableList()
+    }
+
     override fun dimensions(): Int = 100
 }
 
@@ -2710,6 +2714,10 @@ class TrackingEmbeddingModel : EmbeddingModel {
             }
         }
         return embedding
+    }
+
+    override fun embed(texts: MutableList<String>): MutableList<FloatArray> {
+        return texts.map { embed(it) }.toMutableList()
     }
 
     override fun dimensions(): Int = 100

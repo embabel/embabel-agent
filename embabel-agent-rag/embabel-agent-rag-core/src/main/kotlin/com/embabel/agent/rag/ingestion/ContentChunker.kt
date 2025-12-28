@@ -28,10 +28,30 @@ import com.embabel.agent.rag.model.NavigableContainerSection
  */
 interface ContentChunker {
 
+    /**
+     * Content chunking configuration
+     */
     interface Config {
+        /**
+         * Maximum size of each chunk in characters
+         */
         val maxChunkSize: Int
+
+        /**
+         * Number of overlapping characters between consecutive chunks
+         */
         val overlapSize: Int
+
+        /**
+         * Whether to include the section title in each chunk
+         */
         val includeSectionTitleInChunk: Boolean
+
+        /**
+         * Batch size for embedding operations
+         * Batching embeddings improves performance when processing many chunks.
+         */
+        val embeddingBatchSize: Int
     }
 
     /**
@@ -41,11 +61,13 @@ interface ContentChunker {
         override val maxChunkSize: Int = 1500,
         override val overlapSize: Int = 200,
         override val includeSectionTitleInChunk: Boolean = true,
+        override val embeddingBatchSize: Int = 100,
     ) : Config {
         init {
             require(maxChunkSize > 0) { "maxChunkSize must be positive" }
             require(overlapSize >= 0) { "overlapSize must be non-negative" }
             require(overlapSize < maxChunkSize) { "overlapSize must be < maxChunkSize" }
+            require(embeddingBatchSize > 0) { "embeddingBatchSize must be positive" }
         }
     }
 
