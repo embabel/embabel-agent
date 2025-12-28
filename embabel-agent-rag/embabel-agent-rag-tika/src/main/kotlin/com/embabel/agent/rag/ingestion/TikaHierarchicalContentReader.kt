@@ -144,8 +144,14 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
         resourcePath: String,
     ): MaterializedDocument {
         val resource: Resource = DefaultResourceLoader().getResource(resourcePath)
+
+        // Set the resource name in metadata so markdown-by-extension detection works
+        val metadata = Metadata()
+        val filename = resource.filename ?: resourcePath.substringAfterLast('/')
+        metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, filename)
+
         return resource.inputStream.use { inputStream ->
-            parseContent(inputStream, resourcePath)
+            parseContent(inputStream, resourcePath, metadata)
         }
     }
 
@@ -205,6 +211,15 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
                 return parseHtml(rawContent, metadata, uri)
             }
 
+            // For markdown files, read directly and skip Tika parsing to avoid archive detection issues
+            val isMarkdownByExtension = metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY)?.endsWith(".md") == true
+            val isMarkdownByType = detectedType.contains("markdown")
+            if (isMarkdownByExtension || isMarkdownByType) {
+                val charset = getCharsetFromMetadata(metadata)
+                val content = bufferedStream.readBytes().toString(charset)
+                return parseMarkdown(content, metadata, uri)
+            }
+
             val handler = BodyContentHandler(-1) // No limit on content size
             val parseContext = ParseContext()
 
@@ -219,8 +234,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
             }
 
             return when {
-                detectedType.contains("markdown") || metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY)
-                    ?.endsWith(".md") == true || hasMarkdownHeaders -> {
+                hasMarkdownHeaders -> {
                     parseMarkdown(content, metadata, uri)
                 }
 
