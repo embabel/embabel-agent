@@ -31,14 +31,12 @@ import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.ai.openai.api.OpenAiApi
-import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.ai.retry.RetryUtils
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
 import java.time.LocalDate
-import java.time.Duration
-import kotlin.jvm.javaClass
 
 /**
  * Generic support for OpenAI compatible models.
@@ -135,7 +133,7 @@ open class OpenAiCompatibleModelFactory(
                 .model(model)
                 .build(),
         )
-        return EmbeddingService(
+        return SpringEmbeddingService(
             name = model,
             model = embeddingModel,
             provider = provider,

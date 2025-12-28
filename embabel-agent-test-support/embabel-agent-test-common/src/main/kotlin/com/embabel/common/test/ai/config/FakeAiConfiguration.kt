@@ -24,6 +24,7 @@ import io.mockk.mockk
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
+import com.embabel.common.ai.model.SpringEmbeddingService
 
 /**
  * Parallels the AiConfiguration class in src/main/java/com/embabel/server/AiConfiguration.kt.
@@ -58,7 +59,7 @@ class FakeAiConfiguration {
 
     @Bean
     fun embedding(): EmbeddingService {
-        return EmbeddingService(
+        return SpringEmbeddingService(
             name = "text-embedding-ada-002",
             model = FakeEmbeddingModel(),
             provider = "OpenAI",

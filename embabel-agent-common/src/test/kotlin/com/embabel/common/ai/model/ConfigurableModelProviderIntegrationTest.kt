@@ -51,7 +51,7 @@ class ConfigurableModelProviderIntegrationTest {
 
         @Bean
         fun embeddingServices(): List<EmbeddingService> = listOf(
-            EmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
+            SpringEmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
         )
 
         @Bean

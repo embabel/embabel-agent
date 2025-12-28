@@ -74,6 +74,7 @@ class CustomOpenAiCompatibleModels(
 ==== Adding embedding models
 
 Embedding models can also be added as beans of the Embabel type `EmbeddingService`.
+Use the `SpringEmbeddingService` class to wrap a Spring AI `EmbeddingModel`.
 
 Typically, this is done in an `@Configuration` class like this:
 
@@ -84,7 +85,7 @@ public class EmbeddingModelsConfig {
     @Bean
     public EmbeddingService myEmbeddingModel() {
         org.springframework.ai.embedding.EmbeddingModel embeddingModel = ...
-        return new EmbeddingService(
+        return new SpringEmbeddingService(
                 "myEmbeddingModel",
                 "myEmbeddingModelProvider",
                 embeddingModel);

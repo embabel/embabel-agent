@@ -64,9 +64,9 @@ class OperationContextAiTest {
             every { mockEmbeddingService.model } returns mockEmbeddingModel
 
             val ai = createOperationContextAi(mockContext)
-            val result = ai.withEmbeddingModel(criteria)
+            val result = ai.withEmbeddingService(criteria)
 
-            assertEquals(mockEmbeddingModel, result, "Embedding model not returned correctly")
+            assertEquals(mockEmbeddingService, result, "Embedding model not returned correctly")
             verify { mockModelProvider.getEmbeddingService(criteria) }
         }
 
@@ -83,9 +83,9 @@ class OperationContextAiTest {
             every { mockEmbeddingService.model } returns mockEmbeddingModel
 
             val ai = createOperationContextAi(mockContext)
-            val result = ai.withEmbeddingModel(modelName)
+            val result = ai.withEmbeddingService(modelName)
 
-            assertEquals(mockEmbeddingModel, result, "Embedding model not returned correctly")
+            assertEquals(mockEmbeddingService, result, "Embedding model not returned correctly")
             verify {
                 mockModelProvider.getEmbeddingService(any())
             }
@@ -103,9 +103,9 @@ class OperationContextAiTest {
             every { mockEmbeddingService.model } returns mockEmbeddingModel
 
             val ai = createOperationContextAi(mockContext)
-            val result = ai.withDefaultEmbeddingModel()
+            val result = ai.withDefaultEmbeddingService()
 
-            assertEquals(mockEmbeddingModel, result, "Default embedding model not returned correctly")
+            assertEquals(mockEmbeddingService, result, "Default embedding model not returned correctly")
             verify { mockModelProvider.getEmbeddingService(DefaultModelSelectionCriteria) }
         }
     }

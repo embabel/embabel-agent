@@ -223,7 +223,7 @@ class BedrockModelsConfig(
     }
 
     private fun createTitanEmbedding(embeddingDef: BedrockEmbeddingModelDefinition): EmbeddingService {
-        return EmbeddingService(
+        return SpringEmbeddingService(
             name = embeddingDef.modelId,
             model = BedrockTitanEmbeddingModel(
                 TitanEmbeddingBedrockApi(
@@ -239,7 +239,7 @@ class BedrockModelsConfig(
     }
 
     private fun createCohereEmbedding(embeddingDef: BedrockEmbeddingModelDefinition): EmbeddingService {
-        return EmbeddingService(
+        return SpringEmbeddingService(
             name = embeddingDef.modelId,
             model = BedrockCohereEmbeddingModel(
                 CohereEmbeddingBedrockApi(

@@ -20,6 +20,7 @@ import com.embabel.agent.test.integration.DummyObjectCreatingLlmOperations
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.Llm
+import com.embabel.common.ai.model.SpringEmbeddingService
 import org.mockito.Mockito.mock
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
@@ -66,7 +67,7 @@ class FakeAiConfiguration {
      * Test embedding service that matches the default-embedding-model configuration
      */
     @Bean(name = ["test-embedding"])
-    fun testEmbedding(): EmbeddingService = EmbeddingService(
+    fun testEmbedding(): EmbeddingService = SpringEmbeddingService(
         name = "test-embedding",
         model = mock(EmbeddingModel::class.java),
         provider = "test"
@@ -76,7 +77,7 @@ class FakeAiConfiguration {
      * Additional test embedding model for the 'best' role
      */
     @Bean(name = ["test"])
-    fun test(): EmbeddingService = EmbeddingService(
+    fun test(): EmbeddingService = SpringEmbeddingService(
         name = "test",
         model = mock(EmbeddingModel::class.java),
         provider = "test"

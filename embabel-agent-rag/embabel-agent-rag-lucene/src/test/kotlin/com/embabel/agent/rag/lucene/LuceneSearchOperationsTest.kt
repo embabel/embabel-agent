@@ -17,6 +17,7 @@ package com.embabel.agent.rag.lucene
 
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.service.RagRequest
+import com.embabel.common.ai.model.SpringEmbeddingService
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -74,7 +75,7 @@ class LuceneSearchOperationsTest {
         ragService = LuceneSearchOperations(name = "lucene-rag")
         ragServiceWithEmbedding = LuceneSearchOperations(
             name = "hybrid-lucene-rag",
-            embeddingModel = mockEmbeddingModel,
+            embeddingService = SpringEmbeddingService("name", "provider", mockEmbeddingModel),
             vectorWeight = 0.5
         )
     }
@@ -261,7 +262,7 @@ class LuceneSearchOperationsTest {
     fun `should weight vector similarity appropriately`() {
         val ragServiceHighVector = LuceneSearchOperations(
             name = "high-vector-weight",
-            embeddingModel = mockEmbeddingModel,
+            embeddingService = SpringEmbeddingService("name", "provider", mockEmbeddingModel),
             vectorWeight = 0.9 // High vector weight
         )
 
@@ -838,7 +839,11 @@ class LuceneSearchOperationsTest {
             assertEquals(3, ragService.info().contentElementCount, "Count should remain 3 after keyword updates")
             val afterUpdateStats = ragService.info()
             assertEquals(3, afterUpdateStats.chunkCount, "Total chunks should remain 3")
-            assertEquals(0, afterUpdateStats.documentCount, "documentCount should be 0 (only Chunks, no NavigableDocuments)")
+            assertEquals(
+                0,
+                afterUpdateStats.documentCount,
+                "documentCount should be 0 (only Chunks, no NavigableDocuments)"
+            )
 
             // Verify all chunks are still accessible
             val allChunks = ragService.findAll()
@@ -1611,7 +1616,7 @@ class LuceneSearchOperationsTest {
             trackingEmbeddingModel = TrackingEmbeddingModel()
             ragServiceWithTracking = LuceneSearchOperations(
                 name = "tracking-rag",
-                embeddingModel = trackingEmbeddingModel,
+                embeddingService = SpringEmbeddingService("model", "provider", trackingEmbeddingModel),
                 vectorWeight = 0.5
             )
         }
@@ -2197,7 +2202,7 @@ class LuceneSearchOperationsTest {
             // Create and populate first instance
             val service1 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
 
@@ -2223,7 +2228,7 @@ class LuceneSearchOperationsTest {
             // Create second instance and verify chunks are loaded
             val service2 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
             service2.loadExistingChunksFromDisk()
@@ -2244,7 +2249,7 @@ class LuceneSearchOperationsTest {
             // Create and populate first instance
             val service1 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
 
@@ -2273,7 +2278,7 @@ class LuceneSearchOperationsTest {
             // Create second instance and verify root is loaded
             val service2 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
             service2.loadExistingChunksFromDisk()
@@ -2294,7 +2299,7 @@ class LuceneSearchOperationsTest {
 
             val service1 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
 
@@ -2317,7 +2322,7 @@ class LuceneSearchOperationsTest {
 
             val service2 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
             service2.loadExistingChunksFromDisk()
@@ -2338,7 +2343,7 @@ class LuceneSearchOperationsTest {
 
             val service1 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
 
@@ -2368,7 +2373,7 @@ class LuceneSearchOperationsTest {
 
             val service2 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
             service2.loadExistingChunksFromDisk()
@@ -2389,7 +2394,7 @@ class LuceneSearchOperationsTest {
 
             val service1 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
 
@@ -2421,14 +2426,13 @@ class LuceneSearchOperationsTest {
                 children = listOf(section)
             )
 
-            val chunkIds = service1.writeAndChunkDocument(document)
             val countBefore = service1.info().contentElementCount
 
             service1.close()
 
             val service2 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
             service2.loadExistingChunksFromDisk()
@@ -2451,7 +2455,7 @@ class LuceneSearchOperationsTest {
 
             val service1 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
 
@@ -2478,7 +2482,7 @@ class LuceneSearchOperationsTest {
 
             val service2 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
             service2.loadExistingChunksFromDisk()
@@ -2498,7 +2502,7 @@ class LuceneSearchOperationsTest {
 
             val service1 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
 
@@ -2536,7 +2540,7 @@ class LuceneSearchOperationsTest {
             // Reload from disk
             val service2 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
             service2.loadExistingChunksFromDisk()
@@ -2573,7 +2577,7 @@ class LuceneSearchOperationsTest {
 
             val service1 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
 
@@ -2603,7 +2607,7 @@ class LuceneSearchOperationsTest {
 
             val service2 = LuceneSearchOperations(
                 name = "persist-test",
-                embeddingModel = null,
+                embeddingService = null,
                 indexPath = indexPath
             )
             service2.loadExistingChunksFromDisk()

@@ -18,6 +18,7 @@ package com.embabel.common.test.ai.config
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.Llm
+import com.embabel.common.ai.model.SpringEmbeddingService
 import com.embabel.common.test.ai.FakeEmbeddingModel
 import com.embabel.common.util.loggerFor
 import io.mockk.mockk
@@ -58,7 +59,7 @@ class FakeAiConfiguration {
 
     @Bean
     fun embedding(): EmbeddingService {
-        return EmbeddingService(
+        return SpringEmbeddingService(
             name = "text-embedding-ada-002",
             model = FakeEmbeddingModel(),
             provider = "OpenAI",

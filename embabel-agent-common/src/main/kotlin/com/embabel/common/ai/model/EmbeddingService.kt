@@ -16,8 +16,6 @@
 package com.embabel.common.ai.model
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import org.springframework.ai.embedding.EmbeddingModel
 import java.time.LocalDate
 
 @JsonDeserialize(`as` = EmbeddingServiceMetadataImpl::class)
@@ -48,14 +46,15 @@ interface EmbeddingServiceMetadata : ModelMetadata {
 }
 
 /**
- * Wraps a Spring AI EmbeddingModel exposing an embedding service.
+ * Embed text in vector space
  */
-@JsonSerialize(`as` = EmbeddingServiceMetadata::class)
-data class EmbeddingService(
-    override val name: String,
-    override val provider: String,
-    override val model: EmbeddingModel,
-) : AiModel<EmbeddingModel>, EmbeddingServiceMetadata
+interface EmbeddingService : AiModel<Any>, EmbeddingServiceMetadata {
+
+    fun embed(text: String): FloatArray
+
+    fun embed(texts: List<String>): List<FloatArray>
+
+}
 
 data class EmbeddingServiceMetadataImpl(
     override val name: String,

@@ -155,7 +155,7 @@ class DockerLocalModelsConfig(
                     add(RegisteredModel(beanName = beanName, modelId = model.id))
                     logger.debug(
                         "Successfully registered Docker {} {} as bean {}",
-                        dockerModel.model.javaClass.simpleName,
+                        dockerModel.model!!.javaClass.simpleName,
                         model.id,
                         beanName,
                     )
@@ -194,7 +194,7 @@ class DockerLocalModelsConfig(
                 .build(),
         )
 
-        return EmbeddingService(
+        return SpringEmbeddingService(
             name = model.id,
             model = springEmbeddingModel,
             provider = PROVIDER,

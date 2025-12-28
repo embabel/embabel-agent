@@ -19,7 +19,6 @@ import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import org.springframework.ai.model.Model
 
 enum class ModelType {
     LLM, EMBEDDING,
@@ -54,14 +53,14 @@ interface ModelMetadata {
 }
 
 /**
- * Wraps a Spring AI model and allows metadata to be attached to a model
+ * Wraps a lower level AI model and allows metadata to be attached to a model
  */
-interface AiModel<M : Model<*, *>> : ModelMetadata, HasInfoString {
+interface AiModel<M> : ModelMetadata, HasInfoString {
 
     val model: M
 
     override fun infoString(
-      verbose: Boolean?,
-      indent: Int,
+        verbose: Boolean?,
+        indent: Int,
     ): String = "name: $name, provider: $provider".indent(indent)
 }

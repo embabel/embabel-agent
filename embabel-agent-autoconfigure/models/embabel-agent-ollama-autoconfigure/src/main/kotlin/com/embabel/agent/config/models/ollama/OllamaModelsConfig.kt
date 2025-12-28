@@ -207,7 +207,7 @@ class OllamaModelsConfig(
             )
             .build()
 
-        return EmbeddingService(
+        return SpringEmbeddingService(
             name = uniqueModelName,
             model = springEmbeddingModel,
             provider = OllamaModels.PROVIDER,
@@ -240,8 +240,8 @@ class OllamaModelsConfig(
             logger.info("Discovered {} Ollama models from {}: {}", models.size, contextName, models.map { it.name })
         }
 
-        var registeredLlms = mutableListOf<RegisteredModel>()
-        var registeredEmbeddings = mutableListOf<RegisteredModel>()
+        val registeredLlms = mutableListOf<RegisteredModel>()
+        val registeredEmbeddings = mutableListOf<RegisteredModel>()
 
         models.forEach { model ->
             try {
@@ -272,14 +272,14 @@ class OllamaModelsConfig(
                             beanName,
                         )
                     }
-                    }
+                }
 
             } catch (e: Exception) {
                 logger.error("Failed to register Ollama model {}: {}", model.name, e.message)
             }
         }
 
-         this.providerInitialization = ProviderInitialization(
+        this.providerInitialization = ProviderInitialization(
             provider = OllamaModels.PROVIDER,
             registeredLlms = registeredLlms,
             registeredEmbeddings = registeredEmbeddings

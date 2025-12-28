@@ -48,7 +48,7 @@ data class LuceneSearchOperationsBuilder(
     override fun build(): LuceneSearchOperations {
         val luceneSearchOperations = LuceneSearchOperations(
             name = name,
-            embeddingModel = embeddingService?.model,
+            embeddingService = embeddingService,
             indexPath = indexPath,
             chunkerConfig = chunkerConfig,
         )

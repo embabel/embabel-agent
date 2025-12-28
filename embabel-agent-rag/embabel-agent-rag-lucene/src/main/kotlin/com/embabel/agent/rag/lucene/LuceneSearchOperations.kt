@@ -30,6 +30,7 @@ import com.embabel.agent.rag.service.support.RagFacetProvider
 import com.embabel.agent.rag.service.support.RagFacetResults
 import com.embabel.agent.rag.store.AbstractChunkingContentElementRepository
 import com.embabel.agent.rag.store.DocumentDeletionResult
+import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
@@ -49,7 +50,6 @@ import org.apache.lucene.search.TopDocs
 import org.apache.lucene.store.ByteBuffersDirectory
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
-import org.springframework.ai.embedding.EmbeddingModel
 import java.io.Closeable
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
@@ -62,7 +62,7 @@ import kotlin.math.sqrt
  * Implements WritableContentElementRepository so we can add to the store.
  *
  * @param name Name of this RAG service
- * @param embeddingModel Optional embedding model for vector search; if null, only text search is
+ * @param embeddingService Optional embedding model for vector search; if null, only text search is
  * supported
  * @param keywordExtractor Optional keyword extractor for keyword-based search; if null, keyword
  * search is disabled
@@ -73,7 +73,7 @@ import kotlin.math.sqrt
 class LuceneSearchOperations @JvmOverloads constructor(
     override val name: String,
     override val enhancers: List<RetrievableEnhancer> = emptyList(),
-    private val embeddingModel: EmbeddingModel? = null,
+    private val embeddingService: EmbeddingService? = null,
     private val keywordExtractor: KeywordExtractor? = null,
     private val vectorWeight: Double = 0.5,
     chunkerConfig: ContentChunker.Config = ContentChunker.DefaultConfig(),
@@ -119,7 +119,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
     }
 
     init {
-        if (embeddingModel == null) {
+        if (embeddingService == null) {
             logger.warn("No embedding model configured; only text search will be supported.")
         }
 
@@ -303,9 +303,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
                     add(TextField(KEYWORDS_FIELD, keyword.lowercase(), Field.Store.YES))
                 }
 
-                if (embeddingModel != null && chunk.metadata.containsKey("embedding")) {
+                if (embeddingService != null && chunk.metadata.containsKey("embedding")) {
                     // Preserve existing embedding if it exists
-                    val embedding = embeddingModel.embed(chunk.embeddableValue())
+                    val embedding = embeddingService.embed(chunk.embeddableValue())
                     val embeddingBytes = floatArrayToBytes(embedding)
                     add(StoredField("embedding", embeddingBytes))
                 }
@@ -434,7 +434,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         val searcher = IndexSearcher(reader)
 
         // Perform hybrid search: text + vector similarity
-        val results = if (embeddingModel != null) {
+        val results = if (embeddingService != null) {
             val r = performHybridSearch(searcher, ragRequest)
             logger.debug("Hybrid search for query {} found\n{}", ragRequest.query, r)
             r
@@ -466,7 +466,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
     ): List<SimilarityResult<T>> {
-        if (embeddingModel == null) {
+        if (embeddingService == null) {
             logger.warn("Vector search requested but no embedding model configured")
             return emptyList()
         }
@@ -651,7 +651,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         val textResults: TopDocs = searcher.search(textQuery, (ragRequest.topK * 2).coerceAtLeast(20))
 
         // Get query embedding
-        val queryEmbedding = embeddingModel!!.embed(ragRequest.query)
+        val queryEmbedding = embeddingService!!.embed(ragRequest.query)
 
         // Calculate hybrid scores
         val hybridResults = mutableListOf<SimpleSimilaritySearchResult<Chunk>>()
@@ -880,9 +880,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
                 add(TextField(KEYWORDS_FIELD, keyword.lowercase(), Field.Store.YES))
             }
 
-            if (embeddingModel != null) {
+            if (embeddingService != null) {
                 try {
-                    val embedding = embeddingModel.embed(retrievable.embeddableValue())
+                    val embedding = embeddingService.embed(retrievable.embeddableValue())
                     val embeddingBytes = floatArrayToBytes(embedding)
                     add(StoredField("embedding", embeddingBytes))
                     logger.info("Added embedding for retrievable with id {}", retrievable.id)
@@ -1205,7 +1205,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
             averageChunkLength = if (contentElementStorage.isNotEmpty()) {
                 contentElementStorage.values.filterIsInstance<Chunk>().map { it.text.length }.average()
             } else 0.0,
-            hasEmbeddings = embeddingModel != null,
+            hasEmbeddings = embeddingService != null,
             vectorWeight = vectorWeight,
             isPersistent = indexPath != null,
             indexPath = indexPath?.toString()
