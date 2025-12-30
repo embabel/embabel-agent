@@ -16,9 +16,11 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.Tool
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.ai.model.ModelOptionsUtils
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.DefaultToolDefinition
 import org.springframework.ai.tool.metadata.DefaultToolMetadata
@@ -46,7 +48,7 @@ class SpringToolCallbackAdapterTest {
             assertEquals("test_tool", definition.name())
             assertEquals("A test tool", definition.description())
             assertTrue(definition.inputSchema()!!.contains("\"input\""))
-            assertTrue(definition.inputSchema()!!.contains("\"type\": \"string\""))
+            assertTrue(definition.inputSchema()!!.contains("\"type\":\"string\""))
         }
 
         @Test
@@ -292,6 +294,172 @@ class SpringToolCallbackAdapterTest {
             val result = wrappedTool.call("""{"value": 42}""")
             assertTrue(result is Tool.Result.Text)
             assertTrue((result as Tool.Result.Text).content.contains("42"))
+        }
+    }
+
+    /**
+     * Tests that verify the JSON schema produced by SpringToolCallbackAdapter is always
+     * valid JSON that can be parsed by Spring AI's ModelOptionsUtils.jsonToMap().
+     * This catches issues like unescaped special characters in descriptions.
+     */
+    @Nested
+    inner class JsonSchemaValidity {
+
+        private val objectMapper = ObjectMapper()
+
+        private fun assertValidJsonSchema(tool: Tool) {
+            val callback = SpringToolCallbackAdapter(tool)
+            val schema = callback.toolDefinition.inputSchema()
+
+            // Verify it's valid JSON that Jackson can parse
+            assertDoesNotThrow {
+                objectMapper.readTree(schema)
+            }
+
+            // Verify Spring AI's ModelOptionsUtils can parse it (this is what fails in production)
+            assertDoesNotThrow {
+                ModelOptionsUtils.jsonToMap(schema)
+            }
+        }
+
+        @Test
+        fun `schema with simple description produces valid JSON`() {
+            val tool = Tool.of(
+                name = "simple_tool",
+                description = "A simple tool",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter("input", Tool.ParameterType.STRING, "Simple input"),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `schema with quotes in description produces valid JSON`() {
+            val tool = Tool.of(
+                name = "quote_tool",
+                description = "A tool with \"quotes\"",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter("query", Tool.ParameterType.STRING, "The \"search\" query to use"),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `schema with backslash in description produces valid JSON`() {
+            val tool = Tool.of(
+                name = "backslash_tool",
+                description = "A tool with backslash",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter("path", Tool.ParameterType.STRING, "Windows path like C:\\Users\\test"),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `schema with newlines in description produces valid JSON`() {
+            val tool = Tool.of(
+                name = "newline_tool",
+                description = "A tool",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter("text", Tool.ParameterType.STRING, "Text with\nnewlines\tin it"),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `schema with unicode characters produces valid JSON`() {
+            val tool = Tool.of(
+                name = "unicode_tool",
+                description = "A tool",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter("emoji", Tool.ParameterType.STRING, "Emoji: 😀 and unicode: ñ é ü"),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `schema with mixed special characters produces valid JSON`() {
+            val tool = Tool.of(
+                name = "mixed_tool",
+                description = "Tool \"test\"",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter(
+                        "complex",
+                        Tool.ParameterType.STRING,
+                        """Query with "quotes", backslash \, tabs	and newlines
+and special chars: <>&""",
+                    ),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `schema with multiple parameters with special chars produces valid JSON`() {
+            val tool = Tool.of(
+                name = "multi_param_tool",
+                description = "A tool",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter("first", Tool.ParameterType.STRING, "First \"param\""),
+                    Tool.Parameter("second", Tool.ParameterType.STRING, "Second\\param"),
+                    Tool.Parameter("third", Tool.ParameterType.INTEGER, "Third\nparam"),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `schema with enum values containing special chars produces valid JSON`() {
+            val tool = Tool.of(
+                name = "enum_tool",
+                description = "A tool",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter(
+                        name = "option",
+                        type = Tool.ParameterType.STRING,
+                        description = "Choose an option",
+                        enumValues = listOf("value\"one", "value\\two", "value\nthree"),
+                    ),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `empty schema produces valid JSON`() {
+            val tool = Tool.of(
+                name = "empty_tool",
+                description = "No parameters",
+                inputSchema = Tool.InputSchema.empty(),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
+        }
+
+        @Test
+        fun `parameter name with special characters produces valid JSON`() {
+            val tool = Tool.of(
+                name = "special_name_tool",
+                description = "A tool",
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter("param\"name", Tool.ParameterType.STRING, "A parameter"),
+                ),
+            ) { _ -> Tool.Result.text("ok") }
+
+            assertValidJsonSchema(tool)
         }
     }
 }
