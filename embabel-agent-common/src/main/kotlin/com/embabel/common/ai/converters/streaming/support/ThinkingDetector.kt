@@ -16,44 +16,32 @@
 package com.embabel.common.ai.converters.streaming.support
 
 import com.embabel.common.core.streaming.ThinkingState
+import com.embabel.common.core.thinking.ThinkingTags
 import org.slf4j.LoggerFactory
 
 /**
  * Utility functions for streaming content processing, particularly thinking content detection and extraction.
  *
  * Provides centralized logic for identifying and processing thinking content in various formats
- * used by different LLM models and reasoning systems.
+ * used by different LLM models and reasoning systems. Uses ThinkingTags for consistent tag definitions.
  */
 internal object ThinkingDetector {
 
     private val logger = LoggerFactory.getLogger(ThinkingDetector::class.java)
 
     /**
-     * Centralized thinking tag definitions.
-     * Single source of truth for all thinking tag formats across different LLMs.
+     * XML-style thinking tags for streaming processing.
+     * Uses centralized ThinkingTags definitions, excluding special-purpose tags.
      */
-    private val thinkingTags = mapOf(
-        "think" to ("<think>" to "</think>"),
-        "analysis" to ("<analysis>" to "</analysis>"),
-        "thought" to ("<thought>" to "</thought>"),
-        "final" to ("<final>" to "</final>"),
-        "scratchpad" to ("<scratchpad>" to "</scratchpad>"),
-        "chain_of_thought" to ("<chain_of_thought>" to "</chain_of_thought>"),
-        "reasoning" to ("[REASONING]" to "[/REASONING]")
-    )
+    private val thinkingTags = ThinkingTags.TAG_DEFINITIONS
+        .filterNot { it.key in listOf("legacy_prefix", "no_prefix") }
 
     /**
      * Detects if a line contains thinking content using flexible pattern matching.
      *
-     * Supports multiple reasoning tag formats commonly used by different LLMs:
-     * - <think>content</think> (DeepSeek, Qwen, Llama 3, Gemma)
-     * - <analysis>content</analysis> (Qwen)
-     * - <thought>content</thought> (Llama 3)
-     * - <final>content</final> (Qwen)
-     * - <scratchpad>content</scratchpad> (Gemini internal)
-     * - <chain_of_thought>content</chain_of_thought> (Claude internal)
-     * - [REASONING]content[/REASONING] (Mistral/Mixtral)
-     * - //THINKING: content (legacy format)
+     * Uses ThinkingTags definitions to support multiple reasoning tag formats commonly used by different LLMs:
+     * - XML-style tags: <think>, <analysis>, <thought>, <final>, <scratchpad>, <chain_of_thought>, <reasoning>
+     * - Legacy prefix format: //THINKING: content
      *
      * @param line The complete line to check for thinking patterns
      * @return true if the line contains thinking content, false otherwise
@@ -217,7 +205,7 @@ internal object ThinkingDetector {
 
     /**
      * Regex patterns for detecting thinking content in various formats.
-     * Generated from centralized tag definitions for consistency.
+     * Generated from ThinkingTags definitions for consistency across the system.
      */
     private val thinkingPatterns = buildList {
         // Block-style thinking tags (capture content inside)
