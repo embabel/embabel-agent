@@ -48,6 +48,7 @@ import kotlin.reflect.jvm.kotlinFunction
 @Component
 internal class DefaultActionMethodManager(
     val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
+    val actionQosProvider: ActionQosProvider = DefaultActionQosProvider(),
     override val argumentResolvers: List<ActionMethodArgumentResolver> = listOf(
         ProcessContextArgumentResolver(),
         OperationContextArgumentResolver(),
@@ -103,6 +104,7 @@ internal class DefaultActionMethodManager(
             outputClass = method.returnType,
             outputVarName = actionAnnotation.outputBinding,
             toolGroups = computeToolGroups(actionAnnotation),
+            qos = actionQosProvider.provideActionQos(method, instance),
         ) { context ->
             invokeActionMethod(
                 method = method,
