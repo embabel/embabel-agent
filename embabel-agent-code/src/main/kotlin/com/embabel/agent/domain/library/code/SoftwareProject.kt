@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.domain.library.code
 
+import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.tools.file.*
 import com.embabel.coding.tools.ci.BuildOptions
@@ -25,8 +26,6 @@ import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.annotation.JsonClassDescription
 import com.fasterxml.jackson.annotation.JsonPropertyDescription
-import org.springframework.ai.tool.annotation.Tool
-import org.springframework.ai.tool.annotation.ToolParam
 
 /**
  * Represents a software project that supports CI
@@ -48,7 +47,8 @@ open class SoftwareProject @JvmOverloads constructor(
     val buildCommand: String = "mvn clean test",
     val streamOutput: Boolean = false,
     val wasCreated: Boolean = false,
-) : LlmReference, FileTools, SymbolSearch, GitOperations, FileChangeLog by DefaultFileChangeLog(), FileReadLog by DefaultFileReadLog() {
+) : LlmReference, FileTools, SymbolSearch, GitOperations, FileChangeLog by DefaultFileChangeLog(),
+    FileReadLog by DefaultFileReadLog() {
 
     init {
         if (!exists()) {
@@ -81,7 +81,7 @@ open class SoftwareProject @JvmOverloads constructor(
 
     val ci = Ci(root)
 
-    @Tool(description = "Find all Java files under src/main/java. Good for quickly getting to grips with a project")
+    @LlmTool(description = "Find all Java files under src/main/java. Good for quickly getting to grips with a project")
     fun findJavaFiles(): List<String> {
         val files = findFiles("src/main/java/**.java", findHighest = false)
         return if (files.size > 100) {
@@ -91,8 +91,10 @@ open class SoftwareProject @JvmOverloads constructor(
         }
     }
 
-    @Tool(description = "Returns the file containing a class with the given name")
-    fun findClass(@ToolParam(description = "class name") name: String): String {
+    @LlmTool(description = "Returns the file containing a class with the given name")
+    fun findClass(
+        @LlmTool.Param(description = "class name") name: String,
+    ): String {
         val matches = findClassInProject(name, globPattern = "**/*.{java,kt}")
         return if (matches.isNotEmpty()) {
             matches.joinToString("\n") { it.relativePath }
@@ -101,10 +103,10 @@ open class SoftwareProject @JvmOverloads constructor(
         }
     }
 
-    @Tool(description = "Returns the file containing a class with the given name")
+    @LlmTool(description = "Returns the file containing a class with the given name")
     fun findPattern(
-        @ToolParam(description = "regex pattern") regex: String,
-        @ToolParam(description = "glob pattern for file to search") globPattern: String,
+        @LlmTool.Param(description = "regex pattern") regex: String,
+        @LlmTool.Param(description = "glob pattern for file to search") globPattern: String,
     ): String {
         val matches = findPatternInProject(pattern = Regex(regex), globPattern = globPattern)
         return if (matches.isNotEmpty()) {
@@ -114,7 +116,7 @@ open class SoftwareProject @JvmOverloads constructor(
         }
     }
 
-    @Tool(description = "Build the project using the given command in the root")
+    @LlmTool(description = "Build the project using the given command in the root")
     fun build(command: String): String {
         val br = ci.buildAndParse(BuildOptions(command, streamOutput = streamOutput))
         return br.relevantOutput()

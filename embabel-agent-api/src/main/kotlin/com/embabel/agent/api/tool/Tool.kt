@@ -444,12 +444,12 @@ interface Tool {
             return try {
                 fromInstance(instance, objectMapper)
             } catch (e: IllegalArgumentException) {
-                logger.debug("No @Tool.Method annotations found on {}: {}", instance::class.simpleName, e.message)
+                logger.debug("No @LlmTool annotations found on {}: {}", instance::class.simpleName, e.message)
                 emptyList()
             } catch (e: Throwable) {
                 // Kotlin reflection can fail on some Java classes with KotlinReflectionInternalError (an Error, not Exception)
                 logger.debug(
-                    "Failed to scan {} for @Tool.Method annotations: {}",
+                    "Failed to scan {} for @LlmTool annotations: {}",
                     instance::class.simpleName,
                     e.message,
                 )

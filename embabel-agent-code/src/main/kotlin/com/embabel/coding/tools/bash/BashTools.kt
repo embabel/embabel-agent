@@ -15,12 +15,15 @@
  */
 package com.embabel.coding.tools.bash
 
-import org.springframework.ai.tool.annotation.Tool
+import com.embabel.agent.api.annotation.LlmTool
 import java.io.File
 
+/**
+ * Generic Bash tools
+ */
 class BashTools(private val workingDirectory: String) {
 
-    @Tool(description = "Generic bash tool")
+    @LlmTool(description = "Generic bash tool")
     fun runBashCommand(command: String): String {
         val process = ProcessBuilder("/bin/bash", "-c", command)
             .directory(File(workingDirectory))

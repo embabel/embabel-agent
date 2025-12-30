@@ -15,13 +15,13 @@
  */
 package com.embabel.agent.mcpserver
 
+import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.mcpserver.domain.McpExecutionMode
 import com.embabel.agent.mcpserver.domain.ServerInfo
 import com.embabel.agent.mcpserver.domain.ToolSpecification
 import com.embabel.agent.spi.support.AgentScanningBeanPostProcessorEvent
 import org.slf4j.Logger
 import org.springframework.ai.tool.ToolCallbackProvider
-import org.springframework.ai.tool.annotation.Tool
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.event.EventListener
 import reactor.core.publisher.Flux
@@ -318,7 +318,7 @@ class UnifiedBannerTool(private val serverInfo: ServerInfo) {
      *
      * @return a map containing banner details
      */
-    @Tool(
+    @LlmTool(
         description = "Display a welcome banner with server information"
     )
     fun helloBanner(): Map<String, Any> {

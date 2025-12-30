@@ -15,13 +15,13 @@
  */
 package com.embabel.agent.tools.osx
 
+import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.support.SelfToolGroup
 import com.embabel.agent.core.ToolGroupDescription
 import com.embabel.agent.core.ToolGroupPermission
 import com.embabel.agent.spi.common.Constants
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.MacOSCondition
-import org.springframework.ai.tool.annotation.Tool
 import org.springframework.context.annotation.Conditional
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Service
@@ -44,7 +44,7 @@ class AppleScriptTools : SelfToolGroup {
     override val permissions: Set<ToolGroupPermission>
         get() = setOf(ToolGroupPermission.HOST_ACCESS)
 
-    @Tool(description = "Run AppleScript command")
+    @LlmTool(description = "Run AppleScript command")
     fun runAppleScript(script: String): String {
         val runtime = Runtime.getRuntime()
         val process = runtime.exec(arrayOf("osascript", "-e", script))

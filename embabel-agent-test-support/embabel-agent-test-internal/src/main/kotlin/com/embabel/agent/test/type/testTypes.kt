@@ -37,7 +37,7 @@ private const val CREATE_A_USER_INPUT = "Create a UserInput"
 
 data class PersonWithReverseTool(val name: String) {
 
-    @Tool
+    @LlmTool(description = "reverses the person's name")
     fun reverse() = name.reversed()
 
 }
@@ -500,7 +500,7 @@ class Combined {
         ).createObject("Generated prompt for ${userInput.content}")
     }
 
-    @Tool
+    @LlmTool(description = "weather at location")
     fun weatherService(location: String) =
         "The weather in $location is ${listOf("sunny", "raining", "foggy").random()}"
 
@@ -520,7 +520,7 @@ class OnePromptActionWithToolOnly(
                 "Generated prompt for ${userInput.content}"
     }
 
-    @Tool
+    @LlmTool(description = "thing")
     fun thing(): String {
         return "foobar"
     }
@@ -576,7 +576,7 @@ class FromPersonUsesObjectToolsViaContext {
 }
 
 class FunnyTool {
-    @Tool
+    @LlmTool(description = "thing")
     fun thing(): String {
         return "foobar"
     }
@@ -593,10 +593,10 @@ class OneTransformerActionWith2Tools {
         return PersonWithReverseTool(userInput.content)
     }
 
-    @Tool
+    @LlmTool(description = "tool with no arg")
     fun toolWithoutArg(): String = "foo"
 
-    @Tool
+    @LlmTool(description = "tool with an argument")
     fun toolWithArg(location: String) = "bar"
 
 }

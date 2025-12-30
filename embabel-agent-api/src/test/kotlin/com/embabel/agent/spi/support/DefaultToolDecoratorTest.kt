@@ -15,19 +15,21 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentProcessRunning
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Test
-import org.springframework.ai.support.ToolCallbacks
-import org.springframework.ai.tool.annotation.Tool
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 object RuntimeExceptionTool {
-    @Tool
+
+    @LlmTool
     fun toolThatThrowsRuntimeException(input: String): String {
         throw RuntimeException("This tool always fails")
     }
@@ -39,7 +41,7 @@ class DefaultToolDecoratorTest {
     @Test
     fun `test handle runtime exception from tool`() {
         val toolDecorator = DefaultToolDecorator()
-        val badToolCallback = ToolCallbacks.from(RuntimeExceptionTool).single()
+        val badToolCallback = safelyGetToolCallbacksFrom(ToolObject(RuntimeExceptionTool)).single()
         val decorated = toolDecorator.decorate(
             tool = badToolCallback,
             agentProcess = dummyAgentProcessRunning(evenMoreEvilWizard()),
@@ -61,14 +63,14 @@ class DefaultToolDecoratorTest {
         val toolDecorator = DefaultToolDecorator()
 
         class NeedsAgentProcess {
-            @Tool
+            @LlmTool
             fun toolThatNeedsAgentProcess(input: String): String {
                 assertNotNull(AgentProcess.get(), "Agent process must have been bound")
                 return "AgentProcess is bound"
             }
         }
 
-        val toolCallback = ToolCallbacks.from(NeedsAgentProcess()).single()
+        val toolCallback = safelyGetToolCallbacksFrom(ToolObject(NeedsAgentProcess())).single()
         val decorated = toolDecorator.decorate(
             tool = toolCallback,
             agentProcess = dummyAgentProcessRunning(evenMoreEvilWizard()),

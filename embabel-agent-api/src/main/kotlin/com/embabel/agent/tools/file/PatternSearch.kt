@@ -15,10 +15,9 @@
  */
 package com.embabel.agent.tools.file
 
+import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.tools.DirectoryBased
 import com.embabel.common.util.loggerFor
-import org.springframework.ai.tool.annotation.Tool
-import org.springframework.ai.tool.annotation.ToolParam
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -28,10 +27,10 @@ import kotlin.concurrent.thread
  */
 interface PatternSearch : DirectoryBased {
 
-    @Tool(description = "search for a regex in the project")
+    @LlmTool(description = "search for a regex in the project")
     fun findPatternInProject(
-        @ToolParam(description = "regex pattern") pattern: String,
-        @ToolParam(description = "glob pattern for files to search in") globPattern: String,
+        @LlmTool.Param(description = "regex pattern") pattern: String,
+        @LlmTool.Param(description = "glob pattern for files to search in") globPattern: String,
     ): String {
         return findPatternInProject(
             pattern = Regex(pattern),

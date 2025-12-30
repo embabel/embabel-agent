@@ -2,19 +2,19 @@
 === Tools
 
 Tools can be passed to LLMs to allow them to perform actions.
-Tools can either be outside the JVM process, as with MCP, or inside the JVM process, as with domain objects exposing `@Tool` methods.
+Tools can either be outside the JVM process, as with MCP, or inside the JVM process, as with domain objects exposing `@LlmTool` methods.
 
 Embabel allows you to provide tools to LLMs in two ways:
 
 * Via the `PromptRunner` by providing one or more in process **tool instances**.
-A tool instance is an object annotated with `@Tool` methods.
+A tool instance is an object with methods annotated with Embabel `@LlmTool` or Spring AI `@Tool`.
 * At action or `PromptRunner` level, from a **tool group**.
 
 `LlmReference` implementations also expose tools, but this is handled internally by the framework.
 
 ==== In Process Tools: Implementing Tool Instances
 
-Implement one or more methods annotated with `@Tool` on a class.
+Implement one or more methods annotated with `@LlmTool` on a class.
 You do not need to annotate the class itself.
 Each annotated method represents a distinct tool that will be exposed to the LLM.
 
@@ -24,7 +24,7 @@ A simple example of a tool method:
 ----
 class MathTools {
 
-    @Tool(description = "add two numbers")
+    @LlmTool(description = "add two numbers")
     fun add(a: Double, b: Double) = a + b
 
     // Other tools
@@ -61,7 +61,7 @@ For example:
 [source,java]
 ----
 
-@Tool(description="My Tool") String bindCustomer(Long id) {
+@LlmTool(description="My Tool") String bindCustomer(Long id) {
 var customer = customerRepository.findById(id); var agentProcess = AgentProcess.get(); if (agentProcess != null) {
 agentProcess.addObject(customer); return "Customer bound to blackboard"; } return "No agent process: Unable to bind customer"; }
 
@@ -274,9 +274,9 @@ context.ai().withDefaultLlm()
     .createObject("Calculate stock performance with web data", StockReport::class)
 ----
 
-**Adding Tool Objects with @Tool Methods:**
+**Adding Tool Objects with @LlmTool Methods:**
 
-You can also provide domain objects with `@Tool` methods directly to specific prompts:
+You can also provide domain objects with `@LlmTool` methods directly to specific prompts:
 
 [source,java]
 ----
@@ -301,7 +301,7 @@ context.ai()
 - `withToolGroup(ToolGroup)`: Add a specific ToolGroup instance
 - `withToolGroups(Set<String>)`: Add multiple tool groups
 - `withTools(vararg String)`: Convenient method to add multiple tool groups
-- `withToolObject(Any)`: Add domain object with @Tool methods
+- `withToolObject(Any)`: Add domain object with `@LlmTool` or `@Tool` methods
 - `withToolObject(ToolObject)`: Add ToolObject with custom configuration
 - `withTool(Tool)`: Add a framework-agnostic Tool instance
 - `withTools(List<Tool>)`: Add multiple framework-agnostic Tool instances
@@ -651,11 +651,15 @@ context.ai()
 ----
 ====
 
-TIP: The `withSystemPrompt` call is optional. By default, `AgenticTool` generates a system prompt from the tool's description: _"You are an intelligent agent that can use tools to help you complete tasks. Use the provided tools to perform the following task: {description}"_. Only call `withSystemPrompt` if you need custom orchestration instructions.
+TIP: The `withSystemPrompt` call is optional.
+By default, `AgenticTool` generates a system prompt from the tool's description: _"You are an intelligent agent that can use tools to help you complete tasks.
+Use the provided tools to perform the following task: {description}"_.
+Only call `withSystemPrompt` if you need custom orchestration instructions.
 
 ===== Defining Input Parameters
 
-IMPORTANT: You must define input parameters for your `AgenticTool` so the LLM knows what arguments to pass when calling it. Without parameters, the LLM won't know what input format to use.
+IMPORTANT: You must define input parameters for your `AgenticTool` so the LLM knows what arguments to pass when calling it.
+Without parameters, the LLM won't know what input format to use.
 
 Use the `withParameter` method with `Tool.Parameter` factory methods for concise parameter definitions:
 
@@ -700,7 +704,8 @@ Available parameter factory methods:
 - `Tool.Parameter.integer(name, description, required?)` - Integer parameter
 - `Tool.Parameter.double(name, description, required?)` - Floating-point parameter
 
-All factory methods default to `required = true`. Set `required = false` for optional parameters.
+All factory methods default to `required = true`.
+Set `required = false` for optional parameters.
 
 ===== Creating Agentic Tools from Annotated Objects
 
@@ -876,7 +881,8 @@ If you're coming from frameworks like LangChain or Google ADK, `AgenticTool` pro
 
 The key differences:
 
-* **Tool-centric**: Embabel's agentic tools operate at the tool level, not the agent level. They're lightweight and can be mixed freely with regular tools.
+* **Tool-centric**: Embabel's agentic tools operate at the tool level, not the agent level.
+They're lightweight and can be mixed freely with regular tools.
 * **Simpler model**: No graph-based workflows or explicit Sequential/Parallel/Loop patterns—just LLM-driven orchestration.
 * **Composable**: An agentic tool is still "just a tool" that can be used anywhere tools are accepted.
 
@@ -898,4 +904,5 @@ However, for anything beyond simple orchestration, Embabel offers far more power
 These provide *deterministic, typesafe planning* that is far more predictable and powerful than supervisor-style LLM orchestration.
 Use `AgenticTool` for simple cases or as a migration stepping stone; graduate to GOAP, Utility, or @State for production workflows where predictability matters.
 
-TIP: For supervisor-style orchestration with typed outputs and full blackboard state management, see <<reference.planners__supervisor-invocation,SupervisorInvocation>>. It operates at a higher level than `AgenticTool`, orchestrating `@Action` methods rather than `Tool` instances, and produces typed goal objects with currying support.
+TIP: For supervisor-style orchestration with typed outputs and full blackboard state management, see <<reference.planners__supervisor-invocation,SupervisorInvocation>>.
+It operates at a higher level than `AgenticTool`, orchestrating `@Action` methods rather than `Tool` instances, and produces typed goal objects with currying support.

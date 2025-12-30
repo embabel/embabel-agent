@@ -15,12 +15,11 @@
  */
 package com.embabel.coding.tools.git
 
+import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.core.AgentProcess
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.GitAPIException
 import org.slf4j.LoggerFactory
-import org.springframework.ai.tool.annotation.Tool
-import org.springframework.ai.tool.annotation.ToolParam
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.absolutePathString
@@ -56,10 +55,10 @@ data class RepositoryReferenceProvider(
     /**
      * Will add a reference to the blackboard
      */
-    @Tool(description = "Clone a Git repository from the given URL to a temporary directory")
+    @LlmTool(description = "Clone a Git repository from the given URL to a temporary directory")
     fun clone(
         url: String,
-        @ToolParam(description = "Description of the repository")
+        @LlmTool.Param(description = "Description of the repository")
         description: String,
     ): String {
         val agentProcess = AgentProcess.get()
