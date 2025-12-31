@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.mcpserver.async.config
 
+import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.agent.mcpserver.*
 import com.embabel.agent.mcpserver.async.AsyncServerStrategy
 import com.embabel.agent.mcpserver.async.McpAsyncPromptPublisher
@@ -25,7 +27,6 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.ai.mcp.McpToolUtils
 import org.springframework.ai.tool.ToolCallbackProvider
-import org.springframework.ai.tool.method.MethodToolCallbackProvider
 import org.springframework.beans.factory.getBean
 import org.springframework.beans.factory.getBeansOfType
 import org.springframework.context.ConfigurableApplicationContext
@@ -86,9 +87,11 @@ class McpAsyncServerConfiguration(
      * @return a `ToolCallbackProvider` for the async server banner tool
      */
     override fun createBannerTool(): ToolCallbackProvider {
-        return MethodToolCallbackProvider.builder()
-            .toolObjects(UnifiedBannerTool(serverInfo))
-            .build()
+        return ToolCallbackProvider.from(
+            safelyGetToolCallbacksFrom(
+                ToolObject.from(UnifiedBannerTool(serverInfo))
+            )
+        )
     }
 
     /**
