@@ -322,4 +322,34 @@ class ChatClientLlmOperationsThinkingTest {
         // Original should be unchanged
         assertEquals(null, originalOptions.thinking)
     }
+
+    @Test
+    fun `Thinking class methods should cover all factory and instance methods`() {
+        // Test all Thinking constructors and methods to cover the 14 uncovered lines
+
+        // Test NONE constant
+        val noneThinking = com.embabel.common.ai.model.Thinking.NONE
+        assertEquals(false, noneThinking.extractThinking)
+
+        // Test withExtraction factory method
+        val extractionThinking = com.embabel.common.ai.model.Thinking.withExtraction()
+        assertEquals(true, extractionThinking.extractThinking)
+
+        // Test withTokenBudget factory method
+        val budgetThinking = com.embabel.common.ai.model.Thinking.withTokenBudget(150)
+        assertNotNull(budgetThinking)
+
+        // Test applyExtraction on existing instance
+        val applied = noneThinking.applyExtraction()
+        assertEquals(true, applied.extractThinking)
+
+        // Test applyTokenBudget on existing instance
+        val appliedBudget = extractionThinking.applyTokenBudget(300)
+        assertEquals(true, appliedBudget.extractThinking)
+
+        // Test withoutThinking method
+        val originalOptions = com.embabel.common.ai.model.LlmOptions()
+        val withoutThinking = originalOptions.withoutThinking()
+        assertEquals(com.embabel.common.ai.model.Thinking.NONE, withoutThinking.thinking)
+    }
 }
