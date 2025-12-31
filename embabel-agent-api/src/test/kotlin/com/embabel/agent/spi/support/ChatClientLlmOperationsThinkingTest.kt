@@ -249,4 +249,38 @@ class ChatClientLlmOperationsThinkingTest {
             }
         }
     }
+
+    @Test
+    fun `doTransformWithThinking should extract thinking blocks from valid LLM response`() {
+        // Given: LLM response with thinking blocks and valid JSON (following existing test patterns)
+        val rawLlmResponse = """
+            <think>
+            I need to process this request carefully.
+            The user wants a successful result.
+            </think>
+
+            {
+                "status": "success",
+                "value": 100
+            }
+        """.trimIndent()
+
+        val fakeChatModel = FakeChatModel(rawLlmResponse)
+        val setup = createChatClientLlmOperations(fakeChatModel)
+
+        // When: Use doTransformWithThinking (new business logic)
+        val result = setup.llmOperations.doTransformWithThinking<SimpleResult>(
+            messages = listOf(UserMessage("Process request")),
+            interaction = LlmInteraction(InteractionId("test-thinking")),
+            outputClass = SimpleResult::class.java,
+            llmRequestEvent = null
+        )
+
+        // Then: Should extract both object and thinking blocks
+        assertNotNull(result)
+        assertEquals("success", result.result!!.status)
+        assertEquals(100, result.result!!.value)
+        assertEquals(1, result.thinkingBlocks.size)
+        assertTrue(result.thinkingBlocks[0].content.contains("process this request carefully"))
+    }
 }
