@@ -44,6 +44,8 @@ interface ActionMethodManager {
      */
     val argumentResolvers: List<ActionMethodArgumentResolver>
 
+    val actionQosProvider: ActionQosProvider
+
     /**
      * Create an Action from a method
      * @param method the method to create an action from

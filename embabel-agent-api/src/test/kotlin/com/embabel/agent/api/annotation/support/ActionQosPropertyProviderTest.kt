@@ -15,20 +15,15 @@
  */
 package com.embabel.agent.api.annotation.support
 
-import com.embabel.agent.core.ActionQos
-import java.lang.reflect.Method
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
 
-/**
- * Provides {@link com.embabel.agent.core.ActionQos} for a method, typically derived from
- * {@link com.embabel.agent.api.annotation.Action} and {@link com.embabel.agent.api.annotation.Agent} metadata.
- */
-interface ActionQosProvider {
+class ActionQosPropertyProviderTest {
 
-    fun provideActionQos(
-        method: Method,
-        instance: Any
-    ): ActionQos {
-        return ActionQos()
+    @Test
+    fun getBound() {
+
+
     }
 
 }

@@ -17,6 +17,7 @@ package com.embabel.agent.api.annotation
 
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.ActionRetryPolicy
 import com.embabel.common.core.types.Semver.Companion.DEFAULT_VERSION
 import com.embabel.common.core.types.ZeroToOne
 import org.springframework.core.annotation.AliasFor
@@ -57,6 +58,17 @@ annotation class EmbabelComponent(
  * to be turned into a Spring bean in case of an autodetected component. Use only if there's the likelihood of
  * conflict with the default bean name.
  * @param opaque Whether to hide the agent's actions and conditions
+ * @param actionRetryPolicy {@link com.embabel.agent.core.ActionRetryPolicy} for how to manage retries per action.
+ * Use actionRetryPolicyExpression to specify specific properties. You can override this per action in the {@link Action} annotation.
+ * @param actionRetryPolicyExpression An expression pointing to a set of properties for how to manage retries per action
+ * overriding these (these are the defaults if you do not specify):
+ *   max-attempts: int = 5
+ *   backoff-millis: long = 10000
+ *   backoff-multiplier: double = 5.0
+ *   backoff-maxInterval: long = 60000
+ *   idempotent: boolean = false
+ * example: ${agent.action-retry.default}
+ * You can override this per action in the {@link Action} annotation.
  */
 @Retention(AnnotationRetention.RUNTIME)
 @Target(
@@ -73,6 +85,8 @@ annotation class Agent(
     @get:AliasFor(annotation = Component::class, attribute = "value")
     val beanName: String = "",
     val opaque: Boolean = false,
+    val actionRetryPolicy: ActionRetryPolicy = ActionRetryPolicy.DEFAULT,
+    val actionRetryPolicyExpression: String = "",
 )
 
 /**
@@ -163,6 +177,18 @@ annotation class ToolGroup(
  * is freshly added, even when multiple parameters of various types are available.
  * Defaults to Unit::class (no trigger). A trigger is an **additional** precondition: it
  * must be satisfied in addition to any preconditions listed in [pre] and the action method's input parameters.
+ * @param actionRetryPolicy {@link com.embabel.agent.core.ActionRetryPolicy} for how to manage retries for this action.
+ * Use actionRetryPolicyExpression
+ * to specify specific properties.
+ * @param actionRetryPolicyExpression An expression pointing to a set of properties for how to manage retries for this
+ * action overriding these (these are the defaults if you do not specify):
+ *   max-attempts: int = 5
+ *   backoff-millis: long = 10000
+ *   backoff-multiplier: double = 5.0
+ *   backoff-maxInterval: long = 60000
+ *   idempotent: boolean = false
+ * example: ${agent.action-retry.default}
+ * These take precedence over specifying the default in the Agent annotation.
  */
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.RUNTIME)
@@ -183,6 +209,8 @@ annotation class Action(
     @Deprecated("Add tools to individual LLM calls instead")
     val toolGroupRequirements: Array<ToolGroup> = [],
     val trigger: KClass<*> = Unit::class,
+    val actionRetryPolicy: ActionRetryPolicy = ActionRetryPolicy.DEFAULT,
+    val actionRetryPolicyExpression: String = "",
 )
 
 /**

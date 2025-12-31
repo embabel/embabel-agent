@@ -54,7 +54,7 @@ import kotlin.reflect.jvm.kotlinFunction
 @Component
 internal class DefaultActionMethodManager(
     val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
-    val actionQosProvider: ActionQosProvider = DefaultActionQosProvider(),
+    override val actionQosProvider: ActionQosProvider = DefaultActionQosProvider(),
     @Autowired(required = false) contextProvider: ContextProvider? = null,
     override val argumentResolvers: List<ActionMethodArgumentResolver> = buildArgumentResolvers(contextProvider),
 ) : ActionMethodManager {
