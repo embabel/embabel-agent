@@ -16,6 +16,8 @@
 package com.embabel.agent.api.dsl
 
 
+import com.embabel.agent.api.annotation.support.DefaultMethodActionQosProvider
+import com.embabel.agent.api.annotation.support.MethodActionQosProvider
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.scope.AgentScopeBuilder
 import com.embabel.agent.api.common.support.*
@@ -453,6 +455,7 @@ data class TypedAgentScopeBuilder<O>(
     val goals: Set<Goal> = emptySet(),
     val conditions: Set<Condition> = emptySet(),
     val opaque: Boolean = false,
+    val agentQosProvider: MethodActionQosProvider = DefaultMethodActionQosProvider(),
 ) : AgentScopeBuilder {
 
     override fun createAgentScope(): AgentScope {
@@ -494,6 +497,7 @@ data class TypedAgentScopeBuilder<O>(
             agent = agent,
             inputClass = Unit::class.java,
             outputClass = outputClass,
+
         )
 
         singleAction.execute(

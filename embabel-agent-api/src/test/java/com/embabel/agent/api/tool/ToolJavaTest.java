@@ -177,7 +177,7 @@ class ToolJavaTest {
 
             assertTrue(schema.getParameters().isEmpty());
             String json = schema.toJsonSchema();
-            assertTrue(json.contains("\"properties\":{}"));
+            assertTrue(json.contains("\"properties\": {}"));
         }
     }
 

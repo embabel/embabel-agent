@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.spi.config.spring
 
+import com.embabel.agent.core.ActionQos
+import com.embabel.agent.spi.common.RetryProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.NestedConfigurationProperty
 
@@ -66,6 +68,9 @@ class AgentPlatformProperties {
 
     @field:NestedConfigurationProperty
     var test: TestConfig = TestConfig()
+
+    @field:NestedConfigurationProperty
+    var actionQos: ActionQosProperties = ActionQosProperties()
 
     /**
      * Agent Process Type
@@ -281,5 +286,41 @@ class AgentPlatformProperties {
          * Whether to enable mock mode for testing
          */
         var mockMode: Boolean = true
+    }
+
+    /**
+     * Configuration of retry by @Action
+     */
+    @ConfigurationProperties(prefix = "embabel.agent.platform.action-qos")
+    class ActionQosProperties {
+
+        data class ActionProperties(
+            var maxAttempts: Int? = null,
+            var backoffMillis: Long? = null,
+            var backoffMultiplier: Double? = null,
+            var backoffMaxInterval: Long? = null,
+            var idempotent: Boolean? = null,
+        ) {
+            fun toActionQos(defaultAction : ActionQos = ActionQos()): ActionQos {
+                return ActionQos(
+                    maxAttempts = maxAttempts ?: defaultAction.maxAttempts,
+                    backoffMillis = backoffMillis ?: defaultAction.backoffMillis,
+                    backoffMultiplier = backoffMultiplier ?: defaultAction.backoffMultiplier,
+                    backoffMaxInterval = backoffMaxInterval ?: defaultAction.backoffMaxInterval,
+                    idempotent = idempotent ?: defaultAction.idempotent
+                )
+            }
+        }
+
+        /**
+         * Fallback retry properties for @Action
+         */
+        var default: ActionProperties = ActionProperties()
+
+        /**
+         * Retry properties keyed by agent name and then @Action method name
+         */
+        var agents: Map<String, Map<String, ActionProperties>> = LinkedHashMap()
+
     }
 }

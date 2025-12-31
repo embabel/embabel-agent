@@ -15,11 +15,12 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.rag.service.RagResponse
 import com.embabel.agent.rag.service.RagResponseSummarizer
 import com.embabel.common.util.loggerFor
+import org.springframework.ai.tool.annotation.Tool
+import org.springframework.ai.tool.annotation.ToolParam
 
 /**
  * Expose a RagService as tools.
@@ -33,9 +34,9 @@ class DualShotRagServiceSearchTools(
     val summarizer: RagResponseSummarizer,
 ) {
 
-    @LlmTool(description = "Search for information relating to this query. Returns summary results")
+    @Tool(description = "Search for information relating to this query. Returns summary results")
     fun search(
-        @LlmTool.Param(
+        @ToolParam(
             description = "Standalone query to search for. Include sufficient context",
         )
         query: String,
@@ -51,9 +52,9 @@ class DualShotRagServiceSearchTools(
         return summary
     }
 
-    @LlmTool("Drill deep into the details of the last search result")
+    @Tool(description = "Drill deep into the details of the last search result")
     fun searchDetails(
-        @LlmTool.Param(
+        @ToolParam(
             description = "Standalone query to search for. Include sufficient context",
         )
         query: String,

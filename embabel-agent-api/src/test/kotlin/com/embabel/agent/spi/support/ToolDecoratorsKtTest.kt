@@ -15,13 +15,10 @@
  */
 package com.embabel.agent.spi.support
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.PlatformServices
-import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.event.ToolCallRequestEvent
 import com.embabel.agent.api.event.ToolCallResponseEvent
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.support.springai.withEventPublication
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
@@ -30,10 +27,12 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.springframework.ai.support.ToolCallbacks
+import org.springframework.ai.tool.annotation.Tool
 
 class SimpleTools {
 
-    @LlmTool
+    @Tool
     fun testTool(
     ): String {
         return "foobar"
@@ -44,7 +43,7 @@ class ToolDecoratorsKtTest {
 
     @Test
     fun `preserves metadata`() {
-        val tool = safelyGetToolCallbacksFrom(ToolObject(SimpleTools())).single()
+        val tool = ToolCallbacks.from(SimpleTools()).single()
         val agentProcess = mockk<AgentProcess>()
         val llm = LlmOptions()
         val decorated = tool.withEventPublication(agentProcess, null, llm)
@@ -54,7 +53,7 @@ class ToolDecoratorsKtTest {
 
     @Test
     fun `has same return`() {
-        val tool = safelyGetToolCallbacksFrom(ToolObject(SimpleTools())).single()
+        val tool = ToolCallbacks.from(SimpleTools()).single()
         val mockPlatformServices = mockk<PlatformServices>()
         every { mockPlatformServices.eventListener } returns EventSavingAgenticEventListener()
         val agentProcess = mockk<AgentProcess>()
@@ -75,7 +74,7 @@ class ToolDecoratorsKtTest {
     @Test
     fun `emits events`() {
         val ese = EventSavingAgenticEventListener()
-        val tool = safelyGetToolCallbacksFrom(ToolObject(SimpleTools())).single()
+        val tool = ToolCallbacks.from(SimpleTools()).single()
         val mockPlatformServices = mockk<PlatformServices>()
         every { mockPlatformServices.eventListener } returns ese
         val agentProcess = mockk<AgentProcess>()

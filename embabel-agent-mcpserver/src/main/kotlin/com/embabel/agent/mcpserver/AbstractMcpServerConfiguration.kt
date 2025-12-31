@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.mcpserver
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.mcpserver.domain.McpExecutionMode
 import com.embabel.agent.mcpserver.domain.ServerInfo
 import com.embabel.agent.mcpserver.domain.ToolSpecification

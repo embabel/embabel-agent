@@ -15,11 +15,10 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.*
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.common.core.types.AssetCoordinates
 import com.embabel.common.core.types.Semver
+import org.springframework.ai.support.ToolCallbacks
 import org.springframework.ai.tool.ToolCallback
 
 /**
@@ -30,7 +29,7 @@ import org.springframework.ai.tool.ToolCallback
 interface SelfToolCallbackPublisher : ToolCallbackPublisher {
 
     override val toolCallbacks: List<ToolCallback>
-        get() = safelyGetToolCallbacksFrom(ToolObject(this))
+        get() = ToolCallbacks.from(this).toList()
 }
 
 interface SelfToolGroup : SelfToolCallbackPublisher, ToolGroup, AssetCoordinates {

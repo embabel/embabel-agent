@@ -16,7 +16,6 @@
 package com.embabel.agent.e2e
 
 import com.embabel.agent.AgentApiTestApplication
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
@@ -44,6 +43,7 @@ import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.DefaultChatOptions
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.tool.annotation.Tool
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -77,6 +77,7 @@ class FakeStreamingChatModel(
         )
     }
 }
+
 
 
 @TestConfiguration
@@ -116,6 +117,7 @@ class StreamingTestConfig {
     }
 
 
+
     @Bean
     @Primary
     fun llmOperations(
@@ -144,7 +146,7 @@ data class SimpleItem(val name: String)
 class SimpleTool {
     private var wasInvokedFlag = false
 
-    @LlmTool(description = "Simple test tool that greets a person")
+    @Tool(description = "Simple test tool that greets a person")
     fun greet(name: String): String {
         wasInvokedFlag = true
         return "Hello $name"
@@ -165,8 +167,8 @@ class SimpleTool {
 @ActiveProfiles("test", "streaming-test")
 @Import(StreamingTestConfig::class)
 class LLMStreamingIntegrationTest(
-    @param:Autowired private val autonomy: Autonomy,
-    @param:Autowired private val ai: Ai,
+    @param: Autowired private val autonomy: Autonomy,
+    @param: Autowired private val ai: Ai,
 ) {
 
     private val logger = LoggerFactory.getLogger(LLMStreamingIntegrationTest::class.java)
@@ -204,7 +206,6 @@ class LLMStreamingIntegrationTest(
                 val firstResult = results.blockFirst()
                 assertNotNull(firstResult, "Should receive streaming result")
             }
-
             else -> {
                 assertTrue(false, "StreamingOperations should be castable to StreamingPromptRunnerOperations")
             }
@@ -258,7 +259,6 @@ class LLMStreamingIntegrationTest(
                 // Verify basic functionality preserved
                 assertNotNull(results, "Should receive streaming results with tools present")
             }
-
             else -> {
                 fail("StreamingOperations should be castable to StreamingPromptRunnerOperations")
             }
@@ -318,7 +318,6 @@ class LLMStreamingIntegrationTest(
                         receivedEvents.add("THINKING: $content")
                         logger.info("Integration test received thinking: {}", content)
                     }
-
                     event.isObject() -> {
                         val obj = event.getObject()!!
                         receivedEvents.add("OBJECT: ${obj.name}")

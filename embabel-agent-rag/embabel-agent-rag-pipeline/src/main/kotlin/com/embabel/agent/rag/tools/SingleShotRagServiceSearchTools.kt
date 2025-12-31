@@ -15,8 +15,9 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.common.util.loggerFor
+import org.springframework.ai.tool.annotation.Tool
+import org.springframework.ai.tool.annotation.ToolParam
 
 /**
  * Expose a RagService as tools.
@@ -29,9 +30,9 @@ class SingleShotRagServiceSearchTools(
     val options: RagOptions,
 ) {
 
-    @LlmTool(description = "Search for information relating to this query. Returns detailed results")
+    @Tool(description = "Search for information relating to this query. Returns detailed results")
     fun search(
-        @LlmTool.Param(
+        @ToolParam(
             description = "Standalone query to search for. Include sufficient context",
         )
         query: String,

@@ -188,7 +188,7 @@ class ToolTest {
 
             val json = schema.toJsonSchema()
 
-            assertEquals("""{"type":"object","properties":{}}""", json)
+            assertEquals("""{"type": "object", "properties": {}}""", json)
         }
 
         @Test
@@ -200,9 +200,9 @@ class ToolTest {
             val json = schema.toJsonSchema()
 
             assertTrue(json.contains("\"name\""))
-            assertTrue(json.contains("\"type\":\"string\""))
-            assertTrue(json.contains("\"description\":\"User name\""))
-            assertTrue(json.contains("\"required\":[\"name\"]"))
+            assertTrue(json.contains("\"type\": \"string\""))
+            assertTrue(json.contains("\"description\": \"User name\""))
+            assertTrue(json.contains("\"required\": [\"name\"]"))
         }
 
         @Test
@@ -214,8 +214,7 @@ class ToolTest {
             val json = schema.toJsonSchema()
 
             assertTrue(json.contains("\"name\""))
-            // When there's no required params, the key is omitted
-            assertFalse(json.contains("\"required\""))
+            assertTrue(json.contains("\"required\": []"))
         }
 
         @Test
@@ -231,7 +230,7 @@ class ToolTest {
 
             val json = schema.toJsonSchema()
 
-            assertTrue(json.contains("\"enum\":[\"red\",\"green\",\"blue\"]"))
+            assertTrue(json.contains("\"enum\": [\"red\", \"green\", \"blue\"]"))
         }
 
         @Test
@@ -245,10 +244,10 @@ class ToolTest {
 
             val json = schema.toJsonSchema()
 
-            assertTrue(json.contains("\"type\":\"string\""))
-            assertTrue(json.contains("\"type\":\"integer\""))
-            assertTrue(json.contains("\"type\":\"number\""))
-            assertTrue(json.contains("\"type\":\"boolean\""))
+            assertTrue(json.contains("\"type\": \"string\""))
+            assertTrue(json.contains("\"type\": \"integer\""))
+            assertTrue(json.contains("\"type\": \"number\""))
+            assertTrue(json.contains("\"type\": \"boolean\""))
         }
     }
 

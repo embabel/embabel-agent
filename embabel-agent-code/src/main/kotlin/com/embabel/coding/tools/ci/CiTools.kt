@@ -15,9 +15,9 @@
  */
 package com.embabel.coding.tools.ci
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.support.SelfToolCallbackPublisher
 import com.embabel.agent.tools.DirectoryBased
+import org.springframework.ai.tool.annotation.Tool
 
 /**
  * Interface for Continuous Integration tools that enable building and testing projects.
@@ -58,7 +58,7 @@ interface CiTools : SelfToolCallbackPublisher, DirectoryBased {
      * @return The output of the build process as a string, containing both stdout and stderr
      * @throws RuntimeException if the build process fails or cannot be executed
      */
-    @LlmTool(description = "build the project using the given command in the root")
+    @Tool(description = "build the project using the given command in the root")
     fun buildProject(command: String): String {
         return Ci(root).build(BuildOptions(command, true))
     }
@@ -77,7 +77,7 @@ interface CiTools : SelfToolCallbackPublisher, DirectoryBased {
      * @return A simple status message indicating success or failure
      * @throws RuntimeException if the build process fails or cannot be executed
      */
-    @LlmTool(description = "build the project with full terminal control for interactive applications like Spring Boot")
+    @Tool(description = "build the project with full terminal control for interactive applications like Spring Boot")
     fun buildProjectInteractive(command: String): String {
         return Ci(root).build(BuildOptions(command, streamOutput = false, interactive = true))
     }

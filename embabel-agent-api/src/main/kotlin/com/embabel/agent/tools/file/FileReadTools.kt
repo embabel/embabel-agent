@@ -15,11 +15,11 @@
  */
 package com.embabel.agent.tools.file
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.support.SelfToolCallbackPublisher
 import com.embabel.agent.tools.DirectoryBased
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
+import org.springframework.ai.tool.annotation.Tool
 import java.io.IOException
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
@@ -52,7 +52,7 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolCa
      * Count the total number of files in the repository (excluding .git directory).
      * Uses FileVisitor for cross-platform compatibility (Windows and Linux).
      */
-    @LlmTool(description = "Count the number of files in the repository, excluding .git directory")
+    @Tool(description = "Count the number of files in the repository, excluding .git directory")
     fun fileCount(): Int {
         return try {
             val rootPath = resolvePath("")
@@ -100,7 +100,7 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolCa
         }
     }
 
-    @LlmTool(description = "Find files using glob patterns. Return absolute paths")
+    @Tool(description = "Find files using glob patterns. Return absolute paths")
     fun findFiles(glob: String): List<String> = findFiles(glob, findHighest = false)
 
     /**
@@ -194,7 +194,7 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolCa
         null
     }
 
-    @LlmTool(description = "Return the size of the file at the relative path as a string. Use the appropriate unit. Say if the file does not exist")
+    @Tool(description = "Return the size of the file at the relative path as a string. Use the appropriate unit. Say if the file does not exist")
     fun fileSize(path: String): String {
         val resolvedPath = resolvePath(path)
         if (!Files.exists(resolvedPath)) {
@@ -207,7 +207,7 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolCa
         return formatFileSize(bytes)
     }
 
-    @LlmTool(description = "Read the whole file at the relative path")
+    @Tool(description = "Read the whole file at the relative path")
     fun readFile(path: String): String {
         val resolvedPath = resolveAndValidateFile(path)
         val rawContent = Files.readString(resolvedPath)
@@ -225,7 +225,7 @@ interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolCa
         return transformedContent
     }
 
-    @LlmTool(description = "List files and directories at a given path. Prefix is f: for file or d: for directory")
+    @Tool(description = "List files and directories at a given path. Prefix is f: for file or d: for directory")
     fun listFiles(path: String): List<String> {
         val resolvedPath = resolvePath(path)
         if (!Files.exists(resolvedPath)) {

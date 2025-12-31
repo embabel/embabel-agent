@@ -18,11 +18,11 @@ package com.embabel.agent.api.annotation.support
 import com.embabel.agent.core.ActionQos
 import java.lang.reflect.Method
 
-class DefaultActionQosProvider : ActionQosProvider {
-    override fun provideActionQos(
-        method: Method,
-        instance: Any
-    ): ActionQos {
+interface MethodActionQosProvider {
+
+    fun provideActionQos(method: Method,
+                         instance: Any): ActionQos {
         return ActionQos()
     }
+
 }

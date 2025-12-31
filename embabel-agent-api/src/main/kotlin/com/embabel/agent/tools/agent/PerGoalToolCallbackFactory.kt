@@ -15,15 +15,14 @@
  */
 package com.embabel.agent.tools.agent
 
-import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.ProcessWaitingException
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.Goal
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.common.core.types.NamedAndDescribed
 import org.slf4j.LoggerFactory
+import org.springframework.ai.support.ToolCallbacks
 import org.springframework.ai.tool.ToolCallback
 
 const val CONFIRMATION_TOOL_NAME = "_confirm"
@@ -79,14 +78,12 @@ class PerGoalToolCallbackFactory(
     /**
      * Generic tools
      */
-    val platformTools: List<ToolCallback> = safelyGetToolCallbacksFrom(
-        ToolObject(
-            DefaultProcessCallbackTools(
-                autonomy = autonomy,
-                textCommunicator = textCommunicator,
-            )
+    val platformTools: List<ToolCallback> = ToolCallbacks.from(
+        DefaultProcessCallbackTools(
+            autonomy = autonomy,
+            textCommunicator = textCommunicator,
         )
-    )
+    ).toList()
 
 
     /**
@@ -122,7 +119,7 @@ class PerGoalToolCallbackFactory(
         val goalTools = goalTools(remoteOnly, listeners)
         return if (goalTools.isEmpty()) {
             logger.warn("No goal tools found, no tool callbacks will be published")
-            emptyList()
+            return emptyList()
         } else {
             goalTools + platformTools
         }

@@ -13,16 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.annotation.support
+package com.embabel.agent.core
 
-import com.embabel.agent.core.ActionQos
-import java.lang.reflect.Method
-
-interface ActionQosProvider {
-
-    fun provideActionQos(method: Method,
-                         instance: Any): ActionQos {
-        return ActionQos()
-    }
-
-}
+annotation class RetryAction(
+    val maxAttempts: IntArray = [],
+    val backoffMillis: LongArray = [],
+    val backoffMultiplier: DoubleArray = [],
+    val backoffMaxInterval: LongArray = [],
+    val idempotent: BooleanArray = [],
+)

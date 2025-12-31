@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
@@ -27,6 +26,8 @@ import com.embabel.common.core.types.*
 import com.embabel.common.util.loggerFor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.ai.tool.annotation.Tool
+import org.springframework.ai.tool.annotation.ToolParam
 import java.time.Duration
 import java.time.Instant
 
@@ -170,11 +171,11 @@ class VectorSearchTools(
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    @LlmTool(description = "Perform vector search. Specify topK and similarity threshold from 0-1")
+    @Tool(description = "Perform vector search. Specify topK and similarity threshold from 0-1")
     fun vectorSearch(
         query: String,
         topK: Int,
-        @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
+        @ToolParam(description = "similarity threshold from 0-1") threshold: ZeroToOne,
     ): String {
         logger.info("Performing vector search with query='{}', topK={}, threshold={}", query, topK, threshold)
         val start = Instant.now()
@@ -195,10 +196,10 @@ class ResultExpanderTools(
     private val resultExpander: ResultExpander,
 ) : SearchTools {
 
-    @LlmTool(description = "given a chunk ID, expand to surrounding chunks")
+    @Tool(description = "given a chunk ID, expand to surrounding chunks")
     fun broadenChunk(
-        @LlmTool.Param(description = "id of the chunk to expand") chunkId: String,
-        @LlmTool.Param(description = "chunksToAdd", required = false) chunksToAdd: Int = 2,
+        @ToolParam(description = "id of the chunk to expand") chunkId: String,
+        @ToolParam(description = "chunksToAdd", required = false) chunksToAdd: Int = 2,
     ): String {
         val expandedElements = resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
         return expandedElements
@@ -208,9 +209,9 @@ class ResultExpanderTools(
             }
     }
 
-    @LlmTool(description = "given a content element ID, expand to parent section")
+    @Tool(description = "given a content element ID, expand to parent section")
     fun zoomOut(
-        @LlmTool.Param(description = "id of the content element to expand") id: String,
+        @ToolParam(description = "id of the content element to expand") id: String,
     ): String {
         val expandedElements: List<ContentElement> = resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
         return expandedElements
@@ -231,7 +232,7 @@ class TextSearchTools(
 ) : SearchTools {
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    @LlmTool(
+    @Tool(
         description = """
         Perform BMI25 search. Specify topK and similarity threshold from 0-1
         Query follows Lucene syntax, e.g. +term for required terms, -term for negative terms,
@@ -239,7 +240,7 @@ class TextSearchTools(
     """
     )
     fun textSearch(
-        @LlmTool.Param(
+        @ToolParam(
             description = """"
             Query in Lucene syntax,
             e.g. +term for required terms, -term for negative terms,
@@ -248,7 +249,7 @@ class TextSearchTools(
         )
         query: String,
         topK: Int,
-        @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
+        @ToolParam(description = "similarity threshold from 0-1") threshold: ZeroToOne,
     ): String {
         logger.info("Performing text search with query='{}', topK={}, threshold={}", query, topK, threshold)
         val start = Instant.now()
@@ -267,7 +268,7 @@ class RegexSearchTools(
     private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
 
-    @LlmTool(description = "Perform regex search across content elements. Specify topK")
+    @Tool(description = "Perform regex search across content elements. Specify topK")
     fun regexSearch(
         regex: String,
         topK: Int,

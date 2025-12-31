@@ -15,10 +15,11 @@
  */
 package com.embabel.agent.tools.file
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.support.SelfToolCallbackPublisher
 import com.embabel.agent.tools.DirectoryBased
 import org.slf4j.LoggerFactory
+import org.springframework.ai.tool.annotation.Tool
+import org.springframework.ai.tool.annotation.ToolParam
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -38,7 +39,7 @@ interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToo
     /**
      * Create a file at the relative path under the root
      */
-    @LlmTool(description = "Create a file with the given content")
+    @Tool(description = "Create a file with the given content")
     fun createFile(
         path: String,
         content: String,
@@ -71,11 +72,11 @@ interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToo
         return Files.writeString(resolvedPath, content)
     }
 
-    @LlmTool(description = "Edit the file at the given location. Replace oldContent with newContent. oldContent is typically just a part of the file. e.g. use it to replace a particular method to add another method")
+    @Tool(description = "Edit the file at the given location. Replace oldContent with newContent. oldContent is typically just a part of the file. e.g. use it to replace a particular method to add another method")
     fun editFile(
         path: String,
-        @LlmTool.Param(description = "content to replace") oldContent: String,
-        @LlmTool.Param(description = "replacement content") newContent: String,
+        @ToolParam(description = "content to replace") oldContent: String,
+        @ToolParam(description = "replacement content") newContent: String,
     ): String {
         logger.info("Editing file at path {}", path)
         logger.debug("File edit at path {}: {} -> {}", path, oldContent, newContent)
@@ -102,7 +103,7 @@ interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToo
 
     // April 25 2005: This method is the first method added to
     // an Embabel project by an Embabel agent
-    @LlmTool(description = "Create a directory at the given path")
+    @Tool(description = "Create a directory at the given path")
     fun createDirectory(path: String): String {
         val resolvedPath = resolvePath(root = root, path = path)
         if (Files.exists(resolvedPath)) {
@@ -118,7 +119,7 @@ interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToo
         return "directory created"
     }
 
-    @LlmTool(description = "Append content to an existing file. The file must already exist.")
+    @Tool(description = "Append content to an existing file. The file must already exist.")
     fun appendFile(
         path: String,
         content: String,
@@ -151,7 +152,7 @@ interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToo
         appendFile(path, content)
     }
 
-    @LlmTool(description = "Delete a file at the given path")
+    @Tool(description = "Delete a file at the given path")
     fun delete(path: String): String {
         val resolvedPath = resolveAndValidateFile(root = root, path = path)
         Files.delete(resolvedPath)
@@ -195,8 +196,7 @@ interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToo
                     // Ensure zip entry name can be used as a file path
                     val newFile = File(projectDir, zipEntry.name)
                     val canonicalPath = newFile.canonicalPath
-                    val prefix =
-                        if (projectDir.canonicalPath.endsWith(File.separator)) projectDir.canonicalPath else projectDir.canonicalPath + File.separator
+                    val prefix = if (projectDir.canonicalPath.endsWith(File.separator)) projectDir.canonicalPath else projectDir.canonicalPath + File.separator
                     if (!canonicalPath.startsWith(prefix, false)) {
                         throw IOException("Invalid zip entry name: ${zipEntry.name}")
                     }

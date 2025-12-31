@@ -17,10 +17,8 @@ package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.annotation.support.Wumpus
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.agent.spi.InvalidLlmReturnFormatException
 import com.embabel.agent.spi.InvalidLlmReturnTypeException
 import com.embabel.agent.spi.LlmInteraction
@@ -53,6 +51,7 @@ import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.DefaultChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
+import org.springframework.ai.support.ToolCallbacks
 import java.time.LocalDate
 import kotlin.test.assertEquals
 
@@ -298,7 +297,7 @@ class ChatClientLlmOperationsTest {
             val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(duke))
 
             // Wumpus's have tools
-            val toolCallbacks = safelyGetToolCallbacksFrom(ToolObject(Wumpus("wumpy")))
+            val toolCallbacks = ToolCallbacks.from(Wumpus("wumpy")).toList()
             val setup = createChatClientLlmOperations(fakeChatModel)
             val result = setup.llmOperations.doTransform(
                 messages = listOf(
@@ -330,7 +329,7 @@ class ChatClientLlmOperationsTest {
             val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(duke))
 
             // Wumpus's have tools
-            val toolCallbacks = safelyGetToolCallbacksFrom(ToolObject(Wumpus("wumpy")))
+            val toolCallbacks = ToolCallbacks.from(Wumpus("wumpy")).toList()
             val setup = createChatClientLlmOperations(fakeChatModel)
             val result = setup.llmOperations.createObject(
                 messages = listOf(UserMessage("prompt")),
@@ -560,7 +559,7 @@ class ChatClientLlmOperationsTest {
             )
 
             // Wumpus's have tools
-            val toolCallbacks = safelyGetToolCallbacksFrom(ToolObject(Wumpus("wumpy")))
+            val toolCallbacks = ToolCallbacks.from(Wumpus("wumpy")).toList()
             val setup = createChatClientLlmOperations(fakeChatModel)
             setup.llmOperations.createObjectIfPossible(
                 messages = listOf(UserMessage("prompt")),

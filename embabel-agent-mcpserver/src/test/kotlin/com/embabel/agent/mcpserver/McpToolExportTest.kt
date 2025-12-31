@@ -20,15 +20,14 @@ import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.test.type.FunnyTool
 import com.embabel.agent.test.type.PersonWithReverseTool
 import com.embabel.common.util.StringTransformer
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class McpToolExportTest {
 
     @Nested
-    inner class FromToolObject {
+    inner class `fromToolObject` {
 
         @Test
         fun `creates export with single tool`() {
@@ -324,14 +323,14 @@ class McpToolExportTest {
     }
 
     @Nested
-    inner class ToolInvocationWithLogging {
+    inner class `tool invocation with logging` {
 
         @Test
         fun `decorated tool callback can be invoked`() {
             val export = McpToolExport.fromToolObject(ToolObject(PersonWithReverseTool("hello")))
             val reverseTool = export.toolCallbacks.first { it.toolDefinition.name() == "reverse" }
             val result = reverseTool.call("{}")
-            assertEquals("olleh", result)
+            assertEquals("\"olleh\"", result)
         }
     }
 

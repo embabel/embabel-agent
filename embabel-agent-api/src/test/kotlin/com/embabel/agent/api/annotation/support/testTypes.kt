@@ -28,10 +28,11 @@ import com.embabel.agent.support.Dog
 import com.embabel.common.ai.model.LlmOptions
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.springframework.ai.tool.annotation.Tool
 
 data class PersonWithReverseTool(val name: String) {
 
-    @LlmTool(description = "reverse name")
+    @Tool
     fun reverse() = name.reversed()
 
 }
@@ -540,7 +541,7 @@ class Combined {
         return context.ai().withLlm(magicalLlm).createObject("Generated prompt for ${userInput.content}")
     }
 
-    @LlmTool
+    @Tool
     fun weatherService(location: String) =
         "The weather in $location is ${listOf("sunny", "raining", "foggy").random()}"
 
@@ -561,7 +562,7 @@ class OnePromptActionWithToolOnly(
                 "Generated prompt for ${userInput.content}"
     }
 
-    @LlmTool
+    @Tool
     fun thing(): String {
         return "foobar"
     }
@@ -692,7 +693,7 @@ class FromPersonUsesObjectToolsViaContextWithRenaming {
 }
 
 class FunnyTool {
-    @LlmTool
+    @Tool
     fun thing(): String {
         return "foobar"
     }
@@ -709,10 +710,10 @@ class OneTransformerActionWith2Tools {
         return PersonWithReverseTool(userInput.content)
     }
 
-    @LlmTool
+    @Tool
     fun toolWithoutArg(): String = "foo"
 
-    @LlmTool
+    @Tool
     fun toolWithArg(location: String) = "bar"
 
 }
@@ -738,10 +739,10 @@ class ToolMethodsOnDomainObject {
 
 class Wumpus(val name: String) {
 
-    @LlmTool
+    @Tool
     fun toolWithoutArg(): String = "The wumpus's name is $name"
 
-    @LlmTool
+    @Tool
     fun toolWithArg(location: String) = location
 }
 

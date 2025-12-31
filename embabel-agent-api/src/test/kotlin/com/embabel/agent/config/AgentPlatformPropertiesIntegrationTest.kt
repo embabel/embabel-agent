@@ -16,6 +16,7 @@
 package com.embabel.agent.config
 
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
+import com.embabel.agent.core.ActionQos
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.config.spring.migration.DeprecatedPropertyScanningConfig
 import com.embabel.agent.spi.support.DefaultProcessIdGeneratorProperties
@@ -181,6 +182,12 @@ import org.springframework.test.context.TestPropertySource
         "embabel.agent.platform.sse.max-buffer-size=200",
         "embabel.agent.platform.sse.max-process-buffers=2000",
         "embabel.agent.platform.test.mock-mode=false",
+        "embabel.agent.platform.action-qos.default.max-attempts=6",
+        "embabel.agent.platform.action-qos.default.backoff-max-interval=1",
+        "embabel.agent.platform.action-qos.default.idempotent=true",
+        "embabel.agent.platform.action-qos.default.backoff-multiplier=1",
+        "embabel.agent.platform.action-qos.default.backoff-millis=1",
+        "embabel.agent.platform.action-qos.agents.agent.method.max-attempts=6",
 
         // Migration scanning config (var properties) - known to work with environment variables
         "embabel.agent.platform.migration.scanning.enabled=true",
@@ -221,6 +228,15 @@ class AgentPlatformPropertiesIntegrationTest {
     fun `should bind core platform properties correctly`() {
         assertThat(properties.name).isEqualTo("test-platform")
         assertThat(properties.description).isEqualTo("Test Platform Description")
+    }
+
+    @Test
+    fun `agent qos should bind correctly`() {
+        assertThat(properties.actionQos.default.maxAttempts).isEqualTo(6)
+        assertThat(properties.actionQos.agents.contains("agent")).isTrue()
+        assertThat(properties.actionQos.agents.get("agent")?.get("method")).isNotNull()
+        assertThat(properties.actionQos.agents.get("agent")?.get("method")).isInstanceOf(AgentPlatformProperties.ActionQosProperties.ActionProperties::class.java)
+        assertThat((properties.actionQos.agents.get("agent")?.get("method") as AgentPlatformProperties.ActionQosProperties.ActionProperties).maxAttempts).isEqualTo(6)
     }
 
     @Test

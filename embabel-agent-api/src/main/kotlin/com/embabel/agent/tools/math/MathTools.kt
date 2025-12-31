@@ -15,13 +15,13 @@
  */
 package com.embabel.agent.tools.math
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.support.SelfToolGroup
 import com.embabel.agent.core.CoreToolGroups.MATH_DESCRIPTION
 import com.embabel.agent.core.ToolGroupDescription
 import com.embabel.agent.core.ToolGroupPermission
 import com.embabel.agent.spi.common.Constants
 import com.embabel.common.core.types.Semver
+import org.springframework.ai.tool.annotation.Tool
 
 class MathTools : SelfToolGroup {
 
@@ -32,49 +32,49 @@ class MathTools : SelfToolGroup {
     override val permissions: Set<ToolGroupPermission>
         get() = emptySet()
 
-    @LlmTool(description = "add two numbers")
+    @Tool(description = "add two numbers")
     fun add(
         a: Double,
         b: Double,
     ) = a + b
 
-    @LlmTool(description = "subtract the second number from the first")
+    @Tool(description = "subtract the second number from the first")
     fun subtract(
         a: Double,
         b: Double,
     ) = a - b
 
-    @LlmTool(description = "multiply two numbers")
+    @Tool(description = "multiply two numbers")
     fun multiply(
         a: Double,
         b: Double,
     ) = a * b
 
-    @LlmTool(description = "divide the first number by the second")
+    @Tool(description = "divide the first number by the second")
     fun divide(
         a: Double,
         b: Double,
     ): String =
         if (b == 0.0) "Cannot divide by zero" else ("" + a / b)
 
-    @LlmTool(description = "find the mean of this list of numbers")
+    @Tool(description = "find the mean of this list of numbers")
     fun mean(numbers: List<Double>): Double =
         if (numbers.isEmpty()) 0.0 else numbers.sum() / numbers.size
 
-    @LlmTool(description = "find the minimum value in a list of numbers")
+    @Tool(description = "find the minimum value in a list of numbers")
     fun min(numbers: List<Double>): Double =
         numbers.minOrNull() ?: Double.NaN
 
-    @LlmTool(description = "find the maximum value in a list of numbers")
+    @Tool(description = "find the maximum value in a list of numbers")
     fun max(numbers: List<Double>): Double =
         numbers.maxOrNull() ?: Double.NaN
 
-    @LlmTool(description = "round down to the nearest integer")
+    @Tool(description = "round down to the nearest integer")
     fun floor(number: Double): Double = kotlin.math.floor(number)
 
-    @LlmTool(description = "round up to the nearest integer")
+    @Tool(description = "round up to the nearest integer")
     fun ceiling(number: Double): Double = kotlin.math.ceil(number)
 
-    @LlmTool(description = "round to the nearest integer")
+    @Tool(description = "round to the nearest integer")
     fun round(number: Double): Double = kotlin.math.round(number).toDouble()
 }

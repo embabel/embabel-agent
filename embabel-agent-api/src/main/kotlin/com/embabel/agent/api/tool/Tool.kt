@@ -444,12 +444,12 @@ interface Tool {
             return try {
                 fromInstance(instance, objectMapper)
             } catch (e: IllegalArgumentException) {
-                logger.debug("No @LlmTool annotations found on {}: {}", instance::class.simpleName, e.message)
+                logger.debug("No @Tool.Method annotations found on {}: {}", instance::class.simpleName, e.message)
                 emptyList()
             } catch (e: Throwable) {
                 // Kotlin reflection can fail on some Java classes with KotlinReflectionInternalError (an Error, not Exception)
                 logger.debug(
-                    "Failed to scan {} for @LlmTool annotations: {}",
+                    "Failed to scan {} for @Tool.Method annotations: {}",
                     instance::class.simpleName,
                     e.message,
                 )
@@ -471,13 +471,12 @@ private data class SimpleInputSchema(
     override val parameters: List<Tool.Parameter>,
 ) : Tool.InputSchema {
 
-    companion object {
-        private val objectMapper = ObjectMapper()
-    }
-
     override fun toJsonSchema(): String {
-        val properties = mutableMapOf<String, Any>()
-        parameters.forEach { param ->
+        if (parameters.isEmpty()) {
+            return """{"type": "object", "properties": {}}"""
+        }
+
+        val properties = parameters.joinToString(", ") { param ->
             val typeStr = when (param.type) {
                 Tool.ParameterType.STRING -> "string"
                 Tool.ParameterType.INTEGER -> "integer"
@@ -486,27 +485,16 @@ private data class SimpleInputSchema(
                 Tool.ParameterType.ARRAY -> "array"
                 Tool.ParameterType.OBJECT -> "object"
             }
-            val propMap = mutableMapOf<String, Any>(
-                "type" to typeStr,
-                "description" to param.description,
-            )
-            param.enumValues?.let { values ->
-                propMap["enum"] = values
-            }
-            properties[param.name] = propMap
+            val enumPart = param.enumValues?.let { values ->
+                """, "enum": [${values.joinToString(", ") { v -> "\"$v\"" }}]"""
+            } ?: ""
+            """"${param.name}": {"type": "$typeStr", "description": "${param.description}"$enumPart}"""
         }
 
-        val required = parameters.filter { it.required }.map { it.name }
+        val required = parameters.filter { it.required }
+            .joinToString(", ") { "\"${it.name}\"" }
 
-        val schema = mutableMapOf<String, Any>(
-            "type" to "object",
-            "properties" to properties,
-        )
-        if (required.isNotEmpty()) {
-            schema["required"] = required
-        }
-
-        return objectMapper.writeValueAsString(schema)
+        return """{"type": "object", "properties": {$properties}, "required": [$required]}"""
     }
 }
 
