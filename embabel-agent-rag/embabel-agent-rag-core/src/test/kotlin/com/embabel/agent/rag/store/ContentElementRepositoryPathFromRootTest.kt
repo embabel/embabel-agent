@@ -18,7 +18,6 @@ package com.embabel.agent.rag.store
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.LeafSection
-import com.embabel.agent.rag.store.ContentElementRepositoryInfo
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.*

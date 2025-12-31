@@ -15,33 +15,10 @@
  */
 package com.embabel.agent.rag.model
 
-import com.embabel.agent.api.common.Embedding
-import com.embabel.common.core.types.HasInfoString
-
 /**
- * Embedded object instance.
+ * Supertype for all content elements.
  */
-interface Embedded {
+interface ContentElement : Datum {
 
-    val embedding: Embedding?
-
+    override fun labels(): Set<String> = super.labels() + setOf("ContentElement")
 }
-
-/**
- * Implemented by types that can provide their own embeddable value.
- */
-interface Embeddable {
-
-    /**
-     * Embedding value of this retrievable object.
-     */
-    fun embeddableValue(): String
-
-}
-
-/**
- * A Retrievable object instance is a Datum
- * (normally a chunk or an entity) that can be retrieved by RAG.
- * It has a stable id.
- */
-interface Retrievable : HasInfoString, Datum, Embeddable
