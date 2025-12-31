@@ -15,14 +15,44 @@
  */
 package com.embabel.agent.api.annotation.support
 
+import com.embabel.agent.api.annotation.Action
+import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.core.ActionQos
+import com.embabel.agent.spi.config.spring.AgentPlatformProperties
+import org.springframework.stereotype.Component
 import java.lang.reflect.Method
 
-class DefaultActionQosProvider : ActionQosProvider {
+@Component
+class DefaultActionQosProvider(
+    val perActionQosProperties: AgentPlatformProperties.ActionQosProperties = AgentPlatformProperties.ActionQosProperties()
+) : ActionQosProvider {
+
     override fun provideActionQos(
         method: Method,
         instance: Any
     ): ActionQos {
-        return ActionQos()
+
+        val defaultActionQos = perActionQosProperties.default.toActionQos()
+
+        val props = instance.javaClass.getAnnotation(Agent::class.java)?.let {
+            perActionQosProperties.agents[it.name]?.get(method.name)?.toActionQos(defaultActionQos)
+                ?: perActionQosProperties.default.toActionQos(defaultActionQos)
+        } ?: perActionQosProperties.default.toActionQos(defaultActionQos)
+
+        if (method.isAnnotationPresent(Action::class.java)
+            && method.getAnnotation(Action::class.java).retry.isNotEmpty()) {
+            return method.getAnnotation(Action::class.java).retry.first()
+                .let { retryAction ->
+                    ActionQos(
+                        retryAction.maxAttempts.firstOrNull() ?: props.maxAttempts,
+                        retryAction.backoffMillis.firstOrNull() ?: props.backoffMillis,
+                        retryAction.backoffMultiplier.firstOrNull() ?: props.backoffMultiplier,
+                        retryAction.backoffMaxInterval.firstOrNull() ?: props.backoffMaxInterval,
+                        retryAction.idempotent.firstOrNull() ?: props.idempotent
+                    )
+                }
+        }
+
+        return props
     }
 }
