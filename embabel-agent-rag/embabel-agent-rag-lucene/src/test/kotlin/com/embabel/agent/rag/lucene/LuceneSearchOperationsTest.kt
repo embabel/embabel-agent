@@ -2632,6 +2632,312 @@ class LuceneSearchOperationsTest {
         }
     }
 
+    @Nested
+    inner class SaveAndProcessTests {
+
+        @Test
+        fun `saveAndProcess should store chunk and make it searchable via text search`() {
+            val chunk = Chunk(
+                id = "test-chunk-1",
+                text = "Machine learning algorithms for data science applications",
+                parentId = "test-chunk-1",
+                metadata = mapOf("source" to "test")
+            )
+
+            val result = ragService.saveAndProcess(chunk)
+
+            // Should return the same chunk
+            assertEquals(chunk.id, result.id)
+            assertEquals(chunk.text, result.text)
+
+            // Commit to make searchable
+            ragService.commitChanges()
+
+            // Should be retrievable by ID
+            val foundChunks = ragService.findAllChunksById(listOf("test-chunk-1"))
+            assertEquals(1, foundChunks.size)
+            assertEquals("Machine learning algorithms for data science applications", foundChunks.first().text)
+
+            // Should be searchable via text search
+            val request = RagRequest.query("machine learning")
+                .withSimilarityThreshold(0.0)
+            val response = ragService.hybridSearch(request)
+
+            assertTrue(response.results.isNotEmpty(), "Should find chunk via text search")
+            assertEquals("test-chunk-1", response.results.first().match.id)
+        }
+
+        @Test
+        fun `saveAndProcess should generate embeddings and enable vector search`() {
+            val chunk = Chunk(
+                id = "vector-chunk-1",
+                text = "Neural networks and deep learning for image recognition",
+                parentId = "vector-chunk-1",
+                metadata = emptyMap()
+            )
+
+            ragServiceWithEmbedding.saveAndProcess(chunk)
+            ragServiceWithEmbedding.commitChanges()
+
+            // Should be searchable via hybrid search (uses both text and vector)
+            val request = RagRequest.query("deep learning neural networks")
+                .withSimilarityThreshold(0.0)
+            val response = ragServiceWithEmbedding.hybridSearch(request)
+
+            assertTrue(response.results.isNotEmpty(), "Should find chunk via hybrid search with embeddings")
+            assertEquals("vector-chunk-1", response.results.first().match.id)
+            assertTrue(response.results.first().score > 0.0, "Score should be positive")
+        }
+
+        @Test
+        fun `saveAndProcess should handle multiple chunks sequentially`() {
+            val chunks = listOf(
+                Chunk(
+                    id = "seq-chunk-1",
+                    text = "First chunk about artificial intelligence",
+                    parentId = "seq-chunk-1",
+                    metadata = mapOf("order" to 1)
+                ),
+                Chunk(
+                    id = "seq-chunk-2",
+                    text = "Second chunk about machine learning models",
+                    parentId = "seq-chunk-2",
+                    metadata = mapOf("order" to 2)
+                ),
+                Chunk(
+                    id = "seq-chunk-3",
+                    text = "Third chunk about data science pipelines",
+                    parentId = "seq-chunk-3",
+                    metadata = mapOf("order" to 3)
+                )
+            )
+
+            chunks.forEach { chunk ->
+                ragService.saveAndProcess(chunk)
+            }
+            ragService.commitChanges()
+
+            // All chunks should be stored
+            val allChunks = ragService.findAll()
+            assertEquals(3, allChunks.size)
+
+            // All chunks should be searchable
+            val request = RagRequest.query("chunk")
+                .withSimilarityThreshold(0.0)
+            val response = ragService.hybridSearch(request)
+
+            assertEquals(3, response.results.size, "Should find all 3 chunks")
+        }
+
+        @Test
+        fun `saveAndProcess should preserve chunk metadata`() {
+            val metadata = mapOf(
+                "author" to "Jane Smith",
+                "category" to "Technology",
+                "tags" to listOf("AI", "ML", "Data"),
+                "priority" to 5
+            )
+
+            val chunk = Chunk(
+                id = "metadata-chunk",
+                text = "Content with rich metadata",
+                parentId = "metadata-chunk",
+                metadata = metadata
+            )
+
+            ragService.saveAndProcess(chunk)
+            ragService.commitChanges()
+
+            val foundChunks = ragService.findAllChunksById(listOf("metadata-chunk"))
+            assertEquals(1, foundChunks.size)
+
+            val foundChunk = foundChunks.first()
+            assertEquals("Jane Smith", foundChunk.metadata["author"])
+            assertEquals("Technology", foundChunk.metadata["category"])
+            @Suppress("UNCHECKED_CAST")
+            assertEquals(listOf("AI", "ML", "Data"), foundChunk.metadata["tags"] as List<String>)
+            assertEquals(5, foundChunk.metadata["priority"])
+        }
+
+        @Test
+        fun `saveAndProcess should update existing chunk with same ID`() {
+            val originalChunk = Chunk(
+                id = "update-chunk",
+                text = "Original content",
+                parentId = "update-chunk",
+                metadata = mapOf("version" to 1)
+            )
+
+            ragService.saveAndProcess(originalChunk)
+            ragService.commitChanges()
+
+            // Verify original is stored
+            var foundChunks = ragService.findAllChunksById(listOf("update-chunk"))
+            assertEquals("Original content", foundChunks.first().text)
+
+            // Update with new content
+            val updatedChunk = Chunk(
+                id = "update-chunk",
+                text = "Updated content with new information",
+                parentId = "update-chunk",
+                metadata = mapOf("version" to 2)
+            )
+
+            ragService.saveAndProcess(updatedChunk)
+            ragService.commitChanges()
+
+            // Should only have one chunk
+            val allChunks = ragService.findAll()
+            assertEquals(1, allChunks.size)
+
+            // Content should be updated
+            foundChunks = ragService.findAllChunksById(listOf("update-chunk"))
+            assertEquals("Updated content with new information", foundChunks.first().text)
+            assertEquals(2, foundChunks.first().metadata["version"])
+        }
+
+        @Test
+        fun `saveAndProcess should work with empty text`() {
+            val chunk = Chunk(
+                id = "empty-text-chunk",
+                text = "",
+                parentId = "empty-text-chunk",
+                metadata = emptyMap()
+            )
+
+            ragService.saveAndProcess(chunk)
+            ragService.commitChanges()
+
+            val foundChunks = ragService.findAllChunksById(listOf("empty-text-chunk"))
+            assertEquals(1, foundChunks.size)
+            assertEquals("", foundChunks.first().text)
+        }
+
+        @Test
+        fun `saveAndProcess should update statistics correctly`() {
+            // Initially no chunks
+            assertEquals(0, ragService.info().chunkCount)
+
+            val chunk1 = Chunk(
+                id = "stats-chunk-1",
+                text = "First chunk",
+                parentId = "stats-chunk-1",
+                metadata = emptyMap()
+            )
+
+            ragService.saveAndProcess(chunk1)
+            ragService.commitChanges()
+
+            assertEquals(1, ragService.info().chunkCount)
+
+            val chunk2 = Chunk(
+                id = "stats-chunk-2",
+                text = "Second chunk with more text",
+                parentId = "stats-chunk-2",
+                metadata = emptyMap()
+            )
+
+            ragService.saveAndProcess(chunk2)
+            ragService.commitChanges()
+
+            assertEquals(2, ragService.info().chunkCount)
+
+            // Average chunk length should be calculated
+            val avgLength = ragService.info().averageChunkLength
+            assertTrue(avgLength > 0, "Average chunk length should be positive")
+        }
+
+        @Test
+        fun `saveAndProcess with embeddings should enable hybrid search scoring`() {
+            val chunks = listOf(
+                Chunk(
+                    id = "hybrid-chunk-1",
+                    text = "Machine learning for predictive analytics",
+                    parentId = "hybrid-chunk-1",
+                    metadata = emptyMap()
+                ),
+                Chunk(
+                    id = "hybrid-chunk-2",
+                    text = "Cooking recipes for Italian cuisine",
+                    parentId = "hybrid-chunk-2",
+                    metadata = emptyMap()
+                ),
+                Chunk(
+                    id = "hybrid-chunk-3",
+                    text = "Deep learning and neural network architectures",
+                    parentId = "hybrid-chunk-3",
+                    metadata = emptyMap()
+                )
+            )
+
+            chunks.forEach { chunk ->
+                ragServiceWithEmbedding.saveAndProcess(chunk)
+            }
+            ragServiceWithEmbedding.commitChanges()
+
+            val request = RagRequest.query("machine learning neural networks")
+                .withSimilarityThreshold(0.0)
+            val response = ragServiceWithEmbedding.hybridSearch(request)
+
+            assertTrue(response.results.isNotEmpty())
+
+            // ML-related chunks should score higher than cooking
+            val mlChunks = response.results.filter {
+                it.match.id == "hybrid-chunk-1" || it.match.id == "hybrid-chunk-3"
+            }
+            val cookingChunk = response.results.find { it.match.id == "hybrid-chunk-2" }
+
+            if (cookingChunk != null && mlChunks.isNotEmpty()) {
+                val maxMlScore = mlChunks.maxOf { it.score }
+                assertTrue(
+                    maxMlScore > cookingChunk.score,
+                    "ML chunks should score higher than cooking chunk"
+                )
+            }
+        }
+
+        @Test
+        fun `saveAndProcess should make chunk findable by findById`() {
+            val chunk = Chunk(
+                id = "findable-chunk",
+                text = "This chunk should be findable by ID",
+                parentId = "findable-chunk",
+                metadata = emptyMap()
+            )
+
+            ragService.saveAndProcess(chunk)
+            ragService.commitChanges()
+
+            val found = ragService.findById("findable-chunk")
+            assertNotNull(found, "Chunk should be findable by ID")
+            assertTrue(found is Chunk, "Found element should be a Chunk")
+            assertEquals("This chunk should be findable by ID", (found as Chunk).text)
+        }
+
+        @Test
+        fun `saveAndProcess should work without embedding service for text-only search`() {
+            // ragService has no embedding service
+            assertFalse(ragService.info().hasEmbeddings)
+
+            val chunk = Chunk(
+                id = "text-only-chunk",
+                text = "Artificial intelligence and natural language processing",
+                parentId = "text-only-chunk",
+                metadata = emptyMap()
+            )
+
+            ragService.saveAndProcess(chunk)
+            ragService.commitChanges()
+
+            // Text search should still work
+            val request = RagRequest.query("artificial intelligence")
+                .withSimilarityThreshold(0.0)
+            val response = ragService.hybridSearch(request)
+
+            assertTrue(response.results.isNotEmpty(), "Text-only search should work")
+            assertEquals("text-only-chunk", response.results.first().match.id)
+        }
+    }
 
 }
 

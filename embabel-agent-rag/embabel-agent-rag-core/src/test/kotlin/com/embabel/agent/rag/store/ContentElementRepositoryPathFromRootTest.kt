@@ -15,9 +15,7 @@
  */
 package com.embabel.agent.rag.store
 
-import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.ContentElement
-import com.embabel.agent.rag.model.LeafSection
+import com.embabel.agent.rag.model.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.*
@@ -31,18 +29,22 @@ class ContentElementRepositoryPathFromRootTest {
      * Simple in-memory implementation for testing the default pathFromRoot method.
      */
     private class TestContentElementRepository : ContentElementRepository {
-        private val elements = mutableMapOf<String, ContentElement>()
+        private val elements = mutableMapOf<String, Datum>()
 
         override val name: String = "test-repository"
 
         override fun findAllChunksById(chunkIds: List<String>): Iterable<Chunk> =
             chunkIds.mapNotNull { elements[it] as? Chunk }
 
-        override fun findById(id: String): ContentElement? = elements[id]
+        override fun findById(id: String): Datum? = elements[id]
 
-        override fun save(element: ContentElement): ContentElement {
+        override fun <D : Datum> save(element: D): D {
             elements[element.id] = element
             return element
+        }
+
+        override fun <R : Retrievable> saveAndProcess(r: R): R {
+            TODO("Not yet implemented")
         }
 
         override fun info(): ContentElementRepositoryInfo = object : ContentElementRepositoryInfo {

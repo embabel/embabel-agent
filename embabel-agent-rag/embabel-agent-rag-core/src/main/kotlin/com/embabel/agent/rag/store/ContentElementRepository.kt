@@ -16,8 +16,9 @@
 package com.embabel.agent.rag.store
 
 import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.ContentElement
+import com.embabel.agent.rag.model.Datum
 import com.embabel.agent.rag.model.HierarchicalContentElement
+import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.Named
 
 /**
@@ -67,14 +68,20 @@ interface ContentElementRepository : Named {
 
     fun findAllChunksById(chunkIds: List<String>): Iterable<Chunk>
 
-    fun findById(id: String): ContentElement?
+    fun findById(id: String): Datum?
 
     /**
      * Save or update the given content element.
      * Does not perform embedding or any other processing,
      * even if the ContentElementRepository supports that.
      */
-    fun save(element: ContentElement): ContentElement
+    fun <D : Datum> save(element: D): D
+
+    /**
+     * Save the given retrievable and perform any necessary processing,
+     * such as generating embeddings. Not intended for use for ContentElement hierarchy
+     */
+    fun <R : Retrievable> saveAndProcess(r: R): R
 
     /**
      * Find chunks associated with the given entity with the given ID.

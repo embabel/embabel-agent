@@ -148,7 +148,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
     @Volatile
     private var directoryReader: DirectoryReader? = null
 
-    private val contentElementStorage = ConcurrentHashMap<String, ContentElement>()
+    private val contentElementStorage = ConcurrentHashMap<String, Datum>()
 
     override fun facets(): List<RagFacet<out Retrievable>> {
         return listOf(
@@ -178,14 +178,14 @@ class LuceneSearchOperations @JvmOverloads constructor(
         TODO("Entities not supported in LuceneRagService")
     }
 
-    override fun findById(id: String): ContentElement? {
+    override fun findById(id: String): Datum? {
         return contentElementStorage[id]
     }
 
-    override fun save(element: ContentElement): ContentElement {
+    override fun <D : Datum> save(element: D): D {
         contentElementStorage[element.id] = element
         // Persist structural elements to Lucene (Chunks are handled separately in persistChunksWithEmbeddings)
-        if (element !is Chunk) {
+        if (element !is Chunk && element is ContentElement) {
             persistStructuralElement(element)
         }
         return element
@@ -528,7 +528,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
                     emptyList()
                 }
             }
-        }
+        }.filterIsInstance<ContentElement>()
     }
 
     /**
@@ -736,6 +736,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
             }
 
             // Now rebuild this element with its children
+            if (element !is ContentElement) {
+                return null
+            }
             return when (element) {
                 is DefaultMaterializedContainerSection -> {
                     if (rebuiltChildren.isNotEmpty()) {

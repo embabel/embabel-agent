@@ -17,11 +17,7 @@ package com.embabel.agent.rag.store
 
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.ingestion.RetrievableEnhancer
-import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.ContentElement
-import com.embabel.agent.rag.model.ContentRoot
-import com.embabel.agent.rag.model.NavigableDocument
-import com.embabel.agent.rag.model.Retrievable
+import com.embabel.agent.rag.model.*
 import com.embabel.common.ai.model.EmbeddingService
 import io.mockk.every
 import io.mockk.mockk
@@ -54,11 +50,11 @@ class AbstractChunkingContentElementRepositoryTest {
 
             // Mock batch embedding calls
             every { embeddingService.embed(listOf("Text 1", "Text 2")) } returns
-                listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
+                    listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
             every { embeddingService.embed(listOf("Text 3", "Text 4")) } returns
-                listOf(floatArrayOf(5f, 6f), floatArrayOf(7f, 8f))
+                    listOf(floatArrayOf(5f, 6f), floatArrayOf(7f, 8f))
             every { embeddingService.embed(listOf("Text 5")) } returns
-                listOf(floatArrayOf(9f, 10f))
+                    listOf(floatArrayOf(9f, 10f))
 
             repo.onNewRetrievables(chunks)
 
@@ -123,9 +119,9 @@ class AbstractChunkingContentElementRepositoryTest {
 
             // First batch succeeds, second batch fails
             every { embeddingService.embed(listOf("Text 1", "Text 2")) } returns
-                listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
+                    listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
             every { embeddingService.embed(listOf("Text 3", "Text 4")) } throws
-                RuntimeException("API error")
+                    RuntimeException("API error")
 
             repo.onNewRetrievables(chunks)
 
@@ -167,7 +163,7 @@ class AbstractChunkingContentElementRepositoryTest {
 
         val persistedChunks = mutableListOf<Chunk>()
         val persistedEmbeddings = mutableMapOf<String, FloatArray>()
-        val savedElements = mutableMapOf<String, ContentElement>()
+        val savedElements = mutableMapOf<String, Datum>()
 
         override val name: String = "test-repo"
         override val enhancers: List<RetrievableEnhancer> = emptyList()
@@ -185,12 +181,13 @@ class AbstractChunkingContentElementRepositoryTest {
             // No-op for testing
         }
 
-        override fun save(element: ContentElement): ContentElement {
+        override fun <D : Datum> save(element: D): D {
             savedElements[element.id] = element
             return element
         }
 
-        override fun findById(id: String): ContentElement? = savedElements[id]
+
+        override fun findById(id: String): ContentElement? = savedElements[id] as? ContentElement
 
         override fun findChunksForEntity(entityId: String): List<Chunk> =
             persistedChunks.filter { it.parentId == entityId }

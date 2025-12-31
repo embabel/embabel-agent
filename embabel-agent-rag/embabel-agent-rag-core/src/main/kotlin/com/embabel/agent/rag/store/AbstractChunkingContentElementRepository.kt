@@ -69,6 +69,12 @@ abstract class AbstractChunkingContentElementRepository(
         }
     }
 
+    final override fun <R : Retrievable> saveAndProcess(r: R): R {
+        save(r)
+        onNewRetrievables(listOf(r))
+        return r
+    }
+
     /**
      * Template method implementation that generates embeddings in batches
      * and delegates persistence to subclasses.
