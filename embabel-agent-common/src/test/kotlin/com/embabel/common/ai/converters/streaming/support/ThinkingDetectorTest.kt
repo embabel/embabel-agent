@@ -42,7 +42,7 @@ class ThinkingDetectorTest {
         assertTrue(ThinkingDetector.isThinkingLine("<final>content</final>"))
         assertTrue(ThinkingDetector.isThinkingLine("<scratchpad>content</scratchpad>"))
         assertTrue(ThinkingDetector.isThinkingLine("<chain_of_thought>content</chain_of_thought>"))
-        assertTrue(ThinkingDetector.isThinkingLine("[REASONING]content[/REASONING]"))
+        assertTrue(ThinkingDetector.isThinkingLine("<reasoning>content</reasoning>"))
         assertTrue(ThinkingDetector.isThinkingLine("//THINKING: content"))
     }
 
@@ -66,8 +66,8 @@ class ThinkingDetectorTest {
             ThinkingDetector.extractThinkingContent("<thought>thought content</thought>")
         )
         Assertions.assertEquals(
-            "mistral reasoning",
-            ThinkingDetector.extractThinkingContent("[REASONING]mistral reasoning[/REASONING]")
+            "xml reasoning",
+            ThinkingDetector.extractThinkingContent("<reasoning>xml reasoning</reasoning>")
         )
         Assertions.assertEquals("legacy thinking", ThinkingDetector.extractThinkingContent("//THINKING: legacy thinking"))
     }
@@ -102,7 +102,7 @@ class ThinkingDetectorTest {
         )
         Assertions.assertEquals(
             ThinkingState.BOTH,
-            ThinkingDetector.detectThinkingState("[REASONING]complete reasoning[/REASONING]")
+            ThinkingDetector.detectThinkingState("<reasoning>complete reasoning</reasoning>")
         )
         Assertions.assertEquals(
             ThinkingState.BOTH,
@@ -114,14 +114,14 @@ class ThinkingDetectorTest {
     fun `detectThinkingState should return START for opening tags only`() {
         Assertions.assertEquals(ThinkingState.START, ThinkingDetector.detectThinkingState("<think>"))
         Assertions.assertEquals(ThinkingState.START, ThinkingDetector.detectThinkingState("<analysis>"))
-        Assertions.assertEquals(ThinkingState.START, ThinkingDetector.detectThinkingState("[REASONING]"))
+        Assertions.assertEquals(ThinkingState.START, ThinkingDetector.detectThinkingState("<reasoning>"))
     }
 
     @Test
     fun `detectThinkingState should return END for closing tags only`() {
         Assertions.assertEquals(ThinkingState.END, ThinkingDetector.detectThinkingState("</think>"))
         Assertions.assertEquals(ThinkingState.END, ThinkingDetector.detectThinkingState("</analysis>"))
-        Assertions.assertEquals(ThinkingState.END, ThinkingDetector.detectThinkingState("[/REASONING]"))
+        Assertions.assertEquals(ThinkingState.END, ThinkingDetector.detectThinkingState("</reasoning>"))
     }
 
     @Test

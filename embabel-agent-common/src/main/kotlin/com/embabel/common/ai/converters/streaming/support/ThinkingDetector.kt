@@ -209,9 +209,9 @@ internal object ThinkingDetector {
      */
     private val thinkingPatterns = buildList {
         // Block-style thinking tags (capture content inside)
-        thinkingTags.values.forEach { (start, end) ->
-            val escapedStart = Regex.escape(start)
-            val escapedEnd = Regex.escape(end)
+        thinkingTags.values.forEach { tagPair ->
+            val escapedStart = Regex.escape(tagPair.first)
+            val escapedEnd = Regex.escape(tagPair.second)
             add("$escapedStart(.*?)$escapedEnd".toRegex(RegexOption.DOT_MATCHES_ALL))
         }
         // Prefix-style thinking markers (for legacy compatibility)
