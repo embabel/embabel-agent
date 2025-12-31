@@ -283,4 +283,43 @@ class ChatClientLlmOperationsThinkingTest {
         assertEquals(1, result.thinkingBlocks.size)
         assertTrue(result.thinkingBlocks[0].content.contains("process this request carefully"))
     }
+
+    @Test
+    fun `ChatResponseWithThinkingException should preserve message and thinking blocks`() {
+        // Test the actual constructor and properties (new code)
+        val thinkingBlocks = listOf(
+            com.embabel.common.core.thinking.ThinkingBlock(
+                content = "LLM was reasoning about the error",
+                tagType = com.embabel.common.core.thinking.ThinkingTagType.TAG,
+                tagValue = "think"
+            )
+        )
+
+        val exception = com.embabel.chat.ChatResponseWithThinkingException(
+            message = "JSON parsing failed",
+            thinkingBlocks = thinkingBlocks
+        )
+
+        // Test all properties are preserved
+        assertEquals("JSON parsing failed", exception.message)
+        assertEquals(1, exception.thinkingBlocks.size)
+        assertEquals("LLM was reasoning about the error", exception.thinkingBlocks[0].content)
+        assertEquals("think", exception.thinkingBlocks[0].tagValue)
+    }
+
+    @Test
+    fun `LlmOptions withThinking should create new instance with thinking configured`() {
+        // Test the new withThinking method (new code in LlmOptions)
+        val originalOptions = com.embabel.common.ai.model.LlmOptions()
+
+        // Test with thinking extraction
+        val withThinking = originalOptions.withThinking(com.embabel.common.ai.model.Thinking.withExtraction())
+
+        // Verify new instance created
+        assertTrue(originalOptions !== withThinking)
+        assertNotNull(withThinking.thinking)
+
+        // Original should be unchanged
+        assertEquals(null, originalOptions.thinking)
+    }
 }
