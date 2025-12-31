@@ -121,13 +121,15 @@ abstract class AbstractChunkingContentElementRepository(
         embeddings: Map<String, FloatArray>,
     )
 
-    private fun generateEmbeddingsInBatches(chunks: List<Chunk>): Map<String, FloatArray> {
+    private fun generateEmbeddingsInBatches(
+        retrievables: List<Retrievable>,
+    ): Map<String, FloatArray> {
         if (embeddingService == null) {
             return emptyMap()
         }
 
         val embeddings = mutableMapOf<String, FloatArray>()
-        val batches = chunks.chunked(chunkerConfig.embeddingBatchSize)
+        val batches = retrievables.chunked(chunkerConfig.embeddingBatchSize)
         val totalBatches = batches.size
 
         fun logProgress(current: Int) {
@@ -144,7 +146,7 @@ abstract class AbstractChunkingContentElementRepository(
         batches.forEachIndexed { index, batch ->
             try {
                 val texts = batch.map { it.embeddableValue() }
-                val batchEmbeddings = embeddingService!!.embed(texts)
+                val batchEmbeddings = embeddingService.embed(texts)
 
                 batch.zip(batchEmbeddings).forEach { (chunk, embedding) ->
                     embeddings[chunk.id] = embedding
