@@ -319,7 +319,8 @@ class UnifiedBannerTool(private val serverInfo: ServerInfo) {
      *
      * @return a map containing banner details
      */
-    @Tool(
+    @LlmTool(
+        name = "helloBanner",
         description = "Display a welcome banner with server information"
     )
     fun helloBanner(): Map<String, Any> {
