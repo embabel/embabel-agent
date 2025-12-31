@@ -1,0 +1,164 @@
+/*
+ * Copyright 2024-2025 Embabel Software, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.rag.lucene
+
+import com.embabel.common.ai.model.SpringEmbeddingService
+import org.springframework.ai.document.Document
+import org.springframework.ai.embedding.EmbeddingModel
+import org.springframework.ai.embedding.EmbeddingRequest
+import org.springframework.ai.embedding.EmbeddingResponse
+import kotlin.reflect.full.functions
+import kotlin.reflect.jvm.isAccessible
+
+/**
+ * Mock embedding model for testing that generates deterministic embeddings based on text content.
+ */
+class MockEmbeddingModel : EmbeddingModel {
+
+    override fun embed(document: Document): FloatArray {
+        return embed(document.text!!)
+    }
+
+    override fun call(request: EmbeddingRequest): EmbeddingResponse {
+        TODO()
+    }
+
+    override fun embed(text: String): FloatArray {
+        // Simple deterministic embedding based on text content for testing
+        val words = text.lowercase().split(" ")
+        val embedding = FloatArray(100) // 100-dimensional embedding
+
+        // Create deterministic embeddings based on word content
+        words.forEach { word ->
+            val hash = word.hashCode()
+            for (i in embedding.indices) {
+                embedding[i] += (hash * (i + 1)).toFloat() / 1000000f
+            }
+        }
+
+        // Normalize
+        val norm = kotlin.math.sqrt(embedding.sumOf { (it * it).toDouble() }).toFloat()
+        if (norm > 0) {
+            for (i in embedding.indices) {
+                embedding[i] /= norm
+            }
+        }
+
+        return embedding.map { it.toFloat() }.toFloatArray()
+    }
+
+    override fun embed(texts: MutableList<String>): MutableList<FloatArray> {
+        return texts.map { embed(it) }.toMutableList()
+    }
+
+    override fun dimensions(): Int = 100
+}
+
+/**
+ * Tracking embedding model that records each embed call for verification.
+ */
+class TrackingEmbeddingModel : EmbeddingModel {
+    private val _embeddedTexts = mutableListOf<String>()
+    val embeddedTexts: List<String> get() = _embeddedTexts.toList()
+
+    val embedCallCount: Int get() = _embeddedTexts.size
+
+    fun reset() {
+        _embeddedTexts.clear()
+    }
+
+    override fun embed(document: Document): FloatArray {
+        return embed(document.text!!)
+    }
+
+    override fun call(request: EmbeddingRequest): EmbeddingResponse {
+        TODO()
+    }
+
+    override fun embed(text: String): FloatArray {
+        _embeddedTexts.add(text)
+        // Simple deterministic embedding
+        val embedding = FloatArray(100)
+        val hash = text.hashCode()
+        for (i in embedding.indices) {
+            embedding[i] = ((hash * (i + 1)) % 1000).toFloat() / 1000f
+        }
+        // Normalize
+        val norm = kotlin.math.sqrt(embedding.sumOf { (it * it).toDouble() }).toFloat()
+        if (norm > 0) {
+            for (i in embedding.indices) {
+                embedding[i] /= norm
+            }
+        }
+        return embedding
+    }
+
+    override fun embed(texts: MutableList<String>): MutableList<FloatArray> {
+        return texts.map { embed(it) }.toMutableList()
+    }
+
+    override fun dimensions(): Int = 100
+}
+
+/**
+ * Extension function to convert Spring AI Documents to Chunks and add them to the service.
+ */
+fun LuceneSearchOperations.acceptDocuments(documents: List<Document>) {
+    val chunks = documents.map { doc ->
+        val docId = doc.id ?: error("Document ID cannot be null")
+        com.embabel.agent.rag.model.Chunk(
+            id = docId,
+            text = doc.text ?: "",
+            parentId = docId, // Use the chunk ID as its own parent for test documents
+            metadata = doc.metadata
+        )
+    }
+    this.onNewRetrievables(chunks)
+    this.commitChanges()
+}
+
+/**
+ * Extension function to call protected commit() using reflection.
+ */
+fun LuceneSearchOperations.commitChanges() {
+    val commitMethod = this::class.functions.find { it.name == "commit" }
+    commitMethod?.let {
+        it.isAccessible = true
+        it.call(this)
+    }
+}
+
+/**
+ * Creates a standard test LuceneSearchOperations without embeddings.
+ */
+fun createTestRagService(name: String = "lucene-rag"): LuceneSearchOperations {
+    return LuceneSearchOperations(name = name)
+}
+
+/**
+ * Creates a test LuceneSearchOperations with embedding support.
+ */
+fun createTestRagServiceWithEmbedding(
+    name: String = "hybrid-lucene-rag",
+    embeddingModel: EmbeddingModel = MockEmbeddingModel(),
+    vectorWeight: Double = 0.5
+): LuceneSearchOperations {
+    return LuceneSearchOperations(
+        name = name,
+        embeddingService = SpringEmbeddingService("name", "provider", embeddingModel),
+        vectorWeight = vectorWeight
+    )
+}
