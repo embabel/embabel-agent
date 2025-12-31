@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.config.spring
 
+import com.embabel.agent.core.ActionQos
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.NestedConfigurationProperty
 
@@ -66,6 +67,9 @@ class AgentPlatformProperties {
 
     @field:NestedConfigurationProperty
     var test: TestConfig = TestConfig()
+
+    @field:NestedConfigurationProperty
+    var actionQos: ActionQosProperties = ActionQosProperties()
 
     /**
      * Agent Process Type
@@ -281,5 +285,59 @@ class AgentPlatformProperties {
          * Whether to enable mock mode for testing
          */
         var mockMode: Boolean = true
+    }
+
+    /**
+     * Configuration of retry policy overrides for actions on agents.
+     *
+     * This allows configuring default and per-action overrides that map to {@link com.embabel.agent.core.ActionQos}.
+     */
+    @ConfigurationProperties(prefix = "embabel.agent.platform.action-qos")
+    class ActionQosProperties {
+
+        /**
+         * Overrides for a single action's QoS settings.
+         *
+         * Null values mean "use defaults" (either the configured defaults or {@link com.embabel.agent.core.ActionQos}).
+         */
+        data class ActionProperties(
+            var maxAttempts: Int? = null,
+            var backoffMillis: Long? = null,
+            var backoffMultiplier: Double? = null,
+            var backoffMaxInterval: Long? = null,
+            var idempotent: Boolean? = null,
+        ) {
+            fun overridingNotNull(overridingAction: ActionProperties?): ActionProperties {
+                if (overridingAction == null) {
+                    return this
+                }
+
+                return ActionProperties(
+                    maxAttempts = overridingAction.maxAttempts ?: this.maxAttempts,
+                    backoffMillis = overridingAction.backoffMillis ?: this.backoffMillis,
+                    backoffMultiplier = overridingAction.backoffMultiplier ?: backoffMultiplier,
+                    backoffMaxInterval = overridingAction.backoffMaxInterval ?: backoffMaxInterval,
+                    idempotent = overridingAction.idempotent ?: idempotent
+                )
+            }
+
+            fun toActionQos(defaultAction: ActionQos = ActionQos()): ActionQos {
+                return ActionQos(
+                    maxAttempts = maxAttempts ?: defaultAction.maxAttempts,
+                    backoffMillis = backoffMillis ?: defaultAction.backoffMillis,
+                    backoffMultiplier = backoffMultiplier ?: defaultAction.backoffMultiplier,
+                    backoffMaxInterval = backoffMaxInterval ?: defaultAction.backoffMaxInterval,
+                    idempotent = idempotent ?: defaultAction.idempotent
+                )
+            }
+        }
+
+        /**
+         * Fallback retry properties for {@code @Action} and {@code @Agent} overrides.
+         *
+         * These values are merged with {@link com.embabel.agent.core.ActionQos} defaults.
+         */
+        var default: ActionProperties = ActionProperties()
+
     }
 }
