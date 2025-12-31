@@ -503,7 +503,7 @@ class StreamingJacksonOutputConverterTest {
             <think>standard format</think>
             <analysis>qwen format</analysis>
             <thought>llama format</thought>
-            [REASONING]mistral format[/REASONING]
+            <reasoning>xml reasoning format</reasoning>
             //THINKING: legacy format
         """.trimIndent()
 
@@ -521,7 +521,7 @@ class StreamingJacksonOutputConverterTest {
         assertEquals("standard format", thinkingEvents[0].content)
         assertEquals("qwen format", thinkingEvents[1].content)
         assertEquals("llama format", thinkingEvents[2].content)
-        assertEquals("mistral format", thinkingEvents[3].content)
+        assertEquals("xml reasoning format", thinkingEvents[3].content)
         assertEquals("legacy format", thinkingEvents[4].content)
     }
 }
