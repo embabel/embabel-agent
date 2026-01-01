@@ -25,6 +25,7 @@ import com.embabel.agent.rag.service.*
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.*
 import com.embabel.common.util.loggerFor
+import com.embabel.common.util.time
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.time.Duration
@@ -62,6 +63,10 @@ fun interface ResultsListener {
  * or a relational database SQL-driven search.
  * @param goal the goal for acceptance criteria when searching
  * @param formatter the formatter to use for formatting results
+ * @param vectorSearchFor list of retrievable types to enable vector search for.
+ * Defaults to Chunk
+ * @param textSearchFor list of retrievable types to enable text search for.
+ * Defaults to Chunk
  * @param hints list of hints to provide to the LLM
  * @param listener optional listener to receive raw structured results as they are retrieved
  */
@@ -71,6 +76,8 @@ data class ToolishRag @JvmOverloads constructor(
     private val searchOperations: SearchOperations,
     val goal: String = DEFAULT_GOAL,
     val formatter: RetrievableResultsFormatter = SimpleRetrievableResultsFormatter,
+    val vectorSearchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
+    val textSearchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
     val hints: List<PromptContributor> = listOf(),
     val listener: ResultsListener? = null,
 ) : LlmReference {
@@ -87,7 +94,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is VectorSearch) {
                 logger.info("Adding VectorSearchTools to ToolishRag tools {}", name)
-                add(VectorSearchTools(searchOperations, listener))
+                add(VectorSearchTools(searchOperations, vectorSearchFor, listener))
             } else {
                 if (hints.any { it is TryHyDE }) {
                     logger.warn(
@@ -99,7 +106,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is TextSearch) {
                 logger.info("Adding TextSearchTools to ToolishRag tools {}", name)
-                add(TextSearchTools(searchOperations, listener))
+                add(TextSearchTools(searchOperations, textSearchFor, listener))
             }
             if (searchOperations is ResultExpander) {
                 logger.info("Adding ResultExpanderTools to ToolishRag tools {}", name)
@@ -111,6 +118,22 @@ data class ToolishRag @JvmOverloads constructor(
             }
         }
     }
+
+    /**
+     * Set the types to search for with vector and text search
+     * @param vectorSearchFor list of retrievable types to enable vector search for
+     * @param textSearchFor list of retrievable types to enable text search for
+     * If only vectorSearchFor is provided, textSearchFor will be set to the same types
+     */
+    @JvmOverloads
+    fun withSearchFor(
+        vectorSearchFor: List<Class<out Retrievable>>,
+        textSearchFor: List<Class<out Retrievable>> = vectorSearchFor,
+    ): ToolishRag =
+        copy(
+            vectorSearchFor = vectorSearchFor,
+            textSearchFor = textSearchFor,
+        )
 
     /**
      * Add a hint to the RAG reference
@@ -163,8 +186,9 @@ interface SearchTools
 /**
  * Classic vector search
  */
-class VectorSearchTools(
+class VectorSearchTools @JvmOverloads constructor(
     private val vectorSearch: VectorSearch,
+    private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
     private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
 
@@ -176,15 +200,23 @@ class VectorSearchTools(
         topK: Int,
         @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
     ): String {
-        logger.info("Performing vector search with query='{}', topK={}, threshold={}", query, topK, threshold)
-        val start = Instant.now()
-        val results = vectorSearch.vectorSearch(
-            SimpleSearchRequest(query, threshold, topK),
-            Chunk::class.java
+        logger.info(
+            "Performing vector search with query='{}', topK={}, threshold={}, types={}",
+            query, topK, threshold, searchFor.map { it.simpleName }
         )
-        val runningTime = Duration.between(start, Instant.now())
-        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, runningTime))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList(results))
+        val request = TextSimilaritySearchRequest(query, threshold, topK)
+        val (results, ms) = time {
+            searchForAllTypes(request)
+        }
+        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
+        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
+    }
+
+    private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
+        val allResults = searchFor.flatMap { clazz ->
+            vectorSearch.vectorSearch(request, clazz)
+        }
+        return deduplicateByIdKeepingHighestScore(allResults)
     }
 }
 
@@ -225,8 +257,9 @@ class ResultExpanderTools(
 /**
  * Tools to perform text search operations with Lucene syntax
  */
-class TextSearchTools(
+class TextSearchTools @JvmOverloads constructor(
     private val textSearch: TextSearch,
+    private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
     private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -250,15 +283,24 @@ class TextSearchTools(
         topK: Int,
         @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
     ): String {
-        logger.info("Performing text search with query='{}', topK={}, threshold={}", query, topK, threshold)
-        val start = Instant.now()
-        val results = textSearch.textSearch(
-            SimpleSearchRequest(query, threshold, topK),
-            Chunk::class.java
+        logger.info(
+            "Performing text search with query='{}', topK={}, threshold={}, types={}",
+            query, topK, threshold, searchFor.map { it.simpleName }
         )
-        val runningTime = Duration.between(start, Instant.now())
-        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, runningTime))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList(results))
+
+        val request = TextSimilaritySearchRequest(query, threshold, topK)
+        val (results, ms) = time {
+            searchForAllTypes(request)
+        }
+        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
+        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
+    }
+
+    private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
+        val allResults = searchFor.flatMap { clazz ->
+            textSearch.textSearch(request, clazz)
+        }
+        return deduplicateByIdKeepingHighestScore(allResults)
     }
 }
 
@@ -282,10 +324,12 @@ class RegexSearchTools(
 }
 
 /**
- * Simple implementation of TextSimilaritySearchRequest for use in ToolishRag tools.
+ * Deduplicate results by ID, keeping the result with the highest score for each unique ID.
  */
-private data class SimpleSearchRequest(
-    override val query: String,
-    override val similarityThreshold: ZeroToOne,
-    override val topK: Int,
-) : TextSimilaritySearchRequest
+private fun deduplicateByIdKeepingHighestScore(
+    results: List<SimilarityResult<out Retrievable>>,
+): List<SimilarityResult<out Retrievable>> =
+    results
+        .groupBy { it.match.id }
+        .map { (_, group) -> group.maxBy { it.score } }
+        .sortedByDescending { it.score }

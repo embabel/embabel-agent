@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.SimpleEntityData
 import com.embabel.agent.rag.service.*
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
@@ -131,6 +132,16 @@ class ToolishRagTest {
         text: String,
     ): Chunk =
         Chunk(id = id, text = text, parentId = "parent", metadata = emptyMap())
+
+    private fun createEntity(
+        id: String,
+        name: String,
+    ): SimpleEntityData =
+        SimpleEntityData(
+            id = id,
+            labels = setOf("Person"),
+            properties = mapOf("name" to name),
+        )
 
     @Nested
     inner class ToolInstancesTests {
@@ -431,7 +442,7 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9))
 
             val listener = ResultsListener { event -> capturedEvent = event }
-            val tools = VectorSearchTools(vectorSearch, listener)
+            val tools = VectorSearchTools(vectorSearch, resultsListener = listener)
             tools.vectorSearch("test query", 10, 0.5)
 
             assertTrue(capturedEvent != null)
@@ -452,7 +463,7 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.85))
 
             val listener = ResultsListener { event -> capturedEvent = event }
-            val tools = TextSearchTools(textSearch, listener)
+            val tools = TextSearchTools(textSearch, resultsListener = listener)
             tools.textSearch("+kotlin", 5, 0.7)
 
             assertTrue(capturedEvent != null)
@@ -498,7 +509,7 @@ class ToolishRagTest {
 
             val beforeSearch = java.time.Instant.now()
             val listener = ResultsListener { event -> capturedEvent = event }
-            val tools = VectorSearchTools(vectorSearch, listener)
+            val tools = VectorSearchTools(vectorSearch, resultsListener = listener)
             tools.vectorSearch("test query", 10, 0.5)
             val afterSearch = java.time.Instant.now()
 
@@ -607,6 +618,243 @@ class ToolishRagTest {
 
             assertEquals("my-rag", toolishRag.name)
             assertEquals("My RAG description", toolishRag.description)
+        }
+    }
+
+    @Nested
+    inner class MultiTypeVectorSearchTests {
+
+        @Test
+        fun `vectorSearch should search for all types in searchFor list`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val chunk = createChunk("chunk1", "Chunk content")
+            val entity = createEntity("entity1", "Entity name")
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9))
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.8))
+
+            val tools = VectorSearchTools(
+                vectorSearch,
+                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+            )
+            val result = tools.vectorSearch("test query", 10, 0.5)
+
+            verify { vectorSearch.vectorSearch(any(), Chunk::class.java) }
+            verify { vectorSearch.vectorSearch(any(), SimpleEntityData::class.java) }
+
+            assertTrue(result.contains("2 results:"))
+            assertTrue(result.contains("Chunk content"))
+            assertTrue(result.contains("Entity"))
+        }
+
+        @Test
+        fun `vectorSearch should deduplicate results by id keeping highest score`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val chunkLowScore = createChunk("shared-id", "Chunk content")
+            val chunkHighScore = createChunk("shared-id", "Chunk content")
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunkLowScore, score = 0.7))
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+            } returns listOf(
+                SimpleSimilaritySearchResult(
+                    match = createEntity("shared-id", "Entity name"),
+                    score = 0.9
+                )
+            )
+
+            val tools = VectorSearchTools(
+                vectorSearch,
+                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+            )
+            val result = tools.vectorSearch("test query", 10, 0.5)
+
+            assertTrue(result.contains("1 results:"))
+            assertTrue(result.contains("0.90"))
+        }
+
+        @Test
+        fun `vectorSearch should return results sorted by score descending`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val chunk1 = createChunk("chunk1", "First chunk")
+            val chunk2 = createChunk("chunk2", "Second chunk")
+            val entity = createEntity("entity1", "Entity")
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(
+                SimpleSimilaritySearchResult(match = chunk1, score = 0.5),
+                SimpleSimilaritySearchResult(match = chunk2, score = 0.9)
+            )
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.7))
+
+            val tools = VectorSearchTools(
+                vectorSearch,
+                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+            )
+            val result = tools.vectorSearch("test query", 10, 0.5)
+
+            assertTrue(result.contains("3 results:"))
+            val score09Index = result.indexOf("0.90")
+            val score07Index = result.indexOf("0.70")
+            val score05Index = result.indexOf("0.50")
+            assertTrue(score09Index < score07Index)
+            assertTrue(score07Index < score05Index)
+        }
+
+        @Test
+        fun `vectorSearch should publish event with deduplicated results`() {
+            val vectorSearch = mockk<VectorSearch>()
+            val chunk = createChunk("shared-id", "Content")
+            val entity = createEntity("shared-id", "Entity")
+            var capturedEvent: ResultsEvent? = null
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.6))
+
+            every {
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.8))
+
+            val listener = ResultsListener { event -> capturedEvent = event }
+            val tools = VectorSearchTools(
+                vectorSearch,
+                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java),
+                resultsListener = listener
+            )
+            tools.vectorSearch("test query", 10, 0.5)
+
+            assertTrue(capturedEvent != null)
+            assertEquals(1, capturedEvent!!.results.size)
+            assertEquals(0.8, capturedEvent!!.results[0].score)
+        }
+    }
+
+    @Nested
+    inner class MultiTypeTextSearchTests {
+
+        @Test
+        fun `textSearch should search for all types in searchFor list`() {
+            val textSearch = mockk<TextSearch>()
+            val chunk = createChunk("chunk1", "Chunk content")
+            val entity = createEntity("entity1", "Entity name")
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.85))
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.75))
+
+            val tools = TextSearchTools(
+                textSearch,
+                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+            )
+            val result = tools.textSearch("+kotlin", 5, 0.7)
+
+            verify { textSearch.textSearch(any(), Chunk::class.java) }
+            verify { textSearch.textSearch(any(), SimpleEntityData::class.java) }
+
+            assertTrue(result.contains("2 results:"))
+            assertTrue(result.contains("Chunk content"))
+            assertTrue(result.contains("Entity"))
+        }
+
+        @Test
+        fun `textSearch should deduplicate results by id keeping highest score`() {
+            val textSearch = mockk<TextSearch>()
+            val chunk = createChunk("shared-id", "Chunk content")
+            val entity = createEntity("shared-id", "Entity name")
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.6))
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.9))
+
+            val tools = TextSearchTools(
+                textSearch,
+                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+            )
+            val result = tools.textSearch("+test", 10, 0.5)
+
+            assertTrue(result.contains("1 results:"))
+            assertTrue(result.contains("0.90"))
+        }
+
+        @Test
+        fun `textSearch should return results sorted by score descending`() {
+            val textSearch = mockk<TextSearch>()
+            val chunk1 = createChunk("chunk1", "First chunk")
+            val chunk2 = createChunk("chunk2", "Second chunk")
+            val entity = createEntity("entity1", "Entity")
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(
+                SimpleSimilaritySearchResult(match = chunk1, score = 0.4),
+                SimpleSimilaritySearchResult(match = chunk2, score = 0.8)
+            )
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.6))
+
+            val tools = TextSearchTools(
+                textSearch,
+                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+            )
+            val result = tools.textSearch("+test", 10, 0.3)
+
+            assertTrue(result.contains("3 results:"))
+            val score08Index = result.indexOf("0.80")
+            val score06Index = result.indexOf("0.60")
+            val score04Index = result.indexOf("0.40")
+            assertTrue(score08Index < score06Index)
+            assertTrue(score06Index < score04Index)
+        }
+
+        @Test
+        fun `textSearch should publish event with deduplicated results`() {
+            val textSearch = mockk<TextSearch>()
+            val chunk = createChunk("shared-id", "Content")
+            val entity = createEntity("shared-id", "Entity")
+            var capturedEvent: ResultsEvent? = null
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.5))
+
+            every {
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.9))
+
+            val listener = ResultsListener { event -> capturedEvent = event }
+            val tools = TextSearchTools(
+                textSearch,
+                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java),
+                resultsListener = listener
+            )
+            tools.textSearch("+kotlin", 5, 0.4)
+
+            assertTrue(capturedEvent != null)
+            assertEquals(1, capturedEvent!!.results.size)
+            assertEquals(0.9, capturedEvent!!.results[0].score)
         }
     }
 }

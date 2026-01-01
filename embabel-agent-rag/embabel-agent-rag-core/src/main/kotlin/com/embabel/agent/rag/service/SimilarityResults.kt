@@ -26,7 +26,7 @@ interface SimilarityResults<R : Retrievable> {
 
         @JvmStatic
         fun <R : Retrievable> fromList(
-            results: List<SimilarityResult<R>>,
+            results: List<SimilarityResult<out R>>,
         ): SimilarityResults<Retrievable> {
             return object : SimilarityResults<Retrievable> {
                 override val results = results
