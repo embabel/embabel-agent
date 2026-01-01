@@ -3,7 +3,8 @@
 
 Chatbots are an important application of Gen AI, although far from the only use, especially in enterprise.
 
-Unlike many other frameworks, Embabel does not maintain a conversation thread to do its core work. This is a good thing as it means that context compression is not required for most tasks.
+Unlike many other frameworks, Embabel does not maintain a conversation thread to do its core work.
+This is a good thing as it means that context compression is not required for most tasks.
 
 If you want to build a chatbot you should use the `Conversation` interface explicitly, and expose a `Chatbot` bean, typically backed by action methods that handle `UserMessage` events.
 
@@ -11,14 +12,16 @@ If you want to build a chatbot you should use the `Conversation` interface expli
 
 ===== Long-Lived AgentProcess
 
-An Embabel chatbot is backed by a **long-lived `AgentProcess`** that pauses between user messages. This design has important implications:
+An Embabel chatbot is backed by a **long-lived `AgentProcess`** that pauses between user messages.
+This design has important implications:
 
 - The same `AgentProcess` can respond to events besides user input
 - The blackboard maintains state across the entire session
 - Actions can be triggered by user messages, system events, or other objects added to the blackboard
 - It's a **working context** rather than just a chat session
 
-When a user sends a message, it's added to the blackboard as a `UserMessage`. The `AgentProcess` then runs, selects an appropriate action to handle it, and pauses again waiting for the next event.
+When a user sends a message, it's added to the blackboard as a `UserMessage`.
+The `AgentProcess` then runs, selects an appropriate action to handle it, and pauses again waiting for the next event.
 
 ===== Utility AI for Chatbots
 
@@ -32,9 +35,11 @@ This allows:
 
 ===== Goals in Chatbots
 
-Typically, chatbot agents **do not need a goal**. The agent process simply waits for user messages and responds to them indefinitely.
+Typically, chatbot agents **do not need a goal**.
+The agent process simply waits for user messages and responds to them indefinitely.
 
-However, you can define a goal if you want to ensure the conversation terminates and the `AgentProcess` completes rather than waiting forever. This is useful for:
+However, you can define a goal if you want to ensure the conversation terminates and the `AgentProcess` completes rather than waiting forever.
+This is useful for:
 
 - Transactional conversations (e.g., completing a booking)
 - Wizard-style flows with a defined endpoint
@@ -135,6 +140,7 @@ public class ChatActions {
     }
 }
 ----
+
 <1> `trigger = UserMessage.class` - action is invoked when a `UserMessage` is the last object added to the blackboard
 <2> `canRerun = true` - action can be executed multiple times (for each user message)
 <3> `Conversation` parameter is automatically injected from the blackboard
@@ -158,9 +164,13 @@ class ChatConfiguration {
     }
 }
 ----
+
 <1> Creates a chatbot using Utility AI planning to select the best action
 <2> Discovers all `@Action` methods from `@EmbabelComponent` classes on the platform
 <3> Optional `Verbosity` configuration for debugging prompts
+
+IMPORTANT: Be sure that the `AgentPlatform` has loaded all its actions before creating an `AgentProcessChatbot`.
+Otherwise the actions needed to respond to chat may not be available to the chatbot.
 
 ===== Step 3: Use the Chatbot
 
@@ -173,6 +183,7 @@ ChatSession session = chatbot.createSession(user, outputChannel, null); // <1>
 session.onUserMessage(new UserMessage("What does this document say about taxes?")); // <2>
 // Response is automatically sent to the outputChannel // <3>
 ----
+
 <1> Create a new session for a user with an output channel
 <2> Send a user message - triggers the agent to select and run an action
 <3> Responses from actions are sent to the `outputChannel`
@@ -210,6 +221,7 @@ void respond(Conversation conversation, ActionContext context) {
     // ...
 }
 ----
+
 <1> `@Cost` marks this as a cost calculation method
 <2> Receives the `Blackboard` to inspect current state
 <3> Returns cost value - lower costs mean higher priority
@@ -217,7 +229,8 @@ void respond(Conversation conversation, ActionContext context) {
 
 ==== Prompt Templates
 
-Chatbots typically use **Jinja prompt templates** rather than inline string prompts. This isn't strictly necessary—simple chatbots can use regular string prompts built in code:
+Chatbots typically use **Jinja prompt templates** rather than inline string prompts.
+This isn't strictly necessary—simple chatbots can use regular string prompts built in code:
 
 [source,java]
 ----
@@ -226,6 +239,7 @@ var assistantMessage = context.ai()
         .withSystemPrompt("You are a helpful assistant. Answer questions concisely.") // <1>
         .respond(conversation.getMessages());
 ----
+
 <1> Simple inline prompt - fine for basic chatbots
 
 However, production chatbots often need **longer, more complex prompts** for:
@@ -249,6 +263,7 @@ var assistantMessage = context.ai()
                 "objective", properties.objective()
         ));
 ----
+
 <1> Loads `prompts/ragbot.jinja` from resources
 <2> Template bindings - accessible in Jinja as `properties.persona()` etc.
 
@@ -285,6 +300,7 @@ The main template (`ragbot.jinja`) composes from reusable elements:
 
 {% include "elements/personalization.jinja" %} // <2>
 ----
+
 <1> Include safety guardrails first
 <2> Then include persona and objective (which are dynamically selected)
 
@@ -307,6 +323,7 @@ Personalization dynamically loads persona and objective (`elements/personalizati
 {% set objective_template = "objectives/" ~ properties.objective() ~ ".jinja" %} // <2>
 {% include objective_template %}
 ----
+
 <1> Build template path from `properties.persona()` (e.g., "clause" → "personas/clause.jinja")
 <2> Build template path from `properties.objective()` (e.g., "legal" → "objectives/legal.jinja")
 
@@ -334,6 +351,7 @@ NEVER FABRICATE ANSWERS.
 You ground your answers in literal citations from the provided sources.
 Always use the available tools. // <1>
 ----
+
 <1> Instructs the LLM to use RAG tools provided via `withReference()`
 
 This modular approach lets you:
@@ -344,7 +362,8 @@ This modular approach lets you:
 
 ==== Advanced: State Management with @State
 
-For complex chatbots that need to track state across messages, use `@State` classes. State classes are automatically managed by the agent framework:
+For complex chatbots that need to track state across messages, use `@State` classes.
+State classes are automatically managed by the agent framework:
 
 - State objects are persisted in the blackboard
 - Actions can depend on specific state being present
