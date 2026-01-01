@@ -355,3 +355,49 @@ embabel:
 * Optional:
 - `MISTRAL_BASE_URL`: base URL for Mistral AI API (default: `https://api.mistral.ai`)
 
+===== LM Studio
+
+LM Studio is a desktop application that lets you easily discover, download, and run powerful
+Large Language Models (LLMs) on your own computer (Windows, Mac, Linux) for free, enabling offline use,
+local document Q&A, and even hosting an OpenAI-compatible API server for your projects, making advanced AI accessible
+without relying on cloud services. It supports formats like GGUF and offers privacy and control over your models. See
+more: `https://lmstudio.ai/`
+
+A very useful feature of LM Studio is its Local Server feature (See here: `https://lmstudio.ai/docs/developer/core/server`).
+This allows you to run an LLM API server on localhost.
+
+To add LM Studio support, add the `embabel-agent-starter-lmstudio` starter.
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-lmstudio</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+
+[source, gradle]
+----
+implementation "com.embabel.agent:embabel-agent-starter-lmstudio:${embabelVersion}"
+----
+
+Configure an LLM API on LM Studio using the instructions here `https://lmstudio.ai/docs/developer/core/server`
+
+Specify the example configuration in `application.yml`. Below I have an open-ai llm and embedding model
+downloaded on my LLM studio and exposed via the LLM Server.
+
+[source, yaml]
+----
+embabel:
+  agent:
+    platform:
+      autonomy:
+        agent-confidence-cut-off: 0.8
+        goal-confidence-cut-off: 0.8
+      lmstudio:
+        models:
+          base-url: http://127.0.0.1:1234
+  models:
+    default-llm: openai/gpt-oss-20b
+    default-embedding-model: text-embedding-nomic-embed-text-v1.5
+----
