@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.model
 
 import com.embabel.common.util.indent
+import java.util.*
 
 /**
  * Traditional RAG. Text chunk.
@@ -104,6 +105,22 @@ interface Chunk : Source, HierarchicalContentElement {
             text: String,
             metadata: Map<String, Any?>,
             parentId: String,
+        ): Chunk {
+            return ChunkImpl(
+                id = id,
+                text = text,
+                metadata = metadata,
+                parentId = parentId,
+            )
+        }
+
+        @JvmOverloads
+        @JvmStatic
+        fun create(
+            text: String,
+            parentId: String,
+            metadata: Map<String, Any?> = emptyMap(),
+            id: String = UUID.randomUUID().toString(),
         ): Chunk {
             return ChunkImpl(
                 id = id,

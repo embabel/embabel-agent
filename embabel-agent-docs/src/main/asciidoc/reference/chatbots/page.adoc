@@ -169,8 +169,8 @@ class ChatConfiguration {
 <2> Discovers all `@Action` methods from `@EmbabelComponent` classes on the platform
 <3> Optional `Verbosity` configuration for debugging prompts
 
-IMPORTANT: Be sure that the `AgentPlatform` has loaded all its actions before creating an `AgentProcessChatbot`.
-Otherwise the actions needed to respond to chat may not be available to the chatbot.
+IMPORTANT: Be sure that the `AgentPlatform` has loaded all its actions before creating a new session on your `AgentProcessChatbot`.
+Otherwise the actions needed to respond to chat may not be available in the session.
 
 ===== Step 3: Use the Chatbot
 
