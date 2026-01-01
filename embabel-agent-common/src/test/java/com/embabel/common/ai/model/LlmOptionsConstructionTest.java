@@ -15,7 +15,10 @@
  */
 package com.embabel.common.ai.model;
 
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class LlmOptionsConstructionTest {
 
@@ -41,5 +44,91 @@ public class LlmOptionsConstructionTest {
                 .withDefaults()
                 .withTemperature(0.7)
                 .withMaxTokens(1000);
+    }
+
+    @Nested
+    class ThinkingFunctionality {
+
+        @Test
+        void shouldCreateThinkingWithExtraction() {
+            // Test Thinking.withExtraction() factory method
+            var extractionThinking = Thinking.Companion.withExtraction();
+            assertTrue(extractionThinking.getExtractThinking());
+        }
+
+        @Test
+        void shouldCreateThinkingWithTokenBudget() {
+            // Test Thinking.withTokenBudget() factory method
+            var budgetThinking = Thinking.Companion.withTokenBudget(100);
+            assertNotNull(budgetThinking);
+        }
+
+        @Test
+        void shouldTestThinkingNoneViaWithoutThinking() {
+            // Test accessing NONE indirectly via withoutThinking()
+            var options = LlmOptions.withDefaults();
+            var withoutThinking = options.withoutThinking();
+            var thinkingConfig = withoutThinking.getThinking();
+            assertNotNull(thinkingConfig);
+            assertFalse(thinkingConfig.getExtractThinking());
+        }
+
+        @Test
+        void shouldApplyExtractionToDefaultThinking() {
+            // Test applyExtraction() instance method on default thinking
+            var options = LlmOptions.withDefaults();
+            var withoutThinking = options.withoutThinking();
+            var defaultThinking = withoutThinking.getThinking();
+            assertNotNull(defaultThinking);
+            var applied = defaultThinking.applyExtraction();
+            assertNotNull(applied);
+            assertTrue(applied.getExtractThinking());
+        }
+
+        @Test
+        void shouldApplyTokenBudgetToExistingThinking() {
+            // Test applyTokenBudget() instance method
+            var extractionThinking = Thinking.Companion.withExtraction();
+            assertNotNull(extractionThinking);
+            var appliedBudget = extractionThinking.applyTokenBudget(200);
+            assertNotNull(appliedBudget);
+            assertTrue(appliedBudget.getExtractThinking());
+        }
+
+        @Test
+        void shouldConfigureLlmOptionsWithThinking() {
+            // Test LlmOptions.withThinking() method
+            var originalOptions = LlmOptions.withDefaults();
+            var thinkingConfig = Thinking.Companion.withExtraction();
+            assertNotNull(thinkingConfig);
+            var withThinking = originalOptions.withThinking(thinkingConfig);
+
+            assertNotNull(withThinking.getThinking());
+            assertEquals(thinkingConfig, withThinking.getThinking());
+            assertNotSame(originalOptions, withThinking);
+        }
+
+        @Test
+        void shouldConfigureLlmOptionsWithoutThinking() {
+            // Test LlmOptions.withoutThinking() method
+            var originalOptions = LlmOptions.withDefaults();
+            var withoutThinking = originalOptions.withoutThinking();
+
+            assertNotNull(withoutThinking.getThinking());
+            assertFalse(withoutThinking.getThinking().getExtractThinking());
+            assertNotSame(originalOptions, withoutThinking);
+        }
+
+        @Test
+        void shouldChainThinkingConfiguration() {
+            // Test method chaining with thinking
+            var configured = LlmOptions.withDefaults()
+                    .withThinking(Thinking.Companion.withExtraction())
+                    .withTemperature(0.8)
+                    .withMaxTokens(500);
+
+            assertNotNull(configured.getThinking());
+            assertTrue(configured.getThinking().getExtractThinking());
+        }
     }
 }
