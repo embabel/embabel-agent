@@ -17,9 +17,11 @@ package com.embabel.agent.config.models.lmstudio
 
 import com.embabel.agent.api.models.LmStudioModels
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
+import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.PricingModel
+import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -28,11 +30,47 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
+
+@ConfigurationProperties(prefix = "embabel.agent.platform.models.lmstudio")
+class LmStudioProperties : RetryProperties {
+
+    /**
+     * Base URL for LM Studio endpoint
+     */
+    var baseUrl: String = "http://127.0.0.1:1234"
+
+    /**
+     * API key for LM Studio. Defaults to null as apiKey isn't supported yet.
+     */
+    var apiKey: String? = null
+
+    /**
+     *  Maximum number of attempts.
+     */
+    override var maxAttempts: Int = 10
+
+    /**
+     * Initial backoff interval (in milliseconds).
+     */
+    override var backoffMillis: Long = 5000L
+
+    /**
+     * Backoff interval multiplier.
+     */
+    override var backoffMultiplier: Double = 5.0
+
+    /**
+     * Maximum backoff interval (in milliseconds).
+     */
+    override var backoffMaxInterval: Long = 180000L
+}
 
 /**
  * Configuration for LM Studio models.
@@ -40,16 +78,14 @@ import org.springframework.web.client.RestClient
  * and registers them as beans.
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(LmStudioProperties::class)
 class LmStudioModelsConfig(
-    @Value("\${spring.ai.lmstudio.base-url:http://127.0.0.1:1234}")
-    baseUrl: String,
-    @Value("\${spring.ai.lmstudio.api-key:lm-studio}")
-    apiKey: String,
+    private val lmStudioProperties: LmStudioProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     observationRegistry: ObjectProvider<ObservationRegistry>,
 ) : OpenAiCompatibleModelFactory(
-    baseUrl = baseUrl,
-    apiKey = apiKey,
+    baseUrl = lmStudioProperties.baseUrl,
+    apiKey = lmStudioProperties.apiKey,
     completionsPath = null,
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
@@ -88,7 +124,8 @@ class LmStudioModelsConfig(
                         model = modelId,
                         pricingModel = PricingModel.ALL_YOU_CAN_EAT,
                         provider = LmStudioModels.PROVIDER,
-                        knowledgeCutoffDate = null
+                        knowledgeCutoffDate = null,
+                        retryTemplate = lmStudioProperties.retryTemplate("lmstudio-$modelId")
                     )
 
                     val beanName = "lmStudioModel-${normalizeModelName(modelId)}"

@@ -30,6 +30,7 @@ import org.springframework.web.client.RestClient
  */
 class LmStudioModelsConfigTest {
 
+    private val mockLmStudioProperties = mockk<LmStudioProperties>()
     private val mockBeanFactory = mockk<ConfigurableBeanFactory>(relaxed = true)
     private val mockObservationRegistry = mockk<ObjectProvider<ObservationRegistry>>()
     private val mockRestClient = mockk<RestClient>()
@@ -42,6 +43,9 @@ class LmStudioModelsConfigTest {
         clearAllMocks()
 
         // Mock basic dependencies
+        every { mockLmStudioProperties.baseUrl } returns "http://127.0.0.1:1234"
+        every { mockLmStudioProperties.apiKey } returns null
+        every { mockLmStudioProperties.retryTemplate(any()) } returns mockk(relaxed = true)
         every { mockBeanFactory.registerSingleton(any(), any()) } just Runs
         every { mockObservationRegistry.getIfUnique(any()) } returns ObservationRegistry.NOOP
 
@@ -84,8 +88,7 @@ class LmStudioModelsConfigTest {
         every { mockResponseSpec.body(String::class.java) } returns jsonResponse
 
         val config = LmStudioModelsConfig(
-            baseUrl = "http://localhost:1234",
-            apiKey = "lm-studio",
+            lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
             observationRegistry = mockObservationRegistry
         )
@@ -106,8 +109,7 @@ class LmStudioModelsConfigTest {
         every { mockResponseSpec.body(String::class.java) } returns null
 
         val config = LmStudioModelsConfig(
-            baseUrl = "http://localhost:1234",
-            apiKey = "lm-studio",
+            lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
             observationRegistry = mockObservationRegistry
         )
@@ -125,8 +127,7 @@ class LmStudioModelsConfigTest {
         every { mockResponseSpec.body(String::class.java) } throws RuntimeException("Connection refused")
 
         val config = LmStudioModelsConfig(
-            baseUrl = "http://localhost:1234",
-            apiKey = "lm-studio",
+            lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
             observationRegistry = mockObservationRegistry
         )
@@ -152,8 +153,7 @@ class LmStudioModelsConfigTest {
         every { mockResponseSpec.body(String::class.java) } returns jsonResponse
 
         val config = LmStudioModelsConfig(
-            baseUrl = "http://localhost:1234",
-            apiKey = "lm-studio",
+            lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
             observationRegistry = mockObservationRegistry
         )
