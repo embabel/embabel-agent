@@ -394,8 +394,8 @@ embabel:
       autonomy:
         agent-confidence-cut-off: 0.8
         goal-confidence-cut-off: 0.8
-      lmstudio:
-        models:
+      models:
+        lmstudio:
           base-url: http://127.0.0.1:1234
   models:
     default-llm: openai/gpt-oss-20b
