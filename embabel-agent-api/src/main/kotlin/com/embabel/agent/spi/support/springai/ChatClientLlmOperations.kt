@@ -489,7 +489,7 @@ internal class ChatClientLlmOperations(
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
 
                     ChatResponseWithThinking(
-                        result = @Suppress("UNCHECKED_CAST") rawText as O, // Safe: outputClass == String::class.java
+                        result = rawText as O, // NOSONAR: Safe cast verified by outputClass == String::class.java check
                         thinkingBlocks = thinkingBlocks
                     )
                 } else {
@@ -561,7 +561,7 @@ internal class ChatClientLlmOperations(
                             propertyFilter = interaction.propertyFilter,
                         )
                     ),
-                    outputClass = @Suppress("UNCHECKED_CAST") outputClass as Class<MaybeReturn<*>>, // Safe: used with MaybeReturn wrapper
+                    outputClass = outputClass as Class<MaybeReturn<*>>, // NOSONAR: Safe cast for MaybeReturn wrapper pattern
                     ifPossible = true,
                     generateExamples = shouldGenerateExamples(interaction),
                 )
@@ -605,7 +605,7 @@ internal class ChatClientLlmOperations(
                         val maybeResult = converter.convert(rawText)
 
                         // Convert MaybeReturn<O> to Result<ChatResponseWithThinking<O>> with extracted thinking blocks
-                        val result = @Suppress("UNCHECKED_CAST") maybeResult!!.toResult() as Result<O> // Safe: MaybeReturn<O>.toResult() returns Result<O>
+                        val result = maybeResult!!.toResult() as Result<O> // NOSONAR: Safe cast, MaybeReturn<O>.toResult() returns Result<O>
                         when {
                             result.isSuccess -> Result.success(
                                 ChatResponseWithThinking(
