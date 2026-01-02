@@ -167,46 +167,8 @@ internal class ChatClientLlmOperations(
 
             val callResponse = try {
                 future.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
-            } catch (e: TimeoutException) {
-                future.cancel(true)
-                logger.warn(
-                    LLM_TIMEOUT_MESSAGE,
-                    interaction.id.value,
-                    attempt,
-                    timeoutMillis
-                )
-                throw RuntimeException(
-                    "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
-                    e
-                )
-            } catch (e: InterruptedException) {
-                future.cancel(true)
-                Thread.currentThread().interrupt()
-                logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
-                throw RuntimeException(
-                    "ChatClient call for interaction ${interaction.id.value} was interrupted",
-                    e
-                )
-            } catch (e: ExecutionException) {
-                future.cancel(true)
-                logger.error(
-                    "LLM {}: attempt {} failed with execution exception",
-                    interaction.id.value,
-                    attempt,
-                    e.cause
-                )
-                when (val cause = e.cause) {
-                    is RuntimeException -> throw cause
-                    is Exception -> throw RuntimeException(
-                        "ChatClient call for interaction ${interaction.id.value} failed",
-                        cause
-                    )
-
-                    else -> throw RuntimeException(
-                        "ChatClient call for interaction ${interaction.id.value} failed with unknown error",
-                        e
-                    )
-                }
+            } catch (e: Exception) {
+                handleFutureException(e, future, interaction, timeoutMillis, attempt)
             }
 
             if (outputClass == String::class.java) {
@@ -443,38 +405,8 @@ internal class ChatClientLlmOperations(
 
                 val callResponse = try {
                     future.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
-                } catch (e: TimeoutException) {
-                    future.cancel(true)
-                    logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, timeoutMillis)
-                    throw RuntimeException(
-                        "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
-                        e
-                    )
-                } catch (e: InterruptedException) {
-                    future.cancel(true)
-                    Thread.currentThread().interrupt()
-                    logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
-                    throw RuntimeException("ChatClient call for interaction ${interaction.id.value} was interrupted", e)
-                } catch (e: ExecutionException) {
-                    future.cancel(true)
-                    logger.error(
-                        "LLM {}: attempt {} failed with execution exception",
-                        interaction.id.value,
-                        attempt,
-                        e.cause
-                    )
-                    when (val cause = e.cause) {
-                        is RuntimeException -> throw cause
-                        is Exception -> throw RuntimeException(
-                            "ChatClient call for interaction ${interaction.id.value} failed",
-                            cause
-                        )
-
-                        else -> throw RuntimeException(
-                            "ChatClient call for interaction ${interaction.id.value} failed with unknown error",
-                            e
-                        )
-                    }
+                } catch (e: Exception) {
+                    handleFutureException(e, future, interaction, timeoutMillis, attempt)
                 }
 
                 logger.debug("LLM call completed for interaction {}", interaction.id.value)
@@ -586,13 +518,20 @@ internal class ChatClientLlmOperations(
 
             val result = dataBindingProperties.retryTemplate(interaction.id.value)
                 .execute<Result<ChatResponseWithThinking<O>>, DatabindException> {
-                    val callResponse = CompletableFuture.supplyAsync {
+                    val future = CompletableFuture.supplyAsync {
                         chatClient
                             .prompt(springAiPrompt)
                             .toolCallbacks(interaction.toolCallbacks)
                             .options(chatOptions)
                             .call()
-                    }.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
+                    }
+
+                    val callResponse = try {
+                        future.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
+                    } catch (e: Exception) {
+                        val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
+                        return@execute handleFutureExceptionAsResult(e, future, interaction, timeoutMillis, attempt)
+                    }
 
                     // Extract thinking blocks from raw text FIRST
                     val chatResponse = callResponse.chatResponse()
@@ -757,6 +696,114 @@ internal class ChatClientLlmOperations(
 
     private fun getTimeoutMillis(llmOptions: com.embabel.common.ai.model.LlmOptions): Long =
         (llmOptions.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+
+    /**
+     * Handles exceptions from CompletableFuture execution during LLM calls.
+     *
+     * Provides centralized exception handling for timeout, interruption, and execution failures.
+     * Cancels the future, logs appropriate warnings/errors, and throws descriptive RuntimeExceptions.
+     *
+     * @param e The exception that occurred during future execution
+     * @param future The CompletableFuture to cancel on error
+     * @param interaction The LLM interaction context for error messages
+     * @param timeoutMillis The timeout value for error reporting
+     * @param attempt The retry attempt number for logging
+     * @throws RuntimeException Always throws with appropriate error message based on exception type
+     */
+    private fun handleFutureException(
+        e: Exception,
+        future: CompletableFuture<*>,
+        interaction: LlmInteraction,
+        timeoutMillis: Long,
+        attempt: Int
+    ): Nothing {
+        when (e) {
+            is TimeoutException -> {
+                future.cancel(true)
+                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, timeoutMillis)
+                throw RuntimeException(
+                    "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
+                    e
+                )
+            }
+            is InterruptedException -> {
+                future.cancel(true)
+                Thread.currentThread().interrupt()
+                logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
+                throw RuntimeException("ChatClient call for interaction ${interaction.id.value} was interrupted", e)
+            }
+            is ExecutionException -> {
+                future.cancel(true)
+                logger.error(
+                    "LLM {}: attempt {} failed with execution exception",
+                    interaction.id.value,
+                    attempt,
+                    e.cause
+                )
+                when (val cause = e.cause) {
+                    is RuntimeException -> throw cause
+                    is Exception -> throw RuntimeException(
+                        "ChatClient call for interaction ${interaction.id.value} failed",
+                        cause
+                    )
+                    else -> throw RuntimeException(
+                        "ChatClient call for interaction ${interaction.id.value} failed with unknown error",
+                        e
+                    )
+                }
+            }
+            else -> throw e
+        }
+    }
+
+    /**
+     * Handles exceptions from CompletableFuture execution during LLM calls, returning Result.failure.
+     *
+     * Similar to handleFutureException but returns Result.failure with ChatResponseWithThinkingException
+     * instead of throwing. Used for methods that return Result types rather than throwing exceptions.
+     *
+     * @param e The exception that occurred during future execution
+     * @param future The CompletableFuture to cancel on error
+     * @param interaction The LLM interaction context for error messages
+     * @param timeoutMillis The timeout value for error reporting
+     * @param attempt The retry attempt number for logging
+     * @return Result.failure with ChatResponseWithThinkingException containing empty thinking blocks
+     */
+    private fun <O> handleFutureExceptionAsResult(
+        e: Exception,
+        future: CompletableFuture<*>,
+        interaction: LlmInteraction,
+        timeoutMillis: Long,
+        attempt: Int
+    ): Result<ChatResponseWithThinking<O>> {
+        return when (e) {
+            is TimeoutException -> {
+                future.cancel(true)
+                logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, timeoutMillis)
+                Result.failure(ChatResponseWithThinkingException(
+                    message = "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
+                    thinkingBlocks = emptyList() // No response = no thinking blocks
+                ))
+            }
+            is InterruptedException -> {
+                future.cancel(true)
+                Thread.currentThread().interrupt()
+                logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
+                Result.failure(ChatResponseWithThinkingException(
+                    message = "ChatClient call for interaction ${interaction.id.value} was interrupted",
+                    thinkingBlocks = emptyList() // No response = no thinking blocks
+                ))
+            }
+            else -> {
+                future.cancel(true)
+                logger.error("LLM {}: attempt {} failed", interaction.id.value, attempt, e)
+                Result.failure(ChatResponseWithThinkingException(
+                    message = "ChatClient call for interaction ${interaction.id.value} failed: ${e.message}",
+                    thinkingBlocks = emptyList() // No response = no thinking blocks
+                ))
+            }
+        }
+    }
 
 }
 
