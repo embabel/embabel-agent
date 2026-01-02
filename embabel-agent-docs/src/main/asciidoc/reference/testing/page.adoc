@@ -126,6 +126,141 @@ internal class WriteAndReviewAgentTest {
 }
 ----
 
+===== Testing the Fluent API: withId() and creating()
+
+The `FakePromptRunner` fully supports the fluent API patterns used in production code, enabling comprehensive unit testing of agents that use `withId()` for interaction tracing and `creating()` for structured object creation with examples.
+
+**Testing withId() for Interaction Tracing:**
+
+The `withId()` method sets an interaction ID for better log tracing. In tests, you can verify the interaction ID was correctly set:
+
+[source,java]
+----
+@Test
+void shouldSetInteractionIdCorrectly() {
+    var context = FakeOperationContext.create();
+    var expectedIntent = new UserIntent("command", "Change channel names");
+    context.expectResponse(expectedIntent);
+
+    var result = context.ai()
+            .withId("classify-intent")  // Set interaction ID for tracing
+            .creating(UserIntent.class)
+            .fromPrompt("Classify the user's intent");
+
+    assertEquals(expectedIntent, result);
+
+    // Verify the interaction ID was set correctly
+    var interaction = context.getLlmInvocations().getFirst().getInteraction();
+    assertEquals("classify-intent", interaction.getId().getValue());
+}
+----
+
+[source,kotlin]
+----
+@Test
+fun `should set interaction ID correctly`() {
+    val context = FakeOperationContext.create()
+    val expectedIntent = UserIntent("command", "Change channel names")
+    context.expectResponse(expectedIntent)
+
+    val result = context.ai()
+        .withId("classify-intent")  // Set interaction ID for tracing
+        .creating(UserIntent::class.java)
+        .fromPrompt("Classify the user's intent")
+
+    assertEquals(expectedIntent, result)
+
+    // Verify the interaction ID was set correctly
+    val interaction = context.llmInvocations.first().interaction
+    assertEquals(InteractionId("classify-intent"), interaction.id)
+}
+----
+
+**Testing creating() with withExample():**
+
+The `creating()` API allows you to provide strongly-typed examples to improve LLM output quality. In tests, you can verify examples were included:
+
+[source,java]
+----
+@Test
+void shouldIncludeExamplesInPrompt() {
+    var context = FakeOperationContext.create();
+    var expectedPlan = new ChannelEditPlan(1, "Lead Vox");
+    context.expectResponse(expectedPlan);
+
+    var result = context.ai()
+            .withLlm(llmSelectionService.selectOptimalLlm())
+            .withId("analyze-edit-request")
+            .creating(ChannelEditPlan.class)
+            .withExample("Rename channel 1", new ChannelEditPlan(1, "Bass"))
+            .withExample("Rename channel 2", new ChannelEditPlan(2, "Drums"))
+            .fromPrompt("Analyze the edit request");
+
+    assertEquals(expectedPlan, result);
+
+    // Verify examples were added as prompt contributors
+    var promptContributors = context.getLlmInvocations().getFirst()
+            .getInteraction().getPromptContributors();
+    assertTrue(promptContributors.size() >= 2, "Examples should be added as prompt contributors");
+}
+----
+
+[source,kotlin]
+----
+@Test
+fun `should include examples in prompt`() {
+    val context = FakeOperationContext.create()
+    val expectedPlan = ChannelEditPlan(1, "Lead Vox")
+    context.expectResponse(expectedPlan)
+
+    val result = context.ai()
+        .withLlm(llmSelectionService.selectOptimalLlm())
+        .withId("analyze-edit-request")
+        .creating(ChannelEditPlan::class.java)
+        .withExample("Rename channel 1", ChannelEditPlan(1, "Bass"))
+        .withExample("Rename channel 2", ChannelEditPlan(2, "Drums"))
+        .fromPrompt("Analyze the edit request")
+
+    assertEquals(expectedPlan, result)
+
+    // Verify examples were added as prompt contributors
+    val promptContributors = context.llmInvocations.first().interaction.promptContributors
+    assertTrue(promptContributors.size >= 2, "Examples should be added as prompt contributors")
+}
+----
+
+**Full Fluent API Chain Example:**
+
+Here's a complete example showing how to test an action that uses all the fluent API features:
+
+[source,java]
+----
+@Test
+void shouldTestCompleteFluentApiChain() {
+    var context = FakeOperationContext.create();
+    var expectedOutput = new ComplexOutput("analysis complete", 42);
+    context.expectResponse(expectedOutput);
+
+    // Production code pattern with full fluent API chain
+    var result = context.ai()
+            .withLlm(LlmOptions.withModel("gpt-4"))
+            .withId("complex-analysis")
+            .withSystemPrompt("You are an expert analyst")
+            .creating(ComplexOutput.class)
+            .withExample("Simple case", new ComplexOutput("basic", 1))
+            .withExample("Complex case", new ComplexOutput("advanced", 100))
+            .fromPrompt("Analyze the input data");
+
+    assertEquals(expectedOutput, result);
+
+    // Comprehensive verification
+    var invocation = context.getLlmInvocations().getFirst();
+    assertEquals("gpt-4", invocation.getInteraction().getLlm().getModel());
+    assertEquals("complex-analysis", invocation.getInteraction().getId().getValue());
+    assertTrue(invocation.getInteraction().getPromptContributors().size() >= 3); // system + 2 examples
+}
+----
+
 ===== Key Testing Patterns Demonstrated
 
 **Testing Prompt Content:**

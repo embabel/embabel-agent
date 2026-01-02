@@ -63,6 +63,11 @@ data class FakePromptRunner(
     private val _llmInvocations: MutableList<LlmInvocation> = mutableListOf(),
     private val responses: MutableList<Any?> = mutableListOf(),
     private val otherToolCallbacks: List<ToolCallback> = emptyList(),
+    /**
+     * The interaction ID set via withInteractionId() or withId().
+     * Can be inspected in tests to verify the correct ID was set.
+     */
+    val interactionId: InteractionId? = null,
 ) : PromptRunner {
 
     private val logger = LoggerFactory.getLogger(FakePromptRunner::class.java)
@@ -71,9 +76,8 @@ data class FakePromptRunner(
         logger.info("Fake prompt runner created: ${hashCode()}")
     }
 
-    override fun withInteractionId(interactionId: InteractionId): PromptRunner {
-        TODO("Not yet implemented")
-    }
+    override fun withInteractionId(interactionId: InteractionId): PromptRunner =
+        copy(interactionId = interactionId)
 
 
     override fun withMessages(messages: List<Message>): PromptRunner =
@@ -198,10 +202,7 @@ data class FakePromptRunner(
                     context
                 )
             },
-            id = InteractionId(
-                MobyNameGenerator.generateName(
-                )
-            ),
+            id = interactionId ?: InteractionId(MobyNameGenerator.generateName()),
             generateExamples = generateExamples,
         )
 
