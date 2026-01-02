@@ -229,6 +229,138 @@ fun `should include examples in prompt`() {
 }
 ----
 
+**Using ObjectCreationExample for Reusable Examples:**
+
+For cleaner code and reusability, you can use the `ObjectCreationExample` data class to define examples that can be shared across tests or passed as collections:
+
+[source,java]
+----
+@Test
+void shouldUseObjectCreationExampleDataClass() {
+    var context = FakeOperationContext.create();
+    var expectedPlan = new ChannelEditPlan(1, "Lead Vox");
+    context.expectResponse(expectedPlan);
+
+    // Create a reusable example using ObjectCreationExample
+    var example = new ObjectCreationExample<>(
+        "Rename channel example",
+        new ChannelEditPlan(2, "Rhythm")
+    );
+
+    var result = context.ai()
+            .withDefaultLlm()
+            .creating(ChannelEditPlan.class)
+            .withExample(example)  // Pass the ObjectCreationExample directly
+            .fromPrompt("Analyze the edit request");
+
+    assertEquals(expectedPlan, result);
+}
+----
+
+[source,kotlin]
+----
+@Test
+fun `should use ObjectCreationExample data class`() {
+    val context = FakeOperationContext.create()
+    val expectedPlan = ChannelEditPlan(1, "Lead Vox")
+    context.expectResponse(expectedPlan)
+
+    // Create a reusable example using ObjectCreationExample
+    val example = ObjectCreationExample(
+        description = "Rename channel example",
+        value = ChannelEditPlan(2, "Rhythm")
+    )
+
+    val result = context.ai()
+        .withDefaultLlm()
+        .creating(ChannelEditPlan::class.java)
+        .withExample(example)  // Pass the ObjectCreationExample directly
+        .fromPrompt("Analyze the edit request")
+
+    assertEquals(expectedPlan, result)
+}
+----
+
+**Adding Multiple Examples with withExamples():**
+
+When you have many examples to add, use `withExamples()` to pass them as a list or vararg. This is especially useful when examples are loaded from a file or database:
+
+[source,java]
+----
+@Test
+void shouldAddMultipleExamplesFromList() {
+    var context = FakeOperationContext.create();
+    var expectedPlan = new ChannelEditPlan(1, "Lead Vox");
+    context.expectResponse(expectedPlan);
+
+    // Create a list of examples (could be loaded from configuration)
+    var examples = List.of(
+        new ObjectCreationExample<>("Rename to Bass", new ChannelEditPlan(1, "Bass")),
+        new ObjectCreationExample<>("Rename to Drums", new ChannelEditPlan(2, "Drums")),
+        new ObjectCreationExample<>("Rename to Keys", new ChannelEditPlan(3, "Keys")),
+        new ObjectCreationExample<>("Rename to Vocals", new ChannelEditPlan(4, "Vocals"))
+    );
+
+    var result = context.ai()
+            .withDefaultLlm()
+            .creating(ChannelEditPlan.class)
+            .withExamples(examples)  // Pass all examples at once
+            .fromPrompt("Analyze the request");
+
+    assertEquals(expectedPlan, result);
+
+    // Verify all examples were added
+    var promptContributors = context.getLlmInvocations().getFirst()
+            .getInteraction().getPromptContributors();
+    assertTrue(promptContributors.size() >= 4);
+}
+----
+
+[source,kotlin]
+----
+@Test
+fun `should add multiple examples from list`() {
+    val context = FakeOperationContext.create()
+    val expectedPlan = ChannelEditPlan(1, "Lead Vox")
+    context.expectResponse(expectedPlan)
+
+    // Create a list of examples (could be loaded from configuration)
+    val examples = listOf(
+        ObjectCreationExample("Rename to Bass", ChannelEditPlan(1, "Bass")),
+        ObjectCreationExample("Rename to Drums", ChannelEditPlan(2, "Drums")),
+        ObjectCreationExample("Rename to Keys", ChannelEditPlan(3, "Keys")),
+        ObjectCreationExample("Rename to Vocals", ChannelEditPlan(4, "Vocals"))
+    )
+
+    val result = context.ai()
+        .withDefaultLlm()
+        .creating(ChannelEditPlan::class.java)
+        .withExamples(examples)  // Pass all examples at once
+        .fromPrompt("Analyze the request")
+
+    assertEquals(expectedPlan, result)
+
+    // Verify all examples were added
+    val promptContributors = context.llmInvocations.first().interaction.promptContributors
+    assertTrue(promptContributors.size >= 4)
+}
+----
+
+You can also use vararg syntax for inline example lists:
+
+[source,kotlin]
+----
+val result = context.ai()
+    .withDefaultLlm()
+    .creating(ChannelEditPlan::class.java)
+    .withExamples(
+        ObjectCreationExample("Example 1", ChannelEditPlan(1, "Bass")),
+        ObjectCreationExample("Example 2", ChannelEditPlan(2, "Drums")),
+        ObjectCreationExample("Example 3", ChannelEditPlan(3, "Keys"))
+    )
+    .fromPrompt("Analyze the request")
+----
+
 **Full Fluent API Chain Example:**
 
 Here's a complete example showing how to test an action that uses all the fluent API features:

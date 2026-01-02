@@ -16,6 +16,7 @@
 package com.embabel.agent.test.unit
 
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.common.nested.ObjectCreationExample
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -231,6 +232,154 @@ class FakePromptRunnerTest {
                 .creating(TestUserIntent::class.java)
                 .withoutProperties("description")
                 .fromPrompt("Create without description")
+
+            assertEquals(expectedIntent, result)
+        }
+
+        @Test
+        fun `creating with ObjectCreationExample data class works`() {
+            val context = FakeOperationContext.create()
+            val expectedPlan = TestChannelEditPlan(1, "Lead Vox")
+            context.expectResponse(expectedPlan)
+
+            val example = ObjectCreationExample(
+                description = "Rename channel example",
+                value = TestChannelEditPlan(2, "Rhythm")
+            )
+
+            val result = context.ai()
+                .withDefaultLlm()
+                .creating(TestChannelEditPlan::class.java)
+                .withExample(example)
+                .fromPrompt("Analyze the edit request")
+
+            assertEquals(expectedPlan, result)
+            assertEquals(1, context.llmInvocations.size)
+
+            // Verify that example was added as a prompt contributor
+            val promptContributors = context.llmInvocations[0].interaction.promptContributors
+            assertTrue(promptContributors.isNotEmpty())
+        }
+
+        @Test
+        fun `creating with withExamples vararg adds all examples`() {
+            val context = FakeOperationContext.create()
+            val expectedPlan = TestChannelEditPlan(1, "Lead Vox")
+            context.expectResponse(expectedPlan)
+
+            val example1 = ObjectCreationExample("First example", TestChannelEditPlan(1, "Bass"))
+            val example2 = ObjectCreationExample("Second example", TestChannelEditPlan(2, "Drums"))
+            val example3 = ObjectCreationExample("Third example", TestChannelEditPlan(3, "Keys"))
+
+            val result = context.ai()
+                .withDefaultLlm()
+                .creating(TestChannelEditPlan::class.java)
+                .withExamples(example1, example2, example3)
+                .fromPrompt("Analyze the request")
+
+            assertEquals(expectedPlan, result)
+            assertEquals(1, context.llmInvocations.size)
+
+            // Verify all examples were added as prompt contributors
+            val promptContributors = context.llmInvocations[0].interaction.promptContributors
+            assertTrue(promptContributors.size >= 3, "Expected at least 3 prompt contributors for examples")
+        }
+
+        @Test
+        fun `creating with withExamples list adds all examples`() {
+            val context = FakeOperationContext.create()
+            val expectedPlan = TestChannelEditPlan(1, "Lead Vox")
+            context.expectResponse(expectedPlan)
+
+            val examples = listOf(
+                ObjectCreationExample("Rename to Bass", TestChannelEditPlan(1, "Bass")),
+                ObjectCreationExample("Rename to Drums", TestChannelEditPlan(2, "Drums")),
+                ObjectCreationExample("Rename to Keys", TestChannelEditPlan(3, "Keys")),
+                ObjectCreationExample("Rename to Vocals", TestChannelEditPlan(4, "Vocals"))
+            )
+
+            val result = context.ai()
+                .withDefaultLlm()
+                .creating(TestChannelEditPlan::class.java)
+                .withExamples(examples)
+                .fromPrompt("Analyze the request")
+
+            assertEquals(expectedPlan, result)
+            assertEquals(1, context.llmInvocations.size)
+
+            // Verify all examples were added as prompt contributors
+            val promptContributors = context.llmInvocations[0].interaction.promptContributors
+            assertTrue(promptContributors.size >= 4, "Expected at least 4 prompt contributors for examples")
+        }
+
+        @Test
+        fun `creating with mixed withExample and withExamples works`() {
+            val context = FakeOperationContext.create()
+            val expectedPlan = TestChannelEditPlan(1, "Lead Vox")
+            context.expectResponse(expectedPlan)
+
+            val examples = listOf(
+                ObjectCreationExample("List example 1", TestChannelEditPlan(1, "Bass")),
+                ObjectCreationExample("List example 2", TestChannelEditPlan(2, "Drums"))
+            )
+
+            val result = context.ai()
+                .withDefaultLlm()
+                .creating(TestChannelEditPlan::class.java)
+                .withExample("Single example", TestChannelEditPlan(5, "Solo"))
+                .withExamples(examples)
+                .fromPrompt("Analyze the request")
+
+            assertEquals(expectedPlan, result)
+            assertEquals(1, context.llmInvocations.size)
+
+            // Verify all examples were added (1 single + 2 from list)
+            val promptContributors = context.llmInvocations[0].interaction.promptContributors
+            assertTrue(promptContributors.size >= 3, "Expected at least 3 prompt contributors")
+        }
+
+        @Test
+        fun `ObjectCreationExample has correct properties`() {
+            val example = ObjectCreationExample(
+                description = "Test description",
+                value = TestUserIntent("command", "Test command")
+            )
+
+            assertEquals("Test description", example.description)
+            assertEquals(TestUserIntent("command", "Test command"), example.value)
+        }
+
+        @Test
+        fun `creating with fromMessages works`() {
+            val context = FakeOperationContext.create()
+            val expectedIntent = TestUserIntent("query", "Search request")
+            context.expectResponse(expectedIntent)
+
+            val messages = listOf(
+                com.embabel.chat.UserMessage("First message"),
+                com.embabel.chat.UserMessage("Second message")
+            )
+
+            val result = context.ai()
+                .withDefaultLlm()
+                .creating(TestUserIntent::class.java)
+                .fromMessages(messages)
+
+            assertEquals(expectedIntent, result)
+            assertEquals(1, context.llmInvocations.size)
+        }
+
+        @Test
+        fun `creating with property filter predicate works`() {
+            val context = FakeOperationContext.create()
+            val expectedIntent = TestUserIntent("command", "filtered")
+            context.expectResponse(expectedIntent)
+
+            val result = context.ai()
+                .withDefaultLlm()
+                .creating(TestUserIntent::class.java)
+                .withPropertyFilter { it.startsWith("t") } // Only "type" property
+                .fromPrompt("Create with filtered properties")
 
             assertEquals(expectedIntent, result)
         }

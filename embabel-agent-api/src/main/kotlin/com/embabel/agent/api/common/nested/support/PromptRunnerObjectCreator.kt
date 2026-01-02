@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common.nested.support
 
 import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.api.common.nested.ObjectCreationExample
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.chat.Message
 import com.embabel.common.ai.prompt.PromptContributor
@@ -29,8 +30,7 @@ internal data class PromptRunnerObjectCreator<T>(
 ) : ObjectCreator<T> {
 
     override fun withExample(
-        description: String,
-        value: T,
+        example: ObjectCreationExample<T>,
     ): ObjectCreator<T> {
         return copy(
             promptRunner = promptRunner
@@ -38,8 +38,8 @@ internal data class PromptRunnerObjectCreator<T>(
                 .withPromptContributor(
                     PromptContributor.Companion.fixed(
                         """
-                        Example: $description
-                        ${objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(value)}
+                        Example: ${example.description}
+                        ${objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(example.value)}
                         """.trimIndent()
                     )
                 )

@@ -21,6 +21,18 @@ import java.util.function.Predicate
 import kotlin.reflect.KProperty1
 
 /**
+ * An example of creating an object of the given type.
+ * Used to provide strongly typed examples to the ObjectCreator.
+ * @param T the type of object to create
+ * @param description description of the example--e.g. "good example, correct amount of detail"
+ * @param value the example object
+ */
+data class ObjectCreationExample<T>(
+    val description: String,
+    val value: T,
+)
+
+/**
  * Interface to create objects of the given type from a prompt or messages.
  * Allows setting strongly typed examples.
  */
@@ -35,6 +47,40 @@ interface ObjectCreator<T> {
     fun withExample(
         description: String,
         value: T,
+    ): ObjectCreator<T> = withExample(
+        ObjectCreationExample(
+            description = description,
+            value = value,
+        ),
+    )
+
+    /**
+     * Convenience method to add multiple examples from a list or other iterable.
+     * Each example will be added as a prompt contributor to improve LLM output quality.
+     */
+    fun withExamples(examples: Iterable<ObjectCreationExample<T>>): ObjectCreator<T> {
+        var result: ObjectCreator<T> = this
+        examples.forEach {
+            result = result.withExample(it)
+        }
+        return result
+    }
+
+    /**
+     * Convenience method to add multiple examples using vararg syntax.
+     * Each example will be added as a prompt contributor to improve LLM output quality.
+     */
+    fun withExamples(vararg examples: ObjectCreationExample<T>): ObjectCreator<T> =
+        withExamples(examples.asIterable())
+
+    /**
+     * Add an example of the desired output to the prompt.
+     * This will be included in JSON.
+     * It is possible to call this method multiple times.
+     * This will override PromptRunner.withGenerateExamples
+     */
+    fun withExample(
+        example: ObjectCreationExample<T>,
     ): ObjectCreator<T>
 
     /**
