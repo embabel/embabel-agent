@@ -19,10 +19,12 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.safelyGetToolCallbacks
 import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -30,8 +32,6 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.ai.tool.ToolCallback
@@ -112,7 +112,7 @@ data class FakePromptRunner(
         }
         if (!outputClass.isInstance(maybeT)) {
             throw IllegalStateException(
-                "Expected response of type ${outputClass.name}, but got ${maybeT?.javaClass?.name ?: "null"}."
+                "Expected response of type ${outputClass.name}, but got ${maybeT.javaClass.name}."
             )
         }
         return maybeT as T
