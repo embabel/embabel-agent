@@ -16,7 +16,6 @@
 package com.embabel.agent.api.common.thinking
 
 import com.embabel.agent.api.common.PromptRunnerOperations
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.ChatResponseWithThinking
 import com.embabel.chat.Message

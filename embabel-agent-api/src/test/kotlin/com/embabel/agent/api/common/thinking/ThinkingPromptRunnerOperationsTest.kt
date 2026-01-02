@@ -331,7 +331,7 @@ class ThinkingPromptRunnerOperationsTest {
      * Additional thinking functionality tests for ThinkingPromptRunnerOperationsImpl coverage.
      * Tests the public API through OperationContextPromptRunner.withThinking().
      */
-    // Data class for coverage tests  
+    // Data class for coverage tests
     data class SimpleTestData(
         val message: String,
         val value: Int,

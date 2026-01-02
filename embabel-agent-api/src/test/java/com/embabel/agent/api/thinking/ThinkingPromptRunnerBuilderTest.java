@@ -24,35 +24,35 @@ import static org.mockito.Mockito.mock;
 
 /**
  * Simple test for ThinkingPromptRunnerBuilder Java API.
- * 
+ * <p>
  * Verifies that Java code can successfully access thinking functionality
  * through the builder pattern.
  */
-public class ThinkingPromptRunnerBuilderTest {
+class ThinkingPromptRunnerBuilderTest {
 
     @Test
-    public void testBuilderCreatesThinkingOperations() {
+    void testBuilderCreatesThinkingOperations() {
         // Given: A mock prompt runner operations
         PromptRunnerOperations runner = mock(PromptRunnerOperations.class);
-        
+
         // When: Using the builder to create thinking operations
         ThinkingPromptRunnerOperations thinkingOps = new ThinkingPromptRunnerBuilder(runner)
-            .withThinking();
-        
+                .withThinking();
+
         // Then: Should return valid ThinkingPromptRunnerOperations
         assertNotNull(thinkingOps);
     }
 
     @Test
-    public void testFactoryMethodCreatesThinkingOperations() {
+    void testFactoryMethodCreatesThinkingOperations() {
         // Given: A mock prompt runner operations
         PromptRunnerOperations runner = mock(PromptRunnerOperations.class);
-        
+
         // When: Using the static factory method
         ThinkingPromptRunnerOperations thinkingOps = ThinkingPromptRunnerBuilder
-            .from(runner)
-            .withThinking();
-        
+                .from(runner)
+                .withThinking();
+
         // Then: Should create thinking operations successfully
         assertNotNull(thinkingOps);
     }

@@ -65,6 +65,10 @@ import java.util.concurrent.TimeoutException
 
 const val PROMPT_ELEMENT_SEPARATOR = "\n----\n";
 
+// Log message constants to avoid duplication
+private const val LLM_TIMEOUT_MESSAGE = "LLM {}: attempt {} timed out after {}ms"
+private const val LLM_INTERRUPTED_MESSAGE = "LLM {}: attempt {} was interrupted"
+
 /**
  * LlmOperations implementation that uses the Spring AI ChatClient
  * @param modelProvider ModelProvider to get the LLM model
@@ -162,11 +166,11 @@ internal class ChatClientLlmOperations(
             }
 
             val callResponse = try {
-                future.get(timeoutMillis, TimeUnit.MILLISECONDS)
+                future.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
             } catch (e: TimeoutException) {
                 future.cancel(true)
                 logger.warn(
-                    "LLM {}: attempt {} timed out after {}ms",
+                    LLM_TIMEOUT_MESSAGE,
                     interaction.id.value,
                     attempt,
                     timeoutMillis
@@ -178,7 +182,7 @@ internal class ChatClientLlmOperations(
             } catch (e: InterruptedException) {
                 future.cancel(true)
                 Thread.currentThread().interrupt()
-                logger.warn("LLM {}: attempt {} was interrupted", interaction.id.value, attempt)
+                logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
                 throw RuntimeException(
                     "ChatClient call for interaction ${interaction.id.value} was interrupted",
                     e
@@ -295,7 +299,7 @@ internal class ChatClientLlmOperations(
                         when (throwable.cause ?: throwable) {
                             is TimeoutException -> {
                                 logger.warn(
-                                    "LLM {}: attempt {} timed out after {}ms",
+                                    LLM_TIMEOUT_MESSAGE,
                                     interaction.id.value,
                                     attempt,
                                     timeoutMillis
@@ -330,11 +334,11 @@ internal class ChatClientLlmOperations(
                             }
                         }
                     }
-                    .get()
+                    .get() // NOSONAR: CompletableFuture.get() is not collection access
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
                 logger.warn(
-                    "LLM {}: attempt {} was interrupted",
+                    LLM_INTERRUPTED_MESSAGE,
                     interaction.id.value,
                     attempt
                 )
@@ -423,7 +427,7 @@ internal class ChatClientLlmOperations(
         }
 
         val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
-        val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+        val timeoutMillis = getTimeoutMillis(interaction.llm)
 
         return dataBindingProperties.retryTemplate(interaction.id.value)
             .execute<ChatResponseWithThinking<O>, DatabindException> {
@@ -438,10 +442,10 @@ internal class ChatClientLlmOperations(
                 }
 
                 val callResponse = try {
-                    future.get(timeoutMillis, TimeUnit.MILLISECONDS)
+                    future.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
                 } catch (e: TimeoutException) {
                     future.cancel(true)
-                    logger.warn("LLM {}: attempt {} timed out after {}ms", interaction.id.value, attempt, timeoutMillis)
+                    logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, timeoutMillis)
                     throw RuntimeException(
                         "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
                         e
@@ -449,7 +453,7 @@ internal class ChatClientLlmOperations(
                 } catch (e: InterruptedException) {
                     future.cancel(true)
                     Thread.currentThread().interrupt()
-                    logger.warn("LLM {}: attempt {} was interrupted", interaction.id.value, attempt)
+                    logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
                     throw RuntimeException("ChatClient call for interaction ${interaction.id.value} was interrupted", e)
                 } catch (e: ExecutionException) {
                     future.cancel(true)
@@ -485,7 +489,7 @@ internal class ChatClientLlmOperations(
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
 
                     ChatResponseWithThinking(
-                        result = rawText as O,
+                        result = @Suppress("UNCHECKED_CAST") rawText as O, // Safe: outputClass == String::class.java
                         thinkingBlocks = thinkingBlocks
                     )
                 } else {
@@ -557,7 +561,7 @@ internal class ChatClientLlmOperations(
                             propertyFilter = interaction.propertyFilter,
                         )
                     ),
-                    outputClass = outputClass as Class<MaybeReturn<*>>,
+                    outputClass = @Suppress("UNCHECKED_CAST") outputClass as Class<MaybeReturn<*>>, // Safe: used with MaybeReturn wrapper
                     ifPossible = true,
                     generateExamples = shouldGenerateExamples(interaction),
                 )
@@ -588,7 +592,7 @@ internal class ChatClientLlmOperations(
                             .toolCallbacks(interaction.toolCallbacks)
                             .options(chatOptions)
                             .call()
-                    }.get(timeoutMillis, TimeUnit.MILLISECONDS)
+                    }.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
 
                     // Extract thinking blocks from raw text FIRST
                     val chatResponse = callResponse.chatResponse()
@@ -601,7 +605,7 @@ internal class ChatClientLlmOperations(
                         val maybeResult = converter.convert(rawText)
 
                         // Convert MaybeReturn<O> to Result<ChatResponseWithThinking<O>> with extracted thinking blocks
-                        val result = maybeResult!!.toResult() as Result<O>
+                        val result = @Suppress("UNCHECKED_CAST") maybeResult!!.toResult() as Result<O> // Safe: MaybeReturn<O>.toResult() returns Result<O>
                         when {
                             result.isSuccess -> Result.success(
                                 ChatResponseWithThinking(
@@ -750,6 +754,9 @@ internal class ChatClientLlmOperations(
             }
         )
     }
+
+    private fun getTimeoutMillis(llmOptions: com.embabel.common.ai.model.LlmOptions): Long =
+        (llmOptions.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
 
 }
 

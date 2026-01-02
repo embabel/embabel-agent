@@ -487,7 +487,7 @@ class ChatClientLlmOperationsThinkingTest {
         val successResponse = """
             {
                 "success": {
-                    "status": "thinking_success", 
+                    "status": "thinking_success",
                     "value": 111
                 }
             }
@@ -535,7 +535,7 @@ class ChatClientLlmOperationsThinkingTest {
         val malformedThinkingResponse = """
             <think>
             This thinking block is not properly closed
-            
+
             {"status": "malformed_thinking", "value": 999}
         """.trimIndent()
         val fakeChatModel = FakeChatModel(malformedThinkingResponse)
@@ -621,16 +621,16 @@ class ChatClientLlmOperationsThinkingTest {
             First, I need to understand the requirements.
             Second, I should analyze the data structure.
             </reasoning>
-            
+
             Some additional text here that might confuse parsing.
-            
+
             <analysis>
             Based on my reasoning, the optimal solution is:
             - Use structured approach
             - Validate all inputs
             - Return comprehensive results
             </analysis>
-            
+
             {
                 "status": "complex_analysis_complete",
                 "value": 777
