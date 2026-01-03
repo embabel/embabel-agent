@@ -290,12 +290,6 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-test-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-test-internal</artifactId>
                 <version>${project.version}</version>
             </dependency>
