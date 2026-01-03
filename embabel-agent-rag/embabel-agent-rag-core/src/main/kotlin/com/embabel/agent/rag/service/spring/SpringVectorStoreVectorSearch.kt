@@ -33,6 +33,10 @@ class SpringVectorStoreVectorSearch(
     private val vectorStore: VectorStore,
 ) : VectorSearch {
 
+    override fun supportedRetrievableTypes(): Set<Class<out Retrievable>> {
+        return setOf(Chunk::class.java)
+    }
+
     override fun <T : Retrievable> vectorSearch(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,

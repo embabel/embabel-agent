@@ -22,16 +22,42 @@ import com.embabel.common.core.types.TextSimilaritySearchRequest
 
 /**
  * Tag interface for search operations
- * Concrete implementations implement one or more subinterfaces
+ * Concrete implementations are RAG building blocks that
+ * implement one or more subinterfaces and
+ * are easy to expose to LLMs via tools
  */
 interface SearchOperations
 
 /**
- * RAG building blocks
- * Implemented by types that can search for chunks or other retrievables
- * Ease to expose to LLMs via tools
+ * Supports listing supported retrievable types
  */
-interface VectorSearch : SearchOperations {
+interface TypeRetrievalOperations : SearchOperations {
+
+    /**
+     * List the types of Retrievable supported by this store
+     */
+    fun supportedRetrievableTypes(): Set<Class<out Retrievable>>
+}
+
+
+/**
+ * Supports retrieval of retrievables by ID
+ */
+interface FinderOperations : TypeRetrievalOperations {
+
+    /**
+     * Retrieve a retrievable by its ID
+     */
+    fun <T : Retrievable> findById(
+        id: String,
+        clazz: Class<T>,
+    ): T?
+}
+
+/**
+ * Traditional RAG vector search
+ */
+interface VectorSearch : TypeRetrievalOperations {
 
     /**
      * Perform classic vector search
@@ -43,6 +69,9 @@ interface VectorSearch : SearchOperations {
 
 }
 
+/**
+ * Full-text search using Lucene query syntax
+ */
 interface TextSearch : SearchOperations {
     /**
      * Performs full-text search using Lucene query syntax.
@@ -136,4 +165,4 @@ interface ResultExpander : SearchOperations {
 /**
  * Commonly implemented set of search functionality
  */
-interface CoreSearchOperations : VectorSearch, TextSearch
+interface CoreSearchOperations : FinderOperations, VectorSearch, TextSearch

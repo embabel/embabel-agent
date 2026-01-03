@@ -15,18 +15,14 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.ContentElement
-import com.embabel.agent.rag.model.Embeddable
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.*
 import com.embabel.common.ai.prompt.PromptContributor
-import com.embabel.common.core.types.*
-import com.embabel.common.util.loggerFor
-import com.embabel.common.util.time
-import org.slf4j.Logger
+import com.embabel.common.core.types.SimilarityResult
+import com.embabel.common.core.types.Timed
+import com.embabel.common.core.types.Timestamped
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
@@ -88,9 +84,18 @@ data class ToolishRag @JvmOverloads constructor(
 
     private val toolInstances: List<Any> = run {
         buildList {
+            // If the search operations already implement SearchTools, use them directly
             if (searchOperations is SearchTools) {
                 logger.info("Adding existing SearchTools to ToolishRag tools {}", name)
                 add(searchOperations)
+            }
+            if (searchOperations is TypeRetrievalOperations) {
+                logger.info("Adding TypeRetrievalTools to ToolishRag tools {}", name)
+                add(TypeRetrievalTools(searchOperations))
+            }
+            if (searchOperations is FinderOperations) {
+                logger.info("Adding FinderTools to ToolishRag tools {}", name)
+                add(FinderTools(searchOperations))
             }
             if (searchOperations is VectorSearch) {
                 logger.info("Adding VectorSearchTools to ToolishRag tools {}", name)
@@ -182,154 +187,3 @@ data class ToolishRag @JvmOverloads constructor(
  * Marker interface for RAG search tools
  */
 interface SearchTools
-
-/**
- * Classic vector search
- */
-class VectorSearchTools @JvmOverloads constructor(
-    private val vectorSearch: VectorSearch,
-    private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
-    private val resultsListener: ResultsListener? = null,
-) : SearchTools {
-
-    private val logger: Logger = LoggerFactory.getLogger(javaClass)
-
-    @LlmTool(description = "Perform vector search. Specify topK and similarity threshold from 0-1")
-    fun vectorSearch(
-        query: String,
-        topK: Int,
-        @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
-    ): String {
-        logger.info(
-            "Performing vector search with query='{}', topK={}, threshold={}, types={}",
-            query, topK, threshold, searchFor.map { it.simpleName }
-        )
-        val request = TextSimilaritySearchRequest(query, threshold, topK)
-        val (results, ms) = time {
-            searchForAllTypes(request)
-        }
-        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
-    }
-
-    private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
-        val allResults = searchFor.flatMap { clazz ->
-            vectorSearch.vectorSearch(request, clazz)
-        }
-        return deduplicateByIdKeepingHighestScore(allResults)
-    }
-}
-
-/**
- * Tools to expand chunks around an anchor chunk that has already been retrieved
- */
-class ResultExpanderTools(
-    private val resultExpander: ResultExpander,
-) : SearchTools {
-
-    @LlmTool(description = "given a chunk ID, expand to surrounding chunks")
-    fun broadenChunk(
-        @LlmTool.Param(description = "id of the chunk to expand") chunkId: String,
-        @LlmTool.Param(description = "chunksToAdd", required = false) chunksToAdd: Int = 2,
-    ): String {
-        val expandedElements = resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
-        return expandedElements
-            .filterIsInstance<Chunk>()
-            .joinToString("\n") { chunk ->
-                "Chunk ID: ${chunk.id}\nContent: ${chunk.text}\n"
-            }
-    }
-
-    @LlmTool(description = "given a content element ID, expand to parent section")
-    fun zoomOut(
-        @LlmTool.Param(description = "id of the content element to expand") id: String,
-    ): String {
-        val expandedElements: List<ContentElement> = resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
-        return expandedElements
-            .filter { it is Embeddable }
-            .joinToString("\n") { contentElement ->
-                "${contentElement.javaClass.simpleName}: id=${contentElement.id}\nContent: ${(contentElement as Embeddable).embeddableValue()}\n"
-            }
-    }
-
-}
-
-/**
- * Tools to perform text search operations with Lucene syntax
- */
-class TextSearchTools @JvmOverloads constructor(
-    private val textSearch: TextSearch,
-    private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
-    private val resultsListener: ResultsListener? = null,
-) : SearchTools {
-    private val logger: Logger = LoggerFactory.getLogger(javaClass)
-
-    @LlmTool(
-        description = """
-        Perform BMI25 search. Specify topK and similarity threshold from 0-1
-        Query follows Lucene syntax, e.g. +term for required terms, -term for negative terms,
-        "quoted phrases", wildcards (*), fuzzy (~).
-    """
-    )
-    fun textSearch(
-        @LlmTool.Param(
-            description = """"
-            Query in Lucene syntax,
-            e.g. +term for required terms, -term for negative terms,
-            quoted phrases", wildcards (*), fuzzy (~).
-        """
-        )
-        query: String,
-        topK: Int,
-        @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
-    ): String {
-        logger.info(
-            "Performing text search with query='{}', topK={}, threshold={}, types={}",
-            query, topK, threshold, searchFor.map { it.simpleName }
-        )
-
-        val request = TextSimilaritySearchRequest(query, threshold, topK)
-        val (results, ms) = time {
-            searchForAllTypes(request)
-        }
-        resultsListener?.onResultsEvent(ResultsEvent(this, query, results, Duration.ofMillis(ms)))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList<Retrievable>(results))
-    }
-
-    private fun searchForAllTypes(request: TextSimilaritySearchRequest): List<SimilarityResult<out Retrievable>> {
-        val allResults = searchFor.flatMap { clazz ->
-            textSearch.textSearch(request, clazz)
-        }
-        return deduplicateByIdKeepingHighestScore(allResults)
-    }
-}
-
-class RegexSearchTools(
-    private val textSearch: RegexSearchOperations,
-    private val resultsListener: ResultsListener? = null,
-) : SearchTools {
-
-    @LlmTool(description = "Perform regex search across content elements. Specify topK")
-    fun regexSearch(
-        regex: String,
-        topK: Int,
-    ): String {
-        loggerFor<RegexSearchTools>().info("Performing regex search with regex='{}', topK={}", regex, topK)
-        val start = Instant.now()
-        val results = textSearch.regexSearch(Regex(regex), topK, Chunk::class.java)
-        val runningTime = Duration.between(start, Instant.now())
-        resultsListener?.onResultsEvent(ResultsEvent(this, regex, results, runningTime))
-        return SimpleRetrievableResultsFormatter.formatResults(SimilarityResults.fromList(results))
-    }
-}
-
-/**
- * Deduplicate results by ID, keeping the result with the highest score for each unique ID.
- */
-private fun deduplicateByIdKeepingHighestScore(
-    results: List<SimilarityResult<out Retrievable>>,
-): List<SimilarityResult<out Retrievable>> =
-    results
-        .groupBy { it.match.id }
-        .map { (_, group) -> group.maxBy { it.score } }
-        .sortedByDescending { it.score }
