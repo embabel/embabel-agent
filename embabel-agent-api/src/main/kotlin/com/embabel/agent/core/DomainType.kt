@@ -101,6 +101,7 @@ sealed interface DomainType : HasInfoString, NamedAndDescribed {
 
     /**
      * Get the label for this type only (not including parent labels)
+     * This will avoid long FQNs which are not useful for labeling.
      */
     @get:JsonIgnore
     val ownLabel: String

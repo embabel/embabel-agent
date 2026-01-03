@@ -25,6 +25,8 @@ import org.slf4j.LoggerFactory
 
 /**
  * Typed backed by a JVM object
+ * It's good practice to annotate classes with @JsonClassDescription for better descriptions:
+ * otherwise, only the simple class name will be used.
  */
 data class JvmType @JsonCreator constructor(
     @param:JsonProperty("className")
@@ -75,7 +77,7 @@ data class JvmType @JsonCreator constructor(
             return if (ann != null) {
                 "${clazz.simpleName}: ${ann.value}"
             } else {
-                clazz.name
+                clazz.simpleName
             }
         }
 

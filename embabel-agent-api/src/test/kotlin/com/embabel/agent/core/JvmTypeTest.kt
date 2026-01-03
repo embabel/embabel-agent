@@ -16,10 +16,7 @@
 package com.embabel.agent.core
 
 import com.fasterxml.jackson.annotation.JsonClassDescription
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class JvmTypeTest {
@@ -36,7 +33,8 @@ class JvmTypeTest {
     fun `should default description`() {
         val type = JvmType(Dog::class.java)
         assertEquals(Dog::class.java.name, type.name)
-        assertEquals(Dog::class.java.name, type.description)
+        assertEquals(Dog::class.java.simpleName, type.description)
+        assertEquals(Dog::class.java.simpleName, type.ownLabel)
     }
 
     @Test
@@ -361,7 +359,7 @@ class JvmTypeTest {
         // Note: Spring's classpath scanner might not find all standard library classes
         // This is expected behavior as it's designed for application classes
         // Just verify the method doesn't throw exceptions
-        println("Found ${children.size} children of List: ${children.map { it.name }}")
+//        println("Found ${children.size} children of List: ${children.map { it.name }}")
     }
 
     @Test
