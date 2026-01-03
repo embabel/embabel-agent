@@ -21,6 +21,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-api</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.embabel.common</groupId>
             <artifactId>embabel-common-core</artifactId>
         </dependency>
@@ -28,11 +33,6 @@
         <dependency>
             <groupId>com.embabel.common</groupId>
             <artifactId>embabel-common-util</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-common</artifactId>
         </dependency>
 
         <dependency>
