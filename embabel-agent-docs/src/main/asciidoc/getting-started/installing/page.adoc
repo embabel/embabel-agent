@@ -1,7 +1,8 @@
 [[getting-started.installing]]
 === Getting the Binaries
 
-The easiest way to get started with Embabel Agent is to add the Spring Boot starter dependency to your project. Embabel release binaries are published to Maven Central.
+The easiest way to get started with Embabel Agent is to add the Spring Boot starter dependency to your project.
+Embabel release binaries are published to Maven Central.
 
 ==== Build Configuration
 
@@ -142,6 +143,7 @@ dependencies {
 * ✅️ Development-friendly error handling
 
 ===== Embabel Snapshots
+
 If you want to use Embabel snapshots, you'll need to add the Embabel repository to your build.
 
 [tabs]
@@ -357,16 +359,16 @@ embabel:
 
 ===== LM Studio
 
-LM Studio is a desktop application that lets you easily discover, download, and run powerful
-Large Language Models (LLMs) on your own computer (Windows, Mac, Linux) for free, enabling offline use,
-local document Q&A, and even hosting an OpenAI-compatible API server for your projects, making advanced AI accessible
-without relying on cloud services. It supports formats like GGUF and offers privacy and control over your models. See
-more: `https://lmstudio.ai/`
+https://lmstudio.ai/[LM Studio] is a desktop application that lets you easily discover, download, and run powerful LLMs on your own computer (Windows, Mac, Linux) for free, enabling offline use, local document Q&A, and even hosting an OpenAI-compatible API server for your projects, making advanced AI accessible without relying on cloud services.
+It supports formats like GGUF and offers privacy and control over your models.
 
-A very useful feature of LM Studio is its Local Server feature (See here: `https://lmstudio.ai/docs/developer/core/server`).
-This allows you to run an LLM API server on localhost.
+The LM Studio https://lmstudio.ai/docs/developer/core/server[Local Server]
+allows you to run an LLM API server on localhost.
 
 To add LM Studio support, add the `embabel-agent-starter-lmstudio` starter.
+
+Add this with Maven as follows:
+
 [source,xml]
 ----
 <dependency>
@@ -376,17 +378,19 @@ To add LM Studio support, add the `embabel-agent-starter-lmstudio` starter.
 </dependency>
 ----
 
-[source, gradle]
+With the Gradle Kotlin DSL:
+
+[source,gradle]
 ----
 implementation "com.embabel.agent:embabel-agent-starter-lmstudio:${embabelVersion}"
 ----
 
-Configure an LLM API on LM Studio using the instructions here `https://lmstudio.ai/docs/developer/core/server`
+Configure an LLM API on LM Studio by following https://lmstudio.ai/docs/developer/core/server[these instructions].
 
-Specify the example configuration in `application.yml`. Below I have an open-ai llm and embedding model
-downloaded on my LLM studio and exposed via the LLM Server.
+Specify the example configuration in `application.yml`.
+Below I have an open-ai llm and embedding model downloaded on my LLM studio and exposed via the LLM Server.
 
-[source, yaml]
+[source,yaml]
 ----
 embabel:
   agent:

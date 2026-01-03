@@ -310,7 +310,7 @@ Configuration options:
 
 ===== Using Docling for Markdown Conversion
 
-While we strongly believe you should write your Gen AI *applications* in Java, ingestion is more in the realm of data science, and Python is indisputably strong in this area.
+While we believe that you should write your Gen AI *applications* in Java or Kotlin, ingestion is more in the realm of data science, and Python is indisputably strong in this area.
 
 For complex documents like PDFs, consider using https://github.com/DS4SD/docling[Docling] to convert to Markdown first:
 

@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory
  * Typed backed by a JVM object
  * It's good practice to annotate classes with @JsonClassDescription for better descriptions:
  * otherwise, only the simple class name will be used.
+ * Use the @CreationPermitted annotation to indicate whether new instances of this type can be created.
+ * Default is true.
  */
 data class JvmType @JsonCreator constructor(
     @param:JsonProperty("className")
@@ -39,7 +41,7 @@ data class JvmType @JsonCreator constructor(
     override val creationPermitted: Boolean
         get() {
             val cpa = clazz.getAnnotation(CreationPermitted::class.java)
-            return cpa != null
+            return cpa?.value ?: true
         }
 
     @get:JsonIgnore

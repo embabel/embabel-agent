@@ -23,5 +23,9 @@ package com.embabel.agent.core
 @Retention(AnnotationRetention.RUNTIME)
 @MustBeDocumented
 annotation class CreationPermitted(
+
+    /**
+     * Whether creation of instances of this type is permitted.
+     */
     val value: Boolean,
 )

@@ -389,4 +389,31 @@ class JvmTypeTest {
         assertEquals("String", type.ownLabel)
         assert(type.labels.contains("String"))
     }
+
+    // Test classes for creationPermitted
+    class NoAnnotation
+
+    @CreationPermitted(true)
+    class CreationPermittedTrue
+
+    @CreationPermitted(false)
+    class CreationPermittedFalse
+
+    @Test
+    fun `creationPermitted should default to true when no annotation`() {
+        val type = JvmType(NoAnnotation::class.java)
+        assertTrue(type.creationPermitted, "Default should be true when no annotation")
+    }
+
+    @Test
+    fun `creationPermitted should return true when annotated with true`() {
+        val type = JvmType(CreationPermittedTrue::class.java)
+        assertTrue(type.creationPermitted, "Should return true when annotated with @CreationPermitted(true)")
+    }
+
+    @Test
+    fun `creationPermitted should return false when annotated with false`() {
+        val type = JvmType(CreationPermittedFalse::class.java)
+        assertFalse(type.creationPermitted, "Should return false when annotated with @CreationPermitted(false)")
+    }
 }
