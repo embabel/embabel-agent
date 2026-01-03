@@ -190,6 +190,7 @@ class LLMStreamingIT(
 
         try {
             val runner = ai.withLlm("gpt-4.1-mini")
+                                        .withGenerateExamples(true);
             println("DEBUG: Created runner")
 
             // Test non-streaming call first

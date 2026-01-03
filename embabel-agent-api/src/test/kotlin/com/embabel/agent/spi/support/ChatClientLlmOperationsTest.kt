@@ -735,7 +735,7 @@ class ChatClientLlmOperationsTest {
         }
 
         @Test
-        fun `doesnt pass description of validation rules to LLM if so configured`() {
+        fun `does not pass description of validation rules to LLM if so configured`() {
             // Picky eater
             data class BorderCollie(
                 val name: String,

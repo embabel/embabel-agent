@@ -30,6 +30,7 @@ import java.time.Duration
 class Thinking private constructor(
     val enabled: Boolean = false,
     val tokenBudget: Int? = null,
+    val extractThinking: Boolean = false,
 ) {
 
     companion object {
@@ -40,10 +41,33 @@ class Thinking private constructor(
             tokenBudget = withTokenBudget,
         )
 
+        @JvmStatic
+        fun withExtraction(): Thinking = Thinking(
+            extractThinking = true,
+        )
+
         val NONE: Thinking = Thinking(
             enabled = false,
         )
     }
+
+    /**
+     * Enable thinking block extraction for user access.
+     */
+    fun applyExtraction(): Thinking = Thinking(
+        enabled = this.enabled,
+        tokenBudget = this.tokenBudget,
+        extractThinking = true,
+    )
+
+    /**
+     * Configure thinking token budget.
+     */
+    fun applyTokenBudget(tokenBudget: Int): Thinking = Thinking(
+        enabled = true,
+        tokenBudget = tokenBudget,
+        extractThinking = this.extractThinking,
+    )
 }
 
 /**

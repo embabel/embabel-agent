@@ -61,6 +61,31 @@ class SuppressThinkingConverterTest {
     }
 
     @Nested
+    inner class SequentialProcessing {
+
+        @Test
+        fun `applies all finders sequentially - TAG then PREFIX`() {
+            val converter = SuppressThinkingConverter(BeanOutputConverter(Dog::class.java))
+            val input = """<think>First thinking block</think>
+                //THINKING: Second thinking block
+                {"name": "Rex"}""".trimMargin()
+            val result = converter.convert(input)
+            assertNotNull(result!!)
+            assertEquals("Rex", result.name)
+        }
+
+        @Test
+        fun `early termination when JSON is already valid`() {
+            // If the input is already valid JSON, no sanitization should occur
+            val converter = SuppressThinkingConverter(BeanOutputConverter(Dog::class.java))
+            val input = """{"name": "Rex"}"""
+            val result = converter.convert(input)
+            assertNotNull(result!!)
+            assertEquals("Rex", result.name)
+        }
+    }
+
+    @Nested
     inner class StringWithoutThinkBlocks {
 
         fun checkStringThinkContent(thinkContent: String) {
