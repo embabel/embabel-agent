@@ -28,12 +28,12 @@
 
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test</artifactId>
+            <artifactId>embabel-agent-domain</artifactId>
         </dependency>
 
         <dependency>
             <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test-domain</artifactId>
+            <artifactId>embabel-agent-test</artifactId>
         </dependency>
 
         <dependency>
