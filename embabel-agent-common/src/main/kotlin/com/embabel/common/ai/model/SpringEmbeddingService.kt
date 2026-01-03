@@ -28,6 +28,8 @@ data class SpringEmbeddingService(
     override val model: EmbeddingModel,
 ) : EmbeddingService {
 
+    override val dimensions get() = model.dimensions()
+
     override fun embed(text: String): FloatArray = model.embed(text)
 
     override fun embed(texts: List<String>): List<FloatArray> = model.embed(texts)

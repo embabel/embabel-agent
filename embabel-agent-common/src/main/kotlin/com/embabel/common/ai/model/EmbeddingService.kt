@@ -50,9 +50,23 @@ interface EmbeddingServiceMetadata : ModelMetadata {
  */
 interface EmbeddingService : AiModel<Any>, EmbeddingServiceMetadata {
 
+    /**
+     * Embed a single text in vector space
+     * @return embedding vector
+     */
     fun embed(text: String): FloatArray
 
+    /**
+     * Embed multiple texts in vector space
+     * Use this method for better performance when embedding multiple texts
+     * @return list of embedding vectors corresponding to the input texts
+     */
     fun embed(texts: List<String>): List<FloatArray>
+
+    /**
+     * Dimension of the embedding vectors produced by this model
+     */
+    val dimensions: Int
 
 }
 
