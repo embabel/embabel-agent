@@ -183,4 +183,4 @@ interface ResultExpander : SearchOperations {
 /**
  * Commonly implemented set of search functionality
  */
-interface CoreSearchOperations : FinderOperations, VectorSearch, TextSearch
+interface CoreSearchOperations : VectorSearch, TextSearch

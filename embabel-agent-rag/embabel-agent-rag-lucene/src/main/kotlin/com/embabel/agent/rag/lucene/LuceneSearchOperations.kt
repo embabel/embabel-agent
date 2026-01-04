@@ -22,6 +22,7 @@ import com.embabel.agent.rag.ingestion.ContentChunker.Companion.SEQUENCE_NUMBER
 import com.embabel.agent.rag.ingestion.RetrievableEnhancer
 import com.embabel.agent.rag.model.*
 import com.embabel.agent.rag.service.CoreSearchOperations
+import com.embabel.agent.rag.service.FinderOperations
 import com.embabel.agent.rag.service.RagRequest
 import com.embabel.agent.rag.service.ResultExpander
 import com.embabel.agent.rag.service.support.FunctionRagFacet
@@ -81,6 +82,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
     HasInfoString,
     Closeable,
     CoreSearchOperations,
+    FinderOperations,
     ResultExpander {
 
     private val analyzer = StandardAnalyzer()
