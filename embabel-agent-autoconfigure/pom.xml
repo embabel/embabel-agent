@@ -26,7 +26,7 @@
         <module>embabel-agent-mcpserver-autoconfigure</module>
         <module>models/embabel-agent-bedrock-autoconfigure</module>
         <module>models/embabel-agent-openai-autoconfigure</module>
-        <module>models/embabel-agent-openai-compatible-autoconfigure</module>
+        <module>models/embabel-agent-openai-custom-autoconfigure</module>
         <module>models/embabel-agent-anthropic-autoconfigure</module>
         <module>models/embabel-agent-ollama-autoconfigure</module>
         <module>models/embabel-agent-lmstudio-autoconfigure</module>

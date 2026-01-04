@@ -26,6 +26,7 @@
         <module>embabel-agent-starter-mcpserver</module>
         <module>embabel-agent-starter-bedrock</module>
         <module>embabel-agent-starter-openai</module>
+        <module>embabel-agent-starter-openai-custom</module>
         <module>embabel-agent-starter-anthropic</module>
         <module>embabel-agent-starter-ollama</module>
         <module>embabel-agent-starter-lmstudio</module>
