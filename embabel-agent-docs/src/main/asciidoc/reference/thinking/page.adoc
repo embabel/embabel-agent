@@ -1,0 +1,34 @@
+[[reference.thinking]]
+
+=== Working with LLM Reasoning / Thinking
+
+==== Concepts
+
+- ```ThinkingBlock``` - abstraction that carries details on LLM reasoning, including Tag type, Tag value, and LLM reasoning text
+- ```ThinkingTags``` - reasoning Tag Types and XML tags definition. Dynamic tags got supported as well
+- ```ResponseWithThinking``` - LLM response holder, wraps Object and List of ```ThinkingBlocks```
+- ```ThinkingException``` - wraps Thinking Blocks in case Object cant be instantiated
+
+
+==== Example on handling Object and Thinking Blocks
+[source,java]
+----
+
+        // Use the LLM configured for thinking tests
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                .withToolObject(Tooling.class);
+
+        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+
+        //Use builder for  natural chaining
+        ResponseWithThinking<MonthItem> response = ThinkingPromptRunnerBuilder.from(runner)
+                .withThinking()
+                .createObjectIfPossible(prompt, MonthItem.class);
+
+        // Then: Verify response and thinking content (result may be null if creation not possible)
+        assertNotNull(response, "Response should not be null");
+
+        MonthItem result = response.getResult();
+
+        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+----

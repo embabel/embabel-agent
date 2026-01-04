@@ -33,6 +33,8 @@ include::llms/page.adoc[]
 
 include::streaming/page.adoc[]
 
+include::thinking/page.adoc[]
+
 include::customizing/page.adoc[]
 
 include::integrations/page.adoc[]

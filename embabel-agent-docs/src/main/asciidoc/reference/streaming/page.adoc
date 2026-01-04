@@ -15,8 +15,7 @@ This feature is well aligned with Embabel focus on object-oriented programming m
 
 ==== Example - Simple Streaming with Callbacks
 
-[source,java]
-----
+
 
         PromptRunner runner = ai.withLlm("qwen3:latest")
                                 .withToolObject(Tooling.class);
