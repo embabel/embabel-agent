@@ -29,6 +29,11 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-test-internal</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
