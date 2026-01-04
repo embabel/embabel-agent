@@ -90,6 +90,7 @@ interface VectorSearch : TypeRetrievalOperations {
  * Full-text search using Lucene query syntax
  */
 interface TextSearch : SearchOperations {
+
     /**
      * Performs full-text search using Lucene query syntax.
      * Not all implementations will support all capabilities (such as fuzzy matching).

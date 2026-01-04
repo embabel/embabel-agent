@@ -16,6 +16,8 @@
 package com.embabel.agent.rag.service
 
 import com.embabel.agent.rag.model.NamedEntityData
+import com.embabel.common.core.types.SimilarityResult
+import com.embabel.common.core.types.TextSimilaritySearchRequest
 
 /**
  * Named relationship that may have properties.
@@ -37,6 +39,62 @@ interface NamedEntityDataRepository {
      * @return The saved entity (may have updated fields like timestamps)
      */
     fun save(entity: NamedEntityData): NamedEntityData
+
+    /**
+     * Find an entity by its ID.
+     */
+    fun findById(id: String): NamedEntityData?
+
+    fun vectorSearch(
+        request: TextSimilaritySearchRequest,
+    ): List<SimilarityResult<NamedEntityData>>
+
+    /**
+     * Performs full-text search using Lucene query syntax.
+     * Not all implementations will support all capabilities (such as fuzzy matching).
+     * However, the use of quotes for phrases and + / - for required / excluded terms should be widely supported.
+     *
+     * The "query" field of request supports the following syntax:
+     *
+     * ## Basic queries
+     * - `machine learning` - matches documents containing either term (implicit OR)
+     * - `+machine +learning` - both terms required (AND)
+     * - `"machine learning"` - exact phrase match
+     *
+     * ## Modifiers
+     * - `+term` - term must appear
+     * - `-term` - term must not appear
+     * - `term*` - prefix wildcard
+     * - `term~` - fuzzy match (edit distance)
+     * - `term~0.8` - fuzzy match with similarity threshold
+     *
+     * ## Query Field Examples
+     * ```
+     * // Find chunks mentioning either kotlin or java
+     * "kotlin java"
+     *
+     * // Find chunks with both "error" and "handling"
+     * "+error +handling"
+     *
+     * // Find exact phrase
+     * "\"null pointer exception\""
+     *
+     * // Find "test" but exclude "unit"
+     * "+test -unit"
+     * ```
+     *
+     * @param request the text similarity search request
+     * @return matching results ranked by BM25 relevance score
+     */
+    fun textSearch(
+        request: TextSimilaritySearchRequest,
+    ): List<SimilarityResult<NamedEntityData>>
+
+    /**
+     * Notes on how much Lucene syntax is supported by this implementation
+     * to help LLMs and users craft effective queries.
+     */
+    val luceneSyntaxNotes: String
 
     /**
      * Save multiple entities.
@@ -66,11 +124,6 @@ interface NamedEntityDataRepository {
      * @return true if the entity was deleted, false if it didn't exist
      */
     fun delete(id: String): Boolean
-
-    /**
-     * Find an entity by its ID.
-     */
-    fun findById(id: String): NamedEntityData?
 
     /**
      * Find all entities with a specific label.
