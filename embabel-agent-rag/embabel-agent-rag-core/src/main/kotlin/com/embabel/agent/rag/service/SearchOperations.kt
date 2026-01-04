@@ -34,9 +34,13 @@ interface SearchOperations
 interface TypeRetrievalOperations : SearchOperations {
 
     /**
-     * List the types of Retrievable supported by this store
+     * Is this type supported?
+     * @param type the type name of the retrievable
+     * Normally matches the simple class name of the retrievable type
+     * or the name of a schema type
+     * @return true if supported
      */
-    fun supportedRetrievableTypes(): Set<Class<out Retrievable>>
+    fun supportsType(type: String): Boolean
 }
 
 
@@ -46,11 +50,24 @@ interface TypeRetrievalOperations : SearchOperations {
 interface FinderOperations : TypeRetrievalOperations {
 
     /**
-     * Retrieve a retrievable by its ID
+     * Retrieve an entity by its ID
+     * Core finder support not necessarily exposed as LLM tool.
+     */
+    fun <T> findById(
+        id: String,
+        clazz: Class<T>,
+    ): T?
+
+    /**
+     * Retrieve an entity by its ID and type name
+     * @param id the ID of the retrievable
+     * @param type the type name of the retrievable
+     * Normally matches the simple class name of the retrievable type
+     * or the name of a schema type
      */
     fun <T : Retrievable> findById(
         id: String,
-        clazz: Class<T>,
+        type: String
     ): T?
 }
 

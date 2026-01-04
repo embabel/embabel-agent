@@ -185,5 +185,7 @@ data class ToolishRag @JvmOverloads constructor(
 
 /**
  * Marker interface for RAG search tools
+ * Implementations should provide search functionality
+ * via methods annotated with @LlmTool
  */
 interface SearchTools

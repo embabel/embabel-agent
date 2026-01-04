@@ -170,7 +170,7 @@ internal class RegexSearchTools(
 }
 
 /**
- * Tools to list supported retrievable types
+ * Tools to check if a type is supported by this store.
  */
 internal class TypeRetrievalTools(
     private val typeRetrievalOperations: TypeRetrievalOperations,
@@ -178,20 +178,21 @@ internal class TypeRetrievalTools(
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    @LlmTool(description = "List the types of items that can be retrieved from this store by id or other means")
-    fun listSupportedTypes(): String {
-        val types = typeRetrievalOperations.supportedRetrievableTypes()
-        logger.info("Listing supported retrievable types: {}", types.map { it.simpleName })
-        return if (types.isEmpty()) {
-            "No retrievable types supported"
+    @LlmTool(description = "Check if a type is supported for retrieval. Provide the simple class name.")
+    fun isTypeSupported(
+        @LlmTool.Param(description = "The type (usually simple class) name to check") typeName: String,
+    ): String {
+        logger.info("Checking if type '{}' is supported", typeName)
+        return if (typeRetrievalOperations.supportsType(typeName)) {
+            "Type '$typeName' is supported"
         } else {
-            "Supported types: ${types.joinToString(", ") { it.simpleName }}"
+            "Type '$typeName' is not supported by this store"
         }
     }
 }
 
 /**
- * Tools to retrieve items by ID from the store
+ * Tools to retrieve items by ID from the store.
  */
 internal class FinderTools(
     private val finderOperations: FinderOperations,
@@ -199,21 +200,22 @@ internal class FinderTools(
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    @LlmTool(description = "Retrieve an item by its ID. Use listSupportedTypes to see available types.")
+    @LlmTool(description = "Retrieve an item by its ID. Provide the type as a simple class name.")
     fun findById(
         @LlmTool.Param(description = "The ID of the item to retrieve") id: String,
-        @LlmTool.Param(description = "The type of item to retrieve (e.g., 'Chunk')") type: String,
+        @LlmTool.Param(description = "The type name (usually simple class name) of the item") typeName: String,
     ): String {
-        logger.info("Finding retrievable by id='{}', type='{}'", id, type)
-        val supportedTypes = finderOperations.supportedRetrievableTypes()
-        val clazz = supportedTypes.find { it.simpleName.equals(type, ignoreCase = true) }
-            ?: return "Unknown type '$type'. Supported types: ${supportedTypes.joinToString(", ") { it.simpleName }}"
+        logger.info("Finding retrievable by id='{}', type='{}'", id, typeName)
 
-        val result = finderOperations.findById(id, clazz)
+        if (!finderOperations.supportsType(typeName)) {
+            return "Type '$typeName' is not supported by this store"
+        }
+
+        val result = finderOperations.findById<Retrievable>(id, typeName)
         return if (result != null) {
             "Found ${result.javaClass.simpleName} with id '$id': ${result.infoString(verbose = true)}"
         } else {
-            "No item found with id '$id' of type '$type'"
+            "No item found with id '$id' of type '$typeName'"
         }
     }
 }

@@ -150,9 +150,13 @@ class LuceneSearchOperations @JvmOverloads constructor(
 
     private val contentElementStorage = ConcurrentHashMap<String, ContentElement>()
 
-    override fun <T : Retrievable> findById(
+    override fun supportsType(type: String): Boolean {
+        return type == Chunk::class.java.simpleName
+    }
+
+    override fun <T> findById(
         id: String,
-        clazz: Class<T>
+        clazz: Class<T>,
     ): T? {
         if (!clazz.isAssignableFrom(Chunk::class.java)) {
             logger.warn("findById only supports Chunk class in LuceneSearchOperations, requested: {}", clazz.name)
@@ -161,8 +165,15 @@ class LuceneSearchOperations @JvmOverloads constructor(
         return findAllChunksById(listOf(id)).firstOrNull() as T?
     }
 
-    override fun supportedRetrievableTypes(): Set<Class<out Retrievable>> {
-        return setOf(Chunk::class.java)
+    override fun <T : Retrievable> findById(
+        id: String,
+        type: String,
+    ): T? {
+        if (type != Chunk::class.java.simpleName) {
+            logger.warn("findById only supports Chunk class in LuceneSearchOperations, requested: {}", type)
+            return null
+        }
+        return findAllChunksById(listOf(id)).firstOrNull() as T?
     }
 
     override fun facets(): List<RagFacet<out Retrievable>> {
