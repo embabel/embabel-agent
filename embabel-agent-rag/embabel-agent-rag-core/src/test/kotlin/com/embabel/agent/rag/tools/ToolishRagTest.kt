@@ -175,8 +175,9 @@ class ToolishRagTest {
 
             val toolInstances = toolishRag.toolInstances()
 
-            assertEquals(1, toolInstances.size)
-            assertTrue(toolInstances[0] is TextSearchTools)
+            assertEquals(2, toolInstances.size)
+            assertTrue(toolInstances.any { it is TextSearchTools })
+            assertTrue(toolInstances.any { it is TypeRetrievalTools })
         }
 
         @Test

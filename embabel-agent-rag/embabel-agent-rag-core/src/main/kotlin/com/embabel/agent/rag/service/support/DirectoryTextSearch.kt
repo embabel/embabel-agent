@@ -57,6 +57,10 @@ class DirectoryTextSearch @JvmOverloads constructor(
     private val config: Config = Config(),
 ) : TextSearch, RegexSearchOperations {
 
+    override fun supportsType(type: String): Boolean {
+        return type == Chunk::class.java.simpleName
+    }
+
     /**
      * Configuration for [DirectoryTextSearch].
      * Use [withFileGlob], [withExcludeDirectories], [withChunkSize], and [withChunkOverlap]

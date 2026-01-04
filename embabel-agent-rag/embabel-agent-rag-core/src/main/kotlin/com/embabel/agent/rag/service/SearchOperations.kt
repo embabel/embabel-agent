@@ -89,7 +89,7 @@ interface VectorSearch : TypeRetrievalOperations {
 /**
  * Full-text search using Lucene query syntax
  */
-interface TextSearch : SearchOperations {
+interface TextSearch : TypeRetrievalOperations {
 
     /**
      * Performs full-text search using Lucene query syntax.
