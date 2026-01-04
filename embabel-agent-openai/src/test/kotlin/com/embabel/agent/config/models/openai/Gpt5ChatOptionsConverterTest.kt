@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
