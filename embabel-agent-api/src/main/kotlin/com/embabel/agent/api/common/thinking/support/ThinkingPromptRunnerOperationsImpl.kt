@@ -21,8 +21,9 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
-import com.embabel.chat.ChatResponseWithThinking
+import com.embabel.common.core.thinking.ResponseWithThinking
 import com.embabel.chat.Message
+import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.types.ZeroToOne
 
 /**
@@ -56,7 +57,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
     override fun <T> createObjectIfPossible(
         messages: List<Message>,
         outputClass: Class<T>,
-    ): ChatResponseWithThinking<T?> {
+    ): ResponseWithThinking<T?> {
         val combinedMessages = this.messages + messages
         val result = chatClientOperations.doTransformWithThinkingIfPossible(
             messages = combinedMessages,
@@ -68,7 +69,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
         return when {
             result.isSuccess -> {
                 val successResponse = result.getOrThrow()
-                ChatResponseWithThinking<T?>(
+                ResponseWithThinking<T?>(
                     result = successResponse.result,
                     thinkingBlocks = successResponse.thinkingBlocks
                 )
@@ -76,12 +77,12 @@ internal class ThinkingPromptRunnerOperationsImpl(
             else -> {
                 // Preserve thinking blocks even when object creation fails
                 val exception = result.exceptionOrNull()
-                val thinkingBlocks = if (exception is com.embabel.chat.ChatResponseWithThinkingException) {
+                val thinkingBlocks = if (exception is ThinkingException) {
                     exception.thinkingBlocks
                 } else {
                     emptyList()
                 }
-                ChatResponseWithThinking<T?>(
+                ResponseWithThinking<T?>(
                     result = null,
                     thinkingBlocks = thinkingBlocks
                 )
@@ -92,7 +93,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
     override fun <T> createObject(
         messages: List<Message>,
         outputClass: Class<T>,
-    ): ChatResponseWithThinking<T> {
+    ): ResponseWithThinking<T> {
         val combinedMessages = this.messages + messages
         return chatClientOperations.doTransformWithThinking(
             messages = combinedMessages,
@@ -104,7 +105,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
 
     override fun respond(
         messages: List<Message>,
-    ): ChatResponseWithThinking<AssistantMessage> {
+    ): ResponseWithThinking<AssistantMessage> {
         return createObject(messages, AssistantMessage::class.java)
     }
 
@@ -112,7 +113,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
         condition: String,
         context: String,
         confidenceThreshold: ZeroToOne,
-    ): ChatResponseWithThinking<Boolean> {
+    ): ResponseWithThinking<Boolean> {
         val prompt =
             """
             Evaluate this condition given the context.
@@ -135,7 +136,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
             it.result && it.confidence >= confidenceThreshold
         } ?: false
 
-        return ChatResponseWithThinking(
+        return ResponseWithThinking(
             result = result,
             thinkingBlocks = response.thinkingBlocks
         )

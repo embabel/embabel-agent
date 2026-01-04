@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 Embabel Software, Inc.
+ * Copyright 2024-2026 Embabel Software, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,15 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.chat
-
-import com.embabel.common.core.thinking.ThinkingBlock
+package com.embabel.common.core.thinking
 
 /**
  * Exception that carries thinking blocks even when LLM operation fails.
  * This preserves the LLM's reasoning process for debugging and analysis.
  */
-class ChatResponseWithThinkingException(
+class ThinkingException(
     message: String,
     val thinkingBlocks: List<ThinkingBlock>
 ) : Exception(message)

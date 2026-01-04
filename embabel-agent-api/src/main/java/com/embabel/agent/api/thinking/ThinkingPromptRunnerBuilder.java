@@ -18,6 +18,7 @@ package com.embabel.agent.api.thinking;
 import com.embabel.agent.api.common.PromptRunnerOperations;
 import com.embabel.agent.api.common.thinking.ThinkingExtensionsKt;
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations;
+import com.embabel.common.core.thinking.ResponseWithThinking;
 
 /**
  * Builder pattern to provide Java equivalent of Kotlin's withThinking() extension function.
@@ -33,7 +34,7 @@ import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations;
  * ThinkingPromptRunnerOperations thinkingOps = new ThinkingPromptRunnerBuilder(promptRunner)
  *     .withThinking();
  * 
- * ChatResponseWithThinking<Person> result = thinkingOps.createObject("analyze this", Person.class);
+ * ResponseWithThinking<Person> result = thinkingOps.createObject("analyze this", Person.class);
  * Person person = result.getResult();              // The converted object
  * List<ThinkingBlock> thinking = result.getThinkingBlocks(); // LLM reasoning blocks
  * }</pre>
@@ -53,7 +54,7 @@ import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations;
  * with empty thinking blocks while preserving the original response content.</p>
  * 
  * @see ThinkingPromptRunnerOperations for available thinking-aware methods
- * @see com.embabel.chat.ChatResponseWithThinking for response structure
+ * @see ResponseWithThinking for response structure
  * @see com.embabel.common.core.thinking.ThinkingBlock for thinking content details
  */
 public record ThinkingPromptRunnerBuilder(PromptRunnerOperations runner) {

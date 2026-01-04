@@ -15,12 +15,13 @@
  */
 package com.embabel.agent.api.thinking;
 
-import com.embabel.agent.api.common.PromptRunnerOperations;
+import com.embabel.agent.api.common.support.OperationContextPromptRunner;
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Simple test for ThinkingPromptRunnerBuilder Java API.
@@ -32,8 +33,10 @@ class ThinkingPromptRunnerBuilderTest {
 
     @Test
     void testBuilderCreatesThinkingOperations() {
-        // Given: A mock prompt runner operations
-        PromptRunnerOperations runner = mock(PromptRunnerOperations.class);
+        // Given: A mock OperationContextPromptRunner (thinking-capable)
+        OperationContextPromptRunner runner = mock(OperationContextPromptRunner.class);
+        ThinkingPromptRunnerOperations mockThinkingOps = mock(ThinkingPromptRunnerOperations.class);
+        when(runner.withThinking()).thenReturn(mockThinkingOps);
 
         // When: Using the builder to create thinking operations
         ThinkingPromptRunnerOperations thinkingOps = new ThinkingPromptRunnerBuilder(runner)
@@ -45,8 +48,10 @@ class ThinkingPromptRunnerBuilderTest {
 
     @Test
     void testFactoryMethodCreatesThinkingOperations() {
-        // Given: A mock prompt runner operations
-        PromptRunnerOperations runner = mock(PromptRunnerOperations.class);
+        // Given: A mock OperationContextPromptRunner (thinking-capable)
+        OperationContextPromptRunner runner = mock(OperationContextPromptRunner.class);
+        ThinkingPromptRunnerOperations mockThinkingOps = mock(ThinkingPromptRunnerOperations.class);
+        when(runner.withThinking()).thenReturn(mockThinkingOps);
 
         // When: Using the static factory method
         ThinkingPromptRunnerOperations thinkingOps = ThinkingPromptRunnerBuilder

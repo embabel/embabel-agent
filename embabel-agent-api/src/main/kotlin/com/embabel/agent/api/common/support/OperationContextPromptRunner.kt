@@ -348,17 +348,19 @@ internal data class OperationContextPromptRunner(
      * @return ThinkingPromptRunnerOperations for executing prompts with thinking extraction
      * @throws UnsupportedOperationException if the underlying LLM operations don't support thinking extraction
      */
-    internal fun withThinking(): ThinkingPromptRunnerOperations {
+    override fun supportsThinking(): Boolean = true
+
+    override fun withThinking(): ThinkingPromptRunnerOperations {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
-        if (llmOperations !is ChatClientLlmOperations) {
+        if (llmOperations !is ChatClientLlmOperations) {9
             throw UnsupportedOperationException(
                 "Thinking extraction not supported by underlying LLM operations. " +
                 "Operations type: ${llmOperations::class.simpleName}. " +
                 "Thinking extraction requires ChatClientLlmOperations."
             )
         }
-
+11
         // Auto-enable thinking extraction when withThinking() is called
         val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
 

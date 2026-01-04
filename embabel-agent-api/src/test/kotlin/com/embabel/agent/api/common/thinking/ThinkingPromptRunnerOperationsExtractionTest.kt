@@ -19,7 +19,8 @@ import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SuppressThinkingConverter
-import com.embabel.chat.ChatResponseWithThinking
+import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ResponseWithThinking
 import com.embabel.common.core.thinking.ThinkingTagType
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.core.thinking.spi.InternalThinkingApi
@@ -352,7 +353,7 @@ class ThinkingPromptRunnerOperationsExtractionTest {
             // Production scenario: JSON conversion fails but thinking blocks should still be extractable
             // This is crucial for debugging why LLMs fail at the final JSON generation step
 
-            if (e is com.embabel.chat.ChatResponseWithThinkingException) {
+            if (e is ThinkingException) {
                 // Verify thinking blocks were preserved despite JSON failure
                 assertTrue(e.thinkingBlocks.isNotEmpty(), "Thinking blocks should be preserved for error analysis")
 
@@ -431,7 +432,7 @@ class ThinkingPromptRunnerOperationsExtractionTest {
         rawLlmResponse: String,
         operationName: String,
         outputClass: Class<T>
-    ): ChatResponseWithThinking<T> {
+    ): ResponseWithThinking<T> {
         val mockOperationRunner = mockk<OperationContextPromptRunner>()
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
         val mockPlatform = mockk<com.embabel.agent.core.AgentPlatform>()
@@ -456,7 +457,7 @@ class ThinkingPromptRunnerOperationsExtractionTest {
             val thinkingBlocks = extractAllThinkingBlocks(rawLlmResponse)
             val result = converter.convert(rawLlmResponse)
 
-            ChatResponseWithThinking(
+            ResponseWithThinking(
                 result = result,
                 thinkingBlocks = thinkingBlocks
             )

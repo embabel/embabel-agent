@@ -20,7 +20,7 @@ import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.thinking.ThinkingPromptRunnerBuilder;
 import com.embabel.agent.autoconfigure.models.ollama.AgentOllamaAutoConfiguration;
-import com.embabel.chat.ChatResponseWithThinking;
+import com.embabel.common.core.thinking.ResponseWithThinking;
 import com.embabel.common.ai.model.Llm;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import org.junit.jupiter.api.Test;
@@ -176,7 +176,7 @@ class LLMOllamaThinkingBuilderIT {
                 """;
 
         // When: Use ThinkingPromptRunnerBuilder to create object with thinking
-        ChatResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
 
@@ -208,7 +208,7 @@ class LLMOllamaThinkingBuilderIT {
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis. " + "And return Month with temperature";
 
         // When: Use ThinkingPromptRunnerBuilder to create object if possible with thinking
-        ChatResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
                 .withThinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
 
@@ -256,7 +256,7 @@ class LLMOllamaThinkingBuilderIT {
                 """;
 
         // When: Use ThinkingPromptRunnerBuilder with complex thinking patterns
-        ChatResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
 

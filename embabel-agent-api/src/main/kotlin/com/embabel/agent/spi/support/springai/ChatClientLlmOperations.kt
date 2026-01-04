@@ -27,8 +27,8 @@ import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
-import com.embabel.chat.ChatResponseWithThinking
-import com.embabel.chat.ChatResponseWithThinkingException
+import com.embabel.common.core.thinking.ResponseWithThinking
+import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.model.Llm
@@ -347,7 +347,7 @@ internal class ChatClientLlmOperations(
         interaction: LlmInteraction,
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
-    ): ChatResponseWithThinking<O> {
+    ): ResponseWithThinking<O> {
         logger.debug("LLM transform for interaction {} with thinking extraction", interaction.id.value)
 
         val llm = chooseLlm(interaction.llm)
@@ -392,7 +392,7 @@ internal class ChatClientLlmOperations(
         val timeoutMillis = getTimeoutMillis(interaction.llm)
 
         return dataBindingProperties.retryTemplate(interaction.id.value)
-            .execute<ChatResponseWithThinking<O>, DatabindException> {
+            .execute<ResponseWithThinking<O>, DatabindException> {
                 val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
 
                 val future = CompletableFuture.supplyAsync {
@@ -420,7 +420,7 @@ internal class ChatClientLlmOperations(
                     val thinkingBlocks = extractAllThinkingBlocks(rawText)
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
 
-                    ChatResponseWithThinking(
+                    ResponseWithThinking(
                         result = rawText as O, // NOSONAR: Safe cast verified by outputClass == String::class.java check
                         thinkingBlocks = thinkingBlocks
                     )
@@ -441,13 +441,13 @@ internal class ChatClientLlmOperations(
                     try {
                         val result = converter!!.convert(rawText)
 
-                        ChatResponseWithThinking(
+                        ResponseWithThinking(
                             result = result!!,
                             thinkingBlocks = thinkingBlocks
                         )
                     } catch (e: Exception) {
                         // Preserve thinking blocks in exceptions
-                        throw ChatResponseWithThinkingException(
+                        throw ThinkingException(
                             message = "Conversion failed: ${e.message}",
                             thinkingBlocks = thinkingBlocks
                         )
@@ -465,7 +465,7 @@ internal class ChatClientLlmOperations(
         interaction: LlmInteraction,
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
-    ): Result<ChatResponseWithThinking<O>> {
+    ): Result<ResponseWithThinking<O>> {
         return try {
             val maybeReturnPromptContribution = templateRenderer.renderLoadedTemplate(
                 llmOperationsPromptsProperties.maybePromptTemplate,
@@ -517,7 +517,7 @@ internal class ChatClientLlmOperations(
             val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
 
             val result = dataBindingProperties.retryTemplate(interaction.id.value)
-                .execute<Result<ChatResponseWithThinking<O>>, DatabindException> {
+                .execute<Result<ResponseWithThinking<O>>, DatabindException> {
                     val future = CompletableFuture.supplyAsync {
                         chatClient
                             .prompt(springAiPrompt)
@@ -543,18 +543,18 @@ internal class ChatClientLlmOperations(
                     try {
                         val maybeResult = converter.convert(rawText)
 
-                        // Convert MaybeReturn<O> to Result<ChatResponseWithThinking<O>> with extracted thinking blocks
+                        // Convert MaybeReturn<O> to Result<ResponseWithThinking<O>> with extracted thinking blocks
                         val result = maybeResult!!.toResult() as Result<O> // NOSONAR: Safe cast, MaybeReturn<O>.toResult() returns Result<O>
                         when {
                             result.isSuccess -> Result.success(
-                                ChatResponseWithThinking(
+                                ResponseWithThinking(
                                     result = result.getOrThrow(),
                                     thinkingBlocks = thinkingBlocks
                                 )
                             )
 
                             else -> Result.failure(
-                                ChatResponseWithThinkingException(
+                                ThinkingException(
                                     message = "Object creation not possible: ${result.exceptionOrNull()?.message ?: "Unknown error"}",
                                     thinkingBlocks = thinkingBlocks
                                 )
@@ -563,7 +563,7 @@ internal class ChatClientLlmOperations(
                     } catch (e: Exception) {
                         // Other failures, preserve thinking blocks
                         Result.failure(
-                            ChatResponseWithThinkingException(
+                            ThinkingException(
                                 message = "Conversion failed: ${e.message}",
                                 thinkingBlocks = thinkingBlocks
                             )
@@ -759,7 +759,7 @@ internal class ChatClientLlmOperations(
     /**
      * Handles exceptions from CompletableFuture execution during LLM calls, returning Result.failure.
      *
-     * Similar to handleFutureException but returns Result.failure with ChatResponseWithThinkingException
+     * Similar to handleFutureException but returns Result.failure with ThinkingException
      * instead of throwing. Used for methods that return Result types rather than throwing exceptions.
      *
      * @param e The exception that occurred during future execution
@@ -767,7 +767,7 @@ internal class ChatClientLlmOperations(
      * @param interaction The LLM interaction context for error messages
      * @param timeoutMillis The timeout value for error reporting
      * @param attempt The retry attempt number for logging
-     * @return Result.failure with ChatResponseWithThinkingException containing empty thinking blocks
+     * @return Result.failure with ThinkingException containing empty thinking blocks
      */
     private fun <O> handleFutureExceptionAsResult(
         e: Exception,
@@ -775,12 +775,12 @@ internal class ChatClientLlmOperations(
         interaction: LlmInteraction,
         timeoutMillis: Long,
         attempt: Int
-    ): Result<ChatResponseWithThinking<O>> {
+    ): Result<ResponseWithThinking<O>> {
         return when (e) {
             is TimeoutException -> {
                 future.cancel(true)
                 logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, timeoutMillis)
-                Result.failure(ChatResponseWithThinkingException(
+                Result.failure(ThinkingException(
                     message = "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
                     thinkingBlocks = emptyList() // No response = no thinking blocks
                 ))
@@ -789,7 +789,7 @@ internal class ChatClientLlmOperations(
                 future.cancel(true)
                 Thread.currentThread().interrupt()
                 logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
-                Result.failure(ChatResponseWithThinkingException(
+                Result.failure(ThinkingException(
                     message = "ChatClient call for interaction ${interaction.id.value} was interrupted",
                     thinkingBlocks = emptyList() // No response = no thinking blocks
                 ))
@@ -797,7 +797,7 @@ internal class ChatClientLlmOperations(
             else -> {
                 future.cancel(true)
                 logger.error("LLM {}: attempt {} failed", interaction.id.value, attempt, e)
-                Result.failure(ChatResponseWithThinkingException(
+                Result.failure(ThinkingException(
                     message = "ChatClient call for interaction ${interaction.id.value} failed: ${e.message}",
                     thinkingBlocks = emptyList() // No response = no thinking blocks
                 ))

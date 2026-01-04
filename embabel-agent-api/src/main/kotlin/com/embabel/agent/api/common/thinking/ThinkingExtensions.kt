@@ -17,9 +17,12 @@ package com.embabel.agent.api.common.thinking
 
 import com.embabel.agent.api.common.PromptRunnerOperations
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.common.core.thinking.ThinkingCapability
 
 /**
  * Enhance a prompt runner with thinking block extraction capabilities.
+ *
+ * Used for Java support via ThinkingPromptRunnerBuilder.
  *
  * This extension method provides access to thinking-aware prompt operations
  * that return both converted results and the reasoning content that LLMs
@@ -38,12 +41,12 @@ import com.embabel.agent.api.common.support.OperationContextPromptRunner
  * ### OperationContextPromptRunner (Production)
  * - **Real thinking extraction**: Uses ChatClientLlmOperations to extract thinking blocks
  * - **Full functionality**: Returns actual thinking content from LLM responses
- * - **Return type**: `ChatResponseWithThinking<T>` with populated thinking blocks
+ * - **Return type**: `ResponseWithThinking<T>` with populated thinking blocks
  *
  * ### StreamingPromptRunner (Graceful Degradation)
  * - **Empty thinking blocks**: Returns wrapper with `thinkingBlocks = emptyList()`
  * - **Preserved results**: Original response content is maintained
- * - **Return type**: `ChatResponseWithThinking<T>` with empty thinking blocks
+ * - **Return type**: `ResponseWithThinking<T>` with empty thinking blocks
  * - **Correct alternative**: Use `StreamingPromptRunnerOperations.createObjectStreamWithThinking()`
  *   which returns `Flux<StreamingEvent<T>>` including thinking events
  *
@@ -69,15 +72,21 @@ import com.embabel.agent.api.common.support.OperationContextPromptRunner
  *         For other implementations: graceful degradation with empty thinking blocks.
  *
  * @see ThinkingPromptRunnerOperations for available thinking-aware methods
- * @see com.embabel.chat.ChatResponseWithThinking for response structure
+ * @see com.embabel.common.core.thinking.ResponseWithThinking for response structure
  * @see com.embabel.common.core.thinking.ThinkingBlock for thinking content details
  * @see com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations.createObjectStreamWithThinking for streaming alternative
  */
 fun PromptRunnerOperations.withThinking(): ThinkingPromptRunnerOperations {
+    // Existing specific check for known implementation
     if (this is OperationContextPromptRunner) {
         return this.withThinking()
     }
 
-    // For other PromptRunnerOperations implementations, fall back to wrapper
-    return ThinkingPromptRunner(this)
+    // Additional check for any future implementation that supports ThinkingCapability
+    if (this is ThinkingCapability) {
+        return this as ThinkingPromptRunnerOperations
+    }
+
+    // Only runners that support thinking and override withThinking such as OperationContextPromptRunner should reach this extension
+    error("Thinking not supported for ${this::class.simpleName}")
 }

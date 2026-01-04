@@ -26,6 +26,7 @@ import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
+import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -295,7 +296,7 @@ class ChatClientLlmOperationsThinkingTest {
             )
         )
 
-        val exception = com.embabel.chat.ChatResponseWithThinkingException(
+        val exception = ThinkingException(
             message = "JSON parsing failed",
             thinkingBlocks = thinkingBlocks
         )
@@ -760,7 +761,7 @@ class ChatClientLlmOperationsThinkingTest {
             <think>
             Processing string response with thinking.
             </think>
-            
+
             This is a plain string response with thinking blocks.
         """.trimIndent()
 

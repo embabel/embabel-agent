@@ -20,7 +20,7 @@ import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.thinking.ThinkingPromptRunnerBuilder;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
-import com.embabel.chat.ChatResponseWithThinking;
+import com.embabel.common.core.thinking.ResponseWithThinking;
 import com.embabel.common.ai.model.Llm;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import org.junit.jupiter.api.Test;
@@ -166,8 +166,8 @@ class LLMAnthropicThinkingBuilderIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                                .withToolObject(Tooling.class)
-                                 .withGenerateExamples(true);
+                .withToolObject(Tooling.class)
+                .withGenerateExamples(true);
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
@@ -177,13 +177,13 @@ class LLMAnthropicThinkingBuilderIT {
                 """;
 
         // When: Use ThinkingPromptRunnerBuilder to create object with thinking
-        ChatResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
 
         // Then: Verify both result and thinking content
         assertNotNull(response, "Response should not be null");
-        
+
         MonthItem result = response.getResult();
         assertNotNull(result, "Result object should not be null");
         assertNotNull(result.getName(), "Month name should not be null");
@@ -192,7 +192,7 @@ class LLMAnthropicThinkingBuilderIT {
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
         assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
-        
+
         logger.info("Extracted {} thinking blocks", thinkingBlocks);
 
         logger.info("Thinking createObject test completed successfully");
@@ -204,18 +204,18 @@ class LLMAnthropicThinkingBuilderIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                                .withToolObject(Tooling.class);
+                .withToolObject(Tooling.class);
 
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
 
-        // When: Use ThinkingPromptRunnerBuilder to create object if possible with thinking
-        ChatResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        // When: Use factory method for more natural chaining (testing alternative syntax)
+        ResponseWithThinking<MonthItem> response = ThinkingPromptRunnerBuilder.from(runner)
                 .withThinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
 
         // Then: Verify response and thinking content (result may be null if creation not possible)
         assertNotNull(response, "Response should not be null");
-        
+
         MonthItem result = response.getResult();
         // Note: result may be null if LLM determines object creation is not possible with given info
         if (result != null) {
@@ -228,7 +228,7 @@ class LLMAnthropicThinkingBuilderIT {
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
         assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
-        
+
         logger.info("Extracted {} thinking blocks", thinkingBlocks);
 
         logger.info("Thinking createObjectIfPossible test completed successfully");
@@ -240,7 +240,7 @@ class LLMAnthropicThinkingBuilderIT {
 
         // Given: Use the LLM with a complex reasoning prompt
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                                .withToolObject(Tooling.class);
+                .withToolObject(Tooling.class);
 
         String prompt = """
                 <think>
@@ -257,13 +257,13 @@ class LLMAnthropicThinkingBuilderIT {
                 """;
 
         // When: Use ThinkingPromptRunnerBuilder with complex thinking patterns
-        ChatResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
 
         // Then: Verify extraction of multiple thinking formats
         assertNotNull(response, "Response should not be null");
-        
+
         MonthItem result = response.getResult();
         assertNotNull(result, "Result object should not be null");
         logger.info("Created object from complex prompt: {}", result);
@@ -271,7 +271,7 @@ class LLMAnthropicThinkingBuilderIT {
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
         assertFalse(thinkingBlocks.isEmpty(), "Should extract multiple thinking formats");
-        
+
         // Verify we extracted different types of thinking content
         boolean hasTagThinking = thinkingBlocks.stream()
                 .anyMatch(block -> block.getTagType().name().equals("TAG"));
@@ -280,10 +280,10 @@ class LLMAnthropicThinkingBuilderIT {
         boolean hasNoPrefixThinking = thinkingBlocks.stream()
                 .anyMatch(block -> block.getTagType().name().equals("NO_PREFIX"));
 
-        logger.info("Thinking formats detected - TAG: {}, PREFIX: {}, NO_PREFIX: {}", 
-                   hasTagThinking, hasPrefixThinking, hasNoPrefixThinking);
+        logger.info("Thinking formats detected - TAG: {}, PREFIX: {}, NO_PREFIX: {}",
+                hasTagThinking, hasPrefixThinking, hasNoPrefixThinking);
 
-        logger.info("Complex thinking test completed successfully with {} thinking blocks", 
-                   thinkingBlocks.size());
+        logger.info("Complex thinking test completed successfully with {} thinking blocks",
+                thinkingBlocks.size());
     }
 }

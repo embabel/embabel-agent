@@ -18,14 +18,17 @@ package com.embabel.agent.api.common.thinking
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.chat.ChatResponseWithThinking
+import com.embabel.chat.AssistantMessage
+import com.embabel.common.core.thinking.ResponseWithThinking
 import com.embabel.common.core.thinking.ThinkingBlock
+import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingTagType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 /**
  * Test for the thinking prompt runner operations.
@@ -102,7 +105,7 @@ class ThinkingPromptRunnerOperationsTest {
                 any<Class<ProcessedData>>(),
                 isNull()
             )
-        } returns ChatResponseWithThinking(
+        } returns ResponseWithThinking(
             result = ProcessedData(result = "processed data", status = "success"),
             thinkingBlocks = expectedThinking
         )
@@ -146,32 +149,6 @@ class ThinkingPromptRunnerOperationsTest {
         assertTrue(secondThinking.content.contains("process some data"))
     }
 
-    /**
-     * Tests ThinkingPromptRunner wrapper for non-streaming PromptRunnerOperations implementations.
-     *
-     * Verifies that:
-     * 1. Non-OperationContextPromptRunner (except streaming) gets wrapped in ThinkingPromptRunner
-     * 2. Original result is preserved: base.createObject() result becomes result.result
-     * 3. Thinking blocks are always empty: result.thinkingBlocks.isEmpty()
-     */
-    @Test
-    fun `non-OperationContextPromptRunner should get ThinkingPromptRunner wrapper with empty thinking blocks`() {
-        // Given: Non-OperationContextPromptRunner, non-streaming implementation
-        val mockRunner = mockk<com.embabel.agent.api.common.PromptRunnerOperations>()
-        every {
-            mockRunner.createObject(
-                any<List<com.embabel.chat.Message>>(),
-                any<Class<String>>()
-            )
-        } returns "test result"
-
-        // When: Use fallback wrapper (extension method)
-        val result = mockRunner.withThinking().createObject("test prompt", String::class.java)
-
-        // Then: Should return result with empty thinking blocks
-        assertEquals("test result", result.result)
-        assertTrue(result.thinkingBlocks.isEmpty())
-    }
 
     /**
      * Tests that StreamingPromptRunner throws exception when withThinking() is called.
@@ -181,7 +158,7 @@ class ThinkingPromptRunnerOperationsTest {
      * 2. Exception message guides users to use streaming events instead
      */
     @Test
-    fun `StreamingPromptRunner should get ThinkingPromptRunner wrapper with empty thinking blocks`() {
+    fun `StreamingPromptRunner should throw exception when withThinking called`() {
         // Given: Real StreamingPromptRunner implementation (no mocks)
         val testStreamingRunner = object : com.embabel.agent.api.common.streaming.StreamingPromptRunner {
             override val llm: com.embabel.common.ai.model.LlmOptions? = null
@@ -271,20 +248,16 @@ class ThinkingPromptRunnerOperationsTest {
             }
         }
 
-        // When: Call withThinking() - should use extension method and fallback to wrapper
-        val result = testStreamingRunner.withThinking().createObject("test prompt", String::class.java)
+        // When/Then: Call withThinking() on StreamingPromptRunner should throw exception
+        // testStreamingRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
 
-        // Then: Should return result with empty thinking blocks (fallback wrapper behavior)
-        assertEquals("streaming test result", result.result)
-        assertTrue(result.thinkingBlocks.isEmpty())
-
-        // Additional verification: Test that it's actually the ThinkingPromptRunner wrapper
-        val thinkingOps = testStreamingRunner.withThinking()
-        assertTrue(thinkingOps is com.embabel.agent.api.common.thinking.ThinkingPromptRunner)
+        assertThrows<UnsupportedOperationException> {
+            testStreamingRunner.withThinking()
+        }
     }
 
     @Test
-    fun `FakePromptRunner should get ThinkingPromptRunner wrapper with empty thinking blocks`() {
+    fun `FakePromptRunner should throw exception when withThinking called`() {
         // Given: Real FakePromptRunner implementation (testing framework runner)
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
         val fakeRunner = com.embabel.agent.test.unit.FakePromptRunner(
@@ -298,16 +271,12 @@ class ThinkingPromptRunnerOperationsTest {
             responses = mutableListOf("fake test result")
         )
 
-        // When: Call withThinking() on FakePromptRunner
-        val result = fakeRunner.withThinking().createObject("test prompt", String::class.java)
+        // When/Then: Call withThinking() on FakePromptRunner should throw exception
+        // fakeRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
 
-        // Then: Should return result with empty thinking blocks (fallback wrapper behavior)
-        assertEquals("fake test result", result.result)
-        assertTrue(result.thinkingBlocks.isEmpty())
-
-        // Additional verification: Test that it's actually the ThinkingPromptRunner wrapper
-        val thinkingOps = fakeRunner.withThinking()
-        assertTrue(thinkingOps is com.embabel.agent.api.common.thinking.ThinkingPromptRunner)
+        assertThrows<UnsupportedOperationException> {
+            fakeRunner.withThinking()
+        }
     }
 
 
@@ -364,7 +333,7 @@ class ThinkingPromptRunnerOperationsTest {
                 any(), any(), any(), any()
             )
         } returns Result.success(
-            ChatResponseWithThinking(
+            ResponseWithThinking(
                 result = testResult,
                 thinkingBlocks = thinkingBlocks
             )
@@ -398,7 +367,7 @@ class ThinkingPromptRunnerOperationsTest {
         val thinkingBlocks = listOf(
             ThinkingBlock(content = "Failed processing", tagType = ThinkingTagType.TAG, tagValue = "think")
         )
-        val exception = com.embabel.chat.ChatResponseWithThinkingException(
+        val exception = ThinkingException(
             "Processing failed", thinkingBlocks
         )
 
@@ -423,49 +392,6 @@ class ThinkingPromptRunnerOperationsTest {
         assertEquals("Failed processing", result.thinkingBlocks[0].content)
     }
 
-    @Test
-    fun `ThinkingPromptRunner should delegate all methods to base runner with empty thinking blocks`() {
-        // Given: Mock base runner
-        val mockBase = mockk<com.embabel.agent.api.common.PromptRunnerOperations>()
-        val assistantMsg = com.embabel.chat.AssistantMessage("base response")
-
-        every {
-            mockBase.createObjectIfPossible(
-                any<List<com.embabel.chat.Message>>(),
-                any<Class<String>>()
-            )
-        } returns "base result"
-        every {
-            mockBase.createObject(
-                any<List<com.embabel.chat.Message>>(),
-                any<Class<String>>()
-            )
-        } returns "base object"
-        every { mockBase.respond(any<List<com.embabel.chat.Message>>()) } returns assistantMsg
-        every { mockBase.evaluateCondition(any<String>(), any<String>(), any()) } returns true
-
-        val thinkingRunner = ThinkingPromptRunner(mockBase)
-        val messages = listOf(com.embabel.chat.UserMessage("test"))
-
-        // When: Call all methods
-        val createIfPossibleResult = thinkingRunner.createObjectIfPossible(messages, String::class.java)
-        val createResult = thinkingRunner.createObject(messages, String::class.java)
-        val respondResult = thinkingRunner.respond(messages)
-        val evaluateResult = thinkingRunner.evaluateCondition("condition", "context", 0.8)
-
-        // Then: All should wrap base results with empty thinking blocks
-        assertEquals("base result", createIfPossibleResult.result)
-        assertTrue(createIfPossibleResult.thinkingBlocks.isEmpty())
-
-        assertEquals("base object", createResult.result)
-        assertTrue(createResult.thinkingBlocks.isEmpty())
-
-        assertEquals(assistantMsg, respondResult.result)
-        assertTrue(respondResult.thinkingBlocks.isEmpty())
-
-        assertEquals(true, evaluateResult.result)
-        assertTrue(evaluateResult.thinkingBlocks.isEmpty())
-    }
 
     @Test
     fun `ThinkingPromptRunnerOperations default implementations should work correctly`() {
@@ -482,20 +408,20 @@ class ThinkingPromptRunnerOperationsTest {
             mockChatClientOps.doTransformWithThinking<String>(
                 any(), any(), eq(String::class.java), any()
             )
-        } returns ChatResponseWithThinking(result = "generated text", thinkingBlocks = emptyList())
+        } returns ResponseWithThinking(result = "generated text", thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinking<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any()
             )
-        } returns ChatResponseWithThinking(result = SimpleTestData("created", 123), thinkingBlocks = emptyList())
+        } returns ResponseWithThinking(result = SimpleTestData("created", 123), thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any()
             )
         } returns Result.success(
-            ChatResponseWithThinking(
+            ResponseWithThinking(
                 result = SimpleTestData("maybe", 456),
                 thinkingBlocks = emptyList()
             )
@@ -535,13 +461,13 @@ class ThinkingPromptRunnerOperationsTest {
             mockChatClientOps.doTransformWithThinking<String>(
                 any(), any(), eq(String::class.java), any()
             )
-        } returns ChatResponseWithThinking(result = "multimodal text response", thinkingBlocks = emptyList())
+        } returns ResponseWithThinking(result = "multimodal text response", thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinking<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any()
             )
-        } returns ChatResponseWithThinking(
+        } returns ResponseWithThinking(
             result = SimpleTestData("multimodal object", 789),
             thinkingBlocks = emptyList()
         )
@@ -551,7 +477,7 @@ class ThinkingPromptRunnerOperationsTest {
                 any(), any(), eq(SimpleTestData::class.java), any()
             )
         } returns Result.success(
-            ChatResponseWithThinking(
+            ResponseWithThinking(
                 result = SimpleTestData("multimodal maybe", 101),
                 thinkingBlocks = emptyList()
             )
@@ -561,8 +487,8 @@ class ThinkingPromptRunnerOperationsTest {
             mockChatClientOps.doTransformWithThinking<com.embabel.chat.AssistantMessage>(
                 any(), any(), eq(com.embabel.chat.AssistantMessage::class.java), any()
             )
-        } returns ChatResponseWithThinking(
-            result = com.embabel.chat.AssistantMessage("multimodal response"),
+        } returns ResponseWithThinking(
+            result = AssistantMessage("multimodal response"),
             thinkingBlocks = emptyList()
         )
 
@@ -605,7 +531,7 @@ class ThinkingPromptRunnerOperationsTest {
             mockChatClientOps.doTransformWithThinking<com.embabel.agent.experimental.primitive.Determination>(
                 any(), any(), any(), any()
             )
-        } returns ChatResponseWithThinking(
+        } returns ResponseWithThinking(
             result = determination,
             thinkingBlocks = emptyList()
         )
@@ -643,18 +569,6 @@ class ThinkingPromptRunnerOperationsTest {
         assertTrue(result is com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl)
     }
 
-    @Test
-    fun `withThinking extension should create ThinkingPromptRunner wrapper for non-OperationContextPromptRunner`() {
-        // Given: Mock PromptRunnerOperations that is NOT OperationContextPromptRunner
-        val mockRunner = mockk<com.embabel.agent.api.common.PromptRunnerOperations>()
-
-        // When: Call withThinking extension
-        val result = mockRunner.withThinking()
-
-        // Then: Should create ThinkingPromptRunner wrapper
-        assertNotNull(result)
-        assertTrue(result is ThinkingPromptRunner)
-    }
 
     private fun setupMockContext(
         mockContext: com.embabel.agent.api.common.OperationContext,

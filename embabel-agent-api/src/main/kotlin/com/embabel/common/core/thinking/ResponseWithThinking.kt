@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 Embabel Software, Inc.
+ * Copyright 2024-2026 Embabel Software, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,9 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.chat
-
-import com.embabel.common.core.thinking.ThinkingBlock
+package com.embabel.common.core.thinking
 
 /**
  * Response from LLM operations that includes both the converted result and thinking blocks.
@@ -27,7 +25,7 @@ import com.embabel.common.core.thinking.ThinkingBlock
  * @property result The converted object of type T, or null if conversion failed
  * @property thinkingBlocks The reasoning content extracted from the LLM response
  */
-data class ChatResponseWithThinking<T>(
+data class ResponseWithThinking<T>(
     /**
      * The final converted result object.
      *
@@ -64,7 +62,7 @@ data class ChatResponseWithThinking<T>(
     /**
      * Get thinking blocks of a specific type.
      */
-    fun getThinkingByType(tagType: com.embabel.common.core.thinking.ThinkingTagType): List<ThinkingBlock> =
+    fun getThinkingByType(tagType: ThinkingTagType): List<ThinkingBlock> =
         thinkingBlocks.filter { it.tagType == tagType }
 
     /**
