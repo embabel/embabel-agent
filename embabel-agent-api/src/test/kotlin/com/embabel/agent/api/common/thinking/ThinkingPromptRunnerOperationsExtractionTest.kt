@@ -20,7 +20,7 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SuppressThinkingConverter
 import com.embabel.common.core.thinking.ThinkingException
-import com.embabel.common.core.thinking.ResponseWithThinking
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.ThinkingTagType
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.core.thinking.spi.InternalThinkingApi
@@ -432,7 +432,7 @@ class ThinkingPromptRunnerOperationsExtractionTest {
         rawLlmResponse: String,
         operationName: String,
         outputClass: Class<T>
-    ): ResponseWithThinking<T> {
+    ): ThinkingResponse<T> {
         val mockOperationRunner = mockk<OperationContextPromptRunner>()
         val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
         val mockPlatform = mockk<com.embabel.agent.core.AgentPlatform>()
@@ -457,7 +457,7 @@ class ThinkingPromptRunnerOperationsExtractionTest {
             val thinkingBlocks = extractAllThinkingBlocks(rawLlmResponse)
             val result = converter.convert(rawLlmResponse)
 
-            ResponseWithThinking(
+            ThinkingResponse(
                 result = result,
                 thinkingBlocks = thinkingBlocks
             )

@@ -24,7 +24,7 @@ package com.embabel.common.core.thinking
  *
  * Implementations that extend this interface can extract thinking blocks
  * (like `<think>...</think>`) from LLM responses and provide thinking-aware
- * operations that return ResponseWithThinking<T> objects.
+ * operations that return ThinkingResponse<T> objects.
  *
  * Note: Thinking and streaming capabilities are mutually exclusive.
  * StreamingPromptRunner implementations should not extend this interface.

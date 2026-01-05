@@ -17,7 +17,7 @@ package com.embabel.agent.api.common.thinking
 
 import com.embabel.agent.api.common.MultimodalContent
 import com.embabel.chat.AssistantMessage
-import com.embabel.common.core.thinking.ResponseWithThinking
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.ThinkingCapability
 import com.embabel.chat.Message
 import com.embabel.common.core.types.ZeroToOne
@@ -48,11 +48,11 @@ import com.embabel.common.core.types.ZeroToOne
  * ## Relationship to Regular Operations
  *
  * Unlike [com.embabel.agent.api.common.PromptRunnerOperations] which returns
- * direct objects, all methods in this interface return [ResponseWithThinking]
+ * direct objects, all methods in this interface return [ThinkingResponse]
  * wrappers that provide access to both results and reasoning.
  *
  * @see com.embabel.agent.api.common.PromptRunnerOperations for standard operations
- * @see ResponseWithThinking for the response wrapper
+ * @see ThinkingResponse for the response wrapper
  * @see com.embabel.common.core.thinking.ThinkingBlock for thinking content details
  */
 interface ThinkingPromptRunnerOperations : ThinkingCapability {
@@ -63,7 +63,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
      * @param prompt The text prompt to send to the LLM
      * @return Response containing both generated text and extracted thinking blocks
      */
-    infix fun generateText(prompt: String): ResponseWithThinking<String> =
+    infix fun generateText(prompt: String): ThinkingResponse<String> =
         createObject(
             prompt = prompt,
             outputClass = String::class.java,
@@ -83,7 +83,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
     fun <T> createObject(
         prompt: String,
         outputClass: Class<T>,
-    ): ResponseWithThinking<T> = createObject(
+    ): ThinkingResponse<T> = createObject(
         messages = listOf(com.embabel.chat.UserMessage(prompt)),
         outputClass = outputClass,
     )
@@ -102,7 +102,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
     fun <T> createObjectIfPossible(
         prompt: String,
         outputClass: Class<T>,
-    ): ResponseWithThinking<T?> = createObjectIfPossible(
+    ): ThinkingResponse<T?> = createObjectIfPossible(
         listOf(com.embabel.chat.UserMessage(prompt)),
         outputClass
     )
@@ -118,7 +118,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
     fun <T> createObjectIfPossible(
         messages: List<Message>,
         outputClass: Class<T>,
-    ): ResponseWithThinking<T?>
+    ): ThinkingResponse<T?>
 
     /**
      * Create an object from messages with thinking block extraction.
@@ -131,7 +131,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
     fun <T> createObject(
         messages: List<Message>,
         outputClass: Class<T>,
-    ): ResponseWithThinking<T>
+    ): ThinkingResponse<T>
 
     /**
      * Generate text from multimodal content with thinking block extraction.
@@ -139,7 +139,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
      * @param content The multimodal content (text + images) to send to the LLM
      * @return Response containing both generated text and extracted thinking blocks
      */
-    fun generateText(content: MultimodalContent): ResponseWithThinking<String> =
+    fun generateText(content: MultimodalContent): ThinkingResponse<String> =
         createObject(
             content = content,
             outputClass = String::class.java,
@@ -156,7 +156,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
     fun <T> createObject(
         content: MultimodalContent,
         outputClass: Class<T>,
-    ): ResponseWithThinking<T> = createObject(
+    ): ThinkingResponse<T> = createObject(
         messages = listOf(com.embabel.chat.UserMessage(content.toContentParts())),
         outputClass = outputClass,
     )
@@ -172,7 +172,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
     fun <T> createObjectIfPossible(
         content: MultimodalContent,
         outputClass: Class<T>,
-    ): ResponseWithThinking<T?> = createObjectIfPossible(
+    ): ThinkingResponse<T?> = createObjectIfPossible(
         listOf(com.embabel.chat.UserMessage(content.toContentParts())),
         outputClass
     )
@@ -185,7 +185,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
      */
     fun respond(
         content: MultimodalContent,
-    ): ResponseWithThinking<AssistantMessage> = respond(
+    ): ThinkingResponse<AssistantMessage> = respond(
         listOf(com.embabel.chat.UserMessage(content.toContentParts()))
     )
 
@@ -197,7 +197,7 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
      */
     fun respond(
         messages: List<Message>,
-    ): ResponseWithThinking<AssistantMessage>
+    ): ThinkingResponse<AssistantMessage>
 
     /**
      * Evaluate a condition with thinking block extraction.
@@ -213,5 +213,5 @@ interface ThinkingPromptRunnerOperations : ThinkingCapability {
         condition: String,
         context: String,
         confidenceThreshold: ZeroToOne = 0.8,
-    ): ResponseWithThinking<Boolean>
+    ): ThinkingResponse<Boolean>
 }

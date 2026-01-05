@@ -13,16 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models.anthropic;
+package com.embabel.agent.config.models.ollama;
 
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
-import com.embabel.agent.api.thinking.ThinkingPromptRunnerBuilder;
-import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
-import com.embabel.common.core.thinking.ResponseWithThinking;
+import com.embabel.agent.autoconfigure.models.ollama.AgentOllamaAutoConfiguration;
 import com.embabel.common.ai.model.Llm;
 import com.embabel.common.core.thinking.ThinkingBlock;
+import com.embabel.common.core.thinking.ThinkingResponse;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,9 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.cheapest=claude_-sonnet-4-5",
-                "embabel.models.best=claude_-sonnet-4-5",
-                "embabel.models.default-llm=claude-sonnet-4-5",
+                "embabel.models.cheapest=qwen3:latest",
+                "embabel.models.best=qwen3:latest",
+                "embabel.models.default-llm=qwen3:latest",
                 "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240",
                 "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
                 "spring.main.allow-bean-definition-overriding=true",
@@ -93,10 +92,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
                 )
         }
 )
-@Import({AgentAnthropicAutoConfiguration.class})
-class LLMAnthropicThinkingBuilderIT {
+@Import({AgentOllamaAutoConfiguration.class})
+class LLMOllamaThinkingIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(LLMAnthropicThinkingBuilderIT.class);
+    private static final Logger logger = LoggerFactory.getLogger(LLMOllamaThinkingIT.class);
 
     @Autowired
     private Autonomy autonomy;
@@ -113,7 +112,7 @@ class LLMAnthropicThinkingBuilderIT {
     static class MonthItem {
         private String name;
 
-        private Integer temperature;
+        private Short temperature;
 
         public MonthItem() {
         }
@@ -122,7 +121,7 @@ class LLMAnthropicThinkingBuilderIT {
             this.name = name;
         }
 
-        public MonthItem(String name, Integer temperature) {
+        public MonthItem(String name, Short temperature) {
             this.name = name;
             this.temperature = temperature;
         }
@@ -135,11 +134,11 @@ class LLMAnthropicThinkingBuilderIT {
             this.name = name;
         }
 
-        public Integer getTemperature() {
+        public Short getTemperature() {
             return temperature;
         }
 
-        public void setTemperature(Integer temperature) {
+        public void setTemperature(Short temperature) {
             this.temperature = temperature;
         }
 
@@ -155,8 +154,8 @@ class LLMAnthropicThinkingBuilderIT {
     static class Tooling {
 
         @Tool
-        Integer convertFromCelsiusToFahrenheit(Integer inputTemp) {
-            return (int) ((inputTemp * 2) + 32);
+        Short convertFromCelsiusToFahrenheit(Short inputTemp) {
+            return (short) ((inputTemp * 2) + 32);
         }
     }
 
@@ -165,19 +164,19 @@ class LLMAnthropicThinkingBuilderIT {
         logger.info("Starting thinking createObject integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
-                .withGenerateExamples(true);
+        PromptRunner runner = ai.withLlm("qwen3:latest")
+                .withToolObject(Tooling.class);
 
         String prompt = """
-                What is the hottest month in Florida and  provide its temperature.
-                Please respond with your reasoning using tags <reason>.
+                What is the hottest month in Florida and provide the temperature.
+                Please provide with reasoning.
                 
-                The name should be the month name, temperature should be in Fahrenheit.
+                
+                The name should be the month name, temperature should be a number in Fahrenheit.
                 """;
 
         // When: Use ThinkingPromptRunnerBuilder to create object with thinking
-        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
 
@@ -203,13 +202,13 @@ class LLMAnthropicThinkingBuilderIT {
         logger.info("Starting thinking createObjectIfPossible integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withLlm("qwen3:latest")
                 .withToolObject(Tooling.class);
 
-        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis. " + "And return Month with temperature";
 
-        // When: Use factory method for more natural chaining (testing alternative syntax)
-        ResponseWithThinking<MonthItem> response = ThinkingPromptRunnerBuilder.from(runner)
+        // When: Use ThinkingPromptRunnerBuilder to create object if possible with thinking
+        ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
 
@@ -239,7 +238,7 @@ class LLMAnthropicThinkingBuilderIT {
         logger.info("Starting complex thinking integration test");
 
         // Given: Use the LLM with a complex reasoning prompt
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withLlm("qwen3:latest")
                 .withToolObject(Tooling.class);
 
         String prompt = """
@@ -257,7 +256,7 @@ class LLMAnthropicThinkingBuilderIT {
                 """;
 
         // When: Use ThinkingPromptRunnerBuilder with complex thinking patterns
-        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
 

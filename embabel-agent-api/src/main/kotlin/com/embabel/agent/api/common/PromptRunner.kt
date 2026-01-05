@@ -18,6 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.annotation.support.AgenticInfo
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
+import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
@@ -31,7 +32,6 @@ import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
 import com.embabel.common.core.streaming.StreamingCapability
-import com.embabel.common.core.thinking.ThinkingCapability
 import com.embabel.common.util.loggerFor
 import org.jetbrains.annotations.ApiStatus
 import java.util.function.Predicate
@@ -409,7 +409,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * Create a thinking-enhanced version of this prompt runner.
      *
      * Returns a PromptRunner where all operations (createObject, generateText, etc.)
-     * return ResponseWithThinking<T> wrappers that include both results and extracted
+     * return ThinkingResponse<T> wrappers that include both results and extracted
      * thinking blocks from the LLM response.
      *
      * Always check supportsThinking() first and ensure LlmOptions includes thinking configuration
@@ -421,7 +421,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * @throws UnsupportedOperationException if thinking is not supported by this implementation
      * @throws IllegalArgumentException if thinking is not enabled in LlmOptions configuration
      */
-    fun withThinking(): ThinkingCapability {
+    fun withThinking(): ThinkingPromptRunnerOperations {
         if (!supportsThinking()) {
             throw UnsupportedOperationException(
                 "Thinking not supported by this PromptRunner implementation. " +

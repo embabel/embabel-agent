@@ -25,7 +25,7 @@ package com.embabel.common.core.thinking
  * @property result The converted object of type T, or null if conversion failed
  * @property thinkingBlocks The reasoning content extracted from the LLM response
  */
-data class ResponseWithThinking<T>(
+data class ThinkingResponse<T>(
     /**
      * The final converted result object.
      *

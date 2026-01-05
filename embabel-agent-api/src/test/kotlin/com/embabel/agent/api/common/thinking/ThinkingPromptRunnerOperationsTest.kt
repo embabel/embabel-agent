@@ -19,7 +19,7 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
-import com.embabel.common.core.thinking.ResponseWithThinking
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.ThinkingBlock
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingTagType
@@ -105,7 +105,7 @@ class ThinkingPromptRunnerOperationsTest {
                 any<Class<ProcessedData>>(),
                 isNull()
             )
-        } returns ResponseWithThinking(
+        } returns ThinkingResponse(
             result = ProcessedData(result = "processed data", status = "success"),
             thinkingBlocks = expectedThinking
         )
@@ -281,14 +281,14 @@ class ThinkingPromptRunnerOperationsTest {
 
 
     @Test
-    fun `extension method should delegate to OperationContextPromptRunner withThinking`() {
+    fun `method should delegate to OperationContextPromptRunner withThinking`() {
         // Given: OperationContextPromptRunner with mocked withThinking method
         val mockOperationRunner = mockk<OperationContextPromptRunner>()
         val mockThinkingOps = mockk<ThinkingPromptRunnerOperations>()
 
         every { mockOperationRunner.withThinking() } returns mockThinkingOps
 
-        // When: Call extension method
+
         val result = mockOperationRunner.withThinking()
 
         // Then: Should delegate to OperationContextPromptRunner's withThinking method
@@ -333,7 +333,7 @@ class ThinkingPromptRunnerOperationsTest {
                 any(), any(), any(), any()
             )
         } returns Result.success(
-            ResponseWithThinking(
+            ThinkingResponse(
                 result = testResult,
                 thinkingBlocks = thinkingBlocks
             )
@@ -408,20 +408,20 @@ class ThinkingPromptRunnerOperationsTest {
             mockChatClientOps.doTransformWithThinking<String>(
                 any(), any(), eq(String::class.java), any()
             )
-        } returns ResponseWithThinking(result = "generated text", thinkingBlocks = emptyList())
+        } returns ThinkingResponse(result = "generated text", thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinking<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any()
             )
-        } returns ResponseWithThinking(result = SimpleTestData("created", 123), thinkingBlocks = emptyList())
+        } returns ThinkingResponse(result = SimpleTestData("created", 123), thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any()
             )
         } returns Result.success(
-            ResponseWithThinking(
+            ThinkingResponse(
                 result = SimpleTestData("maybe", 456),
                 thinkingBlocks = emptyList()
             )
@@ -461,13 +461,13 @@ class ThinkingPromptRunnerOperationsTest {
             mockChatClientOps.doTransformWithThinking<String>(
                 any(), any(), eq(String::class.java), any()
             )
-        } returns ResponseWithThinking(result = "multimodal text response", thinkingBlocks = emptyList())
+        } returns ThinkingResponse(result = "multimodal text response", thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinking<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any()
             )
-        } returns ResponseWithThinking(
+        } returns ThinkingResponse(
             result = SimpleTestData("multimodal object", 789),
             thinkingBlocks = emptyList()
         )
@@ -477,7 +477,7 @@ class ThinkingPromptRunnerOperationsTest {
                 any(), any(), eq(SimpleTestData::class.java), any()
             )
         } returns Result.success(
-            ResponseWithThinking(
+            ThinkingResponse(
                 result = SimpleTestData("multimodal maybe", 101),
                 thinkingBlocks = emptyList()
             )
@@ -487,7 +487,7 @@ class ThinkingPromptRunnerOperationsTest {
             mockChatClientOps.doTransformWithThinking<com.embabel.chat.AssistantMessage>(
                 any(), any(), eq(com.embabel.chat.AssistantMessage::class.java), any()
             )
-        } returns ResponseWithThinking(
+        } returns ThinkingResponse(
             result = AssistantMessage("multimodal response"),
             thinkingBlocks = emptyList()
         )
@@ -531,7 +531,7 @@ class ThinkingPromptRunnerOperationsTest {
             mockChatClientOps.doTransformWithThinking<com.embabel.agent.experimental.primitive.Determination>(
                 any(), any(), any(), any()
             )
-        } returns ResponseWithThinking(
+        } returns ThinkingResponse(
             result = determination,
             thinkingBlocks = emptyList()
         )
@@ -548,25 +548,6 @@ class ThinkingPromptRunnerOperationsTest {
 
         // Then: Should return true when confidence exceeds threshold
         assertTrue(result.result!!)
-    }
-
-    @Test
-    fun `withThinking extension should delegate to OperationContextPromptRunner method`() {
-        // Given: OperationContextPromptRunner instance with proper mocking
-        val mockContext = mockk<com.embabel.agent.api.common.OperationContext>()
-        val mockPlatform = mockk<com.embabel.agent.core.AgentPlatform>()
-        val mockServices = mockk<PlatformServices>()
-        val mockChatClientOps = mockk<ChatClientLlmOperations>()
-
-        setupMockContext(mockContext, mockPlatform, mockServices, mockChatClientOps)
-        val runner = createTestRunner(mockContext)
-
-        // When: Call withThinking extension
-        val result = (runner as com.embabel.agent.api.common.PromptRunnerOperations).withThinking()
-
-        // Then: Should delegate to OperationContextPromptRunner.withThinking method
-        assertNotNull(result)
-        assertTrue(result is com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl)
     }
 
 

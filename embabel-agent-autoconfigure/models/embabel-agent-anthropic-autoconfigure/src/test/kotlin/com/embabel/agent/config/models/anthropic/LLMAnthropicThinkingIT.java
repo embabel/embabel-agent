@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models.ollama;
+package com.embabel.agent.config.models.anthropic;
 
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.thinking.ThinkingPromptRunnerBuilder;
-import com.embabel.agent.autoconfigure.models.ollama.AgentOllamaAutoConfiguration;
-import com.embabel.common.core.thinking.ResponseWithThinking;
+import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
+import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.ai.model.Llm;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * Java integration test for Ollama thinking functionality using builder pattern.
@@ -44,9 +45,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.cheapest=qwen3:latest",
-                "embabel.models.best=qwen3:latest",
-                "embabel.models.default-llm=qwen3:latest",
+                "embabel.models.cheapest=claude_-sonnet-4-5",
+                "embabel.models.best=claude_-sonnet-4-5",
+                "embabel.models.default-llm=claude-sonnet-4-5",
                 "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240",
                 "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
                 "spring.main.allow-bean-definition-overriding=true",
@@ -92,10 +93,10 @@ import static org.junit.jupiter.api.Assertions.*;
                 )
         }
 )
-@Import({AgentOllamaAutoConfiguration.class})
-class LLMOllamaThinkingBuilderIT {
+@Import({AgentAnthropicAutoConfiguration.class})
+class LLMAnthropicThinkingIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(LLMOllamaThinkingBuilderIT.class);
+    private static final Logger logger = LoggerFactory.getLogger(LLMAnthropicThinkingIT.class);
 
     @Autowired
     private Autonomy autonomy;
@@ -112,7 +113,7 @@ class LLMOllamaThinkingBuilderIT {
     static class MonthItem {
         private String name;
 
-        private Short temperature;
+        private Integer temperature;
 
         public MonthItem() {
         }
@@ -121,7 +122,7 @@ class LLMOllamaThinkingBuilderIT {
             this.name = name;
         }
 
-        public MonthItem(String name, Short temperature) {
+        public MonthItem(String name, Integer temperature) {
             this.name = name;
             this.temperature = temperature;
         }
@@ -134,11 +135,11 @@ class LLMOllamaThinkingBuilderIT {
             this.name = name;
         }
 
-        public Short getTemperature() {
+        public Integer getTemperature() {
             return temperature;
         }
 
-        public void setTemperature(Short temperature) {
+        public void setTemperature(Integer temperature) {
             this.temperature = temperature;
         }
 
@@ -154,8 +155,8 @@ class LLMOllamaThinkingBuilderIT {
     static class Tooling {
 
         @Tool
-        Short convertFromCelsiusToFahrenheit(Short inputTemp) {
-            return (short) ((inputTemp * 2) + 32);
+        Integer convertFromCelsiusToFahrenheit(Integer inputTemp) {
+            return (int) ((inputTemp * 2) + 32);
         }
     }
 
@@ -164,25 +165,25 @@ class LLMOllamaThinkingBuilderIT {
         logger.info("Starting thinking createObject integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("qwen3:latest")
-                                .withToolObject(Tooling.class);
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                .withToolObject(Tooling.class)
+                .withGenerateExamples(true);
 
         String prompt = """
-                What is the hottest month in Florida and provide the temperature.
-                Please provide with reasoning.
+                What is the hottest month in Florida and  provide its temperature.
+                Please respond with your reasoning using tags <reason>.
                 
-                
-                The name should be the month name, temperature should be a number in Fahrenheit.
+                The name should be the month name, temperature should be in Fahrenheit.
                 """;
 
-        // When: Use ThinkingPromptRunnerBuilder to create object with thinking
-        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        // When: create object with thinking
+        ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
 
         // Then: Verify both result and thinking content
         assertNotNull(response, "Response should not be null");
-        
+
         MonthItem result = response.getResult();
         assertNotNull(result, "Result object should not be null");
         assertNotNull(result.getName(), "Month name should not be null");
@@ -191,7 +192,7 @@ class LLMOllamaThinkingBuilderIT {
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
         assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
-        
+
         logger.info("Extracted {} thinking blocks", thinkingBlocks);
 
         logger.info("Thinking createObject test completed successfully");
@@ -202,19 +203,20 @@ class LLMOllamaThinkingBuilderIT {
         logger.info("Starting thinking createObjectIfPossible integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("qwen3:latest")
-                                .withToolObject(Tooling.class);
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                .withToolObject(Tooling.class);
 
-        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis. " + "And return Month with temperature";
 
-        // When: Use ThinkingPromptRunnerBuilder to create object if possible with thinking
-        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+
+        // When: Use factory method for more natural chaining - not recommended (testing alternative syntax)
+        ThinkingResponse<MonthItem> response = ThinkingPromptRunnerBuilder.from(runner)
                 .withThinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
 
         // Then: Verify response and thinking content (result may be null if creation not possible)
         assertNotNull(response, "Response should not be null");
-        
+
         MonthItem result = response.getResult();
         // Note: result may be null if LLM determines object creation is not possible with given info
         if (result != null) {
@@ -227,7 +229,7 @@ class LLMOllamaThinkingBuilderIT {
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
         assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
-        
+
         logger.info("Extracted {} thinking blocks", thinkingBlocks);
 
         logger.info("Thinking createObjectIfPossible test completed successfully");
@@ -238,8 +240,8 @@ class LLMOllamaThinkingBuilderIT {
         logger.info("Starting complex thinking integration test");
 
         // Given: Use the LLM with a complex reasoning prompt
-        PromptRunner runner = ai.withLlm("qwen3:latest")
-                                .withToolObject(Tooling.class);
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                .withToolObject(Tooling.class);
 
         String prompt = """
                 <think>
@@ -256,13 +258,13 @@ class LLMOllamaThinkingBuilderIT {
                 """;
 
         // When: Use ThinkingPromptRunnerBuilder with complex thinking patterns
-        ResponseWithThinking<MonthItem> response = new ThinkingPromptRunnerBuilder(runner)
+        ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
 
         // Then: Verify extraction of multiple thinking formats
         assertNotNull(response, "Response should not be null");
-        
+
         MonthItem result = response.getResult();
         assertNotNull(result, "Result object should not be null");
         logger.info("Created object from complex prompt: {}", result);
@@ -270,7 +272,7 @@ class LLMOllamaThinkingBuilderIT {
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
         assertFalse(thinkingBlocks.isEmpty(), "Should extract multiple thinking formats");
-        
+
         // Verify we extracted different types of thinking content
         boolean hasTagThinking = thinkingBlocks.stream()
                 .anyMatch(block -> block.getTagType().name().equals("TAG"));
@@ -279,10 +281,10 @@ class LLMOllamaThinkingBuilderIT {
         boolean hasNoPrefixThinking = thinkingBlocks.stream()
                 .anyMatch(block -> block.getTagType().name().equals("NO_PREFIX"));
 
-        logger.info("Thinking formats detected - TAG: {}, PREFIX: {}, NO_PREFIX: {}", 
-                   hasTagThinking, hasPrefixThinking, hasNoPrefixThinking);
+        logger.info("Thinking formats detected - TAG: {}, PREFIX: {}, NO_PREFIX: {}",
+                hasTagThinking, hasPrefixThinking, hasNoPrefixThinking);
 
-        logger.info("Complex thinking test completed successfully with {} thinking blocks", 
-                   thinkingBlocks.size());
+        logger.info("Complex thinking test completed successfully with {} thinking blocks",
+                thinkingBlocks.size());
     }
 }
