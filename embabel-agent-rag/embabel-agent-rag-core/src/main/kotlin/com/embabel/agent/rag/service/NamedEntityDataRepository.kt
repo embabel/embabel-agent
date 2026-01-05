@@ -15,9 +15,14 @@
  */
 package com.embabel.agent.rag.service
 
+import com.embabel.agent.core.DataDictionary
+import com.embabel.agent.core.DomainType
+import com.embabel.agent.core.JvmType
+import com.embabel.agent.rag.model.NamedEntity
 import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
+import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
  * Named relationship that may have properties.
@@ -31,8 +36,23 @@ data class RelationshipData(
  * Simple storage interface for named entities.
  *
  * Implementations may use different backends (in-memory, database, vector store, graph database).
+ *
+ * Supports typed hydration via [findTypedById] and [findByDomainType] when entities
+ * have a [NamedEntityData.linkedDomainType] set.
  */
 interface NamedEntityDataRepository {
+
+    /**
+     * ObjectMapper for hydrating entities to typed JVM instances.
+     */
+    val objectMapper: ObjectMapper
+
+    /**
+     * Data dictionary for [findEntityById].
+     * Enables finding entities by ID and automatically creating
+     * instances implementing all matching interfaces based on entity labels.
+     */
+    val dataDictionary: DataDictionary
 
     /**
      * Save an entity. If an entity with the same ID exists, it will be replaced.
@@ -131,4 +151,145 @@ interface NamedEntityDataRepository {
      */
     fun findByLabel(label: String): List<NamedEntityData>
 
+    // === Typed hydration methods ===
+
+    /**
+     * Find an entity by ID and type, then hydrate to a typed JVM instance.
+     *
+     * IDs are scoped by type, so the same ID can exist for different types.
+     * Uses the type's simple name as a label filter.
+     *
+     * Note: This works even if [NamedEntityData.linkedDomainType] was not set when storing,
+     * as long as the labels match and properties are compatible with the target type.
+     *
+     * @param id the entity ID
+     * @param type the target class (must implement [NamedEntity])
+     * @return the hydrated instance, or null if not found or hydration fails
+     */
+    fun <T : NamedEntity> findTypedById(id: String, type: Class<T>): T? {
+        val jvmType = JvmType(type)
+        return findByLabel(jvmType.ownLabel)
+            .find { it.id == id }
+            ?.toTypedInstance(objectMapper, type)
+    }
+
+    /**
+     * Find all entities matching a [DomainType] (by label) and hydrate them.
+     *
+     * Uses [DomainType.ownLabel] for label matching.
+     * Requires [NamedEntityData.linkedDomainType] to be set for hydration.
+     *
+     * @return list of hydrated instances (entities that fail hydration are filtered out)
+     * @see findAll for type-based hydration without requiring linkedDomainType
+     */
+    fun <T : NamedEntity> findByDomainType(type: DomainType): List<T> =
+        findByLabel(type.ownLabel).mapNotNull { it.toTypedInstance(objectMapper) }
+
+    /**
+     * Find all entities of a given class and hydrate them.
+     *
+     * Note: This works even if [NamedEntityData.linkedDomainType] was not set when storing,
+     * as long as the labels match and properties are compatible with the target type.
+     *
+     * @param type the target class (must implement [NamedEntity])
+     * @return list of hydrated instances
+     */
+    fun <T : NamedEntity> findAll(type: Class<T>): List<T> {
+        val jvmType = JvmType(type)
+        return findByLabel(jvmType.ownLabel).mapNotNull { it.toTypedInstance(objectMapper, type) }
+    }
+
+    /**
+     * Find all entities matching a [DomainType] without hydration.
+     *
+     * Useful when you need the raw entity data or when working with [DynamicType][com.embabel.agent.core.DynamicType].
+     */
+    fun findEntityDataByDomainType(type: DomainType): List<NamedEntityData> =
+        findByLabel(type.ownLabel)
+
+    /**
+     * Find an entity by ID and create an instance implementing all matching interfaces.
+     *
+     * This method:
+     * 1. Finds the entity by ID
+     * 2. If not found, returns null
+     * 3. Matches the entity's labels against the provided candidate interfaces
+     * 4. Creates an instance implementing all matching interfaces
+     *
+     * Example:
+     * ```java
+     * // Entity has labels ["Person", "Manager", "Entity"]
+     * NamedEntity result = repository.findById(
+     *     "emp-1",
+     *     Person.class, Manager.class, Employee.class
+     * );
+     * // result implements Person and Manager (matching labels)
+     * // Employee is not included (no matching label)
+     * Person person = (Person) result;
+     * Manager manager = (Manager) result;
+     * ```
+     *
+     * @param id the entity ID
+     * @param candidateInterfaces interfaces to check against entity labels
+     * @return an instance implementing matching interfaces, or null if not found or no interfaces match
+     */
+    fun findById(id: String, vararg candidateInterfaces: Class<out NamedEntity>): NamedEntity? {
+        val entity = findById(id) ?: return null
+        val entityLabels = entity.labels()
+
+        // Filter to interfaces whose simple name matches an entity label
+        val matchingInterfaces = candidateInterfaces.filter { iface ->
+            entityLabels.contains(iface.simpleName)
+        }
+
+        if (matchingInterfaces.isEmpty()) {
+            return null
+        }
+
+        return entity.toInstance(*matchingInterfaces.toTypedArray())
+    }
+
+    /**
+     * Find an entity by ID and create an instance implementing all matching interfaces
+     * from the [dataDictionary].
+     *
+     * This method uses the configured [dataDictionary] to determine which interfaces
+     * the returned instance should implement, based on matching entity labels to
+     * JVM type labels.
+     *
+     * Example:
+     * ```kotlin
+     * // Configure repository with data dictionary
+     * val dictionary = DataDictionary.fromClasses(Person::class.java, Manager::class.java)
+     * repository.dataDictionary = dictionary
+     *
+     * // Entity has labels ["Person", "Manager", "Entity"]
+     * val result = repository.findEntityById("emp-1")
+     * // result implements both Person and Manager
+     * val person = result as Person
+     * val manager = result as Manager
+     * ```
+     *
+     * @param id the entity ID
+     * @return an instance implementing all matching interfaces from dataDictionary,
+     *         or null if: entity not found, no dataDictionary configured, or no interfaces match
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun findEntityById(id: String): NamedEntity? {
+        val entity = findById(id) ?: return null
+        val entityLabels = entity.labels()
+
+        // Find all JVM types whose labels intersect with entity labels
+        val matchingTypes = dataDictionary.jvmTypes.filter { jvmType ->
+            jvmType.labels.any { label -> entityLabels.contains(label) }
+        }
+
+        if (matchingTypes.isEmpty()) {
+            return null
+        }
+
+        // Extract the classes and create the proxy
+        val interfaces = matchingTypes.map { it.clazz as Class<out NamedEntity> }.toTypedArray()
+        return entity.toInstance(*interfaces)
+    }
 }
