@@ -153,8 +153,39 @@ interface NamedEntityDataRepository {
 
     // === Typed hydration methods ===
 
+    // === Native store hooks ===
+    // Implementations can override these to use native store mappings (e.g., JPA, Spring Data)
+
+    /**
+     * Native store lookup by ID for a specific type.
+     *
+     * Override this method in implementations that have native mappings for certain types
+     * (e.g., JPA entities, Spring Data repositories).
+     *
+     * @param id the entity ID
+     * @param type the target class
+     * @return the entity if found via native store, null to fall back to generic lookup
+     */
+    fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? = null
+
+    /**
+     * Native store lookup for all entities of a specific type.
+     *
+     * Override this method in implementations that have native mappings for certain types
+     * (e.g., JPA entities, Spring Data repositories).
+     *
+     * @param type the target class
+     * @return list of entities if type has native mapping, null to fall back to generic lookup
+     */
+    fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? = null
+
+    // === Typed hydration methods ===
+
     /**
      * Find an entity by ID and type, then hydrate to a typed JVM instance.
+     *
+     * First tries [findNativeById] for native store mappings, then falls back to
+     * generic label-based lookup with hydration.
      *
      * IDs are scoped by type, so the same ID can exist for different types.
      * Uses the type's simple name as a label filter.
@@ -167,6 +198,10 @@ interface NamedEntityDataRepository {
      * @return the hydrated instance, or null if not found or hydration fails
      */
     fun <T : NamedEntity> findTypedById(id: String, type: Class<T>): T? {
+        // Try native store first
+        findNativeById(id, type)?.let { return it }
+
+        // Fall back to generic lookup
         val jvmType = JvmType(type)
         return findByLabel(jvmType.ownLabel)
             .find { it.id == id }
@@ -188,6 +223,9 @@ interface NamedEntityDataRepository {
     /**
      * Find all entities of a given class and hydrate them.
      *
+     * First tries [findNativeAll] for native store mappings, then falls back to
+     * generic label-based lookup with hydration.
+     *
      * Note: This works even if [NamedEntityData.linkedDomainType] was not set when storing,
      * as long as the labels match and properties are compatible with the target type.
      *
@@ -195,6 +233,10 @@ interface NamedEntityDataRepository {
      * @return list of hydrated instances
      */
     fun <T : NamedEntity> findAll(type: Class<T>): List<T> {
+        // Try native store first
+        findNativeAll(type)?.let { return it }
+
+        // Fall back to generic lookup
         val jvmType = JvmType(type)
         return findByLabel(jvmType.ownLabel).mapNotNull { it.toTypedInstance(objectMapper, type) }
     }

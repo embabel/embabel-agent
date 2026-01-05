@@ -45,7 +45,7 @@ import kotlin.math.sqrt
  * @param embeddingService Optional service for computing text embeddings
  * @param objectMapper ObjectMapper for typed hydration
  */
-class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
+open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
     override val dataDictionary: DataDictionary,
     private val embeddingService: EmbeddingService? = null,
     override val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule(),
