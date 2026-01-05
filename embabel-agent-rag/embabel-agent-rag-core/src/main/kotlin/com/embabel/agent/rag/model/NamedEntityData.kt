@@ -19,6 +19,7 @@ import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.JvmType
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
@@ -78,21 +79,34 @@ interface NamedEntityData : EntityData, NamedEntity {
      * This allows hydration even when [linkedDomainType] is not set,
      * as long as the entity's labels match the target type and the properties are compatible.
      *
-     * @param objectMapper the ObjectMapper to use for deserialization
+     * For interface types, a dynamic proxy is created.
+     * For concrete classes, Jackson deserialization is used.
+     *
+     * @param objectMapper the ObjectMapper to use for deserialization (only for concrete classes)
      * @param type the target class to hydrate to
      * @return the hydrated instance, or null if hydration fails
      */
+    @Suppress("UNCHECKED_CAST")
     fun <T : NamedEntity> toTypedInstance(objectMapper: ObjectMapper, type: Class<T>): T? {
         return try {
-            // Build the full property map including id, name, description
-            val allProperties = buildMap {
-                put("id", id)
-                put("name", name)
-                put("description", description)
-                putAll(properties)
+            if (type.isInterface) {
+                // Use dynamic proxy for interfaces
+                toInstance(type) as T
+            } else {
+                // Use Jackson for concrete classes
+                val allProperties = buildMap {
+                    put("id", id)
+                    put("name", name)
+                    put("description", description)
+                    putAll(properties)
+                }
+                objectMapper.convertValue(allProperties, type)
             }
-            objectMapper.convertValue(allProperties, type)
         } catch (e: Exception) {
+            LoggerFactory.getLogger(type).warn(
+                "Failed to hydrate NamedEntityData (id=$id) to type ${type.name}: ${e.message}",
+                e
+            )
             null
         }
     }
@@ -179,6 +193,7 @@ internal class NamedEntityInvocationHandler(
                 val indent = args?.getOrNull(1) as? Int ?: 0
                 entityData.infoString(verbose, indent)
             }
+
             "propertiesToPersist" -> entityData.propertiesToPersist()
 
             // Kotlin property getter pattern: getXxx() -> property "xxx"

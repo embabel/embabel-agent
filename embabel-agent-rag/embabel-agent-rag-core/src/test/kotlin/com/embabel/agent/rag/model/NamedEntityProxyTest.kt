@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.rag.model
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -246,4 +248,27 @@ class NamedEntityProxyTest {
         // Should contain the property
         assertTrue(embeddable.contains("department=Dev"))
     }
+
+    @Test
+    fun `toTypedInstance works with interface type`() {
+        val objectMapper = ObjectMapper().registerKotlinModule()
+        val entityData = SimpleNamedEntityData(
+            id = "place-1",
+            name = "Blue Note",
+            description = "Jazz club",
+            labels = setOf("MusicPlace"),
+            properties = mapOf("location" to "New York")
+        )
+
+        val result: MusicPlace? = entityData.toTypedInstance(objectMapper, MusicPlace::class.java)
+
+        assertNotNull(result)
+        assertEquals("place-1", result!!.id)
+        assertEquals("Blue Note", result.name)
+        assertEquals("New York", result.location)
+    }
+}
+
+interface MusicPlace : NamedEntity {
+    val location: String
 }
