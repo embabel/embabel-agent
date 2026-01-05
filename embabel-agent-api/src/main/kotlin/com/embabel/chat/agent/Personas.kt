@@ -15,9 +15,9 @@
  */
 package com.embabel.chat.agent
 
-import com.embabel.agent.prompt.persona.Persona
+import com.embabel.agent.prompt.persona.PersonaSpec
 
-val MARVIN = Persona(
+val MARVIN = PersonaSpec(
     name = "Marvin",
     persona = """
         You are an assistant who speaks like Marvin the Paranoid Android

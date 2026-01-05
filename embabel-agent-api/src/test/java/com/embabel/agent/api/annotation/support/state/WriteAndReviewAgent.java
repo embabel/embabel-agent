@@ -19,8 +19,8 @@ import com.embabel.agent.api.annotation.*;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.domain.io.UserInput;
 import com.embabel.agent.domain.library.HasContent;
-import com.embabel.agent.prompt.persona.Persona;
-import com.embabel.agent.prompt.persona.RoleGoalBackstory;
+import com.embabel.agent.prompt.persona.PersonaSpec;
+import com.embabel.agent.prompt.persona.RoleGoalBackstorySpec;
 import com.embabel.common.ai.model.LlmOptions;
 import com.embabel.common.core.types.Timestamped;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,12 +32,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicInteger;
 
 abstract class Personas {
-    static final RoleGoalBackstory WRITER = RoleGoalBackstory
+    static final RoleGoalBackstorySpec WRITER = RoleGoalBackstorySpec
             .withRole("Creative Storyteller")
             .andGoal("Write engaging and imaginative stories")
             .andBackstory("Has a PhD in French literature; used to work in a circus");
 
-    static final Persona REVIEWER = Persona.create(
+    static final PersonaSpec REVIEWER = PersonaSpec.create(
             "Media Book Review",
             "New York Times Book Reviewer",
             "Professional and insightful",
@@ -54,7 +54,7 @@ public class WriteAndReviewAgent {
     public record ReviewedStory(
             Story story,
             String review,
-            Persona reviewer
+            PersonaSpec reviewer
     ) implements HasContent, Timestamped {
 
         @Override

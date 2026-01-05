@@ -29,7 +29,7 @@ class PersonaTest {
 
         @Test
         fun `should serialize and deserialize Persona with defaults`() {
-            val persona = Persona(
+            val persona = PersonaSpec(
                 name = "Alice",
                 persona = "Friendly and helpful",
                 voice = "Calm and clear",
@@ -37,13 +37,13 @@ class PersonaTest {
             )
 
             val serialized = objectMapper.writeValueAsString(persona)
-            val deserialized = objectMapper.readValue(serialized, Persona::class.java)
+            val deserialized = objectMapper.readValue(serialized, PersonaSpec::class.java)
             Assertions.assertEquals(persona, deserialized, "Should be able to serialize and deserialize Persona")
         }
 
         @Test
         fun `should serialize and deserialize Persona with overrides`() {
-            val persona = Persona(
+            val persona = PersonaSpec(
                 name = "Alice",
                 persona = "Friendly and helpful",
                 voice = "Calm and clear",
@@ -51,14 +51,14 @@ class PersonaTest {
             )
 
             val serialized = objectMapper.writeValueAsString(persona)
-            val deserialized = objectMapper.readValue(serialized, Persona::class.java)
+            val deserialized = objectMapper.readValue(serialized, PersonaSpec::class.java)
             Assertions.assertEquals(persona, deserialized, "Should be able to serialize and deserialize Persona")
         }
     }
 
     @Test
     fun `should create persona using create factory method`() {
-        val persona = Persona(
+        val persona = PersonaSpec(
             name = "TestBot",
             persona = "Helpful assistant",
             voice = "Professional",
@@ -73,7 +73,7 @@ class PersonaTest {
 
     @Test
     fun `should create persona using invoke operator`() {
-        val persona = Persona(
+        val persona = PersonaSpec(
             name = "InvokeBot",
             persona = "Friendly helper",
             voice = "Casual",
@@ -88,7 +88,7 @@ class PersonaTest {
 
     @Test
     fun `should generate correct prompt contribution`() {
-        val persona = Persona(
+        val persona = PersonaSpec(
             name = "Alice",
             persona = "Friendly and helpful",
             voice = "Calm and clear",
@@ -108,7 +108,7 @@ class PersonaTest {
 
     @Test
     fun `should handle empty strings in fields`() {
-        val persona = Persona(
+        val persona = PersonaSpec(
             name = "",
             persona = "",
             voice = "",
@@ -126,7 +126,7 @@ class PersonaTest {
 
     @Test
     fun `should handle special characters and newlines`() {
-        val persona = Persona(
+        val persona = PersonaSpec(
             name = "Test\nBot",
             persona = "Helpful & friendly!",
             voice = "Calm, clear & professional",
@@ -141,13 +141,13 @@ class PersonaTest {
 
     @Test
     fun `should maintain equality for same content`() {
-        val persona1 = Persona(
+        val persona1 = PersonaSpec(
             name = "Alice",
             persona = "Helpful",
             voice = "Clear",
             objective = "Assist"
         )
-        val persona2 = Persona(
+        val persona2 = PersonaSpec(
             name = "Alice",
             persona = "Helpful",
             voice = "Clear",
@@ -160,13 +160,13 @@ class PersonaTest {
 
     @Test
     fun `should not be equal for different content`() {
-        val persona1 = Persona(
+        val persona1 = PersonaSpec(
             name = "Alice",
             persona = "Helpful",
             voice = "Clear",
             objective = "Assist"
         )
-        val persona2 = Persona(
+        val persona2 = PersonaSpec(
             name = "Bob",
             persona = "Helpful",
             voice = "Clear",

@@ -19,11 +19,11 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 /**
- * A way to structure LLM responses, by grounding them
- * in a personality.
+ * Interface for Persona, when we can't use data class directly
+ * (e.g. in some persistence scenarios).
  */
-@JsonDeserialize(`as` = PersonaImpl::class)
-interface Persona : PromptContributor {
+@JsonDeserialize(`as` = Persona::class)
+interface PersonaSpec : PromptContributor {
 
     val name: String
     val persona: String
@@ -47,7 +47,7 @@ interface Persona : PromptContributor {
             persona: String,
             voice: String,
             objective: String
-        ): Persona = PersonaImpl(
+        ): PersonaSpec = Persona(
             name,
             persona,
             voice,
@@ -59,7 +59,7 @@ interface Persona : PromptContributor {
             persona: String,
             voice: String,
             objective: String
-        ): Persona = PersonaImpl(
+        ): PersonaSpec = Persona(
             name,
             persona,
             voice,
@@ -69,9 +69,13 @@ interface Persona : PromptContributor {
     }
 }
 
-private data class PersonaImpl(
+/**
+ * A way to structure LLM responses, by grounding them
+ * in a personality.
+ */
+data class Persona(
     override val name: String,
     override val persona: String,
     override val voice: String,
     override val objective: String
-) : Persona
+) : PersonaSpec

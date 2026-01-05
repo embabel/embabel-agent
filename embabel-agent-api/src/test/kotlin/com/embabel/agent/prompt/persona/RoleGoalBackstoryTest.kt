@@ -22,7 +22,7 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should create RoleGoalBackstory with direct constructor`() {
-        val roleGoalBackstory = RoleGoalBackstory(
+        val roleGoalBackstory = RoleGoalBackstorySpec(
             role = "Software Engineer",
             goal = "Build high-quality applications",
             backstory = "I have 10 years of experience in software development"
@@ -35,7 +35,7 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should create RoleGoalBackstory using fluent builder`() {
-        val roleGoalBackstory = RoleGoalBackstory.withRole("Data Scientist")
+        val roleGoalBackstory = RoleGoalBackstorySpec.withRole("Data Scientist")
             .andGoal("Analyze data to drive business decisions")
             .andBackstory("PhD in Statistics with expertise in machine learning")
 
@@ -46,7 +46,7 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should generate correct prompt contribution`() {
-        val roleGoalBackstory = RoleGoalBackstory(
+        val roleGoalBackstory = RoleGoalBackstorySpec(
             role = "Technical Writer",
             goal = "Create clear documentation",
             backstory = "Former developer turned writer"
@@ -64,7 +64,7 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should handle empty strings in all fields`() {
-        val roleGoalBackstory = RoleGoalBackstory(
+        val roleGoalBackstory = RoleGoalBackstorySpec(
             role = "",
             goal = "",
             backstory = ""
@@ -83,7 +83,7 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should handle special characters and newlines`() {
-        val roleGoalBackstory = RoleGoalBackstory(
+        val roleGoalBackstory = RoleGoalBackstorySpec(
             role = "DevOps\nEngineer",
             goal = "Automate & streamline deployments",
             backstory = "Experience with AWS, Docker & Kubernetes"
@@ -96,7 +96,7 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should handle multiline strings properly`() {
-        val roleGoalBackstory = RoleGoalBackstory(
+        val roleGoalBackstory = RoleGoalBackstorySpec(
             role = "Product Manager",
             goal = """
                 Define product strategy
@@ -118,12 +118,12 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should maintain equality for same content`() {
-        val roleGoalBackstory1 = RoleGoalBackstory(
+        val roleGoalBackstory1 = RoleGoalBackstorySpec(
             role = "Designer",
             goal = "Create beautiful UIs",
             backstory = "5 years of design experience"
         )
-        val roleGoalBackstory2 = RoleGoalBackstory(
+        val roleGoalBackstory2 = RoleGoalBackstorySpec(
             role = "Designer",
             goal = "Create beautiful UIs",
             backstory = "5 years of design experience"
@@ -135,12 +135,12 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should not be equal for different content`() {
-        val roleGoalBackstory1 = RoleGoalBackstory(
+        val roleGoalBackstory1 = RoleGoalBackstorySpec(
             role = "Designer",
             goal = "Create beautiful UIs",
             backstory = "5 years of design experience"
         )
-        val roleGoalBackstory2 = RoleGoalBackstory(
+        val roleGoalBackstory2 = RoleGoalBackstorySpec(
             role = "Developer",
             goal = "Create beautiful UIs",
             backstory = "5 years of design experience"
@@ -151,7 +151,7 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `should have proper toString representation`() {
-        val roleGoalBackstory = RoleGoalBackstory(
+        val roleGoalBackstory = RoleGoalBackstorySpec(
             role = "QA Engineer",
             goal = "Ensure software quality",
             backstory = "Experienced in automation testing"
@@ -165,7 +165,7 @@ class RoleGoalBackstoryTest {
 
     @Test
     fun `builder should chain methods correctly`() {
-        val roleBuilder = RoleGoalBackstory.withRole("Test Role")
+        val roleBuilder = RoleGoalBackstorySpec.withRole("Test Role")
         assertNotNull(roleBuilder)
 
         val goalBuilder = roleBuilder.andGoal("Test Goal")
@@ -181,7 +181,7 @@ class RoleGoalBackstoryTest {
     @Test
     fun `should handle very long text content`() {
         val longText = "A".repeat(1000)
-        val roleGoalBackstory = RoleGoalBackstory(
+        val roleGoalBackstory = RoleGoalBackstorySpec(
             role = longText,
             goal = longText,
             backstory = longText

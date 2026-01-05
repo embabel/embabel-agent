@@ -19,14 +19,15 @@ import com.embabel.common.ai.prompt.PromptContributor
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 
 /**
- * CrewAI style backstory prompt.
+ * Interface for CrewAI style backstory prompt when
+ * a concrete class isn't appropriate (eg for some persistence scenarios).
  * Included for users migrating from CrewAI.
  * In Embabel, such structures aren't core to the framework,
  * but merely a PromptContributor that can be used
  * in any action implementation.
  */
-@JsonDeserialize(`as` = RoleGoalBackstoryImpl::class)
-interface RoleGoalBackstory : PromptContributor {
+@JsonDeserialize(`as` = RoleGoalBackstory::class)
+interface RoleGoalBackstorySpec : PromptContributor {
 
     val goal: String
     val backstory: String
@@ -44,7 +45,7 @@ interface RoleGoalBackstory : PromptContributor {
             role: String,
             goal: String,
             backstory: String,
-        ): RoleGoalBackstory = RoleGoalBackstoryImpl(
+        ): RoleGoalBackstorySpec = RoleGoalBackstory(
             role,
             goal,
             backstory,
@@ -54,7 +55,7 @@ interface RoleGoalBackstory : PromptContributor {
             role: String,
             goal: String,
             backstory: String,
-        ): RoleGoalBackstory = RoleGoalBackstoryImpl(
+        ): RoleGoalBackstorySpec = RoleGoalBackstory(
             role,
             goal,
             backstory,
@@ -79,14 +80,21 @@ interface RoleGoalBackstory : PromptContributor {
         private val goal: String,
     ) {
 
-        fun andBackstory(backstory: String): RoleGoalBackstory =
-            RoleGoalBackstoryImpl(role, goal, backstory)
+        fun andBackstory(backstory: String): RoleGoalBackstorySpec =
+            RoleGoalBackstory(role, goal, backstory)
 
     }
 }
 
-private data class RoleGoalBackstoryImpl(
+/**
+ * CrewAI style backstory prompt.
+ * Included for users migrating from CrewAI.
+ * In Embabel, such structures aren't core to the framework,
+ * but merely a PromptContributor that can be used
+ * in any action implementation.
+ */
+data class RoleGoalBackstory(
     override val role: String,
     override val goal: String,
     override val backstory: String,
-) : RoleGoalBackstory
+) : RoleGoalBackstorySpec
