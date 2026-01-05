@@ -20,6 +20,9 @@ import com.embabel.common.util.indent
 
 /**
  * Base contract for any named entity that can be stored and retrieved.
+ * This is not intended as a generic type liked NamedEntityData,
+ * which exposes properties in a generic manner,
+ * but a superinterface for domain classes with strongly typed properties.
  *
  * Domain classes implement this interface to enable:
  * - Storage in [NamedEntityDataRepository]
