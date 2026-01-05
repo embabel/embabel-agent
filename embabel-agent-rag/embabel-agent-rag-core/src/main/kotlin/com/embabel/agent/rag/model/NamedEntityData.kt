@@ -15,13 +15,30 @@
  */
 package com.embabel.agent.rag.model
 
-import com.embabel.common.core.types.NamedAndDescribed
+import com.embabel.agent.core.DomainType
+import com.embabel.agent.core.JvmType
 import com.embabel.common.util.indent
+import com.fasterxml.jackson.databind.ObjectMapper
 
 /**
- * Adds a name to the well known entity data.
+ * Storage format for named entities.
+ *
+ * Extends [NamedEntity] to share the common contract with domain classes,
+ * enabling hydration via [toTypedInstance].
+ *
+ * The [linkedDomainType] field enables:
+ * - [JvmType]: hydration to a typed JVM instance
+ * - [DynamicType][com.embabel.agent.core.DynamicType]: schema/structure metadata
  */
-interface NamedEntityData : EntityData, NamedAndDescribed {
+interface NamedEntityData : EntityData, NamedEntity {
+
+    /**
+     * Optional linkage to a [DomainType] ([JvmType] or [DynamicType][com.embabel.agent.core.DynamicType]).
+     *
+     * When set to a [JvmType], enables hydration to a typed JVM instance via [toTypedInstance].
+     * When set to a [DynamicType][com.embabel.agent.core.DynamicType], provides schema/structure metadata.
+     */
+    val linkedDomainType: DomainType?
 
     override fun infoString(
         verbose: Boolean?,
@@ -29,6 +46,54 @@ interface NamedEntityData : EntityData, NamedAndDescribed {
     ): String {
         val labelsString = labels().joinToString(":")
         return "(${labelsString} id='$id', name=$name, description=$description)".indent(indent)
+    }
+
+    // Use EntityData's embeddableValue which includes properties
+    override fun embeddableValue(): String = super<EntityData>.embeddableValue()
+
+    // Use RetrievableEntity's labels which adds "Entity"
+    override fun labels(): Set<String> = super<EntityData>.labels()
+}
+
+/**
+ * Hydrate this entity to a typed JVM instance using [linkedDomainType].
+ *
+ * Requires [NamedEntityData.linkedDomainType] to be a [JvmType].
+ * The target class must implement [NamedEntity].
+ *
+ * @param objectMapper the ObjectMapper to use for deserialization
+ * @return the hydrated instance, or null if linkedDomainType is not a JvmType or hydration fails
+ * @see toTypedInstance(ObjectMapper, Class) for hydration with an explicit target type
+ */
+@Suppress("UNCHECKED_CAST")
+fun <T : NamedEntity> NamedEntityData.toTypedInstance(objectMapper: ObjectMapper): T? {
+    val jvmType = linkedDomainType as? JvmType ?: return null
+    return toTypedInstance(objectMapper, jvmType.clazz as Class<T>)
+}
+
+/**
+ * Hydrate this entity to a typed JVM instance using an explicit target class.
+ *
+ * This allows hydration even when [linkedDomainType] is not set,
+ * as long as the entity's labels match the target type and the properties are compatible.
+ *
+ * @param objectMapper the ObjectMapper to use for deserialization
+ * @param type the target class to hydrate to
+ * @return the hydrated instance, or null if hydration fails
+ */
+@Suppress("UNCHECKED_CAST")
+fun <T : NamedEntity> NamedEntityData.toTypedInstance(objectMapper: ObjectMapper, type: Class<T>): T? {
+    return try {
+        // Build the full property map including id, name, description
+        val allProperties = buildMap {
+            put("id", id)
+            put("name", name)
+            put("description", description)
+            putAll(properties)
+        }
+        objectMapper.convertValue(allProperties, type)
+    } catch (e: Exception) {
+        null
     }
 }
 
@@ -40,6 +105,7 @@ data class SimpleNamedEntityData(
     val labels: Set<String>,
     override val properties: Map<String, Any>,
     override val metadata: Map<String, Any?> = emptyMap(),
+    override val linkedDomainType: DomainType? = null,
 ) : NamedEntityData {
 
     override fun labels() = labels + super.labels()
@@ -54,5 +120,4 @@ data class SimpleNamedEntityData(
         }
         return sup
     }
-
 }
