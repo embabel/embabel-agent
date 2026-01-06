@@ -1,0 +1,45 @@
+[[reference.thinking]]
+
+=== Working with LLM Reasoning / Thinking
+
+==== Motivation
+
+Sometimes user would like to validate LLM reasoning process in addition to getting back object.
+Imagine scenario: the user wants to plan a vacation and tells the LLM their preferred destinations are Greece and Italy and they can only take vacation in August, June, or September.
+Then the user asks the LLM to come up with some destinations with cheap plane tickets for a one-week stay.
+Let's say the output is a proper object, basically a round trip flight. Even if the output adheres to the schema,
+user wants to be able to verify whether the flight dates are in the requested months, and whether the destinations are in Greece/Italy vs somewhere else like Spain or Turkey.
+If flight details are outside user's criteria, user would like to be able to understand LLM reasoning process.
+
+Another use case even more important, when LLM is not able to fulfill request, in other words LLM is not able to
+create object in the very first place, since user's criteria is ambiguous.
+
+==== Concepts
+
+- ```ThinkingBlock``` - abstraction that carries details on LLM reasoning, including Tag type, Tag value, and LLM reasoning text
+- ```ThinkingTags``` - reasoning Tag Types and XML tags definition. Dynamic tags got supported as well
+- ```ResponseWithThinking``` - LLM response holder, wraps Object and List of ```ThinkingBlocks```
+- ```ThinkingException``` - wraps Thinking Blocks in case Object cant be instantiated
+- ```withThinking``` - Core ```PromptRunner``` API
+
+
+==== Example on handling Object and Thinking Blocks
+[source,java]
+----
+
+        // Use the LLM configured for thinking tests
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                                .withToolObject(Tooling.class);
+
+        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+
+        //Use builder for  natural chaining
+        ThinkingResponse<MonthItem> response = runner
+                .withThinking()
+                .createObjectIfPossible(prompt, MonthItem.class);
+
+
+        MonthItem result = response.getResult();
+
+        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+----

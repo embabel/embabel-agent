@@ -18,6 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.annotation.support.AgenticInfo
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
+import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
@@ -27,6 +28,7 @@ import com.embabel.agent.spi.LlmUse
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
 import com.embabel.common.core.streaming.StreamingCapability
@@ -387,6 +389,59 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
             "Streaming not supported by this PromptRunner implementation. " +
             "Check supportsStreaming() before calling stream()."
         )
+    }
+
+    /**
+     * Check if thinking extraction capabilities are supported by the underlying implementation.
+     *
+     * Thinking capabilities allow extraction of thinking blocks (like `<think>...</think>`)
+     * from LLM responses and provide access to both the result and the extracted thinking content.
+     * Always check this before calling thinking() to avoid exceptions.
+     *
+     * Note: Thinking and streaming capabilities are mutually exclusive.
+     *
+     * @return true if thinking extraction is supported, false if thinking is not available
+     */
+    fun supportsThinking(): Boolean = false
+
+
+    /**
+     * Create a thinking-enhanced version of this prompt runner.
+     *
+     * Returns a PromptRunner where all operations (createObject, generateText, etc.)
+     * return ThinkingResponse<T> wrappers that include both results and extracted
+     * thinking blocks from the LLM response.
+     *
+     * Always check supportsThinking() first and ensure LlmOptions includes thinking configuration
+     * via withLlm(LlmOptions.withThinking(Thinking.withExtraction())).
+     *
+     * Note: Thinking and streaming capabilities are mutually exclusive.
+     *
+     * @return ThinkingCapability instance providing access to thinking-aware operations
+     * @throws UnsupportedOperationException if thinking is not supported by this implementation
+     * @throws IllegalArgumentException if thinking is not enabled in LlmOptions configuration
+     */
+    fun withThinking(): ThinkingPromptRunnerOperations {
+        if (!supportsThinking()) {
+            throw UnsupportedOperationException(
+                """
+                Thinking not supported by this PromptRunner implementation.
+                Check supportsThinking() before calling withThinking().
+                """.trimIndent()
+            )
+        }
+
+        val thinking = llm?.thinking
+        require(thinking != null && thinking != Thinking.NONE) {
+            """
+            Thinking capability requires thinking to be enabled in LlmOptions.
+            Use withLlm(LlmOptions.withThinking(Thinking.withExtraction()))
+            """.trimIndent()
+        }
+
+        // For implementations that support thinking but haven't overridden withThinking(),
+        // they should provide their own implementation
+        error("Implementation error: supportsThinking() returned true but withThinking() not overridden")
     }
 
     override fun respond(

@@ -14,7 +14,6 @@ This feature is well aligned with Embabel focus on object-oriented programming m
 - All reactive callbacks, such as _doOnNext_, _doOnComplete_, etc. are at developer's disposal
 
 ==== Example - Simple Streaming with Callbacks
-
 [source,java]
 ----
 

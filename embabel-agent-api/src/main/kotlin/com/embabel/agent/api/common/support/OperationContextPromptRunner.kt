@@ -23,6 +23,8 @@ import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.common.support.streaming.StreamingPromptRunnerOperationsImpl
+import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
+import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
@@ -41,6 +43,7 @@ import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
@@ -309,9 +312,11 @@ internal data class OperationContextPromptRunner(
     override fun stream(): StreamingPromptRunnerOperations {
         if (!supportsStreaming()) {
             throw UnsupportedOperationException(
-                "Streaming not supported by underlying LLM model. " +
-                "Model type: ${context.agentPlatform().platformServices.llmOperations::class.simpleName}. " +
-                "Check supportsStreaming() before calling stream()."
+                """
+                Streaming not supported by underlying LLM model.
+                Model type: ${context.agentPlatform().platformServices.llmOperations::class.simpleName}.
+                Check supportsStreaming() before calling stream().
+                """.trimIndent()
             )
         }
 
@@ -327,6 +332,52 @@ internal data class OperationContextPromptRunner(
                     it.toPromptContributor(context)
                 },
                 id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
+                generateExamples = generateExamples,
+                propertyFilter = propertyFilter,
+            ),
+            messages = messages,
+            agentProcess = context.processContext.agentProcess,
+            action = action,
+        )
+    }
+
+    /**
+     * Create thinking-aware prompt operations that extract LLM reasoning blocks.
+     *
+     * This method creates ThinkingPromptRunnerOperations that can capture both the
+     * converted results and the reasoning content that LLMs generate during processing.
+     *
+     * @return ThinkingPromptRunnerOperations for executing prompts with thinking extraction
+     * @throws UnsupportedOperationException if the underlying LLM operations don't support thinking extraction
+     */
+    override fun supportsThinking(): Boolean = true
+
+    override fun withThinking(): ThinkingPromptRunnerOperations {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+
+        if (llmOperations !is ChatClientLlmOperations) {
+            throw UnsupportedOperationException(
+                """
+                Thinking extraction not supported by underlying LLM operations.
+                Operations type: ${llmOperations::class.simpleName}.
+                Thinking extraction requires ChatClientLlmOperations.
+                """.trimIndent()
+            )
+        }
+11
+        // Auto-enable thinking extraction when withThinking() is called
+        val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
+
+        return ThinkingPromptRunnerOperationsImpl(
+            chatClientOperations = llmOperations,
+            interaction = LlmInteraction(
+                llm = thinkingEnabledLlm,
+                toolGroups = toolGroups,
+                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
+                promptContributors = promptContributors + contextualPromptContributors.map {
+                    it.toPromptContributor(context)
+                },
+                id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
             ),
