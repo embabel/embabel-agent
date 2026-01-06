@@ -312,9 +312,11 @@ internal data class OperationContextPromptRunner(
     override fun stream(): StreamingPromptRunnerOperations {
         if (!supportsStreaming()) {
             throw UnsupportedOperationException(
-                "Streaming not supported by underlying LLM model. " +
-                "Model type: ${context.agentPlatform().platformServices.llmOperations::class.simpleName}. " +
-                "Check supportsStreaming() before calling stream()."
+                """
+                Streaming not supported by underlying LLM model.
+                Model type: ${context.agentPlatform().platformServices.llmOperations::class.simpleName}.
+                Check supportsStreaming() before calling stream().
+                """.trimIndent()
             )
         }
 
@@ -353,11 +355,13 @@ internal data class OperationContextPromptRunner(
     override fun withThinking(): ThinkingPromptRunnerOperations {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
-        if (llmOperations !is ChatClientLlmOperations) {9
+        if (llmOperations !is ChatClientLlmOperations) {
             throw UnsupportedOperationException(
-                "Thinking extraction not supported by underlying LLM operations. " +
-                "Operations type: ${llmOperations::class.simpleName}. " +
-                "Thinking extraction requires ChatClientLlmOperations."
+                """
+                Thinking extraction not supported by underlying LLM operations.
+                Operations type: ${llmOperations::class.simpleName}.
+                Thinking extraction requires ChatClientLlmOperations.
+                """.trimIndent()
             )
         }
 11

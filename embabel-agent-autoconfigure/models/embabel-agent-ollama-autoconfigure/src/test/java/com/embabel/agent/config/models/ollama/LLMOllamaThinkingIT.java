@@ -175,7 +175,7 @@ class LLMOllamaThinkingIT {
                 The name should be the month name, temperature should be a number in Fahrenheit.
                 """;
 
-        // When: Use ThinkingPromptRunnerBuilder to create object with thinking
+        // create object with thinking
         ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
@@ -207,7 +207,7 @@ class LLMOllamaThinkingIT {
 
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis. " + "And return Month with temperature";
 
-        // When: Use ThinkingPromptRunnerBuilder to create object if possible with thinking
+        // create object if possible with thinking
         ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
@@ -255,7 +255,7 @@ class LLMOllamaThinkingIT {
                 Before providing the JSON response, let me think through this carefully.
                 """;
 
-        // When: Use ThinkingPromptRunnerBuilder with complex thinking patterns
+        // complex thinking patterns
         ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObject(prompt, MonthItem.class);

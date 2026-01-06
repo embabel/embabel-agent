@@ -424,15 +424,19 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     fun withThinking(): ThinkingPromptRunnerOperations {
         if (!supportsThinking()) {
             throw UnsupportedOperationException(
-                "Thinking not supported by this PromptRunner implementation. " +
-                        "Check supportsThinking() before calling withThinking()."
+                """
+                Thinking not supported by this PromptRunner implementation.
+                Check supportsThinking() before calling withThinking().
+                """.trimIndent()
             )
         }
 
         val thinking = llm?.thinking
         require(thinking != null && thinking != Thinking.NONE) {
-            "Thinking capability requires thinking to be enabled in LlmOptions. " +
-                    "Use withLlm(LlmOptions.withThinking(Thinking.withExtraction()))"
+            """
+            Thinking capability requires thinking to be enabled in LlmOptions.
+            Use withLlm(LlmOptions.withThinking(Thinking.withExtraction()))
+            """.trimIndent()
         }
 
         // For implementations that support thinking but haven't overridden withThinking(),

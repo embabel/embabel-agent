@@ -18,11 +18,10 @@ package com.embabel.agent.config.models.anthropic;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
-import com.embabel.agent.api.thinking.ThinkingPromptRunnerBuilder;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
-import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.ai.model.Llm;
 import com.embabel.common.core.thinking.ThinkingBlock;
+import com.embabel.common.core.thinking.ThinkingResponse;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -210,7 +209,7 @@ class LLMAnthropicThinkingIT {
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
 
         // When: Use factory method for more natural chaining - not recommended (testing alternative syntax)
-        ThinkingResponse<MonthItem> response = ThinkingPromptRunnerBuilder.from(runner)
+        ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
 
@@ -241,7 +240,7 @@ class LLMAnthropicThinkingIT {
 
         // Given: Use the LLM with a complex reasoning prompt
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class);
+                                .withToolObject(Tooling.class);
 
         String prompt = """
                 <think>
@@ -257,7 +256,7 @@ class LLMAnthropicThinkingIT {
                 Before providing the JSON response, let me think through this carefully.
                 """;
 
-        // When: Use ThinkingPromptRunnerBuilder with complex thinking patterns
+
         ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObject(prompt, MonthItem.class);
