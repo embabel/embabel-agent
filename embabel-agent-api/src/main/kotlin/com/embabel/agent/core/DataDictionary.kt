@@ -21,6 +21,7 @@ package com.embabel.agent.core
  * @param to The target domain type
  * @param name The name of the relationship (inferred from property name)
  * @param cardinality The cardinality of the relationship
+ * @param metadata Semantic metadata from [@Semantics] annotation, including natural language predicates
  */
 data class AllowedRelationship(
     val from: DomainType,
@@ -28,6 +29,7 @@ data class AllowedRelationship(
     val name: String,
     val description: String = name,
     val cardinality: Cardinality,
+    val metadata: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -65,6 +67,7 @@ interface DataDictionary {
                             to = property.type,
                             name = property.name,
                             cardinality = property.cardinality,
+                            metadata = property.metadata,
                         )
                     )
                 }
