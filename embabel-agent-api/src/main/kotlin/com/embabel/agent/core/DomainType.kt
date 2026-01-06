@@ -58,6 +58,22 @@ sealed interface DomainType : HasInfoString, NamedAndDescribed {
         }
 
     /**
+     * Value properties defined on this type and inherited ones
+     */
+    @get:JsonIgnore
+    val values: List<ValuePropertyDefinition>
+        get() =
+            properties.filterIsInstance<ValuePropertyDefinition>()
+
+    /**
+     * All relationship properties defined on this type and inherited ones
+     */
+    @get:JsonIgnore
+    val relationships: List<DomainTypePropertyDefinition>
+        get() =
+            properties.filterIsInstance<DomainTypePropertyDefinition>()
+
+    /**
      * Properties defined on this type only (not inherited)
      */
     val ownProperties: List<PropertyDefinition>
@@ -134,7 +150,7 @@ enum class Cardinality {
     use = JsonTypeInfo.Id.SIMPLE_NAME,
 )
 @JsonSubTypes(
-    JsonSubTypes.Type(value = SimplePropertyDefinition::class, name = "simple"),
+    JsonSubTypes.Type(value = ValuePropertyDefinition::class, name = "simple"),
     JsonSubTypes.Type(value = DomainTypePropertyDefinition::class, name = "domain"),
 )
 sealed interface PropertyDefinition {
@@ -143,13 +159,21 @@ sealed interface PropertyDefinition {
     val cardinality: Cardinality
 }
 
-data class SimplePropertyDefinition(
+/**
+ * Simple value property, such as string, int, boolean, etc.
+ * Not necessarily a scalar, as cardinality may be LIST or SET.
+ */
+data class ValuePropertyDefinition(
     override val name: String,
     val type: String = "string",
     override val cardinality: Cardinality = Cardinality.ONE,
     override val description: String = name,
 ) : PropertyDefinition
 
+/**
+ * Property that holds a nested DomainType
+ * Represents a relationship to another domain object
+ */
 data class DomainTypePropertyDefinition(
     override val name: String,
     val type: DomainType,

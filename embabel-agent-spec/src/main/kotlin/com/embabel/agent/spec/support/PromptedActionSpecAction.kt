@@ -170,8 +170,7 @@ object JsonSchemaGenerator {
         if (schema.properties.any { it is DomainTypePropertyDefinition }) {
             throw IllegalArgumentException("JSON schema generation for DomainTypePropertyDefinition is not supported.")
         }
-        val properties = schema.properties
-            .filterIsInstance<SimplePropertyDefinition>()
+        val properties = schema.values
             .joinToString(",\n    ") {
                 "\"${it.name}\": { \"type\": \"${it.type}\" }"
             }

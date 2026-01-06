@@ -50,8 +50,8 @@ class DomainTypeSerializationTest {
                 name = "Person",
                 description = "A person",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "firstName", type = "string", description = "First name"),
-                    SimplePropertyDefinition(name = "age", type = "int", description = "Age"),
+                    ValuePropertyDefinition(name = "firstName", type = "string", description = "First name"),
+                    ValuePropertyDefinition(name = "age", type = "int", description = "Age"),
                 ),
             )
             assertEquals(2, dynamicType.ownProperties.size, "Should have 2 properties of its own")
@@ -80,15 +80,15 @@ class DomainTypeSerializationTest {
             val parentType = DynamicType(
                 name = "Animal",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "name", type = "string"),
-                    SimplePropertyDefinition(name = "age", type = "int"),
+                    ValuePropertyDefinition(name = "name", type = "string"),
+                    ValuePropertyDefinition(name = "age", type = "int"),
                 ),
             )
 
             val childType = DynamicType(
                 name = "Dog",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "breed", type = "string"),
+                    ValuePropertyDefinition(name = "breed", type = "string"),
                 ),
                 parents = listOf(parentType),
             )
@@ -108,21 +108,21 @@ class DomainTypeSerializationTest {
             val namedType = DynamicType(
                 name = "Named",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "name", type = "string"),
+                    ValuePropertyDefinition(name = "name", type = "string"),
                 ),
             )
 
             val agedType = DynamicType(
                 name = "Aged",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "age", type = "int"),
+                    ValuePropertyDefinition(name = "age", type = "int"),
                 ),
             )
 
             val personType = DynamicType(
                 name = "Person",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "email", type = "string"),
+                    ValuePropertyDefinition(name = "email", type = "string"),
                 ),
                 parents = listOf(namedType, agedType),
             )
@@ -140,14 +140,14 @@ class DomainTypeSerializationTest {
             val grandparentType = DynamicType(
                 name = "LivingThing",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "alive", type = "boolean"),
+                    ValuePropertyDefinition(name = "alive", type = "boolean"),
                 ),
             )
 
             val parentType = DynamicType(
                 name = "Animal",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "name", type = "string"),
+                    ValuePropertyDefinition(name = "name", type = "string"),
                 ),
                 parents = listOf(grandparentType),
             )
@@ -155,7 +155,7 @@ class DomainTypeSerializationTest {
             val childType = DynamicType(
                 name = "Dog",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "breed", type = "string"),
+                    ValuePropertyDefinition(name = "breed", type = "string"),
                 ),
                 parents = listOf(parentType),
             )
@@ -175,7 +175,7 @@ class DomainTypeSerializationTest {
             val childType = DynamicType(
                 name = "ServiceDog",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "serviceType", type = "string"),
+                    ValuePropertyDefinition(name = "serviceType", type = "string"),
                 ),
                 parents = listOf(jvmParent),
             )
@@ -193,16 +193,16 @@ class DomainTypeSerializationTest {
             val parentType = DynamicType(
                 name = "Animal",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "name", type = "string"),
-                    SimplePropertyDefinition(name = "age", type = "int"),
+                    ValuePropertyDefinition(name = "name", type = "string"),
+                    ValuePropertyDefinition(name = "age", type = "int"),
                 ),
             )
 
             val childType = DynamicType(
                 name = "Dog",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "name", type = "string", description = "Dog's name"),
-                    SimplePropertyDefinition(name = "breed", type = "string"),
+                    ValuePropertyDefinition(name = "name", type = "string", description = "Dog's name"),
+                    ValuePropertyDefinition(name = "breed", type = "string"),
                 ),
                 parents = listOf(parentType),
             )
@@ -228,22 +228,22 @@ class DomainTypeSerializationTest {
             val namedType = DynamicType(
                 name = "Named",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "name", type = "string"),
+                    ValuePropertyDefinition(name = "name", type = "string"),
                 ),
             )
 
             val identifiedType = DynamicType(
                 name = "Identified",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "id", type = "string"),
-                    SimplePropertyDefinition(name = "name", type = "string"),
+                    ValuePropertyDefinition(name = "id", type = "string"),
+                    ValuePropertyDefinition(name = "name", type = "string"),
                 ),
             )
 
             val personType = DynamicType(
                 name = "Person",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "email", type = "string"),
+                    ValuePropertyDefinition(name = "email", type = "string"),
                 ),
                 parents = listOf(namedType, identifiedType),
             )
@@ -265,16 +265,16 @@ class DomainTypeSerializationTest {
             val livingType = DynamicType(
                 name = "Living",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "alive", type = "boolean"),
-                    SimplePropertyDefinition(name = "name", type = "string"),
+                    ValuePropertyDefinition(name = "alive", type = "boolean"),
+                    ValuePropertyDefinition(name = "name", type = "string"),
                 ),
             )
 
             val animalType = DynamicType(
                 name = "Animal",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "name", type = "string"),
-                    SimplePropertyDefinition(name = "species", type = "string"),
+                    ValuePropertyDefinition(name = "name", type = "string"),
+                    ValuePropertyDefinition(name = "species", type = "string"),
                 ),
                 parents = listOf(livingType),
             )
@@ -282,7 +282,7 @@ class DomainTypeSerializationTest {
             val dogType = DynamicType(
                 name = "Dog",
                 ownProperties = listOf(
-                    SimplePropertyDefinition(name = "breed", type = "string"),
+                    ValuePropertyDefinition(name = "breed", type = "string"),
                 ),
                 parents = listOf(animalType),
             )
@@ -417,7 +417,7 @@ class DomainTypeSerializationTest {
                 JvmType(String::class.java),
                 DynamicType(
                     name = "DynamicTwo",
-                    ownProperties = listOf(SimplePropertyDefinition("field", "string"))
+                    ownProperties = listOf(ValuePropertyDefinition("field", "string"))
                 ),
                 JvmType(Integer::class.java),
             )
@@ -438,7 +438,7 @@ class DomainTypeSerializationTest {
 
         @Test
         fun `test PropertyDefinition can be serialized and deserialized`() {
-            val property = SimplePropertyDefinition(
+            val property = ValuePropertyDefinition(
                 name = "testField",
                 type = "string",
                 description = "A test field",
@@ -446,7 +446,7 @@ class DomainTypeSerializationTest {
             val json = om.writeValueAsString(property)
             val deserialized = om.readValue<PropertyDefinition>(json)
             assertEquals("testField", deserialized.name)
-            assertEquals("string", (deserialized as SimplePropertyDefinition).type)
+            assertEquals("string", (deserialized as ValuePropertyDefinition).type)
             assertEquals("A test field", deserialized.description)
         }
     }

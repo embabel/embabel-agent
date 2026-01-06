@@ -97,14 +97,14 @@ class DataDictionaryTest {
         val addressType = DynamicType(
             name = "Address",
             ownProperties = listOf(
-                SimplePropertyDefinition(name = "street", type = "string"),
+                ValuePropertyDefinition(name = "street", type = "string"),
             ),
         )
 
         val personType = DynamicType(
             name = "Person",
             ownProperties = listOf(
-                SimplePropertyDefinition(name = "name", type = "string"),
+                ValuePropertyDefinition(name = "name", type = "string"),
                 DomainTypePropertyDefinition(name = "address", type = addressType),
             ),
         )
@@ -126,7 +126,7 @@ class DataDictionaryTest {
         val personType = DynamicType(
             name = "Person",
             ownProperties = listOf(
-                SimplePropertyDefinition(name = "name", type = "string"),
+                ValuePropertyDefinition(name = "name", type = "string"),
                 DomainTypePropertyDefinition(name = "homeAddress", type = jvmAddress),
             ),
         )
@@ -145,14 +145,14 @@ class DataDictionaryTest {
         val addressType = DynamicType(
             name = "Address",
             ownProperties = listOf(
-                SimplePropertyDefinition(name = "street", type = "string"),
+                ValuePropertyDefinition(name = "street", type = "string"),
             ),
         )
 
         val basePersonType = DynamicType(
             name = "BasePerson",
             ownProperties = listOf(
-                SimplePropertyDefinition(name = "name", type = "string"),
+                ValuePropertyDefinition(name = "name", type = "string"),
                 DomainTypePropertyDefinition(name = "address", type = addressType),
             ),
         )
@@ -160,7 +160,7 @@ class DataDictionaryTest {
         val employeeType = DynamicType(
             name = "Employee",
             ownProperties = listOf(
-                SimplePropertyDefinition(name = "employeeId", type = "string"),
+                ValuePropertyDefinition(name = "employeeId", type = "string"),
             ),
             parents = listOf(basePersonType),
         )

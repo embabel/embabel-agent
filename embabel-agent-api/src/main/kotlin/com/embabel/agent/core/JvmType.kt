@@ -160,7 +160,7 @@ data class JvmType @JsonCreator constructor(
                         )
                     }
                     // Collection of scalars - return simple property
-                    return@mapNotNull SimplePropertyDefinition(
+                    return@mapNotNull ValuePropertyDefinition(
                         name = field.name,
                         type = field.type.simpleName,
                     )
@@ -170,7 +170,7 @@ data class JvmType @JsonCreator constructor(
                         type = JvmType(field.type),
                     )
                 } else {
-                    SimplePropertyDefinition(
+                    ValuePropertyDefinition(
                         name = field.name,
                         type = field.type.simpleName,
                     )

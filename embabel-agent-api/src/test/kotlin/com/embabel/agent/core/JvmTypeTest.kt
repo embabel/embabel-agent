@@ -57,8 +57,8 @@ class JvmTypeTest {
         val type = JvmType(Dog::class.java)
         val nameProperty = type.ownProperties[0]
         assertEquals("name", nameProperty.name)
-        assert(nameProperty is SimplePropertyDefinition)
-        assertEquals("String", (nameProperty as SimplePropertyDefinition).type)
+        assert(nameProperty is ValuePropertyDefinition)
+        assertEquals("String", (nameProperty as ValuePropertyDefinition).type)
     }
 
     class Owner(
@@ -73,7 +73,7 @@ class JvmTypeTest {
 
         val nameProperty = type.ownProperties[0]
         assertEquals("name", nameProperty.name)
-        assert(nameProperty is SimplePropertyDefinition)
+        assert(nameProperty is ValuePropertyDefinition)
 
         val dogProperty = type.ownProperties[1]
         assertEquals("dog", dogProperty.name)
@@ -97,11 +97,11 @@ class JvmTypeTest {
 
         val nameProperty = type.ownProperties[0]
         assertEquals("name", nameProperty.name)
-        assert(nameProperty is SimplePropertyDefinition)
+        assert(nameProperty is ValuePropertyDefinition)
 
         val capacityProperty = type.ownProperties[1]
         assertEquals("capacity", capacityProperty.name)
-        assert(capacityProperty is SimplePropertyDefinition)
+        assert(capacityProperty is ValuePropertyDefinition)
 
         val dogsProperty = type.ownProperties[2]
         assertEquals("dogs", dogsProperty.name)
