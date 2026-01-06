@@ -73,13 +73,13 @@ class OpenAiProperties : RetryProperties {
 @EnableConfigurationProperties(OpenAiProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "OpenAi configuration can't be unit tested")
 class OpenAiModelsConfig(
-    @Value("\${OPENAI_BASE_URL:#{null}}")
+    @Value("\${embabel.models.openai.base.url:\${OPENAI_BASE_URL:#{null}}}")
     baseUrl: String?,
-    @Value("\${OPENAI_API_KEY}")
+    @Value("\${embabel.models.openai.api-key:\${OPENAI_API_KEY}}")
     apiKey: String,
-    @Value("\${OPENAI_COMPLETIONS_PATH:#{null}}")
+    @Value("\${embabel.models.openai.completions:\${OPENAI_COMPLETIONS_PATH:#{null}}}")
     completionsPath: String?,
-    @Value("\${OPENAI_EMBEDDINGS_PATH:#{null}}")
+    @Value("\${embabel.models.openai.embeddings.path:\${OPENAI_EMBEDDINGS_PATH:#{null}}}")
     embeddingsPath: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: OpenAiProperties,
