@@ -416,4 +416,169 @@ class JvmTypeTest {
         val type = JvmType(CreationPermittedFalse::class.java)
         assertFalse(type.creationPermitted, "Should return false when annotated with @CreationPermitted(false)")
     }
+
+    // Test classes for @Semantics annotation
+    class Company(val name: String)
+
+    class Employee(
+        val name: String,
+
+        @field:Semantics([
+            With("predicate", "works at"),
+            With("inverse", "employs"),
+        ])
+        val worksAt: Company,
+    )
+
+    class EmployeeWithAliases(
+        val name: String,
+
+        @field:Semantics([
+            With("predicate", "works at"),
+            With("inverse", "employs"),
+            With("aliases", "is employed by, works for"),
+        ])
+        val worksAt: Company,
+    )
+
+    class PersonWithoutSemantics(
+        val name: String,
+        val friend: Dog,
+    )
+
+    class PersonWithValueSemantics(
+        @field:Semantics([
+            With("format", "email"),
+            With("validation", "required"),
+        ])
+        val email: String,
+    )
+
+    class KennelWithCollectionSemantics(
+        val name: String,
+
+        @field:Semantics([
+            With("predicate", "houses"),
+            With("inverse", "lives in"),
+        ])
+        val dogs: List<Dog>,
+    )
+
+    @Test
+    fun `property without Semantics annotation has empty metadata`() {
+        val type = JvmType(PersonWithoutSemantics::class.java)
+        val friendProperty = type.ownProperties.find { it.name == "friend" }
+        assertNotNull(friendProperty)
+        assertTrue(friendProperty!!.metadata.isEmpty(), "Metadata should be empty when no @Semantics annotation")
+    }
+
+    @Test
+    fun `property with Semantics annotation has correct metadata`() {
+        val type = JvmType(Employee::class.java)
+        val worksAtProperty = type.ownProperties.find { it.name == "worksAt" }
+
+        assertNotNull(worksAtProperty)
+        assertEquals(2, worksAtProperty!!.metadata.size)
+        assertEquals("works at", worksAtProperty.metadata["predicate"])
+        assertEquals("employs", worksAtProperty.metadata["inverse"])
+    }
+
+    @Test
+    fun `multiple With entries are all captured`() {
+        val type = JvmType(EmployeeWithAliases::class.java)
+        val worksAtProperty = type.ownProperties.find { it.name == "worksAt" }
+
+        assertNotNull(worksAtProperty)
+        assertEquals(3, worksAtProperty!!.metadata.size)
+        assertEquals("works at", worksAtProperty.metadata["predicate"])
+        assertEquals("employs", worksAtProperty.metadata["inverse"])
+        assertEquals("is employed by, works for", worksAtProperty.metadata["aliases"])
+    }
+
+    @Test
+    fun `Semantics on domain type property is captured`() {
+        val type = JvmType(Employee::class.java)
+        val worksAtProperty = type.ownProperties.find { it.name == "worksAt" }
+
+        assertNotNull(worksAtProperty)
+        assertTrue(worksAtProperty is DomainTypePropertyDefinition)
+        assertEquals("works at", worksAtProperty!!.metadata["predicate"])
+    }
+
+    @Test
+    fun `Semantics on value property is captured`() {
+        val type = JvmType(PersonWithValueSemantics::class.java)
+        val emailProperty = type.ownProperties.find { it.name == "email" }
+
+        assertNotNull(emailProperty)
+        assertTrue(emailProperty is ValuePropertyDefinition)
+        assertEquals(2, emailProperty!!.metadata.size)
+        assertEquals("email", emailProperty.metadata["format"])
+        assertEquals("required", emailProperty.metadata["validation"])
+    }
+
+    @Test
+    fun `Semantics on collection property is captured`() {
+        val type = JvmType(KennelWithCollectionSemantics::class.java)
+        val dogsProperty = type.ownProperties.find { it.name == "dogs" }
+
+        assertNotNull(dogsProperty)
+        assertTrue(dogsProperty is DomainTypePropertyDefinition)
+        assertEquals(Cardinality.LIST, dogsProperty!!.cardinality)
+        assertEquals(2, dogsProperty.metadata.size)
+        assertEquals("houses", dogsProperty.metadata["predicate"])
+        assertEquals("lives in", dogsProperty.metadata["inverse"])
+    }
+
+    class PersonWithEmptySemantics(
+        @field:Semantics([])
+        val name: String,
+    )
+
+    @Test
+    fun `empty Semantics annotation results in empty metadata`() {
+        val type = JvmType(PersonWithEmptySemantics::class.java)
+        val nameProperty = type.ownProperties.find { it.name == "name" }
+
+        assertNotNull(nameProperty)
+        assertTrue(nameProperty!!.metadata.isEmpty())
+    }
+
+    class PersonWithDefaultSemantics(
+        @field:Semantics
+        val name: String,
+    )
+
+    @Test
+    fun `Semantics annotation with no value array results in empty metadata`() {
+        val type = JvmType(PersonWithDefaultSemantics::class.java)
+        val nameProperty = type.ownProperties.find { it.name == "name" }
+
+        assertNotNull(nameProperty)
+        assertTrue(nameProperty!!.metadata.isEmpty())
+    }
+
+    class MixedPerson(
+        val name: String,
+
+        @field:Semantics([With("predicate", "befriends")])
+        val friend: Dog,
+
+        val age: Int,
+    )
+
+    @Test
+    fun `mixed properties with and without Semantics`() {
+        val type = JvmType(MixedPerson::class.java)
+
+        val nameProperty = type.ownProperties.find { it.name == "name" }
+        assertTrue(nameProperty!!.metadata.isEmpty())
+
+        val friendProperty = type.ownProperties.find { it.name == "friend" }
+        assertEquals(1, friendProperty!!.metadata.size)
+        assertEquals("befriends", friendProperty.metadata["predicate"])
+
+        val ageProperty = type.ownProperties.find { it.name == "age" }
+        assertTrue(ageProperty!!.metadata.isEmpty())
+    }
 }

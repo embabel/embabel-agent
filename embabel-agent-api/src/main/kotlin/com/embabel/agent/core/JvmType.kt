@@ -144,6 +144,8 @@ data class JvmType @JsonCreator constructor(
     override val ownProperties: List<PropertyDefinition>
         get() {
             return clazz.declaredFields.mapNotNull { field ->
+                val metadata = extractSemantics(field)
+
                 // Check if it's a collection with a generic type parameter
                 if (Collection::class.java.isAssignableFrom(field.type) && field.genericType is java.lang.reflect.ParameterizedType) {
                     val parameterizedType = field.genericType as java.lang.reflect.ParameterizedType
@@ -157,26 +159,38 @@ data class JvmType @JsonCreator constructor(
                             name = field.name,
                             type = JvmType(typeArg),
                             cardinality = cardinality,
+                            metadata = metadata,
                         )
                     }
                     // Collection of scalars - return simple property
                     return@mapNotNull ValuePropertyDefinition(
                         name = field.name,
                         type = field.type.simpleName,
+                        metadata = metadata,
                     )
                 } else if (shouldNestAsEntity(field.type)) {
                     DomainTypePropertyDefinition(
                         name = field.name,
                         type = JvmType(field.type),
+                        metadata = metadata,
                     )
                 } else {
                     ValuePropertyDefinition(
                         name = field.name,
                         type = field.type.simpleName,
+                        metadata = metadata,
                     )
                 }
             }
         }
+
+    /**
+     * Extract semantic metadata from a field's @Semantics annotation.
+     */
+    private fun extractSemantics(field: java.lang.reflect.Field): Map<String, String> {
+        val semantics = field.getAnnotation(Semantics::class.java) ?: return emptyMap()
+        return semantics.value.associate { it.key to it.value }
+    }
 
     private fun shouldNestAsEntity(type: Class<*>): Boolean {
         // Primitives and their wrappers are scalars

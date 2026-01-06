@@ -157,26 +157,38 @@ sealed interface PropertyDefinition {
     val name: String
     val description: String
     val cardinality: Cardinality
+
+    /**
+     * Semantic metadata for this property.
+     * Populated from [@Semantics] annotation on the field.
+     * Keys and values are strings; common keys include:
+     * - `predicate`: Natural language predicate (e.g., "works at")
+     * - `inverse`: Inverse predicate (e.g., "employs")
+     * - `aliases`: Comma-separated alternative phrasings
+     */
+    val metadata: Map<String, String>
 }
 
 /**
  * Simple value property, such as string, int, boolean, etc.
  * Not necessarily a scalar, as cardinality may be LIST or SET.
  */
-data class ValuePropertyDefinition(
+data class ValuePropertyDefinition @JvmOverloads constructor(
     override val name: String,
     val type: String = "string",
     override val cardinality: Cardinality = Cardinality.ONE,
     override val description: String = name,
+    override val metadata: Map<String, String> = emptyMap(),
 ) : PropertyDefinition
 
 /**
  * Property that holds a nested DomainType
  * Represents a relationship to another domain object
  */
-data class DomainTypePropertyDefinition(
+data class DomainTypePropertyDefinition @JvmOverloads constructor(
     override val name: String,
     val type: DomainType,
     override val cardinality: Cardinality = Cardinality.ONE,
     override val description: String = name,
+    override val metadata: Map<String, String> = emptyMap(),
 ) : PropertyDefinition
