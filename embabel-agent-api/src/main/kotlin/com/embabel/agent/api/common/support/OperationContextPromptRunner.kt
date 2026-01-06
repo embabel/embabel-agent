@@ -66,6 +66,7 @@ internal data class OperationContextPromptRunner(
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
     override val propertyFilter: Predicate<String> = Predicate { true },
+    override val validation: Boolean = true,
     private val otherToolCallbacks: List<ToolCallback> = emptyList(),
 ) : StreamingPromptRunner {
 
@@ -138,6 +139,7 @@ internal data class OperationContextPromptRunner(
                 id = interactionId ?: idForPrompt(messages, outputClass),
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
+                validation = validation,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -164,6 +166,7 @@ internal data class OperationContextPromptRunner(
                 id = interactionId ?: idForPrompt(messages, outputClass),
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
+                validation = validation,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -287,6 +290,9 @@ internal data class OperationContextPromptRunner(
 
     override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
         copy(propertyFilter = this.propertyFilter.and(filter))
+
+    override fun withValidation(validation: Boolean): PromptRunner =
+        copy(validation = validation)
 
     override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
         return PromptRunnerObjectCreator(

@@ -76,7 +76,10 @@ abstract class AbstractLlmOperations(
 
         val (createdObject, ms) = time {
             val initialMessages =
-                if (validator.getConstraintsForClass(outputClass).isBeanConstrained && dataBindingProperties.sendValidationInfo) {
+                if (interaction.validation &&
+                    validator.getConstraintsForClass(outputClass).isBeanConstrained &&
+                    dataBindingProperties.sendValidationInfo
+                ) {
                     messages + UserMessage(
                         validationPromptGenerator.generateRequirementsPrompt(
                             validator = validator,
@@ -93,25 +96,27 @@ abstract class AbstractLlmOperations(
                 outputClass = outputClass,
                 llmRequestEvent = llmRequestEvent,
             )
-            var constraintViolations = validator.validate(candidate)
-            if (constraintViolations.isNotEmpty()) {
-                // If we had violations, try again, once, before throwing an exception
-                candidate = doTransform(
-                    messages = messages + UserMessage(
-                        validationPromptGenerator.generateViolationsReport(
-                            constraintViolations
-                        )
-                    ),
-                    interaction = interactionWithToolDecoration,
-                    outputClass = outputClass,
-                    llmRequestEvent = llmRequestEvent,
-                )
-                constraintViolations = validator.validate(candidate)
+            if (interaction.validation) {
+                var constraintViolations = validator.validate(candidate)
                 if (constraintViolations.isNotEmpty()) {
-                    throw InvalidLlmReturnTypeException(
-                        returnedObject = candidate as Any,
-                        constraintViolations = constraintViolations,
+                    // If we had violations, try again, once, before throwing an exception
+                    candidate = doTransform(
+                        messages = messages + UserMessage(
+                            validationPromptGenerator.generateViolationsReport(
+                                constraintViolations
+                            )
+                        ),
+                        interaction = interactionWithToolDecoration,
+                        outputClass = outputClass,
+                        llmRequestEvent = llmRequestEvent,
                     )
+                    constraintViolations = validator.validate(candidate)
+                    if (constraintViolations.isNotEmpty()) {
+                        throw InvalidLlmReturnTypeException(
+                            returnedObject = candidate as Any,
+                            constraintViolations = constraintViolations,
+                        )
+                    }
                 }
             }
             candidate

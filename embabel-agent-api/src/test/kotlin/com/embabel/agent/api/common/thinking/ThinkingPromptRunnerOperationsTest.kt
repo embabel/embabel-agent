@@ -19,9 +19,9 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
-import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.ThinkingBlock
 import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.ThinkingTagType
 import io.mockk.every
 import io.mockk.mockk
@@ -169,6 +169,7 @@ class ThinkingPromptRunnerOperationsTest {
             override val promptContributors: List<com.embabel.common.ai.prompt.PromptContributor> = emptyList()
             override val generateExamples: Boolean? = null
             override val propertyFilter: java.util.function.Predicate<String> = java.util.function.Predicate { true }
+            override val validation: Boolean = true
 
             override fun <T> createObject(messages: List<com.embabel.chat.Message>, outputClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")
@@ -237,6 +238,9 @@ class ThinkingPromptRunnerOperationsTest {
                 this
 
             override fun withPropertyFilter(filter: java.util.function.Predicate<String>): com.embabel.agent.api.common.PromptRunner =
+                this
+
+            override fun withValidation(validation: Boolean): com.embabel.agent.api.common.PromptRunner =
                 this
 
             override fun <T> creating(outputClass: Class<T>): com.embabel.agent.api.common.nested.ObjectCreator<T> {

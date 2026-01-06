@@ -49,6 +49,12 @@ interface LlmUse : PromptContributorConsumer, ToolGroupConsumer {
      */
     val propertyFilter: Predicate<String>
 
+    /**
+     * Whether to validate generated objects.
+     * Defaults to `true`; set to `false` to skip validation.
+     */
+    val validation: Boolean
+
 }
 
 /**
@@ -83,6 +89,7 @@ private data class LlmCallImpl(
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean = false,
     override val propertyFilter: Predicate<String> = Predicate { true },
+    override val validation: Boolean = true,
 ) : LlmCall
 
 /**
@@ -109,6 +116,7 @@ data class LlmInteraction(
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean? = null,
     override val propertyFilter: Predicate<String> = Predicate { true },
+    override val validation: Boolean = true,
 ) : LlmCall {
 
     override val name: String = id.value

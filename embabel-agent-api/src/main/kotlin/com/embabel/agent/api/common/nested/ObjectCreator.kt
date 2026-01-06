@@ -111,6 +111,17 @@ interface ObjectCreator<T> {
     fun withoutProperties(vararg properties: String): ObjectCreator<T> = withPropertyFilter { !properties.contains(it) }
 
     /**
+     * Set whether to validate created objects.
+     * @param validation `true` to validate created objects; `false` otherwise. Defaults to `true`.
+     */
+    fun withValidation(validation: Boolean = true): ObjectCreator<T>
+
+    /**
+     * Disables validation of created objects.
+     */
+    fun withoutValidation(): ObjectCreator<T> = withValidation(false)
+
+    /**
      * Create an object of the desired type using the given prompt and LLM options from context
      * (process context or implementing class).
      * Prompts are typically created within the scope of an
