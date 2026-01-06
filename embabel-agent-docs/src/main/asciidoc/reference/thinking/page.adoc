@@ -4,42 +4,75 @@
 
 ==== Motivation
 
-Sometimes user would like to validate LLM reasoning process in addition to getting back object.
-Imagine scenario: the user wants to plan a vacation and tells the LLM their preferred destinations are Greece and Italy and they can only take vacation in August, June, or September.
-Then the user asks the LLM to come up with some destinations with cheap plane tickets for a one-week stay.
-Let's say the output is a proper object, basically a round trip flight. Even if the output adheres to the schema,
-user wants to be able to verify whether the flight dates are in the requested months, and whether the destinations are in Greece/Italy vs somewhere else like Spain or Turkey.
-If flight details are outside user's criteria, user would like to be able to understand LLM reasoning process.
+Sometimes you need to validate an LLM's reasoning process in addition to obtaining a structured result.
 
-Another use case even more important, when LLM is not able to fulfill request, in other words LLM is not able to
-create object in the very first place, since user's criteria is ambiguous.
+Consider this scenario: a user wants to plan a vacation and specifies that their preferred destinations are Greece and Italy, with available travel dates in June, August, or September. They ask the LLM to find flight options with affordable tickets for a one-week stay. The LLM returns a structured `Flight` object containing departure and return dates, destinations, and prices. Even if the output adheres to the expected schema, you may want to verify that:
+
+- The flight dates fall within the requested months
+- The destinations are actually in Greece or Italy rather than somewhere else
+
+If the flight details fall outside the user's criteria, access to the LLM's reasoning process helps you understand why it made those choices.
+
+An even more important use case arises when the LLM cannot fulfill a request—for example, when it cannot create the requested object because the user's criteria are ambiguous or contradictory. In this case, the thinking blocks explain what went wrong, even though no result was produced.
 
 ==== Concepts
 
-- ```ThinkingBlock``` - abstraction that carries details on LLM reasoning, including Tag type, Tag value, and LLM reasoning text
-- ```ThinkingTags``` - reasoning Tag Types and XML tags definition. Dynamic tags got supported as well
-- ```ResponseWithThinking``` - LLM response holder, wraps Object and List of ```ThinkingBlocks```
-- ```ThinkingException``` - wraps Thinking Blocks in case Object cant be instantiated
-- ```withThinking``` - Core ```PromptRunner``` API
+- `ThinkingBlock` — An abstraction that carries details about LLM reasoning, including the tag type, tag value, and reasoning text content.
+- `ThinkingTagType` — An enum defining the types of reasoning markers: `TAG` (XML-style tags like `<think>`), `PREFIX` (line prefixes like `//THINKING:`), and `NO_PREFIX` (untagged reasoning text before JSON output).
+- `ThinkingResponse<T>` — A response wrapper that holds both the result object and a list of `ThinkingBlock` instances.
+- `ThinkingException` — An exception that preserves thinking blocks when object instantiation fails, enabling debugging even in error scenarios.
+- `withThinking()` — The core `PromptRunner` API method that enables thinking extraction.
 
 
-==== Example on handling Object and Thinking Blocks
+==== Example: Handling Objects and Thinking Blocks
+
 [source,java]
 ----
+// Configure the PromptRunner with an LLM and optional tools
+PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                        .withToolObject(Tooling.class);
 
-        // Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                                .withToolObject(Tooling.class);
+String prompt = """
+    What is the hottest month in Florida and its average high temperature?
+    Please provide a detailed analysis of your reasoning.
+    """;
 
-        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+// Use withThinking() to enable thinking block extraction
+ThinkingResponse<MonthItem> response = runner
+        .withThinking()
+        .createObject(prompt, MonthItem.class);
 
-        //Use builder for  natural chaining
-        ThinkingResponse<MonthItem> response = runner
-                .withThinking()
-                .createObjectIfPossible(prompt, MonthItem.class);
+// Access the structured result
+MonthItem result = response.getResult();
 
+// Access the LLM's reasoning process
+List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
 
-        MonthItem result = response.getResult();
+// Inspect individual thinking blocks
+for (ThinkingBlock block : thinkingBlocks) {
+    System.out.println("Type: " + block.getTagType());   // TAG, PREFIX, or NO_PREFIX
+    System.out.println("Tag: " + block.getTagValue());   // e.g., "think", "analysis"
+    System.out.println("Content: " + block.getContent());
+}
+----
 
-        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+==== Example: Handling Failures Gracefully
+
+Use `createObjectIfPossible` when the LLM might not be able to produce a valid result:
+
+[source,java]
+----
+ThinkingResponse<MonthItem> response = runner
+        .withThinking()
+        .createObjectIfPossible(prompt, MonthItem.class);
+
+MonthItem result = response.getResult();
+if (result != null) {
+    // Process the result
+} else {
+    // Object creation failed—examine the reasoning to understand why
+    for (ThinkingBlock block : response.getThinkingBlocks()) {
+        logger.info("LLM reasoning: {}", block.getContent());
+    }
+}
 ----
