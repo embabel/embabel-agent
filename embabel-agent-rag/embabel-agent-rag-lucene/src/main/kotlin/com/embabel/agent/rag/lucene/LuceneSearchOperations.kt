@@ -506,6 +506,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         val results = performHybridSearch(searcher, ragRequest)
             .filter { clazz.isInstance(it.match) }
             .map { SimpleSimilaritySearchResult(match = it.match as T, score = it.score) }
+            .take(request.topK)
 
         logger.info(
             "Vector search for query '{}' found {} results",
@@ -639,6 +640,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         val results = performTextSearch(searcher, ragRequest)
             .filter { clazz.isInstance(it.match) }
             .map { SimpleSimilaritySearchResult(match = it.match as T, score = it.score) }
+            .take(request.topK)
 
         logger.info(
             "Text search for query '{}' found {} results",

@@ -261,9 +261,158 @@ You might choose to do this if you provide a `ResultListener`
 that will collect queries and results for logging or analysis: for example, to track which queries were most useful for answering user questions and the complexity in terms of number of searches performed.
 This can be useful for implementing a learning feedback loop, for example to discern which queries performed badly, indicating that content such as documentation needs to be enhanced.
 
-****
-Some content here
-****
+===== Metadata Filtering
+
+In multi-tenant applications or scenarios where searches should be scoped to specific data subsets, `ToolishRag` supports **metadata filtering**.
+Filters are applied transparently to all searches—the LLM does not see or control them, ensuring security and data isolation.
+
+====== Motivation
+
+Consider a document management system where:
+
+- Each document belongs to an owner (user or organization)
+- Some documents are shared reference data accessible to all users
+- The LLM should only search documents the current user is authorized to access
+
+Without filtering, you would need separate RAG stores per user or risk data leakage.
+With metadata filtering, a single `ToolishRag` instance can be scoped per-request to the current user's data.
+
+====== MetadataFilter API
+
+The `MetadataFilter` sealed class hierarchy provides type-safe filter expressions:
+
+[cols="1,2,2"]
+|===
+|Filter Type |Description |Example
+
+|`Eq`
+|Equals
+|`MetadataFilter.eq("owner", "alice")`
+
+|`Ne`
+|Not equals
+|`MetadataFilter.ne("status", "deleted")`
+
+|`Gt`, `Gte`
+|Greater than (or equal)
+|`MetadataFilter.gte("score", 0.8)`
+
+|`Lt`, `Lte`
+|Less than (or equal)
+|`MetadataFilter.lt("priority", 5)`
+
+|`In`
+|Value in list
+|`MetadataFilter.in("category", "tech", "science")`
+
+|`Nin`
+|Value not in list
+|`MetadataFilter.nin("status", "deleted", "archived")`
+
+|`Contains`
+|String contains substring
+|`MetadataFilter.contains("tags", "important")`
+
+|`And`
+|Logical AND
+|`MetadataFilter.and(filter1, filter2)`
+
+|`Or`
+|Logical OR
+|`MetadataFilter.or(filter1, filter2)`
+
+|`Not`
+|Logical NOT
+|`MetadataFilter.not(filter)`
+|===
+
+====== Basic Usage
+
+Apply a filter to scope all searches to a specific owner:
+
+[source,java]
+----
+// Create a filter for the current user
+MetadataFilter ownerFilter = MetadataFilter.eq("ownerId", currentUserId);
+
+// Apply to ToolishRag - all searches will be filtered
+ToolishRag scopedRag = toolishRag.withFilter(ownerFilter);
+
+// Use in LLM call - LLM cannot see or bypass the filter
+context.ai()
+    .withReference(scopedRag)
+    .respondWithSystemPrompt(conversation, Map.of());
+----
+
+====== Complex Filters
+
+Combine filters for more sophisticated access control:
+
+[source,java]
+----
+// User can access their own documents OR documents in their departments
+MetadataFilter accessFilter = MetadataFilter.or(
+    MetadataFilter.eq("ownerId", currentUserId),
+    MetadataFilter.in("departmentId", userDepartmentIds)
+);
+
+ToolishRag scopedRag = toolishRag.withFilter(accessFilter);
+----
+
+[source,java]
+----
+// Organization-scoped with status restriction
+MetadataFilter orgFilter = MetadataFilter.and(
+    MetadataFilter.eq("orgId", currentOrgId),
+    MetadataFilter.ne("status", "deleted"),
+    MetadataFilter.gte("confidenceScore", 0.7)
+);
+
+ToolishRag scopedRag = toolishRag.withFilter(orgFilter);
+----
+
+====== Per-Request Scoping Pattern
+
+A common pattern is to create a scoped `ToolishRag` per request in a web application:
+
+[source,java]
+----
+@Action(trigger = UserMessage.class)
+void respond(Conversation conversation, ActionContext context) {
+    // Get current user from security context
+    String userId = SecurityContextHolder.getContext()
+        .getAuthentication().getName();
+
+    // Create user-scoped RAG for this request
+    ToolishRag userScopedRag = toolishRag.withFilter(
+        MetadataFilter.eq("ownerId", userId)
+    );
+
+    context.ai()
+        .withReference(userScopedRag)
+        .withTemplate("assistant")
+        .respondWithSystemPrompt(conversation, Map.of());
+}
+----
+
+====== Backend Implementation
+
+Metadata filters are translated to native query syntax where possible:
+
+- **Spring AI VectorStore**: Translated to `Filter.Expression` for native filtering at the vector store level
+- **Lucene**: Applied as post-filter with inflated `topK` to compensate
+- **Custom stores**: Can implement native translation or use `InMemoryMetadataFilter` for post-filtering
+
+The `InMemoryMetadataFilter` utility class provides a fallback for any store implementation:
+
+[source,java]
+----
+// In your SearchOperations implementation
+List<SimilarityResult<T>> results = performSearch(request);
+return InMemoryMetadataFilter.filterResults(results, filter);
+----
+
+This ensures filtering works across all backends, with native optimization where available.
 
 ==== Ingestion
 

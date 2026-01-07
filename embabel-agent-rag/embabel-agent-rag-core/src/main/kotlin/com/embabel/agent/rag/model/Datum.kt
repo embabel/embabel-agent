@@ -35,6 +35,10 @@ sealed interface Datum {
      */
     val uri: String?
 
+    /**
+     * Metadata for this instance.
+     * Can be used for filtering.
+     */
     val metadata: Map<String, Any?>
 
     /**

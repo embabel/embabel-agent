@@ -18,6 +18,7 @@ package com.embabel.agent.rag.service
 import com.embabel.agent.core.DataDictionary
 import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.JvmType
+import com.embabel.agent.rag.filter.MetadataFilter
 import com.embabel.agent.rag.model.NamedEntity
 import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.Retrievable
@@ -40,8 +41,11 @@ data class RelationshipData(
  *
  * Supports typed hydration via [findTypedById] and [findByDomainType] when entities
  * have a [NamedEntityData.linkedDomainType] set.
+ *
+ * Extends [FilteringVectorSearch] and [FilteringTextSearch] to support native metadata filtering
+ * when available, otherwise falls back to post-filtering.
  */
-interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations {
+interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, FilteringVectorSearch, FilteringTextSearch {
 
     /**
      * ObjectMapper for hydrating entities to typed JVM instances.
@@ -68,6 +72,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations {
 
     fun vectorSearch(
         request: TextSimilaritySearchRequest,
+        filter: MetadataFilter? = null,
     ): List<SimilarityResult<NamedEntityData>>
 
     /**
@@ -105,10 +110,12 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations {
      * ```
      *
      * @param request the text similarity search request
+     * @param filter optional metadata filter to apply
      * @return matching results ranked by BM25 relevance score
      */
     fun textSearch(
         request: TextSimilaritySearchRequest,
+        filter: MetadataFilter? = null,
     ): List<SimilarityResult<NamedEntityData>>
 
     /**
@@ -146,7 +153,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations {
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
-        return vectorSearch(request).mapNotNull { similarityResult ->
+        return vectorSearch(request, filter = null).mapNotNull { similarityResult ->
             similarityResult.match.toTypedInstance(objectMapper, namedEntityClass)?.let { typed ->
                 SimilarityResult(typed as T, similarityResult.score)
             }
@@ -170,7 +177,59 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations {
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
-        return textSearch(request).mapNotNull { similarityResult ->
+        return textSearch(request, filter = null).mapNotNull { similarityResult ->
+            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass)?.let { typed ->
+                SimilarityResult(typed as T, similarityResult.score)
+            }
+        }
+    }
+
+    /**
+     * Perform typed vector search with metadata filtering.
+     * Delegates to the entity-specific [vectorSearch] method with filter.
+     *
+     * @param request the search request
+     * @param clazz the target type for hydration
+     * @param filter metadata filter to apply
+     * @return list of similarity results with hydrated instances
+     */
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : Retrievable> vectorSearchWithFilter(
+        request: TextSimilaritySearchRequest,
+        clazz: Class<T>,
+        filter: MetadataFilter,
+    ): List<SimilarityResult<T>> {
+        if (!NamedEntity::class.java.isAssignableFrom(clazz)) {
+            return emptyList()
+        }
+        val namedEntityClass = clazz as Class<out NamedEntity>
+        return vectorSearch(request, filter).mapNotNull { similarityResult ->
+            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass)?.let { typed ->
+                SimilarityResult(typed as T, similarityResult.score)
+            }
+        }
+    }
+
+    /**
+     * Perform typed text search with metadata filtering.
+     * Delegates to the entity-specific [textSearch] method with filter.
+     *
+     * @param request the search request
+     * @param clazz the target type for hydration
+     * @param filter metadata filter to apply
+     * @return list of similarity results with hydrated instances
+     */
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : Retrievable> textSearchWithFilter(
+        request: TextSimilaritySearchRequest,
+        clazz: Class<T>,
+        filter: MetadataFilter,
+    ): List<SimilarityResult<T>> {
+        if (!NamedEntity::class.java.isAssignableFrom(clazz)) {
+            return emptyList()
+        }
+        val namedEntityClass = clazz as Class<out NamedEntity>
+        return textSearch(request, filter).mapNotNull { similarityResult ->
             similarityResult.match.toTypedInstance(objectMapper, namedEntityClass)?.let { typed ->
                 SimilarityResult(typed as T, similarityResult.score)
             }

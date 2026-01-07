@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.service
 
+import com.embabel.agent.rag.filter.MetadataFilter
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult
@@ -77,13 +78,36 @@ interface FinderOperations : TypeRetrievalOperations {
 interface VectorSearch : TypeRetrievalOperations {
 
     /**
-     * Perform classic vector search
+     * Perform classic vector search.
+     * @param request the search request containing query, topK, and similarity threshold
+     * @param clazz the type of Retrievable to search for
+     * @return matching results ranked by similarity score
      */
     fun <T : Retrievable> vectorSearch(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
     ): List<SimilarityResult<T>>
+}
 
+/**
+ * Vector search with native metadata filtering support.
+ * Implementations translate [MetadataFilter] to native query syntax
+ * (e.g., Spring AI Filter.Expression, Cypher WHERE clause).
+ */
+interface FilteringVectorSearch : VectorSearch {
+
+    /**
+     * Perform vector search with metadata filtering.
+     * @param request the search request containing query, topK, and similarity threshold
+     * @param clazz the type of Retrievable to search for
+     * @param filter metadata filter to apply (non-nullable)
+     * @return matching results ranked by similarity score
+     */
+    fun <T : Retrievable> vectorSearchWithFilter(
+        request: TextSimilaritySearchRequest,
+        clazz: Class<T>,
+        filter: MetadataFilter,
+    ): List<SimilarityResult<T>>
 }
 
 /**
@@ -93,6 +117,7 @@ interface TextSearch : TypeRetrievalOperations {
 
     /**
      * Performs full-text search using Lucene query syntax.
+     *
      * Not all implementations will support all capabilities (such as fuzzy matching).
      * However, the use of quotes for phrases and + / - for required / excluded terms should be widely supported.
      *
@@ -141,12 +166,60 @@ interface TextSearch : TypeRetrievalOperations {
     val luceneSyntaxNotes: String
 }
 
+/**
+ * Text search with native metadata filtering support.
+ * Implementations translate [MetadataFilter] to native query syntax.
+ */
+interface FilteringTextSearch : TextSearch {
+
+    /**
+     * Perform text search with metadata filtering.
+     * @param request the text similarity search request
+     * @param clazz the type of [Retrievable] to search
+     * @param filter metadata filter to apply (non-nullable)
+     * @return matching results ranked by BM25 relevance score
+     */
+    fun <T : Retrievable> textSearchWithFilter(
+        request: TextSimilaritySearchRequest,
+        clazz: Class<T>,
+        filter: MetadataFilter,
+    ): List<SimilarityResult<T>>
+}
+
 interface RegexSearchOperations : SearchOperations {
 
+    /**
+     * Perform regex search.
+     * @param regex the regex pattern to match
+     * @param topK maximum number of results to return
+     * @param clazz the type of Retrievable to search for
+     * @return matching results
+     */
     fun <T : Retrievable> regexSearch(
         regex: Regex,
         topK: Int,
         clazz: Class<T>,
+    ): List<SimilarityResult<T>>
+}
+
+/**
+ * Regex search with native metadata filtering support.
+ */
+interface FilteringRegexSearch : RegexSearchOperations {
+
+    /**
+     * Perform regex search with metadata filtering.
+     * @param regex the regex pattern to match
+     * @param topK maximum number of results to return
+     * @param clazz the type of Retrievable to search for
+     * @param filter metadata filter to apply (non-nullable)
+     * @return matching results
+     */
+    fun <T : Retrievable> regexSearchWithFilter(
+        regex: Regex,
+        topK: Int,
+        clazz: Class<T>,
+        filter: MetadataFilter,
     ): List<SimilarityResult<T>>
 }
 

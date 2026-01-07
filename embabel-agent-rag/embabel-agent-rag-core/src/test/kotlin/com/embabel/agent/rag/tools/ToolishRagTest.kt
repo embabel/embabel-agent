@@ -505,7 +505,7 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 1.0))
 
             val listener = ResultsListener { event -> capturedEvent = event }
-            val tools = RegexSearchTools(regexSearch, listener)
+            val tools = RegexSearchTools(regexSearch, filter = null, resultsListener = listener)
             tools.regexSearch("E\\d{3}", 10)
 
             assertTrue(capturedEvent != null)

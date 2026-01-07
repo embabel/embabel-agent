@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.rag.filter.MetadataFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.*
@@ -65,6 +66,9 @@ fun interface ResultsListener {
  * Defaults to Chunk
  * @param hints list of hints to provide to the LLM
  * @param listener optional listener to receive raw structured results as they are retrieved
+ * @param filter optional metadata filter to apply to all searches.
+ * Useful for multi-tenant scenarios where searches should be scoped to a specific owner.
+ * The filter is applied transparently - the LLM does not see or control it.
  */
 data class ToolishRag @JvmOverloads constructor(
     override val name: String,
@@ -76,6 +80,7 @@ data class ToolishRag @JvmOverloads constructor(
     val textSearchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
     val hints: List<PromptContributor> = listOf(),
     val listener: ResultsListener? = null,
+    val filter: MetadataFilter? = null,
 ) : LlmReference {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -99,7 +104,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is VectorSearch) {
                 logger.info("Adding VectorSearchTools to ToolishRag tools {}", name)
-                add(VectorSearchTools(searchOperations, vectorSearchFor, listener))
+                add(VectorSearchTools(searchOperations, vectorSearchFor, filter, listener))
             } else {
                 if (hints.any { it is TryHyDE }) {
                     logger.warn(
@@ -111,7 +116,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is TextSearch) {
                 logger.info("Adding TextSearchTools to ToolishRag tools {}", name)
-                add(TextSearchTools(searchOperations, textSearchFor, listener))
+                add(TextSearchTools(searchOperations, textSearchFor, filter, listener))
             }
             if (searchOperations is ResultExpander) {
                 logger.info("Adding ResultExpanderTools to ToolishRag tools {}", name)
@@ -119,7 +124,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is RegexSearchOperations) {
                 logger.info("Adding RegexSearchTools to ToolishRag tools {}", name)
-                add(RegexSearchTools(searchOperations, listener))
+                add(RegexSearchTools(searchOperations, filter, listener))
             }
         }
     }
@@ -159,6 +164,14 @@ data class ToolishRag @JvmOverloads constructor(
      */
     fun withListener(listener: ResultsListener): ToolishRag =
         copy(listener = listener)
+
+    /**
+     * Set a metadata filter to apply to all searches.
+     * Useful for multi-tenant scenarios where searches should be scoped to a specific owner.
+     * The filter is applied transparently - the LLM does not see or control it.
+     */
+    fun withFilter(filter: MetadataFilter): ToolishRag =
+        copy(filter = filter)
 
     override fun toolInstances() = toolInstances
 
