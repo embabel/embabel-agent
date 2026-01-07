@@ -7,6 +7,9 @@ include::overview/page.adoc[]
 
 include::getting-started/page.adoc[]
 
+include::modules/page.adoc[]
+
+
 include::reference/reference.adoc[]
 
 

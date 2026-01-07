@@ -1,0 +1,286 @@
+[[overview__modules]]
+=== Embabel Modules
+
+Embabel spans multiple modules, in this and other repositories in the `embabel` organization.
+
+The status of these modules varies.
+There are three statuses:
+
+- *Stable*: these modules are considered production ready.
+We strive to avoid breaking changes.
+- *Incubating*: these modules are under active development and may have breaking changes in minor releases.
+However, they are considered generally usable and can be expected to graduate to stable.
+Use with caution.
+- *Experimental*: these modules are early stage and may have breaking changes in any release.
+They are not recommended for production use.
+These modules may be removed without replacement and there is no guarantee of them graduating to a more stable status.
+
+Of course, contributions are welcome to all modules!
+
+==== Module Directory
+
+The following are modules intended for direct use (versus supporting infrastructure).
+
+===== Core Modules
+
+[cols="2,1,3,2,1",options="header"]
+|===
+| Name | Location | Purpose | Notes | Status
+
+| `embabel-agent-api`
+| This repo
+| Core API
+| Main programming interface for building agents
+| Stable
+
+| `embabel-agent-domain`
+| This repo
+| Domain types and entities
+| Shared domain model
+| Incubating
+|===
+
+===== Feature Modules
+
+[cols="2,1,3,2,1",options="header"]
+|===
+| Name | Location | Purpose | Notes | Status
+
+| `embabel-agent-a2a`
+| This repo
+| Agent-to-Agent protocol support
+| Google A2A protocol implementation
+| Incubating
+
+| `embabel-agent-code`
+| This repo
+| Coding domain library
+| Code analysis and generation utilities
+| Stable
+
+| `embabel-agent-discord`
+| This repo
+| Discord bot integration
+| Build agents as Discord bots
+| Experimental
+
+| `embabel-agent-eval`
+| This repo
+| Agent evaluation framework
+| Assess agent performance on tasks
+| Experimental
+
+| `embabel-agent-mcpserver`
+| This repo
+| MCP server support
+| Export agents as MCP servers
+| Stable
+
+| `embabel-agent-openai`
+| This repo
+| OpenAI-specific utilities
+| Structured outputs, response format
+| Stable
+
+| `embabel-agent-remote`
+| This repo
+| Remote action support
+| Execute actions on remote systems, enabling dynamic registration to extend the capabilities of an Embabel server
+| Experimental
+
+| `embabel-agent-shell`
+| This repo
+| Command-line interface
+| Interactive shell for agent development
+| Stable
+
+| `embabel-agent-skills`
+| This repo
+| Support for emerging Agent Skills standard
+| Composable agent skills
+| Experimental
+
+| `embabel-agent-spec`
+| This repo
+| Serializable action and goal definitions
+| Enables agents to be defined in YML or otherwise persisted in a serialized format
+| Experimental
+
+
+|===
+
+===== RAG and Context Engineering Modules
+
+[cols="2,1,3,2,1",options="header"]
+|===
+| Name | Location | Purpose | Notes | Status
+
+| `embabel-agent-rag-core`
+| This repo
+| Core RAG abstractions
+| Base interfaces for RAG, encompassing programming model (`ToolishRag`), storage abstractions (`SearchOperations`) and document model.
+| Stable
+
+| `embabel-agent-rag-lucene`
+| This repo
+| Lucene RAG store
+| Local storage with Apache Lucene supporting vector and text search
+| Stable
+
+| `embabel-agent-rag-tika`
+| This repo
+| Apache Tika integration
+| Document parsing (Markdown, PDF, Word, etc.)
+| Incubating
+
+| `embabel-agent-rag-neo-drivine`
+| `embabel/embabel-agent-rag-neo-drivine`
+| Neo4j graph RAG
+| RAG store for Neo4j graph database
+| Incubating
+
+| `dice`
+| `embabel/dice`
+| Support for https://medium.com/@springrod/context-engineering-needs-domain-understanding-b4387e8e4bf8:[Domain Oriented Context Engineering]
+| Sophisticated pipeline for context engineering and integration with enterprise data. Incorporates proposition extraction and projection into knowledge graphs, memory and experimental representations.
+| Incubating
+|===
+
+===== Spring Boot Starters
+
+[cols="2,1,3,2,1",options="header"]
+|===
+| Name | Location | Purpose | Notes | Status
+
+| `embabel-agent-starter`
+| This repo
+| Base starter
+| Core dependencies only (no LLM provider)
+| Stable
+
+| `embabel-agent-starter-anthropic`
+| This repo
+| Anthropic starter
+| Quick start with Claude
+| Stable
+
+| `embabel-agent-starter-openai`
+| This repo
+| OpenAI starter
+| Quick start with GPT
+| Stable
+
+| `embabel-agent-starter-ollama`
+| This repo
+| Ollama starter
+| Quick start with local Ollama
+| Stable
+
+| `embabel-agent-starter-shell`
+| This repo
+| Shell starter
+| Add interactive shell for development
+| Stable
+
+| `embabel-agent-starter-a2a`
+| This repo
+| A2A starter
+| Add A2A server support
+| Incubating
+
+| `embabel-agent-starter-mcpserver`
+| This repo
+| MCP server starter
+| Add MCP server support
+| Stable
+
+| `embabel-agent-starter-bedrock`
+| This repo
+| Bedrock starter
+| Quick start with AWS Bedrock
+| Stable
+
+| `embabel-agent-starter-deepseek`
+| This repo
+| DeepSeek starter
+| Quick start with DeepSeek
+| Stable
+
+| `embabel-agent-starter-gemini`
+| This repo
+| Gemini starter
+| Quick start with Vertex AI
+| Stable
+
+| `embabel-agent-starter-google-genai`
+| This repo
+| Google GenAI starter
+| Quick start with AI Studio
+| Incubating
+
+| `embabel-agent-starter-lmstudio`
+| This repo
+| LM Studio starter
+| Quick start with LM Studio
+| Incubating
+
+| `embabel-agent-starter-mistral-ai`
+| This repo
+| Mistral AI starter
+| Quick start with Mistral
+| Stable
+
+| `embabel-agent-starter-dockermodels`
+| This repo
+| Docker Models starter
+| Quick start with Docker Desktop AI
+| Stable
+
+| `embabel-agent-starter-openai-custom`
+| This repo
+| Custom OpenAI starter
+| Quick start with OpenRouter, etc.
+| Stable
+|===
+
+===== Test Support
+
+[cols="2,1,3,2,1",options="header"]
+|===
+| Name | Location | Purpose | Notes | Status
+
+| `embabel-agent-test`
+| This repo
+| Test utilities
+| JUnit extensions, test DSL
+| Incubating
+
+|===
+
+===== Example Repositories
+
+[cols="2,1,3,2,1",options="header"]
+|===
+| Name | Location | Purpose | Notes | Status
+
+| `embabel-agent-examples`
+| `embabel/embabel-agent-examples`
+| Example agents
+| Sample implementations and tutorials
+| Stable
+
+| `java-agent-template`
+| `embabel/java-agent-template`
+| Java project template
+| Starter template for Java agents
+| Stable
+|===
+
+==== Experimental APIs
+
+While the status of modules may change over time, any module may contain clearly identified experimental functionality.
+This enables us to innovate in the open without excessive build complexity.
+
+Please try and provide feedback on this functionality, but don't rely on it and be aware that it may change without notice.
+
+IMPORTANT: Any type or method annotated with the `@ApiStatus.Experimental` annotation is not guaranteed to be stable.
