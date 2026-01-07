@@ -675,3 +675,9 @@ Both `SupervisorInvocation` and <<reference.tools__agentic-tools,AgenticTool>> p
 
 Use `AgenticTool` when you need a tool that internally orchestrates other tools.
 Use `SupervisorInvocation` when you need a complete workflow that produces a typed result with full blackboard state management.
+
+
+[graphviz, embabel_planning_system.dot, png]
+----
+include::../diagrams/architecture/embabel_planning_system.dot[]
+----

@@ -1,0 +1,71 @@
+digraph AgentPlatformModel {
+    // Node styling - matching original diagram
+    node [shape=box, style="filled,rounded", fontname="Arial", margin=0.2];
+    edge [fontname="Arial", fontsize=10];
+    
+    // Core platform components
+    AgentPlatform [fillcolor=lightblue, label="AgentPlatform\n(Runtime deployment)"];
+    Agent [fillcolor=lightgreen, label="Agent\n(Immutable agent description)"];
+    AgentScope [fillcolor=lightyellow, label="AgentScope\n(Actions, goals, conditions)"];
+    AgentProcess [fillcolor=lightcoral, label="AgentProcess\n(Single agent run)"];
+    
+    // Programming model - annotations
+    AgentAnnotation [fillcolor=pink, label="@Agent\n(Component annotation)"];
+    ActionAnnotation [fillcolor=lightgrey, label="@action\n(Method annotation)"];
+    ConditionAnnotation [fillcolor=lightcyan, label="@condition\n(Method annotation)"];
+    CapabilitiesAnnotation [fillcolor=lavender, label="@AgentCapabilities\n(Shared capabilities)"];
+    
+    // Configuration
+    ProcessOptions [fillcolor=lightpink, label="ProcessOptions\n(Runtime configuration)"];
+    
+    // Status tracking
+    ProcessStatus [fillcolor=lightsteelblue, label="ProcessStatus\n(Runtime state)"];
+    
+    // Domain types
+    DataDictionary [fillcolor=lightsalmon, label="DataDictionary\n(Type registry)"];
+    DomainType [fillcolor=lightseagreen, label="DomainType\n(Type representation)"];
+    
+    // Core components from planning system
+    Action [fillcolor=lightblue, label="Action\n(Executable step)"];
+    Condition [fillcolor=lightgreen, label="Condition\n(Named predicate)"];
+    Goal [fillcolor=pink, label="Goal\n(Desired end state)"];
+    
+    // Core relationships
+    AgentPlatform -> Agent [label="deploys"];
+    AgentPlatform -> AgentProcess [label="creates"];
+    Agent -> AgentScope [label="implements"];
+    AgentProcess -> ProcessStatus [label="tracks"];
+    AgentProcess -> ProcessOptions [label="configured by"];
+    
+    // Programming model relationships  
+    AgentAnnotation -> Agent [label="defines"];
+    ActionAnnotation -> Action [label="creates"];
+    ConditionAnnotation -> Condition [label="creates"];
+    CapabilitiesAnnotation -> AgentScope [label="contributes to"];
+    
+    // Compositional relationships - Agent composed of Actions/Goals/Conditions
+    Agent -> Action [label="composed of", style="bold"];
+    Agent -> Goal [label="composed of", style="bold"];
+    Agent -> Condition [label="composed of", style="bold"];
+    
+    // AgentScope composition
+    AgentScope -> Action [label="contains", style="dashed"];
+    AgentScope -> Goal [label="contains", style="dashed"];
+    AgentScope -> Condition [label="contains", style="dashed"];
+    
+    // Action-Condition relationships
+    Action -> Condition [label="has pre/post conditions"];
+    
+    // Configuration relationships
+    ProcessOptions -> AgentProcess [label="configures"];
+    
+    // Schema relationships - inheritance/implementation
+    AgentScope -> DataDictionary [label="implements", style="dashed"];
+    Agent -> DataDictionary [label="implements", style="dashed"];
+    AgentPlatform -> DataDictionary [label="implements", style="dashed"];
+    DataDictionary -> DomainType [label="contains"];
+    
+    // Additional platform relationships
+    AgentPlatform -> AgentScope [label="acts as superset", style="dashed"];
+    ProcessStatus -> AgentProcess [label="reports on", dir="back", style="dashed"];
+}

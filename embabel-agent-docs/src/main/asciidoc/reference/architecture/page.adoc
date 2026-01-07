@@ -1,2 +1,13 @@
 [[reference.architecture]]
 === Embabel Architecture
+
+Please refer to architectural diagrams in sections:
+
+<<reference.planners>>
+
+<<reference.agent-platform>>
+
+<<reference.agent-process>>
+
+
+

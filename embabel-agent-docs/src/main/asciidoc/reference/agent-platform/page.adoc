@@ -4,3 +4,10 @@
 An `AgentPlatform` provides the ability to run agents in a specific environment.
 This is an SPI interface, so multiple implementations are possible.
 
+
+[graphviz, embabel_agent_platform_model.dot, png]
+----
+include::../diagrams/architecture/embabel_agent_platform_model.dot[]
+----
+
+
