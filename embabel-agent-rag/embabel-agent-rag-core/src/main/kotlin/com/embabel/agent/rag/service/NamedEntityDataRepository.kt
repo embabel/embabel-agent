@@ -330,7 +330,15 @@ interface NamedEntityDataRepository {
             return null
         }
 
-        // Extract the classes and create the proxy
+        // Try native store first for each matching type
+        for (jvmType in matchingTypes) {
+            val nativeResult = findNativeById(id, jvmType.clazz as Class<out NamedEntity>)
+            if (nativeResult != null) {
+                return nativeResult
+            }
+        }
+
+        // Fall back to creating a proxy implementing all matching interfaces
         val interfaces = matchingTypes.map { it.clazz as Class<out NamedEntity> }.toTypedArray()
         return entity.toInstance(*interfaces)
     }
