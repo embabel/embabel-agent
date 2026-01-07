@@ -16,21 +16,18 @@
 package com.embabel.chat
 
 /**
- * Format a conversation into a String for inclusion in a prompt.
- * Note that we often prefer to use messages.
+ * Conversation formatter that shows the last `windowSize` messages,
+ * optionally skipping the first `startIndex` messages.
  */
-fun interface ConversationFormatter {
+class WindowingConversationFormatter @JvmOverloads constructor(
+    private val messageFormatter: MessageFormatter = SimpleMessageFormatter,
+    private val windowSize: Int = 100,
+    private val startIndex: Int = 0,
+) : ConversationFormatter {
 
-    fun format(conversation: Conversation): String
-}
-
-fun interface MessageFormatter {
-
-    fun format(message: Message): String
-}
-
-object SimpleMessageFormatter : MessageFormatter {
-    override fun format(message: Message): String =
-        if (message.name != null) "${message.name} (${message.role}): ${message.content}"
-        else "${message.role}: ${message.content}"
+    override fun format(conversation: Conversation): String =
+        conversation.messages
+            .drop(startIndex)
+            .takeLast(windowSize)
+            .joinToString("\n") { messageFormatter.format(it) }
 }
