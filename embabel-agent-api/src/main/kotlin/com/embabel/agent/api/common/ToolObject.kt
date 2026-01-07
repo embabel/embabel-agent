@@ -50,6 +50,16 @@ data class ToolObject(
         filter = { true },
     )
 
+    /**
+     * Add a prefix to the tool object's method names.
+     */
+    fun withPrefix(
+        prefix: String,
+    ): ToolObject = withNamingStrategy { "$prefix$it" }
+
+    /**
+     * Add a naming strategy to the tool object's method names.
+     */
     fun withNamingStrategy(
         namingStrategy: StringTransformer,
     ): ToolObject = copy(namingStrategy = namingStrategy)
