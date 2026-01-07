@@ -271,6 +271,24 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations {
      */
     fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? = null
 
+    /**
+     * Check if a type can be loaded natively by this repository.
+     *
+     * Override this method to indicate which types have native mappings.
+     * This is used by [findEntityById] to avoid calling [findNativeById] for types
+     * that would throw exceptions or fail.
+     *
+     * For example, a Drivine-based implementation might check for @NodeFragment annotation:
+     * ```kotlin
+     * override fun isNativeType(type: Class<*>): Boolean =
+     *     type.isAnnotationPresent(NodeFragment::class.java)
+     * ```
+     *
+     * @param type the class to check
+     * @return true if this repository can natively load instances of this type
+     */
+    fun isNativeType(type: Class<*>): Boolean = false
+
     // === Typed hydration methods ===
 
     /**
@@ -422,16 +440,25 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations {
             return null
         }
 
-        // Try native store first for each matching type
+        // Try native store first for each matching type that supports native loading
         for (jvmType in matchingTypes) {
-            val nativeResult = findNativeById(id, jvmType.clazz as Class<out NamedEntity>)
-            if (nativeResult != null) {
-                return nativeResult
+            val clazz = jvmType.clazz as Class<out NamedEntity>
+            if (isNativeType(clazz)) {
+                findNativeById(id, clazz)?.let { return it }
             }
         }
 
         // Fall back to creating a proxy implementing all matching interfaces
-        val interfaces = matchingTypes.map { it.clazz as Class<out NamedEntity> }.toTypedArray()
+        // Filter to only interfaces - Java proxies cannot implement classes
+        val interfaces = matchingTypes
+            .filter { it.clazz.isInterface }
+            .map { it.clazz as Class<out NamedEntity> }
+            .toTypedArray()
+
+        if (interfaces.isEmpty()) {
+            return null
+        }
+
         return entity.toInstance(*interfaces)
     }
 }
