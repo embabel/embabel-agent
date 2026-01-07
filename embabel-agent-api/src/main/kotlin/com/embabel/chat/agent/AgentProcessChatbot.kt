@@ -165,10 +165,10 @@ private class AgentProcessChatSession(
         conversation.addMessage(userMessage)
         agentProcess.addObject(userMessage)
         val agentProcessRun = agentProcess.run()
-        loggerFor<AgentProcessChatSession>().info(
+        loggerFor<AgentProcessChatSession>().debug(
             "Agent process {} run completed with status {}",
             agentProcess.id,
-            agentProcessRun.status
+            agentProcessRun.status,
         )
     }
 
