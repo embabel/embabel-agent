@@ -66,8 +66,11 @@ fun interface ResultsListener {
  * Defaults to Chunk
  * @param hints list of hints to provide to the LLM
  * @param listener optional listener to receive raw structured results as they are retrieved
- * @param filter optional metadata filter to apply to all searches.
+ * @param metadataFilter optional filter applied to [com.embabel.agent.rag.model.Datum.metadata].
  * Useful for multi-tenant scenarios where searches should be scoped to a specific owner.
+ * The filter is applied transparently - the LLM does not see or control it.
+ * @param propertyFilter optional filter applied to object properties
+ * (e.g., [com.embabel.agent.rag.model.NamedEntityData.properties] or typed entity fields).
  * The filter is applied transparently - the LLM does not see or control it.
  */
 data class ToolishRag @JvmOverloads constructor(

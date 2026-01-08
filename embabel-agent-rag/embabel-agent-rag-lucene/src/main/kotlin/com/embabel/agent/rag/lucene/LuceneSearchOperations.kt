@@ -39,7 +39,12 @@ import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.util.indent
 import com.embabel.common.util.trim
 import org.apache.lucene.analysis.standard.StandardAnalyzer
-import org.apache.lucene.document.*
+import org.apache.lucene.document.Document
+import org.apache.lucene.document.Field
+import org.apache.lucene.document.KnnFloatVectorField
+import org.apache.lucene.document.StoredField
+import org.apache.lucene.document.StringField
+import org.apache.lucene.document.TextField
 import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
@@ -56,7 +61,6 @@ import org.apache.lucene.store.FSDirectory
 import java.io.Closeable
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.sqrt
 
 
 /**
@@ -89,29 +93,18 @@ class LuceneSearchOperations @JvmOverloads constructor(
 
     private val analyzer = StandardAnalyzer()
     private val directory: Directory = indexPath?.let { FSDirectory.open(it) } ?: ByteBuffersDirectory()
-    private val indexWriterConfig = IndexWriterConfig(analyzer)
+    private val indexWriterConfig = IndexWriterConfig(analyzer).apply {
+        // Configure codec to support vectors up to 4096 dimensions (covers OpenAI's 1536 and 3072)
+        codec = HighDimensionVectorCodec()
+    }
     private var indexWriter = IndexWriter(directory, indexWriterConfig)
     private val queryParser = QueryParser("content", analyzer)
 
     override val luceneSyntaxNotes: String = "Full support"
 
     companion object {
-        const val KEYWORDS_FIELD = "keywords"
-        private const val CONTENT_FIELD = "content"
-        private const val ID_FIELD = "id"
-        private const val EMBEDDING_FIELD = "embedding"
-        private const val ELEMENT_TYPE_FIELD = "_element_type"
-        private const val TITLE_FIELD = "title"
-        private const val URI_FIELD = "uri"
-        private const val PARENT_ID_FIELD = "parentId"
-        private const val TEXT_FIELD = "text"
-        private const val INGESTION_TIMESTAMP_FIELD = "ingestionTimestamp"
-
-        // Element type values
-        private const val TYPE_CHUNK = "Chunk"
-        private const val TYPE_LEAF_SECTION = "LeafSection"
-        private const val TYPE_CONTAINER_SECTION = "ContainerSection"
-        private const val TYPE_DOCUMENT = "Document"
+        /** Public alias for keyword field name */
+        const val KEYWORDS_FIELD = LuceneFields.KEYWORDS_FIELD
 
         @JvmStatic
         fun builder(): LuceneSearchOperationsBuilder = LuceneSearchOperationsBuilder()
@@ -227,45 +220,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
      * Chunks are handled separately via persistChunksWithEmbeddings which also handles embeddings.
      */
     private fun persistStructuralElement(element: ContentElement) {
-        val luceneDoc = Document().apply {
-            add(StringField(ID_FIELD, element.id, Field.Store.YES))
-
-            // Store element type for reconstruction
-            val elementType = when (element) {
-                is NavigableDocument -> TYPE_DOCUMENT
-                is LeafSection -> TYPE_LEAF_SECTION
-                is ContainerSection -> TYPE_CONTAINER_SECTION
-                else -> element.javaClass.simpleName
-            }
-            add(StringField(ELEMENT_TYPE_FIELD, elementType, Field.Store.YES))
-
-            // Store common fields
-            if (element is HierarchicalContentElement) {
-                element.parentId?.let { add(StoredField(PARENT_ID_FIELD, it)) }
-            }
-
-            // Title is on Section and ContentRoot
-            when (element) {
-                is Section -> add(StoredField(TITLE_FIELD, element.title))
-                is ContentRoot -> add(StoredField(TITLE_FIELD, element.title))
-            }
-
-            if (element is ContentRoot) {
-                add(StoredField(URI_FIELD, element.uri))
-                add(StoredField(INGESTION_TIMESTAMP_FIELD, element.ingestionTimestamp.toString()))
-            }
-
-            if (element is LeafSection) {
-                add(StoredField(TEXT_FIELD, element.text))
-            }
-
-            // Store metadata
-            element.metadata.forEach { (key, value) ->
-                if (value != null) {
-                    add(StringField(key, value.toString(), Field.Store.YES))
-                }
-            }
-        }
+        val luceneDoc = LuceneDocumentMapper.createStructuralElementDocument(element)
         indexWriter.addDocument(luceneDoc)
         logger.debug("Persisted structural element id='{}' type='{}'", element.id, element.javaClass.simpleName)
     }
@@ -316,23 +271,23 @@ class LuceneSearchOperations @JvmOverloads constructor(
             contentElementStorage[chunkId] = updatedChunk
 
             // Delete old document from Lucene index
-            indexWriter.deleteDocuments(org.apache.lucene.index.Term(ID_FIELD, chunkId))
+            indexWriter.deleteDocuments(org.apache.lucene.index.Term(LuceneFields.ID_FIELD, chunkId))
 
             // Create new Lucene document with updated keywords
             val luceneDoc = Document().apply {
-                add(StringField(ID_FIELD, chunk.id, Field.Store.YES))
-                add(TextField(CONTENT_FIELD, chunk.embeddableValue(), Field.Store.YES))
+                add(StringField(LuceneFields.ID_FIELD, chunk.id, Field.Store.YES))
+                add(TextField(LuceneFields.CONTENT_FIELD, chunk.embeddableValue(), Field.Store.YES))
 
                 // Add new keywords
                 newKeywords.forEach { keyword ->
                     add(TextField(KEYWORDS_FIELD, keyword.lowercase(), Field.Store.YES))
                 }
 
-                if (embeddingService != null && chunk.metadata.containsKey(EMBEDDING_FIELD)) {
+                if (embeddingService != null && chunk.metadata.containsKey(LuceneFields.EMBEDDING_FIELD)) {
                     // Preserve existing embedding if it exists
                     val embedding = embeddingService!!.embed(chunk.embeddableValue())
-                    add(KnnFloatVectorField(EMBEDDING_FIELD, embedding, VectorSimilarityFunction.COSINE))
-                    add(StoredField(EMBEDDING_FIELD, floatArrayToBytes(embedding)))
+                    add(KnnFloatVectorField(LuceneFields.EMBEDDING_FIELD, embedding, VectorSimilarityFunction.COSINE))
+                    add(StoredField(LuceneFields.EMBEDDING_FIELD, VectorMath.floatArrayToBytes(embedding)))
                 }
 
                 chunk.metadata.forEach { (key, value) ->
@@ -399,7 +354,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
             .filter { (_, matchCount) -> matchCount >= minIntersection }
             .map { (docId, matchCount) ->
                 val doc = searcher.storedFields().document(docId)
-                doc.get(ID_FIELD) to matchCount
+                doc.get(LuceneFields.ID_FIELD) to matchCount
             }
             .sortedByDescending { it.second }
             .take(maxResults)
@@ -524,7 +479,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         val queryEmbedding = embeddingService!!.embed(request.query)
 
         // KnnFloatVectorQuery performs efficient ANN search
-        val knnQuery = KnnFloatVectorQuery(EMBEDDING_FIELD, queryEmbedding, request.topK)
+        val knnQuery = KnnFloatVectorQuery(LuceneFields.EMBEDDING_FIELD, queryEmbedding, request.topK)
         val topDocs: TopDocs = searcher.search(knnQuery, request.topK)
 
         return topDocs.scoreDocs.mapNotNull { scoreDoc ->
@@ -716,7 +671,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
             val normalizedTextScore = minOf(1.0, textScore / 10.0) // Rough normalization
 
             // Calculate vector similarity if embedding exists
-            val vectorScore = doc.getBinaryValue(EMBEDDING_FIELD)?.let { embeddingBytes ->
+            val vectorScore = doc.getBinaryValue(LuceneFields.EMBEDDING_FIELD)?.let { embeddingBytes ->
                 val docEmbedding = bytesToFloatArray(embeddingBytes.bytes)
                 cosineSimilarity(queryEmbedding, docEmbedding)
             } ?: 0.0
@@ -735,26 +690,8 @@ class LuceneSearchOperations @JvmOverloads constructor(
         return hybridResults
     }
 
-    private fun createChunkFromLuceneDocument(luceneDocument: Document): Chunk {
-        val keywords = luceneDocument.getValues(KEYWORDS_FIELD)?.toList() ?: emptyList()
-
-        val metadata = luceneDocument.fields
-            .filter { field -> field.name() !in setOf(ID_FIELD, CONTENT_FIELD, EMBEDDING_FIELD, KEYWORDS_FIELD) }
-            .associate { field -> field.name() to field.stringValue() as Any? }
-            .toMutableMap()
-
-        // Add keywords to metadata if present
-        if (keywords.isNotEmpty()) {
-            metadata[KEYWORDS_FIELD] = keywords as Any?
-        }
-
-        return Chunk(
-            id = luceneDocument.get(ID_FIELD),
-            text = luceneDocument.get(CONTENT_FIELD),
-            parentId = luceneDocument.get(ID_FIELD),
-            metadata = metadata,
-        )
-    }
+    private fun createChunkFromLuceneDocument(luceneDocument: Document): Chunk =
+        LuceneDocumentMapper.createChunkFromLuceneDocument(luceneDocument)
 
     /**
      * Rebuild parent-child relationships after loading elements from disk.
@@ -830,70 +767,10 @@ class LuceneSearchOperations @JvmOverloads constructor(
         logger.debug("Rebuilt hierarchy for {} containers", childrenByParentId.size)
     }
 
-    /**
-     * Create the appropriate ContentElement type from a Lucene document based on stored type.
-     */
     private fun createContentElementFromLuceneDocument(
         luceneDocument: Document,
         elementType: String?,
-    ): ContentElement? {
-        val id = luceneDocument.get(ID_FIELD) ?: return null
-
-        // Extract common metadata (excluding reserved fields)
-        val reservedFields = setOf(
-            ID_FIELD, CONTENT_FIELD, ELEMENT_TYPE_FIELD, TITLE_FIELD,
-            URI_FIELD, PARENT_ID_FIELD, TEXT_FIELD, INGESTION_TIMESTAMP_FIELD,
-            KEYWORDS_FIELD, EMBEDDING_FIELD
-        )
-        val metadata = luceneDocument.fields
-            .filter { field -> field.name() !in reservedFields }
-            .associate { field -> field.name() to (field.stringValue() as Any?) }
-
-        return when (elementType) {
-            TYPE_DOCUMENT -> {
-                MaterializedDocument(
-                    id = id,
-                    uri = luceneDocument.get(URI_FIELD) ?: "",
-                    title = luceneDocument.get(TITLE_FIELD) ?: "",
-                    ingestionTimestamp = luceneDocument.get(INGESTION_TIMESTAMP_FIELD)?.let {
-                        java.time.Instant.parse(it)
-                    } ?: java.time.Instant.now(),
-                    children = emptyList(), // Children are loaded separately
-                    metadata = metadata
-                )
-            }
-
-            TYPE_LEAF_SECTION -> {
-                LeafSection(
-                    id = id,
-                    title = luceneDocument.get(TITLE_FIELD) ?: "",
-                    text = luceneDocument.get(TEXT_FIELD) ?: "",
-                    parentId = luceneDocument.get(PARENT_ID_FIELD),
-                    metadata = metadata
-                )
-            }
-
-            TYPE_CONTAINER_SECTION -> {
-                DefaultMaterializedContainerSection(
-                    id = id,
-                    title = luceneDocument.get(TITLE_FIELD) ?: "",
-                    children = emptyList(), // Children are loaded separately
-                    parentId = luceneDocument.get(PARENT_ID_FIELD),
-                    metadata = metadata
-                )
-            }
-
-            null, TYPE_CHUNK -> {
-                // No type field means it's a legacy chunk or explicitly a chunk
-                createChunkFromLuceneDocument(luceneDocument)
-            }
-
-            else -> {
-                logger.warn("Unknown element type '{}' for id='{}', treating as Chunk", elementType, id)
-                createChunkFromLuceneDocument(luceneDocument)
-            }
-        }
-    }
+    ): ContentElement? = LuceneDocumentMapper.createContentElementFromLuceneDocument(luceneDocument, elementType)
 
     override fun persistChunksWithEmbeddings(chunks: List<Chunk>, embeddings: Map<String, FloatArray>) {
         // Store all chunks in content storage
@@ -910,35 +787,8 @@ class LuceneSearchOperations @JvmOverloads constructor(
         logger.info("Indexed {} chunks", chunks.size)
     }
 
-    private fun createLuceneDocument(chunk: Chunk, embedding: FloatArray?): Document {
-        val keywords = when (val keywordsMeta = chunk.metadata[KEYWORDS_FIELD]) {
-            is Collection<*> -> keywordsMeta.filterIsInstance<String>()
-            is String -> listOf(keywordsMeta)
-            else -> emptyList()
-        }
-
-        return Document().apply {
-            add(StringField(ID_FIELD, chunk.id, Field.Store.YES))
-            add(TextField(CONTENT_FIELD, chunk.embeddableValue(), Field.Store.YES))
-
-            keywords.forEach { keyword ->
-                add(TextField(KEYWORDS_FIELD, keyword.lowercase(), Field.Store.YES))
-            }
-
-            if (embedding != null) {
-                // KnnFloatVectorField enables native KNN search in Lucene 9+
-                add(KnnFloatVectorField(EMBEDDING_FIELD, embedding, VectorSimilarityFunction.COSINE))
-                // Also store as bytes for retrieval in hybrid search
-                add(StoredField(EMBEDDING_FIELD, floatArrayToBytes(embedding)))
-            }
-
-            chunk.metadata.forEach { (key, value) ->
-                if (key != KEYWORDS_FIELD) {
-                    add(StringField(key, value.toString(), Field.Store.YES))
-                }
-            }
-        }
-    }
+    private fun createLuceneDocument(chunk: Chunk, embedding: FloatArray?): Document =
+        LuceneDocumentMapper.createLuceneDocument(chunk, embedding)
 
     override fun commit() {
         indexWriter.flush()  // Ensure all changes are written to storage
@@ -946,51 +796,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
         invalidateReader()   // Force reader refresh on next access
     }
 
-    // Vector similarity utility functions
-    private fun cosineSimilarity(
-        a: FloatArray,
-        b: FloatArray,
-    ): Double {
-        if (a.size != b.size) return 0.0
+    private fun cosineSimilarity(a: FloatArray, b: FloatArray): Double = VectorMath.cosineSimilarity(a, b)
 
-        var dotProduct = 0.0
-        var normA = 0.0
-        var normB = 0.0
-
-        for (i in a.indices) {
-            dotProduct += (a[i] * b[i]).toDouble()
-            normA += (a[i] * a[i]).toDouble()
-            normB += (b[i] * b[i]).toDouble()
-        }
-
-        return if (normA == 0.0 || normB == 0.0) 0.0 else dotProduct / (sqrt(normA) * sqrt(normB))
-    }
-
-    private fun floatArrayToBytes(floatArray: FloatArray): ByteArray {
-        val bytes = ByteArray(floatArray.size * 4)
-        var index = 0
-        for (f in floatArray) {
-            val bits = java.lang.Float.floatToIntBits(f)
-            bytes[index++] = (bits shr 24).toByte()
-            bytes[index++] = (bits shr 16).toByte()
-            bytes[index++] = (bits shr 8).toByte()
-            bytes[index++] = bits.toByte()
-        }
-        return bytes
-    }
-
-    private fun bytesToFloatArray(bytes: ByteArray): FloatArray {
-        val floats = FloatArray(bytes.size / 4)
-        var index = 0
-        for (i in floats.indices) {
-            val bits = ((bytes[index++].toInt() and 0xFF) shl 24) or
-                    ((bytes[index++].toInt() and 0xFF) shl 16) or
-                    ((bytes[index++].toInt() and 0xFF) shl 8) or
-                    (bytes[index++].toInt() and 0xFF)
-            floats[i] = java.lang.Float.intBitsToFloat(bits)
-        }
-        return floats
-    }
+    private fun bytesToFloatArray(bytes: ByteArray): FloatArray = VectorMath.bytesToFloatArray(bytes)
 
     private fun loadExistingChunks() {
         logger.info("Starting to load existing chunks from disk index...")
@@ -1020,15 +828,15 @@ class LuceneSearchOperations @JvmOverloads constructor(
 
                     try {
                         val doc = reader.storedFields().document(i)
-                        val elementType = doc.get(ELEMENT_TYPE_FIELD)
-                        val id = doc.get(ID_FIELD)
+                        val elementType = doc.get(LuceneFields.ELEMENT_TYPE_FIELD)
+                        val id = doc.get(LuceneFields.ID_FIELD)
 
                         logger.debug(
                             "Loading document {}: id={}, type={}, content preview={}",
                             i,
                             id,
                             elementType,
-                            trim(s = doc.get(CONTENT_FIELD) ?: "", max = 25, keepRight = 4),
+                            trim(s = doc.get(LuceneFields.CONTENT_FIELD) ?: "", max = 25, keepRight = 4),
                         )
 
                         val element = createContentElementFromLuceneDocument(doc, elementType)
@@ -1172,7 +980,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
 
             // Delete from Lucene index
             toDelete.forEach { id ->
-                indexWriter.deleteDocuments(org.apache.lucene.index.Term(ID_FIELD, id))
+                indexWriter.deleteDocuments(org.apache.lucene.index.Term(LuceneFields.ID_FIELD, id))
             }
 
             // Delete from content storage
