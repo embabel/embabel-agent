@@ -1,0 +1,46 @@
+digraph PlanningSystem {
+    // Node styling
+    node [shape=box, style="filled,rounded", fontname="Arial", margin=0.2, fontsize=12];
+    edge [fontname="Arial", fontsize=11];
+    
+    // Key components
+    Action [fillcolor=lightblue, label="Action\n(Core executable unit)"];
+    Condition [fillcolor=lightgreen, label="Condition\n(Named predicate)"];
+    Blackboard [fillcolor=lightyellow, label="Blackboard\n(Shared memory system)"];
+    WorldState [fillcolor=lightcoral, label="WorldState\n(System conditions map)"];
+    Plan [fillcolor=lightgrey, label="Plan\n(Sequence of Actions)"];
+    Goal [fillcolor=pink, label="Goal\n(Desired end state)"];
+    Planner [fillcolor=lightcyan, label="Planner\n(GOAP / Utility)"];
+    PlanningSystem [fillcolor=lavender, label="PlanningSystem\n(Actions + Goals + Conditions)"];
+    IoBinding [fillcolor=lightpink, label="IoBinding\n(Input/output binding)"];
+    
+    // Relationships
+    Action -> Condition [label="has preconditions"];
+    Action -> WorldState [label="produces effects on"];
+    Action -> Blackboard [label="reads from/writes to"];
+    Action -> IoBinding [label="defines inputs/outputs via"];
+    
+    Condition -> WorldState [label="evaluated against"];
+    
+    Goal -> Condition [label="defined by"];
+    
+    Blackboard -> WorldState [label="determines"];
+    
+    WorldState -> Planner [label="informs"];
+    
+    Planner -> Plan [label="creates"];
+    Planner -> Action [label="selects"];
+    Planner -> Goal [label="satisfies"];
+    
+    Plan -> Action [label="contains sequence of"];
+    Plan -> Goal [label="achieves"];
+    
+    PlanningSystem -> Action [label="contains available"];
+    PlanningSystem -> Goal [label="contains possible"];
+    PlanningSystem -> Planner [label="used by"];
+    
+    // Additional relationships
+    Blackboard -> Condition [label="stores state for", style="dashed"];
+    WorldState -> Action [label="determines achievability of", style="dashed"];
+    Action -> Plan [label="executed according to", dir="back", style="dashed"];
+}

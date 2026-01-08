@@ -1,0 +1,73 @@
+digraph ExecutionContext {
+    // Simple layout improvements
+    ranksep=1.0;
+    nodesep=0.8;
+    
+    // Node styling - matching original diagram  
+    node [shape=box, style="filled,rounded", fontname="Arial", margin=0.3, fontsize=12];
+    edge [fontname="Arial", fontsize=11];
+    
+    // Core context and LLM layer - grouped together
+    {rank=same; ProcessContext; OperationContext; LlmOperations;}
+    ProcessContext [fillcolor=lightblue, label="ProcessContext\n(Process-scoped services)"];
+    OperationContext [fillcolor=lightgreen, label="OperationContext\n(Operation execution context)"];
+    LlmOperations [fillcolor=lightgrey, label="LlmOperations\n(LLM backend services)"];
+    
+    // Secondary context layer
+    ActionContext [fillcolor=lightyellow, label="ActionContext\n(Action-specific context)"];
+    
+    // LLM configuration  
+    PromptRunner [fillcolor=lightcoral, label="PromptRunner\n(LLM interaction API)"];
+    LlmOptions [fillcolor=lightcyan, label="LlmOptions\n(Model configuration)"];
+    
+    // Thinking capability
+    ThinkingPromptRunnerOperations [fillcolor=lightsteelblue, label="ThinkingPromptRunnerOperations\n(Thinking-aware operations)"];
+    ThinkingResponse [fillcolor=lightpink, label="ThinkingResponse\n(Result + thinking blocks)"];
+    
+    // Tool system
+    ToolGroup [fillcolor=pink, label="ToolGroup\n(Coherent tool set)"];
+    ToolGroupRequirement [fillcolor=lavender, label="ToolGroupRequirement\n(Tool dependency)"];
+    ToolObject [fillcolor=wheat, label="ToolObject\n(@Tool annotated object)"];
+    
+    // State and data flow
+    Blackboard [fillcolor=lightsalmon, label="Blackboard\n(Shared state store)"];
+    IoBinding [fillcolor=lightseagreen, label="IoBinding\n(Input/output binding)"];
+    
+    // Prompt system
+    PromptContributor [fillcolor=lavender, label="PromptContributor\n(Prompt element)"];
+    Message [fillcolor=lightsteelblue, label="Message\n(Conversation element)"];
+    
+    // Context hierarchy relationships
+    ProcessContext -> OperationContext [label="provides"];
+    OperationContext -> ActionContext [label="specializes to"];
+    
+    // LLM integration relationships
+    OperationContext -> PromptRunner [label="creates"];
+    ActionContext -> PromptRunner [label="enhances"];
+    PromptRunner -> LlmOperations [label="delegates to"];
+    PromptRunner -> LlmOptions [label="configured by"];
+    
+    // Thinking integration
+    PromptRunner -> ThinkingPromptRunnerOperations [label="withThinking()"];
+    ThinkingPromptRunnerOperations -> ThinkingResponse [label="returns"];
+    
+    // Tool integration relationships
+    PromptRunner -> ToolGroup [label="with tool groups"];
+    PromptRunner -> ToolObject [label="with tool objects"];
+    ActionContext -> ToolGroupRequirement [label="declares"];
+    ToolGroupRequirement -> ToolGroup [label="requires"];
+    
+    // State and data relationships
+    OperationContext -> Blackboard [label="accesses"];
+    ActionContext -> Blackboard [label="reads/writes"];
+    Blackboard -> IoBinding [label="stores via"];
+    
+    // Prompt construction relationships
+    PromptRunner -> PromptContributor [label="with contributors"];
+    PromptRunner -> Message [label="with messages"];
+    
+    // Additional flow relationships
+    ProcessContext -> LlmOperations [label="provides", style="dashed"];
+    ActionContext -> ToolObject [label="creates from domain objects", style="dashed"];
+    OperationContext -> IoBinding [label="manages", style="dashed"];
+}

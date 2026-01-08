@@ -21,3 +21,10 @@ Allows fine grained control over logging prompts, LLM returns and detailed plann
 This is useful to avoid rate limiting.
 
 
+[graphviz, embabel_execution_context.dot, png]
+----
+include::../diagrams/architecture/embabel_execution_context.dot[]
+----
+
+
+
