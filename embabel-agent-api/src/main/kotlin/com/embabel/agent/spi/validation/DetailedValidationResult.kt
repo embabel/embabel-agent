@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.spi.validation
 
+import com.embabel.common.core.validation.ValidationResult
+
 data class DetailedValidationResult(
     val isValid: Boolean,
     val results: Map<AgentValidator, ValidationResult>,
