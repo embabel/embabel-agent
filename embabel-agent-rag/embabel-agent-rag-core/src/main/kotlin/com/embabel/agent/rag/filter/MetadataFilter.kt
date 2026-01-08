@@ -21,8 +21,29 @@ import com.embabel.agent.rag.model.Datum
  * Filter expression for metadata-based filtering in RAG searches.
  * Backends can translate this to native query syntax (Lucene, Cypher, SQL, etc.)
  * or use [InMemoryMetadataFilter] for post-filtering on [Datum.metadata].
+ *
+ * Kotlin users can use operator syntax for combining filters:
+ * ```kotlin
+ * val filter = (eq("owner", "alice") and gte("score", 0.8)) or eq("role", "admin")
+ * val excluded = !eq("status", "deleted")
+ * ```
  */
 sealed interface MetadataFilter {
+
+    /**
+     * Logical NOT operator: `!filter`
+     */
+    operator fun not(): MetadataFilter = Not(this)
+
+    /**
+     * Logical AND infix: `filter1 and filter2`
+     */
+    infix fun and(other: MetadataFilter): MetadataFilter = And(listOf(this, other))
+
+    /**
+     * Logical OR infix: `filter1 or filter2`
+     */
+    infix fun or(other: MetadataFilter): MetadataFilter = Or(listOf(this, other))
 
     /**
      * Equals: metadata[key] == value

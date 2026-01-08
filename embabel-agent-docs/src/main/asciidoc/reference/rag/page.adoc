@@ -326,6 +326,57 @@ The `MetadataFilter` sealed class hierarchy provides type-safe filter expression
 |`MetadataFilter.not(filter)`
 |===
 
+====== Kotlin Operator Syntax
+
+Kotlin users can use operator and infix functions for a more natural DSL syntax:
+
+[source,kotlin]
+----
+import com.embabel.agent.rag.filter.MetadataFilter.Companion.eq
+import com.embabel.agent.rag.filter.MetadataFilter.Companion.gte
+import com.embabel.agent.rag.filter.MetadataFilter.Companion.ne
+
+// Simple filter with not operator
+val notDeleted = !eq("status", "deleted")
+
+// Combine with infix 'and' and 'or'
+val userAccess = eq("owner", userId) and gte("confidenceScore", 0.7)
+
+// Complex expressions with grouping
+val accessFilter = (eq("owner", userId) and ne("status", "deleted")) or
+    eq("role", "admin")
+----
+
+This is equivalent to the Java-style:
+
+[source,java]
+----
+MetadataFilter accessFilter = MetadataFilter.or(
+    MetadataFilter.and(
+        MetadataFilter.eq("owner", userId),
+        MetadataFilter.ne("status", "deleted")
+    ),
+    MetadataFilter.eq("role", "admin")
+);
+----
+
+===== Neo4j Cypher Filtering
+
+When using Neo4j via the Drivine module, filters are automatically converted to Cypher WHERE clauses using `CypherFilterConverter`:
+
+[source,kotlin]
+----
+// The filter is converted to Cypher WHERE clause automatically
+val filter = eq("owner", "alice") and gte("confidenceScore", 0.7)
+
+// In DrivineNamedEntityDataRepository:
+val results = repository.vectorSearch(request, filter)
+// Generates: WHERE (e.owner = $_filter_0) AND (e.confidenceScore >= $_filter_1) AND ...
+----
+
+The converter produces parameterized queries for safety and handles all filter types including nested logical expressions.
+Both `DrivineStore` (for chunks) and `DrivineNamedEntityDataRepository` (for named entities) support native Cypher filtering.
+
 ====== Basic Usage
 
 Apply a filter to scope all searches to a specific owner:

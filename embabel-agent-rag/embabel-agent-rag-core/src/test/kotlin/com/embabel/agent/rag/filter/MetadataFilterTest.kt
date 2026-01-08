@@ -333,4 +333,98 @@ class MetadataFilterTest {
             assertEquals(MetadataFilter.Not(f1), MetadataFilter.not(f1))
         }
     }
+
+    @Nested
+    inner class KotlinOperatorTests {
+
+        @Test
+        fun `not operator creates Not filter`() {
+            val filter = MetadataFilter.eq("owner", "alice")
+            val notFilter = !filter
+
+            assertEquals(MetadataFilter.Not(filter), notFilter)
+        }
+
+        @Test
+        fun `not operator works with matching`() {
+            val filter = !MetadataFilter.eq("owner", "alice")
+
+            assertFalse(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "alice")))
+            assertTrue(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "bob")))
+        }
+
+        @Test
+        fun `infix and creates And filter`() {
+            val f1 = MetadataFilter.eq("owner", "alice")
+            val f2 = MetadataFilter.eq("status", "active")
+
+            val combined = f1 and f2
+
+            assertEquals(MetadataFilter.And(listOf(f1, f2)), combined)
+        }
+
+        @Test
+        fun `infix and works with matching`() {
+            val filter = MetadataFilter.eq("owner", "alice") and MetadataFilter.eq("status", "active")
+
+            assertTrue(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "alice", "status" to "active")))
+            assertFalse(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "alice", "status" to "inactive")))
+            assertFalse(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "bob", "status" to "active")))
+        }
+
+        @Test
+        fun `infix or creates Or filter`() {
+            val f1 = MetadataFilter.eq("owner", "alice")
+            val f2 = MetadataFilter.eq("owner", "bob")
+
+            val combined = f1 or f2
+
+            assertEquals(MetadataFilter.Or(listOf(f1, f2)), combined)
+        }
+
+        @Test
+        fun `infix or works with matching`() {
+            val filter = MetadataFilter.eq("owner", "alice") or MetadataFilter.eq("owner", "bob")
+
+            assertTrue(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "alice")))
+            assertTrue(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "bob")))
+            assertFalse(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "charlie")))
+        }
+
+        @Test
+        fun `operators can be chained for complex expressions`() {
+            // (owner == "alice" AND status == "active") OR role == "admin"
+            val filter = (MetadataFilter.eq("owner", "alice") and MetadataFilter.eq("status", "active")) or
+                MetadataFilter.eq("role", "admin")
+
+            // alice with active status - matches first branch
+            assertTrue(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "alice", "status" to "active")))
+
+            // admin role - matches second branch
+            assertTrue(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "bob", "role" to "admin")))
+
+            // alice but inactive - fails both branches
+            assertFalse(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "alice", "status" to "inactive")))
+        }
+
+        @Test
+        fun `not can be combined with and-or`() {
+            // owner == "alice" AND NOT status == "deleted"
+            val filter = MetadataFilter.eq("owner", "alice") and !MetadataFilter.eq("status", "deleted")
+
+            assertTrue(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "alice", "status" to "active")))
+            assertFalse(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "alice", "status" to "deleted")))
+            assertFalse(InMemoryMetadataFilter.matches(filter, mapOf("owner" to "bob", "status" to "active")))
+        }
+
+        @Test
+        fun `double negation works correctly`() {
+            val filter = MetadataFilter.eq("owner", "alice")
+            val doubleNegated = !!filter
+
+            // Double negation should behave like original
+            assertTrue(InMemoryMetadataFilter.matches(doubleNegated, mapOf("owner" to "alice")))
+            assertFalse(InMemoryMetadataFilter.matches(doubleNegated, mapOf("owner" to "bob")))
+        }
+    }
 }
