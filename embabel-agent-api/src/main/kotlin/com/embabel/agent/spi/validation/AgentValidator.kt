@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.validation
 
 import com.embabel.agent.core.AgentScope
+import com.embabel.common.core.validation.ValidationResult
 
 fun interface AgentValidator {
 
@@ -31,36 +32,3 @@ fun interface AgentStructureAgentValidator : AgentValidator {
 }
 
 interface PathToCompletionAgentValidator : AgentValidator
-
-data class ValidationResult(
-    val isValid: Boolean,
-    val errors: List<ValidationError>,
-) {
-
-    companion object {
-        val VALID = ValidationResult(
-            isValid = true,
-            errors = emptyList(),
-        )
-    }
-}
-
-data class ValidationError(
-    val code: String,
-    val message: String,
-    val severity: ValidationSeverity,
-    val location: ValidationLocation,
-)
-
-enum class ValidationSeverity {
-    ERROR,
-    WARNING,
-    INFO
-}
-
-data class ValidationLocation(
-    val type: String,
-    val name: String,
-    val agentName: String,
-    val component: String,
-)

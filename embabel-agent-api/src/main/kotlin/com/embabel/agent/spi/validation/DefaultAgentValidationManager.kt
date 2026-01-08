@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.validation
 
 import com.embabel.agent.core.AgentScope
+import com.embabel.common.core.validation.ValidationResult
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 

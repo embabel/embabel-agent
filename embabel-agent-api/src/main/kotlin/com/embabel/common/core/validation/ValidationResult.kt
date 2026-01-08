@@ -13,12 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.validation
+package com.embabel.common.core.validation
 
-import com.embabel.agent.core.AgentScope
-import com.embabel.common.core.validation.ValidationResult
+data class ValidationResult(
+    val isValid: Boolean,
+    val errors: List<ValidationError>,
+) {
 
-interface AgentValidationManager {
-    fun validate(agentScope: AgentScope): ValidationResult
-    fun validateWithDetails(agentScope: AgentScope): DetailedValidationResult
+    companion object {
+        val VALID = ValidationResult(
+            isValid = true,
+            errors = emptyList(),
+        )
+    }
 }

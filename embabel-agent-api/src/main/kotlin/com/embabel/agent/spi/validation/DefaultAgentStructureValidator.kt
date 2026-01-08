@@ -19,6 +19,10 @@ import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.core.AgentScope
+import com.embabel.common.core.validation.ValidationError
+import com.embabel.common.core.validation.ValidationLocation
+import com.embabel.common.core.validation.ValidationResult
+import com.embabel.common.core.validation.ValidationSeverity
 import com.embabel.common.util.loggerFor
 import org.springframework.beans.factory.InitializingBean
 import org.springframework.beans.factory.getBeansWithAnnotation

@@ -17,6 +17,10 @@ package com.embabel.agent.spi.validation
 
 import com.embabel.agent.core.AgentScope
 import com.embabel.agent.core.support.Rerun.HAS_RUN_CONDITION_PREFIX
+import com.embabel.common.core.validation.ValidationError
+import com.embabel.common.core.validation.ValidationLocation
+import com.embabel.common.core.validation.ValidationResult
+import com.embabel.common.core.validation.ValidationSeverity
 import com.embabel.plan.common.condition.ConditionAction
 import com.embabel.plan.common.condition.ConditionDetermination
 import com.embabel.plan.common.condition.ConditionGoal
