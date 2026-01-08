@@ -95,13 +95,15 @@ Java::
 +
 [source,java]
 ----
+var processOptions = new ProcessOptions()
+    .withVerbosity(new Verbosity()
+        .withShowPrompts(true)
+        .withShowLlmResponses(true)
+        .withDebug(true));
+
 var invocation =
     AgentInvocation.builder(agentPlatform)
-        .options(options -> options
-            .verbosity(verbosity -> verbosity
-                .showPrompts(true)
-                .showResponses(true)
-                .debug(true)))
+        .options(processOptions)
         .build(TravelPlan.class);
 
 TravelPlan plan = invocation.invoke(travelRequest);
@@ -114,7 +116,7 @@ Kotlin::
 val processOptions = ProcessOptions(
     verbosity = Verbosity(
         showPrompts = true,
-        showResponses = true,
+        showLlmResponses = true,
         debug = true
     )
 )
@@ -176,14 +178,11 @@ class TripPlanningController(
         val jobId = UUID.randomUUID().toString()
 
         // Create agent invocation with custom options
+        val processOptions = ProcessOptions(
+            verbosity = Verbosity(showPrompts = true)
+        )
         val invocation: AgentInvocation<TripPlan> = AgentInvocation.builder(agentPlatform)
-            .options { options ->
-                options.verbosity { verbosity ->
-                    verbosity.showPrompts(true)
-                        .showResponses(false)
-                        .debug(false)
-                }
-            }
+            .options(processOptions)
             .build()
 
         // Start async agent execution
