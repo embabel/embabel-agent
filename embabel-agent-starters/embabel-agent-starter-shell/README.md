@@ -4,15 +4,17 @@ A Spring Boot starter that enables interactive command-line shell functionality 
 
 ## Overview
 
-This starter automatically configures your Embabel Agent application to operate in shell mode when the `@EnableAgentShell` annotation is detected. It prevents web server startup and configures Spring Shell for optimal command-line interaction.
+This starter automatically configures your Embabel Agent application to operate in shell mode using Spring Boot auto-configuration. Simply add the dependency and use `@SpringBootApplication` — no additional annotations required.
 
 ## Features
 
-- **Automatic Shell Mode Detection**: Activates when `@EnableAgentShell` annotation is present
-- **Web Server Prevention**: Automatically sets `spring.main.web-application-type=none`
-- **Spring Shell Configuration**: Configures interactive shell with sensible defaults
-- **Flexible Configuration**: Customizable shell behavior through properties
-- **Early Environment Processing**: Configures shell mode before application context initialization
+- **Spring Boot Auto-Configuration**: Works automatically when the starter is on the classpath
+- **Interactive Command-Line Interface**: Full Spring Shell integration with command history
+- **Agent Management**: List, inspect, and execute agents from the command line
+- **Chat Mode**: Interactive chat sessions with configurable personas
+- **Logging Personalities**: Fun themed logging (Star Wars, Severance, Hitchhiker, Monty Python, Colossus)
+- **Human-in-the-Loop**: Form filling and confirmation prompts in the terminal
+- **Process Tracking**: View execution history, blackboard state, and cost information
 
 ## Quick Start
 
@@ -22,18 +24,26 @@ This starter automatically configures your Embabel Agent application to operate 
 <dependency>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-starter-shell</artifactId>
-    <version>${embabel.version}</version>
 </dependency>
 ```
 
-### 2. Enable Shell Mode
+### 2. Create Application
+
+```kotlin
+@SpringBootApplication
+class MyAgentShellApplication
+
+fun main(args: Array<String>) {
+    runApplication<MyAgentShellApplication>(*args)
+}
+```
 
 ```java
+// Java version
 @SpringBootApplication
-@EnableAgentShell
-public class MyAgentApplication {
+public class MyAgentShellApplication {
     public static void main(String[] args) {
-        SpringApplication.run(MyAgentApplication.class, args);
+        SpringApplication.run(MyAgentShellApplication.class, args);
     }
 }
 ```
@@ -44,159 +54,203 @@ public class MyAgentApplication {
 ./mvnw spring-boot:run
 ```
 
-Your application will start in interactive shell mode instead of as a web server.
+Your application will start in interactive shell mode.
+
+## Shell Commands
+
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `execute <intent>` | `x` | Execute a task. Put the task in double quotes. |
+| `chat` | | Start an interactive chat session |
+| `agents` | | List all registered agents |
+| `actions` | | List all available actions |
+| `goals` | | List all achievable goals |
+| `conditions` | | List all conditions |
+| `tools` | | List available tool groups |
+| `toolStats` | | Show tool usage statistics |
+| `models` | | List available LLM models |
+| `chooseGoal <intent>` | | Show goal rankings for an intent |
+| `blackboard` | `bb` | Show the last blackboard state |
+| `runs` | | Show recent agent process execution history |
+| `clear` | | Clear the blackboard |
+| `platform` | | Show AgentPlatform information |
+| `profiles` | | List active Spring profiles |
+| `showOptions` | | Show current execution options |
+| `setOptions` | | Configure execution options |
+| `exit` | `quit`, `bye` | Exit the application |
+
+### Execute Command Options
+
+The `execute` (or `x`) command supports several flags:
+
+```bash
+x "Find horoscope news for Alice who is a Gemini" -p -d
+```
+
+| Flag | Long Form | Description |
+|------|-----------|-------------|
+| `-o` | `--open` | Run in open mode (choose goal dynamically) |
+| `-p` | `--showPrompts` | Show prompts sent to LLMs |
+| `-r` | `--showResponses` | Show LLM responses |
+| `-d` | `--debug` | Show debug information |
+| `-s` | `--state` | Use existing blackboard state |
+| `-td` | `--toolDelay` | Add delay between tool calls |
+| `-od` | `--operationDelay` | Add delay between operations |
+| `-P` | `--showPlanning` | Show detailed planning info (default: true) |
 
 ## Configuration
 
+### Shell Properties
+
 Configure shell behavior using the `embabel.agent.shell` prefix:
 
-### application.yml
 ```yaml
 embabel:
   agent:
     shell:
-      web-application-type: none  # none, servlet, or reactive
+      line-length: 140           # Terminal line width for wrapping
+      redirect-log-to-file: false # Redirect logs to file during chat
+      web-application-type: none  # Prevent web server startup
       command:
-        exit-enabled: true        # Enable 'exit' command
-        quit-enabled: true        # Enable 'quit' command
+        exit-enabled: false       # Enable built-in 'exit' command
+        quit-enabled: false       # Enable built-in 'quit' command
       interactive:
         enabled: true             # Enable interactive mode
         history-enabled: true     # Enable command history
 ```
 
-### application.properties
-```properties
-embabel.agent.shell.web-application-type=none
-embabel.agent.shell.command.exit-enabled=true
-embabel.agent.shell.command.quit-enabled=true
-embabel.agent.shell.interactive.enabled=true
-embabel.agent.shell.interactive.history-enabled=true
+### Logging Personality
+
+Set the logging personality via property:
+
+```yaml
+embabel:
+  agent:
+    logging:
+      personality: starwars  # Options: starwars, severance, hitchhiker, montypython, colossus
 ```
 
-## Configuration Properties
+Or programmatically:
+
+```kotlin
+fun main(args: Array<String>) {
+    runApplication<MyAgentShellApplication>(*args) {
+        setDefaultProperties(
+            mapOf("embabel.agent.logging.personality" to LoggingThemes.STAR_WARS)
+        )
+    }
+}
+```
+
+## Configuration Properties Reference
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `embabel.agent.shell.web-application-type` | `none` | Spring Boot web application type (`none`, `servlet`, `reactive`) |
-| `embabel.agent.shell.command.exit-enabled` | `true` | Enable the 'exit' command |
-| `embabel.agent.shell.command.quit-enabled` | `true` | Enable the 'quit' command |
+| `embabel.agent.shell.line-length` | `140` | Terminal width for text wrapping |
+| `embabel.agent.shell.redirect-log-to-file` | `false` | Redirect logs during chat sessions |
+| `embabel.agent.shell.web-application-type` | `none` | Spring Boot web application type |
+| `embabel.agent.shell.command.exit-enabled` | `false` | Enable Spring Shell 'exit' command |
+| `embabel.agent.shell.command.quit-enabled` | `false` | Enable Spring Shell 'quit' command |
 | `embabel.agent.shell.interactive.enabled` | `true` | Enable interactive shell mode |
 | `embabel.agent.shell.interactive.history-enabled` | `true` | Enable command history navigation |
 
 ## How It Works
 
-1. **Annotation Detection**: `ShellEnvironmentPostProcessor` scans application sources for `@EnableAgentShell`
-2. **Early Configuration**: Runs at `HIGHEST_PRECEDENCE + 10` to configure environment before other processors
-3. **Property Binding**: Attempts to bind configuration from `embabel.agent.shell.*` properties
-4. **Fallback Handling**: Uses sensible defaults if binding fails or properties are missing
-5. **Environment Modification**: Adds shell configuration as high-priority property source
+1. **Auto-Configuration**: `AgentShellAutoConfiguration` activates when the starter is present
+2. **Component Scanning**: Shell commands and services are discovered via `@ComponentScan`
+3. **Spring Shell Integration**: Commands are registered as `@ShellComponent` beans
+4. **Agent Platform Access**: Shell commands interact with the `Autonomy` and `AgentPlatform` APIs
 
 ## Architecture
 
 ```
-@EnableAgentShell Annotation
-         ↓
-ShellEnvironmentPostProcessor
-         ↓
-AgentShellStarterProperties
-         ↓
-Spring Shell Configuration
-         ↓
-Interactive Command Line
+embabel-agent-starter-shell
+         │
+         ├── embabel-agent-starter (core agent platform)
+         │
+         └── embabel-agent-shell-autoconfigure
+                    │
+                    └── AgentShellAutoConfiguration
+                              │
+                              └── @ComponentScan("com.embabel.agent.shell")
+                                        │
+                                        ├── ShellCommands (main commands)
+                                        ├── TerminalServices (I/O handling)
+                                        ├── ShellConfiguration (prompt provider)
+                                        └── Personality providers (themed logging)
 ```
 
 ### Key Components
 
-- **`@EnableAgentShell`**: Marker annotation to enable shell mode
-- **`ShellEnvironmentPostProcessor`**: Environment post-processor for early configuration
-- **`AgentShellStarterProperties`**: Configuration properties with validation
-- **`ShellConfiguration`**: Internal domain object for shell settings
+- **`ShellCommands`**: Main shell command implementations
+- **`TerminalServices`**: Terminal I/O, form handling, chat sessions, confirmation prompts
+- **`ShellConfiguration`**: Shell-specific Spring configuration
+- **`ShellProperties`**: Configuration properties for shell behavior
+- **Personality Providers**: Themed prompt providers (Star Wars, Severance, etc.)
 
-## Error Handling
+## Chat Mode
 
-The starter handles configuration errors gracefully:
+Start an interactive chat session:
 
-- **Missing Properties**: Uses default values if configuration binding fails
-- **Invalid Values**: Validation prevents invalid `web-application-type` values
-- **Null Sources**: Safely handles cases where application sources are null/empty
-- **Binding Exceptions**: Logs warnings and continues with defaults
-
-## Conditional Activation
-
-Shell mode only activates when:
-- The starter dependency is present
-- At least one source class has `@EnableAgentShell` annotation
-- No explicit disabling configuration is present
-
-## Best Practices
-
-### Development
-```java
-@Profile("dev")
-@EnableAgentShell
-@SpringBootApplication
-public class DevApplication {
-    // Shell mode for development
-}
+```bash
+shell:> chat
+Chat session abc123 started. Type 'exit' to end the session.
+Type /help for available commands.
+You: Hello!
+Assistant: Hi there! How can I help you today?
+You: exit
+Conversation finished
 ```
 
-### Production
-```java
-@Profile("!shell")
-@SpringBootApplication  
-public class ProductionApplication {
-    // Web mode for production
-}
+During chat, logs can optionally be redirected to a file to keep the terminal clean.
 
-@Profile("shell")
-@EnableAgentShell
-@SpringBootApplication
-public class ShellApplication {
-    // Shell mode when needed
-}
+## Human-in-the-Loop Support
+
+The shell provides interactive support for:
+
+- **Confirmation Prompts**: Y/N confirmations for agent decisions
+- **Form Filling**: Text field input with validation
+- **Goal Approval**: Approve or reject goal selections
+
+## Example Session
+
+```bash
+$ ./mvnw spring-boot:run
+
+  ╔═══════════════════════════════════════════════════════════╗
+  ║                   Embabel Agent Shell                      ║
+  ╚═══════════════════════════════════════════════════════════╝
+
+shell:> agents
+Agents:
+─────────────────────────────────────────
+StarNewsFinder: Find news based on a person's star sign
+Researcher: Research a topic using multiple LLMs
+...
+
+shell:> x "Find horoscope news for Alice who is a Gemini"
+[Executing StarNewsFinder...]
+...
+
+shell:> bb
+Blackboard contents:
+  userInput: UserInput(text="Find horoscope news for Alice who is a Gemini")
+  person: Person(name="Alice")
+  starSign: StarSign.GEMINI
+  ...
+
+shell:> exit
+Goodbye!
 ```
-
-### Custom Commands
-```java
-@Component
-@ConditionalOnProperty(name = "embabel.agent.shell.interactive.enabled", havingValue = "true")
-public class MyAgentCommands {
-    
-    @ShellMethod("Execute agent task")
-    public String execute(@ShellOption String task) {
-        return "Executing: " + task;
-    }
-}
-```
-
-## Troubleshooting
-
-### Shell Mode Not Activating
-- Verify `@EnableAgentShell` annotation is present
-- Check that starter dependency is included
-- Ensure no conflicting web configuration
-
-### Web Server Still Starting
-- Confirm `web-application-type` is set to `none`
-- Check property source precedence
-- Verify no other configuration is overriding the setting
-
-### Commands Not Available
-- Ensure Spring Shell dependency is present
-- Check component scanning includes command classes
-- Verify conditional activation logic
-
-### History Not Working
-- Confirm `interactive.history-enabled=true`
-- Check terminal supports ANSI escape sequences
-- Verify JLine library is available
 
 ## Dependencies
 
 This starter automatically includes:
-- Spring Boot Starter
+
+- `embabel-agent-starter` - Core agent platform
+- `embabel-agent-shell-autoconfigure` - Auto-configuration
 - Spring Shell Starter
-- Validation API
+- JLine terminal library
 
 ## License
 
