@@ -486,6 +486,18 @@ class FakePromptRunnerTest {
         }
 
         @Test
+        fun `prompt convenience property returns message content`() {
+            val context = FakeOperationContext.create()
+            context.expectResponse("result")
+
+            context.ai().withDefaultLlm().createObject("Test prompt content", String::class.java)
+
+            assertEquals(1, context.llmInvocations.size)
+            val prompt = context.llmInvocations[0].prompt
+            assertTrue(prompt.contains("Test prompt content"))
+        }
+
+        @Test
         fun `llmInvocations captures LLM options`() {
             val context = FakeOperationContext.create()
             val llmOptions = LlmOptions.withModel("test-model")
