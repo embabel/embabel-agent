@@ -44,8 +44,10 @@ import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
 import org.apache.lucene.index.MultiBits
+import org.apache.lucene.index.VectorSimilarityFunction
 import org.apache.lucene.queryparser.classic.QueryParser
 import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.search.KnnFloatVectorQuery
 import org.apache.lucene.search.Query
 import org.apache.lucene.search.TopDocs
 import org.apache.lucene.store.ByteBuffersDirectory
@@ -97,6 +99,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         const val KEYWORDS_FIELD = "keywords"
         private const val CONTENT_FIELD = "content"
         private const val ID_FIELD = "id"
+        private const val EMBEDDING_FIELD = "embedding"
         private const val ELEMENT_TYPE_FIELD = "_element_type"
         private const val TITLE_FIELD = "title"
         private const val URI_FIELD = "uri"
@@ -325,11 +328,11 @@ class LuceneSearchOperations @JvmOverloads constructor(
                     add(TextField(KEYWORDS_FIELD, keyword.lowercase(), Field.Store.YES))
                 }
 
-                if (embeddingService != null && chunk.metadata.containsKey("embedding")) {
+                if (embeddingService != null && chunk.metadata.containsKey(EMBEDDING_FIELD)) {
                     // Preserve existing embedding if it exists
                     val embedding = embeddingService!!.embed(chunk.embeddableValue())
-                    val embeddingBytes = floatArrayToBytes(embedding)
-                    add(StoredField("embedding", embeddingBytes))
+                    add(KnnFloatVectorField(EMBEDDING_FIELD, embedding, VectorSimilarityFunction.COSINE))
+                    add(StoredField(EMBEDDING_FIELD, floatArrayToBytes(embedding)))
                 }
 
                 chunk.metadata.forEach { (key, value) ->
@@ -498,15 +501,9 @@ class LuceneSearchOperations @JvmOverloads constructor(
         val reader = directoryReader ?: return emptyList()
         val searcher = IndexSearcher(reader)
 
-        val ragRequest = RagRequest(
-            query = request.query,
-            similarityThreshold = request.similarityThreshold,
-            topK = request.topK,
-        )
-        val results = performHybridSearch(searcher, ragRequest)
+        val results = performVectorSearch(searcher, request)
             .filter { clazz.isInstance(it.match) }
             .map { SimpleSimilaritySearchResult(match = it.match as T, score = it.score) }
-            .take(request.topK)
 
         logger.info(
             "Vector search for query '{}' found {} results",
@@ -514,6 +511,36 @@ class LuceneSearchOperations @JvmOverloads constructor(
             results.size,
         )
         return results
+    }
+
+    /**
+     * Perform pure vector search using Lucene's native KNN search.
+     * Uses KnnFloatVectorQuery for efficient approximate nearest neighbor search.
+     */
+    private fun performVectorSearch(
+        searcher: IndexSearcher,
+        request: TextSimilaritySearchRequest,
+    ): List<SimpleSimilaritySearchResult<Chunk>> {
+        val queryEmbedding = embeddingService!!.embed(request.query)
+
+        // KnnFloatVectorQuery performs efficient ANN search
+        val knnQuery = KnnFloatVectorQuery(EMBEDDING_FIELD, queryEmbedding, request.topK)
+        val topDocs: TopDocs = searcher.search(knnQuery, request.topK)
+
+        return topDocs.scoreDocs.mapNotNull { scoreDoc ->
+            val doc = searcher.doc(scoreDoc.doc)
+            val chunk = createChunkFromLuceneDocument(doc)
+
+            // Lucene KNN returns scores where higher is better (for cosine similarity)
+            // The score is already normalized to [0, 1] for cosine similarity
+            val score = scoreDoc.score.toDouble()
+
+            if (score >= request.similarityThreshold) {
+                SimpleSimilaritySearchResult(match = chunk, score = score)
+            } else {
+                null
+            }
+        }
     }
 
     override fun expandResult(
@@ -689,7 +716,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
             val normalizedTextScore = minOf(1.0, textScore / 10.0) // Rough normalization
 
             // Calculate vector similarity if embedding exists
-            val vectorScore = doc.getBinaryValue("embedding")?.let { embeddingBytes ->
+            val vectorScore = doc.getBinaryValue(EMBEDDING_FIELD)?.let { embeddingBytes ->
                 val docEmbedding = bytesToFloatArray(embeddingBytes.bytes)
                 cosineSimilarity(queryEmbedding, docEmbedding)
             } ?: 0.0
@@ -712,7 +739,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         val keywords = luceneDocument.getValues(KEYWORDS_FIELD)?.toList() ?: emptyList()
 
         val metadata = luceneDocument.fields
-            .filter { field -> field.name() !in setOf(ID_FIELD, CONTENT_FIELD, "embedding", KEYWORDS_FIELD) }
+            .filter { field -> field.name() !in setOf(ID_FIELD, CONTENT_FIELD, EMBEDDING_FIELD, KEYWORDS_FIELD) }
             .associate { field -> field.name() to field.stringValue() as Any? }
             .toMutableMap()
 
@@ -816,7 +843,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         val reservedFields = setOf(
             ID_FIELD, CONTENT_FIELD, ELEMENT_TYPE_FIELD, TITLE_FIELD,
             URI_FIELD, PARENT_ID_FIELD, TEXT_FIELD, INGESTION_TIMESTAMP_FIELD,
-            KEYWORDS_FIELD, "embedding"
+            KEYWORDS_FIELD, EMBEDDING_FIELD
         )
         val metadata = luceneDocument.fields
             .filter { field -> field.name() !in reservedFields }
@@ -899,7 +926,10 @@ class LuceneSearchOperations @JvmOverloads constructor(
             }
 
             if (embedding != null) {
-                add(StoredField("embedding", floatArrayToBytes(embedding)))
+                // KnnFloatVectorField enables native KNN search in Lucene 9+
+                add(KnnFloatVectorField(EMBEDDING_FIELD, embedding, VectorSimilarityFunction.COSINE))
+                // Also store as bytes for retrieval in hybrid search
+                add(StoredField(EMBEDDING_FIELD, floatArrayToBytes(embedding)))
             }
 
             chunk.metadata.forEach { (key, value) ->

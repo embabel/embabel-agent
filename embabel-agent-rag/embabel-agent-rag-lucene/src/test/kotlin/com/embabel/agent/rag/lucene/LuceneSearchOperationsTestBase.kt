@@ -169,6 +169,9 @@ class TrackingEmbeddingModel : EmbeddingModel {
             for (i in embedding.indices) {
                 embedding[i] /= norm
             }
+        } else {
+            // For empty text, return a valid unit vector (Lucene COSINE requires non-zero vectors)
+            embedding[0] = 1.0f
         }
 
         return embedding
