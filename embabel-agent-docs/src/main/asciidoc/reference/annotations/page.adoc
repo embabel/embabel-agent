@@ -152,6 +152,144 @@ This is important because they may be called multiple times.
 
 //TODO (jasper notes) Provide a simple illustrative example with story-telling and supporting code example.
 
+===== Dynamic Conditions with SpEL
+
+In addition to using `@Condition` methods, you can specify dynamic preconditions directly on `@Action` annotations using Spring Expression Language (SpEL).
+These expressions are evaluated against the blackboard, allowing you to create conditions based on runtime state without writing separate condition methods.
+
+The expression language is pluggable, but currently SpEL is the only supported implementation.
+See the https://docs.spring.io/spring-framework/reference/core/expressions.html[Spring Expression Language (SpEL) documentation] for full syntax details.
+
+SpEL conditions are specified in the `pre` array with a `spel:` prefix:
+
+[source,java]
+----
+@Action(
+    pre = {"spel:assessment.urgency > 0.5"}  // <1>
+)
+public void handleUrgentIssue(Issue issue, IssueAssessment assessment) {
+    // This action only runs when urgency exceeds 0.5
+}
+----
+
+<1> The `spel:` prefix indicates this is a SpEL expression evaluated against the blackboard.
+
+====== Expression Syntax
+
+SpEL expressions reference blackboard objects by their binding names (typically the camelCase form of the class name).
+The expression must evaluate to a boolean.
+
+[source,java]
+----
+@Agent(description = "Issue triage agent")
+public class IssueTriageAgent {
+
+    @Action(
+        pre = {"spel:issueAssessment.urgency > 0.0"}  // <1>
+    )
+    public void escalateUrgentIssue(
+            GHIssue issue,
+            IssueAssessment issueAssessment
+    ) {
+        logger.info("Escalating urgent issue #{}", issue.getNumber());
+    }
+
+    @Action(
+        pre = {"spel:ghIssue instanceof T(org.kohsuke.github.GHPullRequest) && ghIssue.changedFiles > 10"}  // <2>
+    )
+    public void reviewLargePullRequest(
+            GHPullRequest issue,
+            PullRequestAssessment assessment
+    ) {
+        logger.info("Large PR detected: #{} with {} files changed",
+            issue.getNumber(), issue.getChangedFiles());
+    }
+}
+----
+
+<1> Simple property comparison: action fires only when `urgency` property exceeds 0.0.
+<2> Type check with property access: action fires only for pull requests with more than 10 changed files.
+The `T()` operator references a Java type for `instanceof` checks.
+
+====== Collection Filtering
+
+SpEL's collection selection syntax (`?[]`) is useful for checking conditions on collections stored in the blackboard:
+
+[source,java]
+----
+@Action(
+    pre = {
+        "spel:newEntity.newEntities.?[#this instanceof T(com.example.domain.Issue) " +
+        "&& !(#this instanceof T(com.example.domain.PullRequest))].size() > 0"  // <1>
+    }
+)
+public IssueAssessment reactToNewIssue(
+        GHIssue ghIssue,
+        NewEntity<?> newEntity,
+        Ai ai
+) {
+    // Fires only when newEntities contains Issues that aren't PullRequests
+    return ai.withLlm("claude-sonnet-4")
+             .creating(IssueAssessment.class)
+             .fromTemplate("issue_triage", Map.of("issue", ghIssue));
+}
+
+@Action(
+    pre = {
+        "spel:newEntity.newEntities.?[#this instanceof T(com.example.domain.PullRequest)].size() > 0"  // <2>
+    }
+)
+public PullRequestAssessment reactToNewPullRequest(
+        GHPullRequest pr,
+        NewEntity<?> newEntity,
+        Ai ai
+) {
+    // Fires only when newEntities contains PullRequests
+    return ai.withLlm("claude-sonnet-4")
+             .creating(PullRequestAssessment.class)
+             .fromTemplate("pr_triage", Map.of("pr", pr));
+}
+----
+
+<1> The `?[]` operator filters the collection. `#this` refers to each element.
+This expression checks that at least one element is an `Issue` but not a `PullRequest`.
+<2> Simpler filter checking for `PullRequest` instances.
+
+====== Common SpEL Patterns
+
+[cols="2,3",options="header"]
+|===
+| Pattern | Description
+
+| `spel:obj.property > value`
+| Simple property comparison
+
+| `spel:obj instanceof T(com.example.Type)`
+| Type checking using fully qualified class name
+
+| `spel:collection.size() > 0`
+| Check collection is not empty
+
+| `spel:collection.?[condition].size() > 0`
+| Check that filtered collection has elements
+
+| `spel:obj.property != null`
+| Null checking
+
+| `spel:condition1 && condition2`
+| Combining conditions with AND
+
+| `spel:condition1 \|\| condition2`
+| Combining conditions with OR
+|===
+
+TIP: Use SpEL conditions for simple property checks and type discrimination.
+For complex logic or conditions that need to be reused across multiple actions, prefer `@Condition` methods.
+For reactive scenarios where you simply want an action to fire when a specific type is added to the blackboard, consider using the <<reference.annotations_trigger,`trigger` field>> instead—it's simpler than writing a SpEL expression.
+
+NOTE: Blackboard binding names are derived from the class name in camelCase by default.
+You can specify explicit binding names using `outputBinding` on actions or by adding objects to the blackboard with specific names.
+
 > Both Action and Condition methods may be inherited from superclasses.
 That is, annotated methods on superclasses will be treated as actions on a subclass instance.
 
@@ -206,6 +344,7 @@ The `@RequireNameMatch` annotation can be used to <<reference.flow__binding, bin
 
 //TODO: (jasper notes) Provide an illustrative code example here.
 
+[[reference.annotations_trigger]]
 ==== Reactive triggers with `trigger`
 
 The `trigger` field on the `@Action` annotation enables reactive behavior where an action only fires when a specific type is the _most recently added_ value to the blackboard.
