@@ -361,6 +361,12 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     fun withPropertyFilter(filter: Predicate<String>): PromptRunner
 
     /**
+     * Set whether to validate created objects.
+     * @param validation `true` to validate created objects; `false` otherwise. Defaults to `true`.
+     */
+    fun withValidation(validation: Boolean = true): PromptRunner
+
+    /**
      * Create an object creator for the given output class.
      * Allows setting strongly typed examples.
      */

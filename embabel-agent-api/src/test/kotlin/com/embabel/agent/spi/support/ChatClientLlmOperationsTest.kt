@@ -802,6 +802,40 @@ class ChatClientLlmOperationsTest {
 
             assertEquals(validHusky, createdDog, "Invalid response should have been corrected")
         }
+
+        @Test
+        fun `does not validate if interaction validation is set to false`() {
+            // Picky eater
+            data class BorderCollie(
+                val name: String,
+                @field:Pattern(regexp = "^mince$", message = "eats field must be 'mince'")
+                val eats: String,
+            )
+
+            val invalidHusky = BorderCollie("Husky", eats = "kibble")
+            val fakeChatModel = FakeChatModel(
+                jacksonObjectMapper().writeValueAsString(invalidHusky)
+            )
+            val prompt =
+                "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+            val setup = createChatClientLlmOperations(
+                fakeChatModel = fakeChatModel,
+                dataBindingProperties = LlmDataBindingProperties(
+                    sendValidationInfo = true,
+                )
+            )
+            val createdDog = setup.llmOperations.createObject(
+                messages = listOf(UserMessage(prompt)),
+                interaction = LlmInteraction(
+                    id = InteractionId("id"), llm = LlmOptions(),
+                    validation = false
+                ),
+                outputClass = BorderCollie::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+            assertEquals(invalidHusky, createdDog, "Invalid response should have been corrected")
+        }
     }
 
 }

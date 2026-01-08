@@ -55,6 +55,14 @@ internal data class PromptRunnerObjectCreator<T>(
         )
     }
 
+    override fun withValidation(
+        validation: Boolean
+    ): ObjectCreator<T> {
+        return copy(
+            promptRunner = promptRunner.withValidation(validation)
+        )
+    }
+
     override fun fromMessages(
         messages: List<Message>,
     ): T {
