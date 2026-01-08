@@ -44,6 +44,7 @@ import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.client.ChatClientCustomizer
 import org.springframework.ai.chat.client.ResponseEntity
 import org.springframework.ai.chat.client.advisor.observation.DefaultAdvisorObservationConvention
 import org.springframework.ai.chat.client.observation.DefaultChatClientObservationConvention
@@ -63,7 +64,7 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
-const val PROMPT_ELEMENT_SEPARATOR = "\n----\n";
+const val PROMPT_ELEMENT_SEPARATOR = "\n----\n"
 
 // Log message constants to avoid duplication
 private const val LLM_TIMEOUT_MESSAGE = "LLM {}: attempt {} timed out after {}ms"
@@ -89,6 +90,7 @@ internal class ChatClientLlmOperations(
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     internal val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    private val customizers: List<ChatClientCustomizer> = emptyList()
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -609,10 +611,15 @@ internal class ChatClientLlmOperations(
     internal fun createChatClient(llm: Llm): ChatClient {
         return ChatClient
             .builder(
-                llm.model, observationRegistry, DefaultChatClientObservationConvention(),
+                llm.model,
+                observationRegistry,
+                DefaultChatClientObservationConvention(),
                 DefaultAdvisorObservationConvention()
-            )
-            .build()
+            ).also { builder ->
+                customizers.forEach {
+                    it.customize(builder)
+                }
+            }.build()
     }
 
     private fun shouldGenerateExamples(llmCall: LlmCall): Boolean {
