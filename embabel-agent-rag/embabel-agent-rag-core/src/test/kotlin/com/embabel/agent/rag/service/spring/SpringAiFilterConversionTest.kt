@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.service.spring
 
-import com.embabel.agent.rag.filter.MetadataFilter
+import com.embabel.agent.rag.filter.PropertyFilter
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -28,7 +28,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Eq converts to EQ expression`() {
-            val filter = MetadataFilter.Eq("owner", "alice")
+            val filter = PropertyFilter.Eq("owner", "alice")
 
             val expression = filter.toSpringAiExpression()
 
@@ -39,7 +39,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Ne converts to NE expression`() {
-            val filter = MetadataFilter.Ne("status", "deleted")
+            val filter = PropertyFilter.Ne("status", "deleted")
 
             val expression = filter.toSpringAiExpression()
 
@@ -50,7 +50,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Gt converts to GT expression`() {
-            val filter = MetadataFilter.Gt("score", 0.5)
+            val filter = PropertyFilter.Gt("score", 0.5)
 
             val expression = filter.toSpringAiExpression()
 
@@ -61,7 +61,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Gte converts to GTE expression`() {
-            val filter = MetadataFilter.Gte("count", 10)
+            val filter = PropertyFilter.Gte("count", 10)
 
             val expression = filter.toSpringAiExpression()
 
@@ -72,7 +72,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Lt converts to LT expression`() {
-            val filter = MetadataFilter.Lt("score", 0.3)
+            val filter = PropertyFilter.Lt("score", 0.3)
 
             val expression = filter.toSpringAiExpression()
 
@@ -83,7 +83,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Lte converts to LTE expression`() {
-            val filter = MetadataFilter.Lte("priority", 5)
+            val filter = PropertyFilter.Lte("priority", 5)
 
             val expression = filter.toSpringAiExpression()
 
@@ -94,7 +94,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `In converts to IN expression`() {
-            val filter = MetadataFilter.In("category", listOf("tech", "science"))
+            val filter = PropertyFilter.In("category", listOf("tech", "science"))
 
             val expression = filter.toSpringAiExpression()
 
@@ -105,7 +105,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Nin converts to NIN expression`() {
-            val filter = MetadataFilter.Nin("status", listOf("deleted", "archived"))
+            val filter = PropertyFilter.Nin("status", listOf("deleted", "archived"))
 
             val expression = filter.toSpringAiExpression()
 
@@ -117,7 +117,7 @@ class SpringAiFilterConversionTest {
         @Test
         fun `Contains converts to EQ expression as fallback`() {
             // Spring AI doesn't have CONTAINS, we fall back to EQ
-            val filter = MetadataFilter.Contains("description", "machine")
+            val filter = PropertyFilter.Contains("description", "machine")
 
             val expression = filter.toSpringAiExpression()
 
@@ -132,9 +132,9 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `And with two filters converts to AND expression`() {
-            val filter = MetadataFilter.And(
-                MetadataFilter.Eq("owner", "alice"),
-                MetadataFilter.Eq("status", "active")
+            val filter = PropertyFilter.And(
+                PropertyFilter.Eq("owner", "alice"),
+                PropertyFilter.Eq("status", "active")
             )
 
             val expression = filter.toSpringAiExpression()
@@ -152,10 +152,10 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `And with multiple filters chains correctly`() {
-            val filter = MetadataFilter.And(
-                MetadataFilter.Eq("a", "1"),
-                MetadataFilter.Eq("b", "2"),
-                MetadataFilter.Eq("c", "3")
+            val filter = PropertyFilter.And(
+                PropertyFilter.Eq("a", "1"),
+                PropertyFilter.Eq("b", "2"),
+                PropertyFilter.Eq("c", "3")
             )
 
             val expression = filter.toSpringAiExpression()
@@ -170,9 +170,9 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Or with two filters converts to OR expression`() {
-            val filter = MetadataFilter.Or(
-                MetadataFilter.Eq("owner", "alice"),
-                MetadataFilter.Eq("owner", "bob")
+            val filter = PropertyFilter.Or(
+                PropertyFilter.Eq("owner", "alice"),
+                PropertyFilter.Eq("owner", "bob")
             )
 
             val expression = filter.toSpringAiExpression()
@@ -188,7 +188,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `Not converts to NOT expression`() {
-            val filter = MetadataFilter.Not(MetadataFilter.Eq("owner", "alice"))
+            val filter = PropertyFilter.Not(PropertyFilter.Eq("owner", "alice"))
 
             val expression = filter.toSpringAiExpression()
 
@@ -206,12 +206,12 @@ class SpringAiFilterConversionTest {
         @Test
         fun `complex nested filter converts correctly`() {
             // (owner == "alice" AND status == "active") OR role == "admin"
-            val filter = MetadataFilter.Or(
-                MetadataFilter.And(
-                    MetadataFilter.Eq("owner", "alice"),
-                    MetadataFilter.Eq("status", "active")
+            val filter = PropertyFilter.Or(
+                PropertyFilter.And(
+                    PropertyFilter.Eq("owner", "alice"),
+                    PropertyFilter.Eq("status", "active")
                 ),
-                MetadataFilter.Eq("role", "admin")
+                PropertyFilter.Eq("role", "admin")
             )
 
             val expression = filter.toSpringAiExpression()
@@ -229,10 +229,10 @@ class SpringAiFilterConversionTest {
         @Test
         fun `NOT with AND converts correctly`() {
             // NOT (owner == "alice" AND status == "deleted")
-            val filter = MetadataFilter.Not(
-                MetadataFilter.And(
-                    MetadataFilter.Eq("owner", "alice"),
-                    MetadataFilter.Eq("status", "deleted")
+            val filter = PropertyFilter.Not(
+                PropertyFilter.And(
+                    PropertyFilter.Eq("owner", "alice"),
+                    PropertyFilter.Eq("status", "deleted")
                 )
             )
 
@@ -247,15 +247,15 @@ class SpringAiFilterConversionTest {
         @Test
         fun `deeply nested filter converts correctly`() {
             // (a AND (b OR c)) AND d
-            val filter = MetadataFilter.And(
-                MetadataFilter.And(
-                    MetadataFilter.Eq("a", "1"),
-                    MetadataFilter.Or(
-                        MetadataFilter.Eq("b", "2"),
-                        MetadataFilter.Eq("c", "3")
+            val filter = PropertyFilter.And(
+                PropertyFilter.And(
+                    PropertyFilter.Eq("a", "1"),
+                    PropertyFilter.Or(
+                        PropertyFilter.Eq("b", "2"),
+                        PropertyFilter.Eq("c", "3")
                     )
                 ),
-                MetadataFilter.Eq("d", "4")
+                PropertyFilter.Eq("d", "4")
             )
 
             val expression = filter.toSpringAiExpression()
@@ -275,7 +275,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `filter with numeric integer value`() {
-            val filter = MetadataFilter.Eq("count", 42)
+            val filter = PropertyFilter.Eq("count", 42)
 
             val expression = filter.toSpringAiExpression()
 
@@ -284,7 +284,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `filter with numeric double value`() {
-            val filter = MetadataFilter.Eq("score", 0.95)
+            val filter = PropertyFilter.Eq("score", 0.95)
 
             val expression = filter.toSpringAiExpression()
 
@@ -293,7 +293,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `filter with boolean value`() {
-            val filter = MetadataFilter.Eq("isActive", true)
+            val filter = PropertyFilter.Eq("isActive", true)
 
             val expression = filter.toSpringAiExpression()
 
@@ -302,7 +302,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `In filter with empty list`() {
-            val filter = MetadataFilter.In("category", emptyList())
+            val filter = PropertyFilter.In("category", emptyList())
 
             val expression = filter.toSpringAiExpression()
 
@@ -312,7 +312,7 @@ class SpringAiFilterConversionTest {
 
         @Test
         fun `In filter with mixed types`() {
-            val filter = MetadataFilter.In("value", listOf("text", 42, true))
+            val filter = PropertyFilter.In("value", listOf("text", 42, true))
 
             val expression = filter.toSpringAiExpression()
 

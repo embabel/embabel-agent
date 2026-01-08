@@ -16,8 +16,8 @@
 package com.embabel.agent.rag.service.support
 
 import com.embabel.agent.core.DataDictionary
-import com.embabel.agent.rag.filter.InMemoryMetadataFilter
-import com.embabel.agent.rag.filter.MetadataFilter
+import com.embabel.agent.rag.filter.InMemoryPropertyFilter
+import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.service.EntityIdentifier
 import com.embabel.agent.rag.service.NamedEntityDataRepository
@@ -69,7 +69,8 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
 
     override fun vectorSearch(
         request: TextSimilaritySearchRequest,
-        filter: MetadataFilter?,
+        metadataFilter: PropertyFilter?,
+        propertyFilter: PropertyFilter?,
     ): List<SimilarityResult<NamedEntityData>> {
         val service = embeddingService ?: return emptyList()
         val queryEmbedding = service.embed(request.query)
@@ -83,14 +84,15 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
                 null
             }
         }
-            .let { InMemoryMetadataFilter.filterResults(it, filter) }
+            .let { InMemoryPropertyFilter.filterResults(it, metadataFilter, propertyFilter) }
             .sortedByDescending { it.score }
             .take(request.topK)
     }
 
     override fun textSearch(
         request: TextSimilaritySearchRequest,
-        filter: MetadataFilter?,
+        metadataFilter: PropertyFilter?,
+        propertyFilter: PropertyFilter?,
     ): List<SimilarityResult<NamedEntityData>> {
         return entities.values
             .filter { entity ->
@@ -98,7 +100,7 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
                         entity.description.contains(request.query, ignoreCase = true)
             }
             .map { entity -> SimilarityResult(match = entity, score = 1.0) }
-            .let { InMemoryMetadataFilter.filterResults(it, filter) }
+            .let { InMemoryPropertyFilter.filterResults(it, metadataFilter, propertyFilter) }
             .take(request.topK)
     }
 

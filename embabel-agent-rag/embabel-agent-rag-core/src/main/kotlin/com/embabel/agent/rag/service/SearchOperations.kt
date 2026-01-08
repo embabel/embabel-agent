@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.service
 
-import com.embabel.agent.rag.filter.MetadataFilter
+import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult
@@ -90,23 +90,26 @@ interface VectorSearch : TypeRetrievalOperations {
 }
 
 /**
- * Vector search with native metadata filtering support.
- * Implementations translate [MetadataFilter] to native query syntax
- * (e.g., Spring AI Filter.Expression, Cypher WHERE clause).
+ * Vector search with native property filtering support.
+ * Implementations translate [PropertyFilter] to native query syntax
+ * (e.g., Spring AI Filter.Expression, Cypher WHERE clause, Lucene field queries).
  */
 interface FilteringVectorSearch : VectorSearch {
 
     /**
-     * Perform vector search with metadata filtering.
+     * Perform vector search with property filtering.
+     *
      * @param request the search request containing query, topK, and similarity threshold
      * @param clazz the type of Retrievable to search for
-     * @param filter metadata filter to apply (non-nullable)
+     * @param metadataFilter filter on metadata properties (e.g., source, ingestion date)
+     * @param propertyFilter filter on object properties (e.g., entity fields)
      * @return matching results ranked by similarity score
      */
     fun <T : Retrievable> vectorSearchWithFilter(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
-        filter: MetadataFilter,
+        metadataFilter: PropertyFilter? = null,
+        propertyFilter: PropertyFilter? = null,
     ): List<SimilarityResult<T>>
 }
 
@@ -167,22 +170,25 @@ interface TextSearch : TypeRetrievalOperations {
 }
 
 /**
- * Text search with native metadata filtering support.
- * Implementations translate [MetadataFilter] to native query syntax.
+ * Text search with native property filtering support.
+ * Implementations translate [PropertyFilter] to native query syntax.
  */
 interface FilteringTextSearch : TextSearch {
 
     /**
-     * Perform text search with metadata filtering.
+     * Perform text search with property filtering.
+     *
      * @param request the text similarity search request
      * @param clazz the type of [Retrievable] to search
-     * @param filter metadata filter to apply (non-nullable)
+     * @param metadataFilter filter on metadata properties (e.g., source, ingestion date)
+     * @param propertyFilter filter on object properties (e.g., entity fields)
      * @return matching results ranked by BM25 relevance score
      */
     fun <T : Retrievable> textSearchWithFilter(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
-        filter: MetadataFilter,
+        metadataFilter: PropertyFilter? = null,
+        propertyFilter: PropertyFilter? = null,
     ): List<SimilarityResult<T>>
 }
 
@@ -203,23 +209,26 @@ interface RegexSearchOperations : SearchOperations {
 }
 
 /**
- * Regex search with native metadata filtering support.
+ * Regex search with native property filtering support.
  */
 interface FilteringRegexSearch : RegexSearchOperations {
 
     /**
-     * Perform regex search with metadata filtering.
+     * Perform regex search with property filtering.
+     *
      * @param regex the regex pattern to match
      * @param topK maximum number of results to return
      * @param clazz the type of Retrievable to search for
-     * @param filter metadata filter to apply (non-nullable)
+     * @param metadataFilter filter on metadata properties (e.g., source, ingestion date)
+     * @param propertyFilter filter on object properties (e.g., entity fields)
      * @return matching results
      */
     fun <T : Retrievable> regexSearchWithFilter(
         regex: Regex,
         topK: Int,
         clazz: Class<T>,
-        filter: MetadataFilter,
+        metadataFilter: PropertyFilter? = null,
+        propertyFilter: PropertyFilter? = null,
     ): List<SimilarityResult<T>>
 }
 

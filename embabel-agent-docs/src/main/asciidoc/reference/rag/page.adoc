@@ -261,10 +261,17 @@ You might choose to do this if you provide a `ResultListener`
 that will collect queries and results for logging or analysis: for example, to track which queries were most useful for answering user questions and the complexity in terms of number of searches performed.
 This can be useful for implementing a learning feedback loop, for example to discern which queries performed badly, indicating that content such as documentation needs to be enhanced.
 
-===== Metadata Filtering
+===== Result Filtering
 
-In multi-tenant applications or scenarios where searches should be scoped to specific data subsets, `ToolishRag` supports **metadata filtering**.
+In multi-tenant applications or scenarios where searches should be scoped to specific data subsets, `ToolishRag` supports **result filtering**.
 Filters are applied transparently to all searches—the LLM does not see or control them, ensuring security and data isolation.
+
+Embabel Agent provides two types of filters:
+
+- **Metadata Filters**: Filter on the `metadata` map of `Datum` objects (chunks, sections, etc.)
+- **Property Filters**: Filter on object properties of typed entities (e.g., fields of `NamedEntityData` or custom entity classes)
+
+Both use the same `PropertyFilter` type but are applied at different levels.
 
 ====== Motivation
 
@@ -275,11 +282,11 @@ Consider a document management system where:
 - The LLM should only search documents the current user is authorized to access
 
 Without filtering, you would need separate RAG stores per user or risk data leakage.
-With metadata filtering, a single `ToolishRag` instance can be scoped per-request to the current user's data.
+With filtering, a single `ToolishRag` instance can be scoped per-request to the current user's data.
 
-====== MetadataFilter API
+====== PropertyFilter API
 
-The `MetadataFilter` sealed class hierarchy provides type-safe filter expressions:
+The `PropertyFilter` sealed class hierarchy provides type-safe filter expressions:
 
 [cols="1,2,2"]
 |===
@@ -287,44 +294,57 @@ The `MetadataFilter` sealed class hierarchy provides type-safe filter expression
 
 |`Eq`
 |Equals
-|`MetadataFilter.eq("owner", "alice")`
+|`PropertyFilter.eq("owner", "alice")`
 
 |`Ne`
 |Not equals
-|`MetadataFilter.ne("status", "deleted")`
+|`PropertyFilter.ne("status", "deleted")`
 
 |`Gt`, `Gte`
 |Greater than (or equal)
-|`MetadataFilter.gte("score", 0.8)`
+|`PropertyFilter.gte("score", 0.8)`
 
 |`Lt`, `Lte`
 |Less than (or equal)
-|`MetadataFilter.lt("priority", 5)`
+|`PropertyFilter.lt("priority", 5)`
 
 |`In`
 |Value in list
-|`MetadataFilter.in("category", "tech", "science")`
+|`PropertyFilter.in("category", "tech", "science")`
 
 |`Nin`
 |Value not in list
-|`MetadataFilter.nin("status", "deleted", "archived")`
+|`PropertyFilter.nin("status", "deleted", "archived")`
 
 |`Contains`
 |String contains substring
-|`MetadataFilter.contains("tags", "important")`
+|`PropertyFilter.contains("tags", "important")`
 
 |`And`
 |Logical AND
-|`MetadataFilter.and(filter1, filter2)`
+|`PropertyFilter.and(filter1, filter2)`
 
 |`Or`
 |Logical OR
-|`MetadataFilter.or(filter1, filter2)`
+|`PropertyFilter.or(filter1, filter2)`
 
 |`Not`
 |Logical NOT
-|`MetadataFilter.not(filter)`
+|`PropertyFilter.not(filter)`
 |===
+
+[IMPORTANT]
+====
+**Limitation: Nested Properties Not Supported**
+
+Filters currently operate on top-level properties only. Nested property paths like `"address.city"` or `"metadata.source"` are **not** supported.
+The filter key must match a direct key in the metadata map or a top-level property on the entity object.
+
+For example:
+
+- `PropertyFilter.eq("owner", "alice")` - **Supported**: filters on top-level `owner` property
+- `PropertyFilter.eq("address.city", "London")` - **Not supported**: nested path will not match
+====
 
 ====== Kotlin Operator Syntax
 
@@ -332,9 +352,9 @@ Kotlin users can use operator and infix functions for a more natural DSL syntax:
 
 [source,kotlin]
 ----
-import com.embabel.agent.rag.filter.MetadataFilter.Companion.eq
-import com.embabel.agent.rag.filter.MetadataFilter.Companion.gte
-import com.embabel.agent.rag.filter.MetadataFilter.Companion.ne
+import com.embabel.agent.rag.filter.PropertyFilter.Companion.eq
+import com.embabel.agent.rag.filter.PropertyFilter.Companion.gte
+import com.embabel.agent.rag.filter.PropertyFilter.Companion.ne
 
 // Simple filter with not operator
 val notDeleted = !eq("status", "deleted")
@@ -351,18 +371,41 @@ This is equivalent to the Java-style:
 
 [source,java]
 ----
-MetadataFilter accessFilter = MetadataFilter.or(
-    MetadataFilter.and(
-        MetadataFilter.eq("owner", userId),
-        MetadataFilter.ne("status", "deleted")
+PropertyFilter accessFilter = PropertyFilter.or(
+    PropertyFilter.and(
+        PropertyFilter.eq("owner", userId),
+        PropertyFilter.ne("status", "deleted")
     ),
-    MetadataFilter.eq("role", "admin")
+    PropertyFilter.eq("role", "admin")
 );
 ----
 
+====== Metadata vs Property Filters
+
+`ToolishRag` accepts two separate filter parameters:
+
+- **`metadataFilter`**: Filters on the `metadata` map of `Datum` objects. Metadata is typically ingestion-time information like source URI, ingestion date, owner ID, etc.
+- **`propertyFilter`**: Filters on object properties. For `NamedEntityData`, this filters on the `properties` map. For typed entities, reflection is used to access top-level fields.
+
+[source,java]
+----
+// Filter on metadata (e.g., which user owns the document)
+PropertyFilter metadataFilter = PropertyFilter.eq("ownerId", currentUserId);
+
+// Filter on entity properties (e.g., product category)
+PropertyFilter propertyFilter = PropertyFilter.eq("category", "electronics");
+
+// Apply both filters
+ToolishRag scopedRag = toolishRag
+    .withMetadataFilter(metadataFilter)
+    .withPropertyFilter(propertyFilter);
+----
+
+In most cases, you'll use metadata filters for access control and property filters for business logic filtering.
+
 ===== Neo4j Cypher Filtering
 
-When using Neo4j via the Drivine module, filters are automatically converted to Cypher WHERE clauses using `CypherFilterConverter`:
+When using Neo4j via the Drivine module, metadata filters are automatically converted to Cypher WHERE clauses using `CypherFilterConverter`:
 
 [source,kotlin]
 ----
@@ -370,24 +413,25 @@ When using Neo4j via the Drivine module, filters are automatically converted to 
 val filter = eq("owner", "alice") and gte("confidenceScore", 0.7)
 
 // In DrivineNamedEntityDataRepository:
-val results = repository.vectorSearch(request, filter)
+val results = repository.vectorSearch(request, metadataFilter = filter)
 // Generates: WHERE (e.owner = $_filter_0) AND (e.confidenceScore >= $_filter_1) AND ...
 ----
 
 The converter produces parameterized queries for safety and handles all filter types including nested logical expressions.
-Both `DrivineStore` (for chunks) and `DrivineNamedEntityDataRepository` (for named entities) support native Cypher filtering.
+
+For both `DrivineStore` (chunks) and `DrivineNamedEntityDataRepository` (named entities), **both** metadata and property filters are translated to native Cypher WHERE clauses. This is because Neo4j stores all data as node properties - metadata is simply the set of properties that aren't core fields like `id`, `text`, `parentId`, etc. This provides optimal performance by filtering at the database level rather than in-memory.
 
 ====== Basic Usage
 
-Apply a filter to scope all searches to a specific owner:
+Apply a metadata filter to scope all searches to a specific owner:
 
 [source,java]
 ----
 // Create a filter for the current user
-MetadataFilter ownerFilter = MetadataFilter.eq("ownerId", currentUserId);
+PropertyFilter ownerFilter = PropertyFilter.eq("ownerId", currentUserId);
 
 // Apply to ToolishRag - all searches will be filtered
-ToolishRag scopedRag = toolishRag.withFilter(ownerFilter);
+ToolishRag scopedRag = toolishRag.withMetadataFilter(ownerFilter);
 
 // Use in LLM call - LLM cannot see or bypass the filter
 context.ai()
@@ -402,24 +446,24 @@ Combine filters for more sophisticated access control:
 [source,java]
 ----
 // User can access their own documents OR documents in their departments
-MetadataFilter accessFilter = MetadataFilter.or(
-    MetadataFilter.eq("ownerId", currentUserId),
-    MetadataFilter.in("departmentId", userDepartmentIds)
+PropertyFilter accessFilter = PropertyFilter.or(
+    PropertyFilter.eq("ownerId", currentUserId),
+    PropertyFilter.in("departmentId", userDepartmentIds)
 );
 
-ToolishRag scopedRag = toolishRag.withFilter(accessFilter);
+ToolishRag scopedRag = toolishRag.withMetadataFilter(accessFilter);
 ----
 
 [source,java]
 ----
 // Organization-scoped with status restriction
-MetadataFilter orgFilter = MetadataFilter.and(
-    MetadataFilter.eq("orgId", currentOrgId),
-    MetadataFilter.ne("status", "deleted"),
-    MetadataFilter.gte("confidenceScore", 0.7)
+PropertyFilter orgFilter = PropertyFilter.and(
+    PropertyFilter.eq("orgId", currentOrgId),
+    PropertyFilter.ne("status", "deleted"),
+    PropertyFilter.gte("confidenceScore", 0.7)
 );
 
-ToolishRag scopedRag = toolishRag.withFilter(orgFilter);
+ToolishRag scopedRag = toolishRag.withMetadataFilter(orgFilter);
 ----
 
 ====== Per-Request Scoping Pattern
@@ -435,8 +479,8 @@ void respond(Conversation conversation, ActionContext context) {
         .getAuthentication().getName();
 
     // Create user-scoped RAG for this request
-    ToolishRag userScopedRag = toolishRag.withFilter(
-        MetadataFilter.eq("ownerId", userId)
+    ToolishRag userScopedRag = toolishRag.withMetadataFilter(
+        PropertyFilter.eq("ownerId", userId)
     );
 
     context.ai()
@@ -448,22 +492,23 @@ void respond(Conversation conversation, ActionContext context) {
 
 ====== Backend Implementation
 
-Metadata filters are translated to native query syntax where possible:
+Filters are applied at different levels depending on the backend:
 
-- **Spring AI VectorStore**: Translated to `Filter.Expression` for native filtering at the vector store level
-- **Lucene**: Applied as post-filter with inflated `topK` to compensate
-- **Custom stores**: Can implement native translation or use `InMemoryMetadataFilter` for post-filtering
+- **Spring AI VectorStore**: Metadata filters are translated to `Filter.Expression` for native filtering; property filters are applied in-memory
+- **Neo4j (Drivine)**: Both metadata and property filters are translated to native Cypher WHERE clauses (optimal performance)
+- **Lucene**: Both filter types are applied as post-filters with inflated `topK` to compensate for filtered-out results
+- **Custom stores**: Can implement `FilteringVectorSearch` / `FilteringTextSearch` for native translation, or fall back to in-memory filtering
 
-The `InMemoryMetadataFilter` utility class provides a fallback for any store implementation:
+The `InMemoryPropertyFilter` utility class provides fallback filtering for any store implementation:
 
 [source,java]
 ----
 // In your SearchOperations implementation
 List<SimilarityResult<T>> results = performSearch(request);
-return InMemoryMetadataFilter.filterResults(results, filter);
+return InMemoryPropertyFilter.filterResults(results, metadataFilter, propertyFilter);
 ----
 
-This ensures filtering works across all backends, with native optimization where available.
+This ensures filtering works across all backends, with native optimization for metadata filters where available.
 
 ==== Ingestion
 

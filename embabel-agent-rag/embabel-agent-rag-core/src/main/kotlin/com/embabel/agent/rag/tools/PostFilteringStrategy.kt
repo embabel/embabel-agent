@@ -15,8 +15,9 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.rag.filter.InMemoryMetadataFilter
-import com.embabel.agent.rag.filter.MetadataFilter
+import com.embabel.agent.rag.filter.InMemoryPropertyFilter
+import com.embabel.agent.rag.filter.PropertyFilter
+import com.embabel.agent.rag.model.Datum
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
@@ -24,7 +25,7 @@ import com.embabel.common.core.types.TextSimilaritySearchRequest
 /**
  * Strategy for inflating topK when post-filtering is required.
  *
- * When a search backend doesn't support native metadata filtering,
+ * When a search backend doesn't support native property filtering,
  * we need to request more results than needed, then filter in memory.
  * This strategy determines how many extra results to request.
  */
@@ -89,47 +90,51 @@ fun interface TopKInflationStrategy {
 internal object PostFilteringSearch {
 
     /**
-     * Perform a search with post-filtering.
+     * Perform a search with post-filtering using both metadata and property filters.
      *
      * @param request the original search request
-     * @param filter the metadata filter to apply
+     * @param metadataFilter filter on metadata properties
+     * @param propertyFilter filter on object properties
      * @param inflationStrategy strategy for inflating topK
      * @param search function that performs the actual search with the inflated request
      * @return filtered results, limited to original topK
      */
-    fun <T : Retrievable> search(
+    fun <T> search(
         request: TextSimilaritySearchRequest,
-        filter: MetadataFilter,
+        metadataFilter: PropertyFilter?,
+        propertyFilter: PropertyFilter?,
         inflationStrategy: TopKInflationStrategy,
         search: (TextSimilaritySearchRequest) -> List<SimilarityResult<T>>,
-    ): List<SimilarityResult<T>> {
+    ): List<SimilarityResult<T>> where T : Datum, T : Retrievable {
         val inflatedTopK = inflationStrategy.inflate(request.topK)
         val inflatedRequest = TextSimilaritySearchRequest(
             request.query,
             request.similarityThreshold,
             inflatedTopK
         )
-        return InMemoryMetadataFilter.filterResults(search(inflatedRequest), filter)
+        return InMemoryPropertyFilter.filterResults(search(inflatedRequest), metadataFilter, propertyFilter)
             .take(request.topK)
     }
 
     /**
-     * Perform a regex search with post-filtering.
+     * Perform a regex search with post-filtering using both metadata and property filters.
      *
      * @param topK the original topK requested
-     * @param filter the metadata filter to apply
+     * @param metadataFilter filter on metadata properties
+     * @param propertyFilter filter on object properties
      * @param inflationStrategy strategy for inflating topK
      * @param search function that performs the actual search with the inflated topK
      * @return filtered results, limited to original topK
      */
-    fun <T : Retrievable> regexSearch(
+    fun <T> regexSearch(
         topK: Int,
-        filter: MetadataFilter,
+        metadataFilter: PropertyFilter?,
+        propertyFilter: PropertyFilter?,
         inflationStrategy: TopKInflationStrategy,
         search: (Int) -> List<SimilarityResult<T>>,
-    ): List<SimilarityResult<T>> {
+    ): List<SimilarityResult<T>> where T : Datum, T : Retrievable {
         val inflatedTopK = inflationStrategy.inflate(topK)
-        return InMemoryMetadataFilter.filterResults(search(inflatedTopK), filter)
+        return InMemoryPropertyFilter.filterResults(search(inflatedTopK), metadataFilter, propertyFilter)
             .take(topK)
     }
 }

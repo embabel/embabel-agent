@@ -15,7 +15,8 @@
  */
 package com.embabel.agent.rag.service.spring
 
-import com.embabel.agent.rag.filter.MetadataFilter
+import com.embabel.agent.rag.filter.InMemoryPropertyFilter
+import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.FilteringVectorSearch
@@ -47,8 +48,18 @@ class SpringVectorStoreVectorSearch(
     override fun <T : Retrievable> vectorSearchWithFilter(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
-        filter: MetadataFilter,
-    ): List<SimilarityResult<T>> = executeSearch(request, filter.toSpringAiExpression())
+        metadataFilter: PropertyFilter?,
+        propertyFilter: PropertyFilter?,
+    ): List<SimilarityResult<T>> {
+        // Apply metadata filter natively via Spring AI
+        val results = executeSearch<T>(request, metadataFilter?.toSpringAiExpression())
+        // Apply property filter in-memory if specified
+        return if (propertyFilter != null) {
+            InMemoryPropertyFilter.filterByProperties(results, propertyFilter)
+        } else {
+            results
+        }
+    }
 
     @Suppress("UNCHECKED_CAST")
     private fun <T : Retrievable> executeSearch(
@@ -74,65 +85,65 @@ class SpringVectorStoreVectorSearch(
 }
 
 /**
- * Translate [MetadataFilter] to Spring AI [Filter.Expression].
+ * Translate [PropertyFilter] to Spring AI [Filter.Expression].
  */
-fun MetadataFilter.toSpringAiExpression(): Filter.Expression = when (this) {
-    is MetadataFilter.Eq -> Filter.Expression(
+fun PropertyFilter.toSpringAiExpression(): Filter.Expression = when (this) {
+    is PropertyFilter.Eq -> Filter.Expression(
         Filter.ExpressionType.EQ,
         Filter.Key(key),
         Filter.Value(value)
     )
-    is MetadataFilter.Ne -> Filter.Expression(
+    is PropertyFilter.Ne -> Filter.Expression(
         Filter.ExpressionType.NE,
         Filter.Key(key),
         Filter.Value(value)
     )
-    is MetadataFilter.Gt -> Filter.Expression(
+    is PropertyFilter.Gt -> Filter.Expression(
         Filter.ExpressionType.GT,
         Filter.Key(key),
         Filter.Value(value)
     )
-    is MetadataFilter.Gte -> Filter.Expression(
+    is PropertyFilter.Gte -> Filter.Expression(
         Filter.ExpressionType.GTE,
         Filter.Key(key),
         Filter.Value(value)
     )
-    is MetadataFilter.Lt -> Filter.Expression(
+    is PropertyFilter.Lt -> Filter.Expression(
         Filter.ExpressionType.LT,
         Filter.Key(key),
         Filter.Value(value)
     )
-    is MetadataFilter.Lte -> Filter.Expression(
+    is PropertyFilter.Lte -> Filter.Expression(
         Filter.ExpressionType.LTE,
         Filter.Key(key),
         Filter.Value(value)
     )
-    is MetadataFilter.In -> Filter.Expression(
+    is PropertyFilter.In -> Filter.Expression(
         Filter.ExpressionType.IN,
         Filter.Key(key),
         Filter.Value(values)
     )
-    is MetadataFilter.Nin -> Filter.Expression(
+    is PropertyFilter.Nin -> Filter.Expression(
         Filter.ExpressionType.NIN,
         Filter.Key(key),
         Filter.Value(values)
     )
-    is MetadataFilter.Contains -> Filter.Expression(
+    is PropertyFilter.Contains -> Filter.Expression(
         Filter.ExpressionType.EQ,  // Spring AI doesn't have CONTAINS, fallback to EQ
         Filter.Key(key),
         Filter.Value(value)
     )
-    is MetadataFilter.And -> filters
+    is PropertyFilter.And -> filters
         .map { it.toSpringAiExpression() }
         .reduce { left, right ->
             Filter.Expression(Filter.ExpressionType.AND, left, right)
         }
-    is MetadataFilter.Or -> filters
+    is PropertyFilter.Or -> filters
         .map { it.toSpringAiExpression() }
         .reduce { left, right ->
             Filter.Expression(Filter.ExpressionType.OR, left, right)
         }
-    is MetadataFilter.Not -> Filter.Expression(
+    is PropertyFilter.Not -> Filter.Expression(
         Filter.ExpressionType.NOT,
         filter.toSpringAiExpression(),
         null
