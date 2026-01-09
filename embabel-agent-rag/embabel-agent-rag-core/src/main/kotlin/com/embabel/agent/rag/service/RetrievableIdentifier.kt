@@ -48,5 +48,3 @@ data class RetrievableIdentifier(
     }
 }
 
-@Deprecated("Use RetrievableIdentifier", ReplaceWith("RetrievableIdentifier"))
-typealias EntityIdentifier = RetrievableIdentifier
