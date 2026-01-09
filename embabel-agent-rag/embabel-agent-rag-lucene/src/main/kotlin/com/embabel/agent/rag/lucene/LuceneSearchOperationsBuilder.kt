@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.lucene
 
+import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.service.IngestingSearchOperationsBuilder
 import com.embabel.common.ai.model.EmbeddingService
@@ -26,7 +27,8 @@ import java.nio.file.Path
 data class LuceneSearchOperationsBuilder(
     private val name: String = "lucene-search",
     private val embeddingService: EmbeddingService? = null,
-    private val chunkerConfig: ContentChunker.Config = ContentChunker.DefaultConfig(),
+    private val chunkerConfig: ContentChunker.Config = ContentChunker.Config(),
+    private val chunkTransformer: ChunkTransformer = ChunkTransformer.NO_OP,
     private val indexPath: Path? = null,
 ) : IngestingSearchOperationsBuilder<LuceneSearchOperations, LuceneSearchOperationsBuilder> {
 
@@ -34,6 +36,9 @@ data class LuceneSearchOperationsBuilder(
 
     override fun withEmbeddingService(embeddingService: EmbeddingService): LuceneSearchOperationsBuilder =
         copy(embeddingService = embeddingService)
+
+    override fun withContentChunker(contentChunker: ContentChunker): LuceneSearchOperationsBuilder =
+        copy(chunkTransformer = chunkTransformer)
 
     /**
      * Sets the path where the Lucene index will be stored.

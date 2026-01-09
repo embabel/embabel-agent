@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.ingestion
 
+import com.embabel.agent.rag.ingestion.transform.AddTitlesChunkTransformer
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.DefaultMaterializedContainerSection
 import com.embabel.agent.rag.model.LeafSection
@@ -24,7 +25,10 @@ import org.junit.jupiter.api.Test
 
 class ContentChunkerTest {
 
-    private val chunker = ContentChunker()
+    private val chunker = ContentChunker(
+        ContentChunker.Config(),
+        ChunkTransformer.NO_OP
+    )
 
     @Test
     fun `test single chunk for container with small total content`() {
@@ -214,11 +218,11 @@ class ContentChunkerTest {
 
     @Test
     fun `test custom splitter configuration`() {
-        val config = ContentChunker.DefaultConfig(
+        val config = ContentChunker.Config(
             maxChunkSize = 100,
             overlapSize = 20,
         )
-        val customSplitter = ContentChunker(config)
+        val customSplitter = ContentChunker(config, ChunkTransformer.NO_OP)
 
         // Create content longer than minChunkSize (150) in a single leaf
         val content = buildString {
@@ -252,19 +256,19 @@ class ContentChunkerTest {
     fun `test configuration validation`() {
         // Test invalid configurations
         assertThrows(IllegalArgumentException::class.java) {
-            ContentChunker.DefaultConfig(maxChunkSize = 0)
+            ContentChunker.Config(maxChunkSize = 0)
         }
 
         assertThrows(IllegalArgumentException::class.java) {
-            ContentChunker.DefaultConfig(overlapSize = -1)
+            ContentChunker.Config(overlapSize = -1)
         }
 
         assertThrows(IllegalArgumentException::class.java) {
-            ContentChunker.DefaultConfig(maxChunkSize = 100)
+            ContentChunker.Config(maxChunkSize = 100)
         }
 
         assertThrows(IllegalArgumentException::class.java) {
-            ContentChunker.DefaultConfig(maxChunkSize = 100, overlapSize = 150)
+            ContentChunker.Config(maxChunkSize = 100, overlapSize = 150)
         }
     }
 
@@ -341,10 +345,10 @@ class ContentChunkerTest {
     fun `test chunking too fine with large chunk sizes`() {
         // Create a chunker with larger chunk sizes that should create fewer, larger chunks
         val chunker = ContentChunker(
-            ContentChunker.DefaultConfig(
+            ContentChunker.Config(
                 maxChunkSize = 5000,
                 overlapSize = 200,
-            )
+            ), ChunkTransformer.NO_OP
         )
 
         // Create medium-sized content that could reasonably fit in one chunk
@@ -390,10 +394,11 @@ class ContentChunkerTest {
     fun `test large content with generous chunk settings`() {
         // Even more generous settings
         val chunker = ContentChunker(
-            ContentChunker.DefaultConfig(
+            ContentChunker.Config(
                 maxChunkSize = 8000,
                 overlapSize = 400,
-            )
+            ),
+            ChunkTransformer.NO_OP
         )
 
         // Create larger content that should still result in reasonably few chunks
@@ -438,10 +443,11 @@ class ContentChunkerTest {
     @Test
     fun `test multiple medium leaves should not over-fragment`() {
         val chunker = ContentChunker(
-            ContentChunker.DefaultConfig(
+            ContentChunker.Config(
                 maxChunkSize = 5000,
                 overlapSize = 200,
-            )
+            ),
+            ChunkTransformer.NO_OP,
         )
 
         // Create several medium-sized leaves
@@ -485,7 +491,8 @@ class ContentChunkerTest {
     fun `demonstrate over-chunking issue with large chunk sizes`() {
         // This test specifically shows the over-chunking problem
         val chunker = ContentChunker(
-            ContentChunker.DefaultConfig(maxChunkSize = 5000, overlapSize = 200)
+            ContentChunker.Config(maxChunkSize = 5000, overlapSize = 200),
+            ChunkTransformer.NO_OP,
         )
 
         // Create content that SHOULD fit in a single large chunk but gets split unnecessarily
@@ -522,13 +529,13 @@ class ContentChunkerTest {
     }
 
     @Test
-    fun `test section title is included in chunk when config is true`() {
-        val chunker = ContentChunker(
-            ContentChunker.DefaultConfig(
+    fun `test AddTitlesChunkTransformer adds document and section titles`() {
+        val chunkerWithTransformer = ContentChunker(
+            ContentChunker.Config(
                 maxChunkSize = 2000,
                 overlapSize = 100,
-                includeSectionTitleInChunk = true
-            )
+            ),
+            AddTitlesChunkTransformer
         )
 
         val leaf = LeafSection(
@@ -544,88 +551,92 @@ class ContentChunkerTest {
             uri = "test-uri",
         )
 
-        val chunks = chunker.chunk(container)
+        val chunks = chunkerWithTransformer.chunk(container)
 
-        assertEquals(1, chunks.size)
+        assertEquals(1, chunks.count())
         val chunk = chunks.first()
 
-        // Verify section title is prepended with FROM: prefix
-        assertTrue(
-            chunk.text.startsWith("FROM: Container Title\n\n"),
-            "Chunk should start with 'FROM: ' and container title"
-        )
-        assertTrue(chunk.text.contains("Leaf Title"), "Chunk should contain leaf title")
-        assertTrue(chunk.text.contains("This is the leaf content."), "Chunk should contain leaf content")
+        // Verify AddTitlesChunkTransformer added document title
+        assertTrue(chunk.text.contains("Title: Container Title"), "Chunk should contain document title")
+        assertTrue(chunk.text.contains("URI: test-uri"), "Chunk should contain document URI")
+        assertTrue(chunk.text.contains("Section: Container Title"), "Chunk should contain section title")
+        assertTrue(chunk.text.contains("This is the leaf content."), "Chunk should contain original content")
     }
 
     @Test
-    fun `test section title is not included when config is false`() {
-        val chunker = ContentChunker(
-            ContentChunker.DefaultConfig(
-                maxChunkSize = 2000,
-                overlapSize = 100,
-                includeSectionTitleInChunk = false
-            )
-        )
-
-        val leaf = LeafSection(
-            id = "leaf-1",
-            title = "Leaf Title",
-            text = "This is the leaf content."
-        )
-
-        val container = MaterializedDocument(
-            id = "container-1",
-            title = "Container Title",
-            children = listOf(leaf),
-            uri = "test-uri",
-        )
-
-        val chunks = chunker.chunk(container)
-
-        assertEquals(1, chunks.size)
-        val chunk = chunks.first()
-
-        // Verify section title is NOT prepended (chunk starts with leaf title instead)
-        assertFalse(chunk.text.startsWith("Container Title\n\n"), "Chunk should not start with container title")
-        assertTrue(chunk.text.startsWith("Leaf Title"), "Chunk should start with leaf title")
-    }
-
-    @Test
-    fun `test section title not included when it would exceed maxChunkSize`() {
-        val chunker = ContentChunker(
-            ContentChunker.DefaultConfig(
-                maxChunkSize = 100,
-                overlapSize = 20,
-                includeSectionTitleInChunk = true
-            )
-        )
-
-        val leaf = LeafSection(
-            id = "leaf-1",
-            title = "Short",
-            text = "This content is exactly sized to be near the limit when combined with a long container title."
-        )
-
-        val container = MaterializedDocument(
-            id = "container-1",
-            title = "Very Long Container Title That Would Cause Chunk To Exceed MaxChunkSize",
-            children = listOf(leaf),
-            uri = "test-uri",
-        )
-
-        val chunks = chunker.chunk(container)
-
-        // All chunks should respect maxChunkSize
-        chunks.forEach { chunk ->
-            assertTrue(chunk.text.length <= 100, "Chunk length ${chunk.text.length} should not exceed maxChunkSize 100")
+    fun `test chunk transformation is applied to all chunks`() {
+        val transformCallCount = mutableListOf<String>()
+        val countingTransformer = object : ChunkTransformer {
+            override fun transform(chunk: Chunk, context: ChunkTransformationContext): Chunk {
+                transformCallCount.add(chunk.id)
+                return chunk.withAdditionalMetadata(chunk.metadata + mapOf("transformed" to true))
+            }
         }
 
-        // Section title should NOT be included because it would exceed the limit
-        assertFalse(
-            chunks.first().text.startsWith("Very Long Container"),
-            "Title should not be prepended when it would exceed maxChunkSize"
+        val chunkerWithTransformer = ContentChunker(
+            ContentChunker.Config(
+                maxChunkSize = 50,  // Small size to force multiple chunks
+                overlapSize = 10,
+            ),
+            countingTransformer
         )
+
+        val leaf = LeafSection(
+            id = "leaf-1",
+            title = "A",
+            text = "This is a longer content that will be split into multiple chunks because it exceeds the maximum chunk size limit."
+        )
+
+        val container = MaterializedDocument(
+            id = "container-1",
+            title = "Doc",
+            children = listOf(leaf),
+            uri = "test-uri",
+        )
+
+        val chunks = chunkerWithTransformer.chunk(container).toList()
+
+        // Verify transformer was called for each chunk
+        assertEquals(chunks.size, transformCallCount.size, "Transformer should be called once per chunk")
+
+        // Verify all chunks have the transformed metadata
+        chunks.forEach { chunk ->
+            assertEquals(true, chunk.metadata["transformed"], "Each chunk should have transformed=true metadata")
+        }
+    }
+
+    @Test
+    fun `test no transformation when chunkTransformer is null`() {
+        val chunkerWithoutTransformer = ContentChunker(
+            ContentChunker.Config(
+                maxChunkSize = 2000,
+                overlapSize = 100,
+            ),
+            ChunkTransformer.NO_OP,
+        )
+
+        val leaf = LeafSection(
+            id = "leaf-1",
+            title = "Leaf Title",
+            text = "Original content."
+        )
+
+        val container = MaterializedDocument(
+            id = "container-1",
+            title = "Container Title",
+            children = listOf(leaf),
+            uri = "test-uri",
+        )
+
+        val chunks = chunkerWithoutTransformer.chunk(container)
+
+        assertEquals(1, chunks.count())
+        val chunk = chunks.first()
+
+        // Verify no transformation metadata added
+        assertFalse(chunk.metadata.containsKey("transform_AddTitlesChunkTransformer"))
+        // Original content should be present without title headers
+        assertFalse(chunk.text.contains("Title: Container Title"))
     }
 
     @Test

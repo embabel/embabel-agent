@@ -15,6 +15,10 @@
  */
 package com.embabel.agent.rag.ingestion
 
+import com.embabel.agent.rag.ingestion.policy.AlwaysRefreshContentRefreshPolicy
+import com.embabel.agent.rag.ingestion.policy.NeverRefreshExistingDocumentContentPolicy
+import com.embabel.agent.rag.ingestion.policy.TtlContentRefreshPolicy
+import com.embabel.agent.rag.ingestion.policy.UrlSpecificContentRefreshPolicy
 import com.embabel.agent.rag.model.MaterializedDocument
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.store.ChunkingContentElementRepository
@@ -25,6 +29,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.time.Duration
 
 class ContentRefreshPolicyTest {
 
@@ -1074,7 +1079,7 @@ class ContentRefreshPolicyTest {
             val uri = "test://ttl-test"
 
             // Test with 1 hour TTL
-            val oneHourPolicy = TtlContentRefreshPolicy(java.time.Duration.ofHours(1))
+            val oneHourPolicy = TtlContentRefreshPolicy(Duration.ofHours(1))
 
             // Document ingested 30 minutes ago
             val doc30MinAgo = MaterializedDocument(

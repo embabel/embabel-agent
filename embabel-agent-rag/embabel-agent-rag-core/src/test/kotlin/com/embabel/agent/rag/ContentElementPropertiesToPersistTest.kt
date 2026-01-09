@@ -192,7 +192,11 @@ class ContentElementPropertiesToPersistTest {
         // HierarchicalContentElement properties
         assertEquals("section-1", properties["parentId"])
 
-        val expectedKeys = setOf("id", "uri", "url", "chunk_index", "total_chunks", "parentId", "text")
+        // Chunk-specific properties
+        assertEquals("This is a chunk of text content", properties["text"])
+        assertEquals("This is a chunk of text content", properties["urtext"])
+
+        val expectedKeys = setOf("id", "uri", "url", "chunk_index", "total_chunks", "parentId", "text", "urtext")
         assertEquals(expectedKeys, properties.keys)
     }
 

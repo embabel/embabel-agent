@@ -13,22 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.rag.ingestion
+package com.embabel.agent.rag.ingestion.policy
 
+import com.embabel.agent.rag.ingestion.ContentRefreshPolicy
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.store.ChunkingContentElementRepository
 
 /**
- * Always refresh content, regardless of whether it already exists.
- * Useful for content that changes frequently and should always be re-fetched.
+ * Never refresh an existing document. Existing documents
+ * will remain unchanged till the end of time.
+ * Even a snapshot URL would remain unchanged.
  */
-object AlwaysRefreshContentRefreshPolicy : ContentRefreshPolicy {
+object NeverRefreshExistingDocumentContentPolicy : ContentRefreshPolicy {
 
     override fun shouldReread(
         repository: ChunkingContentElementRepository,
         rootUri: String,
-    ): Boolean = true
+    ): Boolean = !repository.existsRootWithUri(rootUri)
 
+    /**
+     * Refresh if we get to here
+     */
     override fun shouldRefreshDocument(
         repository: ChunkingContentElementRepository,
         root: NavigableDocument,

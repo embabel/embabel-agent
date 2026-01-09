@@ -28,7 +28,10 @@ import java.util.*
  */
 class ContentChunkerPathFromRootTest {
 
-    private val chunker = ContentChunker()
+    private val chunker = ContentChunker(
+        ContentChunker.Config(),
+        ChunkTransformer.NO_OP,
+    )
 
     @Test
     fun `test chunks from single leaf section have non-null pathFromRoot`() {

@@ -60,7 +60,7 @@ class PromptedContextualCompressionEnhancer(
                     logger.debug("Discarding irrelevant content")
                     null
                 } else {
-                    val compressedChunk = chunk.transform(
+                    val compressedChunk = chunk.withText(
                         compressionResult.compressed
                         // Add compression metadata
 //                    contextualRelevance = ZeroToOne(assessCompressionQuality(compressed, query))

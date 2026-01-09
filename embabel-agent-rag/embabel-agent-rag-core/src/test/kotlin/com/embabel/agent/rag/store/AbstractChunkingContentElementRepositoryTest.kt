@@ -15,13 +15,11 @@
  */
 package com.embabel.agent.rag.store
 
+import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.ingestion.RetrievableEnhancer
-import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.ContentElement
-import com.embabel.agent.rag.model.ContentRoot
-import com.embabel.agent.rag.model.NavigableDocument
-import com.embabel.agent.rag.model.Retrievable
+import com.embabel.agent.rag.ingestion.transform.ChainedChunkTransformer
+import com.embabel.agent.rag.model.*
 import com.embabel.common.ai.model.EmbeddingService
 import io.mockk.every
 import io.mockk.mockk
@@ -46,19 +44,23 @@ class AbstractChunkingContentElementRepositoryTest {
         @Test
         fun `should generate embeddings in batches`() {
             val embeddingService = mockk<EmbeddingService>()
-            val config = ContentChunker.DefaultConfig(embeddingBatchSize = 2)
-            val repo = TestChunkingRepository(config, embeddingService)
+            val config = ContentChunker.Config(embeddingBatchSize = 2)
+            val repo = TestChunkingRepository(
+                config,
+                ChunkTransformer.NO_OP,
+                embeddingService
+            )
 
             // Create 5 chunks to test batching with batch size 2
             val chunks = (1..5).map { i -> createChunk("chunk$i", "Text $i") }
 
             // Mock batch embedding calls
             every { embeddingService.embed(listOf("Text 1", "Text 2")) } returns
-                listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
+                    listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
             every { embeddingService.embed(listOf("Text 3", "Text 4")) } returns
-                listOf(floatArrayOf(5f, 6f), floatArrayOf(7f, 8f))
+                    listOf(floatArrayOf(5f, 6f), floatArrayOf(7f, 8f))
             every { embeddingService.embed(listOf("Text 5")) } returns
-                listOf(floatArrayOf(9f, 10f))
+                    listOf(floatArrayOf(9f, 10f))
 
             repo.onNewRetrievables(chunks)
 
@@ -76,8 +78,12 @@ class AbstractChunkingContentElementRepositoryTest {
 
         @Test
         fun `should handle no embedding service gracefully`() {
-            val config = ContentChunker.DefaultConfig()
-            val repo = TestChunkingRepository(config, embeddingService = null)
+            val config = ContentChunker.Config()
+            val repo = TestChunkingRepository(
+                config,
+                ChainedChunkTransformer(),
+                embeddingService = null
+            )
 
             val chunks = listOf(createChunk("chunk1", "Text 1"))
 
@@ -90,8 +96,12 @@ class AbstractChunkingContentElementRepositoryTest {
 
         @Test
         fun `should filter non-chunk retrievables`() {
-            val config = ContentChunker.DefaultConfig()
-            val repo = TestChunkingRepository(config, embeddingService = null)
+            val config = ContentChunker.Config()
+            val repo = TestChunkingRepository(
+                config,
+                ChainedChunkTransformer(),
+                embeddingService = null
+            )
 
             val mixedRetrievables: List<Retrievable> = listOf(
                 createChunk("chunk1", "Text 1"),
@@ -105,8 +115,12 @@ class AbstractChunkingContentElementRepositoryTest {
 
         @Test
         fun `should handle empty retrievables list`() {
-            val config = ContentChunker.DefaultConfig()
-            val repo = TestChunkingRepository(config, embeddingService = null)
+            val config = ContentChunker.Config()
+            val repo = TestChunkingRepository(
+                config,
+                ChainedChunkTransformer(),
+                embeddingService = null
+            )
 
             repo.onNewRetrievables(emptyList())
 
@@ -116,16 +130,20 @@ class AbstractChunkingContentElementRepositoryTest {
         @Test
         fun `should continue processing other batches when one batch fails`() {
             val embeddingService = mockk<EmbeddingService>()
-            val config = ContentChunker.DefaultConfig(embeddingBatchSize = 2)
-            val repo = TestChunkingRepository(config, embeddingService)
+            val config = ContentChunker.Config(embeddingBatchSize = 2)
+            val repo = TestChunkingRepository(
+                config,
+                ChainedChunkTransformer(),
+                embeddingService
+            )
 
             val chunks = (1..4).map { i -> createChunk("chunk$i", "Text $i") }
 
             // First batch succeeds, second batch fails
             every { embeddingService.embed(listOf("Text 1", "Text 2")) } returns
-                listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
+                    listOf(floatArrayOf(1f, 2f), floatArrayOf(3f, 4f))
             every { embeddingService.embed(listOf("Text 3", "Text 4")) } throws
-                RuntimeException("API error")
+                    RuntimeException("API error")
 
             repo.onNewRetrievables(chunks)
 
@@ -140,8 +158,12 @@ class AbstractChunkingContentElementRepositoryTest {
         @Test
         fun `should respect custom batch size from config`() {
             val embeddingService = mockk<EmbeddingService>()
-            val config = ContentChunker.DefaultConfig(embeddingBatchSize = 10)
-            val repo = TestChunkingRepository(config, embeddingService)
+            val config = ContentChunker.Config(embeddingBatchSize = 10)
+            val repo = TestChunkingRepository(
+                config,
+                ChainedChunkTransformer(),
+                embeddingService
+            )
 
             val chunks = (1..10).map { i -> createChunk("chunk$i", "Text $i") }
 
@@ -162,8 +184,9 @@ class AbstractChunkingContentElementRepositoryTest {
      */
     private class TestChunkingRepository(
         chunkerConfig: ContentChunker.Config,
+        chunkTransformer: ChunkTransformer,
         embeddingService: EmbeddingService?,
-    ) : AbstractChunkingContentElementRepository(chunkerConfig, embeddingService) {
+    ) : AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer, embeddingService) {
 
         val persistedChunks = mutableListOf<Chunk>()
         val persistedEmbeddings = mutableMapOf<String, FloatArray>()

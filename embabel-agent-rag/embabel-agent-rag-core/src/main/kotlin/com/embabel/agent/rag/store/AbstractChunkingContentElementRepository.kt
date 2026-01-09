@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.store
 
+import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.NavigableDocument
@@ -58,6 +59,7 @@ import org.slf4j.LoggerFactory
  */
 abstract class AbstractChunkingContentElementRepository(
     protected val chunkerConfig: ContentChunker.Config,
+    protected val chunkTransformer: ChunkTransformer,
     protected val embeddingService: EmbeddingService?,
 ) : ChunkingContentElementRepository {
 
@@ -179,7 +181,7 @@ abstract class AbstractChunkingContentElementRepository(
             root.title,
             chunkerConfig
         )
-        val chunker = ContentChunker(chunkerConfig)
+        val chunker = ContentChunker(chunkerConfig, chunkTransformer)
         val chunks = chunker.chunk(root)
             .map { enhance(it) }
         logger.info(

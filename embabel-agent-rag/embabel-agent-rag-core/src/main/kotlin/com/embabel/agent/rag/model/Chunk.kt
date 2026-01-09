@@ -24,9 +24,15 @@ import java.util.*
 interface Chunk : Source, HierarchicalContentElement {
 
     /**
-     * Text content
+     * Text content that will be indexed.
      */
     val text: String
+
+    /**
+     * Raw content. Text will differ if any processing (e.g. cleaning, normalization) was applied.
+     * This is important for citation
+     */
+    val urtext: String
 
     /**
      * Parent must be non-null. It must a physical content element.
@@ -80,6 +86,7 @@ interface Chunk : Source, HierarchicalContentElement {
     override fun propertiesToPersist(): Map<String, Any?> {
         return super<HierarchicalContentElement>.propertiesToPersist() + mapOf(
             "text" to text,
+            "urtext" to urtext,
         )
     }
 
@@ -90,10 +97,11 @@ interface Chunk : Source, HierarchicalContentElement {
     /**
      * Transform the content of this chunk
      */
-    fun transform(transformed: String): Chunk =
+    fun withText(transformed: String): Chunk =
         ChunkImpl(
             id = this.id,
             text = transformed,
+            urtext = this.urtext,
             metadata = this.metadata,
             parentId = this.parentId,
         )
@@ -109,6 +117,7 @@ interface Chunk : Source, HierarchicalContentElement {
             return ChunkImpl(
                 id = id,
                 text = text,
+                urtext = text,
                 metadata = metadata,
                 parentId = parentId,
             )
@@ -121,10 +130,12 @@ interface Chunk : Source, HierarchicalContentElement {
             parentId: String,
             metadata: Map<String, Any?> = emptyMap(),
             id: String = UUID.randomUUID().toString(),
+            urtext: String = text,
         ): Chunk {
             return ChunkImpl(
                 id = id,
                 text = text,
+                urtext = urtext,
                 metadata = metadata,
                 parentId = parentId,
             )
@@ -140,7 +151,7 @@ interface Chunk : Source, HierarchicalContentElement {
      * callers are responsible for ensuring that any
      * they want to keep is preserved.
      */
-    fun withMetadata(metadata: Map<String, Any?>): Chunk
+    fun withAdditionalMetadata(metadata: Map<String, Any?>): Chunk
 
     override fun infoString(
         verbose: Boolean?,
@@ -151,10 +162,11 @@ interface Chunk : Source, HierarchicalContentElement {
 private data class ChunkImpl(
     override val id: String,
     override val text: String,
+    override val urtext: String,
     override val parentId: String,
     override val metadata: Map<String, Any?>,
 ) : Chunk {
 
-    override fun withMetadata(metadata: Map<String, Any?>): Chunk =
+    override fun withAdditionalMetadata(metadata: Map<String, Any?>): Chunk =
         this.copy(metadata = metadata)
 }

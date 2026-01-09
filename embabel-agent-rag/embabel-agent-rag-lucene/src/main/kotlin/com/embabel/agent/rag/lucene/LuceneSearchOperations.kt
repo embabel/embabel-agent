@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.lucene
 
 import com.embabel.agent.api.common.primitive.KeywordExtractor
+import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.CONTAINER_SECTION_ID
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.SEQUENCE_NUMBER
@@ -39,17 +40,8 @@ import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.util.indent
 import com.embabel.common.util.trim
 import org.apache.lucene.analysis.standard.StandardAnalyzer
-import org.apache.lucene.document.Document
-import org.apache.lucene.document.Field
-import org.apache.lucene.document.KnnFloatVectorField
-import org.apache.lucene.document.StoredField
-import org.apache.lucene.document.StringField
-import org.apache.lucene.document.TextField
-import org.apache.lucene.index.DirectoryReader
-import org.apache.lucene.index.IndexWriter
-import org.apache.lucene.index.IndexWriterConfig
-import org.apache.lucene.index.MultiBits
-import org.apache.lucene.index.VectorSimilarityFunction
+import org.apache.lucene.document.*
+import org.apache.lucene.index.*
 import org.apache.lucene.queryparser.classic.QueryParser
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.KnnFloatVectorQuery
@@ -81,10 +73,11 @@ class LuceneSearchOperations @JvmOverloads constructor(
     embeddingService: EmbeddingService? = null,
     private val keywordExtractor: KeywordExtractor? = null,
     private val vectorWeight: Double = 0.5,
-    chunkerConfig: ContentChunker.Config = ContentChunker.DefaultConfig(),
+    chunkerConfig: ContentChunker.Config = ContentChunker.Config(),
+    chunkTransformer: ChunkTransformer = ChunkTransformer.NO_OP,
     private val indexPath: Path? = null,
 ) : RagFacetProvider,
-    AbstractChunkingContentElementRepository(chunkerConfig, embeddingService),
+    AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer, embeddingService),
     HasInfoString,
     Closeable,
     CoreSearchOperations,

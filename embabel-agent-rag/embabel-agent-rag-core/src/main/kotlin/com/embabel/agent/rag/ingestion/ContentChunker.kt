@@ -28,41 +28,20 @@ import com.embabel.agent.rag.model.NavigableContainerSection
  */
 interface ContentChunker {
 
+    val chunkTransformer: ChunkTransformer
+
     /**
      * Content chunking configuration
+     * @property maxChunkSize Maximum size of each chunk in characters
+     * @property overlapSize Number of overlapping characters between consecutive chunks
+     * @property embeddingBatchSize Number of chunks to process in a single embedding batch
      */
-    interface Config {
-        /**
-         * Maximum size of each chunk in characters
-         */
-        val maxChunkSize: Int
+    data class Config(
+        val maxChunkSize: Int = 1500,
+        val overlapSize: Int = 200,
+        val embeddingBatchSize: Int = 100,
+    ) {
 
-        /**
-         * Number of overlapping characters between consecutive chunks
-         */
-        val overlapSize: Int
-
-        /**
-         * Whether to include the section title in each chunk
-         */
-        val includeSectionTitleInChunk: Boolean
-
-        /**
-         * Batch size for embedding operations
-         * Batching embeddings improves performance when processing many chunks.
-         */
-        val embeddingBatchSize: Int
-    }
-
-    /**
-     * Configuration for the splitter
-     */
-    data class DefaultConfig @JvmOverloads constructor(
-        override val maxChunkSize: Int = 1500,
-        override val overlapSize: Int = 200,
-        override val includeSectionTitleInChunk: Boolean = true,
-        override val embeddingBatchSize: Int = 100,
-    ) : Config {
         init {
             require(maxChunkSize > 0) { "maxChunkSize must be positive" }
             require(overlapSize >= 0) { "overlapSize must be non-negative" }
@@ -112,7 +91,13 @@ interface ContentChunker {
         /** Metadata key for the URI/URL of the leaf section */
         const val LEAF_SECTION_URL = "leaf_section_url"
 
-        operator fun invoke(config: Config = DefaultConfig()) =
-            InMemoryContentChunker(config)
+        /**
+         * Factory method to create an InMemoryContentChunker.
+         */
+        operator fun invoke(
+            config: Config,
+            chunkTransformer: ChunkTransformer,
+        ) =
+            InMemoryContentChunker(config, chunkTransformer)
     }
 }

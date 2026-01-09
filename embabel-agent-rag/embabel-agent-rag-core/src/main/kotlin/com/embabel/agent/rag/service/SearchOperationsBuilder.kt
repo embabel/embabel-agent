@@ -46,4 +46,6 @@ interface IngestingSearchOperationsBuilder<T : CoreSearchOperations, THIS : Inge
     SearchOperationsBuilder<T, THIS> {
 
     fun withChunkerConfig(chunkerConfig: ContentChunker.Config): THIS
+
+    fun withContentChunker(contentChunker: ContentChunker): THIS
 }
