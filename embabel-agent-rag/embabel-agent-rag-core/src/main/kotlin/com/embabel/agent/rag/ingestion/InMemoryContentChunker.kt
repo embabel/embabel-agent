@@ -32,6 +32,10 @@ import com.embabel.agent.rag.model.NavigableContainerSection
 import org.slf4j.LoggerFactory
 import java.util.*
 
+/**
+ * Simple implementation of ContentChunker that operates in memory.
+ * Will whole entire document in memory.
+ */
 class InMemoryContentChunker(
     val config: ContentChunker.Config = ContentChunker.DefaultConfig(),
 ) : ContentChunker {

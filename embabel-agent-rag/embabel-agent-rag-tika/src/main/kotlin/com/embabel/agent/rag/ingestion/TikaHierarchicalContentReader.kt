@@ -15,10 +15,8 @@
  */
 package com.embabel.agent.rag.ingestion
 
-import com.embabel.agent.rag.model.DefaultMaterializedContainerSection
 import com.embabel.agent.rag.model.LeafSection
 import com.embabel.agent.rag.model.MaterializedDocument
-import com.embabel.agent.rag.model.NavigableSection
 import com.embabel.agent.tools.file.FileReadTools
 import com.embabel.common.util.VisualizableTask
 import org.apache.tika.detect.DefaultDetector
@@ -59,6 +57,11 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
     private val logger = LoggerFactory.getLogger(javaClass)
     private val parser = AutoDetectParser()
     private val detector: Detector = DefaultDetector()
+
+    // Content format parsers
+    private val plainTextParser = PlainTextContentParser(logger)
+    private val markdownParser = MarkdownContentParser(logger)
+    private val htmlParser = HtmlContentParser(logger, plainTextParser)
 
     /**
      * Parse content from a URL with proper HTTP headers to avoid 403 errors.
@@ -209,7 +212,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
                 // Get charset from metadata (from HTTP Content-Type header or other source)
                 val charset = getCharsetFromMetadata(metadata)
                 val rawContent = bufferedStream.readBytes().toString(charset)
-                return parseHtml(rawContent, metadata, uri)
+                return htmlParser.parse(rawContent, metadata, uri)
             }
 
             // For markdown files, read directly and skip Tika parsing to avoid archive detection issues
@@ -218,7 +221,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
             if (isMarkdownByExtension || isMarkdownByType) {
                 val charset = getCharsetFromMetadata(metadata)
                 val content = bufferedStream.readBytes().toString(charset)
-                return parseMarkdown(content, metadata, uri)
+                return markdownParser.parse(content, metadata, uri)
             }
 
             val handler = BodyContentHandler(-1) // No limit on content size
@@ -236,395 +239,22 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
 
             return when {
                 hasMarkdownHeaders -> {
-                    parseMarkdown(content, metadata, uri)
+                    markdownParser.parse(content, metadata, uri)
                 }
 
                 else -> {
-                    parsePlainText(content, metadata, uri)
+                    plainTextParser.parse(content, metadata, uri)
                 }
             }
 
         } catch (e: ZeroByteFileException) {
             // Handle empty files gracefully
             logger.debug("Empty content detected, returning empty content root")
-            return createEmptyContentRoot(metadata, uri)
+            return ContentFormatParserUtils.createEmptyContentRoot(metadata, uri)
         } catch (e: Exception) {
             logger.error("Error parsing content", e)
             return createErrorContentRoot(e.message ?: "Unknown parsing error", metadata, uri)
         }
-    }
-
-    /**
-     * Parse markdown content and build hierarchical structure
-     */
-    private fun parseMarkdown(
-        content: String,
-        metadata: Metadata,
-        uri: String,
-    ): MaterializedDocument {
-        val lines = content.lines()
-        val leafSections = mutableListOf<LeafSection>()
-        val currentSection = StringBuilder()
-        var currentTitle = ""
-        var sectionId = ""
-        val rootId = UUID.randomUUID().toString()
-        var parentId: String? = rootId
-        val sectionStack = mutableMapOf<Int, String>() // level -> sectionId
-
-        for (line in lines) {
-            when {
-                line.startsWith("#") -> {
-                    // Save previous section if it exists
-                    if (currentTitle.isNotBlank()) {
-                        leafSections.add(
-                            createLeafSection(
-                                sectionId,
-                                currentTitle,
-                                currentSection.toString().trim(),
-                                parentId,
-                                uri,
-                                metadata,
-                                rootId
-                            )
-                        )
-                    }
-
-                    // Parse new heading
-                    val level = line.takeWhile { it == '#' }.length
-                    currentTitle = line.substring(level).trim()
-                    sectionId = UUID.randomUUID().toString()
-                    currentSection.clear()
-
-                    // Determine parent based on hierarchy
-                    parentId = when {
-                        level == 1 -> rootId
-                        level > 1 -> {
-                            // Find the most recent parent at level - 1
-                            (level - 1 downTo 1).firstNotNullOfOrNull { sectionStack[it] } ?: rootId
-                        }
-
-                        else -> rootId
-                    }
-
-                    sectionStack[level] = sectionId
-                    // Clear deeper levels
-                    sectionStack.keys.filter { it > level }.forEach { sectionStack.remove(it) }
-                }
-
-                else -> {
-                    if (line.isNotBlank() || currentSection.isNotEmpty()) {
-                        currentSection.appendLine(line)
-                    }
-                }
-            }
-        }
-
-        // Add final section if exists
-        if (currentTitle.isNotBlank()) {
-            leafSections.add(
-                createLeafSection(
-                    sectionId,
-                    currentTitle,
-                    currentSection.toString().trim(),
-                    parentId,
-                    uri,
-                    metadata,
-                    rootId
-                )
-            )
-        }
-
-        // If no sections were found, create a single section with the whole content
-        if (leafSections.isEmpty() && content.isNotBlank()) {
-            val title = extractTitle(lines, metadata) ?: "Document"
-            leafSections.add(
-                createLeafSection(
-                    UUID.randomUUID().toString(),
-                    title,
-                    content.trim(),
-                    rootId,
-                    uri,
-                    metadata,
-                    rootId
-                )
-            )
-        }
-
-        logger.debug("Created {} leaf sections from markdown content", leafSections.size)
-
-        // Build the hierarchical structure
-        val documentTitle =
-            extractTitle(lines, metadata) ?: metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY) ?: "Document"
-
-        val hierarchicalSections = buildHierarchy(leafSections, rootId)
-
-        return MaterializedDocument(
-            id = rootId,
-            uri = uri,
-            title = documentTitle,
-            ingestionTimestamp = java.time.Instant.now(),
-            children = hierarchicalSections,
-            metadata = extractMetadataMap(metadata)
-        )
-    }
-
-    /**
-     * Parse HTML content - simplified approach focusing on headings
-     */
-    private fun parseHtml(
-        content: String,
-        metadata: Metadata,
-        uri: String,
-    ): MaterializedDocument {
-        // Parse HTML headings and create sections similar to markdown
-        val headingPattern = Regex("<h([1-6])[^>]*>(.*?)</h\\1>", RegexOption.IGNORE_CASE)
-        val headingMatches = headingPattern.findAll(content).toList()
-
-        if (headingMatches.isEmpty()) {
-            // No headings found, treat as plain text
-            val cleanContent = content
-                .replace(Regex("<[^>]+>"), " ") // Remove HTML tags
-                .replace(Regex("\\s+"), " ") // Normalize whitespace
-                .trim()
-            return parsePlainText(cleanContent, metadata, uri)
-        }
-
-        // Build sections from HTML headings
-        val leafSections = mutableListOf<LeafSection>()
-        val rootId = UUID.randomUUID().toString()
-        val sectionStack = mutableMapOf<Int, String>() // level -> sectionId
-
-        for (i in headingMatches.indices) {
-            val match = headingMatches[i]
-            val level = match.groupValues[1].toInt()
-            val title = match.groupValues[2]
-                .replace(Regex("<[^>]+>"), "") // Remove any HTML tags in title
-                .replace(Regex("\\s+"), " ")
-                .trim()
-
-            // Extract content between this heading and the next
-            val startIdx = match.range.last + 1
-            val endIdx = if (i + 1 < headingMatches.size) {
-                headingMatches[i + 1].range.first
-            } else {
-                content.length
-            }
-
-            val rawContent = if (startIdx < endIdx) {
-                content.substring(startIdx, endIdx)
-            } else {
-                ""
-            }
-
-            // Clean HTML tags from content
-            val cleanContent = rawContent
-                .replace(Regex("<[^>]+>"), " ")
-                .replace(Regex("\\s+"), " ")
-                .trim()
-
-            // Determine parent based on hierarchy
-            val sectionId = UUID.randomUUID().toString()
-            val parentId = when {
-                level == 1 -> rootId
-                level > 1 -> {
-                    // Find the most recent parent at level - 1
-                    (level - 1 downTo 1).firstNotNullOfOrNull { sectionStack[it] } ?: rootId
-                }
-
-                else -> rootId
-            }
-
-            sectionStack[level] = sectionId
-            // Clear deeper levels
-            sectionStack.keys.filter { it > level }.forEach { sectionStack.remove(it) }
-
-            leafSections.add(
-                createLeafSection(
-                    sectionId,
-                    title,
-                    cleanContent,
-                    parentId,
-                    uri,
-                    metadata,
-                    rootId
-                )
-            )
-        }
-
-        logger.debug("Created {} leaf sections from HTML content", leafSections.size)
-
-        // Build the hierarchical structure
-        val documentTitle = metadata.get(TikaCoreProperties.TITLE)
-            ?: metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY)
-            ?: (if (leafSections.isNotEmpty()) leafSections.first().title else "Document")
-
-        val hierarchicalSections = buildHierarchy(leafSections, rootId)
-
-        return MaterializedDocument(
-            id = rootId,
-            uri = uri,
-            title = documentTitle,
-            ingestionTimestamp = java.time.Instant.now(),
-            children = hierarchicalSections,
-            metadata = extractMetadataMap(metadata)
-        )
-    }
-
-    /**
-     * Parse plain text content into a content root with single section
-     */
-    private fun parsePlainText(
-        content: String,
-        metadata: Metadata,
-        uri: String,
-    ): MaterializedDocument {
-        if (content.isBlank()) {
-            return createEmptyContentRoot(metadata, uri)
-        }
-
-        val rootId = UUID.randomUUID().toString()
-        val title = extractTitle(content.lines(), metadata) ?: "Document"
-        val leafSection = createLeafSection(
-            id = UUID.randomUUID().toString(),
-            title = title,
-            content = content.trim(),
-            parentId = rootId,
-            url = uri,
-            metadata = metadata,
-            rootId = rootId
-        )
-
-        return MaterializedDocument(
-            id = rootId,
-            uri = uri,
-            title = title,
-            ingestionTimestamp = java.time.Instant.now(),
-            children = listOf(leafSection),
-            metadata = extractMetadataMap(metadata)
-        )
-    }
-
-    /**
-     * Build hierarchical structure from flat list of sections with parent IDs.
-     * Sections with children become ContainerSections, sections without children remain LeafSections.
-     * If a section has both content and children, the content is preserved as a preamble leaf section.
-     */
-    private fun buildHierarchy(
-        sections: List<LeafSection>,
-        rootId: String,
-    ): List<NavigableSection> {
-        if (sections.isEmpty()) return emptyList()
-
-        // Group sections by their parent ID
-        val sectionsByParent = sections.groupBy { it.parentId }
-
-        // Recursive function to build a section with its children
-        fun buildSection(section: LeafSection): NavigableSection {
-            val children = sectionsByParent[section.id] ?: emptyList()
-
-            return if (children.isEmpty()) {
-                // No children - keep as LeafSection
-                section
-            } else {
-                // Has children - convert to ContainerSection
-                // If section has content, preserve it as a preamble/introduction leaf
-                val childSections = mutableListOf<NavigableSection>()
-
-                if (section.content.isNotBlank()) {
-                    // Create a preamble leaf section to preserve the content
-                    val preambleId = "${section.id}_preamble"
-                    val preambleMetadata = section.metadata.toMutableMap().apply {
-                        // Update leaf_section_id to match the preamble's id
-                        put("leaf_section_id", preambleId)
-                    }
-                    val preambleSection = LeafSection(
-                        id = preambleId,
-                        uri = section.uri,
-                        title = section.title,
-                        text = section.content,
-                        parentId = section.id,
-                        metadata = preambleMetadata
-                    )
-                    childSections.add(preambleSection)
-                }
-
-                // Add the actual child sections
-                childSections.addAll(children.map { buildSection(it) })
-
-                DefaultMaterializedContainerSection(
-                    id = section.id,
-                    uri = section.uri,
-                    title = section.title,
-                    children = childSections,
-                    parentId = section.parentId,
-                    metadata = section.metadata
-                )
-            }
-        }
-
-        // Build the tree starting from top-level sections (those with rootId as parent)
-        val topLevelSections = sectionsByParent[rootId] ?: emptyList()
-        return topLevelSections.map { buildSection(it) }
-    }
-
-    private fun createLeafSection(
-        id: String,
-        title: String,
-        content: String,
-        parentId: String?,
-        url: String?,
-        metadata: Metadata,
-        rootId: String,
-    ): LeafSection {
-        val metadataMap = extractMetadataMap(metadata).toMutableMap()
-
-        // Add required metadata for pathFromRoot computation
-        metadataMap["root_document_id"] = rootId
-        metadataMap["container_section_id"] = parentId ?: rootId
-        metadataMap["leaf_section_id"] = id
-
-        return LeafSection(
-            id = id,
-            uri = url,
-            title = title,
-            text = content,
-            parentId = parentId,
-            metadata = metadataMap
-        )
-    }
-
-    private fun extractTitle(
-        lines: List<String>,
-        metadata: Metadata,
-    ): String? {
-        // Try to get title from metadata first
-        metadata.get(TikaCoreProperties.TITLE)?.let { return it }
-
-        // Look for first heading in markdown
-        for (line in lines) {
-            if (line.startsWith("#")) {
-                return line.substring(line.takeWhile { it == '#' }.length).trim()
-            }
-            if (line.isNotBlank()) {
-                // Use first non-blank line as title if no heading found
-                return line.take(50).trim()
-            }
-        }
-
-        return null
-    }
-
-    private fun extractMetadataMap(metadata: Metadata): Map<String, Any?> {
-        val map = mutableMapOf<String, Any?>()
-
-        for (name in metadata.names()) {
-            val value = metadata.get(name)
-            if (value != null) {
-                map[name] = value
-            }
-        }
-
-        return map
     }
 
     /**
@@ -645,20 +275,6 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
         return Charsets.UTF_8
     }
 
-    private fun createEmptyContentRoot(
-        metadata: Metadata,
-        uri: String,
-    ): MaterializedDocument {
-        return MaterializedDocument(
-            id = UUID.randomUUID().toString(),
-            uri = uri,
-            title = metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY) ?: "Empty Document",
-            ingestionTimestamp = java.time.Instant.now(),
-            children = emptyList(),
-            metadata = extractMetadataMap(metadata)
-        )
-    }
-
     private fun createErrorContentRoot(
         errorMessage: String,
         metadata: Metadata,
@@ -666,13 +282,14 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
     ): MaterializedDocument {
         val rootId = UUID.randomUUID().toString()
         val leafId = UUID.randomUUID().toString()
+        val metadataMap = ContentFormatParserUtils.extractMetadataMap(metadata)
         val errorSection = LeafSection(
             id = leafId,
             uri = uri,
             title = "Parse Error",
             text = "Error parsing content: $errorMessage",
             parentId = rootId,
-            metadata = extractMetadataMap(metadata) + mapOf(
+            metadata = metadataMap + mapOf(
                 "error" to errorMessage,
                 "root_document_id" to rootId,
                 "container_section_id" to rootId,
@@ -686,7 +303,7 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
             title = "Parse Error",
             ingestionTimestamp = java.time.Instant.now(),
             children = listOf(errorSection),
-            metadata = extractMetadataMap(metadata) + mapOf("error" to errorMessage)
+            metadata = metadataMap + mapOf("error" to errorMessage)
         )
     }
 
