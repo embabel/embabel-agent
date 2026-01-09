@@ -47,4 +47,3 @@ data class RetrievableIdentifier(
             )
     }
 }
-
