@@ -17,6 +17,7 @@ package com.embabel.agent.openai
 
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.ai.model.*
+import com.embabel.common.util.ObjectProviders
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.Logger
@@ -52,7 +53,7 @@ open class OpenAiCompatibleModelFactory(
     private val completionsPath: String?,
     private val embeddingsPath: String?,
     private val observationRegistry: ObservationRegistry,
-    private val requestFactory: ObjectProvider<ClientHttpRequestFactory>,
+    private val requestFactory: ObjectProvider<ClientHttpRequestFactory> = ObjectProviders.empty()
 ) {
 
     companion object {
