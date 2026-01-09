@@ -19,7 +19,7 @@ import com.embabel.agent.core.DataDictionary
 import com.embabel.agent.rag.filter.InMemoryPropertyFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.NamedEntityData
-import com.embabel.agent.rag.service.EntityIdentifier
+import com.embabel.agent.rag.service.RetrievableIdentifier
 import com.embabel.agent.rag.service.NamedEntityDataRepository
 import com.embabel.agent.rag.service.RelationshipData
 import com.embabel.common.ai.model.EmbeddingService
@@ -106,7 +106,7 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
 
     override val luceneSyntaxNotes: String = "Basic substring matching only"
 
-    override fun createRelationship(a: EntityIdentifier, b: EntityIdentifier, relationship: RelationshipData) {
+    override fun createRelationship(a: RetrievableIdentifier, b: RetrievableIdentifier, relationship: RelationshipData) {
         // No-op for in-memory implementation
     }
 

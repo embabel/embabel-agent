@@ -293,9 +293,10 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
     }
 
     /**
-     * Create a relationship between two entities.
+     * Create a relationship between two retrievables (entities, chunks, etc.).
+     * For example, linking a Chunk to the NamedEntity it mentions.
      */
-    fun createRelationship(a: EntityIdentifier, b: EntityIdentifier, relationship: RelationshipData)
+    fun createRelationship(a: RetrievableIdentifier, b: RetrievableIdentifier, relationship: RelationshipData)
 
     /**
      * Delete an entity by ID.
