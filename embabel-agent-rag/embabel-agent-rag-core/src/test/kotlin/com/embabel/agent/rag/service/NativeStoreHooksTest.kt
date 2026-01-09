@@ -17,6 +17,7 @@ package com.embabel.agent.rag.service
 
 import com.embabel.agent.core.DataDictionary
 import com.embabel.agent.rag.model.NamedEntity
+import com.embabel.agent.rag.model.RetrievableEntity
 import com.embabel.agent.rag.model.SimpleNamedEntityData
 import com.embabel.agent.rag.service.support.InMemoryNamedEntityDataRepository
 import org.junit.jupiter.api.Assertions.*
@@ -51,7 +52,7 @@ data class ProductImpl(
     override val uri: String? = null,
     override val metadata: Map<String, Any?> = emptyMap(),
 ) : Product {
-    override fun labels(): Set<String> = setOf("Product", "Entity")
+    override fun labels(): Set<String> = setOf("Product", RetrievableEntity.ENTITY_LABEL)
 }
 
 /**

@@ -55,7 +55,7 @@ interface NamedEntityData : EntityData, NamedEntity {
     // Use EntityData's embeddableValue which includes properties
     override fun embeddableValue(): String = super<EntityData>.embeddableValue()
 
-    // Use RetrievableEntity's labels which adds "Entity"
+    // Use RetrievableEntity's labels which adds ENTITY_LABEL (__Entity__)
     override fun labels(): Set<String> = super<EntityData>.labels()
 
     /**

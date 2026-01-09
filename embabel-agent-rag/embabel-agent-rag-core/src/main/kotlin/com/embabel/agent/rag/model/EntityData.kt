@@ -24,9 +24,26 @@ import io.swagger.v3.oas.annotations.media.Schema
 interface RetrievableEntity : Retrievable {
 
     override fun labels(): Set<String> {
-        return super.labels() + setOf("Entity")
+        return super.labels() + setOf(ENTITY_LABEL)
     }
 
+    companion object {
+        /**
+         * Base label for all entities.
+         * Aligns with Neo4j LLM Graph Builder convention.
+         * @see <a href="https://github.com/neo4j-labs/llm-graph-builder">LLM Graph Builder</a>
+         */
+        const val ENTITY_LABEL = "__Entity__"
+
+        /**
+         * Relationship type from Chunk to Entity.
+         * Aligns with Neo4j LLM Graph Builder convention.
+         * ```
+         * (Chunk)-[:HAS_ENTITY]->(__Entity__)
+         * ```
+         */
+        const val HAS_ENTITY = "HAS_ENTITY"
+    }
 }
 
 /**

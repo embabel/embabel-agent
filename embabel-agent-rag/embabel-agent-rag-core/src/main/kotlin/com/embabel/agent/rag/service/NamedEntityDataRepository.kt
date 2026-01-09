@@ -437,7 +437,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      *
      * Example:
      * ```java
-     * // Entity has labels ["Person", "Manager", "Entity"]
+     * // Entity has labels ["Person", "Manager", "__Entity__"]
      * NamedEntity result = repository.findById(
      *     "emp-1",
      *     Person.class, Manager.class, Employee.class
@@ -482,7 +482,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * val dictionary = DataDictionary.fromClasses(Person::class.java, Manager::class.java)
      * repository.dataDictionary = dictionary
      *
-     * // Entity has labels ["Person", "Manager", "Entity"]
+     * // Entity has labels ["Person", "Manager", "__Entity__"]
      * val result = repository.findEntityById("emp-1")
      * // result implements both Person and Manager
      * val person = result as Person

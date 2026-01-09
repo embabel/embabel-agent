@@ -17,6 +17,7 @@ package com.embabel.agent.rag.tools
 
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
+import com.embabel.agent.rag.model.RetrievableEntity.Companion.ENTITY_LABEL
 import com.embabel.agent.rag.model.SimpleEntityData
 import com.embabel.agent.rag.service.*
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
@@ -670,7 +671,7 @@ class ToolishRagTest {
 
             assertTrue(result.contains("2 results:"))
             assertTrue(result.contains("Chunk content"))
-            assertTrue(result.contains("Entity"))
+            assertTrue(result.contains(ENTITY_LABEL))
         }
 
         @Test
@@ -791,7 +792,7 @@ class ToolishRagTest {
 
             assertTrue(result.contains("2 results:"))
             assertTrue(result.contains("Chunk content"))
-            assertTrue(result.contains("Entity"))
+            assertTrue(result.contains(ENTITY_LABEL))
         }
 
         @Test

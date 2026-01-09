@@ -17,6 +17,7 @@ package com.embabel.agent.rag.model
 
 import com.embabel.agent.core.DynamicType
 import com.embabel.agent.core.JvmType
+import com.embabel.agent.rag.model.RetrievableEntity.Companion.ENTITY_LABEL
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.junit.jupiter.api.Assertions.*
@@ -404,7 +405,7 @@ class NamedEntityHydrationTest {
             val labels = entityData.labels()
 
             assertTrue(labels.contains("Custom"))
-            assertTrue(labels.contains("Entity")) // From RetrievableEntity
+            assertTrue(labels.contains(ENTITY_LABEL)) // From RetrievableEntity
         }
 
         @Test
@@ -426,7 +427,7 @@ class NamedEntityHydrationTest {
             assertEquals("http://example.com/entity/1", entityData.uri)
             assertEquals("Full Entity", entityData.name)
             assertEquals("An entity with all fields", entityData.description)
-            assertEquals(setOf("Test", "Full", "Entity"), entityData.labels())
+            assertEquals(setOf("Test", "Full", ENTITY_LABEL), entityData.labels())
             assertEquals(mapOf("extra" to "data"), entityData.properties)
             assertEquals(mapOf("source" to "test"), entityData.metadata)
             assertEquals(jvmType, entityData.linkedDomainType)

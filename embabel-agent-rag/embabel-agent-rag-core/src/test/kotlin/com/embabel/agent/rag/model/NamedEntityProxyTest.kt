@@ -17,6 +17,7 @@ package com.embabel.agent.rag.model
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import com.embabel.agent.rag.model.RetrievableEntity.Companion.ENTITY_LABEL
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -143,7 +144,7 @@ class NamedEntityProxyTest {
         assertEquals("http://example.com/entity/1", proxy.uri)
         assertEquals(mapOf("source" to "test"), proxy.metadata)
         assertTrue(proxy.labels().contains("Employee"))
-        assertTrue(proxy.labels().contains("Entity"))
+        assertTrue(proxy.labels().contains(ENTITY_LABEL))
     }
 
     @Test
