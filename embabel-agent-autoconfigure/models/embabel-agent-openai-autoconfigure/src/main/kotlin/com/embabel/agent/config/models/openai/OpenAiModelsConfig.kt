@@ -116,7 +116,7 @@ class OpenAiModelsConfig(
     completionsPath = envCompletionsPath ?: properties.completions,
     embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-    requestFactory = requestFactory,
+    requestFactory,
 ) {
 
     init {
