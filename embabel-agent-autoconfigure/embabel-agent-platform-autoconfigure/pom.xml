@@ -26,6 +26,11 @@
             <artifactId>embabel-agent-api</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+        </dependency>
+
         <!-- Spring AI Auto Configurations required for all models -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
