@@ -16,36 +16,22 @@
 package com.embabel.agent.openai
 
 import com.embabel.common.ai.model.PricingModel
-import io.mockk.Runs
-import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatModel
-import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.ClientHttpRequestFactory
-import org.springframework.http.client.SimpleClientHttpRequestFactory
-import java.util.function.Supplier
 
 class OpenAiCompatibleModelFactoryTest {
 
-    private val requestFactory = mockk<ObjectProvider<ClientHttpRequestFactory>> {
-        every { getIfAvailable(any<Supplier<ClientHttpRequestFactory>>()) } returns SimpleClientHttpRequestFactory()
-        every { ifAvailable(any()) } just Runs
-    }
-
     @Test
     fun `default base url`() {
-
         val mf = OpenAiCompatibleModelFactory(
             baseUrl = null,
             apiKey = null,
             completionsPath = null,
             embeddingsPath = null,
             observationRegistry = mockk(),
-            requestFactory = requestFactory,
         )
         val llm = mf.openAiCompatibleLlm(
             model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
@@ -58,14 +44,12 @@ class OpenAiCompatibleModelFactoryTest {
 
     @Test
     fun `custom base url`() {
-
         val mf = OpenAiCompatibleModelFactory(
             baseUrl = "foobar",
             apiKey = null,
             completionsPath = null,
             embeddingsPath = null,
             observationRegistry = mockk(),
-            requestFactory = requestFactory,
         )
         val llm = mf.openAiCompatibleLlm(
             model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,

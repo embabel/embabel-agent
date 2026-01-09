@@ -17,7 +17,6 @@ package com.embabel.agent.openai
 
 import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.common.ai.model.*
-import com.embabel.common.util.ObjectProviders
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.Logger
@@ -33,8 +32,6 @@ import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.ai.openai.api.OpenAiApi
 import org.springframework.ai.retry.RetryUtils
-import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.ClientHttpRequestFactory
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
@@ -53,13 +50,7 @@ open class OpenAiCompatibleModelFactory(
     private val completionsPath: String?,
     private val embeddingsPath: String?,
     private val observationRegistry: ObservationRegistry,
-    private val requestFactory: ObjectProvider<ClientHttpRequestFactory> = ObjectProviders.empty()
 ) {
-
-    companion object {
-        private const val CONNECT_TIMEOUT_MS = 5000
-        private const val READ_TIMEOUT_MS = 600000
-    }
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -91,15 +82,16 @@ open class OpenAiCompatibleModelFactory(
         }
 
         //add observation registry to rest and web client builders
+        // Use SimpleClientHttpRequestFactory (HttpURLConnection) for robust connectivity to local LM Studio.
+        // Some default clients (like JDK HttpClient) may struggle with localhost/127.0.0.1 resolution in some environments.
+        val requestFactory = SimpleClientHttpRequestFactory()
+        requestFactory.setConnectTimeout(5000)
+        requestFactory.setReadTimeout(600000) //
+
         builder
             .restClientBuilder(
                 RestClient.builder()
-                    .requestFactory(requestFactory.getIfAvailable {
-                        SimpleClientHttpRequestFactory().apply {
-                            setConnectTimeout(CONNECT_TIMEOUT_MS)
-                            setReadTimeout(READ_TIMEOUT_MS)
-                        }
-                    })
+                    .requestFactory(requestFactory)
                     .observationRegistry(observationRegistry)
             )
         builder
