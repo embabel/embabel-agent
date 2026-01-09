@@ -32,6 +32,7 @@ class OpenAiCompatibleModelFactoryTest {
             completionsPath = null,
             embeddingsPath = null,
             observationRegistry = mockk(),
+            requestFactory = mockk(),
         )
         val llm = mf.openAiCompatibleLlm(
             model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
@@ -50,6 +51,7 @@ class OpenAiCompatibleModelFactoryTest {
             completionsPath = null,
             embeddingsPath = null,
             observationRegistry = mockk(),
+            requestFactory = mockk(),
         )
         val llm = mf.openAiCompatibleLlm(
             model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
