@@ -154,6 +154,8 @@ class NativeStoreHooksTest {
             )
 
             val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+                override fun isNativeType(type: Class<*>): Boolean = type == Product::class.java
+
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
                     return if (id == "native-1" && type == Product::class.java) {
@@ -347,6 +349,8 @@ class NativeStoreHooksTest {
             val nativeProduct = ProductImpl("prod-1", "Native Product", "Native", 50.0, "NAT")
 
             val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+                override fun isNativeType(type: Class<*>): Boolean = type == Product::class.java
+
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
                     return if (type == Product::class.java && id == "prod-1") {

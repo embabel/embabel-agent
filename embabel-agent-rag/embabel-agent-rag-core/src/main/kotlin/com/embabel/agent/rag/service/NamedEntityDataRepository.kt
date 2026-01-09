@@ -375,8 +375,10 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * @return the hydrated instance, or null if not found or hydration fails
      */
     fun <T : NamedEntity> findTypedById(id: String, type: Class<T>): T? {
-        // Try native store first
-        findNativeById(id, type)?.let { return it }
+        // Try native store first, but only if this type is natively mapped
+        if (isNativeType(type)) {
+            findNativeById(id, type)?.let { return it }
+        }
 
         // Fall back to generic lookup
         val jvmType = JvmType(type)
