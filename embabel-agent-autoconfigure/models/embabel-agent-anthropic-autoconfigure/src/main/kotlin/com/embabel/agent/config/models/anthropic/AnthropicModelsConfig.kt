@@ -33,15 +33,12 @@ import org.springframework.ai.anthropic.AnthropicChatOptions
 import org.springframework.ai.anthropic.api.AnthropicApi
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.http.client.ClientHttpRequestFactory
-import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.reactive.function.client.WebClient
 import java.time.LocalDate
@@ -92,8 +89,6 @@ class AnthropicModelsConfig(
     private val apiKey: String,
     private val properties: AnthropicProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
-    @param:Qualifier("aiModelHttpRequestFactory")
-    private val requestFactory: ObjectProvider<ClientHttpRequestFactory>,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<AnthropicModelDefinitions> = AnthropicModelLoader(),
 ) {
@@ -238,7 +233,6 @@ class AnthropicModelsConfig(
         builder
             .restClientBuilder(
                 RestClient.builder()
-                    .also { b -> requestFactory.ifAvailable { b.requestFactory(it) } }
                     .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             )
         builder

@@ -30,7 +30,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.http.client.ClientHttpRequestFactory
 
 /**
  * Configuration properties for OpenAI Custom model settings.
@@ -91,14 +90,12 @@ class OpenAiCustomModelsConfig(
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: OpenAiCustomProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
-    requestFactory: ObjectProvider<ClientHttpRequestFactory>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = baseUrl,
     apiKey = apiKey,
     completionsPath = null,
     embeddingsPath = null,
-    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-    requestFactory,
+    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
 ) {
 
     private val customModelList: List<String> = customModels
