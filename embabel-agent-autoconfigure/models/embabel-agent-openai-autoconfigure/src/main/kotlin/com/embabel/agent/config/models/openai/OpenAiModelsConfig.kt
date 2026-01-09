@@ -29,12 +29,14 @@ import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.client.ClientHttpRequestFactory
 
 /**
  * Configuration properties for OpenAI model settings.
@@ -102,16 +104,19 @@ class OpenAiModelsConfig(
     @Value("\${OPENAI_EMBEDDINGS_PATH:#{null}}")
     envEmbeddingsPath: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
+    @Qualifier("aiModelHttpRequestFactory")
+    requestFactory: ObjectProvider<ClientHttpRequestFactory>,
     private val properties: OpenAiProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
     apiKey = envApiKey ?: properties.apiKey
-        ?: error("OpenAI API key required: set OPENAI_API_KEY env var or embabel.agent.platform.models.openai.api-key"),
+    ?: error("OpenAI API key required: set OPENAI_API_KEY env var or embabel.agent.platform.models.openai.api-key"),
     completionsPath = envCompletionsPath ?: properties.completions,
     embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
-    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
+    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
+    requestFactory,
 ) {
 
     init {
