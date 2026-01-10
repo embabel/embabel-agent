@@ -24,6 +24,7 @@ import io.a2a.spec.JSONRPCError
 import io.a2a.spec.JSONRPCErrorResponse
 import io.a2a.spec.SendMessageRequest
 import io.a2a.spec.SendStreamingMessageRequest
+import io.a2a.spec.TaskResubscriptionRequest
 import jakarta.servlet.ServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -137,9 +138,9 @@ private class AgentCardHandlerWebFacade(
                         throw e
                     }
                 }
-                ResubscribeTaskRequest.METHOD -> {
+                TaskResubscriptionRequest.METHOD -> {
                     logger.debug("Processing resubscribe request for method: {}", method)
-                    // For resubscribe requests (custom implementation), handle separately
+                    // For resubscribe requests, handle separately
                     // Cast to AutonomyA2ARequestHandler to access custom streaming method
                     if (agentCardHandler is AutonomyA2ARequestHandler) {
                         agentCardHandler.handleCustomStreamingRequest(method, requestMap, objectMapper)

@@ -126,7 +126,7 @@
         <dependency>
             <groupId>io.github.a2asdk</groupId>
             <artifactId>a2a-java-sdk-spec</artifactId>
-            <version>0.2.5</version>
+            <version>0.3.2.Final</version>
         </dependency>
 
         <!-- Unit and Integration Testing -->
