@@ -47,6 +47,16 @@ import org.springframework.web.reactive.function.client.WebClient
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.mistralai")
 class MistralAiProperties : RetryProperties {
     /**
+     * Base URL for Mistral AI API requests.
+     */
+    var baseUrl: String? = null
+
+    /**
+     * API key for authenticating with Mistral AI services.
+     */
+    var apiKey: String? = null
+
+    /**
      * Maximum number of attempts.
      */
     override var maxAttempts: Int = 10
@@ -75,16 +85,20 @@ class MistralAiProperties : RetryProperties {
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(MistralAiProperties::class)
 class MistralAiModelsConfig(
-    @param:Value("\${MISTRAL_BASE_URL:}")
-    private val baseUrl: String,
-    @param:Value("\${MISTRAL_API_KEY}")
-    private val apiKey: String,
+    @param:Value("\${MISTRAL_BASE_URL:#{null}}")
+    private val envBaseUrl: String?,
+    @param:Value("\${MISTRAL_API_KEY:#{null}}")
+    private val envApiKey: String?,
     private val properties: MistralAiProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<MistralAiModelDefinitions> = MistralAiModelLoader(),
 ) {
     private val logger = LoggerFactory.getLogger(MistralAiModelsConfig::class.java)
+
+    private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
+    private val apiKey: String = envApiKey ?: properties.apiKey
+        ?: error("Mistral AI API key required: set MISTRAL_API_KEY env var or embabel.agent.platform.models.mistralai.api-key")
 
     init {
         logger.info("Mistral AI models are available: {}", properties)
@@ -171,7 +185,7 @@ class MistralAiModelsConfig(
 
     private fun createMistralAiApi(): MistralAiApi {
         val builder = MistralAiApi.builder().apiKey(apiKey)
-        if (baseUrl.isNotBlank()) {
+        if (!baseUrl.isNullOrBlank()) {
             logger.info("Using custom Mistral AI base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
         }

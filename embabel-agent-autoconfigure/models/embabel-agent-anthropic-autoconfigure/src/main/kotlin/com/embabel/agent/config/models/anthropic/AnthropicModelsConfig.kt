@@ -56,6 +56,16 @@ import java.time.LocalDate
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.anthropic")
 class AnthropicProperties : RetryProperties {
     /**
+     * Base URL for Anthropic API requests.
+     */
+    var baseUrl: String? = null
+
+    /**
+     * API key for authenticating with Anthropic services.
+     */
+    var apiKey: String? = null
+
+    /**
      *  Maximum number of attempts.
      */
     override var maxAttempts: Int = 10
@@ -86,10 +96,10 @@ class AnthropicProperties : RetryProperties {
 @EnableConfigurationProperties(AnthropicProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "Anthropic configuration can't be unit tested")
 class AnthropicModelsConfig(
-    @param:Value("\${ANTHROPIC_BASE_URL:}")
-    private val baseUrl: String,
-    @param:Value("\${ANTHROPIC_API_KEY}")
-    private val apiKey: String,
+    @param:Value("\${ANTHROPIC_BASE_URL:#{null}}")
+    private val envBaseUrl: String?,
+    @param:Value("\${ANTHROPIC_API_KEY:#{null}}")
+    private val envApiKey: String?,
     private val properties: AnthropicProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
     @param:Qualifier("aiModelHttpRequestFactory")
@@ -98,6 +108,10 @@ class AnthropicModelsConfig(
     private val modelLoader: LlmAutoConfigMetadataLoader<AnthropicModelDefinitions> = AnthropicModelLoader(),
 ) {
     private val logger = LoggerFactory.getLogger(AnthropicModelsConfig::class.java)
+
+    private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
+    private val apiKey: String = envApiKey ?: properties.apiKey
+        ?: error("Anthropic API key required: set ANTHROPIC_API_KEY env var or embabel.agent.platform.models.anthropic.api-key")
 
     init {
         logger.info("Anthropic models are available: {}", properties)
@@ -230,7 +244,7 @@ class AnthropicModelsConfig(
 
     private fun createAnthropicApi(): AnthropicApi {
         val builder = AnthropicApi.builder().apiKey(apiKey)
-        if (baseUrl.isNotBlank()) {
+        if (!baseUrl.isNullOrBlank()) {
             logger.info("Using custom Anthropic base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
         }

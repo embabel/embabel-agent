@@ -40,6 +40,21 @@ import org.springframework.http.client.ClientHttpRequestFactory
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.openai.custom")
 class OpenAiCustomProperties : RetryProperties {
     /**
+     * Base URL for OpenAI Custom API requests.
+     */
+    var baseUrl: String? = null
+
+    /**
+     * API key for authenticating with OpenAI Custom services.
+     */
+    var apiKey: String? = null
+
+    /**
+     * Comma-separated list of custom model IDs to register.
+     */
+    var models: String? = null
+
+    /**
      *  Maximum number of attempts.
      */
     override var maxAttempts: Int = 10
@@ -82,26 +97,26 @@ class OpenAiCustomProperties : RetryProperties {
 @EnableConfigurationProperties(OpenAiCustomProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "OpenAi Custom configuration can't be unit tested")
 class OpenAiCustomModelsConfig(
-    @Value("\${OPENAI_CUSTOM_BASE_URL:#{null}}")
-    baseUrl: String?,
-    @Value("\${OPENAI_CUSTOM_API_KEY}")
-    apiKey: String,
-    @Value("\${OPENAI_CUSTOM_MODELS:#{null}}")
-    private val customModels: String?,
+    @param:Value("\${OPENAI_CUSTOM_BASE_URL:#{null}}")
+    private val envBaseUrl: String?,
+    @param:Value("\${OPENAI_CUSTOM_API_KEY:#{null}}")
+    private val envApiKey: String?,
+    @param:Value("\${OPENAI_CUSTOM_MODELS:#{null}}")
+    private val envCustomModels: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: OpenAiCustomProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     requestFactory: ObjectProvider<ClientHttpRequestFactory>,
 ) : OpenAiCompatibleModelFactory(
-    baseUrl = baseUrl,
-    apiKey = apiKey,
+    baseUrl = envBaseUrl ?: properties.baseUrl,
+    apiKey = envApiKey ?: properties.apiKey ?: error("OpenAI Custom API key required: set OPENAI_CUSTOM_API_KEY env var or embabel.agent.platform.models.openai.custom.api-key"),
     completionsPath = null,
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     requestFactory,
 ) {
 
-    private val customModelList: List<String> = customModels
+    private val customModelList: List<String> = (envCustomModels ?: properties.models)
         ?.split(",")
         ?.map { it.trim() }
         ?.filter { it.isNotBlank() }
