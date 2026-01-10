@@ -264,7 +264,28 @@ MISTRAL_API_KEY=your_mistral_api_key_here
 - `OPENAI_COMPLETIONS_PATH`: custom path for completions endpoint (default: `/v1/completions`)
 - `OPENAI_EMBEDDINGS_PATH`: custom path for embeddings endpoint (default: `/v1/embeddings`)
 
+Alternatively, configure via `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        openai:
+          api-key: ${OPENAI_API_KEY:sk-dev-key}  # <1>
+          base-url: ${OPENAI_BASE_URL:}  # <2>
+----
+
+<1> API key with optional default for local development
+<2> Optional base URL override
+
 ===== OpenAi Custom
+
+* Required:
+- `OPENAI_CUSTOM_API_KEY`: API key for the OpenAI-compatible service
+* Optional:
+- `OPENAI_CUSTOM_BASE_URL`: base URL for the OpenAI-compatible API
 - `OPENAI_CUSTOM_MODELS`: comma-separated list of custom model names to register (useful for OpenAI-compatible providers like Groq, Together AI, etc.)
 
 When using `OPENAI_CUSTOM_MODELS`, set `EMBABEL_MODELS_DEFAULT_LLM` to specify which model to use as the default.
@@ -278,10 +299,40 @@ export OPENAI_CUSTOM_API_KEY="your-groq-api-key"
 export OPENAI_CUSTOM_MODELS="llama-3.3-70b-versatile,mixtral-8x7b-32768"
 export EMBABEL_MODELS_DEFAULT_LLM="llama-3.3-70b-versatile"
 ----
+
+Alternatively, configure via `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        openai:
+          custom:
+            api-key: ${OPENAI_CUSTOM_API_KEY:your-dev-key}
+            base-url: https://api.groq.com/openai/v1
+            models: llama-3.3-70b-versatile,mixtral-8x7b-32768
+----
 ===== Anthropic (Claude 3.x, etc.)
 
 * Required:
 - `ANTHROPIC_API_KEY`: API key for Anthropic services
+* Optional:
+- `ANTHROPIC_BASE_URL`: base URL for Anthropic API
+
+Alternatively, configure via `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        anthropic:
+          api-key: ${ANTHROPIC_API_KEY:sk-ant-dev-key}
+          base-url: ${ANTHROPIC_BASE_URL:}
+----
 
 ===== DeepSeek
 
@@ -290,6 +341,19 @@ export EMBABEL_MODELS_DEFAULT_LLM="llama-3.3-70b-versatile"
 * Optional:
 - `DEEPSEEK_BASE_URL`: base URL for DeepSeek API (default: `https://api.deepseek.com`)
 
+Alternatively, configure via `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        deepseek:
+          api-key: ${DEEPSEEK_API_KEY:sk-dev-key}
+          base-url: ${DEEPSEEK_BASE_URL:}
+----
+
 ===== Google Gemini (OpenAI Compatible)
 
 Uses the OpenAI-compatible endpoint for Gemini models.
@@ -297,7 +361,20 @@ Uses the OpenAI-compatible endpoint for Gemini models.
 * Required:
 - `GEMINI_API_KEY`: API key for Google Gemini services
 * Optional:
-- `GEMINI_BASE_URL`: base URL for Gemini API (default: `https://generativelanguage.googleapis.com`)
+- `GEMINI_BASE_URL`: base URL for Gemini API (default: `https://generativelanguage.googleapis.com/v1beta/openai`)
+
+Alternatively, configure via `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        gemini:
+          api-key: ${GEMINI_API_KEY:your-dev-key}
+          base-url: ${GEMINI_BASE_URL:}
+----
 
 ===== Google GenAI (Native)
 
@@ -370,6 +447,19 @@ embabel:
 - `MISTRAL_API_KEY`: API key for Mistral AI services
 * Optional:
 - `MISTRAL_BASE_URL`: base URL for Mistral AI API (default: `https://api.mistral.ai`)
+
+Alternatively, configure via `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        mistralai:
+          api-key: ${MISTRAL_API_KEY:your-dev-key}
+          base-url: ${MISTRAL_BASE_URL:}
+----
 
 ===== LM Studio
 
