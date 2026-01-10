@@ -16,21 +16,16 @@
 package com.embabel.agent.autoconfigure.platform;
 
 
-import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration;
-import com.embabel.agent.spi.config.spring.ToolGroupsConfiguration;
-import com.embabel.common.core.config.CommonPlatformPropertiesLoader;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.context.annotation.Import;
 
 
 /**
  * Bootstraps Agent Platform Configuration, Tools Configuration, and Rag Service Configuration
  */
 @AutoConfiguration
-@Import({CommonPlatformPropertiesLoader.class, ScanConfiguration.class, AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, HttpClientConfiguration.class,})
 public class AgentPlatformAutoConfiguration {
     final private static Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
 

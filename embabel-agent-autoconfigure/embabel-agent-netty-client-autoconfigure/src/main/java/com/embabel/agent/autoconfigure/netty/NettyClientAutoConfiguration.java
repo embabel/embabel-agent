@@ -13,42 +13,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.autoconfigure.platform;
+package com.embabel.agent.autoconfigure.netty;
 
 import io.netty.channel.ChannelOption;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ReactorClientHttpRequestFactory;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
 
 
 @ConfigurationProperties(prefix = "embabel.agent.platform.http-client")
-record HttpClientProperties(
+record NettyClientFactoryProperties(
         Duration connectTimeout,
-        Duration readTimeout,
-        Boolean useReactorNetty
+        Duration readTimeout
 ) {
-    public HttpClientProperties {
+    public NettyClientFactoryProperties {
         connectTimeout = connectTimeout != null ? connectTimeout : Duration.ofSeconds(25);
         readTimeout = readTimeout != null ? readTimeout : Duration.ofMinutes(1);
-        useReactorNetty = useReactorNetty != null ? useReactorNetty : true;
     }
 }
 
-@Configuration
-@EnableConfigurationProperties(HttpClientProperties.class)
-public class HttpClientConfiguration {
+@AutoConfiguration
+@EnableConfigurationProperties(NettyClientFactoryProperties.class)
+@AutoConfigureBefore(name = "com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfiguration")
+public class NettyClientAutoConfiguration {
 
     @Bean("aiModelHttpRequestFactory")
     @ConditionalOnProperty(value = "embabel.agent.platform.http-client.use-reactor-netty", havingValue = "true", matchIfMissing = true)
-    ClientHttpRequestFactory reactorClientHttpRequestFactory(HttpClientProperties httpClientProperties) {
+    ClientHttpRequestFactory reactorClientHttpRequestFactory(NettyClientFactoryProperties httpClientProperties) {
         var httpClient = HttpClient.create().responseTimeout(httpClientProperties
                         .readTimeout())
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) httpClientProperties
@@ -56,16 +55,6 @@ public class HttpClientConfiguration {
                         .toMillis());
 
         return new ReactorClientHttpRequestFactory(httpClient);
-    }
-
-    @Bean("aiModelHttpRequestFactory")
-    @ConditionalOnProperty(value = "embabel.agent.platform.http-client.use-reactor-netty", havingValue = "false")
-    ClientHttpRequestFactory defaultClientHttpRequestFactory(HttpClientProperties httpClientProperties) {
-        var requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(httpClientProperties.connectTimeout());
-        requestFactory.setReadTimeout(httpClientProperties.readTimeout());
-
-        return requestFactory;
     }
 
 }
