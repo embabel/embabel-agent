@@ -72,7 +72,7 @@ class EmbabelServerGoalsAgentCardHandler(
                 ).skills(agentPlatform.name)
             )
             .supportsAuthenticatedExtendedCard(false)
-            .protocolVersion("0.2.5")
+            .protocolVersion("0.3.0")
             .build()
         logger.info("Returning agent card: {}", agentCard)
         return agentCard

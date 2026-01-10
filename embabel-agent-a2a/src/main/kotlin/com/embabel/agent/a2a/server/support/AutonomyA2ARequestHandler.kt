@@ -26,7 +26,7 @@ import io.a2a.spec.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.util.*
 
 /**
@@ -55,8 +55,8 @@ class AutonomyA2ARequestHandler(
      */
     fun handleCustomStreamingRequest(method: String, requestMap: Map<String, Any>, objectMapper: com.fasterxml.jackson.databind.ObjectMapper): SseEmitter {
         return when (method) {
-            ResubscribeTaskRequest.METHOD -> {
-                val request = objectMapper.convertValue(requestMap, ResubscribeTaskRequest::class.java)
+            TaskResubscriptionRequest.METHOD -> {
+                val request = objectMapper.convertValue(requestMap, TaskResubscriptionRequest::class.java)
                 handleTaskResubscribe(request)
             }
             else -> throw UnsupportedOperationException("Method $method is not supported for streaming")
@@ -169,11 +169,6 @@ class AutonomyA2ARequestHandler(
                     taskId
                 )
 
-                // Send the received message, if any
-                params.message?.let { userMsg ->
-                    streamingHandler.sendStreamEvent(streamId, userMsg, taskId)
-                }
-
                 val intent = params.message?.parts?.filterIsInstance<TextPart>()?.firstOrNull()?.text
                     ?: "Task $taskId"
 
@@ -237,7 +232,7 @@ class AutonomyA2ARequestHandler(
     /**
      * Handles task resubscription requests
      */
-    fun handleTaskResubscribe(request: ResubscribeTaskRequest): SseEmitter {
+    fun handleTaskResubscribe(request: TaskResubscriptionRequest): SseEmitter {
         val params = request.params
         val taskId = params.id  // TaskIdParams.id contains the task identifier
         val streamId = request.id?.toString() ?: UUID.randomUUID().toString()
@@ -285,7 +280,7 @@ class AutonomyA2ARequestHandler(
             .contextId(params.message.contextId)
             .taskId(params.message.taskId)
             .build(),
-        LocalDateTime.now()
+        OffsetDateTime.now()
     )
 
     private fun createCompletedTaskStatus(
@@ -300,7 +295,7 @@ class AutonomyA2ARequestHandler(
             .contextId(params.message.contextId)
             .taskId(params.message.taskId)
             .build(),
-        LocalDateTime.now()
+        OffsetDateTime.now()
     )
 
     private fun createWorkingTaskStatus(
@@ -315,7 +310,7 @@ class AutonomyA2ARequestHandler(
             .contextId(params.message.contextId)
             .taskId(params.message.taskId)
             .build(),
-        LocalDateTime.now()
+        OffsetDateTime.now()
     )
 
     private fun ensureContextId(providedContextId: String?): String {

@@ -37,6 +37,7 @@ class FromGoalsAgentSkillFactory(
                     goal.examples.toList(),
                     listOf("application/json"),
                     listOf("application/json"),
+                    null,
                 )
             }
     }

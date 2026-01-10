@@ -153,11 +153,5 @@ class TaskStateManager {
         }
     }
 
-    private fun isTerminalState(state: TaskState): Boolean {
-        return state in setOf(
-            TaskState.COMPLETED,
-            TaskState.FAILED,
-            TaskState.CANCELED
-        )
-    }
+    private fun isTerminalState(state: TaskState): Boolean = state.isFinal
 }
