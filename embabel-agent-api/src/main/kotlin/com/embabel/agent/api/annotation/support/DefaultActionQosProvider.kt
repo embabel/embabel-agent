@@ -15,14 +15,63 @@
  */
 package com.embabel.agent.api.annotation.support
 
+import com.embabel.agent.api.annotation.Action
+import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.core.ActionQos
+import com.embabel.agent.core.ActionRetryPolicy
+import com.embabel.agent.spi.config.spring.AgentPlatformProperties
+import org.springframework.stereotype.Component
 import java.lang.reflect.Method
 
-class DefaultActionQosProvider : ActionQosProvider {
+/**
+ * Default {@link com.embabel.agent.api.annotation.support.ActionQosProvider} implementation that resolves
+ * retry overrides from {@link com.embabel.agent.api.annotation.Agent} and {@link com.embabel.agent.api.annotation.Action},
+ * then maps them to {@link com.embabel.agent.core.ActionQos}.
+ */
+@Component
+class DefaultActionQosProvider(
+    val actionQosProperties: AgentPlatformProperties.ActionQosProperties = AgentPlatformProperties.ActionQosProperties(),
+    val propertyProvider: ActionQosPropertyProvider = ActionQosPropertyProvider(),
+) : ActionQosProvider {
+
     override fun provideActionQos(
         method: Method,
         instance: Any
     ): ActionQos {
-        return ActionQos()
+
+        var defaultActionQos = actionQosProperties.default
+
+        var props = instance.javaClass.getAnnotation(Agent::class.java)?.let {
+            if (hasRetryExpression(it.actionRetryPolicyExpression)) {
+                defaultActionQos = defaultActionQos
+                    .overridingNotNull(getBound(it.actionRetryPolicyExpression))
+            }
+
+            if (it.actionRetryPolicy == ActionRetryPolicy.FIRE_ONCE) {
+                defaultActionQos = defaultActionQos.copy(maxAttempts = 1)
+            }
+
+            defaultActionQos
+
+        } ?: defaultActionQos
+
+        method.getAnnotation(Action::class.java)?.let {
+            if (hasRetryExpression(it.actionRetryPolicyExpression)) {
+                props = props.overridingNotNull(getBound(it.actionRetryPolicyExpression))
+            }
+            if (it.actionRetryPolicy == ActionRetryPolicy.FIRE_ONCE) {
+                props = props.copy(maxAttempts = 1)
+            }
+        }
+
+
+        return props.toActionQos()
     }
+
+
+    fun getBound(expr: String): AgentPlatformProperties.ActionQosProperties.ActionProperties? {
+        return propertyProvider.getBound(expr)
+    }
+
+    private fun hasRetryExpression(expr: String): Boolean = expr.isNotBlank()
 }
