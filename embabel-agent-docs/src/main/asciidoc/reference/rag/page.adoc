@@ -553,6 +553,131 @@ Configuration options:
 - `overlapSize` - Character overlap between consecutive chunks (default: 200)
 - `includeSectionTitleInChunk` - Include section title in chunk text (default: true)
 
+===== Chunk Transformation
+
+When chunks are created from documents, they often lack the context needed for effective retrieval.
+A chunk containing "This approach improves performance by 40%" is not useful unless the reader knows what "this approach" refers to.
+The `ChunkTransformer` interface allows you to enrich chunks with additional context before they are indexed.
+
+====== The urtext Field
+
+Every `Chunk` has two text fields:
+
+- `text` - The indexed content, which may be transformed with additional context
+- `urtext` - The original, unmodified chunk text
+
+The `urtext` field preserves the original content for accurate citations.
+When displaying search results to users, use `urtext` to show exactly what appeared in the source document, while using the enriched `text` for vector embeddings and search.
+
+====== AddTitlesChunkTransformer
+
+The recommended default transformer is `AddTitlesChunkTransformer`, which prepends document and section titles to each chunk:
+
+[source,java]
+----
+@Bean
+ChunkTransformer chunkTransformer() {
+    return AddTitlesChunkTransformer.INSTANCE;
+}
+----
+
+This transforms a chunk like:
+
+----
+This approach improves performance by 40% compared to the baseline.
+----
+
+Into:
+
+----
+# Title: Performance Optimization Guide
+# URI: https://docs.example.com/performance
+# Section: Caching Strategies
+
+This approach improves performance by 40% compared to the baseline.
+----
+
+Now the chunk carries its context, improving both retrieval accuracy and LLM understanding.
+
+====== Custom Transformers
+
+You can create custom transformers by implementing `ChunkTransformer` or extending `AbstractChunkTransformer`:
+
+[source,java]
+----
+public class MetadataEnrichingTransformer extends AbstractChunkTransformer {
+
+    @Override
+    public Map<String, Object> additionalMetadata(
+            Chunk chunk,
+            ChunkTransformationContext context) {
+        return Map.of(
+            "documentType", context.getDocument().getMetadata().get("type"),
+            "lastModified", Instant.now().toString()
+        );
+    }
+
+    @Override
+    public String newText(Chunk chunk, ChunkTransformationContext context) {
+        // Optionally modify the text
+        return chunk.getText();
+    }
+}
+----
+
+The `ChunkTransformationContext` provides access to:
+
+- `section` - The `Section` containing this chunk
+- `document` - The `ContentRoot` (may be null for orphan sections)
+
+====== Chaining Transformers
+
+Use `ChainedChunkTransformer` to apply multiple transformations in sequence:
+
+[source,java]
+----
+@Bean
+ChunkTransformer chunkTransformer() {
+    return new ChainedChunkTransformer(List.of(
+        AddTitlesChunkTransformer.INSTANCE,
+        new MetadataEnrichingTransformer(),
+        new CustomCleanupTransformer()
+    ));
+}
+----
+
+Transformers are applied in order, with each receiving the output of the previous transformer.
+
+====== Configuring the Store
+
+Pass your `ChunkTransformer` to the store implementation:
+
+[source,java]
+----
+@Bean
+DrivineStore drivineStore(
+        PersistenceManager persistenceManager,
+        EmbeddingService embeddingService,
+        ChunkTransformer chunkTransformer,  // <1>
+        MyProperties properties) {
+    return new DrivineStore(
+        persistenceManager,
+        properties.neoRag(),
+        properties.chunkerConfig(),
+        chunkTransformer,  // <2>
+        embeddingService,
+        platformTransactionManager,
+        new DrivineCypherSearch(persistenceManager)
+    );
+}
+----
+
+<1> Inject the `ChunkTransformer` bean
+<2> Pass it to the store constructor
+
+TIP: For most use cases, `AddTitlesChunkTransformer` is all you need.
+It adds essential context that significantly improves retrieval quality without adding complexity.
+
 ===== Using Docling for Markdown Conversion
 
 While we believe that you should write your Gen AI *applications* in Java or Kotlin, ingestion is more in the realm of data science, and Python is indisputably strong in this area.
