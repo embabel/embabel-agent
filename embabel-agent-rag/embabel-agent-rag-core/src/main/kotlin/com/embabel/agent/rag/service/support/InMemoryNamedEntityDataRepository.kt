@@ -19,9 +19,10 @@ import com.embabel.agent.core.DataDictionary
 import com.embabel.agent.rag.filter.InMemoryPropertyFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.NamedEntityData
-import com.embabel.agent.rag.service.RetrievableIdentifier
+import com.embabel.agent.rag.model.RelationshipDirection
 import com.embabel.agent.rag.service.NamedEntityDataRepository
 import com.embabel.agent.rag.service.RelationshipData
+import com.embabel.agent.rag.service.RetrievableIdentifier
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
@@ -55,6 +56,16 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
 
     private val entities = ConcurrentHashMap<String, NamedEntityData>()
     private val embeddings = ConcurrentHashMap<String, FloatArray>()
+
+    /**
+     * Stores relationships as: sourceId -> relationshipName -> list of targetIds
+     */
+    private val outgoingRelationships = ConcurrentHashMap<String, MutableMap<String, MutableList<String>>>()
+
+    /**
+     * Stores reverse relationships for INCOMING direction lookups: targetId -> relationshipName -> list of sourceIds
+     */
+    private val incomingRelationships = ConcurrentHashMap<String, MutableMap<String, MutableList<String>>>()
 
     override fun save(entity: NamedEntityData): NamedEntityData {
         entities[entity.id] = entity
@@ -107,7 +118,37 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
     override val luceneSyntaxNotes: String = "Basic substring matching only"
 
     override fun createRelationship(a: RetrievableIdentifier, b: RetrievableIdentifier, relationship: RelationshipData) {
-        // No-op for in-memory implementation
+        // Store outgoing relationship: a -> relationship -> b
+        outgoingRelationships
+            .getOrPut(a.id) { ConcurrentHashMap() }
+            .getOrPut(relationship.name) { mutableListOf() }
+            .add(b.id)
+
+        // Store incoming relationship: b <- relationship <- a
+        incomingRelationships
+            .getOrPut(b.id) { ConcurrentHashMap() }
+            .getOrPut(relationship.name) { mutableListOf() }
+            .add(a.id)
+    }
+
+    override fun findRelated(
+        source: RetrievableIdentifier,
+        relationshipName: String,
+        direction: RelationshipDirection,
+    ): List<NamedEntityData> {
+        val entityId = source.id
+        val relatedIds = when (direction) {
+            RelationshipDirection.OUTGOING ->
+                outgoingRelationships[entityId]?.get(relationshipName) ?: emptyList()
+            RelationshipDirection.INCOMING ->
+                incomingRelationships[entityId]?.get(relationshipName) ?: emptyList()
+            RelationshipDirection.BOTH -> {
+                val outgoing = outgoingRelationships[entityId]?.get(relationshipName) ?: emptyList()
+                val incoming = incomingRelationships[entityId]?.get(relationshipName) ?: emptyList()
+                (outgoing + incoming).distinct()
+            }
+        }
+        return relatedIds.mapNotNull { entities[it] }
     }
 
     override fun delete(id: String): Boolean {
@@ -119,11 +160,13 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
         entities.values.filter { it.labels().contains(label) }
 
     /**
-     * Clear all entities and cached embeddings. Useful for testing.
+     * Clear all entities, relationships, and cached embeddings. Useful for testing.
      */
     fun clear() {
         entities.clear()
         embeddings.clear()
+        outgoingRelationships.clear()
+        incomingRelationships.clear()
     }
 
     /**

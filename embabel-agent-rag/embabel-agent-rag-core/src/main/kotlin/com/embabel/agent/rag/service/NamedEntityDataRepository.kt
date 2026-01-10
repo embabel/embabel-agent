@@ -21,6 +21,9 @@ import com.embabel.agent.core.JvmType
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.NamedEntity
 import com.embabel.agent.rag.model.NamedEntityData
+import com.embabel.agent.rag.model.Relationship
+import com.embabel.agent.rag.model.RelationshipDirection
+import com.embabel.agent.rag.model.RelationshipNavigator
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
@@ -45,7 +48,7 @@ data class RelationshipData(
  * Extends [FilteringVectorSearch] and [FilteringTextSearch] to support native metadata filtering
  * when available, otherwise falls back to post-filtering.
  */
-interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, FilteringVectorSearch, FilteringTextSearch {
+interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, FilteringVectorSearch, FilteringTextSearch, RelationshipNavigator {
 
     /**
      * ObjectMapper for hydrating entities to typed JVM instances.
@@ -157,7 +160,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
         return vectorSearch(request, metadataFilter = null, propertyFilter = null).mapNotNull { similarityResult ->
-            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass)?.let { typed ->
+            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)?.let { typed ->
                 SimilarityResult(typed as T, similarityResult.score)
             }
         }
@@ -181,7 +184,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
         return textSearch(request, metadataFilter = null, propertyFilter = null).mapNotNull { similarityResult ->
-            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass)?.let { typed ->
+            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)?.let { typed ->
                 SimilarityResult(typed as T, similarityResult.score)
             }
         }
@@ -209,7 +212,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
         return vectorSearch(request, metadataFilter, propertyFilter).mapNotNull { similarityResult ->
-            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass)?.let { typed ->
+            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)?.let { typed ->
                 SimilarityResult(typed as T, similarityResult.score)
             }
         }
@@ -237,7 +240,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
         return textSearch(request, metadataFilter, propertyFilter).mapNotNull { similarityResult ->
-            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass)?.let { typed ->
+            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)?.let { typed ->
                 SimilarityResult(typed as T, similarityResult.score)
             }
         }
@@ -297,6 +300,46 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * For example, linking a Chunk to the NamedEntity it mentions.
      */
     fun createRelationship(a: RetrievableIdentifier, b: RetrievableIdentifier, relationship: RelationshipData)
+
+    /**
+     * Find entities related to the given entity via a named relationship.
+     *
+     * This method is used by [NamedEntityInvocationHandler][com.embabel.agent.rag.model.NamedEntityInvocationHandler]
+     * to support lazy loading of relationships marked with [@Relationship][Relationship].
+     *
+     * Example:
+     * ```kotlin
+     * // Find all pets owned by person "person-1"
+     * val pets = repository.findRelated(RetrievableIdentifier("person-1", "Person"), "OWNS", RelationshipDirection.OUTGOING)
+     * ```
+     *
+     * @param source identifier for the source entity (id + type)
+     * @param relationshipName the relationship type/name (e.g., "EMPLOYED_BY", "OWNS")
+     * @param direction the direction of traversal
+     * @return list of related entity data, or empty list if none found
+     */
+    override fun findRelated(
+        source: RetrievableIdentifier,
+        relationshipName: String,
+        direction: RelationshipDirection,
+    ): List<NamedEntityData>
+
+    /**
+     * Find a single entity related to the given entity via a named relationship.
+     *
+     * This is a convenience method for relationships expected to have at most one target.
+     * If multiple targets exist, returns the first one found.
+     *
+     * @param source identifier for the source entity (id + type)
+     * @param relationshipName the relationship type/name
+     * @param direction the direction of traversal
+     * @return the related entity data, or null if none found
+     */
+    fun findRelatedSingle(
+        source: RetrievableIdentifier,
+        relationshipName: String,
+        direction: RelationshipDirection = RelationshipDirection.OUTGOING,
+    ): NamedEntityData? = findRelated(source, relationshipName, direction).firstOrNull()
 
     /**
      * Delete an entity by ID.
@@ -384,7 +427,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         val jvmType = JvmType(type)
         return findByLabel(jvmType.ownLabel)
             .find { it.id == id }
-            ?.toTypedInstance(objectMapper, type)
+            ?.toTypedInstance(objectMapper, type, this)
     }
 
     /**
@@ -417,7 +460,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
 
         // Fall back to generic lookup
         val jvmType = JvmType(type)
-        return findByLabel(jvmType.ownLabel).mapNotNull { it.toTypedInstance(objectMapper, type) }
+        return findByLabel(jvmType.ownLabel).mapNotNull { it.toTypedInstance(objectMapper, type, this) }
     }
 
     /**
