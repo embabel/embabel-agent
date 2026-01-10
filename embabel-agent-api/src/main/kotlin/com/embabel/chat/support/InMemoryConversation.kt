@@ -49,4 +49,10 @@ class InMemoryConversation private constructor(
 
     override fun persistent(): Boolean = persistent
 
+    override fun last(n: Int): Conversation =
+        InMemoryConversation(
+            id = this.id,
+            persistent = false,
+            _messages = this._messages.takeLast(n).toMutableList(),
+        )
 }
