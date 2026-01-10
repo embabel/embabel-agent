@@ -18,7 +18,7 @@ ifdef::backend-html5[]
 
 Embabel Agent Release: {embabel-agent-version}
 
-(C) 2024-2026 Embabel
+(C) 2024-2026 Embabel Pty, Ltd
 
 endif::backend-html5[]
 
