@@ -46,6 +46,16 @@ import java.time.LocalDate
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.deepseek")
 class DeepSeekProperties : RetryProperties {
     /**
+     * Base URL for DeepSeek API requests.
+     */
+    var baseUrl: String? = null
+
+    /**
+     * API key for authenticating with DeepSeek services.
+     */
+    var apiKey: String? = null
+
+    /**
      *  Maximum number of attempts.
      */
     override var maxAttempts: Int = 4
@@ -75,14 +85,18 @@ class DeepSeekProperties : RetryProperties {
 @EnableConfigurationProperties(DeepSeekProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "DeepSeek configuration can't be unit tested")
 class DeepSeekModelsConfig(
-    @param:Value("\${DEEPSEEK_BASE_URL:}")
-    private val baseUrl: String,
-    @param:Value("\${DEEPSEEK_API_KEY}")
-    private val apiKey: String,
+    @param:Value("\${DEEPSEEK_BASE_URL:#{null}}")
+    private val envBaseUrl: String?,
+    @param:Value("\${DEEPSEEK_API_KEY:#{null}}")
+    private val envApiKey: String?,
     private val properties: DeepSeekProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
 ) {
     private val logger = LoggerFactory.getLogger(DeepSeekModelsConfig::class.java)
+
+    private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
+    private val apiKey: String = envApiKey ?: properties.apiKey
+        ?: error("DeepSeek API key required: set DEEPSEEK_API_KEY env var or embabel.agent.platform.models.deepseek.api-key")
 
     init {
         logger.info("DeepSeek models are available: {}", properties)
@@ -152,7 +166,7 @@ class DeepSeekModelsConfig(
     private fun createDeepSeekApi(): DeepSeekApi {
         val builder = DeepSeekApi.builder().apiKey(apiKey)
         // If baseUrl is blank, use default baseUrl https://api.deepseek.com
-        if (baseUrl.isNotBlank()) {
+        if (!baseUrl.isNullOrBlank()) {
             logger.info("Using custom DeepSeek base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
         }

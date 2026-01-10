@@ -44,6 +44,16 @@ import org.springframework.context.annotation.Configuration
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.gemini")
 class GeminiProperties : RetryProperties {
     /**
+     * Base URL for Gemini API requests.
+     */
+    var baseUrl: String? = null
+
+    /**
+     * API key for authenticating with Gemini services.
+     */
+    var apiKey: String? = null
+
+    /**
      *  Maximum number of attempts.
      */
     override var maxAttempts: Int = 10
@@ -76,17 +86,17 @@ class GeminiProperties : RetryProperties {
 @EnableConfigurationProperties(GeminiProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "Gemini configuration can't be unit tested")
 class GeminiModelsConfig(
-    @Value("\${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}")
-    baseUrl: String,
-    @Value("\${GEMINI_API_KEY}")
-    apiKey: String,
+    @param:Value("\${GEMINI_BASE_URL:#{null}}")
+    private val envBaseUrl: String?,
+    @param:Value("\${GEMINI_API_KEY:#{null}}")
+    private val envApiKey: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: GeminiProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<GeminiModelDefinitions> = GeminiModelLoader(),
 ) : OpenAiCompatibleModelFactory(
-    baseUrl = baseUrl,
-    apiKey = apiKey,
+    baseUrl = envBaseUrl ?: properties.baseUrl ?: DEFAULT_BASE_URL,
+    apiKey = envApiKey ?: properties.apiKey ?: error("Gemini API key required: set GEMINI_API_KEY env var or embabel.agent.platform.models.gemini.api-key"),
     completionsPath = null,
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
@@ -94,6 +104,10 @@ class GeminiModelsConfig(
 
     init {
         logger.info("Google Gemini models are available: {}", properties)
+    }
+
+    companion object {
+        private const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
     }
 
     @Bean

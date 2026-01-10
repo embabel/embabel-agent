@@ -95,24 +95,22 @@ class OpenAiProperties : RetryProperties {
 @EnableConfigurationProperties(OpenAiProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "OpenAi configuration can't be unit tested")
 class OpenAiModelsConfig(
-    @Value("\${OPENAI_BASE_URL:#{null}}")
-    envBaseUrl: String?,
-    @Value("\${OPENAI_API_KEY:#{null}}")
-    envApiKey: String?,
-    @Value("\${OPENAI_COMPLETIONS_PATH:#{null}}")
-    envCompletionsPath: String?,
-    @Value("\${OPENAI_EMBEDDINGS_PATH:#{null}}")
-    envEmbeddingsPath: String?,
+    @param:Value("\${OPENAI_BASE_URL:#{null}}")
+    private val envBaseUrl: String?,
+    @param:Value("\${OPENAI_API_KEY:#{null}}")
+    private val envApiKey: String?,
+    @param:Value("\${OPENAI_COMPLETIONS_PATH:#{null}}")
+    private val envCompletionsPath: String?,
+    @param:Value("\${OPENAI_EMBEDDINGS_PATH:#{null}}")
+    private val envEmbeddingsPath: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
-    @Qualifier("aiModelHttpRequestFactory")
-    requestFactory: ObjectProvider<ClientHttpRequestFactory>,
+    @Qualifier("aiModelHttpRequestFactory") requestFactory: ObjectProvider<ClientHttpRequestFactory>,
     private val properties: OpenAiProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
-    apiKey = envApiKey ?: properties.apiKey
-    ?: error("OpenAI API key required: set OPENAI_API_KEY env var or embabel.agent.platform.models.openai.api-key"),
+    apiKey = envApiKey ?: properties.apiKey ?: error("OpenAI API key required: set OPENAI_API_KEY env var or embabel.agent.platform.models.openai.api-key"),
     completionsPath = envCompletionsPath ?: properties.completions,
     embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
@@ -135,13 +133,11 @@ class OpenAiModelsConfig(
                     configurableBeanFactory.registerSingleton(modelDef.name, llm)
                     add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
                     logger.info(
-                        "Registered OpenAI model bean: {} -> {}",
-                        modelDef.name, modelDef.modelId
+                        "Registered OpenAI model bean: {} -> {}", modelDef.name, modelDef.modelId
                     )
                 } catch (e: Exception) {
                     logger.error(
-                        "Failed to create model: {} ({})",
-                        modelDef.name, modelDef.modelId, e
+                        "Failed to create model: {} ({})", modelDef.name, modelDef.modelId, e
                     )
                     throw e
                 }
@@ -156,13 +152,11 @@ class OpenAiModelsConfig(
                     configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
                     add(RegisteredModel(beanName = embeddingDef.name, modelId = embeddingDef.modelId))
                     logger.info(
-                        "Registered OpenAI embedding model bean: {} -> {}",
-                        embeddingDef.name, embeddingDef.modelId
+                        "Registered OpenAI embedding model bean: {} -> {}", embeddingDef.name, embeddingDef.modelId
                     )
                 } catch (e: Exception) {
                     logger.error(
-                        "Failed to create embedding model: {} ({})",
-                        embeddingDef.name, embeddingDef.modelId, e
+                        "Failed to create embedding model: {} ({})", embeddingDef.name, embeddingDef.modelId, e
                     )
                     throw e
                 }
@@ -189,8 +183,7 @@ class OpenAiModelsConfig(
         }
 
         val chatModel = chatModelOf(
-            model = modelDef.modelId,
-            retryTemplate = properties.retryTemplate(modelDef.modelId)
+            model = modelDef.modelId, retryTemplate = properties.retryTemplate(modelDef.modelId)
         )
 
         // Create pricing model if present
