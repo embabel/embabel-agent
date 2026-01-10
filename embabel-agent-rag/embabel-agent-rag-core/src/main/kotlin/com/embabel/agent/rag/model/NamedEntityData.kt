@@ -20,8 +20,6 @@ import com.embabel.agent.core.JvmType
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
-import java.lang.reflect.InvocationHandler
-import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 
 /**
@@ -152,65 +150,6 @@ interface NamedEntityData : EntityData, NamedEntity {
             interfaces,
             handler
         ) as T
-    }
-}
-
-/**
- * InvocationHandler that backs a [NamedEntity] instance with a property map.
- */
-internal class NamedEntityInvocationHandler(
-    private val properties: Map<String, Any?>,
-    private val metadata: Map<String, Any?>,
-    private val labels: Set<String>,
-    private val entityData: NamedEntityData,
-) : InvocationHandler {
-
-    override fun invoke(proxy: Any, method: Method, args: Array<out Any>?): Any? {
-        val methodName = method.name
-
-        return when (methodName) {
-            "toString" -> "NamedEntityInstance(id=${properties["id"]}, name=${properties["name"]}, labels=$labels)"
-            "hashCode" -> properties["id"].hashCode()
-            "equals" -> {
-                val other = args?.firstOrNull()
-                when {
-                    other === proxy -> true
-                    other is NamedEntity -> other.id == properties["id"]
-                    else -> false
-                }
-            }
-
-            // NamedEntity / Retrievable interface methods
-            "getId" -> properties["id"]
-            "getName" -> properties["name"]
-            "getDescription" -> properties["description"]
-            "getUri" -> properties["uri"]
-            "getMetadata" -> metadata
-            "labels" -> labels
-            "embeddableValue" -> entityData.embeddableValue()
-            "infoString" -> {
-                val verbose = args?.getOrNull(0) as? Boolean
-                val indent = args?.getOrNull(1) as? Int ?: 0
-                entityData.infoString(verbose, indent)
-            }
-
-            "propertiesToPersist" -> entityData.propertiesToPersist()
-
-            // Kotlin property getter pattern: getXxx() -> property "xxx"
-            else -> {
-                if (methodName.startsWith("get") && methodName.length > 3 && args.isNullOrEmpty()) {
-                    val propertyName = methodName.substring(3).replaceFirstChar { it.lowercase() }
-                    properties[propertyName]
-                } else if (methodName.startsWith("is") && methodName.length > 2 && args.isNullOrEmpty()) {
-                    // Boolean property: isXxx() -> property "xxx" or "isXxx"
-                    val propertyName = methodName.substring(2).replaceFirstChar { it.lowercase() }
-                    properties[propertyName] ?: properties[methodName]
-                } else {
-                    // Try direct property lookup
-                    properties[methodName]
-                }
-            }
-        }
     }
 }
 
