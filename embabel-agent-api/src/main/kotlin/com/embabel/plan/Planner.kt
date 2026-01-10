@@ -63,13 +63,13 @@ interface Planner<S : PlanningSystem, W : WorldState, P : Plan> {
         return system.goals.mapNotNull { goal ->
             val plan = planToGoal(system.actions, goal)
             if (plan != null) {
-                LoggerFactory.getLogger(javaClass).info(
+                LoggerFactory.getLogger(javaClass).debug(
                     "Found plan to goal {}: {}",
                     goal.name,
                     plan.infoString(verbose = false),
                 )
             } else {
-                LoggerFactory.getLogger(javaClass).info(
+                LoggerFactory.getLogger(javaClass).debug(
                     "No plan found to goal {}",
                     goal.name,
                 )
