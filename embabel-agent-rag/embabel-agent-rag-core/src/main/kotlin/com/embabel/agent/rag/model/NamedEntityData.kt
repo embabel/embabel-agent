@@ -17,6 +17,7 @@ package com.embabel.agent.rag.model
 
 import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.JvmType
+import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.media.Schema
@@ -68,7 +69,9 @@ interface NamedEntityData : NamedEntity {
         return "Entity {${labels()}}: properties=[$props]"
     }
 
-    override fun labels(): Set<String> = super.labels() + setOf(ENTITY_LABEL)
+    // Don't call super.labels() - NamedEntityData is a data container, not a domain class.
+    // The class name should come from stored labels, not from this::class.simpleName.
+    override fun labels(): Set<String> = setOf(ENTITY_LABEL)
 
     companion object {
         val DEFAULT_EXCLUDED_PROPERTIES = setOf("embedding", "id")

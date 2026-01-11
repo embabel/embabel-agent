@@ -146,6 +146,9 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * Perform typed vector search, returning results hydrated to the specified type.
      * Type must implement [NamedEntity] for hydration to succeed.
      *
+     * For types with native store mappings (e.g., @NodeFragment classes), uses
+     * [findNativeById] instead of Jackson hydration to preserve proper field mappings.
+     *
      * @param request the search request
      * @param clazz the target type for hydration
      * @return list of similarity results with hydrated instances
@@ -159,16 +162,23 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
+        val useNative = isNativeType(namedEntityClass)
         return vectorSearch(request, metadataFilter = null, propertyFilter = null).mapNotNull { similarityResult ->
-            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)?.let { typed ->
-                SimilarityResult(typed as T, similarityResult.score)
+            val typed: NamedEntity? = if (useNative) {
+                findNativeById(similarityResult.match.id, namedEntityClass)
+            } else {
+                similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
             }
+            typed?.let { SimilarityResult(it as T, similarityResult.score) }
         }
     }
 
     /**
      * Perform typed text search, returning results hydrated to the specified type.
      * Type must implement [NamedEntity] for hydration to succeed.
+     *
+     * For types with native store mappings (e.g., @NodeFragment classes), uses
+     * [findNativeById] instead of Jackson hydration to preserve proper field mappings.
      *
      * @param request the search request
      * @param clazz the target type for hydration
@@ -183,16 +193,24 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
+        val useNative = isNativeType(namedEntityClass)
         return textSearch(request, metadataFilter = null, propertyFilter = null).mapNotNull { similarityResult ->
-            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)?.let { typed ->
-                SimilarityResult(typed as T, similarityResult.score)
+            val typed: NamedEntity? = if (useNative) {
+                // Use native store loading for @NodeFragment and similar classes
+                findNativeById(similarityResult.match.id, namedEntityClass)
+            } else {
+                similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
             }
+            typed?.let { SimilarityResult(it as T, similarityResult.score) }
         }
     }
 
     /**
      * Perform typed vector search with property filtering.
      * Delegates to the entity-specific [vectorSearch] method with filters.
+     *
+     * For types with native store mappings (e.g., @NodeFragment classes), uses
+     * [findNativeById] instead of Jackson hydration to preserve proper field mappings.
      *
      * @param request the search request
      * @param clazz the target type for hydration
@@ -211,16 +229,23 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
+        val useNative = isNativeType(namedEntityClass)
         return vectorSearch(request, metadataFilter, propertyFilter).mapNotNull { similarityResult ->
-            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)?.let { typed ->
-                SimilarityResult(typed as T, similarityResult.score)
+            val typed: NamedEntity? = if (useNative) {
+                findNativeById(similarityResult.match.id, namedEntityClass)
+            } else {
+                similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
             }
+            typed?.let { SimilarityResult(it as T, similarityResult.score) }
         }
     }
 
     /**
      * Perform typed text search with property filtering.
      * Delegates to the entity-specific [textSearch] method with filters.
+     *
+     * For types with native store mappings (e.g., @NodeFragment classes), uses
+     * [findNativeById] instead of Jackson hydration to preserve proper field mappings.
      *
      * @param request the search request
      * @param clazz the target type for hydration
@@ -239,10 +264,14 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
+        val useNative = isNativeType(namedEntityClass)
         return textSearch(request, metadataFilter, propertyFilter).mapNotNull { similarityResult ->
-            similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)?.let { typed ->
-                SimilarityResult(typed as T, similarityResult.score)
+            val typed: NamedEntity? = if (useNative) {
+                findNativeById(similarityResult.match.id, namedEntityClass)
+            } else {
+                similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
             }
+            typed?.let { SimilarityResult(it as T, similarityResult.score) }
         }
     }
 
