@@ -1,0 +1,171 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.spi.toolloop
+
+import com.embabel.agent.api.tool.Tool
+import com.embabel.chat.AssistantMessageWithToolCalls
+import com.embabel.chat.Message
+import com.embabel.chat.ToolResultMessage
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
+
+/**
+ * Embabel's own tool execution loop.
+ *
+ * Unlike Spring AI's internal loop, this gives us full control over:
+ * - Message capture and history management
+ * - Dynamic tool injection via strategies
+ * - Observability and event emission
+ * - Integration with Embabel's autonomy system
+ *
+ * This class is framework-agnostic - it uses [SingleLlmCaller] for LLM communication,
+ * allowing different backends (Spring AI, LangChain4j, etc.) to be plugged in.
+ *
+ * @param llmCaller Framework-agnostic interface for making single LLM calls
+ * @param objectMapper ObjectMapper for deserializing tool results
+ * @param injectionStrategy Strategy for dynamically injecting tools
+ * @param maxIterations Maximum number of tool loop iterations (default 20)
+ */
+class EmbabelToolLoop(
+    private val llmCaller: SingleLlmCaller,
+    private val objectMapper: ObjectMapper,
+    private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
+    private val maxIterations: Int = 20,
+) {
+
+    private val logger = LoggerFactory.getLogger(javaClass)
+
+    /**
+     * Execute a conversation with tool calling until completion.
+     *
+     * @param initialMessages The starting messages (system + user)
+     * @param initialTools The initially available tools
+     * @param outputParser Function to parse the final response to the output type
+     * @return The result containing parsed output and conversation history
+     */
+    fun <O> execute(
+        initialMessages: List<Message>,
+        initialTools: List<Tool>,
+        outputParser: (String) -> O,
+    ): ToolLoopResult<O> {
+        val conversationHistory = initialMessages.toMutableList()
+        val availableTools = initialTools.toMutableList()
+        val injectedTools = mutableListOf<Tool>()
+        var iterations = 0
+
+        while (iterations < maxIterations) {
+            iterations++
+            logger.debug("Tool loop iteration {} with {} available tools", iterations, availableTools.size)
+
+            // 1. Call LLM (single inference, no internal tool loop)
+            val callResult = llmCaller.call(conversationHistory, availableTools)
+
+            // 2. Add assistant message to history
+            val assistantMessage = callResult.message
+            conversationHistory.add(assistantMessage)
+
+            // 3. Check if LLM wants to call tools
+            if (assistantMessage !is AssistantMessageWithToolCalls || assistantMessage.toolCalls.isEmpty()) {
+                // No tool calls - LLM is done, parse final response
+                val finalText = callResult.textContent
+                logger.debug("Tool loop completed after {} iterations", iterations)
+
+                val result = outputParser(finalText)
+                return ToolLoopResult(
+                    result = result,
+                    conversationHistory = conversationHistory,
+                    totalIterations = iterations,
+                    injectedTools = injectedTools,
+                )
+            }
+
+            // 4. Execute each tool call
+            for (toolCall in assistantMessage.toolCalls) {
+                val tool = findTool(availableTools, toolCall.name)
+                    ?: throw ToolNotFoundException(toolCall.name, availableTools.map { it.definition.name })
+
+                // 4a. Execute the tool
+                logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
+                val toolResult = tool.call(toolCall.arguments)
+                val resultContent = when (toolResult) {
+                    is Tool.Result.Text -> toolResult.content
+                    is Tool.Result.WithArtifact -> toolResult.content
+                    is Tool.Result.Error -> "Error: ${toolResult.message}"
+                }
+
+                // 4b. Try to deserialize result for strategy inspection
+                val resultObject = tryDeserialize(resultContent)
+
+                // 4c. Evaluate injection strategy
+                val context = ToolInjectionContext(
+                    conversationHistory = conversationHistory,
+                    currentTools = availableTools,
+                    lastToolCall = ToolCallResult(
+                        toolName = toolCall.name,
+                        toolInput = toolCall.arguments,
+                        result = resultContent,
+                        resultObject = resultObject,
+                    ),
+                    iterationCount = iterations,
+                )
+
+                val newTools = injectionStrategy.evaluateToolResult(context)
+                if (newTools.isNotEmpty()) {
+                    availableTools.addAll(newTools)
+                    injectedTools.addAll(newTools)
+
+                    logger.info(
+                        "Strategy injected {} tools after {}: {}",
+                        newTools.size,
+                        toolCall.name,
+                        newTools.map { it.definition.name }
+                    )
+                }
+
+                // 4d. Add tool result to history
+                val toolResultMessage = ToolResultMessage(
+                    toolCallId = toolCall.id,
+                    toolName = toolCall.name,
+                    content = resultContent,
+                )
+                conversationHistory.add(toolResultMessage)
+            }
+
+            // 5. Continue loop - LLM will see updated history and tools
+        }
+
+        throw MaxIterationsExceededException(maxIterations)
+    }
+
+    /**
+     * Find a tool by name.
+     */
+    private fun findTool(tools: List<Tool>, name: String): Tool? {
+        return tools.find { it.definition.name == name }
+    }
+
+    /**
+     * Try to deserialize a JSON result string.
+     */
+    private fun tryDeserialize(jsonResult: String): Any? {
+        return try {
+            objectMapper.readValue(jsonResult, Any::class.java)
+        } catch (e: Exception) {
+            logger.debug("Could not deserialize tool result as JSON: {}", e.message)
+            null
+        }
+    }
+}
