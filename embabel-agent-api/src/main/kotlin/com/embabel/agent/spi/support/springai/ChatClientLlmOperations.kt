@@ -248,12 +248,20 @@ internal class ChatClientLlmOperations(
      */
     private fun org.springframework.ai.tool.ToolCallback.toEmbabelTool(): Tool {
         val callback = this
-        val definition = callback.toolDefinition
+        val springAiDefinition = callback.toolDefinition
+
+        // Wrap the existing JSON schema from Spring AI to pass through to the LLM
+        val springAiSchema = springAiDefinition.inputSchema()
+        val inputSchema = object : Tool.InputSchema {
+            override fun toJsonSchema(): String = springAiSchema
+            override val parameters: List<Tool.Parameter> = emptyList() // Not needed - schema has full definition
+        }
+
         return object : Tool {
             override val definition: Tool.Definition = Tool.Definition(
-                name = definition.name(),
-                description = definition.description(),
-                inputSchema = Tool.InputSchema.empty(), // Schema is in the callback already
+                name = springAiDefinition.name(),
+                description = springAiDefinition.description(),
+                inputSchema = inputSchema,
             )
 
             override fun call(input: String): Tool.Result {

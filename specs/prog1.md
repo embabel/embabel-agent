@@ -99,6 +99,11 @@ Created Embabel's own tool execution loop that is completely decoupled from Spri
 - Changed `useEmbabelToolLoop` default from `false` to `true` in `LlmInteraction`
 - All existing tests pass with new default
 
+### Bug Fix: Tool Schema Passthrough
+- Fixed `toEmbabelTool()` adapter to preserve Spring AI's JSON schema
+- Previously used `Tool.InputSchema.empty()` which caused LLM to miss required parameters
+- Now wraps `ToolDefinition.inputSchema()` so all tool parameters are visible to LLM
+
 ## What's Still To Do
 
 ### Phase 2 - Enhanced Features (Remaining)
