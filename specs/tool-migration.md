@@ -86,13 +86,16 @@ remain at the ToolCallback level, which is acceptable since they're only used in
 
 - [x] Created `safelyGetTools()` and `safelyGetToolsFrom()` that return native `List<Tool>`
 - [x] Created `RenamedTool` class for renaming tools at the Tool level
-- [x] Refactored `safelyGetToolCallbacks()` to use `safelyGetTools()` internally
+- [x] `safelyGetToolCallbacks()` and `safelyGetToolCallbacksFrom()` now `internal` visibility
+- [x] External modules (MCP) updated to use `safelyGetTools()` + `toSpringToolCallbacks()`
 - [x] Now handles direct `Tool` instances in addition to `ToolCallback` and annotated methods
 - [x] Updated tests to properly mock ToolCallback properties
 
 **Files modified:**
-- `springAiUtils.kt`
-- `SpringAiUtilsKtTest.kt` (minimal test updates for mock setup)
+- `springAiUtils.kt` - functions now internal
+- `McpToolExport.kt` - uses `safelyGetTools()` + `toSpringToolCallback()`
+- `McpSyncServerConfiguration.kt` - uses `safelyGetToolsFrom()` + `toSpringToolCallbacks()`
+- `McpAsyncServerConfiguration.kt` - uses `safelyGetToolsFrom()` + `toSpringToolCallbacks()`
 
 ### Phase 6: Cleanup Deprecated Code [COMPLETE]
 
@@ -139,6 +142,8 @@ The migration establishes framework-agnostic tool handling:
 3. **Removed from public API**: `ToolCallbackSpec`, `ToolCallbackConsumer` interfaces removed
 4. **Internal use only**: `LlmInteraction.toolCallbacks` exists but is populated internally during resolution
 5. **Resolution logic**: `resolveToolCallbacks()` converts native tools; `resolveTools()` for native access
-6. **Utility functions**: `safelyGetTools()` extracts native Tools; `safelyGetToolCallbacks()` delegates to it
-7. **ToolGroup backward compat**: `ToolGroup` still supports `toolCallbacks` for Spring AI tool groups
+6. **Public utility**: `safelyGetTools()` extracts native Tools (public API)
+7. **Internal utility**: `safelyGetToolCallbacks()` is internal - external code uses `safelyGetTools()` + `toSpringToolCallbacks()`
+8. **ToolGroup backward compat**: `ToolGroup` still supports `toolCallbacks` for Spring AI tool groups
+9. **Spring @Tool support**: Users can still pass Spring `@Tool` annotated objects - they're converted to native Tools internally
 

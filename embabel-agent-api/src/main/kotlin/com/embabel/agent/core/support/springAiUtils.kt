@@ -81,17 +81,17 @@ fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
 }
 
 /**
- * ToolCallbacks.from complains if no tools.
- * Also conceal varargs.
- * @deprecated Use safelyGetTools instead and convert to ToolCallback at the Spring AI boundary
+ * Extract tools and convert to Spring AI ToolCallbacks.
+ * Internal use only - external code should use [safelyGetTools] and convert at the Spring AI boundary.
  */
-fun safelyGetToolCallbacks(instances: Collection<ToolObject>): List<ToolCallback> =
+internal fun safelyGetToolCallbacks(instances: Collection<ToolObject>): List<ToolCallback> =
     safelyGetTools(instances).map { it.toSpringToolCallback() }
 
 /**
- * @deprecated Use safelyGetToolsFrom instead
+ * Extract tools from a single ToolObject and convert to Spring AI ToolCallbacks.
+ * Internal use only - external code should use [safelyGetToolsFrom].
  */
-fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallback> =
+internal fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallback> =
     safelyGetToolsFrom(toolObject).map { it.toSpringToolCallback() }
 
 /**
