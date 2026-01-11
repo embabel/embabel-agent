@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.toolloop
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Usage
 import com.embabel.chat.Message
 
 /**
@@ -26,10 +27,12 @@ import com.embabel.chat.Message
  * @param conversationHistory Full conversation history including tool calls
  * @param totalIterations Number of LLM inference iterations
  * @param injectedTools All tools added during the conversation via injection strategies
+ * @param totalUsage Accumulated usage across all LLM calls in the loop
  */
 data class ToolLoopResult<O>(
     val result: O,
     val conversationHistory: List<Message>,
     val totalIterations: Int,
     val injectedTools: List<Tool>,
+    val totalUsage: Usage? = null,
 )

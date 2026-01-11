@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.toolloop.SingleLlmCallResult
 import com.embabel.agent.spi.toolloop.SingleLlmCaller
 import com.embabel.chat.Message
@@ -64,9 +65,13 @@ class SpringAiSingleLlmCaller(
         val assistantMessage = response.result.output
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
+        // Extract usage information
+        val usage = response.metadata?.usage?.toEmbabelUsage()
+
         return SingleLlmCallResult(
             message = embabelMessage,
             textContent = assistantMessage.text ?: "",
+            usage = usage,
         )
     }
 

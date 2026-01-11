@@ -87,6 +87,15 @@ data class Usage(
             promptTokens == null && completionTokens == null -> null
             else -> (promptTokens ?: 0) + (completionTokens ?: 0)
         }
+
+    /**
+     * Combine two Usage instances by summing their token counts.
+     */
+    operator fun plus(other: Usage): Usage = Usage(
+        promptTokens = (promptTokens ?: 0) + (other.promptTokens ?: 0),
+        completionTokens = (completionTokens ?: 0) + (other.completionTokens ?: 0),
+        nativeUsage = null,
+    )
 }
 
 /**

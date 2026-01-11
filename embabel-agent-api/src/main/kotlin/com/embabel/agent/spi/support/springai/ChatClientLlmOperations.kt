@@ -168,12 +168,9 @@ internal class ChatClientLlmOperations(
 
         val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
 
-        // Build the output parser based on output class
-        val outputParser: (String) -> O = if (outputClass == String::class.java) {
-            @Suppress("UNCHECKED_CAST")
-            { text -> stringWithoutThinkBlocks(text) as O }
-        } else {
-            val converter = ExceptionWrappingConverter(
+        // Build the output parser and get schema format for structured output
+        val converter = if (outputClass != String::class.java) {
+            ExceptionWrappingConverter(
                 expectedType = outputClass,
                 delegate = WithExampleConverter(
                     delegate = SuppressThinkingConverter(
@@ -187,8 +184,16 @@ internal class ChatClientLlmOperations(
                     ifPossible = false,
                     generateExamples = shouldGenerateExamples(interaction),
                 )
-            );
-            { text -> converter.convert(text)!! }
+            )
+        } else null
+
+        val schemaFormat = converter?.getFormat()
+
+        val outputParser: (String) -> O = if (outputClass == String::class.java) {
+            @Suppress("UNCHECKED_CAST")
+            { text -> stringWithoutThinkBlocks(text) as O }
+        } else {
+            { text -> converter!!.convert(text)!! }
         }
 
         // Create the single LLM caller that wraps Spring AI's ChatModel
@@ -205,8 +210,20 @@ internal class ChatClientLlmOperations(
             maxIterations = 20,
         )
 
-        // Build initial messages with prompt contributions
-        val initialMessages = buildInitialMessagesForToolLoop(promptContributions, messages)
+        // Build initial messages with prompt contributions and schema
+        val initialMessages = buildInitialMessagesForToolLoop(promptContributions, messages, schemaFormat)
+
+        // Emit call event for observability
+        val springAiPrompt = if (schemaFormat != null) {
+            buildPromptWithSchema(promptContributions, messages, schemaFormat)
+        } else {
+            buildBasicPrompt(promptContributions, messages)
+        }
+        llmRequestEvent?.let {
+            it.agentProcess.processContext.onProcessEvent(
+                it.callEvent(springAiPrompt)
+            )
+        }
 
         // Convert Spring AI ToolCallbacks to Embabel Tools
         val tools = interaction.toolCallbacks.map { it.toEmbabelTool() }
@@ -217,6 +234,11 @@ internal class ChatClientLlmOperations(
             initialTools = tools,
             outputParser = outputParser,
         )
+
+        // Record usage if available
+        result.totalUsage?.let { usage ->
+            recordUsage(llm, usage, llmRequestEvent)
+        }
 
         return result.result
     }
@@ -245,16 +267,21 @@ internal class ChatClientLlmOperations(
     }
 
     /**
-     * Build initial messages for the tool loop, including system prompt contributions.
+     * Build initial messages for the tool loop, including system prompt contributions and schema.
      */
     private fun buildInitialMessagesForToolLoop(
         promptContributions: String,
         messages: List<Message>,
+        schemaFormat: String? = null,
     ): List<Message> {
-        return if (promptContributions.isNotEmpty()) {
-            listOf(com.embabel.chat.SystemMessage(promptContributions)) + messages
-        } else {
-            messages
+        return buildList {
+            if (promptContributions.isNotEmpty()) {
+                add(com.embabel.chat.SystemMessage(promptContributions))
+            }
+            addAll(messages)
+            if (schemaFormat != null) {
+                add(com.embabel.chat.SystemMessage(schemaFormat))
+            }
         }
     }
 
@@ -335,10 +362,19 @@ internal class ChatClientLlmOperations(
         llmRequestEvent: LlmRequestEvent<*>?,
     ) {
         logger.debug("Usage is {}", chatResponse.metadata.usage)
+        recordUsage(llm, chatResponse.metadata.usage.toEmbabelUsage(), llmRequestEvent)
+    }
+
+    private fun recordUsage(
+        llm: Llm,
+        usage: com.embabel.agent.core.Usage,
+        llmRequestEvent: LlmRequestEvent<*>?,
+    ) {
+        logger.debug("Usage is {}", usage)
         llmRequestEvent?.let {
             val llmi = LlmInvocation(
                 llm = llm,
-                usage = chatResponse.metadata.usage.toEmbabelUsage(),
+                usage = usage,
                 agentName = it.agentProcess.agent.name,
                 timestamp = it.timestamp,
                 runningTime = Duration.between(it.timestamp, Instant.now()),

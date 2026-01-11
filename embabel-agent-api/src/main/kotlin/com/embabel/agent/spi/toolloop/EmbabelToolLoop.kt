@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.toolloop
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Usage
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.Message
 import com.embabel.chat.ToolResultMessage
@@ -64,6 +65,7 @@ class EmbabelToolLoop(
         val conversationHistory = initialMessages.toMutableList()
         val availableTools = initialTools.toMutableList()
         val injectedTools = mutableListOf<Tool>()
+        var accumulatedUsage: Usage? = null
         var iterations = 0
 
         while (iterations < maxIterations) {
@@ -73,11 +75,16 @@ class EmbabelToolLoop(
             // 1. Call LLM (single inference, no internal tool loop)
             val callResult = llmCaller.call(conversationHistory, availableTools)
 
-            // 2. Add assistant message to history
+            // 2. Accumulate usage
+            callResult.usage?.let { usage ->
+                accumulatedUsage = accumulatedUsage?.plus(usage) ?: usage
+            }
+
+            // 3. Add assistant message to history
             val assistantMessage = callResult.message
             conversationHistory.add(assistantMessage)
 
-            // 3. Check if LLM wants to call tools
+            // 4. Check if LLM wants to call tools
             if (assistantMessage !is AssistantMessageWithToolCalls || assistantMessage.toolCalls.isEmpty()) {
                 // No tool calls - LLM is done, parse final response
                 val finalText = callResult.textContent
@@ -89,15 +96,16 @@ class EmbabelToolLoop(
                     conversationHistory = conversationHistory,
                     totalIterations = iterations,
                     injectedTools = injectedTools,
+                    totalUsage = accumulatedUsage,
                 )
             }
 
-            // 4. Execute each tool call
+            // 5. Execute each tool call
             for (toolCall in assistantMessage.toolCalls) {
                 val tool = findTool(availableTools, toolCall.name)
                     ?: throw ToolNotFoundException(toolCall.name, availableTools.map { it.definition.name })
 
-                // 4a. Execute the tool
+                // 5a. Execute the tool
                 logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
                 val toolResult = tool.call(toolCall.arguments)
                 val resultContent = when (toolResult) {
@@ -106,10 +114,10 @@ class EmbabelToolLoop(
                     is Tool.Result.Error -> "Error: ${toolResult.message}"
                 }
 
-                // 4b. Try to deserialize result for strategy inspection
+                // 5b. Try to deserialize result for strategy inspection
                 val resultObject = tryDeserialize(resultContent)
 
-                // 4c. Evaluate injection strategy
+                // 5c. Evaluate injection strategy
                 val context = ToolInjectionContext(
                     conversationHistory = conversationHistory,
                     currentTools = availableTools,
@@ -135,7 +143,7 @@ class EmbabelToolLoop(
                     )
                 }
 
-                // 4d. Add tool result to history
+                // 5d. Add tool result to history
                 val toolResultMessage = ToolResultMessage(
                     toolCallId = toolCall.id,
                     toolName = toolCall.name,
@@ -144,7 +152,7 @@ class EmbabelToolLoop(
                 conversationHistory.add(toolResultMessage)
             }
 
-            // 5. Continue loop - LLM will see updated history and tools
+            // 6. Continue loop - LLM will see updated history and tools
         }
 
         throw MaxIterationsExceededException(maxIterations)

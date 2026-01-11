@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.toolloop
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Usage
 import com.embabel.chat.Message
 
 /**
@@ -25,6 +26,7 @@ import com.embabel.chat.Message
 data class SingleLlmCallResult(
     val message: Message,
     val textContent: String,
+    val usage: Usage? = null,
 )
 
 /**

@@ -1,4 +1,4 @@
-# Progressive Tools Implementation - Phase 1 Summary
+# Progressive Tools Implementation - Phase 1 & 2 Summary
 
 ## Completed Work
 
@@ -71,23 +71,44 @@ Created Embabel's own tool execution loop that is completely decoupled from Spri
 
 ## Current State
 
-- **Default behavior**: Uses Spring AI's internal tool loop (`useEmbabelToolLoop = false`)
-- **New tool loop**: Available but opt-in via `useEmbabelToolLoop = true`
+- **Default behavior**: Uses Embabel's tool loop (`useEmbabelToolLoop = true`)
+- **Spring AI fallback**: Available via `useEmbabelToolLoop = false` if needed
 - **All 1532 existing tests pass**
 - **Framework decoupling**: Tool loop uses Embabel's `Tool` interface, not Spring AI's `ToolCallback`
 
+## Phase 2 Completed Work
+
+### Usage Tracking
+- Added `usage: Usage?` to `SingleLlmCallResult` for per-call usage
+- Updated `SpringAiSingleLlmCaller` to extract usage from `ChatResponse.metadata.usage`
+- Added `totalUsage: Usage?` to `ToolLoopResult` for accumulated usage across iterations
+- Added `operator fun plus()` to `Usage` class for accumulating usage
+- Updated `EmbabelToolLoop.execute()` to accumulate usage from each LLM call
+- Updated `doTransformWithEmbabelToolLoop` to call `recordUsage()` with accumulated usage
+
+### Event Emission
+- Added emission of `callEvent` in `doTransformWithEmbabelToolLoop` for observability
+- Events now properly emitted: `LlmRequestEvent` -> `callEvent` -> `responseEvent`
+
+### Schema Format
+- Added schema format to initial messages in Embabel tool loop
+- Updated `buildInitialMessagesForToolLoop` to include schema format parameter
+- Structured output prompts now include JSON schema just like Spring AI path
+
+### Default Switched
+- Changed `useEmbabelToolLoop` default from `false` to `true` in `LlmInteraction`
+- All existing tests pass with new default
+
 ## What's Still To Do
 
-### Phase 2 - Enhanced Features
-- [ ] Event emission from tool loop (for observability)
-- [ ] Usage tracking and recording
+### Phase 2 - Enhanced Features (Remaining)
 - [ ] Retry logic for tool calls
 - [ ] Timeout handling per tool call
 
 ### Phase 3 - Full Integration
-- [ ] Make `useEmbabelToolLoop = true` the default
+- [x] Make `useEmbabelToolLoop = true` the default
 - [ ] Full tool message conversion (not just text fallback)
-- [ ] Integration with existing event system
+- [x] Integration with existing event system
 - [ ] Documentation
 
 ### Phase 4 - Progressive Disclosure

@@ -119,10 +119,10 @@ data class LlmInteraction(
     override val validation: Boolean = true,
     /**
      * Whether to use Embabel's own tool loop instead of Spring AI's internal loop.
-     * Defaults to false (use Spring AI's loop) until all features are implemented.
-     * Set to true to use Embabel's loop for better observability and dynamic tool injection.
+     * Defaults to true for better observability and dynamic tool injection.
+     * Set to false to use Spring AI's internal loop if needed.
      */
-    val useEmbabelToolLoop: Boolean = false,
+    val useEmbabelToolLoop: Boolean = true,
 ) : LlmCall {
 
     override val name: String = id.value
