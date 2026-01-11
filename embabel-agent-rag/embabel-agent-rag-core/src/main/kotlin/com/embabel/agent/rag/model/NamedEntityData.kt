@@ -85,11 +85,30 @@ interface NamedEntityData : EntityData, NamedEntity {
      * @return the hydrated instance, or null if hydration fails
      */
     @Suppress("UNCHECKED_CAST")
-    fun <T : NamedEntity> toTypedInstance(objectMapper: ObjectMapper, type: Class<T>): T? {
+    fun <T : NamedEntity> toTypedInstance(objectMapper: ObjectMapper, type: Class<T>): T? =
+        toTypedInstance(objectMapper, type, null)
+
+    /**
+     * Hydrate this entity to a typed JVM instance with relationship navigation support.
+     *
+     * When a [RelationshipNavigator] is provided, methods annotated with [@Relationship]
+     * will lazily load related entities via the navigator.
+     *
+     * @param objectMapper the ObjectMapper to use for deserialization (only for concrete classes)
+     * @param type the target class to hydrate to
+     * @param navigator optional navigator for relationship traversal
+     * @return the hydrated instance, or null if hydration fails
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun <T : NamedEntity> toTypedInstance(
+        objectMapper: ObjectMapper,
+        type: Class<T>,
+        navigator: RelationshipNavigator?,
+    ): T? {
         return try {
             if (type.isInterface) {
-                // Use dynamic proxy for interfaces
-                toInstance(type) as T
+                // Use dynamic proxy for interfaces with navigator support
+                toInstance(navigator, type) as T
             } else {
                 // Use Jackson for concrete classes
                 val allProperties = buildMap {
@@ -127,7 +146,31 @@ interface NamedEntityData : EntityData, NamedEntity {
      * @return an instance implementing all specified interfaces
      */
     @Suppress("UNCHECKED_CAST")
-    fun <T : NamedEntity> toInstance(vararg interfaces: Class<out NamedEntity>): T {
+    fun <T : NamedEntity> toInstance(vararg interfaces: Class<out NamedEntity>): T =
+        toInstance(navigator = null, interfaces = interfaces)
+
+    /**
+     * Create an instance implementing the specified interfaces with relationship navigation support.
+     *
+     * When a [RelationshipNavigator] is provided, methods annotated with
+     * `@Semantics(relationship = "...")` will lazily load related entities.
+     *
+     * Example:
+     * ```kotlin
+     * // With relationship navigation
+     * val person = entityData.toInstance<Person>(repository, Person::class.java)
+     * val employer = person.getEmployer() // Lazy loads via repository
+     * ```
+     *
+     * @param navigator optional navigator for relationship traversal (typically the repository)
+     * @param interfaces the interfaces the instance should implement
+     * @return an instance implementing all specified interfaces
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun <T : NamedEntity> toInstance(
+        navigator: RelationshipNavigator?,
+        vararg interfaces: Class<out NamedEntity>,
+    ): T {
         require(interfaces.isNotEmpty()) { "At least one interface must be specified" }
 
         val allProperties = buildMap {
@@ -142,7 +185,9 @@ interface NamedEntityData : EntityData, NamedEntity {
             properties = allProperties,
             metadata = metadata,
             labels = labels(),
-            entityData = this
+            entityData = this,
+            navigator = navigator,
+            interfaces = interfaces,
         )
 
         return Proxy.newProxyInstance(
