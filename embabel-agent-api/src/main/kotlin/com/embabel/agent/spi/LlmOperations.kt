@@ -18,6 +18,7 @@ package com.embabel.agent.spi
 import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
@@ -84,7 +85,7 @@ private data class LlmCallImpl(
     override val name: String,
     override val llm: LlmOptions? = null,
     override val toolGroups: Set<ToolGroupRequirement> = emptySet(),
-    override val toolCallbacks: List<ToolCallback> = emptyList(),
+    override val tools: List<Tool> = emptyList(),
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean = false,
@@ -104,14 +105,20 @@ private data class LlmCallImpl(
  * if the action can be rerun.
  * This is per action, not per process.
  * @param llm LLM options to use, specifying model and hyperparameters
- * @param toolCallbacks Tool callbacks to use for this interaction
+ * @param tools Tools to use for this interaction
+ * @param toolCallbacks Resolved and decorated tool callbacks (internal use only, populated during resolution)
  * @param promptContributors Prompt contributors to use for this interaction
  */
 data class LlmInteraction(
     val id: InteractionId,
     override val llm: LlmOptions = LlmOptions(),
     override val toolGroups: Set<ToolGroupRequirement> = emptySet(),
-    override val toolCallbacks: List<ToolCallback> = emptyList(),
+    override val tools: List<Tool> = emptyList(),
+    /**
+     * Resolved and decorated tool callbacks for Spring AI integration.
+     * This is populated internally during tool resolution - users should provide [tools] instead.
+     */
+    val toolCallbacks: List<ToolCallback> = emptyList(),
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean? = null,
@@ -130,7 +137,7 @@ data class LlmInteraction(
         ) = LlmInteraction(
             id = id,
             llm = llm.llm ?: LlmOptions(),
-            toolCallbacks = llm.toolCallbacks,
+            tools = llm.tools,
             toolGroups = llm.toolGroups,
             promptContributors = llm.promptContributors,
             generateExamples = llm.generateExamples,

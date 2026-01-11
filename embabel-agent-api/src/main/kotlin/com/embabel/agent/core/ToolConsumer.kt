@@ -15,7 +15,9 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.spi.ToolGroupResolver
+import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.embabel.common.core.types.AssetCoordinates
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Semver
@@ -145,17 +147,34 @@ private data class MinimalToolGroupMetadata(
     }
 }
 
-
-interface ToolCallbackSpec {
+/**
+ * Specification for exposing tools using the framework-agnostic Tool interface.
+ */
+interface ToolSpec {
 
     /**
-     * Tool callbacks referenced or exposed.
+     * Tools referenced or exposed.
      */
-    val toolCallbacks: List<ToolCallback>
-
+    val tools: List<Tool>
 }
 
-interface ToolCallbackConsumer : ToolCallbackSpec
+/**
+ * Consumer interface for tools using the framework-agnostic Tool interface.
+ */
+interface ToolSpecConsumer : ToolSpec
+
+/**
+ * Publisher interface for tools using the framework-agnostic Tool interface.
+ */
+interface ToolPublisher : ToolSpec {
+
+    companion object {
+
+        operator fun invoke(tools: List<Tool> = emptyList()) = object : ToolPublisher {
+            override val tools: List<Tool> = tools
+        }
+    }
+}
 
 /**
  * Specifies a tool group that a tool consumer requires.
@@ -178,26 +197,48 @@ interface ToolGroupConsumer {
  * Interface allowing abstraction between tool concept
  * and specific tools.
  */
-interface ToolConsumer : ToolCallbackConsumer,
+interface ToolConsumer : ToolSpecConsumer,
     ToolGroupConsumer {
 
     val name: String
 
+    /**
+     * Tools to expose to LLMs.
+     */
+    override val tools: List<Tool>
+        get() = emptyList()
+
+    /**
+     * Resolve all tools from this consumer and its tool groups,
+     * converted to Spring AI ToolCallbacks for use with ChatClient.
+     */
     fun resolveToolCallbacks(toolGroupResolver: ToolGroupResolver): List<ToolCallback> =
         resolveToolCallbacks(
             toolConsumer = this,
             toolGroupResolver = toolGroupResolver,
         )
 
+    /**
+     * Resolve all tools from this consumer and its tool groups.
+     */
+    fun resolveTools(toolGroupResolver: ToolGroupResolver): List<Tool> =
+        resolveTools(
+            toolConsumer = this,
+            toolGroupResolver = toolGroupResolver,
+        )
+
     companion object {
 
-        // Factored into companion so Java can use it
+        /**
+         * Resolve tools and convert to ToolCallbacks for Spring AI integration.
+         */
         fun resolveToolCallbacks(
             toolConsumer: ToolConsumer,
             toolGroupResolver: ToolGroupResolver,
         ): List<ToolCallback> {
-            val tools = mutableListOf<ToolCallback>()
-            tools += toolConsumer.toolCallbacks
+            val callbacks = mutableListOf<ToolCallback>()
+            // Convert native tools to callbacks
+            callbacks += toolConsumer.tools.map { it.toSpringToolCallback() }
             for (role in toolConsumer.toolGroups) {
                 val resolution = toolGroupResolver.resolveToolGroup(role)
                 if (resolution.resolvedToolGroup == null) {
@@ -207,7 +248,9 @@ interface ToolConsumer : ToolCallbackConsumer,
                         resolution.failureMessage,
                         NO_TOOLS_WARNING,
                     )
-                } else if (resolution.resolvedToolGroup.toolCallbacks.isEmpty()) {
+                } else if (resolution.resolvedToolGroup.tools.isEmpty() &&
+                    resolution.resolvedToolGroup.toolCallbacks.isEmpty()
+                ) {
                     loggerFor<ToolConsumer>().warn(
                         "No tools found for tool group with role='{}': {}\n{}",
                         role,
@@ -215,26 +258,74 @@ interface ToolConsumer : ToolCallbackConsumer,
                         NO_TOOLS_WARNING,
                     )
                 } else {
-                    tools += resolution.resolvedToolGroup.toolCallbacks
+                    // ToolGroups can still have toolCallbacks for backward compatibility
+                    callbacks += resolution.resolvedToolGroup.toolCallbacks
+                    callbacks += resolution.resolvedToolGroup.tools.map { it.toSpringToolCallback() }
                 }
             }
             loggerFor<ToolConsumer>().debug(
                 "{} resolved {} tools from {} tools and {} tool groups: {}",
                 toolConsumer.name,
-                tools.size,
-                toolConsumer.toolCallbacks.size,
+                callbacks.size,
+                toolConsumer.tools.size,
                 toolConsumer.toolGroups.size,
-                tools.map { it.toolDefinition.name() },
+                callbacks.map { it.toolDefinition.name() },
             )
-            return tools.distinctBy { it.toolDefinition.name() }.sortedBy { it.toolDefinition.name() }
+            return callbacks.distinctBy { it.toolDefinition.name() }.sortedBy { it.toolDefinition.name() }
+        }
+
+        /**
+         * Resolve all tools using the native Tool interface.
+         */
+        fun resolveTools(
+            toolConsumer: ToolConsumer,
+            toolGroupResolver: ToolGroupResolver,
+        ): List<Tool> {
+            val resolvedTools = mutableListOf<Tool>()
+            resolvedTools += toolConsumer.tools
+            for (role in toolConsumer.toolGroups) {
+                val resolution = toolGroupResolver.resolveToolGroup(role)
+                if (resolution.resolvedToolGroup == null) {
+                    loggerFor<ToolConsumer>().warn(
+                        "Could not resolve tool group with role='{}': {}\n{}",
+                        role,
+                        resolution.failureMessage,
+                        NO_TOOLS_WARNING,
+                    )
+                } else if (resolution.resolvedToolGroup.tools.isEmpty()) {
+                    loggerFor<ToolConsumer>().warn(
+                        "No tools found for tool group with role='{}': {}\n{}",
+                        role,
+                        resolution.failureMessage,
+                        NO_TOOLS_WARNING,
+                    )
+                } else {
+                    resolvedTools += resolution.resolvedToolGroup.tools
+                }
+            }
+            loggerFor<ToolConsumer>().debug(
+                "{} resolved {} tools from {} tools and {} tool groups: {}",
+                toolConsumer.name,
+                resolvedTools.size,
+                toolConsumer.tools.size,
+                toolConsumer.toolGroups.size,
+                resolvedTools.map { it.definition.name },
+            )
+            return resolvedTools.distinctBy { it.definition.name }.sortedBy { it.definition.name }
         }
     }
 }
 
 /**
- * Implemented by classes that want to publish tool callbacks
+ * Implemented by classes that publish tool callbacks (for backward compatibility with Spring AI tools).
+ * New code should implement ToolPublisher instead.
  */
-interface ToolCallbackPublisher : ToolCallbackSpec {
+interface ToolCallbackPublisher {
+
+    /**
+     * Tool callbacks to expose (legacy, for Spring AI tools).
+     */
+    val toolCallbacks: List<ToolCallback>
 
     companion object {
 
@@ -267,19 +358,43 @@ private const val NO_TOOLS_WARNING =
 /**
  * A group of tools to accomplish a purpose, such as web search.
  * Introduces a level of abstraction over tool callbacks.
+ * Implements both ToolCallbackPublisher (legacy) and ToolPublisher (preferred).
  */
-interface ToolGroup : ToolCallbackPublisher, HasInfoString {
+interface ToolGroup : ToolCallbackPublisher, ToolPublisher, HasInfoString {
 
     val metadata: ToolGroupMetadata
 
+    /**
+     * Default tools implementation returns empty list.
+     * Override to provide native Tool instances.
+     */
+    override val tools: List<Tool>
+        get() = emptyList()
+
     companion object {
 
+        /**
+         * Create a ToolGroup from ToolCallbacks (legacy).
+         */
         operator fun invoke(
             metadata: ToolGroupMetadata,
             toolCallbacks: List<ToolCallback>,
         ): ToolGroup = ToolGroupImpl(
             metadata = metadata,
             toolCallbacks = toolCallbacks,
+            tools = emptyList(),
+        )
+
+        /**
+         * Create a ToolGroup from native Tools (preferred).
+         */
+        fun ofTools(
+            metadata: ToolGroupMetadata,
+            tools: List<Tool>,
+        ): ToolGroup = ToolGroupImpl(
+            metadata = metadata,
+            toolCallbacks = emptyList(),
+            tools = tools,
         )
     }
 
@@ -287,14 +402,13 @@ interface ToolGroup : ToolCallbackPublisher, HasInfoString {
         verbose: Boolean?,
         indent: Int,
     ): String {
-        if (toolCallbacks.isEmpty()) {
-            return metadata.infoString(verbose = true, indent = 1) + "- ❌ No tools found".indent(1)
+        val allToolNames = toolCallbacks.map { it.toolDefinition.name() } + tools.map { it.definition.name }
+        if (allToolNames.isEmpty()) {
+            return metadata.infoString(verbose = true, indent = 1) + "- No tools found".indent(1)
         }
         return when (verbose) {
             true -> metadata.infoString(verbose = true, indent = 1) + " - " +
-                    toolCallbacks
-                        .sortedBy { it.toolDefinition.name() }
-                        .joinToString { it.toolDefinition.name() }.indent(1)
+                    allToolNames.sorted().joinToString().indent(1)
 
             else -> {
                 metadata.infoString(verbose = false)
@@ -306,6 +420,7 @@ interface ToolGroup : ToolCallbackPublisher, HasInfoString {
 private data class ToolGroupImpl(
     override val metadata: ToolGroupMetadata,
     override val toolCallbacks: List<ToolCallback>,
+    override val tools: List<Tool>,
 ) : ToolGroup
 
 /**

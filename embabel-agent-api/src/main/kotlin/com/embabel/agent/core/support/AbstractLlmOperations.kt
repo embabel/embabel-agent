@@ -207,6 +207,8 @@ abstract class AbstractLlmOperations(
             outputClass = outputClass,
             interaction = interaction.copy(
                 toolCallbacks = allToolCallbacks,
+                // Clear tools since they're now included in allToolCallbacks
+                tools = emptyList(),
             ),
             llm = chooseLlm(llmOptions = interaction.llm),
             messages = messages,

@@ -21,6 +21,7 @@ import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.spi.InvalidLlmReturnFormatException
 import com.embabel.agent.spi.InvalidLlmReturnTypeException
 import com.embabel.agent.spi.LlmInteraction
@@ -329,15 +330,15 @@ class ChatClientLlmOperationsTest {
 
             val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(duke))
 
-            // Wumpus's have tools
-            val toolCallbacks = safelyGetToolCallbacksFrom(ToolObject(Wumpus("wumpy")))
+            // Wumpus's have tools - use native Tool interface
+            val tools = safelyGetToolsFrom(ToolObject(Wumpus("wumpy")))
             val setup = createChatClientLlmOperations(fakeChatModel)
             val result = setup.llmOperations.createObject(
                 messages = listOf(UserMessage("prompt")),
                 interaction = LlmInteraction(
                     id = InteractionId("id"),
                     llm = LlmOptions(),
-                    toolCallbacks = toolCallbacks,
+                    tools = tools,
                 ),
                 outputClass = Dog::class.java,
                 action = SimpleTestAgent.actions.first(),
@@ -345,11 +346,11 @@ class ChatClientLlmOperationsTest {
             )
             assertEquals(duke, result)
             assertEquals(1, fakeChatModel.promptsPassed.size)
-            val tools = fakeChatModel.optionsPassed[0].toolCallbacks
-            assertEquals(toolCallbacks.size, tools.size, "Must have passed same number of tools")
+            val passedTools = fakeChatModel.optionsPassed[0].toolCallbacks
+            assertEquals(tools.size, passedTools.size, "Must have passed same number of tools")
             assertEquals(
-                toolCallbacks.map { it.toolDefinition.name() }.sorted(),
-                tools.map { it.toolDefinition.name() })
+                tools.map { it.definition.name }.sorted(),
+                passedTools.map { it.toolDefinition.name() })
         }
 
         @Test
@@ -559,26 +560,26 @@ class ChatClientLlmOperationsTest {
                 )
             )
 
-            // Wumpus's have tools
-            val toolCallbacks = safelyGetToolCallbacksFrom(ToolObject(Wumpus("wumpy")))
+            // Wumpus's have tools - use native Tool interface
+            val tools = safelyGetToolsFrom(ToolObject(Wumpus("wumpy")))
             val setup = createChatClientLlmOperations(fakeChatModel)
             setup.llmOperations.createObjectIfPossible(
                 messages = listOf(UserMessage("prompt")),
                 interaction = LlmInteraction(
                     id = InteractionId("id"),
                     llm = LlmOptions(),
-                    toolCallbacks = toolCallbacks,
+                    tools = tools,
                 ),
                 outputClass = Dog::class.java,
                 action = SimpleTestAgent.actions.first(),
                 agentProcess = setup.mockAgentProcess,
             )
             assertEquals(1, fakeChatModel.promptsPassed.size)
-            val tools = fakeChatModel.optionsPassed[0].toolCallbacks
-            assertEquals(toolCallbacks.size, tools.size, "Must have passed same number of tools")
+            val passedTools = fakeChatModel.optionsPassed[0].toolCallbacks
+            assertEquals(tools.size, passedTools.size, "Must have passed same number of tools")
             assertEquals(
-                toolCallbacks.map { it.toolDefinition.name() }.sorted(),
-                tools.map { it.toolDefinition.name() })
+                tools.map { it.definition.name }.sorted(),
+                passedTools.map { it.toolDefinition.name() })
         }
     }
 

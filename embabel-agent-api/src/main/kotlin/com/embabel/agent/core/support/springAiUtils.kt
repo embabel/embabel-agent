@@ -18,6 +18,7 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
+import com.embabel.agent.spi.support.springai.toEmbabelTool
 import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import org.springframework.ai.support.ToolCallbacks
 import org.springframework.ai.tool.ToolCallback
@@ -25,49 +26,91 @@ import org.springframework.ai.tool.definition.DefaultToolDefinition
 import org.springframework.ai.tool.definition.ToolDefinition
 
 /**
- * ToolCallbacks.from complains if no tools.
- * Also conceal varargs
+ * Extract native Tools from ToolObject instances.
+ * Preferred over safelyGetToolCallbacks as it returns framework-agnostic Tools.
  */
-fun safelyGetToolCallbacks(instances: Collection<ToolObject>): List<ToolCallback> =
-    instances.flatMap { safelyGetToolCallbacksFrom(it) }
-        .distinctBy { it.toolDefinition.name() }
-        .sortedBy { it.toolDefinition.name() }
+fun safelyGetTools(instances: Collection<ToolObject>): List<Tool> =
+    instances.flatMap { safelyGetToolsFrom(it) }
+        .distinctBy { it.definition.name }
+        .sortedBy { it.definition.name }
 
-
-fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallback> {
-    val callbacks = mutableListOf<ToolCallback>()
+/**
+ * Extract native Tools from a single ToolObject.
+ * Handles Embabel @LlmTool annotations, Spring AI @Tool annotations,
+ * and direct Tool/ToolCallback instances.
+ */
+fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
+    val tools = mutableListOf<Tool>()
     toolObject.objects.forEach { obj ->
-        // Handle ToolCallback instances directly
-        if (obj is ToolCallback) {
-            callbacks.add(obj)
+        // Handle Tool instances directly
+        if (obj is Tool) {
+            tools.add(obj)
             return@forEach
         }
 
-        // Scan for Embabel @Tool.Method annotations
-        val embabelTools = Tool.safelyFromInstance(obj)
-        callbacks.addAll(embabelTools.map { it.toSpringToolCallback() })
+        // Handle ToolCallback instances by wrapping them
+        if (obj is ToolCallback) {
+            tools.add(obj.toEmbabelTool())
+            return@forEach
+        }
 
-        // Scan for Spring AI @Tool annotations
+        // Scan for Embabel @LlmTool annotations
+        val embabelTools = Tool.safelyFromInstance(obj)
+        tools.addAll(embabelTools)
+
+        // Scan for Spring AI @Tool annotations and wrap them
         try {
-            callbacks.addAll(ToolCallbacks.from(obj).toList())
+            val springCallbacks = ToolCallbacks.from(obj).toList()
+            tools.addAll(springCallbacks.map { it.toEmbabelTool() })
         } catch (_: IllegalStateException) {
-            // Ignore this exception from Spring AI.
-            // Passing in object without @Tool annotations is not a problem:
-            // it should simply be ignored
+            // Ignore - no @Tool annotations found
         }
     }
-    return callbacks
-        .filter { toolObject.filter(it.toolDefinition.name()) }
+    return tools
+        .filter { toolObject.filter(it.definition.name) }
         .map {
-            val newName = toolObject.namingStrategy.transform(it.toolDefinition.name())
-            if (newName != it.toolDefinition.name()) {
-                RenamedToolCallback(it, newName)
+            val newName = toolObject.namingStrategy.transform(it.definition.name)
+            if (newName != it.definition.name) {
+                RenamedTool(it, newName)
             } else {
                 it
             }
         }
-        .distinctBy { it.toolDefinition.name() }
-        .sortedBy { it.toolDefinition.name() }
+        .distinctBy { it.definition.name }
+        .sortedBy { it.definition.name }
+}
+
+/**
+ * ToolCallbacks.from complains if no tools.
+ * Also conceal varargs.
+ * @deprecated Use safelyGetTools instead and convert to ToolCallback at the Spring AI boundary
+ */
+fun safelyGetToolCallbacks(instances: Collection<ToolObject>): List<ToolCallback> =
+    safelyGetTools(instances).map { it.toSpringToolCallback() }
+
+/**
+ * @deprecated Use safelyGetToolsFrom instead
+ */
+fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallback> =
+    safelyGetToolsFrom(toolObject).map { it.toSpringToolCallback() }
+
+/**
+ * Allows renaming a Tool while preserving its behavior.
+ */
+class RenamedTool(
+    private val delegate: Tool,
+    private val newName: String,
+) : Tool {
+
+    override val definition: Tool.Definition = object : Tool.Definition {
+        override val name: String = newName
+        override val description: String = delegate.definition.description
+        override val inputSchema: Tool.InputSchema = delegate.definition.inputSchema
+    }
+
+    override val metadata: Tool.Metadata = delegate.metadata
+
+    override fun call(input: String): Tool.Result = delegate.call(input)
 }
 
 /**
