@@ -19,6 +19,7 @@ import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.JvmType
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.swagger.v3.oas.annotations.media.Schema
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Proxy
 
@@ -32,7 +33,17 @@ import java.lang.reflect.Proxy
  * - [JvmType]: hydration to a typed JVM instance
  * - [DynamicType][com.embabel.agent.core.DynamicType]: schema/structure metadata
  */
-interface NamedEntityData : EntityData, NamedEntity {
+interface NamedEntityData : NamedEntity {
+
+    /**
+     * Properties of this entity. Arbitrary key-value pairs.
+     */
+    @get:Schema(
+        description = "Properties of this object. Arbitrary key-value pairs, although likely specified in schema. Must filter out embedding",
+        example = "{\"birthYear\": 1854, \"deathYear\": 1930}",
+        required = true,
+    )
+    val properties: Map<String, Any>
 
     /**
      * Optional linkage to a [DomainType] ([JvmType] or [DynamicType][com.embabel.agent.core.DynamicType]).
@@ -50,11 +61,34 @@ interface NamedEntityData : EntityData, NamedEntity {
         return "(${labelsString} id='$id', name=$name, description=$description)".indent(indent)
     }
 
-    // Use EntityData's embeddableValue which includes properties
-    override fun embeddableValue(): String = super<EntityData>.embeddableValue()
+    override fun embeddableValue(): String {
+        val props = properties.entries
+            .filterNot { DEFAULT_EXCLUDED_PROPERTIES.contains(it.key) }
+            .joinToString { (k, v) -> "$k=$v" }
+        return "Entity {${labels()}}: properties=[$props]"
+    }
 
-    // Use RetrievableEntity's labels which adds ENTITY_LABEL (__Entity__)
-    override fun labels(): Set<String> = super<EntityData>.labels()
+    override fun labels(): Set<String> = super.labels() + setOf(ENTITY_LABEL)
+
+    companion object {
+        val DEFAULT_EXCLUDED_PROPERTIES = setOf("embedding", "id")
+
+        /**
+         * Base label for all entities.
+         * Aligns with Neo4j LLM Graph Builder convention.
+         * @see <a href="https://github.com/neo4j-labs/llm-graph-builder">LLM Graph Builder</a>
+         */
+        const val ENTITY_LABEL = "__Entity__"
+
+        /**
+         * Relationship type from Chunk to Entity.
+         * Aligns with Neo4j LLM Graph Builder convention.
+         * ```
+         * (Chunk)-[:HAS_ENTITY]->(__Entity__)
+         * ```
+         */
+        const val HAS_ENTITY = "HAS_ENTITY"
+    }
 
     /**
      * Hydrate this entity to a typed JVM instance using [linkedDomainType].

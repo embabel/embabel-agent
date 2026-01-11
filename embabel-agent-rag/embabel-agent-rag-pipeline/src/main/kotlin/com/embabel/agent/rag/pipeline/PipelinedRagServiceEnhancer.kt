@@ -23,7 +23,7 @@ import com.embabel.agent.event.RagRequestReceivedEvent
 import com.embabel.agent.event.RagResponseEvent
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
-import com.embabel.agent.rag.model.RetrievableEntity
+import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.pipeline.event.InitialRequestRagPipelineEvent
 import com.embabel.agent.rag.pipeline.event.InitialResponseRagPipelineEvent
 import com.embabel.agent.rag.service.*
@@ -132,7 +132,7 @@ class PipelinedRagServiceEnhancer(
                 enhancedRagResponse.results.size,
                 enhancedRagResponse.results.count { it.match is Chunk },
                 enhancedRagResponse.results.count { it.match is ContentElement && it.match !is Chunk },
-                enhancedRagResponse.results.count { it.match is RetrievableEntity },
+                enhancedRagResponse.results.count { it.match is NamedEntityData },
             )
             logger.info(
                 "Results: {}",

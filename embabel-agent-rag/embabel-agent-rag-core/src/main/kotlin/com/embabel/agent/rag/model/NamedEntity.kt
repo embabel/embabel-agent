@@ -57,7 +57,7 @@ interface NamedEntity : Retrievable, NamedAndDescribed {
         get() = emptyMap()
 
     override fun labels(): Set<String> =
-        setOf(this::class.simpleName ?: RetrievableEntity.ENTITY_LABEL)
+        setOf(this::class.simpleName ?: NamedEntityData.ENTITY_LABEL)
 
     // === Defaults for Embeddable ===
 

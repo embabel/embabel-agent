@@ -17,7 +17,7 @@ package com.embabel.agent.rag.service
 
 import com.embabel.agent.core.DataDictionary
 import com.embabel.agent.rag.model.NamedEntity
-import com.embabel.agent.rag.model.RetrievableEntity
+import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.SimpleNamedEntityData
 import com.embabel.agent.rag.service.support.InMemoryNamedEntityDataRepository
 import org.junit.jupiter.api.Assertions.*
@@ -217,7 +217,7 @@ class NamedEntityDataRepositoryProxyTest {
             val entity = repository.findById("entity-1")
 
             // Verify __Entity__ label is present
-            assertTrue(entity!!.labels().contains(RetrievableEntity.ENTITY_LABEL))
+            assertTrue(entity!!.labels().contains(NamedEntityData.ENTITY_LABEL))
             assertTrue(entity.labels().contains("Person"))
         }
 

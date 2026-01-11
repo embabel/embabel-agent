@@ -16,7 +16,7 @@
 package com.embabel.agent.rag.service.support
 
 import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.EntityData
+import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.RagRequest
 import com.embabel.agent.rag.service.SimilarityResults
@@ -60,7 +60,7 @@ interface ChunkFinder : RagFacet<Chunk>
 /**
  * Match over an entity of type E. May be persisted in JPA or the like.
  */
-interface EntityMatch<E : Any> : EntityData, Described {
+interface EntityMatch<E : Any> : NamedEntityData, Described {
 
     /**
      * Underlying entity

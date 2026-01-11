@@ -16,9 +16,9 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
 import com.embabel.agent.rag.model.Retrievable
-import com.embabel.agent.rag.model.RetrievableEntity.Companion.ENTITY_LABEL
-import com.embabel.agent.rag.model.SimpleEntityData
+import com.embabel.agent.rag.model.SimpleNamedEntityData
 import com.embabel.agent.rag.service.*
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
@@ -137,9 +137,11 @@ class ToolishRagTest {
     private fun createEntity(
         id: String,
         name: String,
-    ): SimpleEntityData =
-        SimpleEntityData(
+    ): SimpleNamedEntityData =
+        SimpleNamedEntityData(
             id = id,
+            name = name,
+            description = "Test entity",
             labels = setOf("Person"),
             properties = mapOf("name" to name),
         )
@@ -657,17 +659,17 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9))
 
             every {
-                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleNamedEntityData::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.8))
 
             val tools = VectorSearchTools(
                 vectorSearch,
-                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+                searchFor = listOf(Chunk::class.java, SimpleNamedEntityData::class.java)
             )
             val result = tools.vectorSearch("test query", 10, 0.5)
 
             verify { vectorSearch.vectorSearch(any(), Chunk::class.java) }
-            verify { vectorSearch.vectorSearch(any(), SimpleEntityData::class.java) }
+            verify { vectorSearch.vectorSearch(any(), SimpleNamedEntityData::class.java) }
 
             assertTrue(result.contains("2 results:"))
             assertTrue(result.contains("Chunk content"))
@@ -685,7 +687,7 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunkLowScore, score = 0.7))
 
             every {
-                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleNamedEntityData::class.java)
             } returns listOf(
                 SimpleSimilaritySearchResult(
                     match = createEntity("shared-id", "Entity name"),
@@ -695,7 +697,7 @@ class ToolishRagTest {
 
             val tools = VectorSearchTools(
                 vectorSearch,
-                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+                searchFor = listOf(Chunk::class.java, SimpleNamedEntityData::class.java)
             )
             val result = tools.vectorSearch("test query", 10, 0.5)
 
@@ -718,12 +720,12 @@ class ToolishRagTest {
             )
 
             every {
-                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleNamedEntityData::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.7))
 
             val tools = VectorSearchTools(
                 vectorSearch,
-                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+                searchFor = listOf(Chunk::class.java, SimpleNamedEntityData::class.java)
             )
             val result = tools.vectorSearch("test query", 10, 0.5)
 
@@ -747,13 +749,13 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.6))
 
             every {
-                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+                vectorSearch.vectorSearch(any<TextSimilaritySearchRequest>(), SimpleNamedEntityData::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.8))
 
             val listener = ResultsListener { event -> capturedEvent = event }
             val tools = VectorSearchTools(
                 vectorSearch,
-                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java),
+                searchFor = listOf(Chunk::class.java, SimpleNamedEntityData::class.java),
                 resultsListener = listener
             )
             tools.vectorSearch("test query", 10, 0.5)
@@ -778,17 +780,17 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.85))
 
             every {
-                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleNamedEntityData::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.75))
 
             val tools = TextSearchTools(
                 textSearch,
-                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+                searchFor = listOf(Chunk::class.java, SimpleNamedEntityData::class.java)
             )
             val result = tools.textSearch("+kotlin", 5, 0.7)
 
             verify { textSearch.textSearch(any(), Chunk::class.java) }
-            verify { textSearch.textSearch(any(), SimpleEntityData::class.java) }
+            verify { textSearch.textSearch(any(), SimpleNamedEntityData::class.java) }
 
             assertTrue(result.contains("2 results:"))
             assertTrue(result.contains("Chunk content"))
@@ -806,12 +808,12 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.6))
 
             every {
-                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleNamedEntityData::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.9))
 
             val tools = TextSearchTools(
                 textSearch,
-                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+                searchFor = listOf(Chunk::class.java, SimpleNamedEntityData::class.java)
             )
             val result = tools.textSearch("+test", 10, 0.5)
 
@@ -834,12 +836,12 @@ class ToolishRagTest {
             )
 
             every {
-                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleNamedEntityData::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.6))
 
             val tools = TextSearchTools(
                 textSearch,
-                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java)
+                searchFor = listOf(Chunk::class.java, SimpleNamedEntityData::class.java)
             )
             val result = tools.textSearch("+test", 10, 0.3)
 
@@ -863,13 +865,13 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.5))
 
             every {
-                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleEntityData::class.java)
+                textSearch.textSearch(any<TextSimilaritySearchRequest>(), SimpleNamedEntityData::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = entity, score = 0.9))
 
             val listener = ResultsListener { event -> capturedEvent = event }
             val tools = TextSearchTools(
                 textSearch,
-                searchFor = listOf(Chunk::class.java, SimpleEntityData::class.java),
+                searchFor = listOf(Chunk::class.java, SimpleNamedEntityData::class.java),
                 resultsListener = listener
             )
             tools.textSearch("+kotlin", 5, 0.4)
@@ -957,13 +959,13 @@ class ToolishRagTest {
             val retrievalOps = mockk<FinderOperations>()
             val entity = createEntity("entity1", "Test Entity")
 
-            every { retrievalOps.supportsType("SimpleEntityData") } returns true
-            every { retrievalOps.findById<Retrievable>("entity1", "SimpleEntityData") } returns entity
+            every { retrievalOps.supportsType("SimpleNamedEntityData") } returns true
+            every { retrievalOps.findById<Retrievable>("entity1", "SimpleNamedEntityData") } returns entity
 
             val tools = FinderTools(retrievalOps)
-            val result = tools.findById("entity1", "SimpleEntityData")
+            val result = tools.findById("entity1", "SimpleNamedEntityData")
 
-            assertTrue(result.contains("Found SimpleEntityData with id 'entity1'"))
+            assertTrue(result.contains("Found SimpleNamedEntityData with id 'entity1'"))
         }
     }
 }

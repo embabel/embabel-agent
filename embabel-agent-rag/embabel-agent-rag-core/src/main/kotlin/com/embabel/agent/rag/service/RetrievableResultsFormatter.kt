@@ -16,8 +16,8 @@
 package com.embabel.agent.rag.service
 
 import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.EntityData
 import com.embabel.agent.rag.model.Fact
+import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.Retrievable
 
 /**
@@ -42,7 +42,7 @@ object SimpleRetrievableResultsFormatter : RetrievableResultsFormatter {
             val formattedScore = "%.2f".format(result.score)
 
             when (val match = result.match) {
-                is EntityData -> {
+                is NamedEntityData -> {
                     "$formattedScore: ${match.embeddableValue()}"
                 }
 

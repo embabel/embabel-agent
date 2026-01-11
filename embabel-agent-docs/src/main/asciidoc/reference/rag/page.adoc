@@ -92,6 +92,49 @@ The `embabel-agent-rag-tika` module provides Apache Tika integration for parsing
 
 Embabel Agent uses a hierarchical content model that goes beyond traditional flat chunk storage:
 
+....
+Datum (sealed interface)
+│   Core: id, uri, metadata, labels()
+│
+├── ContentElement ─────────────────────────────────────┐
+│       Structural content (not embedded)               │
+│   ┌───────────────────────────────────────────────┐   │
+│   │ ContentRoot / NavigableDocument               │   │
+│   │     Documents with URI and title              │   │
+│   └───────────────────────────────────────────────┘   │
+│   ┌───────────────────────────────────────────────┐   │
+│   │ ContainerSection / LeafSection                │   │
+│   │     Hierarchical document sections            │   │
+│   └───────────────────────────────────────────────┘   │
+│                                                       │
+└── Retrievable ────────────────────────────────────────┤
+        Embeddable/searchable content                   │
+    ┌───────────────────────────────────────────────┐   │
+    │ Chunk                                         │   │
+    │     text, parentId, embedding                 │   │
+    │     Primary unit for vector search            │   │
+    └───────────────────────────────────────────────┘   │
+    ┌───────────────────────────────────────────────┐   │
+    │ NamedEntity                                   │   │
+    │     Domain entity contract (Person, Product)  │   │
+    │     name, description + domain properties     │   │
+    │                                               │   │
+    │   └── NamedEntityData                         │   │
+    │         Storage format with properties map    │   │
+    │         Hydration via toTypedInstance()       │   │
+    └───────────────────────────────────────────────┘   │
+                                                        │
+────────────────────────────────────────────────────────┘
+....
+
+**Key Design Points:**
+
+* `Datum` is the root sealed interface for all data objects
+* `ContentElement` branch contains structural content (documents, sections) that is NOT embedded
+* `Retrievable` branch contains searchable content with embeddings (chunks, entities)
+* `NamedEntity` is the domain contract for typed entities
+* `NamedEntityData` is the storage format with generic `properties` map and hydration support
+
 ===== Content Elements
 
 The `ContentElement` interface is the supertype for all content in the RAG system.

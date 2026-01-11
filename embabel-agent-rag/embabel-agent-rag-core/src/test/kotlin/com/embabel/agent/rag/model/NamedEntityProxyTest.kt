@@ -17,7 +17,7 @@ package com.embabel.agent.rag.model
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
-import com.embabel.agent.rag.model.RetrievableEntity.Companion.ENTITY_LABEL
+import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
