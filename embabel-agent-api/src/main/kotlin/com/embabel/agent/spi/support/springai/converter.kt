@@ -16,14 +16,17 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.chat.AssistantMessage
+import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
 import com.embabel.chat.SystemMessage
-import com.embabel.chat.TextPart
+import com.embabel.chat.ToolCall
+import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
 import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
 import org.springframework.ai.chat.messages.Message as SpringAiMessage
 import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessage
+import org.springframework.ai.chat.messages.ToolResponseMessage as SpringAiToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 import org.springframework.ai.content.Media
 import org.springframework.core.io.ByteArrayResource
@@ -31,10 +34,18 @@ import org.springframework.util.MimeTypeUtils
 
 /**
  * Convert one of our messages to a Spring AI message with multimodal support.
+ *
+ * Note: Tool-related messages (AssistantMessageWithToolCalls, ToolResultMessage)
+ * are converted to their text-only equivalents for now. Full tool call message
+ * support will be added in Phase 3 of progressive tools implementation.
  */
 fun Message.toSpringAiMessage(): SpringAiMessage {
     val metadata: Map<String, Any> = emptyMap()
     return when (this) {
+        // Tool messages are converted to basic text for now
+        is AssistantMessageWithToolCalls -> SpringAiAssistantMessage(this.textContent)
+        is ToolResultMessage -> SpringAiAssistantMessage("[Tool: ${this.toolName}] ${this.textContent}")
+
         is AssistantMessage -> SpringAiAssistantMessage(this.textContent)
 
         is SystemMessage -> SpringAiSystemMessage.builder()
@@ -69,5 +80,21 @@ fun Message.toSpringAiMessage(): SpringAiMessage {
 
             builder.metadata(metadata).build()
         }
+    }
+}
+
+/**
+ * Convert a Spring AI AssistantMessage to an Embabel message.
+ * Handles both regular messages and messages with tool calls.
+ */
+fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
+    val toolCalls = this.toolCalls
+    return if (toolCalls.isNullOrEmpty()) {
+        AssistantMessage(content = this.text ?: "")
+    } else {
+        AssistantMessageWithToolCalls(
+            content = this.text ?: "",
+            toolCalls = toolCalls.map { ToolCall(it.id(), it.name(), it.arguments()) }
+        )
     }
 }

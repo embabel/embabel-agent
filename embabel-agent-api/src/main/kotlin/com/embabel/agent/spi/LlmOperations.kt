@@ -106,6 +106,10 @@ private data class LlmCallImpl(
  * @param llm LLM options to use, specifying model and hyperparameters
  * @param tools Tools to use for this interaction
  * @param promptContributors Prompt contributors to use for this interaction
+ * @param useEmbabelToolLoop If true, use Embabel's own tool loop instead of Spring AI's.
+ * This enables dynamic tool injection and gives full control over the tool execution loop.
+ * Default is true.
+ * @param maxToolIterations Maximum number of tool loop iterations (default 20)
  */
 data class LlmInteraction(
     val id: InteractionId,
@@ -117,6 +121,8 @@ data class LlmInteraction(
     override val generateExamples: Boolean? = null,
     override val propertyFilter: Predicate<String> = Predicate { true },
     override val validation: Boolean = true,
+    val useEmbabelToolLoop: Boolean = true,
+    val maxToolIterations: Int = 20,
 ) : LlmCall {
 
     override val name: String = id.value

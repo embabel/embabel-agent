@@ -17,6 +17,7 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.LlmInvocation
+import com.embabel.agent.core.Usage
 import com.embabel.agent.core.support.AbstractLlmOperations
 import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
@@ -25,12 +26,15 @@ import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
+import com.embabel.agent.spi.toolloop.EmbabelToolLoop
+import com.embabel.agent.spi.toolloop.ToolInjectionStrategy
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
-import com.embabel.common.core.thinking.ThinkingResponse
-import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.chat.Message
+import com.embabel.chat.SystemMessage as EmbabelSystemMessage
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
+import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.thinking.spi.InternalThinkingApi
@@ -141,6 +145,134 @@ internal class ChatClientLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): O {
+        // Check if we should use Embabel's tool loop or Spring AI's internal loop
+        return if (interaction.useEmbabelToolLoop) {
+            doTransformWithEmbabelToolLoop(messages, interaction, outputClass, llmRequestEvent)
+        } else {
+            doTransformWithSpringAi(messages, interaction, outputClass, llmRequestEvent)
+        }
+    }
+
+    /**
+     * Transform using Embabel's own tool loop.
+     * This gives us control over message history, tool injection, and observability.
+     */
+    private fun <O> doTransformWithEmbabelToolLoop(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): O {
+        val llm = chooseLlm(interaction.llm)
+        val promptContributions =
+            (interaction.promptContributors + llm.promptContributors).joinToString(PROMPT_ELEMENT_SEPARATOR) { it.contribution() }
+
+        val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+
+        // Build the output parser and get schema format for structured output
+        val converter = if (outputClass != String::class.java) {
+            ExceptionWrappingConverter(
+                expectedType = outputClass,
+                delegate = WithExampleConverter(
+                    delegate = SuppressThinkingConverter(
+                        FilteringJacksonOutputConverter(
+                            clazz = outputClass,
+                            objectMapper = objectMapper,
+                            propertyFilter = interaction.propertyFilter,
+                        )
+                    ),
+                    outputClass = outputClass,
+                    ifPossible = false,
+                    generateExamples = shouldGenerateExamples(interaction),
+                )
+            )
+        } else null
+
+        val schemaFormat = converter?.getFormat()
+
+        val outputParser: (String) -> O = if (outputClass == String::class.java) {
+            @Suppress("UNCHECKED_CAST")
+            { text -> stringWithoutThinkBlocks(text) as O }
+        } else {
+            { text -> converter!!.convert(text)!! }
+        }
+
+        // Create the single LLM caller that wraps Spring AI's ChatModel
+        val singleLlmCaller = SpringAiSingleLlmCaller(
+            chatModel = llm.model,
+            chatOptions = chatOptions,
+        )
+
+        // Create our tool loop
+        val toolLoop = EmbabelToolLoop(
+            llmCaller = singleLlmCaller,
+            objectMapper = objectMapper,
+            injectionStrategy = ToolInjectionStrategy.NONE,
+            maxIterations = interaction.maxToolIterations,
+        )
+
+        // Build initial messages with prompt contributions and schema
+        val initialMessages = buildInitialMessagesForToolLoop(promptContributions, messages, schemaFormat)
+
+        // Emit call event for observability
+        val springAiPrompt = if (schemaFormat != null) {
+            buildPromptWithSchema(promptContributions, messages, schemaFormat)
+        } else {
+            buildBasicPrompt(promptContributions, messages)
+        }
+        llmRequestEvent?.let {
+            it.agentProcess.processContext.onProcessEvent(
+                it.callEvent(springAiPrompt)
+            )
+        }
+
+        // Use native Tool directly - no conversion needed thanks to migration
+        val tools = interaction.tools
+
+        // Execute the tool loop
+        val result = toolLoop.execute(
+            initialMessages = initialMessages,
+            initialTools = tools,
+            outputParser = outputParser,
+        )
+
+        // Record usage if available
+        result.totalUsage?.let { usage ->
+            recordUsage(llm, usage, llmRequestEvent)
+        }
+
+        return result.result
+    }
+
+    /**
+     * Build initial messages for the tool loop, including system prompt contributions and schema.
+     */
+    private fun buildInitialMessagesForToolLoop(
+        promptContributions: String,
+        messages: List<Message>,
+        schemaFormat: String? = null,
+    ): List<Message> {
+        return buildList {
+            if (promptContributions.isNotEmpty()) {
+                add(EmbabelSystemMessage(promptContributions))
+            }
+            addAll(messages)
+            if (schemaFormat != null) {
+                add(EmbabelSystemMessage(schemaFormat))
+            }
+        }
+    }
+
+    /**
+     * Transform using Spring AI's ChatClient with internal tool handling.
+     * This is the original implementation preserved for backwards compatibility.
+     */
+    private fun <O> doTransformWithSpringAi(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): O {
         val llm = chooseLlm(interaction.llm)
         val chatClient = createChatClient(llm)
         val promptContributions =
@@ -208,10 +340,19 @@ internal class ChatClientLlmOperations(
         llmRequestEvent: LlmRequestEvent<*>?,
     ) {
         logger.debug("Usage is {}", chatResponse.metadata.usage)
+        recordUsage(llm, chatResponse.metadata.usage.toEmbabelUsage(), llmRequestEvent)
+    }
+
+    private fun recordUsage(
+        llm: Llm,
+        usage: Usage,
+        llmRequestEvent: LlmRequestEvent<*>?,
+    ) {
+        logger.debug("Usage is {}", usage)
         llmRequestEvent?.let {
             val llmi = LlmInvocation(
                 llm = llm,
-                usage = chatResponse.metadata.usage.toEmbabelUsage(),
+                usage = usage,
                 agentName = it.agentProcess.agent.name,
                 timestamp = it.timestamp,
                 runningTime = Duration.between(it.timestamp, Instant.now()),
