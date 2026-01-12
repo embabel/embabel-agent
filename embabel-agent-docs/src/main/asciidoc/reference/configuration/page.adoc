@@ -392,6 +392,50 @@ NOTE: Either `GOOGLE_API_KEY` or both `GOOGLE_PROJECT_ID` and `GOOGLE_LOCATION` 
 IMPORTANT: Gemini 3 models are only available in the `global` location on Vertex AI.
 To use Gemini 3 with Vertex AI, you must set `GOOGLE_LOCATION=global`.
 
+===== HTTP Client Configuration
+
+From `NettyClientFactoryProperties` - configuration for the HTTP client used by model providers (OpenAI, Anthropic, etc.) when making API calls.
+
+Embabel uses Reactor Netty as the HTTP client for improved performance and non-blocking I/O.
+This is particularly important for LLM API calls which can have long response times.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.http-client.connect-timeout`
+|Duration
+|`25s`
+|Connection timeout for establishing HTTP connections to model providers
+
+|`embabel.agent.platform.http-client.read-timeout`
+|Duration
+|`1m`
+|Read timeout (response timeout) for receiving responses from model providers. Increase this value for models that generate long responses or when using extended thinking features.
+
+|===
+
+.Example Configuration
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      http-client:
+        connect-timeout: 10s
+        read-timeout: 10m
+----
+
+TIP: For models with extended thinking enabled (like Claude with thinking mode), consider increasing `read-timeout` to `10m` or higher to accommodate longer processing times.
+
+====== When to Adjust Timeouts
+
+* *Long-running LLM calls*: If you experience timeout errors during complex reasoning tasks, increase `read-timeout`
+* *Slow network environments*: Increase `connect-timeout` if connection establishment is failing
+* *Streaming responses*: The `read-timeout` applies to the initial response; streaming content has its own handling
+
+NOTE: The HTTP client configuration applies to all model providers that use Spring's `RestClient` and `WebClient`, including OpenAI, Anthropic, and OpenAI-compatible endpoints.
+
 ===== Server-Sent Events
 
 From `AgentPlatformProperties.SseConfig` - server-sent events configuration.
