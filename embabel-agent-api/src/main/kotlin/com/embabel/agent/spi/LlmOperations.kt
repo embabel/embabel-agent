@@ -18,6 +18,7 @@ package com.embabel.agent.spi
 import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
@@ -28,7 +29,6 @@ import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import jakarta.validation.ConstraintViolation
-import org.springframework.ai.tool.ToolCallback
 import java.util.function.Predicate
 
 /**
@@ -84,7 +84,7 @@ private data class LlmCallImpl(
     override val name: String,
     override val llm: LlmOptions? = null,
     override val toolGroups: Set<ToolGroupRequirement> = emptySet(),
-    override val toolCallbacks: List<ToolCallback> = emptyList(),
+    override val tools: List<Tool> = emptyList(),
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean = false,
@@ -104,19 +104,25 @@ private data class LlmCallImpl(
  * if the action can be rerun.
  * This is per action, not per process.
  * @param llm LLM options to use, specifying model and hyperparameters
- * @param toolCallbacks Tool callbacks to use for this interaction
+ * @param tools Tools to use for this interaction
  * @param promptContributors Prompt contributors to use for this interaction
+ * @param useEmbabelToolLoop If true, use Embabel's own tool loop instead of Spring AI's.
+ * This enables dynamic tool injection and gives full control over the tool execution loop.
+ * Default is true.
+ * @param maxToolIterations Maximum number of tool loop iterations (default 20)
  */
 data class LlmInteraction(
     val id: InteractionId,
     override val llm: LlmOptions = LlmOptions(),
     override val toolGroups: Set<ToolGroupRequirement> = emptySet(),
-    override val toolCallbacks: List<ToolCallback> = emptyList(),
+    override val tools: List<Tool> = emptyList(),
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean? = null,
     override val propertyFilter: Predicate<String> = Predicate { true },
     override val validation: Boolean = true,
+    val useEmbabelToolLoop: Boolean = true,
+    val maxToolIterations: Int = 20,
 ) : LlmCall {
 
     override val name: String = id.value
@@ -130,7 +136,7 @@ data class LlmInteraction(
         ) = LlmInteraction(
             id = id,
             llm = llm.llm ?: LlmOptions(),
-            toolCallbacks = llm.toolCallbacks,
+            tools = llm.tools,
             toolGroups = llm.toolGroups,
             promptContributors = llm.promptContributors,
             generateExamples = llm.generateExamples,

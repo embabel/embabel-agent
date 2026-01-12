@@ -81,7 +81,7 @@ class StreamingChatClientOperationsTest {
         every { mockLlm.optionsConverter } returns mockk(relaxed = true)
         every { mockLlm.optionsConverter.convertOptions(any()) } returns mockk(relaxed = true)
         every { mockInteraction.llm } returns mockk(relaxed = true)
-        every { mockInteraction.toolCallbacks } returns emptyList()
+        every { mockInteraction.tools } returns emptyList()
         every { mockChatClientLlmOperations.objectMapper } returns jacksonObjectMapper()
         every { mockInteraction.propertyFilter } returns { true }
 

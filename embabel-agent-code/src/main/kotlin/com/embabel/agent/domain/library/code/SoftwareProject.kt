@@ -17,6 +17,7 @@ package com.embabel.agent.domain.library.code
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.tools.file.*
 import com.embabel.coding.tools.ci.BuildOptions
 import com.embabel.coding.tools.ci.BuildResult
@@ -56,7 +57,7 @@ open class SoftwareProject @JvmOverloads constructor(
         }
         loggerFor<SoftwareProject>().info(
             "Software project tools: ${
-                toolCallbacks.map { it.toolDefinition.name() }.sorted()
+                safelyGetToolsFrom(toolObject()).map { it.definition.name }.sorted()
             }"
         )
     }

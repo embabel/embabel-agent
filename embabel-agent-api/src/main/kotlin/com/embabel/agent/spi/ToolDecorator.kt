@@ -15,10 +15,10 @@
  */
 package com.embabel.agent.spi
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.common.ai.model.LlmOptions
-import org.springframework.ai.tool.ToolCallback
 
 /**
  * Decorate tools for use on the platform: for example, to time them and emit events.
@@ -34,9 +34,9 @@ fun interface ToolDecorator {
      * @return The decorated tool.
      */
     fun decorate(
-        tool: ToolCallback,
+        tool: Tool,
         agentProcess: AgentProcess,
         action: Action?,
         llmOptions: LlmOptions,
-    ): ToolCallback
+    ): Tool
 }

@@ -16,6 +16,7 @@
 package com.embabel.agent.core.support
 
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.*
@@ -29,7 +30,6 @@ import com.embabel.common.util.time
 import jakarta.validation.Validator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.springframework.ai.tool.ToolCallback
 import java.time.Duration
 
 /**
@@ -56,7 +56,7 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): O {
-        val (allToolCallbacks, llmRequestEvent) = getToolsAndEvent(
+        val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
             action = action,
@@ -65,7 +65,7 @@ abstract class AbstractLlmOperations(
         )
 
         val interactionWithToolDecoration = interaction.copy(
-            toolCallbacks = allToolCallbacks.map {
+            tools = allTools.map {
                 toolDecorator.decorate(
                     tool = it,
                     agentProcess = agentProcess,
@@ -138,7 +138,7 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<O> {
-        val (allToolCallbacks, llmRequestEvent) = getToolsAndEvent(
+        val (allTools, llmRequestEvent) = getToolsAndEvent(
             agentProcess = agentProcess,
             interaction = interaction,
             action = action,
@@ -148,7 +148,7 @@ abstract class AbstractLlmOperations(
         val (response, ms) = time {
             doTransformIfPossible(
                 messages = messages,
-                interaction = interaction.copy(toolCallbacks = allToolCallbacks.map {
+                interaction = interaction.copy(tools = allTools.map {
                     toolDecorator.decorate(
                         tool = it,
                         agentProcess = agentProcess,
@@ -195,27 +195,22 @@ abstract class AbstractLlmOperations(
         action: Action?,
         messages: List<Message>,
         outputClass: Class<O>,
-    ): Pair<Collection<ToolCallback>, LlmRequestEvent<O>> {
+    ): Pair<List<Tool>, LlmRequestEvent<O>> {
         val toolGroupResolver = agentProcess.processContext.platformServices.agentPlatform.toolGroupResolver
-        val allToolCallbacks =
-            interaction.resolveToolCallbacks(
-                toolGroupResolver,
-            )
+        val allTools = interaction.resolveTools(toolGroupResolver)
         val llmRequestEvent = LlmRequestEvent(
             agentProcess = agentProcess,
             action = action,
             outputClass = outputClass,
-            interaction = interaction.copy(
-                toolCallbacks = allToolCallbacks,
-            ),
+            interaction = interaction.copy(tools = allTools),
             llm = chooseLlm(llmOptions = interaction.llm),
             messages = messages,
         )
         agentProcess.processContext.onProcessEvent(llmRequestEvent)
         logger.debug(
-            "Expanded toolCallbacks from {}: {}",
-            llmRequestEvent.interaction.toolCallbacks.map { it.toolDefinition.name() },
-            allToolCallbacks.map { it.toolDefinition.name() })
-        return Pair(allToolCallbacks, llmRequestEvent)
+            "Expanded tools from {}: {}",
+            llmRequestEvent.interaction.tools.map { it.definition.name },
+            allTools.map { it.definition.name })
+        return Pair(allTools, llmRequestEvent)
     }
 }

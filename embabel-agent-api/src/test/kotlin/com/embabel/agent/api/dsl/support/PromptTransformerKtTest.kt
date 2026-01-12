@@ -17,6 +17,7 @@ package com.embabel.agent.api.dsl.support
 
 import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.MagicVictim
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.chat.Message
@@ -28,7 +29,6 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.tool.ToolCallback
 
 
 data class PromptPerson(
@@ -180,15 +180,15 @@ class PromptTransformerKtTest {
         }
 
         @Test
-        fun `transformer should handle tool groups and callbacks`() {
-            val toolCallback = mockk<ToolCallback>()
-            every { toolCallback.toolDefinition.name() } returns "test"
+        fun `transformer should handle tool groups and tools`() {
+            val tool = mockk<Tool>()
+            every { tool.definition.name } returns "test"
             val toolGroups = setOf(ToolGroupRequirement("math"), ToolGroupRequirement("web"))
 
             val transformer = promptTransformer<MagicVictim, Frog>(
                 name = "toolTransformer",
                 toolGroups = toolGroups.map { ToolGroupRequirement(it.role) }.toSet(),
-                toolCallbacks = listOf(toolCallback),
+                tools = listOf(tool),
                 inputClass = MagicVictim::class.java,
                 outputClass = Frog::class.java,
             ) {

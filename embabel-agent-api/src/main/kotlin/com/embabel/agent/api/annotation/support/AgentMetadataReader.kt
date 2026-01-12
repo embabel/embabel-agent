@@ -23,11 +23,12 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
 import com.embabel.agent.core.Export
 import com.embabel.agent.core.support.NIRVANA
 import com.embabel.agent.core.support.Rerun
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.spi.validation.*
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.NameUtils
@@ -35,7 +36,6 @@ import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
-import org.springframework.ai.tool.ToolCallback
 import org.springframework.cglib.proxy.Enhancer
 import org.springframework.stereotype.Service
 import org.springframework.util.ClassUtils
@@ -171,7 +171,7 @@ class AgentMetadataReader(
         val conditionMethods = findConditionMethods(targetType)
         val costMethods = findCostMethods(targetType, instance)
 
-        val toolCallbacksOnInstance = safelyGetToolCallbacksFrom(ToolObject.from(instance))
+        val toolsOnInstance = safelyGetToolsFrom(ToolObject.from(instance))
 
         val conditions = conditionMethods.map { createCondition(it, instance) }.toSet()
 
@@ -182,7 +182,7 @@ class AgentMetadataReader(
 
         // Process top-level action methods
         for (actionMethod in actionMethods) {
-            val action = actionMethodManager.createAction(actionMethod, instance, toolCallbacksOnInstance, costMethods)
+            val action = actionMethodManager.createAction(actionMethod, instance, toolsOnInstance, costMethods)
             allActions.add(action)
             createGoalFromActionMethod(actionMethod, action, instance)?.let { allGoals.add(it) }
 
@@ -191,7 +191,7 @@ class AgentMetadataReader(
             unrollStateType(
                 stateType = returnType,
                 agentInstance = instance,
-                toolCallbacksOnInstance = toolCallbacksOnInstance,
+                toolsOnInstance = toolsOnInstance,
                 allActions = allActions,
                 allGoals = allGoals,
                 processedStateTypes = processedStateTypes,
@@ -297,7 +297,7 @@ class AgentMetadataReader(
     private fun unrollStateType(
         stateType: Class<*>,
         agentInstance: Any,
-        toolCallbacksOnInstance: List<ToolCallback>,
+        toolsOnInstance: List<Tool>,
         allActions: MutableList<CoreAction>,
         allGoals: MutableList<AgentCoreGoal>,
         processedStateTypes: MutableSet<Class<*>>,
@@ -324,7 +324,7 @@ class AgentMetadataReader(
                 unrollStateType(
                     stateType = actionMethod.returnType,
                     agentInstance = agentInstance,
-                    toolCallbacksOnInstance = toolCallbacksOnInstance,
+                    toolsOnInstance = toolsOnInstance,
                     allActions = allActions,
                     allGoals = allGoals,
                     processedStateTypes = processedStateTypes,

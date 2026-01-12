@@ -22,13 +22,13 @@ import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.MultiTransformationAction
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.BlackboardWorldState
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.plan.CostComputation
 import com.embabel.plan.WorldState
 import org.slf4j.LoggerFactory
-import org.springframework.ai.tool.ToolCallback
 import org.springframework.core.KotlinDetector
 import org.springframework.stereotype.Component
 import org.springframework.util.ReflectionUtils
@@ -63,7 +63,7 @@ internal class DefaultActionMethodManager(
     override fun createAction(
         method: Method,
         instance: Any,
-        toolCallbacksOnInstance: List<ToolCallback>,
+        toolsOnInstance: List<Tool>,
         costMethods: Map<String, CostMethodInfo>,
     ): Action {
         requireNonAmbiguousParameters(method)

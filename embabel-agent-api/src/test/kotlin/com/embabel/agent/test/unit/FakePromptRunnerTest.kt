@@ -577,7 +577,7 @@ class FakePromptRunnerTest {
                 .createObject("Use tool", String::class.java)
 
             val invocation = context.llmInvocations[0]
-            assertTrue(invocation.interaction.toolCallbacks.isNotEmpty())
+            assertTrue(invocation.interaction.tools.isNotEmpty())
         }
     }
 }

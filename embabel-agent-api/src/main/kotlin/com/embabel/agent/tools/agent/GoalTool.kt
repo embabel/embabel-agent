@@ -18,18 +18,17 @@ package com.embabel.agent.tools.agent
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.ProcessWaitingException
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.TypeBasedInputSchema
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Verbosity
 import org.slf4j.LoggerFactory
-import org.springframework.ai.chat.model.ToolContext
-import org.springframework.ai.tool.ToolCallback
-import org.springframework.ai.tool.definition.ToolDefinition
 
 /**
- * Spring AI ToolCallback implementation for a specific goal.
+ * Framework-agnostic Tool implementation for a specific goal.
  */
-data class GoalToolCallback<I : Any>(
+data class GoalTool<I : Any>(
     val autonomy: Autonomy,
     val textCommunicator: TextCommunicator,
     val name: String,
@@ -37,7 +36,7 @@ data class GoalToolCallback<I : Any>(
     val goal: Goal,
     val inputType: Class<I>,
     val listeners: List<AgenticEventListener> = emptyList(),
-) : ToolCallback {
+) : Tool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -47,37 +46,28 @@ data class GoalToolCallback<I : Any>(
         listeners = listeners + listener,
     )
 
-    override fun getToolDefinition(): ToolDefinition {
-        return TypeWrappingToolDefinition(
-            name = name,
-            description = description,
-            type = inputType,
-        )
+    override val definition: Tool.Definition = object : Tool.Definition {
+        override val name: String = this@GoalTool.name
+        override val description: String = this@GoalTool.description
+        override val inputSchema: Tool.InputSchema = TypeBasedInputSchema.of(inputType)
     }
 
-    override fun call(
-        toolInput: String,
-    ): String {
-        return call(toolInput, null)
-    }
+    override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT
 
-    override fun call(
-        toolInput: String,
-        toolContext: ToolContext?,
-    ): String {
-        logger.info("Calling tool {} with input {}", this.name, toolInput)
+    override fun call(input: String): Tool.Result {
+        logger.info("Calling tool {} with input {}", this.name, input)
         val verbosity = Verbosity(
             showPrompts = true,
         )
         val inputObject = try {
-            val o = objectMapper.readValue(toolInput, inputType)
+            val o = objectMapper.readValue(input, inputType)
             logger.info("Successfully parsed tool input to an instance of {}:\n{}", o::class.java.name, o)
             o
         } catch (e: Exception) {
-            val errorReturn =
+            val errorMessage =
                 "BAD INPUT ERROR parsing tool input: ${e.message}: Try again and see if you can get the format right"
-            logger.warn("Error $errorReturn parsing tool input: $toolInput", e)
-            return errorReturn
+            logger.warn("Error $errorMessage parsing tool input: $input", e)
+            return Tool.Result.error(errorMessage, e)
         }
         val processOptions = ProcessOptions(
             verbosity = verbosity,
@@ -90,22 +80,21 @@ data class GoalToolCallback<I : Any>(
             // TODO Bug workaround
             prune = false,
         )
-        try {
+        return try {
             val agentProcessExecution = autonomy.runAgent(
                 inputObject = inputObject,
                 processOptions = processOptions,
                 agent = agent,
             )
             logger.info("Goal response: {}", agentProcessExecution)
-            return textCommunicator.communicateResult(agentProcessExecution)
+            Tool.Result.text(textCommunicator.communicateResult(agentProcessExecution))
         } catch (pwe: ProcessWaitingException) {
             val response = textCommunicator.communicateAwaitable(goal, pwe)
             logger.info("Returning waiting response:\n$response")
-            return response
+            Tool.Result.text(response)
         }
     }
 
     override fun toString() =
         "${javaClass.simpleName}(goal=${goal.name}, description=${goal.description})"
-
 }

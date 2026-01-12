@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.tool.ToolCallback
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Agent as CoreAgent
 
 
@@ -882,27 +882,27 @@ class AgentMetadataReaderActionTest {
 
         @Test
         fun `prompt action invocation with tool object passed in via using with renaming`() {
-            val toolCallbacks =
+            val tools =
                 testToolsAreExposed(FromPersonUsesObjectToolsViaUsingWithRenaming(), expectedToolCount = 2)
             assertTrue(
-                toolCallbacks.any { it.toolDefinition.name() == "_thing" },
-                "Should have renamed thing tool, had ${toolCallbacks.map { it.toolDefinition.name() }}",
+                tools.any { it.definition.name == "_thing" },
+                "Should have renamed thing tool, had ${tools.map { it.definition.name }}",
             )
         }
 
         @Test
         fun `prompt action invocation with tool object passed in via context with renaming`() {
-            val toolCallbacks =
+            val tools =
                 testToolsAreExposed(FromPersonUsesObjectToolsViaContextWithRenaming(), expectedToolCount = 2)
             assertTrue(
-                toolCallbacks.any { it.toolDefinition.name() == "_thing" },
-                "Should have renamed thing tool, had ${toolCallbacks.map { it.toolDefinition.name() }}",
+                tools.any { it.definition.name == "_thing" },
+                "Should have renamed thing tool, had ${tools.map { it.definition.name }}",
             )
         }
 
         @Test
         fun `prompt action invocation with tool object passed in via using with filter`() {
-            val toolCallbacks =
+            val tools =
                 testToolsAreExposed(FromPersonUsesObjectToolsViaUsingWithFilter(), expectedToolCount = 1)
 //            assertF(
 //                toolCallbacks.any { it.toolDefinition.name() == "_thing" },
@@ -913,7 +913,7 @@ class AgentMetadataReaderActionTest {
         private fun testToolsAreExposed(
             instance: Any,
             expectedToolCount: Int = 1,
-        ): List<ToolCallback> {
+        ): List<Tool> {
             val reader = AgentMetadataReader()
             val metadata = reader.createAgentMetadata(instance)
             assertNotNull(metadata)
@@ -982,12 +982,12 @@ class AgentMetadataReaderActionTest {
             assertEquals("John Doe", (pc.blackboard.lastResult() as UserInput).content)
             assertEquals(
                 expectedToolCount,
-                llmo.captured.toolCallbacks.size,
-                "Should have $expectedToolCount tools, had ${llmo.captured.toolCallbacks.map { it.toolDefinition.name() }}",
+                llmo.captured.tools.size,
+                "Should have $expectedToolCount tools, had ${llmo.captured.tools.map { it.definition.name }}",
             )
-            assertTrue(llmo.captured.toolCallbacks.any { it.toolDefinition.name() == "reverse" })
+            assertTrue(llmo.captured.tools.any { it.definition.name == "reverse" })
             assertEquals(DefaultModelSelectionCriteria, llmo.captured.llm.criteria)
-            return llmo.captured.toolCallbacks
+            return llmo.captured.tools
         }
     }
 

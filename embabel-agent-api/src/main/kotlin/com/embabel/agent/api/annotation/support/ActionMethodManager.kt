@@ -18,10 +18,10 @@ package com.embabel.agent.api.annotation.support
 import com.embabel.agent.api.annotation.State
 import com.embabel.agent.api.annotation.Action as ActionAnnotation
 import com.embabel.agent.api.common.TransformationActionContext
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ToolGroupRequirement
-import org.springframework.ai.tool.ToolCallback
 import java.lang.reflect.Method
 
 /**
@@ -48,13 +48,13 @@ interface ActionMethodManager {
      * Create an Action from a method
      * @param method the method to create an action from
      * @param instance instance of Agent or AgentCapabilities-annotated class
-     * @param toolCallbacksOnInstance tool callbacks to use from instance level
+     * @param toolsOnInstance tools to use from instance level
      * @param costMethods map of cost method name to CostMethodInfo for dynamic cost/value computation
      */
     fun createAction(
         method: Method,
         instance: Any,
-        toolCallbacksOnInstance: List<ToolCallback>,
+        toolsOnInstance: List<Tool>,
         costMethods: Map<String, CostMethodInfo> = emptyMap(),
     ): Action
 

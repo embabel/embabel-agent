@@ -57,7 +57,9 @@ class RegistryToolGroupResolver(
     }
 
     override fun findToolGroupForTool(toolName: String): ToolGroupResolution {
-        val group = toolGroups.find { it.toolCallbacks.map { it.toolDefinition.name() }.contains(toolName) }
+        val group = toolGroups.find { tg ->
+            tg.tools.any { it.definition.name == toolName }
+        }
         return if (group == null) {
             ToolGroupResolution(
                 resolvedToolGroup = null,

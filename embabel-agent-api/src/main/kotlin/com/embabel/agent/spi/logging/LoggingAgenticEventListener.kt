@@ -232,7 +232,7 @@ open class LoggingAgenticEventListener(
         val promptInfo = "using ${e.llm.name.color(colorPalette.highlight)}\n${
             e.springAiPrompt.toInfoString().color(AnsiColor.GREEN)
         }\nprompt id: '${e.interaction.id}'\ntools: [\n${
-            e.interaction.toolCallbacks.joinToString("\n----\n") { it.toolDefinition.name() + ": " + it.toolDefinition.description() }
+            e.interaction.tools.joinToString("\n----\n") { it.definition.name + ": " + it.definition.description }
                 .color(colorPalette.highlight)
         }]"
         return "${e.processId} Spring AI ChatModel call:\n${promptInfo}"

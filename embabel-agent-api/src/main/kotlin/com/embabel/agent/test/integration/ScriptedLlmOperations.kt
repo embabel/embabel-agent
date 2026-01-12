@@ -16,12 +16,23 @@
 package com.embabel.agent.test.integration
 
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.chat.Message
 import org.slf4j.LoggerFactory
+
+/**
+ * Extension to get the content string from any Tool.Result variant.
+ */
+private val Tool.Result.content: String
+    get() = when (this) {
+        is Tool.Result.Text -> content
+        is Tool.Result.WithArtifact -> content
+        is Tool.Result.Error -> message
+    }
 
 /**
  * A scripted LLM operations implementation for testing.
@@ -133,8 +144,8 @@ class ScriptedLlmOperations : LlmOperations {
             when (nextAction) {
                 is ScriptedAction.CallTool -> {
                     // Find and call the tool
-                    val tool = interaction.toolCallbacks.find {
-                        it.toolDefinition.name() == nextAction.toolName
+                    val tool = interaction.tools.find {
+                        it.definition.name == nextAction.toolName
                     }
                     if (tool != null) {
                         logger.info(
@@ -142,13 +153,24 @@ class ScriptedLlmOperations : LlmOperations {
                             nextAction.toolName,
                             nextAction.inputJson
                         )
-                        val result = tool.call(nextAction.inputJson)
-                        logger.info("Tool '{}' returned: {}", nextAction.toolName, result)
+                        // Bind the AgentProcess context before calling the tool
+                        val previousValue = AgentProcess.get()
+                        val result = try {
+                            AgentProcess.set(agentProcess)
+                            tool.call(nextAction.inputJson)
+                        } finally {
+                            if (previousValue != null) {
+                                AgentProcess.set(previousValue)
+                            } else {
+                                AgentProcess.remove()
+                            }
+                        }
+                        logger.info("Tool '{}' returned: {}", nextAction.toolName, result.content)
                         _toolCallsMade.add(
                             ToolCallRecord(
                                 toolName = nextAction.toolName,
                                 input = nextAction.inputJson,
-                                result = result,
+                                result = result.content,
                             )
                         )
                         // Continue to next action (may call more tools or respond)
@@ -156,7 +178,7 @@ class ScriptedLlmOperations : LlmOperations {
                         logger.warn(
                             "Scripted tool '{}' not found. Available: {}",
                             nextAction.toolName,
-                            interaction.toolCallbacks.map { it.toolDefinition.name() }
+                            interaction.tools.map { it.definition.name }
                         )
                         return "ERROR: Tool '${nextAction.toolName}' not found"
                     }
@@ -196,8 +218,8 @@ class ScriptedLlmOperations : LlmOperations {
 
             when (nextAction) {
                 is ScriptedAction.CallTool -> {
-                    val tool = interaction.toolCallbacks.find {
-                        it.toolDefinition.name() == nextAction.toolName
+                    val tool = interaction.tools.find {
+                        it.definition.name == nextAction.toolName
                     }
                     if (tool != null) {
                         logger.info(
@@ -205,12 +227,23 @@ class ScriptedLlmOperations : LlmOperations {
                             nextAction.toolName,
                             nextAction.inputJson
                         )
-                        val result = tool.call(nextAction.inputJson)
+                        // Bind the AgentProcess context before calling the tool
+                        val previousValue = AgentProcess.get()
+                        val result = try {
+                            AgentProcess.set(agentProcess)
+                            tool.call(nextAction.inputJson)
+                        } finally {
+                            if (previousValue != null) {
+                                AgentProcess.set(previousValue)
+                            } else {
+                                AgentProcess.remove()
+                            }
+                        }
                         _toolCallsMade.add(
                             ToolCallRecord(
                                 toolName = nextAction.toolName,
                                 input = nextAction.inputJson,
-                                result = result,
+                                result = result.content,
                             )
                         )
                     } else {

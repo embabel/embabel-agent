@@ -15,17 +15,15 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.ToolGroupResolver
-import com.embabel.agent.spi.support.ObservabilityToolCallback
-import com.embabel.agent.spi.support.OutputTransformingToolCallback
+import com.embabel.agent.spi.support.*
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.StringTransformer
 import io.micrometer.observation.ObservationRegistry
-import org.springframework.ai.tool.ToolCallback
-import org.springframework.ai.tool.definition.ToolDefinition
 
 /**
  * Decorate tools with metadata and publish events.
@@ -37,25 +35,24 @@ class DefaultToolDecorator(
 ) : ToolDecorator {
 
     override fun decorate(
-        tool: ToolCallback,
+        tool: Tool,
         agentProcess: AgentProcess,
         action: Action?,
         llmOptions: LlmOptions,
-    ): ToolCallback {
-        val toolGroup = toolGroupResolver?.findToolGroupForTool(toolName = tool.toolDefinition.name())
-        return AgentProcessBindingToolCallback(
-            delegate = ExceptionSuppressingToolCallback(
-                delegate = OutputTransformingToolCallback(
-                    delegate = ObservabilityToolCallback(
-                        delegate = MetadataEnrichedToolCallback(
-                            toolGroupMetadata = toolGroup?.resolvedToolGroup?.metadata,
+    ): Tool {
+        val toolGroup = toolGroupResolver?.findToolGroupForTool(toolName = tool.definition.name)
+        return AgentProcessBindingTool(
+            delegate = ExceptionSuppressingTool(
+                delegate = OutputTransformingTool(
+                    delegate = ObservabilityTool(
+                        delegate = MetadataEnrichedTool(
                             delegate = tool,
-                        )
-                            .withEventPublication(
-                                agentProcess = agentProcess,
-                                action = action,
-                                llmOptions = llmOptions,
-                            ),
+                            toolGroupMetadata = toolGroup?.resolvedToolGroup?.metadata,
+                        ).withEventPublication(
+                            agentProcess = agentProcess,
+                            action = action,
+                            llmOptions = llmOptions,
+                        ),
                         observationRegistry = observationRegistry,
                     ),
                     outputTransformer = outputTransformer
@@ -63,24 +60,5 @@ class DefaultToolDecorator(
             ),
             agentProcess = agentProcess,
         )
-    }
-}
-
-/**
- * Explain exception rather than propagate it
- */
-class ExceptionSuppressingToolCallback(
-    private val delegate: ToolCallback,
-) : ToolCallback {
-
-    override fun getToolDefinition(): ToolDefinition = delegate.toolDefinition
-
-    override fun call(toolInput: String): String {
-        return try {
-            delegate.call(toolInput)
-        } catch (t: Throwable) {
-            // Suppress the exception and return a message instead
-            "WARNING: Tool '${delegate.toolDefinition.name()}' failed with exception: ${t.message ?: "No message"}"
-        }
     }
 }

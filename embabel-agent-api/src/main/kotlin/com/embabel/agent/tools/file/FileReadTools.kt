@@ -16,7 +16,7 @@
 package com.embabel.agent.tools.file
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.common.support.SelfToolCallbackPublisher
+import com.embabel.agent.api.common.support.SelfToolPublisher
 import com.embabel.agent.tools.DirectoryBased
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor
@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * LLM-ready ToolCallbacks and convenience methods for file operations.
  * Use at your own risk: This makes changes to your host machine!!
  */
-interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolCallbackPublisher {
+interface FileReadTools : DirectoryBased, FileReadLog, FileAccessLog, SelfToolPublisher {
 
     /**
      * Provide sanitizers that run on file content before returning it.

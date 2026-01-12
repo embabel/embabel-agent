@@ -87,6 +87,22 @@ data class Usage(
             promptTokens == null && completionTokens == null -> null
             else -> (promptTokens ?: 0) + (completionTokens ?: 0)
         }
+
+    /**
+     * Combine two Usage instances by summing their token counts.
+     * Used for accumulating usage across multiple LLM calls in a tool loop.
+     */
+    operator fun plus(other: Usage): Usage = Usage(
+        promptTokens = when {
+            this.promptTokens == null && other.promptTokens == null -> null
+            else -> (this.promptTokens ?: 0) + (other.promptTokens ?: 0)
+        },
+        completionTokens = when {
+            this.completionTokens == null && other.completionTokens == null -> null
+            else -> (this.completionTokens ?: 0) + (other.completionTokens ?: 0)
+        },
+        nativeUsage = null, // Cannot combine native usage objects
+    )
 }
 
 /**

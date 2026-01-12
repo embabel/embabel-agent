@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.spi.support
 
-import com.embabel.agent.spi.config.spring.ContextRepositoryProperties
 import com.embabel.agent.core.Context
 import com.embabel.agent.spi.ContextRepository
+import com.embabel.agent.spi.config.spring.ContextRepositoryProperties
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -38,7 +38,7 @@ class InMemoryContextRepository(
     private val lock = ReentrantReadWriteLock()
 
     override fun create(): Context {
-        return save(SimpleContext(id = UUID.randomUUID().toString()))
+        return save(InMemoryContext(id = UUID.randomUUID().toString()))
     }
 
     override fun findById(id: String): Context? = lock.read {

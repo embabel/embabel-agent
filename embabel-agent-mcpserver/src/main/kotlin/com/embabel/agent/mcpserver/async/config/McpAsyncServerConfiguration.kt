@@ -16,8 +16,9 @@
 package com.embabel.agent.mcpserver.async.config
 
 import com.embabel.agent.api.common.ToolObject
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.mcpserver.*
+import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.agent.mcpserver.async.AsyncServerStrategy
 import com.embabel.agent.mcpserver.async.McpAsyncPromptPublisher
 import com.embabel.agent.mcpserver.async.McpAsyncResourcePublisher
@@ -88,9 +89,9 @@ class McpAsyncServerConfiguration(
      */
     override fun createBannerTool(): ToolCallbackProvider {
         return ToolCallbackProvider.from(
-            safelyGetToolCallbacksFrom(
+            safelyGetToolsFrom(
                 ToolObject.from(UnifiedBannerTool(serverInfo))
-            )
+            ).toSpringToolCallbacks()
         )
     }
 

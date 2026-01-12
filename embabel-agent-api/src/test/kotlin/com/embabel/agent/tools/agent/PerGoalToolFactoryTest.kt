@@ -36,12 +36,12 @@ class PerGoalToolFactoryTest {
         agentPlatform.deploy(userInputToFrogOrPersonBranch())
         val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val provider = PerGoalToolCallbackFactory(autonomy, "testApp")
+        val provider = PerGoalToolFactory(autonomy, "testApp")
 
-        val toolCallbacks = provider.toolCallbacks(remoteOnly = false, listeners = emptyList())
+        val tools = provider.allTools(remoteOnly = false, listeners = emptyList())
         assertEquals(
-            3, toolCallbacks.size,
-            "Should not have 1 tool callback with no export defined: have ${toolCallbacks.map { it.toolDefinition.name() }}"
+            3, tools.size,
+            "Should not have 1 tool with no export defined: have ${tools.map { it.definition.name }}"
         )
     }
 
@@ -52,13 +52,13 @@ class PerGoalToolFactoryTest {
         agentPlatform.deploy(userInputToFrogOrPersonBranch())
         val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val provider = PerGoalToolCallbackFactory(autonomy, "testApp")
+        val provider = PerGoalToolFactory(autonomy, "testApp")
 
-        val toolCallbacks = provider.toolCallbacks(remoteOnly = true, listeners = emptyList())
+        val tools = provider.allTools(remoteOnly = true, listeners = emptyList())
         assertEquals(
             0,
-            toolCallbacks.size,
-            "Should not have any tool callbacks with no export defined: ${toolCallbacks.map { it.toolDefinition.name() }}"
+            tools.size,
+            "Should not have any tools with no export defined: ${tools.map { it.definition.name }}"
         )
     }
 
@@ -69,13 +69,13 @@ class PerGoalToolFactoryTest {
         agentPlatform.deploy(userInputToFrogOrPersonBranch())
         val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val provider = PerGoalToolCallbackFactory(autonomy, "testApp")
+        val provider = PerGoalToolFactory(autonomy, "testApp")
 
-        val toolCallbacks = provider.toolCallbacks(remoteOnly = true, listeners = emptyList())
+        val tools = provider.allTools(remoteOnly = true, listeners = emptyList())
         assertEquals(
             3,
-            toolCallbacks.size,
-            "Should have tool callbacks with export defined: ${toolCallbacks.map { it.toolDefinition.name() }}"
+            tools.size,
+            "Should have tools with export defined: ${tools.map { it.definition.name }}"
         )
     }
 
@@ -86,36 +86,36 @@ class PerGoalToolFactoryTest {
         agentPlatform.deploy(userInputToFrogOrPersonBranch())
         val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val provider = PerGoalToolCallbackFactory(autonomy, "testApp")
+        val provider = PerGoalToolFactory(autonomy, "testApp")
 
-        val toolCallbacks = provider.toolCallbacks(remoteOnly = false, listeners = emptyList())
+        val tools = provider.allTools(remoteOnly = false, listeners = emptyList())
 
-        assertNotNull(toolCallbacks)
+        assertNotNull(tools)
         assertEquals(
             autonomy.agentPlatform.goals.size + 1,
-            toolCallbacks.size,
-            "Should have one tool callback per goal plus continue"
+            tools.size,
+            "Should have one tool per goal plus continue"
         )
 
-        for (toolCallback in toolCallbacks) {
+        for (tool in tools) {
             assertFalse(
-                toolCallback.toolDefinition.inputSchema().contains("timestamp"),
-                "Tool callback should not have timestamp in input schema: ${toolCallback.toolDefinition.inputSchema()}"
+                tool.definition.inputSchema.toJsonSchema().contains("timestamp"),
+                "Tool should not have timestamp in input schema: ${tool.definition.inputSchema.toJsonSchema()}"
             )
-            val toolDefinition = toolCallback.toolDefinition
-            if (toolCallback.toolDefinition.name()
-                    .contains(FORM_SUBMISSION_TOOL_NAME) || toolCallback.toolDefinition.name()
+            val toolDefinition = tool.definition
+            if (tool.definition.name
+                    .contains(FORM_SUBMISSION_TOOL_NAME) || tool.definition.name
                     .contains(CONFIRMATION_TOOL_NAME)
             ) {
                 // This is a special case
                 break
             }
-            val goal = autonomy.agentPlatform.goals.find { toolCallback.toolDefinition.name().contains(it.name) }
+            val goal = autonomy.agentPlatform.goals.find { tool.definition.name.contains(it.name) }
             assertNotNull(
                 goal,
-                "Tool callback should correspond to a platform goal: Offending tool callback: $toolCallback"
+                "Tool should correspond to a platform goal: Offending tool: $tool"
             )
-            assertNotNull(toolCallback.toolDefinition.inputSchema(), "Should have generated schema")
+            assertNotNull(tool.definition.inputSchema.toJsonSchema(), "Should have generated schema")
         }
     }
 
@@ -125,27 +125,27 @@ class PerGoalToolFactoryTest {
         agentPlatform.deploy(evenMoreEvilWizardWithStructuredInput())
         val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
 
-        val provider = PerGoalToolCallbackFactory(autonomy, "testApp")
-        val toolCallbacks = provider.toolCallbacks(remoteOnly = false, listeners = emptyList())
+        val provider = PerGoalToolFactory(autonomy, "testApp")
+        val tools = provider.allTools(remoteOnly = false, listeners = emptyList())
 
-        assertNotNull(toolCallbacks)
+        assertNotNull(tools)
         assertEquals(
             2 + 1, // 2 functions for the goal + 1 continuation
-            toolCallbacks.size,
-            "Should have 2 tool callback for the one goal plus continuation: Have ${toolCallbacks.map { it.toolDefinition.name() }}"
+            tools.size,
+            "Should have 2 tools for the one goal plus continuation: Have ${tools.map { it.definition.name }}"
         )
 
-        // Tool callbacks should have distinct names
-        val toolNames = toolCallbacks.map { it.toolDefinition.name() }
+        // Tools should have distinct names
+        val toolNames = tools.map { it.definition.name }
         assertEquals(
             toolNames.toSet().size,
             toolNames.size,
-            "Tool callbacks should have distinct names: $toolNames"
+            "Tools should have distinct names: $toolNames"
         )
 
-        for (toolCallback in toolCallbacks) {
-            if (toolCallback.toolDefinition.name()
-                    .contains(FORM_SUBMISSION_TOOL_NAME) || toolCallback.toolDefinition.name()
+        for (tool in tools) {
+            if (tool.definition.name
+                    .contains(FORM_SUBMISSION_TOOL_NAME) || tool.definition.name
                     .contains(CONFIRMATION_TOOL_NAME)
             ) {
                 // This is a special case
@@ -153,17 +153,17 @@ class PerGoalToolFactoryTest {
             }
 
             assertFalse(
-                toolCallback.toolDefinition.inputSchema().contains("timestamp"),
-                "Tool callback should not have timestamp in input schema: ${toolCallback.toolDefinition.inputSchema()}"
+                tool.definition.inputSchema.toJsonSchema().contains("timestamp"),
+                "Tool should not have timestamp in input schema: ${tool.definition.inputSchema.toJsonSchema()}"
             )
-            val toolDefinition = toolCallback.toolDefinition
-            val goalName = toolDefinition.name()
-            val goal = autonomy.agentPlatform.goals.find { toolDefinition.name().contains(it.name) }
+            val toolDefinition = tool.definition
+            val goalName = toolDefinition.name
+            val goal = autonomy.agentPlatform.goals.find { toolDefinition.name.contains(it.name) }
             assertNotNull(
                 goal,
-                "Tool callback should correspond to a platform goal: $goalName, Offending tool callback: ${toolCallback.toolDefinition.name()}",
+                "Tool should correspond to a platform goal: $goalName, Offending tool: ${tool.definition.name}",
             )
-            assertNotNull(toolCallback.toolDefinition.inputSchema(), "Should have generated schema")
+            assertNotNull(tool.definition.inputSchema.toJsonSchema(), "Should have generated schema")
         }
     }
 

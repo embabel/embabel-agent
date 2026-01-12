@@ -16,24 +16,28 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.common.core.types.AssetCoordinates
 import com.embabel.common.core.types.Semver
-import org.springframework.ai.tool.ToolCallback
 
 /**
  * Convenient interface a class can implement to publish @Tool
  * functions automatically. Application domain objects can extend this.
  * Intended for extension by both platform and application code.
  */
-interface SelfToolCallbackPublisher : ToolCallbackPublisher {
+interface SelfToolPublisher : ToolPublisher {
 
-    override val toolCallbacks: List<ToolCallback>
-        get() = safelyGetToolCallbacksFrom(ToolObject(this))
+    override val tools: List<Tool>
+        get() = safelyGetToolsFrom(ToolObject(this))
 }
 
-interface SelfToolGroup : SelfToolCallbackPublisher, ToolGroup, AssetCoordinates {
+/**
+ * A ToolGroup that publishes its own @Tool annotated methods.
+ * Implements ToolGroup using native Tool interface (not Spring AI ToolCallbacks).
+ */
+interface SelfToolGroup : SelfToolPublisher, ToolGroup, AssetCoordinates {
 
     val description: ToolGroupDescription
 
@@ -53,4 +57,9 @@ interface SelfToolGroup : SelfToolCallbackPublisher, ToolGroup, AssetCoordinates
             permissions = permissions,
             version = version,
         )
+
+    // Explicitly inherit tools from SelfToolPublisher
+    override val tools: List<Tool>
+        get() = safelyGetToolsFrom(ToolObject(this))
+
 }

@@ -82,6 +82,11 @@ class SpringAiUtilsKtTest {
     fun `safelyGetTools from single instance and tool callback`() {
         val tc = mockk<ToolCallback>()
         every { tc.toolDefinition.name() } returns "test"
+        every { tc.toolDefinition.description() } returns "test description"
+        every { tc.toolDefinition.inputSchema() } returns "{}"
+        val metadata = mockk<org.springframework.ai.tool.metadata.ToolMetadata>()
+        every { metadata.returnDirect() } returns false
+        every { tc.toolMetadata } returns metadata
         val result = safelyGetToolCallbacks(setOf(tc, PersonWithReverseTool("John Doe")).map { ToolObject.from(it) })
         assertEquals(2, result.size)
         assertEquals("test", result[1].toolDefinition.name())
@@ -180,6 +185,11 @@ class SpringAiUtilsKtTest {
     fun `safelyGetTools from ToolObject with ToolCallback and regular object`() {
         val tc = mockk<ToolCallback>()
         every { tc.toolDefinition.name() } returns "mockTool"
+        every { tc.toolDefinition.description() } returns "mock description"
+        every { tc.toolDefinition.inputSchema() } returns "{}"
+        val metadata = mockk<org.springframework.ai.tool.metadata.ToolMetadata>()
+        every { metadata.returnDirect() } returns false
+        every { tc.toolMetadata } returns metadata
         val result = safelyGetToolCallbacks(
             listOf(
                 ToolObject(

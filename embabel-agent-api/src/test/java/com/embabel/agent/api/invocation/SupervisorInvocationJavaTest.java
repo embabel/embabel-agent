@@ -205,6 +205,7 @@ class SupervisorInvocationJavaTest {
         @Test
         void handlesMissingIntermediateTypes() {
             // Try to call prepareMeal directly without Cook and Order
+            // This should result in an error since the action requires inputs that aren't available
             ScriptedLlmOperations scriptedLlm = new ScriptedLlmOperations()
                 .callTool("prepareMeal", "{}")
                 .respond("Tried to call prepareMeal without deps");
@@ -215,14 +216,22 @@ class SupervisorInvocationJavaTest {
                 .on(ap, MealPreparationStages.Meal.class)
                 .withScope(AgentScopeBuilder.fromInstance(stages));
 
-            AgentProcess result = invocation.run(new UserInput("Quick meal"));
+            // Running should either throw or complete with error status
+            // because prepareMeal requires Cook which isn't on the blackboard
+            try {
+                AgentProcess result = invocation.run(new UserInput("Quick meal"));
+                System.out.println("Status when missing deps: " + result.getStatus());
+                System.out.println("Tool call results: " + scriptedLlm.getToolCallsMade());
 
-            System.out.println("Status when missing deps: " + result.getStatus());
-            System.out.println("Tool call results: " + scriptedLlm.getToolCallsMade());
-
-            // prepareMeal should fail or be skipped if Cook/Order not available
-            for (var toolCall : scriptedLlm.getToolCallsMade()) {
-                System.out.println("Tool: " + toolCall.getToolName() + " -> " + toolCall.getResult());
+                // prepareMeal should fail or be skipped if Cook/Order not available
+                for (var toolCall : scriptedLlm.getToolCallsMade()) {
+                    System.out.println("Tool: " + toolCall.getToolName() + " -> " + toolCall.getResult());
+                }
+            } catch (Exception e) {
+                // Expected - action fails when required input is missing
+                System.out.println("Expected exception for missing deps: " + e.getMessage());
+                assertTrue(e.getMessage().contains("Cook") || e.getCause().getMessage().contains("Cook"),
+                    "Exception should mention missing Cook dependency");
             }
         }
     }
