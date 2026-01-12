@@ -98,10 +98,11 @@ data class ToolishRag @JvmOverloads constructor(
                 logger.info("Adding existing SearchTools to ToolishRag tools {}", name)
                 add(searchOperations)
             }
-            if (searchOperations is TypeRetrievalOperations) {
-                logger.info("Adding TypeRetrievalTools to ToolishRag tools {}", name)
-                add(TypeRetrievalTools(searchOperations))
-            }
+            // This can confuse guide. Let's skip it for now.
+//            if (searchOperations is TypeRetrievalOperations) {
+//                logger.info("Adding TypeRetrievalTools to ToolishRag tools {}", name)
+//                add(TypeRetrievalTools(searchOperations))
+//            }
             if (searchOperations is FinderOperations) {
                 logger.info("Adding FinderTools to ToolishRag tools {}", name)
                 add(FinderTools(searchOperations))

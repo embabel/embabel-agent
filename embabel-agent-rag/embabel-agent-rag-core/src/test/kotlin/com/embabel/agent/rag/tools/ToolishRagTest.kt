@@ -161,8 +161,8 @@ class ToolishRagTest {
 
             val toolInstances = toolishRag.toolInstances()
 
-            assertEquals(2, toolInstances.size)
-            assertTrue(toolInstances.any { it is TypeRetrievalTools })
+            assertEquals(1, toolInstances.size)
+//            assertTrue(toolInstances.any { it is TypeRetrievalTools })
             assertTrue(toolInstances.any { it is VectorSearchTools })
         }
 
@@ -178,9 +178,9 @@ class ToolishRagTest {
 
             val toolInstances = toolishRag.toolInstances()
 
-            assertEquals(2, toolInstances.size)
+            assertEquals(1, toolInstances.size)
             assertTrue(toolInstances.any { it is TextSearchTools })
-            assertTrue(toolInstances.any { it is TypeRetrievalTools })
+//            assertTrue(toolInstances.any { it is TypeRetrievalTools })
         }
 
         @Test
@@ -195,8 +195,8 @@ class ToolishRagTest {
 
             val toolInstances = toolishRag.toolInstances()
 
-            assertEquals(3, toolInstances.size)
-            assertTrue(toolInstances.any { it is TypeRetrievalTools })
+            assertEquals(2, toolInstances.size)
+//            assertTrue(toolInstances.any { it is TypeRetrievalTools })
             assertFalse(toolInstances.any { it is FinderTools })
             assertTrue(toolInstances.any { it is VectorSearchTools })
             assertTrue(toolInstances.any { it is TextSearchTools })
@@ -214,8 +214,8 @@ class ToolishRagTest {
 
             val toolInstances = toolishRag.toolInstances()
 
-            assertEquals(2, toolInstances.size)
-            assertTrue(toolInstances.any { it is TypeRetrievalTools })
+            assertEquals(1, toolInstances.size)
+//            assertTrue(toolInstances.any { it is TypeRetrievalTools })
             assertTrue(toolInstances.any { it is FinderTools })
         }
     }
@@ -508,7 +508,8 @@ class ToolishRagTest {
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 1.0))
 
             val listener = ResultsListener { event -> capturedEvent = event }
-            val tools = RegexSearchTools(regexSearch, metadataFilter = null, propertyFilter = null, resultsListener = listener)
+            val tools =
+                RegexSearchTools(regexSearch, metadataFilter = null, propertyFilter = null, resultsListener = listener)
             tools.regexSearch("E\\d{3}", 10)
 
             assertTrue(capturedEvent != null)
@@ -569,7 +570,7 @@ class ToolishRagTest {
             )
 
             val toolInstances = toolishRag.toolInstances()
-            assertEquals(3, toolInstances.size)
+            assertEquals(2, toolInstances.size)
 
             // Get and use VectorSearchTools
             val vectorTools = toolInstances.filterIsInstance<VectorSearchTools>().first()
