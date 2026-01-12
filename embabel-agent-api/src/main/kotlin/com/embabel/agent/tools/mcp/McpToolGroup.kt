@@ -15,10 +15,12 @@
  */
 package com.embabel.agent.tools.mcp
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupDescription
 import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.agent.core.ToolGroupPermission
+import com.embabel.agent.spi.support.springai.toEmbabelTool
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.loggerFor
 import io.modelcontextprotocol.client.McpSyncClient
@@ -52,20 +54,25 @@ class McpToolGroup(
         permissions = permissions,
     )
 
-    override val toolCallbacks: List<ToolCallback> = run {
+    // MCP tools are converted to native Tools at the source, not stored as ToolCallbacks
+    override val toolCallbacks: List<ToolCallback> = emptyList()
+
+    override val tools: List<Tool> = run {
         try {
             val provider = SyncMcpToolCallbackProvider(
                 clients,
             )
-            val toolCallbacks = provider.toolCallbacks.filter(filter)
+            // Filter the raw callbacks, then convert to native Tool
+            val filteredCallbacks = provider.toolCallbacks.filter(filter)
+            val nativeTools = filteredCallbacks.map { it.toEmbabelTool() }
             loggerFor<McpToolGroup>().debug(
                 "ToolGroup role={}: {}",
                 description.role,
-                toolCallbacks.map { it.toolDefinition.name() })
-            toolCallbacks
+                nativeTools.map { it.definition.name })
+            nativeTools
         } catch (e: Exception) {
             loggerFor<McpToolGroup>().error(
-                "Failed to load tool callbacks for role {}: {}",
+                "Failed to load tools for role {}: {}",
                 description.role,
                 e.message,
             )
@@ -74,5 +81,5 @@ class McpToolGroup(
     }
 
     override fun toString(): String =
-        "McpToolGroup(metadata=$metadata, tools=${toolCallbacks.map { it.toolDefinition.name() }})"
+        "McpToolGroup(metadata=$metadata, tools=${tools.map { it.definition.name }})"
 }
