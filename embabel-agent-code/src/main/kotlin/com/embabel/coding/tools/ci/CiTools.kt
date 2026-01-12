@@ -16,7 +16,7 @@
 package com.embabel.coding.tools.ci
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.common.support.SelfToolCallbackPublisher
+import com.embabel.agent.api.common.support.SelfToolPublisher
 import com.embabel.agent.tools.DirectoryBased
 
 /**
@@ -27,7 +27,7 @@ import com.embabel.agent.tools.DirectoryBased
  * allowing for seamless integration with various build tools like Maven, Gradle, npm, etc.
  *
  * This interface extends:
- * - [SelfToolCallbackPublisher]: Automatically publishes methods annotated with @Tool to be
+ * - [SelfToolPublisher]: Automatically publishes methods annotated with @Tool to be
  *   available as callable tools by the agent system. This enables the methods to be discovered
  *   and invoked through the tool callback mechanism.
  * - [DirectoryBased]: Provides access to the root directory on the host machine where the
@@ -36,12 +36,12 @@ import com.embabel.agent.tools.DirectoryBased
  * Implementations of this interface are expected to handle the execution of build commands
  * and process their output appropriately.
  *
- * @see SelfToolCallbackPublisher
+ * @see SelfToolPublisher
  * @see DirectoryBased
  * @see Ci
  * @see BuildOptions
  */
-interface CiTools : SelfToolCallbackPublisher, DirectoryBased {
+interface CiTools : SelfToolPublisher, DirectoryBased {
 
     /**
      * Builds the project using the specified command.

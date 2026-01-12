@@ -1,3 +1,18 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.embabel.agent.core
 
 import com.embabel.agent.api.tool.Tool
@@ -6,7 +21,6 @@ import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Semver
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import org.springframework.ai.tool.ToolCallback
 
 interface ToolGroupDescription {
 
@@ -130,10 +144,9 @@ interface ToolGroupConsumer {
 
 /**
  * A group of tools to accomplish a purpose, such as web search.
- * Introduces a level of abstraction over tool callbacks.
- * Implements both ToolCallbackPublisher (legacy) and ToolPublisher (preferred).
+ * Introduces a level of abstraction over tools.
  */
-interface ToolGroup : ToolCallbackPublisher, ToolPublisher, HasInfoString {
+interface ToolGroup : ToolPublisher, HasInfoString {
 
     val metadata: ToolGroupMetadata
 
@@ -147,26 +160,24 @@ interface ToolGroup : ToolCallbackPublisher, ToolPublisher, HasInfoString {
     companion object {
 
         /**
-         * Create a ToolGroup from ToolCallbacks (legacy).
+         * Create a ToolGroup from native Tools.
          */
         operator fun invoke(
             metadata: ToolGroupMetadata,
-            toolCallbacks: List<ToolCallback>,
+            tools: List<Tool>,
         ): ToolGroup = ToolGroupImpl(
             metadata = metadata,
-            toolCallbacks = toolCallbacks,
-            tools = emptyList(),
+            tools = tools,
         )
 
         /**
-         * Create a ToolGroup from native Tools (preferred).
+         * Create a ToolGroup from native Tools.
          */
         fun ofTools(
             metadata: ToolGroupMetadata,
             tools: List<Tool>,
         ): ToolGroup = ToolGroupImpl(
             metadata = metadata,
-            toolCallbacks = emptyList(),
             tools = tools,
         )
     }
@@ -175,7 +186,7 @@ interface ToolGroup : ToolCallbackPublisher, ToolPublisher, HasInfoString {
         verbose: Boolean?,
         indent: Int,
     ): String {
-        val allToolNames = toolCallbacks.map { it.toolDefinition.name() } + tools.map { it.definition.name }
+        val allToolNames = tools.map { it.definition.name }
         if (allToolNames.isEmpty()) {
             return metadata.infoString(verbose = true, indent = 1) + "- No tools found".indent(1)
         }
@@ -192,7 +203,6 @@ interface ToolGroup : ToolCallbackPublisher, ToolPublisher, HasInfoString {
 
 private data class ToolGroupImpl(
     override val metadata: ToolGroupMetadata,
-    override val toolCallbacks: List<ToolCallback>,
     override val tools: List<Tool>,
 ) : ToolGroup
 

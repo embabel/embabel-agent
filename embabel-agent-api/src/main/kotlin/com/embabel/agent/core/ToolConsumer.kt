@@ -67,16 +67,6 @@ interface ToolConsumer : ToolSpecConsumer,
         get() = emptyList()
 
     /**
-     * Resolve all tools from this consumer and its tool groups,
-     * converted to Spring AI ToolCallbacks for use with ChatClient.
-     */
-    fun resolveToolCallbacks(toolGroupResolver: ToolGroupResolver): List<ToolCallback> =
-        resolveToolCallbacks(
-            toolConsumer = this,
-            toolGroupResolver = toolGroupResolver,
-        )
-
-    /**
      * Resolve all tools from this consumer and its tool groups.
      */
     fun resolveTools(toolGroupResolver: ToolGroupResolver): List<Tool> =
@@ -106,9 +96,7 @@ interface ToolConsumer : ToolSpecConsumer,
                         resolution.failureMessage,
                         NO_TOOLS_WARNING,
                     )
-                } else if (resolution.resolvedToolGroup.tools.isEmpty() &&
-                    resolution.resolvedToolGroup.toolCallbacks.isEmpty()
-                ) {
+                } else if (resolution.resolvedToolGroup.tools.isEmpty()) {
                     loggerFor<ToolConsumer>().warn(
                         "No tools found for tool group with role='{}': {}\n{}",
                         role,
@@ -116,8 +104,6 @@ interface ToolConsumer : ToolSpecConsumer,
                         NO_TOOLS_WARNING,
                     )
                 } else {
-                    // ToolGroups can still have toolCallbacks for backward compatibility
-                    callbacks += resolution.resolvedToolGroup.toolCallbacks
                     callbacks += resolution.resolvedToolGroup.tools.map { it.toSpringToolCallback() }
                 }
             }
@@ -174,25 +160,6 @@ interface ToolConsumer : ToolSpecConsumer,
     }
 }
 
-/**
- * Implemented by classes that publish tool callbacks (for backward compatibility with Spring AI tools).
- * New code should implement ToolPublisher instead.
- */
-interface ToolCallbackPublisher {
-
-    /**
-     * Tool callbacks to expose (legacy, for Spring AI tools).
-     */
-    val toolCallbacks: List<ToolCallback>
-
-    companion object {
-
-        operator fun invoke(toolCallbacks: List<ToolCallback> = emptyList()) = object : ToolCallbackPublisher {
-            override val toolCallbacks: List<ToolCallback> = toolCallbacks
-        }
-    }
-}
-
 private const val NO_TOOLS_WARNING =
     """
 
@@ -212,4 +179,3 @@ private const val NO_TOOLS_WARNING =
 
 
 """
-

@@ -54,9 +54,6 @@ class McpToolGroup(
         permissions = permissions,
     )
 
-    // MCP tools are converted to native Tools at the source, not stored as ToolCallbacks
-    override val toolCallbacks: List<ToolCallback> = emptyList()
-
     override val tools: List<Tool> = run {
         try {
             val provider = SyncMcpToolCallbackProvider(

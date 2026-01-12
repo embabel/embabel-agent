@@ -16,7 +16,7 @@
 package com.embabel.agent.tools.file
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.common.support.SelfToolCallbackPublisher
+import com.embabel.agent.api.common.support.SelfToolPublisher
 import com.embabel.agent.tools.DirectoryBased
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -31,7 +31,7 @@ import java.util.zip.ZipInputStream
 /**
  * All file modifications must go through this interface.
  */
-interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToolCallbackPublisher {
+interface FileWriteTools : DirectoryBased, FileAccessLog, FileChangeLog, SelfToolPublisher {
 
     override fun getPathsAccessed(): List<String> = getChanges().map { it.path }.distinct()
 
