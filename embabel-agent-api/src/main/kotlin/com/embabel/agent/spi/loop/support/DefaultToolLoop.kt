@@ -1,22 +1,8 @@
-/*
- * Copyright 2024-2026 Embabel Pty Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-package com.embabel.agent.spi.loop
+package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
+import com.embabel.agent.spi.loop.*
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.Message
 import com.embabel.chat.ToolResultMessage
@@ -24,19 +10,19 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
 /**
- * Default implementation of [EmbabelToolLoop].
+ * Default implementation of [com.embabel.agent.spi.loop.ToolLoop].
  *
  * @param llmCaller Framework-agnostic interface for making single LLM calls
  * @param objectMapper ObjectMapper for deserializing tool results
  * @param injectionStrategy Strategy for dynamically injecting tools
  * @param maxIterations Maximum number of tool loop iterations (default 20)
  */
-internal class DefaultEmbabelToolLoop(
+internal class DefaultToolLoop(
     private val llmCaller: LlmMessageSender,
     private val objectMapper: ObjectMapper,
-    private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
+    private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.Companion.NONE,
     private val maxIterations: Int = 20,
-) : EmbabelToolLoop {
+) : ToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 

@@ -17,21 +17,19 @@ package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
+import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.*
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 /**
- * Unit tests for [EmbabelToolLoop].
+ * Unit tests for [ToolLoop].
  * Uses mock SingleLlmCaller to simulate LLM responses including tool calls.
  */
-class EmbabelToolLoopTest {
+class ToolLoopTest {
 
     private val objectMapper = jacksonObjectMapper()
 
@@ -46,7 +44,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -71,7 +69,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -115,7 +113,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -144,7 +142,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -199,7 +197,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
@@ -235,7 +233,7 @@ class EmbabelToolLoopTest {
                 }
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 maxIterations = 5,
@@ -312,7 +310,7 @@ class MockTool(
 /**
  * Additional tests for improved coverage.
  */
-class EmbabelToolLoopAdditionalTests {
+class ToolLoopAdditionalTests {
 
     private val objectMapper = jacksonObjectMapper()
 
@@ -344,7 +342,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -369,7 +367,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -404,6 +402,7 @@ class EmbabelToolLoopAdditionalTests {
                             textContent = "",
                             usage = null, // First call has no usage
                         )
+
                         else -> LlmMessageResponse(
                             message = AssistantMessage("Done!"),
                             textContent = "Done!",
@@ -413,7 +412,7 @@ class EmbabelToolLoopAdditionalTests {
                 }
             }
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -453,7 +452,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -485,7 +484,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -552,7 +551,7 @@ class EmbabelToolLoopAdditionalTests {
                 }
             }
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -625,7 +624,7 @@ class EmbabelToolLoopAdditionalTests {
                 }
             }
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -667,7 +666,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
@@ -709,7 +708,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
@@ -747,7 +746,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = ToolInjectionStrategy.NONE,
@@ -777,7 +776,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -811,7 +810,7 @@ class EmbabelToolLoopAdditionalTests {
                 }
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 maxIterations = 3,
@@ -848,7 +847,7 @@ class EmbabelToolLoopAdditionalTests {
                 }
             }
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -882,7 +881,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -916,12 +915,16 @@ class EmbabelToolLoopAdditionalTests {
 
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
-                    MockLlmMessageSender.toolCallResponse("unique_call_id_123", "metadata_tool", """{"param": "value"}"""),
+                    MockLlmMessageSender.toolCallResponse(
+                        "unique_call_id_123",
+                        "metadata_tool",
+                        """{"param": "value"}"""
+                    ),
                     MockLlmMessageSender.textResponse("Done")
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -966,7 +969,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
@@ -1025,7 +1028,7 @@ class EmbabelToolLoopAdditionalTests {
                 )
             )
 
-            val toolLoop = DefaultEmbabelToolLoop(
+            val toolLoop = DefaultToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,

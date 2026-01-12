@@ -21,7 +21,7 @@ import com.embabel.chat.Message
 /**
  * Embabel's own tool execution loop.
  *
- * Unlike Spring AI's internal loop, this gives us full control over:
+ * This gives us full control over:
  * - Message capture and history management
  * - Dynamic tool injection via strategies
  * - Observability and event emission
@@ -30,7 +30,7 @@ import com.embabel.chat.Message
  * This interface is framework-agnostic - implementations use [LlmMessageSender] for LLM communication,
  * allowing different backends (Spring AI, LangChain4j, etc.) to be plugged in.
  */
-interface EmbabelToolLoop {
+interface ToolLoop {
 
     /**
      * Execute a conversation with tool calling until completion.
