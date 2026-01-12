@@ -18,7 +18,8 @@ package com.embabel.agent.core
 import com.embabel.common.core.types.HasInfoString
 
 /**
- * Longer-lived interface than a blackboard.
+ * Implemented by instances that can hold longer lasting state than a blackboard.
+ * Offers the same ability to add an object or bind it to a key.
  */
 interface Context : HasInfoString {
 
@@ -41,6 +42,9 @@ interface Context : HasInfoString {
      */
     val objects: List<Any>
 
+    /**
+     * Get the last object of the given type, or null if none.
+     */
     fun <T> last(clazz: Class<T>): T? {
         return objects.filterIsInstance(clazz).lastOrNull()
     }

@@ -24,8 +24,8 @@ import com.embabel.agent.core.ContextId
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.spi.ContextRepository
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties.ProcessType
+import com.embabel.agent.spi.support.InMemoryContext
 import com.embabel.agent.spi.support.InMemoryContextRepository
-import com.embabel.agent.spi.support.SimpleContext
 import com.embabel.agent.support.Dog
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import io.mockk.mockk
@@ -79,7 +79,7 @@ class DefaultAgentPlatformTest {
         @Test
         fun `loads context`() {
             val contextRepository = InMemoryContextRepository()
-            var context: Context = SimpleContext(id = "1234")
+            var context: Context = InMemoryContext(id = "1234")
             context.bind("otherDog", Dog("Apollo"))
             context = contextRepository.save(context)
             val dap = raw(contextRepository = contextRepository)

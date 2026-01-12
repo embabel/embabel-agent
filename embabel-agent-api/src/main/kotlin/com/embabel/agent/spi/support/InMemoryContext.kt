@@ -22,7 +22,10 @@ import com.embabel.common.util.indentLines
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
-class SimpleContext(
+/**
+ * Simple in-memory implementation of [Context].
+ */
+class InMemoryContext(
     override var id: String,
 ) : Context {
 
