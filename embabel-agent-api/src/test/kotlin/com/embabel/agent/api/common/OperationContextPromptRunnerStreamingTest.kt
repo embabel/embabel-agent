@@ -15,8 +15,6 @@
  */
 package com.embabel.agent.api.common
 
-import com.embabel.agent.api.common.streaming.StreamingPromptRunner
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
@@ -42,7 +40,6 @@ import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * Unit tests for OperationContextPromptRunner streaming functionality.
@@ -111,11 +108,6 @@ class OperationContextPromptRunnerStreamingTest {
 
         // Then: Verify object creation and types
         assertNotNull(result, "Stream method should return non-null result")
-        assertTrue(result is StreamingPromptRunnerOperations, "Should return StreamingPromptRunnerOperations")
-        assertTrue(
-            promptRunner is StreamingPromptRunner,
-            "OperationContextPromptRunner should implement StreamingPromptRunner"
-        )
 
         // Verify fluent API works
         val withPromptResult = result.withPrompt("New prompt")

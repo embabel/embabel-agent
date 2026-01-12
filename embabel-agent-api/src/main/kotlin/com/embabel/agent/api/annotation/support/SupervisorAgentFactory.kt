@@ -21,7 +21,6 @@ import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.spi.LlmInteraction
-import com.embabel.chat.UserMessage
 import com.embabel.common.core.types.Semver
 import org.slf4j.LoggerFactory
 import com.embabel.agent.core.Agent as CoreAgent
@@ -277,7 +276,7 @@ class SupervisorAction(
             if (goalOutputType != null) {
                 val blackboardModel = processContext.blackboard.expressionEvaluationModel()
                 val goalOutput = blackboardModel.values.find { value ->
-                    value != null && value::class.java.name == goalOutputType
+                    value::class.java.name == goalOutputType
                 }
                 if (goalOutput != null) {
                     logger.info("Goal output found on blackboard: {}", goalOutput)
@@ -293,7 +292,7 @@ class SupervisorAction(
         if (goalOutputType == null) return false
         val blackboardModel = processContext.blackboard.expressionEvaluationModel()
         return blackboardModel.values.any { value ->
-            value != null && value::class.java.name == goalOutputType
+            value::class.java.name == goalOutputType
         }
     }
 

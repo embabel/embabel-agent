@@ -18,7 +18,6 @@ package com.embabel.agent.api.annotation.support
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.Blackboard
 import com.fasterxml.jackson.databind.ObjectMapper
-import java.lang.reflect.ParameterizedType
 import kotlin.reflect.KClass
 import kotlin.reflect.full.memberProperties
 
@@ -121,7 +120,7 @@ object TypeSchemaExtractor {
         maxValueLength: Int = 500,
     ): String {
         val mapValues = blackboard.expressionEvaluationModel()
-            .filterValues { it != null && !isSystemType(it) }
+            .filterValues { !isSystemType(it) }
 
         val objectValues = blackboard.objects
             .filter { !isSystemType(it) }
@@ -134,11 +133,9 @@ object TypeSchemaExtractor {
 
         // Named values from map
         for ((key, value) in mapValues) {
-            if (value != null) {
-                val typeName = value::class.simpleName ?: "Unknown"
-                val valueStr = formatValue(value, objectMapper, maxValueLength)
-                artifacts.add("- $key ($typeName): $valueStr")
-            }
+            val typeName = value::class.simpleName ?: "Unknown"
+            val valueStr = formatValue(value, objectMapper, maxValueLength)
+            artifacts.add("- $key ($typeName): $valueStr")
         }
 
         // Anonymous objects (not already in map)
