@@ -17,9 +17,7 @@ package com.embabel.agent.core
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.spi.ToolGroupResolver
-import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.embabel.common.util.loggerFor
-import org.springframework.ai.tool.ToolCallback
 
 /**
  * Specification for exposing tools using the framework-agnostic Tool interface.
@@ -76,48 +74,6 @@ interface ToolConsumer : ToolSpecConsumer,
         )
 
     companion object {
-
-        /**
-         * Resolve tools and convert to ToolCallbacks for Spring AI integration.
-         */
-        fun resolveToolCallbacks(
-            toolConsumer: ToolConsumer,
-            toolGroupResolver: ToolGroupResolver,
-        ): List<ToolCallback> {
-            val callbacks = mutableListOf<ToolCallback>()
-            // Convert native tools to callbacks
-            callbacks += toolConsumer.tools.map { it.toSpringToolCallback() }
-            for (role in toolConsumer.toolGroups) {
-                val resolution = toolGroupResolver.resolveToolGroup(role)
-                if (resolution.resolvedToolGroup == null) {
-                    loggerFor<ToolConsumer>().warn(
-                        "Could not resolve tool group with role='{}': {}\n{}",
-                        role,
-                        resolution.failureMessage,
-                        NO_TOOLS_WARNING,
-                    )
-                } else if (resolution.resolvedToolGroup.tools.isEmpty()) {
-                    loggerFor<ToolConsumer>().warn(
-                        "No tools found for tool group with role='{}': {}\n{}",
-                        role,
-                        resolution.failureMessage,
-                        NO_TOOLS_WARNING,
-                    )
-                } else {
-                    callbacks += resolution.resolvedToolGroup.tools.map { it.toSpringToolCallback() }
-                }
-            }
-            loggerFor<ToolConsumer>().debug(
-                "{} resolved {} tools from {} tools and {} tool groups: {}",
-                toolConsumer.name,
-                callbacks.size,
-                toolConsumer.tools.size,
-                toolConsumer.toolGroups.size,
-                callbacks.map { it.toolDefinition.name() },
-            )
-            return callbacks.distinctBy { it.toolDefinition.name() }.sortedBy { it.toolDefinition.name() }
-        }
-
         /**
          * Resolve all tools using the native Tool interface.
          */
