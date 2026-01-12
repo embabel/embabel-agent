@@ -17,6 +17,8 @@ package com.embabel.agent.api.common.thinking
 
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.core.ToolGroup
+import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.common.core.thinking.ThinkingBlock
@@ -164,7 +166,7 @@ class ThinkingPromptRunnerOperationsTest {
             override val llm: com.embabel.common.ai.model.LlmOptions? = null
             override val messages: List<com.embabel.chat.Message> = emptyList()
             override val images: List<com.embabel.agent.api.common.AgentImage> = emptyList()
-            override val toolGroups: Set<com.embabel.agent.core.ToolGroupRequirement> = emptySet()
+            override val toolGroups: Set<ToolGroupRequirement> = emptySet()
             override val toolObjects: List<com.embabel.agent.api.common.ToolObject> = emptyList()
             override val promptContributors: List<com.embabel.common.ai.prompt.PromptContributor> = emptyList()
             override val generateExamples: Boolean? = null
@@ -212,10 +214,10 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withLlm(llm: com.embabel.common.ai.model.LlmOptions): com.embabel.agent.api.common.PromptRunner =
                 this
 
-            override fun withToolGroup(toolGroup: com.embabel.agent.core.ToolGroupRequirement): com.embabel.agent.api.common.PromptRunner =
+            override fun withToolGroup(toolGroup: ToolGroupRequirement): com.embabel.agent.api.common.PromptRunner =
                 this
 
-            override fun withToolGroup(toolGroup: com.embabel.agent.core.ToolGroup): com.embabel.agent.api.common.PromptRunner =
+            override fun withToolGroup(toolGroup: ToolGroup): com.embabel.agent.api.common.PromptRunner =
                 this
 
             override fun withToolObject(toolObject: com.embabel.agent.api.common.ToolObject): com.embabel.agent.api.common.PromptRunner =
