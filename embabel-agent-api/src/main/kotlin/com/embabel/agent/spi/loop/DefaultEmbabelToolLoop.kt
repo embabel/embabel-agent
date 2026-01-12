@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.toolloop
+package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
@@ -24,40 +24,23 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
 /**
- * Embabel's own tool execution loop.
- *
- * Unlike Spring AI's internal loop, this gives us full control over:
- * - Message capture and history management
- * - Dynamic tool injection via strategies
- * - Observability and event emission
- * - Integration with Embabel's autonomy system
- *
- * This class is framework-agnostic - it uses [LlmMessageSender] for LLM communication,
- * allowing different backends (Spring AI, LangChain4j, etc.) to be plugged in.
+ * Default implementation of [EmbabelToolLoop].
  *
  * @param llmCaller Framework-agnostic interface for making single LLM calls
  * @param objectMapper ObjectMapper for deserializing tool results
  * @param injectionStrategy Strategy for dynamically injecting tools
  * @param maxIterations Maximum number of tool loop iterations (default 20)
  */
-class EmbabelToolLoop(
+internal class DefaultEmbabelToolLoop(
     private val llmCaller: LlmMessageSender,
     private val objectMapper: ObjectMapper,
     private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
     private val maxIterations: Int = 20,
-) {
+) : EmbabelToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    /**
-     * Execute a conversation with tool calling until completion.
-     *
-     * @param initialMessages The starting messages (system + user)
-     * @param initialTools The initially available tools
-     * @param outputParser Function to parse the final response to the output type
-     * @return The result containing parsed output and conversation history
-     */
-    fun <O> execute(
+    override fun <O> execute(
         initialMessages: List<Message>,
         initialTools: List<Tool>,
         outputParser: (String) -> O,

@@ -15,22 +15,14 @@
  */
 package com.embabel.agent.spi.support.springai
 
-import com.embabel.chat.AssistantMessage
-import com.embabel.chat.AssistantMessageWithToolCalls
-import com.embabel.chat.ImagePart
-import com.embabel.chat.Message
-import com.embabel.chat.SystemMessage
-import com.embabel.chat.ToolCall
-import com.embabel.chat.ToolResultMessage
-import com.embabel.chat.UserMessage
-import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
-import org.springframework.ai.chat.messages.Message as SpringAiMessage
-import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessage
-import org.springframework.ai.chat.messages.ToolResponseMessage as SpringAiToolResponseMessage
-import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
+import com.embabel.chat.*
 import org.springframework.ai.content.Media
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
+import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
+import org.springframework.ai.chat.messages.Message as SpringAiMessage
+import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessage
+import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 
 /**
  * Convert one of our messages to a Spring AI message with multimodal support.

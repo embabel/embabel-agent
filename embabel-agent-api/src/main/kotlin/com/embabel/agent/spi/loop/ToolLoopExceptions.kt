@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.toolloop
+package com.embabel.agent.spi.loop
 
 /**
  * Thrown when the LLM requests a tool that is not available.
@@ -32,5 +32,5 @@ class MaxIterationsExceededException(
     val maxIterations: Int,
 ) : RuntimeException(
     "Tool loop exceeded maximum iterations ($maxIterations). " +
-        "This may indicate a loop in tool calls or an overly complex task."
+            "This may indicate a loop in tool calls or an overly complex task."
 )

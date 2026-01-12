@@ -24,10 +24,10 @@ import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmCall
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.ToolDecorator
+import com.embabel.agent.spi.loop.DefaultEmbabelToolLoop
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
-import com.embabel.agent.spi.toolloop.EmbabelToolLoop
-import com.embabel.agent.spi.toolloop.ToolInjectionStrategy
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
@@ -204,7 +204,7 @@ internal class ChatClientLlmOperations(
         )
 
         // Create our tool loop
-        val toolLoop = EmbabelToolLoop(
+        val toolLoop = DefaultEmbabelToolLoop(
             llmCaller = singleLlmCaller,
             objectMapper = objectMapper,
             injectionStrategy = ToolInjectionStrategy.NONE,

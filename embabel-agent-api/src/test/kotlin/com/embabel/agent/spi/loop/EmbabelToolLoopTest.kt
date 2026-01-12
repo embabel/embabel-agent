@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.toolloop
+package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.*
@@ -43,7 +43,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = EmbabelToolLoop(
+            val toolLoop = DefaultEmbabelToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -68,7 +68,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = EmbabelToolLoop(
+            val toolLoop = DefaultEmbabelToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -112,7 +112,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = EmbabelToolLoop(
+            val toolLoop = DefaultEmbabelToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -141,7 +141,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = EmbabelToolLoop(
+            val toolLoop = DefaultEmbabelToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
             )
@@ -196,7 +196,7 @@ class EmbabelToolLoopTest {
                 )
             )
 
-            val toolLoop = EmbabelToolLoop(
+            val toolLoop = DefaultEmbabelToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
@@ -232,7 +232,7 @@ class EmbabelToolLoopTest {
                 }
             )
 
-            val toolLoop = EmbabelToolLoop(
+            val toolLoop = DefaultEmbabelToolLoop(
                 llmCaller = mockCaller,
                 objectMapper = objectMapper,
                 maxIterations = 5,
@@ -254,7 +254,7 @@ class EmbabelToolLoopTest {
 /**
  * Mock SingleLlmCaller for testing that returns predetermined responses.
  */
-class MockLlmMessageSender(
+internal class MockLlmMessageSender(
     private val responses: List<LlmMessageResponse>,
 ) : LlmMessageSender {
 
