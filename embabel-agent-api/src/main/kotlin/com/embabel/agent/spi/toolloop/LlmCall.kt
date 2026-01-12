@@ -22,8 +22,11 @@ import com.embabel.chat.Message
 /**
  * Framework-agnostic result of a single LLM inference call.
  * Represents the assistant's response which may include tool calls.
+ * @param message The full message object from the LLM
+ * @param textContent The text content of the message
+ * @param usage Optional usage information (tokens, etc.)
  */
-data class SingleLlmCallResult(
+data class LlmMessageResponse(
     val message: Message,
     val textContent: String,
     val usage: Usage? = null,
@@ -39,9 +42,9 @@ data class SingleLlmCallResult(
  * This allows the tool loop to be framework-agnostic while delegating the
  * actual LLM communication to framework-specific implementations.
  */
-fun interface SingleLlmCaller {
+fun interface LlmMessageSender {
 
-    /**
+    /**c
      * Make a single LLM inference call.
      *
      * @param messages The conversation history
@@ -51,5 +54,5 @@ fun interface SingleLlmCaller {
     fun call(
         messages: List<Message>,
         tools: List<Tool>,
-    ): SingleLlmCallResult
+    ): LlmMessageResponse
 }

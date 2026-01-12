@@ -31,12 +31,11 @@ import com.embabel.agent.spi.toolloop.ToolInjectionStrategy
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
-import com.embabel.chat.SystemMessage as EmbabelSystemMessage
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
-import com.embabel.common.core.thinking.ThinkingException
-import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.spi.InternalThinkingApi
 import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.textio.template.TemplateRenderer
@@ -67,6 +66,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import com.embabel.chat.SystemMessage as EmbabelSystemMessage
 
 const val PROMPT_ELEMENT_SEPARATOR = "\n----\n"
 
@@ -198,7 +198,7 @@ internal class ChatClientLlmOperations(
         }
 
         // Create the single LLM caller that wraps Spring AI's ChatModel
-        val singleLlmCaller = SpringAiSingleLlmCaller(
+        val singleLlmCaller = SpringAiLlmMessageSender(
             chatModel = llm.model,
             chatOptions = chatOptions,
         )
@@ -300,7 +300,10 @@ internal class ChatClientLlmOperations(
             }
 
             val callResponse = try {
-                future.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
+                future.get(
+                    timeoutMillis,
+                    TimeUnit.MILLISECONDS
+                ) // NOSONAR: CompletableFuture.get() is not collection access
             } catch (e: Exception) {
                 handleFutureException(e, future, interaction, timeoutMillis, attempt)
             }
@@ -547,7 +550,10 @@ internal class ChatClientLlmOperations(
                 }
 
                 val callResponse = try {
-                    future.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
+                    future.get(
+                        timeoutMillis,
+                        TimeUnit.MILLISECONDS
+                    ) // NOSONAR: CompletableFuture.get() is not collection access
                 } catch (e: Exception) {
                     handleFutureException(e, future, interaction, timeoutMillis, attempt)
                 }
@@ -670,7 +676,10 @@ internal class ChatClientLlmOperations(
                     }
 
                     val callResponse = try {
-                        future.get(timeoutMillis, TimeUnit.MILLISECONDS) // NOSONAR: CompletableFuture.get() is not collection access
+                        future.get(
+                            timeoutMillis,
+                            TimeUnit.MILLISECONDS
+                        ) // NOSONAR: CompletableFuture.get() is not collection access
                     } catch (e: Exception) {
                         val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
                         return@execute handleFutureExceptionAsResult(e, future, interaction, timeoutMillis, attempt)
@@ -687,7 +696,8 @@ internal class ChatClientLlmOperations(
                         val maybeResult = converter.convert(rawText)
 
                         // Convert MaybeReturn<O> to Result<ThinkingResponse<O>> with extracted thinking blocks
-                        val result = maybeResult!!.toResult() as Result<O> // NOSONAR: Safe cast, MaybeReturn<O>.toResult() returns Result<O>
+                        val result =
+                            maybeResult!!.toResult() as Result<O> // NOSONAR: Safe cast, MaybeReturn<O>.toResult() returns Result<O>
                         when {
                             result.isSuccess -> Result.success(
                                 ThinkingResponse(
@@ -874,12 +884,14 @@ internal class ChatClientLlmOperations(
                     e
                 )
             }
+
             is InterruptedException -> {
                 future.cancel(true)
                 Thread.currentThread().interrupt()
                 logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
                 throw RuntimeException("ChatClient call for interaction ${interaction.id.value} was interrupted", e)
             }
+
             is ExecutionException -> {
                 future.cancel(true)
                 logger.error(
@@ -894,12 +906,14 @@ internal class ChatClientLlmOperations(
                         "ChatClient call for interaction ${interaction.id.value} failed",
                         cause
                     )
+
                     else -> throw RuntimeException(
                         "ChatClient call for interaction ${interaction.id.value} failed with unknown error",
                         e
                     )
                 }
             }
+
             else -> throw e
         }
     }
@@ -928,27 +942,35 @@ internal class ChatClientLlmOperations(
             is TimeoutException -> {
                 future.cancel(true)
                 logger.warn(LLM_TIMEOUT_MESSAGE, interaction.id.value, attempt, timeoutMillis)
-                Result.failure(ThinkingException(
-                    message = "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
-                    thinkingBlocks = emptyList() // No response = no thinking blocks
-                ))
+                Result.failure(
+                    ThinkingException(
+                        message = "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
+                        thinkingBlocks = emptyList() // No response = no thinking blocks
+                    )
+                )
             }
+
             is InterruptedException -> {
                 future.cancel(true)
                 Thread.currentThread().interrupt()
                 logger.warn(LLM_INTERRUPTED_MESSAGE, interaction.id.value, attempt)
-                Result.failure(ThinkingException(
-                    message = "ChatClient call for interaction ${interaction.id.value} was interrupted",
-                    thinkingBlocks = emptyList() // No response = no thinking blocks
-                ))
+                Result.failure(
+                    ThinkingException(
+                        message = "ChatClient call for interaction ${interaction.id.value} was interrupted",
+                        thinkingBlocks = emptyList() // No response = no thinking blocks
+                    )
+                )
             }
+
             else -> {
                 future.cancel(true)
                 logger.error("LLM {}: attempt {} failed", interaction.id.value, attempt, e)
-                Result.failure(ThinkingException(
-                    message = "ChatClient call for interaction ${interaction.id.value} failed: ${e.message}",
-                    thinkingBlocks = emptyList() // No response = no thinking blocks
-                ))
+                Result.failure(
+                    ThinkingException(
+                        message = "ChatClient call for interaction ${interaction.id.value} failed: ${e.message}",
+                        thinkingBlocks = emptyList() // No response = no thinking blocks
+                    )
+                )
             }
         }
     }

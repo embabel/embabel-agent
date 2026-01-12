@@ -16,11 +16,7 @@
 package com.embabel.agent.spi.toolloop
 
 import com.embabel.agent.api.tool.Tool
-import com.embabel.chat.AssistantMessage
-import com.embabel.chat.AssistantMessageWithToolCalls
-import com.embabel.chat.Message
-import com.embabel.chat.ToolCall
-import com.embabel.chat.UserMessage
+import com.embabel.chat.*
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -41,9 +37,9 @@ class EmbabelToolLoopTest {
 
         @Test
         fun `execute returns result when LLM responds without tool calls`() {
-            val mockCaller = MockSingleLlmCaller(
+            val mockCaller = MockLlmMessageSender(
                 responses = listOf(
-                    MockSingleLlmCaller.textResponse("Hello, world!")
+                    MockLlmMessageSender.textResponse("Hello, world!")
                 )
             )
 
@@ -66,9 +62,9 @@ class EmbabelToolLoopTest {
 
         @Test
         fun `execute parses output using provided parser`() {
-            val mockCaller = MockSingleLlmCaller(
+            val mockCaller = MockLlmMessageSender(
                 responses = listOf(
-                    MockSingleLlmCaller.textResponse("42")
+                    MockLlmMessageSender.textResponse("42")
                 )
             )
 
@@ -103,16 +99,16 @@ class EmbabelToolLoopTest {
                 }
             )
 
-            val mockCaller = MockSingleLlmCaller(
+            val mockCaller = MockLlmMessageSender(
                 responses = listOf(
                     // First response: LLM calls the tool
-                    MockSingleLlmCaller.toolCallResponse(
+                    MockLlmMessageSender.toolCallResponse(
                         toolCallId = "call_123",
                         toolName = "get_weather",
                         arguments = """{"location": "San Francisco"}"""
                     ),
                     // Second response: LLM provides final answer
-                    MockSingleLlmCaller.textResponse("The weather in San Francisco is 72°F and sunny.")
+                    MockLlmMessageSender.textResponse("The weather in San Francisco is 72°F and sunny.")
                 )
             )
 
@@ -135,9 +131,9 @@ class EmbabelToolLoopTest {
 
         @Test
         fun `execute throws ToolNotFoundException for unknown tool`() {
-            val mockCaller = MockSingleLlmCaller(
+            val mockCaller = MockLlmMessageSender(
                 responses = listOf(
-                    MockSingleLlmCaller.toolCallResponse(
+                    MockLlmMessageSender.toolCallResponse(
                         toolCallId = "call_123",
                         toolName = "unknown_tool",
                         arguments = "{}"
@@ -193,10 +189,10 @@ class EmbabelToolLoopTest {
                 onCall = { Tool.Result.text("""{"result": "done"}""") }
             )
 
-            val mockCaller = MockSingleLlmCaller(
+            val mockCaller = MockLlmMessageSender(
                 responses = listOf(
-                    MockSingleLlmCaller.toolCallResponse("call_1", "initial_tool", "{}"),
-                    MockSingleLlmCaller.textResponse("All done!")
+                    MockLlmMessageSender.toolCallResponse("call_1", "initial_tool", "{}"),
+                    MockLlmMessageSender.textResponse("All done!")
                 )
             )
 
@@ -230,9 +226,9 @@ class EmbabelToolLoopTest {
                 onCall = { Tool.Result.text("""{"status": "continue"}""") }
             )
 
-            val mockCaller = MockSingleLlmCaller(
+            val mockCaller = MockLlmMessageSender(
                 responses = List(10) {
-                    MockSingleLlmCaller.toolCallResponse("call_$it", "loop_tool", "{}")
+                    MockLlmMessageSender.toolCallResponse("call_$it", "loop_tool", "{}")
                 }
             )
 
@@ -258,13 +254,13 @@ class EmbabelToolLoopTest {
 /**
  * Mock SingleLlmCaller for testing that returns predetermined responses.
  */
-class MockSingleLlmCaller(
-    private val responses: List<SingleLlmCallResult>,
-) : SingleLlmCaller {
+class MockLlmMessageSender(
+    private val responses: List<LlmMessageResponse>,
+) : LlmMessageSender {
 
     private var callIndex = 0
 
-    override fun call(messages: List<Message>, tools: List<Tool>): SingleLlmCallResult {
+    override fun call(messages: List<Message>, tools: List<Tool>): LlmMessageResponse {
         if (callIndex >= responses.size) {
             throw IllegalStateException("MockSingleLlmCaller ran out of responses")
         }
@@ -272,16 +268,16 @@ class MockSingleLlmCaller(
     }
 
     companion object {
-        fun textResponse(text: String): SingleLlmCallResult {
-            return SingleLlmCallResult(
+        fun textResponse(text: String): LlmMessageResponse {
+            return LlmMessageResponse(
                 message = AssistantMessage(text),
                 textContent = text,
             )
         }
 
-        fun toolCallResponse(toolCallId: String, toolName: String, arguments: String): SingleLlmCallResult {
+        fun toolCallResponse(toolCallId: String, toolName: String, arguments: String): LlmMessageResponse {
             val toolCall = ToolCall(toolCallId, toolName, arguments)
-            return SingleLlmCallResult(
+            return LlmMessageResponse(
                 message = AssistantMessageWithToolCalls(
                     content = " ", // Space required - TextPart doesn't allow empty
                     toolCalls = listOf(toolCall),

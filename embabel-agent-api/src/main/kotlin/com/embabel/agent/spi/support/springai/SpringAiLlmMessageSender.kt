@@ -17,8 +17,8 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.support.toEmbabelUsage
-import com.embabel.agent.spi.toolloop.SingleLlmCallResult
-import com.embabel.agent.spi.toolloop.SingleLlmCaller
+import com.embabel.agent.spi.toolloop.LlmMessageResponse
+import com.embabel.agent.spi.toolloop.LlmMessageSender
 import com.embabel.chat.Message
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
@@ -27,7 +27,7 @@ import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.tool.ToolCallback
 
 /**
- * Spring AI implementation of [SingleLlmCaller].
+ * Spring AI implementation of [LlmMessageSender].
  *
  * Makes a single LLM inference call using Spring AI's ChatModel.
  * Does NOT execute tools - just returns the response including any tool call requests.
@@ -36,15 +36,15 @@ import org.springframework.ai.tool.ToolCallback
  * @param chatModel The Spring AI ChatModel to use for LLM calls
  * @param chatOptions Options for the LLM call (temperature, etc.)
  */
-class SpringAiSingleLlmCaller(
+class SpringAiLlmMessageSender(
     private val chatModel: ChatModel,
     private val chatOptions: ChatOptions,
-) : SingleLlmCaller {
+) : LlmMessageSender {
 
     override fun call(
         messages: List<Message>,
         tools: List<Tool>,
-    ): SingleLlmCallResult {
+    ): LlmMessageResponse {
         // Convert Embabel messages to Spring AI messages
         val springAiMessages = messages.map { it.toSpringAiMessage() }
 
@@ -67,7 +67,7 @@ class SpringAiSingleLlmCaller(
         // Extract usage information
         val usage = response.metadata?.usage?.toEmbabelUsage()
 
-        return SingleLlmCallResult(
+        return LlmMessageResponse(
             message = embabelMessage,
             textContent = assistantMessage.text ?: "",
             usage = usage,

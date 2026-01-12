@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory
  * - Observability and event emission
  * - Integration with Embabel's autonomy system
  *
- * This class is framework-agnostic - it uses [SingleLlmCaller] for LLM communication,
+ * This class is framework-agnostic - it uses [LlmMessageSender] for LLM communication,
  * allowing different backends (Spring AI, LangChain4j, etc.) to be plugged in.
  *
  * @param llmCaller Framework-agnostic interface for making single LLM calls
@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory
  * @param maxIterations Maximum number of tool loop iterations (default 20)
  */
 class EmbabelToolLoop(
-    private val llmCaller: SingleLlmCaller,
+    private val llmCaller: LlmMessageSender,
     private val objectMapper: ObjectMapper,
     private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
     private val maxIterations: Int = 20,
