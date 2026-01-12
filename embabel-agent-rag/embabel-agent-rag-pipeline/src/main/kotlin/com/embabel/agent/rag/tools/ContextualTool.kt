@@ -15,34 +15,33 @@
  */
 package com.embabel.agent.rag.tools
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.rag.model.Retrievable
-import org.springframework.ai.tool.ToolCallback
 
 /**
  * Tool retrieved by a RAG request
  */
 data class ContextualTool(
-    val toolCallback: ToolCallback,
+    val tool: Tool,
 ) : Retrievable {
 
     override fun embeddableValue(): String =
-        toolCallback.toolDefinition.description()
+        tool.definition.description
 
 
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
     ): String {
-        return "tool: " + toolCallback.toolDefinition.name()
+        return "tool: " + tool.definition.name
     }
 
     override val id: String
-        get() = "tool:${toolCallback.toolDefinition.name()}"
+        get() = "tool:${tool.definition.name}"
 
     override val uri: String?
         get() = null
 
     override val metadata: Map<String, Any?>
-        // TODO fix this
-        get() = emptyMap() //toolCallback.toolMetadata
+        get() = tool.metadata.providerMetadata
 }
