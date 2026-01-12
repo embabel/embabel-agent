@@ -9,7 +9,7 @@
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-dependencies</artifactId>
-    <version>0.3.2</version>
+    <version>0.3.3-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Embabel Agent BOM</name>
     <description>Embabel Agent BOM</description>
@@ -19,7 +19,7 @@
         <url>https://github.com/embabel/embabel-agent</url>
         <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
         <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
-        <tag>v0.3.2</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <dependencyManagement>

@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.embabel.agent</groupId>
         <artifactId>embabel-agent-parent</artifactId>
-        <version>0.3.2</version>
+        <version>0.3.3-SNAPSHOT</version>
     </parent>
     <artifactId>embabel-agent-eval</artifactId>
     <packaging>jar</packaging>
@@ -16,7 +16,7 @@
         <url>https://github.com/embabel/embabel-agent</url>
         <connection>scm:git:https://github.com/embabel/embabel-agent.git</connection>
         <developerConnection>scm:git:https://github.com/embabel/embabel-agent.git</developerConnection>
-        <tag>v0.3.2</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <dependencies>
