@@ -22,9 +22,8 @@ import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.support.safelyGetToolCallbacks
+import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -34,7 +33,6 @@ import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
-import org.springframework.ai.tool.ToolCallback
 import java.util.function.Predicate
 
 enum class Method {
@@ -70,7 +68,7 @@ data class FakePromptRunner(
     private val context: OperationContext,
     private val _llmInvocations: MutableList<LlmInvocation> = mutableListOf(),
     private val responses: MutableList<Any?> = mutableListOf(),
-    private val otherToolCallbacks: List<ToolCallback> = emptyList(),
+    private val otherTools: List<Tool> = emptyList(),
     /**
      * The interaction ID set via withInteractionId() or withId().
      * Can be inspected in tests to verify the correct ID was set.
@@ -207,7 +205,7 @@ data class FakePromptRunner(
         LlmInteraction(
             llm = llm ?: LlmOptions(),
             toolGroups = this.toolGroups + toolGroups,
-            toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
+            tools = safelyGetTools(toolObjects) + otherTools,
             promptContributors = promptContributors + contextualPromptContributors.map {
                 it.toPromptContributor(
                     context
@@ -238,7 +236,7 @@ data class FakePromptRunner(
     }
 
     override fun withTool(tool: Tool): PromptRunner =
-        copy(otherToolCallbacks = this.otherToolCallbacks + tool.toSpringToolCallback())
+        copy(otherTools = this.otherTools + tool)
 
     override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
         return PromptRunnerObjectCreator(this, outputClass, jacksonObjectMapper())

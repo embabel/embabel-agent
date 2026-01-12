@@ -30,12 +30,13 @@ import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.Verbosity
-import com.embabel.agent.core.support.safelyGetToolCallbacks
+import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
-import com.embabel.agent.spi.support.springai.toSpringToolCallback
+import com.embabel.agent.spi.support.springai.toEmbabelTool
+import com.embabel.agent.spi.support.springai.toEmbabelTools
 import com.embabel.agent.tools.agent.AgentToolCallback
 import com.embabel.agent.tools.agent.Handoffs
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
@@ -47,7 +48,6 @@ import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
-import org.springframework.ai.tool.ToolCallback
 import java.util.function.Predicate
 
 /**
@@ -67,7 +67,7 @@ internal data class OperationContextPromptRunner(
     override val generateExamples: Boolean?,
     override val propertyFilter: Predicate<String> = Predicate { true },
     override val validation: Boolean = true,
-    private val otherToolCallbacks: List<ToolCallback> = emptyList(),
+    private val otherTools: List<Tool> = emptyList(),
 ) : StreamingPromptRunner {
 
     val action = (context as? ActionContext)?.action
@@ -134,7 +134,7 @@ internal data class OperationContextPromptRunner(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
+                tools = safelyGetTools(toolObjects) + otherTools,
                 promptContributors = allPromptContributors,
                 id = interactionId ?: idForPrompt(messages, outputClass),
                 generateExamples = generateExamples,
@@ -157,7 +157,7 @@ internal data class OperationContextPromptRunner(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
+                tools = safelyGetTools(toolObjects) + otherTools,
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(
                         context
@@ -228,13 +228,13 @@ internal data class OperationContextPromptRunner(
         copy(toolGroups = this.toolGroups + toolGroup)
 
     override fun withToolGroup(toolGroup: ToolGroup): PromptRunner =
-        copy(otherToolCallbacks = otherToolCallbacks + toolGroup.toolCallbacks)
+        copy(otherTools = otherTools + toolGroup.tools)
 
     override fun withToolObject(toolObject: ToolObject): PromptRunner =
         copy(toolObjects = this.toolObjects + toolObject)
 
     override fun withTool(tool: Tool): PromptRunner =
-        copy(otherToolCallbacks = this.otherToolCallbacks + tool.toSpringToolCallback())
+        copy(otherTools = this.otherTools + tool)
 
     override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner {
         val handoffs = Handoffs(
@@ -243,7 +243,7 @@ internal data class OperationContextPromptRunner(
             applicationName = context.agentPlatform().name,
         )
         return copy(
-            otherToolCallbacks = this.otherToolCallbacks + handoffs.toolCallbacks,
+            otherTools = this.otherTools + handoffs.toolCallbacks.toEmbabelTools(),
         )
     }
 
@@ -273,7 +273,7 @@ internal data class OperationContextPromptRunner(
             )
         }
         return copy(
-            otherToolCallbacks = this.otherToolCallbacks + newCallbacks,
+            otherTools = this.otherTools + newCallbacks.map { it.toEmbabelTool() },
         )
     }
 
@@ -333,7 +333,7 @@ internal data class OperationContextPromptRunner(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = toolGroups,
-                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
+                tools = safelyGetTools(toolObjects) + otherTools,
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(context)
                 },
@@ -379,7 +379,7 @@ internal data class OperationContextPromptRunner(
             interaction = LlmInteraction(
                 llm = thinkingEnabledLlm,
                 toolGroups = toolGroups,
-                toolCallbacks = safelyGetToolCallbacks(toolObjects) + otherToolCallbacks,
+                tools = safelyGetTools(toolObjects) + otherTools,
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(context)
                 },

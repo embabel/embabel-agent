@@ -21,8 +21,6 @@ import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.agent.core.support.Rerun
 import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.support.springai.AgentProcessBindingToolCallback
-import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.types.Semver
 import org.slf4j.LoggerFactory
@@ -242,15 +240,10 @@ class SupervisorAction(
                 // Build prompt with current state and updated tools
                 val prompt = buildSupervisorPrompt(processContext, curriedTools, iteration)
 
-                // Convert to Spring AI ToolCallbacks and wrap with AgentProcess binding
-                val toolCallbacks = curriedTools.toSpringToolCallbacks().map { callback ->
-                    AgentProcessBindingToolCallback(callback, processContext.agentProcess)
-                }
-
                 // Create interaction with tools
                 val interaction = LlmInteraction(
                     id = InteractionId("$name-supervisor-$iteration"),
-                    toolCallbacks = toolCallbacks,
+                    tools = curriedTools,
                 )
 
                 // Execute with tools

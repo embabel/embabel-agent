@@ -17,6 +17,7 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.Tool
 import org.slf4j.LoggerFactory
+import org.springframework.ai.chat.model.ToolContext
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.DefaultToolDefinition
 import org.springframework.ai.tool.definition.ToolDefinition
@@ -66,6 +67,15 @@ class SpringToolCallbackAdapter(
             logger.error("Tool '{}' threw exception: {}", tool.definition.name, e.message, e)
             "ERROR: ${e.message ?: "Unknown error"}"
         }
+    }
+
+    /**
+     * Override to avoid Spring AI's default warning about unused ToolContext.
+     * Embabel manages context through [com.embabel.agent.core.AgentProcess] thread-local
+     * rather than Spring AI's ToolContext.
+     */
+    override fun call(toolInput: String, toolContext: ToolContext?): String {
+        return call(toolInput)
     }
 }
 

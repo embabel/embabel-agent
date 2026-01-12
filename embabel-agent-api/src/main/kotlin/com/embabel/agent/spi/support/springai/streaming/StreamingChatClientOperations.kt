@@ -23,6 +23,7 @@ import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.PROMPT_ELEMENT_SEPARATOR
 import com.embabel.agent.spi.support.springai.toSpringAiMessage
+import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.core.streaming.StreamingEvent
@@ -141,7 +142,7 @@ internal class StreamingChatClientOperations(
 
         return chatClient
             .prompt(springAiPrompt)
-            .toolCallbacks(interaction.toolCallbacks)
+            .toolCallbacks(interaction.tools.toSpringToolCallbacks())
             .options(chatOptions)
             .stream()
             .content()
@@ -316,7 +317,7 @@ internal class StreamingChatClientOperations(
         // Step 1: Original raw chunk stream from LLM
         val rawChunkFlux: Flux<String> = chatClient
             .prompt(springAiPrompt)
-            .toolCallbacks(interaction.toolCallbacks)
+            .toolCallbacks(interaction.tools.toSpringToolCallbacks())
             .options(chatOptions)
             .stream()
             .content()

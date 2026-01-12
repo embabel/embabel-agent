@@ -18,14 +18,22 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentProcessRunning
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+
+private val Tool.Result.content: String
+    get() = when (this) {
+        is Tool.Result.Text -> content
+        is Tool.Result.WithArtifact -> content
+        is Tool.Result.Error -> message
+    }
 
 object RuntimeExceptionTool {
 
@@ -41,9 +49,9 @@ class DefaultToolDecoratorTest {
     @Test
     fun `test handle runtime exception from tool`() {
         val toolDecorator = DefaultToolDecorator()
-        val badToolCallback = safelyGetToolCallbacksFrom(ToolObject(RuntimeExceptionTool)).single()
+        val badTool = safelyGetToolsFrom(ToolObject(RuntimeExceptionTool)).single()
         val decorated = toolDecorator.decorate(
-            tool = badToolCallback,
+            tool = badTool,
             agentProcess = dummyAgentProcessRunning(evenMoreEvilWizard()),
             action = null, llmOptions = LlmOptions(),
         )
@@ -53,8 +61,8 @@ class DefaultToolDecoratorTest {
         """.trimIndent()
         )
         assertTrue(
-            result.contains("This tool always fails"),
-            "Expected result to contain the exception message: Got '$result'"
+            result.content.contains("This tool always fails"),
+            "Expected result to contain the exception message: Got '${result.content}'"
         )
     }
 
@@ -70,9 +78,9 @@ class DefaultToolDecoratorTest {
             }
         }
 
-        val toolCallback = safelyGetToolCallbacksFrom(ToolObject(NeedsAgentProcess())).single()
+        val tool = safelyGetToolsFrom(ToolObject(NeedsAgentProcess())).single()
         val decorated = toolDecorator.decorate(
-            tool = toolCallback,
+            tool = tool,
             agentProcess = dummyAgentProcessRunning(evenMoreEvilWizard()),
             action = null, llmOptions = LlmOptions(),
         )
@@ -81,7 +89,7 @@ class DefaultToolDecoratorTest {
             { "input": "anything at all" }
         """.trimIndent()
         )
-        assertTrue(result.contains("AgentProcess is bound"))
+        assertTrue(result.content.contains("AgentProcess is bound"))
     }
 
 }

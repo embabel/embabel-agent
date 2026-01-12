@@ -29,7 +29,6 @@ import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import jakarta.validation.ConstraintViolation
-import org.springframework.ai.tool.ToolCallback
 import java.util.function.Predicate
 
 /**
@@ -106,7 +105,6 @@ private data class LlmCallImpl(
  * This is per action, not per process.
  * @param llm LLM options to use, specifying model and hyperparameters
  * @param tools Tools to use for this interaction
- * @param toolCallbacks Resolved and decorated tool callbacks (internal use only, populated during resolution)
  * @param promptContributors Prompt contributors to use for this interaction
  */
 data class LlmInteraction(
@@ -114,11 +112,6 @@ data class LlmInteraction(
     override val llm: LlmOptions = LlmOptions(),
     override val toolGroups: Set<ToolGroupRequirement> = emptySet(),
     override val tools: List<Tool> = emptyList(),
-    /**
-     * Resolved and decorated tool callbacks for Spring AI integration.
-     * This is populated internally during tool resolution - users should provide [tools] instead.
-     */
-    val toolCallbacks: List<ToolCallback> = emptyList(),
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean? = null,

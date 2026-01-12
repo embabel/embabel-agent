@@ -20,7 +20,6 @@ import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.spi.InvalidLlmReturnFormatException
 import com.embabel.agent.spi.InvalidLlmReturnTypeException
@@ -299,7 +298,7 @@ class ChatClientLlmOperationsTest {
             val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(duke))
 
             // Wumpus's have tools
-            val toolCallbacks = safelyGetToolCallbacksFrom(ToolObject(Wumpus("wumpy")))
+            val tools = safelyGetToolsFrom(ToolObject(Wumpus("wumpy")))
             val setup = createChatClientLlmOperations(fakeChatModel)
             val result = setup.llmOperations.doTransform(
                 messages = listOf(
@@ -309,18 +308,18 @@ class ChatClientLlmOperationsTest {
                 interaction = LlmInteraction(
                     id = InteractionId("id"),
                     llm = LlmOptions(),
-                    toolCallbacks = toolCallbacks,
+                    tools = tools,
                 ),
                 outputClass = Dog::class.java,
                 llmRequestEvent = null,
             )
             assertEquals(duke, result)
             assertEquals(1, fakeChatModel.promptsPassed.size)
-            val tools = fakeChatModel.optionsPassed[0].toolCallbacks
-            assertEquals(toolCallbacks.size, tools.size, "Must have passed same number of tools")
+            val passedTools = fakeChatModel.optionsPassed[0].toolCallbacks
+            assertEquals(tools.size, passedTools.size, "Must have passed same number of tools")
             assertEquals(
-                toolCallbacks.map { it.toolDefinition.name() }.toSet(),
-                tools.map { it.toolDefinition.name() }.toSet(),
+                tools.map { it.definition.name }.toSet(),
+                passedTools.map { it.toolDefinition.name() }.toSet(),
             )
         }
 

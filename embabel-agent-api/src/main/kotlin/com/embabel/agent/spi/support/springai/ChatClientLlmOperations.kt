@@ -162,7 +162,7 @@ internal class ChatClientLlmOperations(
             val future = CompletableFuture.supplyAsync {
                 chatClient
                     .prompt(springAiPrompt)
-                    .toolCallbacks(interaction.toolCallbacks)
+                    .toolCallbacks(interaction.tools.toSpringToolCallbacks())
                     .options(chatOptions)
                     .call()
             }
@@ -254,7 +254,7 @@ internal class ChatClientLlmOperations(
                 CompletableFuture.supplyAsync {
                     chatClient
                         .prompt(springAiPrompt)
-                        .toolCallbacks(interaction.toolCallbacks)
+                        .toolCallbacks(interaction.tools.toSpringToolCallbacks())
                         .options(chatOptions)
                         .call()
                 }
@@ -400,7 +400,7 @@ internal class ChatClientLlmOperations(
                 val future = CompletableFuture.supplyAsync {
                     chatClient
                         .prompt(springAiPrompt)
-                        .toolCallbacks(interaction.toolCallbacks)
+                        .toolCallbacks(interaction.tools.toSpringToolCallbacks())
                         .options(chatOptions)
                         .call()
                 }
@@ -523,7 +523,7 @@ internal class ChatClientLlmOperations(
                     val future = CompletableFuture.supplyAsync {
                         chatClient
                             .prompt(springAiPrompt)
-                            .toolCallbacks(interaction.toolCallbacks)
+                            .toolCallbacks(interaction.tools.toSpringToolCallbacks())
                             .options(chatOptions)
                             .call()
                     }
