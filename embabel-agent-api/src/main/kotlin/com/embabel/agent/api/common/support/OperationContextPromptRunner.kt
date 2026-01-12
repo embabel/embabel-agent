@@ -35,9 +35,7 @@ import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
-import com.embabel.agent.spi.support.springai.toEmbabelTool
-import com.embabel.agent.spi.support.springai.toEmbabelTools
-import com.embabel.agent.tools.agent.AgentToolCallback
+import com.embabel.agent.tools.agent.AgentTool
 import com.embabel.agent.tools.agent.Handoffs
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
 import com.embabel.chat.ImagePart
@@ -243,16 +241,16 @@ internal data class OperationContextPromptRunner(
             applicationName = context.agentPlatform().name,
         )
         return copy(
-            otherTools = this.otherTools + handoffs.toolCallbacks.toEmbabelTools(),
+            otherTools = this.otherTools + handoffs.tools,
         )
     }
 
     override fun withSubagents(
         vararg subagents: Subagent,
     ): PromptRunner {
-        val newCallbacks = subagents.map { subagent ->
+        val newTools = subagents.map { subagent ->
             val agent = subagent.resolve(context.agentPlatform())
-            AgentToolCallback(
+            AgentTool(
                 autonomy = context.agentPlatform().platformServices.autonomy(),
                 agent = agent,
                 textCommunicator = PromptedTextCommunicator,
@@ -273,7 +271,7 @@ internal data class OperationContextPromptRunner(
             )
         }
         return copy(
-            otherTools = this.otherTools + newCallbacks.map { it.toEmbabelTool() },
+            otherTools = this.otherTools + newTools,
         )
     }
 

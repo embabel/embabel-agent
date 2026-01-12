@@ -16,8 +16,8 @@
 package com.embabel.agent.tools.agent
 
 import com.embabel.agent.api.common.autonomy.Autonomy
-import com.embabel.agent.core.ToolCallbackPublisher
-import org.springframework.ai.tool.ToolCallback
+import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.ToolPublisher
 
 /**
  * Handoffs to local agents.
@@ -26,19 +26,19 @@ class Handoffs(
     autonomy: Autonomy,
     val outputTypes: List<Class<*>>,
     applicationName: String,
-) : ToolCallbackPublisher {
+) : ToolPublisher {
 
-    private val goalToolCallbackPublisher = PerGoalToolCallbackFactory(
+    private val goalToolFactory = PerGoalToolFactory(
         autonomy = autonomy,
         applicationName = applicationName,
         textCommunicator = PromptedTextCommunicator,
     )
 
-    override val toolCallbacks: List<ToolCallback>
-        get() = goalToolCallbackPublisher.goalTools(remoteOnly = false, listeners = emptyList())
-            .filter { goalToolCallback ->
+    override val tools: List<Tool>
+        get() = goalToolFactory.goalTools(remoteOnly = false, listeners = emptyList())
+            .filter { goalTool ->
                 outputTypes.any { outputType ->
-                    goalToolCallback.goal.outputType?.isAssignableFrom(outputType) == true
+                    goalTool.goal.outputType?.isAssignableFrom(outputType) == true
                 }
             }
 

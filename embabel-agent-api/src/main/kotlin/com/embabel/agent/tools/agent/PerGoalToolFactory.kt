@@ -20,11 +20,11 @@ import com.embabel.agent.api.common.autonomy.AgentProcessExecution
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.ProcessWaitingException
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Goal
-import com.embabel.agent.core.support.safelyGetToolCallbacksFrom
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.common.core.types.NamedAndDescribed
 import org.slf4j.LoggerFactory
-import org.springframework.ai.tool.ToolCallback
 
 const val CONFIRMATION_TOOL_NAME = "_confirm"
 
@@ -54,18 +54,18 @@ interface TextCommunicator {
 }
 
 /**
- * Generic tool callback provider that publishes a tool callback for each goal.
+ * Factory that creates tools for each goal in the agent platform.
  * Each invocation will result in a distinct AgentProcess being executed.
  * Multiple instances of this class can be created, each with different configuration,
  * for different purposes.
  * Tools can be exposed to actions or via an MCP server etc.
- * Return a tool callback for each goal taking user input.
+ * Return a tool for each goal taking user input.
  * If the goal specifies startingInputTypes,
  * add a tool for each of those input types.
  * Add a continue tool for any process that requires user input
  * and is waiting for a form submission.
  */
-class PerGoalToolCallbackFactory(
+class PerGoalToolFactory(
     private val autonomy: Autonomy,
     applicationName: String,
     private val textCommunicator: TextCommunicator = PromptedTextCommunicator,
@@ -74,12 +74,12 @@ class PerGoalToolCallbackFactory(
     ),
 ) {
 
-    private val logger = LoggerFactory.getLogger(PerGoalToolCallbackFactory::class.java)
+    private val logger = LoggerFactory.getLogger(PerGoalToolFactory::class.java)
 
     /**
-     * Generic tools
+     * Generic platform tools
      */
-    val platformTools: List<ToolCallback> = safelyGetToolCallbacksFrom(
+    val platformTools: List<Tool> = safelyGetToolsFrom(
         ToolObject(
             DefaultProcessCallbackTools(
                 autonomy = autonomy,
@@ -97,7 +97,7 @@ class PerGoalToolCallbackFactory(
     fun goalTools(
         remoteOnly: Boolean,
         listeners: List<AgenticEventListener>,
-    ): List<GoalToolCallback<*>> {
+    ): List<GoalTool<*>> {
         val goalTools = autonomy.agentPlatform.goals
             .filter { it.export.local }
             .filter { !remoteOnly || it.export.remote }
@@ -105,7 +105,7 @@ class PerGoalToolCallbackFactory(
                 toolsForGoal(goal, listeners)
             }
         if (goalTools.isEmpty()) {
-            logger.info("No goals found in agent platform, no tool callbacks will be published")
+            logger.info("No goals found in agent platform, no tools will be published")
             return emptyList()
         }
         logger.info("{} goal tools found in agent platform: {}", goalTools.size, goalTools)
@@ -113,15 +113,17 @@ class PerGoalToolCallbackFactory(
     }
 
     /**
-     * If remote is true, include only remote tools.
+     * All tools including goal tools and platform tools.
+     * @param remoteOnly if true, only include tools that are remote.
+     * @param listeners additional listeners to be notified of events relating to the created process
      */
-    fun toolCallbacks(
+    fun allTools(
         remoteOnly: Boolean,
         listeners: List<AgenticEventListener>,
-    ): List<ToolCallback> {
+    ): List<Tool> {
         val goalTools = goalTools(remoteOnly, listeners)
         return if (goalTools.isEmpty()) {
-            logger.warn("No goal tools found, no tool callbacks will be published")
+            logger.warn("No goal tools found, no tools will be published")
             emptyList()
         } else {
             goalTools + platformTools
@@ -130,16 +132,16 @@ class PerGoalToolCallbackFactory(
 
 
     /**
-     * Create tool callbacks for the given goal.
-     * There will be one tool callback for each starting input type of the goal.
+     * Create tools for the given goal.
+     * There will be one tool for each starting input type of the goal.
      */
     fun toolsForGoal(
         goal: Goal,
         listeners: List<AgenticEventListener>,
-    ): List<GoalToolCallback<*>> {
+    ): List<GoalTool<*>> {
         val goalName = goal.export.name ?: goalToolNamingStrategy.nameForGoal(goal)
         return goal.export.startingInputTypes.map { inputType ->
-            GoalToolCallback(
+            GoalTool(
                 autonomy = autonomy,
                 name = goalName,
                 description = goal.description,

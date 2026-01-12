@@ -17,21 +17,22 @@ package com.embabel.agent.tools.agent
 
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.ProcessWaitingException
+import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.TypeBasedInputSchema
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.Verbosity
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
-import org.springframework.ai.chat.model.ToolContext
-import org.springframework.ai.tool.ToolCallback
-import org.springframework.ai.tool.definition.ToolDefinition
 
 /**
- * Tool callback that can be used to execute an agent.
+ * Tool that can be used to execute an agent.
  * Supports "Subagent" or "handoff" style usage.
+ *
+ * This is the framework-agnostic version that implements Embabel's [Tool] interface.
  */
-data class AgentToolCallback<I : Any>(
+data class AgentTool<I : Any>(
     private val autonomy: Autonomy,
     val agent: Agent,
     val textCommunicator: TextCommunicator,
@@ -40,43 +41,33 @@ data class AgentToolCallback<I : Any>(
     val processOptionsCreator: (
         parentAgentProcess: AgentProcess,
     ) -> ProcessOptions,
-) : ToolCallback {
+) : Tool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    override fun getToolDefinition(): ToolDefinition {
-        return TypeWrappingToolDefinition(
-            name = agent.name,
-            description = agent.description,
-            type = inputType,
-        )
+    override val definition: Tool.Definition = object : Tool.Definition {
+        override val name: String = agent.name
+        override val description: String = agent.description
+        override val inputSchema: Tool.InputSchema = TypeBasedInputSchema.of(inputType)
     }
 
-    override fun call(
-        toolInput: String,
-    ): String {
-        return call(toolInput, null)
-    }
+    override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT
 
-    override fun call(
-        toolInput: String,
-        toolContext: ToolContext?,
-    ): String {
+    override fun call(input: String): Tool.Result {
         val parentAgentProcess = AgentProcess.get()
-        logger.info("Calling tool {} with input {}", this.agent.name, toolInput)
-        val verbosity = Verbosity(
-            showPrompts = true,
-        )
+        logger.info("Calling tool {} with input {}", this.agent.name, input)
+
         val inputObject = try {
-            val o = objectMapper.readValue(toolInput, inputType)
+            val o = objectMapper.readValue(input, inputType)
             logger.info("Successfully parsed tool input to an instance of {}:\n{}", o::class.java.name, o)
             o
         } catch (e: Exception) {
-            val errorReturn =
+            val errorMessage =
                 "BAD INPUT ERROR parsing tool input: ${e.message}: Try again and see if you can get the format right"
-            logger.warn("Error $errorReturn parsing tool input: $toolInput", e)
-            return errorReturn
+            logger.warn("Error $errorMessage parsing tool input: $input", e)
+            return Tool.Result.error(errorMessage, e)
         }
+
         val processOptions = parentAgentProcess?.let {
             logger.info("Found parent agent process: {} and creating ProcessOptions based on it", it)
             processOptionsCreator(parentAgentProcess)
@@ -85,26 +76,25 @@ data class AgentToolCallback<I : Any>(
                 "No parent agent process found in tool context, using default process options."
             )
             ProcessOptions(
-                verbosity = verbosity,
+                verbosity = Verbosity(showPrompts = true),
             )
         }
 
-        try {
+        return try {
             val agentProcessExecution = autonomy.runAgent(
                 inputObject = inputObject,
                 processOptions = processOptions,
                 agent = agent,
             )
             logger.info("Agent response: {}", agentProcessExecution)
-            return textCommunicator.communicateResult(agentProcessExecution)
+            Tool.Result.text(textCommunicator.communicateResult(agentProcessExecution))
         } catch (pwe: ProcessWaitingException) {
             val response = textCommunicator.communicateAwaitable(agent, pwe)
             logger.info("Returning waiting response:\n$response")
-            return response
+            Tool.Result.text(response)
         }
     }
 
     override fun toString() =
         "${javaClass.simpleName}(agent=${agent.name}, description=${agent.description})"
-
 }

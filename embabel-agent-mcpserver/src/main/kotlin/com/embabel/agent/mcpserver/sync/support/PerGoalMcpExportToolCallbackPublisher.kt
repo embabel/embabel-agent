@@ -16,21 +16,20 @@
 package com.embabel.agent.mcpserver.sync.support
 
 import com.embabel.agent.api.common.autonomy.Autonomy
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.ObjectAddedEvent
 import com.embabel.agent.api.event.ObjectBoundEvent
 import com.embabel.agent.mcpserver.McpExportToolCallbackPublisher
-import com.embabel.agent.tools.agent.GoalToolCallback
-import com.embabel.agent.tools.agent.PerGoalToolCallbackFactory
+import com.embabel.agent.spi.support.springai.toSpringToolCallback
+import com.embabel.agent.tools.agent.GoalTool
+import com.embabel.agent.tools.agent.PerGoalToolFactory
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
 import com.embabel.common.util.indent
 import io.modelcontextprotocol.server.McpSyncServer
-import io.modelcontextprotocol.server.McpSyncServerExchange
 import org.slf4j.LoggerFactory
-import org.springframework.ai.chat.model.ToolContext
 import org.springframework.ai.tool.ToolCallback
-import org.springframework.ai.tool.definition.ToolDefinition
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
@@ -51,7 +50,7 @@ class PerGoalMcpExportToolCallbackPublisher(
     @Value("\${spring.application.name:agent-api}") applicationName: String,
 ) : McpExportToolCallbackPublisher {
 
-    private val perGoalToolCallbackFactory = PerGoalToolCallbackFactory(
+    private val perGoalToolFactory = PerGoalToolFactory(
         autonomy = autonomy,
         applicationName = applicationName,
         textCommunicator = PromptedTextCommunicator,
@@ -59,16 +58,13 @@ class PerGoalMcpExportToolCallbackPublisher(
 
     override val toolCallbacks: List<ToolCallback>
         get() {
-            val goalTools = perGoalToolCallbackFactory.toolCallbacks(
+            val goalTools = perGoalToolFactory.goalTools(
                 remoteOnly = true,
                 listeners = emptyList(),
             )
-            return goalTools.map {
-                if (it is GoalToolCallback<*>) {
-                    McpAwareToolCallback(it, mcpSyncServer)
-                } else {
-                    it
-                }
+            // Wrap GoalTools with MCP-aware wrapper, then convert to ToolCallback
+            return goalTools.map { goalTool ->
+                McpAwareGoalTool(goalTool, mcpSyncServer).toSpringToolCallback()
             }
         }
 
@@ -76,41 +72,32 @@ class PerGoalMcpExportToolCallbackPublisher(
     override fun infoString(
         verbose: Boolean?,
         indent: Int,
-    ): String = "Default MCP Tool Export Callback Publisher: $perGoalToolCallbackFactory".indent(indent)
+    ): String = "Default MCP Tool Export Callback Publisher: $perGoalToolFactory".indent(indent)
 }
 
 
-class McpAwareToolCallback(
-    val delegate: GoalToolCallback<*>,
-    val mcpSyncServer: McpSyncServer,
-) : ToolCallback {
+/**
+ * Wraps a GoalTool to add MCP-specific behavior (like resource updates).
+ * Implements Tool interface so it can be converted to ToolCallback at the boundary.
+ */
+class McpAwareGoalTool<I : Any>(
+    private val delegate: GoalTool<I>,
+    private val mcpSyncServer: McpSyncServer,
+) : Tool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    override fun getToolDefinition(): ToolDefinition = delegate.toolDefinition
+    override val definition: Tool.Definition = delegate.definition
+    override val metadata: Tool.Metadata = delegate.metadata
 
-
-    override fun call(
-        toolInput: String,
-        toolContext: ToolContext?,
-    ): String {
-        val exchange = toolContext?.context["exchange"] as? McpSyncServerExchange
-        // Make a copy of the delegate with a new listener
-
-        val delegateToCall = if (exchange != null) delegate.withListener(
-            McpResourceUpdatingListener(
-                mcpSyncServer,
-            )
-        ) else delegate
-        val result = delegateToCall.call(toolInput, toolContext)
-        return result
+    override fun call(input: String): Tool.Result {
+        // Add MCP resource updating listener to the delegate
+        val delegateWithListener = delegate.withListener(
+            McpResourceUpdatingListener(mcpSyncServer)
+        )
+        logger.debug("Calling MCP-aware goal tool {} with input: {}", definition.name, input)
+        return delegateWithListener.call(input)
     }
-
-    override fun call(toolInput: String): String =
-        call(toolInput, null).also {
-            logger.info("Tool callback called with input: $toolInput, result: $it")
-        }
-
 }
 
 class McpResourceUpdatingListener(
