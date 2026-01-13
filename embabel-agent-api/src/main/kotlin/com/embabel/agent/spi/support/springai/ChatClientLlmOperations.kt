@@ -18,12 +18,12 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.Usage
-import com.embabel.agent.core.support.AbstractLlmOperations
 import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
+import com.embabel.agent.spi.support.AbstractLlmOperations
 import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
