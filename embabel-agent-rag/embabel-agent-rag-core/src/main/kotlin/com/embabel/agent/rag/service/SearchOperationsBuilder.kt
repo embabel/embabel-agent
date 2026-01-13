@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.service
 
+import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.common.ai.model.EmbeddingService
 
@@ -30,6 +31,12 @@ interface SearchOperationsBuilder<T : SearchOperations, THIS : SearchOperationsB
     fun withName(name: String): THIS
 
     fun withEmbeddingService(embeddingService: EmbeddingService): THIS
+
+    /**
+     * Set a transformer to apply to chunks before ingestion.
+     * [com.embabel.agent.rag.ingestion.transform.AddTitlesChunkTransformer] is a good default
+     */
+    fun withChunkTransformer(chunkTransformer: ChunkTransformer): THIS
 
     /**
      * Build the SearchOperations instance.
