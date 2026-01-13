@@ -21,7 +21,9 @@ import com.embabel.agent.core.Usage
 import com.embabel.agent.core.support.LlmCall
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.toEmbabelUsage
-import com.embabel.agent.spi.*
+import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
