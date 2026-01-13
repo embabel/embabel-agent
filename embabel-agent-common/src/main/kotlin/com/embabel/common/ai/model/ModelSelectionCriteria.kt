@@ -15,18 +15,27 @@
  */
 package com.embabel.common.ai.model
 
-import com.embabel.common.core.types.HasInfoString
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 
-
-class NoSuitableModelException(criteria: ModelSelectionCriteria, models: List<AiModel<*>>) :
-    RuntimeException(
-        """
-        No suitable model found for $criteria.
-        ${models.size} models available: ${models.map { it.name }}
-        """
-    )
+/**
+ * Exception thrown when no suitable model is found for the given criteria.
+ */
+class NoSuitableModelException(
+    criteria: ModelSelectionCriteria,
+    modelNames: List<String>,
+) : RuntimeException(
+    """
+    No suitable model found for $criteria.
+    ${modelNames.size} models available: $modelNames
+    """.trimIndent()
+) {
+    companion object {
+        @JvmStatic
+        fun forModels(criteria: ModelSelectionCriteria, models: List<AiModel<*>>): NoSuitableModelException =
+            NoSuitableModelException(criteria, models.map { it.name })
+    }
+}
 
 /**
  * Superinterface for model selection criteria
@@ -43,7 +52,6 @@ class NoSuitableModelException(criteria: ModelSelectionCriteria, models: List<Ai
     JsonSubTypes.Type(value = FallbackByNameModelSelectionCriteria::class),
     JsonSubTypes.Type(value = AutoModelSelectionCriteria::class),
     JsonSubTypes.Type(value = DefaultModelSelectionCriteria::class),
-    JsonSubTypes.Type(value = ByNameModelSelectionCriteria::class),
 )
 sealed interface ModelSelectionCriteria {
 
@@ -104,39 +112,4 @@ object AutoModelSelectionCriteria : ModelSelectionCriteria {
 
 object DefaultModelSelectionCriteria : ModelSelectionCriteria {
     override fun toString(): String = "DefaultModelSelectionCriteria"
-}
-
-/**
- * Provide AI models for requested roles, and expose data about available models.
- */
-interface ModelProvider : HasInfoString {
-
-    @Throws(NoSuitableModelException::class)
-    fun getLlm(criteria: ModelSelectionCriteria): Llm
-
-    @Throws(NoSuitableModelException::class)
-    fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService
-
-    /**
-     * List the roles available for this class of model
-     */
-    fun listRoles(modelClass: Class<out AiModel<*>>): List<String>
-
-    fun listModelNames(modelClass: Class<out AiModel<*>>): List<String>
-
-    fun listModels(): List<ModelMetadata>
-
-    /**
-     * Well-known roles for models
-     * Useful but not exhaustive: users are free to define their own roles
-     * @see ByRoleModelSelectionCriteria
-     */
-    companion object {
-
-        const val BEST_ROLE = "best"
-
-        const val CHEAPEST_ROLE = "cheapest"
-
-    }
-
 }

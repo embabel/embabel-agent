@@ -16,10 +16,11 @@
 package com.embabel.agent.a2a.server.config
 
 import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.test.integration.DummyObjectCreatingLlmOperations
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.SpringAiEmbeddingService
 import org.mockito.Mockito.mock
 import org.slf4j.LoggerFactory
@@ -56,9 +57,9 @@ class FakeAiConfiguration {
      * Test LLM bean that matches the default-llm configuration
      */
     @Bean(name = ["test-llm"])
-    fun testLlm(): Llm = Llm(
+    fun testLlm(): LlmService<*> = SpringAiLlmService(
         name = "test-llm",
-        model = mock(ChatModel::class.java),
+        chatModel = mock(ChatModel::class.java),
         provider = "test",
         optionsConverter = DefaultOptionsConverter
     )

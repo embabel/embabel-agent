@@ -17,7 +17,7 @@ package com.embabel.agent.config.models.deepseek
 
 import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.spi.common.RetryProperties
-import com.embabel.common.ai.model.Llm
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
@@ -96,14 +96,14 @@ class DeepSeekModelsConfig(
 
     private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
     private val apiKey: String = envApiKey ?: properties.apiKey
-        ?: error("DeepSeek API key required: set DEEPSEEK_API_KEY env var or embabel.agent.platform.models.deepseek.api-key")
+    ?: error("DeepSeek API key required: set DEEPSEEK_API_KEY env var or embabel.agent.platform.models.deepseek.api-key")
 
     init {
         logger.info("DeepSeek models are available: {}", properties)
     }
 
     @Bean
-    fun deepSeekChat(): Llm {
+    fun deepSeekChat(): SpringAiLlmService {
         return deepSeekLlmOf(
             DeepSeekModels.DEEPSEEK_CHAT,
             knowledgeCutoffDate = LocalDate.of(2025, 8, 21),
@@ -120,7 +120,7 @@ class DeepSeekModelsConfig(
     }
 
     @Bean
-    fun deepSeekReasoner(): Llm = deepSeekLlmOf(
+    fun deepSeekReasoner(): SpringAiLlmService = deepSeekLlmOf(
         DeepSeekModels.DEEPSEEK_REASONER,
         knowledgeCutoffDate = LocalDate.of(2025, 5, 28),
     )
@@ -137,8 +137,8 @@ class DeepSeekModelsConfig(
     private fun deepSeekLlmOf(
         name: String,
         knowledgeCutoffDate: LocalDate?,
-    ): Llm {
-        val chatModel = DeepSeekChatModel
+    ): SpringAiLlmService {
+        val deepSeekChatModel = DeepSeekChatModel
             .builder()
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .toolCallingManager(
@@ -154,9 +154,9 @@ class DeepSeekModelsConfig(
             .deepSeekApi(createDeepSeekApi())
             .retryTemplate(properties.retryTemplate(name))
             .build()
-        return Llm(
+        return SpringAiLlmService(
             name = name,
-            model = chatModel,
+            chatModel = deepSeekChatModel,
             provider = DeepSeekModels.PROVIDER,
             optionsConverter = DeepSeekOptionsConverter,
             knowledgeCutoffDate = knowledgeCutoffDate,

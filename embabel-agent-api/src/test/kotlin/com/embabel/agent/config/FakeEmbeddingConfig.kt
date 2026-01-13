@@ -33,11 +33,11 @@ import java.util.*
 class FakeEmbeddingConfig {
 
     @Bean
-    fun fakeEmbeddingService(): EmbeddingService {
+    fun textEmbedding3Small(): EmbeddingService {
         return SpringAiEmbeddingService(
-            "test",
-            "test-provider",
-            FakeEmbeddingModel()
+            name = "text-embedding-3-small",
+            provider = "OpenAI",
+            model = FakeEmbeddingModel()
         )
     }
 }

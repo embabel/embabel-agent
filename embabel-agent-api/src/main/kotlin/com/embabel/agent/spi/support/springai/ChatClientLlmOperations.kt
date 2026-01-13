@@ -20,10 +20,8 @@ import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.Usage
 import com.embabel.agent.core.support.AbstractLlmOperations
 import com.embabel.agent.core.support.toEmbabelUsage
-import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
-import com.embabel.agent.spi.LlmCall
-import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.ToolDecorator
+import com.embabel.agent.spi.*
+import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.agent.spi.support.LlmDataBindingProperties
@@ -32,7 +30,6 @@ import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingResponse
@@ -167,7 +164,8 @@ internal class ChatClientLlmOperations(
         val promptContributions =
             (interaction.promptContributors + llm.promptContributors).joinToString(PROMPT_ELEMENT_SEPARATOR) { it.contribution() }
 
-        val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+        // Create message sender - supports both new SpringAiLlm and deprecated Llm
+        val messageSender = createMessageSenderFor(llm, interaction.llm)
 
         // Build the output parser and get schema format for structured output
         val converter = if (outputClass != String::class.java) {
@@ -197,15 +195,9 @@ internal class ChatClientLlmOperations(
             { text -> converter!!.convert(text)!! }
         }
 
-        // Create the single LLM caller that wraps Spring AI's ChatModel
-        val singleLlmCaller = SpringAiLlmMessageSender(
-            chatModel = llm.model,
-            chatOptions = chatOptions,
-        )
-
         // Create our tool loop
         val toolLoop = DefaultToolLoop(
-            llmCaller = singleLlmCaller,
+            llmCaller = messageSender,
             objectMapper = objectMapper,
             injectionStrategy = ToolInjectionStrategy.NONE,
             maxIterations = interaction.maxToolIterations,
@@ -285,7 +277,7 @@ internal class ChatClientLlmOperations(
             )
         }
 
-        val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
         val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
 
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<O, DatabindException> {
@@ -338,7 +330,7 @@ internal class ChatClientLlmOperations(
     }
 
     private fun recordUsage(
-        llm: Llm,
+        llm: LlmService<*>,
         chatResponse: ChatResponse,
         llmRequestEvent: LlmRequestEvent<*>?,
     ) {
@@ -347,14 +339,14 @@ internal class ChatClientLlmOperations(
     }
 
     private fun recordUsage(
-        llm: Llm,
+        llm: LlmService<*>,
         usage: Usage,
         llmRequestEvent: LlmRequestEvent<*>?,
     ) {
         logger.debug("Usage is {}", usage)
         llmRequestEvent?.let {
             val llmi = LlmInvocation(
-                llm = llm,
+                llmService = llm,
                 usage = usage,
                 agentName = it.agentProcess.agent.name,
                 timestamp = it.timestamp,
@@ -388,7 +380,7 @@ internal class ChatClientLlmOperations(
             MaybeReturn::class.java,
             outputClass,
         )
-        val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
         val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
 
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<Result<O>, DatabindException> {
@@ -534,7 +526,7 @@ internal class ChatClientLlmOperations(
             )
         }
 
-        val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
         val timeoutMillis = getTimeoutMillis(interaction.llm)
 
         return dataBindingProperties.retryTemplate(interaction.id.value)
@@ -662,7 +654,7 @@ internal class ChatClientLlmOperations(
                 llmRequestEvent.callEvent(springAiPrompt)
             )
 
-            val chatOptions = llm.optionsConverter.convertOptions(interaction.llm)
+            val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
             val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
 
             val result = dataBindingProperties.retryTemplate(interaction.id.value)
@@ -754,15 +746,25 @@ internal class ChatClientLlmOperations(
     /**
      * Expose LLM selection for streaming operations
      */
-    internal fun getLlm(interaction: LlmInteraction): Llm = chooseLlm(interaction.llm)
+    internal fun getLlm(interaction: LlmInteraction): LlmService<*> = chooseLlm(interaction.llm)
 
     /**
-     * Create a chat client for the given Embabel Llm definition
+     * Require the LLM to be a SpringAiLlm for Spring AI specific operations.
      */
-    internal fun createChatClient(llm: Llm): ChatClient {
+    private fun requireSpringAiLlm(llm: LlmService<*>): SpringAiLlmService {
+        return llm as? SpringAiLlmService
+            ?: throw IllegalStateException("ChatClientLlmOperations requires SpringAiLlm, got ${llm::class.simpleName}")
+    }
+
+    /**
+     * Create a chat client for the given LlmService.
+     * Requires the LlmService to be a SpringAiLlm.
+     */
+    internal fun createChatClient(llm: LlmService<*>): ChatClient {
+        val springAiLlm = requireSpringAiLlm(llm)
         return ChatClient
             .builder(
-                llm.model,
+                springAiLlm.chatModel,
                 observationRegistry,
                 DefaultChatClientObservationConvention(),
                 DefaultAdvisorObservationConvention()
@@ -771,6 +773,16 @@ internal class ChatClientLlmOperations(
                     it.customize(builder)
                 }
             }.build()
+    }
+
+    /**
+     * Create an LlmMessageSender for the given LLM.
+     */
+    private fun createMessageSenderFor(
+        llm: LlmService<*>,
+        options: com.embabel.common.ai.model.LlmOptions,
+    ): LlmMessageSender {
+        return llm.createMessageSender(options)
     }
 
     private fun shouldGenerateExamples(llmCall: LlmCall): Boolean {

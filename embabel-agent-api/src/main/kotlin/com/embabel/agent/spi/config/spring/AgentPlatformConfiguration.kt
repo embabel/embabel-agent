@@ -18,8 +18,17 @@ package com.embabel.agent.spi.config.spring
 import com.embabel.agent.api.channel.DevNullOutputChannel
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ToolGroup
-import com.embabel.agent.spi.*
+import com.embabel.agent.spi.AgentProcessRepository
+import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
+import com.embabel.agent.spi.ContextRepository
+import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.OperationScheduler
+import com.embabel.agent.spi.Ranker
+import com.embabel.agent.spi.ToolDecorator
+import com.embabel.agent.spi.ToolGroupResolver
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette
 import com.embabel.agent.spi.logging.LoggingAgenticEventListener
@@ -170,7 +179,7 @@ class AgentPlatformConfiguration(
     ): ModelProvider {
 
         return ConfigurableModelProvider(
-            llms = applicationContext.getBeansOfType(Llm::class.java).values.toList(),
+            llms = applicationContext.getBeansOfType(LlmService::class.java).values.toList(),
             embeddingServices = applicationContext.getBeansOfType(EmbeddingService::class.java).values.toList(),
             properties = properties,
         )

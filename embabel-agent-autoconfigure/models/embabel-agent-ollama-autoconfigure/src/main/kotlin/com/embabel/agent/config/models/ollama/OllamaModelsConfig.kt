@@ -16,6 +16,8 @@
 package com.embabel.agent.config.models.ollama
 
 import com.embabel.agent.api.models.OllamaModels
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
@@ -137,7 +139,7 @@ class OllamaModelsConfig(
         return this.providerInitialization
     }
 
-    private fun ollamaLlmOf(modelName: String, baseUrl: String, nodeName: String? = null): Llm {
+    private fun ollamaLlmOf(modelName: String, baseUrl: String, nodeName: String? = null): LlmService<*> {
         val uniqueModelName = createUniqueModelName(modelName, nodeName)
         val springChatModel = OllamaChatModel.builder()
             .ollamaApi(
@@ -166,16 +168,16 @@ class OllamaModelsConfig(
             )
             .build()
 
-        return Llm(
+        return SpringAiLlmService(
             name = uniqueModelName,
-            model = springChatModel,
+            chatModel = springChatModel,
             provider = OllamaModels.PROVIDER,
             pricingModel = PricingModel.ALL_YOU_CAN_EAT,
             optionsConverter = OllamaOptionsConverter,
         )
     }
 
-    private fun ollamaLlmOf(name: String): Llm {
+    private fun ollamaLlmOf(name: String): LlmService<*> {
         return ollamaLlmOf(name, this.baseUrl)
     }
 

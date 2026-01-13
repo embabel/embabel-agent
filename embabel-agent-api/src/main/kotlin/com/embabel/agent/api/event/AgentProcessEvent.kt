@@ -19,7 +19,7 @@ import com.embabel.agent.core.*
 import com.embabel.agent.spi.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatModelCallEvent
 import com.embabel.chat.Message
-import com.embabel.common.ai.model.Llm
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.Timed
 import com.embabel.common.util.VisualizableTask
@@ -188,7 +188,7 @@ class LlmRequestEvent<O>(
     action: Action?,
     val outputClass: Class<O>,
     val interaction: LlmInteraction,
-    val llm: Llm,
+    val llmService: LlmService<*>,
     val messages: List<Message>,
 ) : AbstractAgentProcessEvent(agentProcess) {
 
@@ -200,7 +200,7 @@ class LlmRequestEvent<O>(
             agentProcess = agentProcess,
             outputClass = outputClass,
             interaction = interaction,
-            llm = llm,
+            llmService = llmService,
             springAiPrompt = springAiPrompt
         )
     }

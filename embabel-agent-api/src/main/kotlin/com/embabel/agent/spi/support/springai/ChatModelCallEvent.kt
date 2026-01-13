@@ -18,7 +18,7 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.event.AbstractAgentProcessEvent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.LlmInteraction
-import com.embabel.common.ai.model.Llm
+import com.embabel.agent.spi.LlmService
 import org.springframework.ai.chat.prompt.Prompt
 
 /**
@@ -28,6 +28,6 @@ class ChatModelCallEvent<O> internal constructor(
     agentProcess: AgentProcess,
     val outputClass: Class<O>,
     val interaction: LlmInteraction,
-    val llm: Llm,
+    val llmService: LlmService<*>,
     val springAiPrompt: Prompt,
 ) : AbstractAgentProcessEvent(agentProcess)

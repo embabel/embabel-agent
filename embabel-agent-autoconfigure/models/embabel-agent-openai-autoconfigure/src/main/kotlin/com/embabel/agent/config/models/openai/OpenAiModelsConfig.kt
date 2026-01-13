@@ -19,12 +19,13 @@ import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
@@ -110,7 +111,8 @@ class OpenAiModelsConfig(
     private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
-    apiKey = envApiKey ?: properties.apiKey ?: error("OpenAI API key required: set OPENAI_API_KEY env var or embabel.agent.platform.models.openai.api-key"),
+    apiKey = envApiKey ?: properties.apiKey
+    ?: error("OpenAI API key required: set OPENAI_API_KEY env var or embabel.agent.platform.models.openai.api-key"),
     completionsPath = envCompletionsPath ?: properties.completions,
     embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
@@ -172,9 +174,9 @@ class OpenAiModelsConfig(
 
     /**
      * Creates an individual OpenAI LLM from configuration.
-     * Uses custom Llm constructor when pricing model is not available.
+     * Uses custom SpringAiLlm constructor when pricing model is not available.
      */
-    private fun createOpenAiLlm(modelDef: OpenAiModelDefinition): Llm {
+    private fun createOpenAiLlm(modelDef: OpenAiModelDefinition): LlmService<*> {
         // Determine the appropriate options converter based on model configuration
         val optionsConverter = if (modelDef.specialHandling?.supportsTemperature == false) {
             Gpt5ChatOptionsConverter
@@ -194,10 +196,10 @@ class OpenAiModelsConfig(
             )
         }
 
-        // Use Llm constructor directly to handle nullable pricing model
-        return Llm(
+        // Use SpringAiLlm constructor directly to handle nullable pricing model
+        return SpringAiLlmService(
             name = modelDef.modelId,
-            model = chatModel,
+            chatModel = chatModel,
             provider = OpenAiModels.PROVIDER,
             optionsConverter = optionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,

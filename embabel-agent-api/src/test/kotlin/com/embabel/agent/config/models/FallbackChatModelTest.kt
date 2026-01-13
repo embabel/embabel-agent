@@ -17,7 +17,7 @@ package com.embabel.agent.config.models
 
 import com.embabel.agent.api.models.FallbackChatModel
 import com.embabel.agent.api.models.withFallback
-import com.embabel.common.ai.model.Llm
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -108,20 +108,20 @@ class FallbackChatModelTest {
         }
 
         @Test
-        fun `withFallback should create Llm with fallback model`() {
+        fun `withFallback should create SpringAiLlm with fallback model`() {
             // Arrange
             val primaryModel = mockk<ChatModel>()
             val fallbackModel = mockk<ChatModel>()
-            val primaryLlm = Llm(
+            val primaryLlm = SpringAiLlmService(
                 name = "primary",
-                model = primaryModel,
+                chatModel = primaryModel,
                 optionsConverter = mockk(),
                 provider = "test",
             )
 
-            val fallbackLlm = Llm(
+            val fallbackLlm = SpringAiLlmService(
                 name = "fallback",
-                model = fallbackModel,
+                chatModel = fallbackModel,
                 optionsConverter = mockk(),
                 provider = "test",
             )
@@ -133,17 +133,16 @@ class FallbackChatModelTest {
 
             // Assert
             assertEquals("primary", result.name)
-            assertTrue(result.model is FallbackChatModel, "Result should be fallback model")
+            assertTrue(result.chatModel is FallbackChatModel, "Result should be fallback model")
         }
 
         @Test
-        fun `withFallback should return original Llm when fallback is null`() {
+        fun `withFallback should return original SpringAiLlm when fallback is null`() {
             // Arrange
             val primaryModel = mockk<ChatModel>()
-            val fallbackModel = mockk<ChatModel>()
-            val primaryLlm = Llm(
+            val primaryLlm = SpringAiLlmService(
                 name = "primary",
-                model = primaryModel,
+                chatModel = primaryModel,
                 optionsConverter = mockk(),
                 provider = "test",
             )

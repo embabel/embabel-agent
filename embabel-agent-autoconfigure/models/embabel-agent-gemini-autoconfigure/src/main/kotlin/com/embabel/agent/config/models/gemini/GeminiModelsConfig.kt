@@ -18,11 +18,11 @@ package com.embabel.agent.config.models.gemini
 import com.embabel.agent.api.models.GeminiModels
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
@@ -96,7 +96,8 @@ class GeminiModelsConfig(
     private val modelLoader: LlmAutoConfigMetadataLoader<GeminiModelDefinitions> = GeminiModelLoader(),
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl ?: DEFAULT_BASE_URL,
-    apiKey = envApiKey ?: properties.apiKey ?: error("Gemini API key required: set GEMINI_API_KEY env var or embabel.agent.platform.models.gemini.api-key"),
+    apiKey = envApiKey ?: properties.apiKey
+    ?: error("Gemini API key required: set GEMINI_API_KEY env var or embabel.agent.platform.models.gemini.api-key"),
     completionsPath = null,
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
@@ -146,7 +147,7 @@ class GeminiModelsConfig(
      * Creates an individual Gemini LLM from configuration.
      * Uses OpenAI-compatible API format via the parent factory.
      */
-    private fun createGeminiLlm(modelDef: GeminiModelDefinition): Llm {
+    private fun createGeminiLlm(modelDef: GeminiModelDefinition): LlmService<*> {
         return openAiCompatibleLlm(
             modelDef.modelId,
             modelDef.pricingModel?.let {

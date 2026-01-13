@@ -136,6 +136,8 @@ class ToolMessagesTest {
                 content = "test",
                 toolCalls = listOf(ToolCall("id", "tool", "{}")),
             )
+
+            assertTrue(message is AssistantMessage)
         }
     }
 

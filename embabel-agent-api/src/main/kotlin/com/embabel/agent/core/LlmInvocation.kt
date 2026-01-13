@@ -16,7 +16,7 @@
 package com.embabel.agent.core
 
 import com.embabel.agent.api.common.ToolsStats
-import com.embabel.common.ai.model.Llm
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
 import org.springframework.ai.chat.metadata.DefaultUsage
@@ -36,8 +36,8 @@ interface LlmInvocationHistory {
     /**
      * Distinct list of LLMs use, sorted by name.
      */
-    fun modelsUsed(): List<Llm> {
-        return llmInvocations.map { it.llm }
+    fun modelsUsed(): List<LlmService<*>> {
+        return llmInvocations.map { it.llmService }
             .distinctBy { it.name }
             .sortedBy { it.name }
     }
@@ -110,7 +110,7 @@ data class Usage(
  * @param agentName name of the agent, if known
  */
 data class LlmInvocation(
-    val llm: Llm,
+    val llmService: LlmService<*>,
     val usage: Usage,
     val agentName: String? = null,
     override val timestamp: Instant,
@@ -120,7 +120,7 @@ data class LlmInvocation(
     /**
      * Dollar cost of this interaction.
      */
-    fun cost(): Double = llm.pricingModel?.costOf(
+    fun cost(): Double = llmService.pricingModel?.costOf(
         DefaultUsage(
             usage.promptTokens ?: 0,
             usage.completionTokens ?: 0,

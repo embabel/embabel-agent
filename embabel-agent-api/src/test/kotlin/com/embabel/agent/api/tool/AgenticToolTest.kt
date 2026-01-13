@@ -252,6 +252,7 @@ class AgenticToolTest {
                 .withTools(subTool)
                 .withSystemPrompt("Do it")
 
+            assertTrue(agentic is Tool)
             assertEquals("impl", agentic.definition.name)
             assertEquals("Implements Tool", agentic.definition.description)
         }

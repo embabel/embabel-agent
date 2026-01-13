@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.models
 
-import com.embabel.common.ai.model.Llm
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
@@ -57,16 +57,16 @@ fun ChatModel.withFallback(
  * LLM that falls back to another LLM if the first one fails.
  * @param fallbackTo the LLM to fall back to if the first one fails
  */
-fun Llm.withFallback(
-    fallbackTo: Llm?,
+fun SpringAiLlmService.withFallback(
+    fallbackTo: SpringAiLlmService?,
     whenError: (t: Throwable) -> Boolean,
-): Llm {
+): SpringAiLlmService {
     if (fallbackTo == null) {
         return this
     }
-    return Llm(
+    return SpringAiLlmService(
         name = this.name,
-        model = this.model.withFallback(fallbackTo.model, whenError),
+        chatModel = this.chatModel.withFallback(fallbackTo.chatModel, whenError),
         optionsConverter = this.optionsConverter,
         provider = this.provider,
         knowledgeCutoffDate = this.knowledgeCutoffDate,

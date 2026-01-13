@@ -16,11 +16,12 @@
 package com.embabel.agent.config.models.googlegenai
 
 import com.embabel.agent.api.models.GoogleGenAiModels
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
@@ -157,7 +158,7 @@ class GoogleGenAiModelsConfig(
     /**
      * Creates an individual Google GenAI model from configuration.
      */
-    private fun createGoogleGenAiLlm(modelDef: GoogleGenAiModelDefinition): Llm {
+    private fun createGoogleGenAiLlm(modelDef: GoogleGenAiModelDefinition): LlmService<*> {
         val chatModel = GoogleGenAiChatModel(
             createGoogleGenAiClient(),
             createDefaultOptions(modelDef),
@@ -168,9 +169,9 @@ class GoogleGenAiModelsConfig(
             observationRegistry.getIfUnique { ObservationRegistry.NOOP }
         )
 
-        return Llm(
+        return SpringAiLlmService(
             name = modelDef.modelId,
-            model = chatModel,
+            chatModel = chatModel,
             provider = GoogleGenAiModels.PROVIDER,
             optionsConverter = GoogleGenAiOptionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,

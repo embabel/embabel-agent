@@ -172,7 +172,7 @@ abstract class AbstractLlmOperations(
 
     protected fun chooseLlm(
         llmOptions: LlmOptions,
-    ): Llm {
+    ): LlmService<*> {
         val crit: ModelSelectionCriteria = when (llmOptions.criteria) {
             is AutoModelSelectionCriteria ->
                 autoLlmSelectionCriteriaResolver.resolveAutoLlm()
@@ -203,7 +203,7 @@ abstract class AbstractLlmOperations(
             action = action,
             outputClass = outputClass,
             interaction = interaction.copy(tools = allTools),
-            llm = chooseLlm(llmOptions = interaction.llm),
+            llmService = chooseLlm(llmOptions = interaction.llm),
             messages = messages,
         )
         agentProcess.processContext.onProcessEvent(llmRequestEvent)

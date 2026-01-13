@@ -15,9 +15,10 @@
  */
 package com.embabel.common.test.ai.config
 
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.SpringAiEmbeddingService
 import com.embabel.common.test.ai.FakeEmbeddingModel
 import com.embabel.common.util.loggerFor
@@ -38,20 +39,20 @@ class FakeAiConfiguration {
     }
 
     @Bean
-    fun cheapest(): Llm {
-        return Llm(
+    fun cheapest(): LlmService<*> {
+        return SpringAiLlmService(
             name = "gpt-4o-mini",
-            model = mockk<ChatModel>(),
+            chatModel = mockk<ChatModel>(),
             provider = "OpenAI",
             optionsConverter = DefaultOptionsConverter,
         )
     }
 
     @Bean
-    fun best(): Llm {
-        return Llm(
+    fun best(): LlmService<*> {
+        return SpringAiLlmService(
             name = "gpt-4o",
-            model = mockk<ChatModel>(),
+            chatModel = mockk<ChatModel>(),
             provider = "OpenAI",
             optionsConverter = DefaultOptionsConverter,
         )
