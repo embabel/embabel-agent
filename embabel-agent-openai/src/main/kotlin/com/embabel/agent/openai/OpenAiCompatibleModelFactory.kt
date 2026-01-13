@@ -141,7 +141,7 @@ open class OpenAiCompatibleModelFactory(
                 .model(model)
                 .build(),
         )
-        return SpringEmbeddingService(
+        return SpringAiEmbeddingService(
             name = model,
             model = embeddingModel,
             provider = provider,

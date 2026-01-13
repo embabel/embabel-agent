@@ -37,7 +37,7 @@ class ConfigurableModelProviderTest() {
             Llm("embedding", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
         ),
         embeddingServices = listOf(
-            SpringEmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
+            SpringAiEmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
         ),
         properties = ConfigurableModelProviderProperties(
             llms = mapOf(

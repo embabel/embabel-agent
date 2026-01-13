@@ -16,7 +16,7 @@
 package com.embabel.agent.config
 
 import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.common.ai.model.SpringEmbeddingService
+import com.embabel.common.ai.model.SpringAiEmbeddingService
 import com.embabel.common.util.generateRandomFloatArray
 import org.springframework.ai.document.Document
 import org.springframework.ai.embedding.Embedding
@@ -34,7 +34,7 @@ class FakeEmbeddingConfig {
 
     @Bean
     fun fakeEmbeddingService(): EmbeddingService {
-        return SpringEmbeddingService(
+        return SpringAiEmbeddingService(
             "test",
             "test-provider",
             FakeEmbeddingModel()

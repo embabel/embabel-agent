@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.lucene
 
-import com.embabel.common.ai.model.SpringEmbeddingService
+import com.embabel.common.ai.model.SpringAiEmbeddingService
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.springframework.ai.document.Document
@@ -39,7 +39,7 @@ abstract class LuceneSearchOperationsTestBase {
         ragService = LuceneSearchOperations(name = "lucene-rag")
         ragServiceWithEmbedding = LuceneSearchOperations(
             name = "hybrid-lucene-rag",
-            embeddingService = SpringEmbeddingService("name", "provider", mockEmbeddingModel),
+            embeddingService = SpringAiEmbeddingService("name", "provider", mockEmbeddingModel),
             vectorWeight = 0.5
         )
     }

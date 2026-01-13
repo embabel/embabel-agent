@@ -194,7 +194,7 @@ class DockerLocalModelsConfig(
                 .build(),
         )
 
-        return SpringEmbeddingService(
+        return SpringAiEmbeddingService(
             name = model.id,
             model = springEmbeddingModel,
             provider = PROVIDER,

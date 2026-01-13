@@ -207,7 +207,7 @@ class OllamaModelsConfig(
             )
             .build()
 
-        return SpringEmbeddingService(
+        return SpringAiEmbeddingService(
             name = uniqueModelName,
             model = springEmbeddingModel,
             provider = OllamaModels.PROVIDER,
