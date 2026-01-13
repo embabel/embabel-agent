@@ -86,6 +86,11 @@ class TypeBasedInputSchema(
         val required = mutableListOf<String>()
 
         try {
+            // Skip Kotlin reflection for Java records - go straight to fallback
+            if (type.isRecord) {
+                throw UnsupportedOperationException("Java records require fallback reflection")
+            }
+
             val kClass = type.kotlin
             for (prop in kClass.memberProperties) {
                 val propName = prop.name
@@ -130,6 +135,11 @@ class TypeBasedInputSchema(
         val params = mutableListOf<Tool.Parameter>()
 
         try {
+            // Skip Kotlin reflection for Java records - go straight to fallback
+            if (type.isRecord) {
+                throw UnsupportedOperationException("Java records require fallback reflection")
+            }
+
             val kClass = type.kotlin
             for (prop in kClass.memberProperties) {
                 val propType = (prop.returnType.javaType as? Class<*>) ?: Any::class.java
