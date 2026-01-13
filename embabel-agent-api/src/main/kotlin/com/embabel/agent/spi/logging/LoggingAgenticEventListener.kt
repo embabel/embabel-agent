@@ -226,10 +226,10 @@ open class LoggingAgenticEventListener(
         "[${e.processId}] object bound ${e.name}:${if (e.agentProcess.processContext.processOptions.verbosity.debug) e.value else e.value::class.java.simpleName}"
 
     protected open fun getLlmRequestEventMessage(e: LlmRequestEvent<*>): String =
-        "[${e.processId}] (${e.interaction.id.value}) using LLM ${e.llmService.name}, creating ${e.outputClass.simpleName}: ${e.interaction.llm}"
+        "[${e.processId}] (${e.interaction.id.value}) using LLM ${e.llmMetadata.name}, creating ${e.outputClass.simpleName}: ${e.interaction.llm}"
 
     protected open fun getChatModelCallEventMessage(e: ChatModelCallEvent<*>): String {
-        val promptInfo = "using ${e.llmService.name.color(colorPalette.highlight)}\n${
+        val promptInfo = "using ${e.llmMetadata.name.color(colorPalette.highlight)}\n${
             e.springAiPrompt.toInfoString().color(AnsiColor.GREEN)
         }\nprompt id: '${e.interaction.id}'\ntools: [\n${
             e.interaction.tools.joinToString("\n----\n") { it.definition.name + ": " + it.definition.description }

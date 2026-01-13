@@ -190,7 +190,7 @@ abstract class AbstractLlmOperations(
             action = action,
             outputClass = outputClass,
             interaction = interaction.copy(tools = allTools),
-            llmService = chooseLlm(llmOptions = interaction.llm),
+            llmMetadata = chooseLlm(llmOptions = interaction.llm),
             messages = messages,
         )
         agentProcess.processContext.onProcessEvent(llmRequestEvent)

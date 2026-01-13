@@ -181,7 +181,7 @@ class SeveranceLoggingAgenticEventListener : LoggingAgenticEventListener(
         "[${e.processId}] ${highlight("WOE")}: (${e.request.action?.shortName()}) tool ${e.request.tool} failed $throwable in ${e.runningTime.toMillis()}ms with payload ${e.request.toolInput}"
 
     override fun getLlmRequestEventMessage(e: LlmRequestEvent<*>): String =
-        "[${e.processId}] (${e.interaction.id.value}) \uD83D\uDDA5\uFE0F MACRODATA REFINEMENT using LLM ${e.llmService.name}, creating ${e.outputClass.simpleName}: ${e.interaction.llm} with tools ${e.interaction.tools.joinToString { it.definition.name }}"
+        "[${e.processId}] (${e.interaction.id.value}) \uD83D\uDDA5\uFE0F MACRODATA REFINEMENT using LLM ${e.llmMetadata.name}, creating ${e.outputClass.simpleName}: ${e.interaction.llm} with tools ${e.interaction.tools.joinToString { it.definition.name }}"
 
     override fun getLlmResponseEventMessage(e: LlmResponseEvent<*>): String =
         """

@@ -214,7 +214,7 @@ internal class ChatClientLlmOperations(
         }
         llmRequestEvent?.let {
             it.agentProcess.processContext.onProcessEvent(
-                it.callEvent(springAiPrompt)
+                it.chatModelCallEvent(springAiPrompt)
             )
         }
 
@@ -273,7 +273,7 @@ internal class ChatClientLlmOperations(
         val springAiPrompt = buildBasicPrompt(promptContributions, messages)
         llmRequestEvent?.let {
             it.agentProcess.processContext.onProcessEvent(
-                it.callEvent(springAiPrompt)
+                it.chatModelCallEvent(springAiPrompt)
             )
         }
 
@@ -373,7 +373,7 @@ internal class ChatClientLlmOperations(
             (interaction.promptContributors + llm.promptContributors).joinToString("\n") { it.contribution() }
         val springAiPrompt = buildPromptWithMaybeReturn(promptContributions, messages, maybeReturnPromptContribution)
         llmRequestEvent.agentProcess.processContext.onProcessEvent(
-            llmRequestEvent.callEvent(springAiPrompt)
+            llmRequestEvent.chatModelCallEvent(springAiPrompt)
         )
 
         val typeReference = createParameterizedTypeReference<MaybeReturn<*>>(
@@ -522,7 +522,7 @@ internal class ChatClientLlmOperations(
 
         llmRequestEvent?.let {
             it.agentProcess.processContext.onProcessEvent(
-                it.callEvent(springAiPrompt)
+                it.chatModelCallEvent(springAiPrompt)
             )
         }
 
@@ -651,7 +651,7 @@ internal class ChatClientLlmOperations(
             )
 
             llmRequestEvent?.agentProcess?.processContext?.onProcessEvent(
-                llmRequestEvent.callEvent(springAiPrompt)
+                llmRequestEvent.chatModelCallEvent(springAiPrompt)
             )
 
             val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)

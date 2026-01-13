@@ -17,9 +17,8 @@ package com.embabel.agent.api.event
 
 import com.embabel.agent.core.*
 import com.embabel.agent.spi.LlmInteraction
-import com.embabel.agent.spi.support.springai.ChatModelCallEvent
 import com.embabel.chat.Message
-import com.embabel.agent.spi.LlmService
+import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.Timed
 import com.embabel.common.util.VisualizableTask
@@ -27,7 +26,6 @@ import com.embabel.plan.Goal
 import com.embabel.plan.Plan
 import com.embabel.plan.WorldState
 import com.fasterxml.jackson.annotation.JsonIgnore
-import org.springframework.ai.chat.prompt.Prompt
 import java.time.Duration
 import java.time.Instant
 
@@ -188,22 +186,9 @@ class LlmRequestEvent<O>(
     action: Action?,
     val outputClass: Class<O>,
     val interaction: LlmInteraction,
-    val llmService: LlmService<*>,
+    val llmMetadata: LlmMetadata,
     val messages: List<Message>,
 ) : AbstractAgentProcessEvent(agentProcess) {
-
-    /**
-     * Return a low level event showing Spring AI prompt details.
-     */
-    fun callEvent(springAiPrompt: Prompt): ChatModelCallEvent<O> {
-        return ChatModelCallEvent(
-            agentProcess = agentProcess,
-            outputClass = outputClass,
-            interaction = interaction,
-            llmService = llmService,
-            springAiPrompt = springAiPrompt
-        )
-    }
 
     fun responseEvent(
         response: O,
