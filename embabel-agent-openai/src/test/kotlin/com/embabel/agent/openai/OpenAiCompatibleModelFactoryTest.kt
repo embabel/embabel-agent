@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.PricingModel
 import io.mockk.Runs
 import io.mockk.every
@@ -50,7 +51,7 @@ class OpenAiCompatibleModelFactoryTest {
         val llm = mf.openAiCompatibleLlm(
             model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
             provider = "Test", knowledgeCutoffDate = null,
-        )
+        ) as SpringAiLlmService
         assertEquals("foo", llm.name)
         assertEquals("Test", llm.provider)
         assertTrue(llm.model is OpenAiChatModel)
@@ -70,7 +71,7 @@ class OpenAiCompatibleModelFactoryTest {
         val llm = mf.openAiCompatibleLlm(
             model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
             provider = "Test", knowledgeCutoffDate = null,
-        )
+        ) as SpringAiLlmService
         assertEquals("foo", llm.name)
         assertEquals("Test", llm.provider)
         assertTrue(llm.model is OpenAiChatModel)
