@@ -16,11 +16,17 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.chat.AssistantMessage
+import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.ImagePart
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.TextPart
+import com.embabel.chat.ToolCall
+import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
+import io.mockk.every
+import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
 import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessage
@@ -164,5 +170,109 @@ class MessageConversionTest {
 
         assertThat(springAiMessage.text).isEqualTo("Just text")
         assertThat(springAiMessage.media).isEmpty()
+    }
+
+    @Nested
+    inner class ToolMessageConversionTests {
+
+        @Test
+        fun `converts AssistantMessageWithToolCalls to Spring AI message`() {
+            val message = AssistantMessageWithToolCalls(
+                content = "Let me check that for you",
+                toolCalls = listOf(
+                    ToolCall("call-1", "get_weather", """{"location": "NYC"}""")
+                )
+            )
+
+            val springAiMessage = message.toSpringAiMessage()
+
+            assertThat(springAiMessage).isInstanceOf(SpringAiAssistantMessage::class.java)
+            assertThat(springAiMessage.text).isEqualTo("Let me check that for you")
+        }
+
+        @Test
+        fun `converts ToolResultMessage to Spring AI message`() {
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "get_weather",
+                content = """{"temperature": 72}"""
+            )
+
+            val springAiMessage = message.toSpringAiMessage()
+
+            assertThat(springAiMessage).isInstanceOf(SpringAiAssistantMessage::class.java)
+            assertThat(springAiMessage.text).contains("get_weather")
+            assertThat(springAiMessage.text).contains("""{"temperature": 72}""")
+        }
+    }
+
+    @Nested
+    inner class ToEmbabelMessageTests {
+
+        @Test
+        fun `converts Spring AI AssistantMessage without tool calls`() {
+            val springMessage = SpringAiAssistantMessage("Hello from assistant")
+
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessage::class.java)
+            assertThat(embabelMessage.textContent).isEqualTo("Hello from assistant")
+        }
+
+        @Test
+        fun `throws exception when converting Spring AI AssistantMessage with empty text`() {
+            val springMessage = SpringAiAssistantMessage("")
+
+            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                springMessage.toEmbabelMessage()
+            }
+        }
+
+        @Test
+        fun `converts Spring AI AssistantMessage with tool calls`() {
+            val toolCalls = listOf(
+                SpringAiAssistantMessage.ToolCall("call-1", "tool", "get_weather", """{"location": "NYC"}"""),
+                SpringAiAssistantMessage.ToolCall("call-2", "tool", "get_time", """{"timezone": "EST"}""")
+            )
+            val springMessage = mockk<SpringAiAssistantMessage> {
+                every { text } returns "Checking..."
+                every { getToolCalls() } returns toolCalls
+            }
+
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.textContent).isEqualTo("Checking...")
+            assertThat(messageWithCalls.toolCalls).hasSize(2)
+            assertThat(messageWithCalls.toolCalls[0].id).isEqualTo("call-1")
+            assertThat(messageWithCalls.toolCalls[0].name).isEqualTo("get_weather")
+            assertThat(messageWithCalls.toolCalls[0].arguments).isEqualTo("""{"location": "NYC"}""")
+            assertThat(messageWithCalls.toolCalls[1].id).isEqualTo("call-2")
+            assertThat(messageWithCalls.toolCalls[1].name).isEqualTo("get_time")
+        }
+
+        @Test
+        fun `converts Spring AI AssistantMessage with empty tool calls list`() {
+            val springMessage = mockk<SpringAiAssistantMessage> {
+                every { text } returns "No tools"
+                every { getToolCalls() } returns emptyList()
+            }
+
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessage::class.java)
+            assertThat(embabelMessage).isNotInstanceOf(AssistantMessageWithToolCalls::class.java)
+        }
+
+        @Test
+        fun `converts Spring AI AssistantMessage with null tool calls`() {
+            val springMessage = SpringAiAssistantMessage("Simple message")
+
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessage::class.java)
+            assertThat(embabelMessage).isNotInstanceOf(AssistantMessageWithToolCalls::class.java)
+        }
     }
 }
