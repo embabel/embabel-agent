@@ -350,7 +350,7 @@ internal class ChatClientLlmOperations(
         logger.debug("Usage is {}", usage)
         llmRequestEvent?.let {
             val llmi = LlmInvocation(
-                llmService = llm,
+                llmMetadata = llm,
                 usage = usage,
                 agentName = it.agentProcess.agent.name,
                 timestamp = it.timestamp,

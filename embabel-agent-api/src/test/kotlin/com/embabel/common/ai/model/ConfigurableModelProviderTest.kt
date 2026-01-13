@@ -28,7 +28,7 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.embedding.EmbeddingModel
 import kotlin.test.assertContains
 
-class ConfigurableModelProviderTest() {
+class ConfigurableModelProviderTest {
 
     private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(

@@ -59,7 +59,7 @@ class LlmInvocationHistoryTest {
         every { mockLlm.pricingModel } returns PricingModel.ALL_YOU_CAN_EAT
         val usage = DefaultUsage(100, 200)
         llmih.llmInvocations += LlmInvocation(
-            llmService = mockLlm,
+            llmMetadata = mockLlm,
             timestamp = Instant.now(),
             runningTime = Duration.ofMillis(100),
             usage = usage.toEmbabelUsage(),

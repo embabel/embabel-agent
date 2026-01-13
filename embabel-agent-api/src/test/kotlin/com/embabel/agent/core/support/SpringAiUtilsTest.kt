@@ -17,7 +17,6 @@ package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.Usage
 import com.embabel.common.util.StringTransformer
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
