@@ -3,12 +3,12 @@
 
 ==== Adding LLMs
 
-You can add custom LLMs as Spring beans.
-Embabel provides two options for wrapping Spring AI `ChatModel` instances:
+You can add custom LLMs as Spring beans by implementing the `LlmService` interface.
+Embabel provides `SpringAiLlmService` for wrapping Spring AI `ChatModel` instances.
 
-===== Using `SpringAiLlm` (Recommended)
+===== Using `SpringAiLlmService`
 
-`SpringAiLlm` implements the `LlmService` interface and provides framework-agnostic LLM operations
+`SpringAiLlmService` implements the `LlmService` interface and provides framework-agnostic LLM operations
 including support for the Embabel tool loop and message sender abstraction.
 
 [source,java]
@@ -16,46 +16,27 @@ including support for the Embabel tool loop and message sender abstraction.
 @Configuration
 public class LlmsConfig {
     @Bean
-    public SpringAiLlm myLlm() {
+    public LlmService<?> myLlm() {
         org.springframework.ai.chat.model.ChatModel chatModel = ...
-        return new SpringAiLlm(
-                "myChatModel",
-                "myChatModelProvider",
-                chatModel)  // <1>
-            .withOptionsConverter(new MyLlmOptionsConverter()) // <2>
-            .withKnowledgeCutoffDate(LocalDate.of(2025, 4, 1)); // <3>
+        return new SpringAiLlmService(
+                "myChatModel",              // <1>
+                "myChatModelProvider",      // <2>
+                chatModel)                  // <3>
+            .withOptionsConverter(new MyLlmOptionsConverter()) // <4>
+            .withKnowledgeCutoffDate(LocalDate.of(2025, 4, 1)); // <5>
     }
 }
 ----
 
-<1> Note the parameter is `chatModel` (not `model`).
-<2> Customize with an `OptionsConverter` implementation to convert Embabel `LlmOptions` to Spring AI `ChatOptions`.
-<3> Set the knowledge cutoff date if available.
-
-===== Using `Llm` (Simple Configuration)
-
-The `Llm` class is a simpler alternative that works well for basic LLM configuration:
-
-[source,java]
-----
-@Configuration
-public class LlmsConfig {
-    @Bean
-    public Llm myLlm() {
-        org.springframework.ai.chat.model.ChatModel chatModel = ...
-        return new Llm(
-                "myChatModel",
-                "myChatModelProvider",
-                chatModel)
-            .withOptionsConverter(new MyLlmOptionsConverter())
-            .withKnowledgeCutoffDate(LocalDate.of(2025, 4, 1));
-    }
-}
-----
+<1> The name of the LLM (used for model selection).
+<2> The provider name, such as "OpenAI" or "Anthropic".
+<3> The Spring AI `ChatModel` instance.
+<4> Customize with an `OptionsConverter` implementation to convert Embabel `LlmOptions` to Spring AI `ChatOptions`.
+<5> Set the knowledge cutoff date if available.
 
 ===== LLM Configuration Options
 
-Both `SpringAiLlm` and `Llm` support the following configuration:
+`SpringAiLlmService` supports the following configuration:
 
 - name (required)
 - provider, such as "Mistral" (required)
@@ -65,7 +46,7 @@ Both `SpringAiLlm` and `Llm` support the following configuration:
 If knowledge cutoff date is provided, add the `KnowledgeCutoffDate` prompt contributor.
 - pricing model (if available)
 
-A common requirement is to add an open AI compatible LLM.
+A common requirement is to add an OpenAI-compatible LLM.
 This can be done by extending the `OpenAiCompatibleModelFactory` class as follows:
 
 [source,kotlin]
@@ -80,7 +61,7 @@ class CustomOpenAiCompatibleModels(
 ) : OpenAiCompatibleModelFactory(baseUrl = baseUrl, apiKey = apiKey, observationRegistry = observationRegistry) {
 
     @Bean
-    fun myGreatModel(): Llm {
+    fun myGreatModel(): LlmService<*> {
         // Call superclass method
         return openAiCompatibleLlm(
             model = "my-great-model",
