@@ -17,7 +17,7 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentPlatform
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions

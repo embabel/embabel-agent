@@ -32,7 +32,7 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.agent.tools.agent.AgentTool
@@ -368,7 +368,7 @@ internal data class OperationContextPromptRunner(
                 """.trimIndent()
             )
         }
-11
+        11
         // Auto-enable thinking extraction when withThinking() is called
         val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
 

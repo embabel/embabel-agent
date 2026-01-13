@@ -21,9 +21,9 @@ import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.safelyGetToolsFrom
-import com.embabel.agent.spi.InvalidLlmReturnFormatException
-import com.embabel.agent.spi.InvalidLlmReturnTypeException
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.InvalidLlmReturnFormatException
+import com.embabel.agent.core.support.InvalidLlmReturnTypeException
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator

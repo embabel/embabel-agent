@@ -18,7 +18,7 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.event.AbstractAgentProcessEvent
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.common.ai.model.LlmMetadata
 import org.springframework.ai.chat.prompt.Prompt
 

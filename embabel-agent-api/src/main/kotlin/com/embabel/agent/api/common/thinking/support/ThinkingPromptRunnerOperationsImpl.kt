@@ -18,7 +18,7 @@ package com.embabel.agent.api.common.thinking.support
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.common.core.thinking.ThinkingResponse
@@ -74,6 +74,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
                     thinkingBlocks = successResponse.thinkingBlocks
                 )
             }
+
             else -> {
                 // Preserve thinking blocks even when object creation fails
                 val exception = result.exceptionOrNull()

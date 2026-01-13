@@ -25,7 +25,7 @@ import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.core.support.SimpleAgentProcess
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.support.Dog

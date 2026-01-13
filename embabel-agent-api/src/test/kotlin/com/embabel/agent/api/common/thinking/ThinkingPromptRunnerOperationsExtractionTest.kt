@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.thinking
 
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SuppressThinkingConverter
 import com.embabel.common.core.thinking.ThinkingException
@@ -272,7 +273,8 @@ class ThinkingPromptRunnerOperationsExtractionTest {
             }
         """.trimIndent()
 
-        val result = executeThinkingExtraction(rawLlmResponse, "comprehensive-analysis", ComprehensiveAnalysis::class.java)
+        val result =
+            executeThinkingExtraction(rawLlmResponse, "comprehensive-analysis", ComprehensiveAnalysis::class.java)
 
         // Then: ALL three thinking types should be present
         val tagBlocks = result.thinkingBlocks.filter { it.tagType == ThinkingTagType.TAG }
@@ -311,8 +313,10 @@ class ThinkingPromptRunnerOperationsExtractionTest {
             assertEquals("", block.tagValue)
         }
         val rawReasoningContent = noPrefixBlocks.first().content
-        assertTrue(rawReasoningContent.contains("Raw reasoning without specific formatting") ||
-                  rawReasoningContent.contains("stakeholder requirements are complex"))
+        assertTrue(
+            rawReasoningContent.contains("Raw reasoning without specific formatting") ||
+                    rawReasoningContent.contains("stakeholder requirements are complex")
+        )
 
         // Verify we have all three types
         assertTrue(result.thinkingBlocks.count { it.tagType == ThinkingTagType.TAG } >= 2)
@@ -359,20 +363,28 @@ class ThinkingPromptRunnerOperationsExtractionTest {
 
                 val thinkBlock = e.thinkingBlocks.find { it.tagValue == "think" }
                 assertNotNull(thinkBlock, "Should preserve 'think' block for debugging")
-                assertTrue(thinkBlock.content.contains("ROI based on projected revenues"),
-                    "Should preserve detailed reasoning for error analysis")
+                assertTrue(
+                    thinkBlock.content.contains("ROI based on projected revenues"),
+                    "Should preserve detailed reasoning for error analysis"
+                )
 
                 val analysisBlock = e.thinkingBlocks.find { it.tagValue == "analysis" }
                 assertNotNull(analysisBlock, "Should preserve 'analysis' block for debugging")
-                assertTrue(analysisBlock.content.contains("26.67% annual ROI"),
-                    "Should preserve calculation details that led to malformed JSON")
+                assertTrue(
+                    analysisBlock.content.contains("26.67% annual ROI"),
+                    "Should preserve calculation details that led to malformed JSON"
+                )
 
                 // Error message should NOT contain thinking content (filtered for security)
                 val errorMessage = e.message ?: ""
-                assertEquals(false, errorMessage.contains("financial calculation"),
-                    "Error message should not leak thinking content")
-                assertEquals(false, errorMessage.contains("$150K"),
-                    "Error message should not leak sensitive financial data from thinking")
+                assertEquals(
+                    false, errorMessage.contains("financial calculation"),
+                    "Error message should not leak thinking content"
+                )
+                assertEquals(
+                    false, errorMessage.contains("$150K"),
+                    "Error message should not leak sensitive financial data from thinking"
+                )
             } else {
                 // Any exception is acceptable - what matters is that we're testing error handling
                 // The important thing is that this test exercises the error path
@@ -445,7 +457,7 @@ class ThinkingPromptRunnerOperationsExtractionTest {
         every {
             mockChatClientOps.doTransformWithThinking<T>(
                 any<List<com.embabel.chat.Message>>(),
-                any<com.embabel.agent.spi.LlmInteraction>(),
+                any<LlmInteraction>(),
                 any<Class<T>>(),
                 isNull()
             )

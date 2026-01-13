@@ -23,7 +23,7 @@ import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.hitl.ConfirmationResponse
 import com.embabel.agent.core.hitl.FormBindingRequest
 import com.embabel.agent.core.hitl.ResponseImpact
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import org.slf4j.LoggerFactory

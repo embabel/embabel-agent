@@ -18,7 +18,7 @@ package com.embabel.agent.spi.support.springai.streaming
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.*

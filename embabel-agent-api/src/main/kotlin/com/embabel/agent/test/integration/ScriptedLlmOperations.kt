@@ -19,7 +19,7 @@ import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.chat.Message
 import org.slf4j.LoggerFactory

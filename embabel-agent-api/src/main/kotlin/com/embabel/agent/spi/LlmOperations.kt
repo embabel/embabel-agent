@@ -15,177 +15,14 @@
  */
 package com.embabel.agent.spi
 
-import com.embabel.agent.api.common.ContextualPromptElement
-import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmRequestEvent
-import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.*
+import com.embabel.agent.core.Action
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.support.InvalidLlmReturnFormatException
+import com.embabel.agent.core.support.InvalidLlmReturnTypeException
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
-import com.embabel.common.ai.model.LlmOptions
-import com.embabel.common.ai.prompt.PromptContributor
-import com.embabel.common.ai.prompt.PromptContributorConsumer
-import com.embabel.common.core.MobyNameGenerator
-import com.embabel.common.core.types.HasInfoString
-import com.embabel.common.util.indent
-import jakarta.validation.ConstraintViolation
-import java.util.function.Predicate
-
-/**
- * Spec for calling an LLM. Optional LlmOptions,
- * plus tool groups and prompt contributors.
- */
-interface LlmUse : PromptContributorConsumer, ToolGroupConsumer {
-    val llm: LlmOptions?
-
-    /**
-     * Whether to generate examples for the prompt.
-     * Defaults to unknown: Set to false if generating your own examples.
-     */
-    val generateExamples: Boolean?
-
-    /**
-     * Filter that determines which properties to include when creating objects.
-     */
-    val propertyFilter: Predicate<String>
-
-    /**
-     * Whether to validate generated objects.
-     * Defaults to `true`; set to `false` to skip validation.
-     */
-    val validation: Boolean
-
-}
-
-/**
- * Spec for calling an LLM. Optional LlmOptions,
- * plus tool callbacks and prompt contributors.
- */
-interface LlmCall : LlmUse, ToolConsumer {
-
-    val contextualPromptContributors: List<ContextualPromptElement>
-
-    companion object {
-
-        operator fun invoke(llm: LlmOptions? = null): LlmCall = LlmCallImpl(
-            llm = llm,
-            name = MobyNameGenerator.generateName(),
-        )
-
-        @JvmStatic
-        fun using(
-            llm: LlmOptions,
-        ): LlmCall = invoke(llm = llm)
-
-    }
-}
-
-private data class LlmCallImpl(
-    override val name: String,
-    override val llm: LlmOptions? = null,
-    override val toolGroups: Set<ToolGroupRequirement> = emptySet(),
-    override val tools: List<Tool> = emptyList(),
-    override val promptContributors: List<PromptContributor> = emptyList(),
-    override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
-    override val generateExamples: Boolean = false,
-    override val propertyFilter: Predicate<String> = Predicate { true },
-    override val validation: Boolean = true,
-) : LlmCall
-
-/**
- * Encapsulates an interaction with an LLM.
- * An LlmInteraction is a specific instance of an LlmCall.
- * The LLM must have been chosen and the call has a unique identifier.
- * @param id Unique identifier for the interaction. Note that this is NOT
- * the id of this particular LLM call, but of the interaction in general.
- * For example, it might be the "analyzeProject" call within the "Analyze"
- * action. Every such call with have the same id, but many calls may be made
- * across different AgentProcesses, or even within the same AgentProcess
- * if the action can be rerun.
- * This is per action, not per process.
- * @param llm LLM options to use, specifying model and hyperparameters
- * @param tools Tools to use for this interaction
- * @param promptContributors Prompt contributors to use for this interaction
- * @param useEmbabelToolLoop If true, use Embabel's own tool loop instead of Spring AI's.
- * This enables dynamic tool injection and gives full control over the tool execution loop.
- * Default is true.
- * @param maxToolIterations Maximum number of tool loop iterations (default 20)
- */
-data class LlmInteraction(
-    val id: InteractionId,
-    override val llm: LlmOptions = LlmOptions(),
-    override val toolGroups: Set<ToolGroupRequirement> = emptySet(),
-    override val tools: List<Tool> = emptyList(),
-    override val promptContributors: List<PromptContributor> = emptyList(),
-    override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
-    override val generateExamples: Boolean? = null,
-    override val propertyFilter: Predicate<String> = Predicate { true },
-    override val validation: Boolean = true,
-    val useEmbabelToolLoop: Boolean = true,
-    val maxToolIterations: Int = 20,
-) : LlmCall {
-
-    override val name: String = id.value
-
-    companion object {
-
-        @JvmStatic
-        fun from(
-            llm: LlmCall,
-            id: InteractionId,
-        ) = LlmInteraction(
-            id = id,
-            llm = llm.llm ?: LlmOptions(),
-            tools = llm.tools,
-            toolGroups = llm.toolGroups,
-            promptContributors = llm.promptContributors,
-            generateExamples = llm.generateExamples,
-        )
-
-        @JvmStatic
-        fun using(llm: LlmOptions) = from(
-            llm = LlmCall.using(llm),
-            id = InteractionId("using"),
-        )
-    }
-}
-
-/**
- * The LLM returned an object of the wrong type.
- */
-class InvalidLlmReturnFormatException(
-    val llmReturn: String,
-    val expectedType: Class<*>,
-    cause: Throwable,
-) : RuntimeException(
-    "Invalid LLM return when expecting ${expectedType.name}: Root cause=${cause.message}",
-    cause,
-),
-    HasInfoString {
-
-    override fun infoString(
-        verbose: Boolean?,
-        indent: Int,
-    ): String =
-        if (verbose == true) {
-            "${javaClass.simpleName}: Expected type: ${expectedType.name}, root cause: ${cause!!.message}, return\n$llmReturn".indent(
-                indent
-            )
-        } else {
-            "${javaClass.simpleName}: Expected type: ${expectedType.name}, root cause: ${cause!!.message}"
-        }
-}
-
-/**
- * Thrown the LLM returned an object that fails validation,
- * and although we tried, we could not correct it.
- */
-class InvalidLlmReturnTypeException(
-    val returnedObject: Any,
-    val constraintViolations: Set<ConstraintViolation<*>>,
-) : RuntimeException(
-    "Validation errors: ${constraintViolations.joinToString(", ")}",
-)
 
 /**
  * Wraps LLM operations.
@@ -226,8 +63,8 @@ interface LlmOperations {
      * @param outputClass Class of the output object
      * @param agentProcess Agent process we are running within
      * @param action Action we are running within if we are running within an action
-     * @throws InvalidLlmReturnFormatException if the LLM returns an invalid object
-     * @throws InvalidLlmReturnTypeException if the LLM returns an object that fails validation
+     * @throws com.embabel.agent.core.support.InvalidLlmReturnFormatException if the LLM returns an invalid object
+     * @throws com.embabel.agent.core.support.InvalidLlmReturnTypeException if the LLM returns an object that fails validation
      */
     @Throws(
         InvalidLlmReturnFormatException::class,

@@ -16,7 +16,7 @@
 package com.embabel.agent.api.event
 
 import com.embabel.agent.core.*
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions

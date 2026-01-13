@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.model.LlmOptions

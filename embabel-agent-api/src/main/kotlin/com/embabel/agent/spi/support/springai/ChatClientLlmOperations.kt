@@ -18,6 +18,8 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.Usage
+import com.embabel.agent.core.support.LlmCall
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.loop.LlmMessageSender
