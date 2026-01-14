@@ -59,6 +59,7 @@ data class LuceneSearchOperationsBuilder(
             embeddingService = embeddingService,
             indexPath = indexPath,
             chunkerConfig = chunkerConfig,
+            chunkTransformer = chunkTransformer,
         )
         luceneSearchOperations.provision()
         return luceneSearchOperations
