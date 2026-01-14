@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.service.spring
 
+import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.InMemoryPropertyFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
@@ -49,13 +50,13 @@ class SpringVectorStoreVectorSearch(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
         metadataFilter: PropertyFilter?,
-        propertyFilter: PropertyFilter?,
+        entityFilter: EntityFilter?,
     ): List<SimilarityResult<T>> {
         // Apply metadata filter natively via Spring AI
         val results = executeSearch<T>(request, metadataFilter?.toSpringAiExpression())
         // Apply property filter in-memory if specified
-        return if (propertyFilter != null) {
-            InMemoryPropertyFilter.filterByProperties(results, propertyFilter)
+        return if (entityFilter != null) {
+            InMemoryPropertyFilter.filterByProperties(results, entityFilter)
         } else {
             results
         }
@@ -93,60 +94,78 @@ fun PropertyFilter.toSpringAiExpression(): Filter.Expression = when (this) {
         Filter.Key(key),
         Filter.Value(value)
     )
+
     is PropertyFilter.Ne -> Filter.Expression(
         Filter.ExpressionType.NE,
         Filter.Key(key),
         Filter.Value(value)
     )
+
     is PropertyFilter.Gt -> Filter.Expression(
         Filter.ExpressionType.GT,
         Filter.Key(key),
         Filter.Value(value)
     )
+
     is PropertyFilter.Gte -> Filter.Expression(
         Filter.ExpressionType.GTE,
         Filter.Key(key),
         Filter.Value(value)
     )
+
     is PropertyFilter.Lt -> Filter.Expression(
         Filter.ExpressionType.LT,
         Filter.Key(key),
         Filter.Value(value)
     )
+
     is PropertyFilter.Lte -> Filter.Expression(
         Filter.ExpressionType.LTE,
         Filter.Key(key),
         Filter.Value(value)
     )
+
     is PropertyFilter.In -> Filter.Expression(
         Filter.ExpressionType.IN,
         Filter.Key(key),
         Filter.Value(values)
     )
+
     is PropertyFilter.Nin -> Filter.Expression(
         Filter.ExpressionType.NIN,
         Filter.Key(key),
         Filter.Value(values)
     )
+
     is PropertyFilter.Contains -> Filter.Expression(
         Filter.ExpressionType.EQ,  // Spring AI doesn't have CONTAINS, fallback to EQ
         Filter.Key(key),
         Filter.Value(value)
     )
+
     is PropertyFilter.And -> filters
         .map { it.toSpringAiExpression() }
         .reduce { left, right ->
             Filter.Expression(Filter.ExpressionType.AND, left, right)
         }
+
     is PropertyFilter.Or -> filters
         .map { it.toSpringAiExpression() }
         .reduce { left, right ->
             Filter.Expression(Filter.ExpressionType.OR, left, right)
         }
+
     is PropertyFilter.Not -> Filter.Expression(
         Filter.ExpressionType.NOT,
         filter.toSpringAiExpression(),
         null
+    )
+
+    // EntityFilter types - not supported for native Spring AI filtering
+    // These should be handled via in-memory filtering
+    is EntityFilter.HasAnyLabel -> throw UnsupportedOperationException(
+        "HasAnyLabel filter cannot be translated to Spring AI filter expression. " +
+                "Use in-memory filtering via entityFilter parameter instead."
     )
 }
 

@@ -35,6 +35,10 @@ object InMemoryPropertyFilter {
     /**
      * Test if a property map matches the filter.
      * Works for both metadata maps and properties maps.
+     *
+     * Note: [EntityFilter.HasAnyLabel] always returns false when matching against
+     * a plain property map since labels are entity-specific. Use [matchesEntity]
+     * for entity filtering that includes label support.
      */
     fun matches(filter: PropertyFilter, properties: Map<String, Any?>): Boolean = when (filter) {
         is PropertyFilter.Eq -> properties[filter.key] == filter.value
@@ -49,6 +53,8 @@ object InMemoryPropertyFilter {
         is PropertyFilter.And -> filter.filters.all { matches(it, properties) }
         is PropertyFilter.Or -> filter.filters.any { matches(it, properties) }
         is PropertyFilter.Not -> !matches(filter.filter, properties)
+        // EntityFilter types - labels don't exist on plain property maps
+        is EntityFilter.HasAnyLabel -> false
     }
 
     /**
@@ -66,16 +72,42 @@ object InMemoryPropertyFilter {
     /**
      * Test if an object matches a property filter using reflection.
      * Falls back to [NamedEntityData.properties] if available.
+     *
+     * Note: For [NamedEntityData] with [EntityFilter] containing [EntityFilter.HasAnyLabel],
+     * use [matchesEntity] instead.
      */
     fun matchesObject(filter: PropertyFilter, target: Any): Boolean {
-        // For NamedEntityData, use the properties map directly
+        // For NamedEntityData, use matchesEntity to support label filters
         if (target is NamedEntityData) {
-            return matches(filter, target.properties)
+            return matchesEntity(filter, target)
         }
 
         // For other objects, use reflection to build a properties map
         val propertiesMap = extractProperties(target)
         return matches(filter, propertiesMap)
+    }
+
+    /**
+     * Test if a [NamedEntityData] matches a filter, including support for
+     * [EntityFilter.HasAnyLabel] label-based filtering.
+     */
+    fun matchesEntity(filter: PropertyFilter, entity: NamedEntityData): Boolean = when (filter) {
+        // EntityFilter-specific: check labels
+        is EntityFilter.HasAnyLabel -> entity.labels().any { it in filter.labels }
+
+        // PropertyFilter types: delegate to property matching
+        is PropertyFilter.Eq -> entity.properties[filter.key] == filter.value
+        is PropertyFilter.Ne -> entity.properties[filter.key] != filter.value
+        is PropertyFilter.Gt -> compareNumbers(entity.properties[filter.key], filter.value) { it > 0 }
+        is PropertyFilter.Gte -> compareNumbers(entity.properties[filter.key], filter.value) { it >= 0 }
+        is PropertyFilter.Lt -> compareNumbers(entity.properties[filter.key], filter.value) { it < 0 }
+        is PropertyFilter.Lte -> compareNumbers(entity.properties[filter.key], filter.value) { it <= 0 }
+        is PropertyFilter.In -> entity.properties[filter.key] in filter.values
+        is PropertyFilter.Nin -> entity.properties[filter.key] !in filter.values
+        is PropertyFilter.Contains -> entity.properties[filter.key]?.toString()?.contains(filter.value) == true
+        is PropertyFilter.And -> filter.filters.all { matchesEntity(it, entity) }
+        is PropertyFilter.Or -> filter.filters.any { matchesEntity(it, entity) }
+        is PropertyFilter.Not -> !matchesEntity(filter.filter, entity)
     }
 
     /**
@@ -103,13 +135,13 @@ object InMemoryPropertyFilter {
     }
 
     /**
-     * Filter results using both metadata and property filters.
+     * Filter results using both metadata and entity filters.
      * Both filters must match for a result to be included.
      */
     fun <T> filterResults(
         results: List<SimilarityResult<T>>,
         metadataFilter: PropertyFilter?,
-        propertyFilter: PropertyFilter?,
+        entityFilter: PropertyFilter?,
     ): List<SimilarityResult<T>> where T : Datum, T : Retrievable {
         var filtered = results
 
@@ -117,8 +149,8 @@ object InMemoryPropertyFilter {
             filtered = filtered.filter { matches(metadataFilter, it.match.metadata) }
         }
 
-        if (propertyFilter != null) {
-            filtered = filtered.filter { matchesObject(propertyFilter, it.match) }
+        if (entityFilter != null) {
+            filtered = filtered.filter { matchesObject(entityFilter, it.match) }
         }
 
         return filtered

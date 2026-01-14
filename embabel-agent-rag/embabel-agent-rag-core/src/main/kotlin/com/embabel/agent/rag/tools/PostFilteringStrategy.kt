@@ -90,11 +90,11 @@ fun interface TopKInflationStrategy {
 internal object PostFilteringSearch {
 
     /**
-     * Perform a search with post-filtering using both metadata and property filters.
+     * Perform a search with post-filtering using both metadata and entity filters.
      *
      * @param request the original search request
      * @param metadataFilter filter on metadata properties
-     * @param propertyFilter filter on object properties
+     * @param entityFilter filter on object properties and labels
      * @param inflationStrategy strategy for inflating topK
      * @param search function that performs the actual search with the inflated request
      * @return filtered results, limited to original topK
@@ -102,7 +102,7 @@ internal object PostFilteringSearch {
     fun <T> search(
         request: TextSimilaritySearchRequest,
         metadataFilter: PropertyFilter?,
-        propertyFilter: PropertyFilter?,
+        entityFilter: PropertyFilter?,
         inflationStrategy: TopKInflationStrategy,
         search: (TextSimilaritySearchRequest) -> List<SimilarityResult<T>>,
     ): List<SimilarityResult<T>> where T : Datum, T : Retrievable {
@@ -112,16 +112,16 @@ internal object PostFilteringSearch {
             request.similarityThreshold,
             inflatedTopK
         )
-        return InMemoryPropertyFilter.filterResults(search(inflatedRequest), metadataFilter, propertyFilter)
+        return InMemoryPropertyFilter.filterResults(search(inflatedRequest), metadataFilter, entityFilter)
             .take(request.topK)
     }
 
     /**
-     * Perform a regex search with post-filtering using both metadata and property filters.
+     * Perform a regex search with post-filtering using both metadata and entity filters.
      *
      * @param topK the original topK requested
      * @param metadataFilter filter on metadata properties
-     * @param propertyFilter filter on object properties
+     * @param entityFilter filter on object properties and labels
      * @param inflationStrategy strategy for inflating topK
      * @param search function that performs the actual search with the inflated topK
      * @return filtered results, limited to original topK
@@ -129,12 +129,12 @@ internal object PostFilteringSearch {
     fun <T> regexSearch(
         topK: Int,
         metadataFilter: PropertyFilter?,
-        propertyFilter: PropertyFilter?,
+        entityFilter: PropertyFilter?,
         inflationStrategy: TopKInflationStrategy,
         search: (Int) -> List<SimilarityResult<T>>,
     ): List<SimilarityResult<T>> where T : Datum, T : Retrievable {
         val inflatedTopK = inflationStrategy.inflate(topK)
-        return InMemoryPropertyFilter.filterResults(search(inflatedTopK), metadataFilter, propertyFilter)
+        return InMemoryPropertyFilter.filterResults(search(inflatedTopK), metadataFilter, entityFilter)
             .take(topK)
     }
 }

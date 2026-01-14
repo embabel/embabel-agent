@@ -509,7 +509,7 @@ class ToolishRagTest {
 
             val listener = ResultsListener { event -> capturedEvent = event }
             val tools =
-                RegexSearchTools(regexSearch, metadataFilter = null, propertyFilter = null, resultsListener = listener)
+                RegexSearchTools(regexSearch, metadataFilter = null, entityFilter = null, resultsListener = listener)
             tools.regexSearch("E\\d{3}", 10)
 
             assertTrue(capturedEvent != null)

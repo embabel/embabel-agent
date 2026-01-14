@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.service
 
+import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.Retrievable
@@ -102,14 +103,14 @@ interface FilteringVectorSearch : VectorSearch {
      * @param request the search request containing query, topK, and similarity threshold
      * @param clazz the type of Retrievable to search for
      * @param metadataFilter filter on metadata properties (e.g., source, ingestion date)
-     * @param propertyFilter filter on object properties (e.g., entity fields)
+     * @param entityFilter filter on object properties (e.g., entity fields) and label
      * @return matching results ranked by similarity score
      */
     fun <T : Retrievable> vectorSearchWithFilter(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
         metadataFilter: PropertyFilter? = null,
-        propertyFilter: PropertyFilter? = null,
+        entityFilter: EntityFilter? = null,
     ): List<SimilarityResult<T>>
 }
 
@@ -181,14 +182,14 @@ interface FilteringTextSearch : TextSearch {
      * @param request the text similarity search request
      * @param clazz the type of [Retrievable] to search
      * @param metadataFilter filter on metadata properties (e.g., source, ingestion date)
-     * @param propertyFilter filter on object properties (e.g., entity fields)
+     * @param entityFilter filter on object properties (e.g., entity fields)
      * @return matching results ranked by BM25 relevance score
      */
     fun <T : Retrievable> textSearchWithFilter(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
         metadataFilter: PropertyFilter? = null,
-        propertyFilter: PropertyFilter? = null,
+        entityFilter: EntityFilter? = null,
     ): List<SimilarityResult<T>>
 }
 
@@ -220,7 +221,7 @@ interface FilteringRegexSearch : RegexSearchOperations {
      * @param topK maximum number of results to return
      * @param clazz the type of Retrievable to search for
      * @param metadataFilter filter on metadata properties (e.g., source, ingestion date)
-     * @param propertyFilter filter on object properties (e.g., entity fields)
+     * @param entityFilter filter on object properties (e.g., entity fields) and labels
      * @return matching results
      */
     fun <T : Retrievable> regexSearchWithFilter(
@@ -228,7 +229,7 @@ interface FilteringRegexSearch : RegexSearchOperations {
         topK: Int,
         clazz: Class<T>,
         metadataFilter: PropertyFilter? = null,
-        propertyFilter: PropertyFilter? = null,
+        entityFilter: EntityFilter? = null,
     ): List<SimilarityResult<T>>
 }
 

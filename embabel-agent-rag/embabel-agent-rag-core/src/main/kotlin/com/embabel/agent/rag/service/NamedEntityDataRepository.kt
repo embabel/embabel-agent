@@ -18,6 +18,7 @@ package com.embabel.agent.rag.service
 import com.embabel.agent.core.DataDictionary
 import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.JvmType
+import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.NamedEntity
 import com.embabel.agent.rag.model.NamedEntityData
@@ -48,7 +49,8 @@ data class RelationshipData(
  * Extends [FilteringVectorSearch] and [FilteringTextSearch] to support native metadata filtering
  * when available, otherwise falls back to post-filtering.
  */
-interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, FilteringVectorSearch, FilteringTextSearch, RelationshipNavigator {
+interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, FilteringVectorSearch,
+    FilteringTextSearch, RelationshipNavigator {
 
     /**
      * ObjectMapper for hydrating entities to typed JVM instances.
@@ -76,7 +78,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
     fun vectorSearch(
         request: TextSimilaritySearchRequest,
         metadataFilter: PropertyFilter? = null,
-        propertyFilter: PropertyFilter? = null,
+        entityFilter: EntityFilter? = null,
     ): List<SimilarityResult<NamedEntityData>>
 
     /**
@@ -115,13 +117,13 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      *
      * @param request the text similarity search request
      * @param metadataFilter optional metadata filter to apply
-     * @param propertyFilter optional property filter to apply
+     * @param entityFilter optional entity filter to apply
      * @return matching results ranked by BM25 relevance score
      */
     fun textSearch(
         request: TextSimilaritySearchRequest,
         metadataFilter: PropertyFilter? = null,
-        propertyFilter: PropertyFilter? = null,
+        entityFilter: EntityFilter? = null,
     ): List<SimilarityResult<NamedEntityData>>
 
     /**
@@ -163,7 +165,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
         val useNative = isNativeType(namedEntityClass)
-        return vectorSearch(request, metadataFilter = null, propertyFilter = null).mapNotNull { similarityResult ->
+        return vectorSearch(request, metadataFilter = null, entityFilter = null).mapNotNull { similarityResult ->
             val typed: NamedEntity? = if (useNative) {
                 findNativeById(similarityResult.match.id, namedEntityClass)
             } else {
@@ -194,7 +196,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
         val useNative = isNativeType(namedEntityClass)
-        return textSearch(request, metadataFilter = null, propertyFilter = null).mapNotNull { similarityResult ->
+        return textSearch(request, metadataFilter = null, entityFilter = null).mapNotNull { similarityResult ->
             val typed: NamedEntity? = if (useNative) {
                 // Use native store loading for @NodeFragment and similar classes
                 findNativeById(similarityResult.match.id, namedEntityClass)
@@ -215,7 +217,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * @param request the search request
      * @param clazz the target type for hydration
      * @param metadataFilter metadata filter to apply
-     * @param propertyFilter property filter to apply
+     * @param entityFilter property filter to apply
      * @return list of similarity results with hydrated instances
      */
     @Suppress("UNCHECKED_CAST")
@@ -223,14 +225,14 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
         metadataFilter: PropertyFilter?,
-        propertyFilter: PropertyFilter?,
+        entityFilter: EntityFilter?,
     ): List<SimilarityResult<T>> {
         if (!NamedEntity::class.java.isAssignableFrom(clazz)) {
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
         val useNative = isNativeType(namedEntityClass)
-        return vectorSearch(request, metadataFilter, propertyFilter).mapNotNull { similarityResult ->
+        return vectorSearch(request, metadataFilter, entityFilter).mapNotNull { similarityResult ->
             val typed: NamedEntity? = if (useNative) {
                 findNativeById(similarityResult.match.id, namedEntityClass)
             } else {
@@ -250,7 +252,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * @param request the search request
      * @param clazz the target type for hydration
      * @param metadataFilter metadata filter to apply
-     * @param propertyFilter property filter to apply
+     * @param entityFilter property filter to apply
      * @return list of similarity results with hydrated instances
      */
     @Suppress("UNCHECKED_CAST")
@@ -258,14 +260,14 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
         metadataFilter: PropertyFilter?,
-        propertyFilter: PropertyFilter?,
+        entityFilter: EntityFilter?,
     ): List<SimilarityResult<T>> {
         if (!NamedEntity::class.java.isAssignableFrom(clazz)) {
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
         val useNative = isNativeType(namedEntityClass)
-        return textSearch(request, metadataFilter, propertyFilter).mapNotNull { similarityResult ->
+        return textSearch(request, metadataFilter, entityFilter).mapNotNull { similarityResult ->
             val typed: NamedEntity? = if (useNative) {
                 findNativeById(similarityResult.match.id, namedEntityClass)
             } else {

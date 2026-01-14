@@ -16,10 +16,18 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
-import com.embabel.agent.rag.service.*
+import com.embabel.agent.rag.service.FinderOperations
+import com.embabel.agent.rag.service.RegexSearchOperations
+import com.embabel.agent.rag.service.ResultExpander
+import com.embabel.agent.rag.service.RetrievableResultsFormatter
+import com.embabel.agent.rag.service.SearchOperations
+import com.embabel.agent.rag.service.SimpleRetrievableResultsFormatter
+import com.embabel.agent.rag.service.TextSearch
+import com.embabel.agent.rag.service.VectorSearch
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.Timed
@@ -69,7 +77,7 @@ fun interface ResultsListener {
  * @param metadataFilter optional filter applied to [com.embabel.agent.rag.model.Datum.metadata].
  * Useful for multi-tenant scenarios where searches should be scoped to a specific owner.
  * The filter is applied transparently - the LLM does not see or control it.
- * @param propertyFilter optional filter applied to object properties
+ * @param entityFilter optional filter applied to object properties
  * (e.g., [com.embabel.agent.rag.model.NamedEntityData.properties] or typed entity fields).
  * The filter is applied transparently - the LLM does not see or control it.
  */
@@ -84,7 +92,7 @@ data class ToolishRag @JvmOverloads constructor(
     val hints: List<PromptContributor> = listOf(),
     val listener: ResultsListener? = null,
     val metadataFilter: PropertyFilter? = null,
-    val propertyFilter: PropertyFilter? = null,
+    val entityFilter: EntityFilter? = null,
 ) : LlmReference {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -109,7 +117,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is VectorSearch) {
                 logger.info("Adding VectorSearchTools to ToolishRag tools {}", name)
-                add(VectorSearchTools(searchOperations, vectorSearchFor, metadataFilter, propertyFilter, listener))
+                add(VectorSearchTools(searchOperations, vectorSearchFor, metadataFilter, entityFilter, listener))
             } else {
                 if (hints.any { it is TryHyDE }) {
                     logger.warn(
@@ -121,7 +129,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is TextSearch) {
                 logger.info("Adding TextSearchTools to ToolishRag tools {}", name)
-                add(TextSearchTools(searchOperations, textSearchFor, metadataFilter, propertyFilter, listener))
+                add(TextSearchTools(searchOperations, textSearchFor, metadataFilter, entityFilter, listener))
             }
             if (searchOperations is ResultExpander) {
                 logger.info("Adding ResultExpanderTools to ToolishRag tools {}", name)
@@ -129,7 +137,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is RegexSearchOperations) {
                 logger.info("Adding RegexSearchTools to ToolishRag tools {}", name)
-                add(RegexSearchTools(searchOperations, metadataFilter, propertyFilter, listener))
+                add(RegexSearchTools(searchOperations, metadataFilter, entityFilter, listener))
             }
         }
     }
@@ -179,12 +187,12 @@ data class ToolishRag @JvmOverloads constructor(
         copy(metadataFilter = filter)
 
     /**
-     * Set a property filter to apply to all searches.
-     * Filters on object properties (e.g., entity fields) rather than metadata.
+     * Set an entity filter to apply to all searches.
+     * Filters on object properties (e.g., entity fields) and labels rather than metadata.
      * The filter is applied transparently - the LLM does not see or control it.
      */
-    fun withPropertyFilter(filter: PropertyFilter): ToolishRag =
-        copy(propertyFilter = filter)
+    fun withEntityFilter(filter: EntityFilter): ToolishRag =
+        copy(entityFilter = filter)
 
     override fun toolInstances() = toolInstances
 

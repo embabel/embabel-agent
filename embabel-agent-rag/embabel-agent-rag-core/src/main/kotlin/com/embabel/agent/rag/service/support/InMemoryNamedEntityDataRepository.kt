@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.service.support
 
 import com.embabel.agent.core.DataDictionary
+import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.InMemoryPropertyFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.NamedEntityData
@@ -81,7 +82,7 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
     override fun vectorSearch(
         request: TextSimilaritySearchRequest,
         metadataFilter: PropertyFilter?,
-        propertyFilter: PropertyFilter?,
+        entityFilter: EntityFilter?,
     ): List<SimilarityResult<NamedEntityData>> {
         val service = embeddingService ?: return emptyList()
         val queryEmbedding = service.embed(request.query)
@@ -95,7 +96,7 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
                 null
             }
         }
-            .let { InMemoryPropertyFilter.filterResults(it, metadataFilter, propertyFilter) }
+            .let { InMemoryPropertyFilter.filterResults(it, metadataFilter, entityFilter) }
             .sortedByDescending { it.score }
             .take(request.topK)
     }
@@ -103,7 +104,7 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
     override fun textSearch(
         request: TextSimilaritySearchRequest,
         metadataFilter: PropertyFilter?,
-        propertyFilter: PropertyFilter?,
+        entityFilter: EntityFilter?,
     ): List<SimilarityResult<NamedEntityData>> {
         return entities.values
             .filter { entity ->
@@ -111,13 +112,17 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
                         entity.description.contains(request.query, ignoreCase = true)
             }
             .map { entity -> SimilarityResult(match = entity, score = 1.0) }
-            .let { InMemoryPropertyFilter.filterResults(it, metadataFilter, propertyFilter) }
+            .let { InMemoryPropertyFilter.filterResults(it, metadataFilter, entityFilter) }
             .take(request.topK)
     }
 
     override val luceneSyntaxNotes: String = "Basic substring matching only"
 
-    override fun createRelationship(a: RetrievableIdentifier, b: RetrievableIdentifier, relationship: RelationshipData) {
+    override fun createRelationship(
+        a: RetrievableIdentifier,
+        b: RetrievableIdentifier,
+        relationship: RelationshipData
+    ) {
         // Store outgoing relationship: a -> relationship -> b
         outgoingRelationships
             .getOrPut(a.id) { ConcurrentHashMap() }
@@ -140,8 +145,10 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
         val relatedIds = when (direction) {
             RelationshipDirection.OUTGOING ->
                 outgoingRelationships[entityId]?.get(relationshipName) ?: emptyList()
+
             RelationshipDirection.INCOMING ->
                 incomingRelationships[entityId]?.get(relationshipName) ?: emptyList()
+
             RelationshipDirection.BOTH -> {
                 val outgoing = outgoingRelationships[entityId]?.get(relationshipName) ?: emptyList()
                 val incoming = incomingRelationships[entityId]?.get(relationshipName) ?: emptyList()

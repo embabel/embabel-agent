@@ -327,9 +327,16 @@ Consider a document management system where:
 Without filtering, you would need separate RAG stores per user or risk data leakage.
 With filtering, a single `ToolishRag` instance can be scoped per-request to the current user's data.
 
-====== PropertyFilter API
+====== Filter API
 
-The `PropertyFilter` sealed class hierarchy provides type-safe filter expressions:
+Embabel Agent provides two filter interfaces for RAG searches:
+
+* **`PropertyFilter`**: Filters on map-based properties (metadata, entity properties)
+* **`EntityFilter`**: Extends `PropertyFilter` to add entity-specific filtering, particularly label-based filtering
+
+====== PropertyFilter
+
+The `PropertyFilter` sealed class hierarchy provides type-safe filter expressions for map-based properties:
 
 [cols="1,2,2"]
 |===
@@ -375,6 +382,70 @@ The `PropertyFilter` sealed class hierarchy provides type-safe filter expression
 |Logical NOT
 |`PropertyFilter.not(filter)`
 |===
+
+====== EntityFilter
+
+`EntityFilter` extends `PropertyFilter` to add entity-specific filtering. Currently, it adds label-based filtering via `HasAnyLabel`:
+
+[cols="1,2,2"]
+|===
+|Filter Type |Description |Example
+
+|`HasAnyLabel`
+|Matches entities with any of the specified labels
+|`EntityFilter.hasAnyLabel("Person", "Organization")`
+|===
+
+`HasAnyLabel` is particularly useful for:
+
+* **Type-safe entity searches**: Filter results to only include specific entity types
+* **Multi-type queries**: Search across multiple entity types in one query
+
+[source,kotlin]
+----
+import com.embabel.agent.rag.filter.EntityFilter
+import com.embabel.agent.rag.filter.PropertyFilter.Companion.eq
+import com.embabel.agent.rag.filter.PropertyFilter.Companion.gte
+
+// Filter by single label
+val personFilter = EntityFilter.hasAnyLabel("Person")
+
+// Filter by multiple labels (OR semantics - entity must have ANY of these labels)
+val entityFilter = EntityFilter.hasAnyLabel("Person", "Organization")
+
+// Combine HasAnyLabel with property filters using fluent API
+val simpleCombo = EntityFilter.hasAnyLabel("Person") and eq("status", "active")
+
+// Multiple conditions
+val complexFilter = EntityFilter.hasAnyLabel("Person") and
+    eq("status", "active") and
+    gte("score", 0.8)
+
+// OR combinations
+val orFilter = EntityFilter.hasAnyLabel("Person") or eq("fallback", true)
+
+// With negation
+val notDeleted = EntityFilter.hasAnyLabel("Person") and !eq("status", "deleted")
+
+// Complex grouping
+val accessFilter = (EntityFilter.hasAnyLabel("Person", "Employee") and eq("active", true)) or
+    eq("role", "admin")
+----
+
+Since `EntityFilter` extends `PropertyFilter`, all filter types share the same `and`, `or`, `not` operators and can be freely combined.
+
+[source,java]
+----
+// Java usage
+EntityFilter personFilter = EntityFilter.hasAnyLabel("Person");
+EntityFilter multiTypeFilter = EntityFilter.hasAnyLabel("Person", "Organization");
+
+// Combine with property filters in Java
+PropertyFilter combined = EntityFilter.hasAnyLabel("Person")
+    .and(PropertyFilter.eq("status", "active"));
+----
+
+NOTE: `EntityFilter.HasAnyLabel` is typically handled via in-memory filtering as most vector stores don't have native label support. When using Neo4j backends, labels can be translated to native Cypher label predicates for optimal performance.
 
 [IMPORTANT]
 ====
@@ -423,28 +494,38 @@ PropertyFilter accessFilter = PropertyFilter.or(
 );
 ----
 
-====== Metadata vs Property Filters
+====== Metadata vs Entity Filters
 
 `ToolishRag` accepts two separate filter parameters:
 
-- **`metadataFilter`**: Filters on the `metadata` map of `Datum` objects. Metadata is typically ingestion-time information like source URI, ingestion date, owner ID, etc.
-- **`propertyFilter`**: Filters on object properties. For `NamedEntityData`, this filters on the `properties` map. For typed entities, reflection is used to access top-level fields.
+- **`metadataFilter`**: A `PropertyFilter` that filters on the `metadata` map of `Datum` objects. Metadata is typically ingestion-time information like source URI, ingestion date, owner ID, etc.
+- **`entityFilter`**: An `EntityFilter` that filters on entity properties and labels. For `NamedEntityData`, this filters on the `properties` map and `labels()`. For typed entities, reflection is used to access top-level fields.
 
 [source,java]
 ----
 // Filter on metadata (e.g., which user owns the document)
 PropertyFilter metadataFilter = PropertyFilter.eq("ownerId", currentUserId);
 
-// Filter on entity properties (e.g., product category)
-PropertyFilter propertyFilter = PropertyFilter.eq("category", "electronics");
+// Filter on entity labels and properties
+EntityFilter entityFilter = EntityFilter.hasAnyLabel("Person");
 
 // Apply both filters
 ToolishRag scopedRag = toolishRag
     .withMetadataFilter(metadataFilter)
-    .withPropertyFilter(propertyFilter);
+    .withEntityFilter(entityFilter);
 ----
 
-In most cases, you'll use metadata filters for access control and property filters for business logic filtering.
+[source,kotlin]
+----
+// Kotlin: Combine label filtering with property filtering
+val entityFilter = EntityFilter.hasAnyLabel("Person") and PropertyFilter.eq("status", "active")
+
+val scopedRag = toolishRag
+    .withMetadataFilter(PropertyFilter.eq("tenant", tenantId))
+    .withEntityFilter(entityFilter)
+----
+
+In most cases, you'll use metadata filters for access control and entity filters for type-based and business logic filtering.
 
 ===== Neo4j Cypher Filtering
 
@@ -537,8 +618,8 @@ void respond(Conversation conversation, ActionContext context) {
 
 Filters are applied at different levels depending on the backend:
 
-- **Spring AI VectorStore**: Metadata filters are translated to `Filter.Expression` for native filtering; property filters are applied in-memory
-- **Neo4j (Drivine)**: Both metadata and property filters are translated to native Cypher WHERE clauses (optimal performance)
+- **Spring AI VectorStore**: Metadata filters are translated to `Filter.Expression` for native filtering; entity filters (including `HasAnyLabel`) are applied in-memory
+- **Neo4j (Drivine)**: Both metadata and entity filters (including `HasAnyLabel`) are translated to native Cypher WHERE clauses and label predicates (optimal performance)
 - **Lucene**: Both filter types are applied as post-filters with inflated `topK` to compensate for filtered-out results
 - **Custom stores**: Can implement `FilteringVectorSearch` / `FilteringTextSearch` for native translation, or fall back to in-memory filtering
 
@@ -548,8 +629,10 @@ The `InMemoryPropertyFilter` utility class provides fallback filtering for any s
 ----
 // In your SearchOperations implementation
 List<SimilarityResult<T>> results = performSearch(request);
-return InMemoryPropertyFilter.filterResults(results, metadataFilter, propertyFilter);
+return InMemoryPropertyFilter.filterResults(results, metadataFilter, entityFilter);
 ----
+
+For `EntityFilter.HasAnyLabel`, the in-memory filter checks if the entity has any of the specified labels via `NamedEntityData.labels()`.
 
 This ensures filtering works across all backends, with native optimization for metadata filters where available.
 

@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Embeddable
@@ -38,7 +39,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
     private val vectorSearch: VectorSearch,
     private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
     private val metadataFilter: PropertyFilter? = null,
-    private val propertyFilter: PropertyFilter? = null,
+    private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
 
@@ -51,8 +52,8 @@ internal class VectorSearchTools @JvmOverloads constructor(
         @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
     ): String {
         logger.info(
-            "Performing vector search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, propertyFilter={}",
-            query, topK, threshold, searchFor.map { it.simpleName }, metadataFilter, propertyFilter
+            "Performing vector search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, entityFilter={}",
+            query, topK, threshold, searchFor.map { it.simpleName }, metadataFilter, entityFilter
         )
         val request = TextSimilaritySearchRequest(query, threshold, topK)
         val (results, ms) = time {
@@ -74,13 +75,13 @@ internal class VectorSearchTools @JvmOverloads constructor(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
     ): List<SimilarityResult<T>> {
-        if (metadataFilter == null && propertyFilter == null) {
+        if (metadataFilter == null && entityFilter == null) {
             return vectorSearch.vectorSearch(request, clazz)
         }
 
         // If backend supports native filtering, use it
         if (vectorSearch is FilteringVectorSearch) {
-            return vectorSearch.vectorSearchWithFilter(request, clazz, metadataFilter, propertyFilter)
+            return vectorSearch.vectorSearchWithFilter(request, clazz, metadataFilter, entityFilter)
         }
 
         // Fallback: inflate topK, search, post-filter, take topK
@@ -88,7 +89,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
         return PostFilteringSearch.search(
             request,
             metadataFilter,
-            propertyFilter,
+            entityFilter,
             TopKInflationStrategy.DEFAULT
         ) { inflatedRequest ->
             vectorSearch.vectorSearch(inflatedRequest, clazz)
@@ -136,7 +137,7 @@ internal class TextSearchTools @JvmOverloads constructor(
     private val textSearch: TextSearch,
     private val searchFor: List<Class<out Retrievable>> = listOf(Chunk::class.java),
     private val metadataFilter: PropertyFilter? = null,
-    private val propertyFilter: PropertyFilter? = null,
+    private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -161,8 +162,8 @@ internal class TextSearchTools @JvmOverloads constructor(
         @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
     ): String {
         logger.info(
-            "Performing text search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, propertyFilter={}",
-            query, topK, threshold, searchFor.map { it.simpleName }, metadataFilter, propertyFilter
+            "Performing text search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, entityFilter={}",
+            query, topK, threshold, searchFor.map { it.simpleName }, metadataFilter, entityFilter
         )
 
         val request = TextSimilaritySearchRequest(query, threshold, topK)
@@ -185,20 +186,20 @@ internal class TextSearchTools @JvmOverloads constructor(
         request: TextSimilaritySearchRequest,
         clazz: Class<T>,
     ): List<SimilarityResult<T>> {
-        if (metadataFilter == null && propertyFilter == null) {
+        if (metadataFilter == null && entityFilter == null) {
             return textSearch.textSearch(request, clazz)
         }
 
         // If backend supports native filtering, use it
         if (textSearch is FilteringTextSearch) {
-            return textSearch.textSearchWithFilter(request, clazz, metadataFilter, propertyFilter)
+            return textSearch.textSearchWithFilter(request, clazz, metadataFilter, entityFilter)
         }
 
         // Fallback: inflate topK, search, post-filter, take topK
         return PostFilteringSearch.search(
             request,
             metadataFilter,
-            propertyFilter,
+            entityFilter,
             TopKInflationStrategy.DEFAULT
         ) { inflatedRequest ->
             textSearch.textSearch(inflatedRequest, clazz)
@@ -209,7 +210,7 @@ internal class TextSearchTools @JvmOverloads constructor(
 internal class RegexSearchTools(
     private val regexSearch: RegexSearchOperations,
     private val metadataFilter: PropertyFilter? = null,
-    private val propertyFilter: PropertyFilter? = null,
+    private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
 ) : SearchTools {
 
@@ -219,8 +220,8 @@ internal class RegexSearchTools(
         topK: Int,
     ): String {
         loggerFor<RegexSearchTools>().info(
-            "Performing regex search with regex='{}', topK={}, metadataFilter={}, propertyFilter={}",
-            regex, topK, metadataFilter, propertyFilter
+            "Performing regex search with regex='{}', topK={}, metadataFilter={}, entityFilter={}",
+            regex, topK, metadataFilter, entityFilter
         )
         val start = Instant.now()
         val results = searchWithFilter(Regex(regex), topK)
@@ -233,20 +234,20 @@ internal class RegexSearchTools(
         regex: Regex,
         topK: Int,
     ): List<SimilarityResult<Chunk>> {
-        if (metadataFilter == null && propertyFilter == null) {
+        if (metadataFilter == null && entityFilter == null) {
             return regexSearch.regexSearch(regex, topK, Chunk::class.java)
         }
 
         // If backend supports native filtering, use it
         if (regexSearch is FilteringRegexSearch) {
-            return regexSearch.regexSearchWithFilter(regex, topK, Chunk::class.java, metadataFilter, propertyFilter)
+            return regexSearch.regexSearchWithFilter(regex, topK, Chunk::class.java, metadataFilter, entityFilter)
         }
 
         // Fallback: inflate topK, search, post-filter, take topK
         return PostFilteringSearch.regexSearch(
             topK,
             metadataFilter,
-            propertyFilter,
+            entityFilter,
             TopKInflationStrategy.DEFAULT
         ) { inflatedTopK ->
             regexSearch.regexSearch(regex, inflatedTopK, Chunk::class.java)
