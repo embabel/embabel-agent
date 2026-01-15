@@ -24,7 +24,7 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.spi.LlmUse
+import com.embabel.agent.core.support.LlmUse
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
@@ -393,7 +393,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     fun stream(): StreamingCapability {
         throw UnsupportedOperationException(
             "Streaming not supported by this PromptRunner implementation. " +
-            "Check supportsStreaming() before calling stream()."
+                    "Check supportsStreaming() before calling stream()."
         )
     }
 

@@ -20,7 +20,8 @@ import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.streaming.StreamingPromptRunnerBuilder;
 import com.embabel.agent.autoconfigure.models.ollama.AgentOllamaAutoConfiguration;
-import com.embabel.common.ai.model.Llm;
+import com.embabel.agent.spi.LlmService;
+import com.embabel.agent.spi.support.springai.SpringAiLlmService;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -110,7 +111,7 @@ class LLMOllamaStreamingBuilderIT {
     private Ai ai;
 
     @Autowired
-    private List<Llm> llms;
+    private List<LlmService<?>> llms;
 
     /**
      * Simple data class for testing streaming object creation
@@ -226,12 +227,14 @@ class LLMOllamaStreamingBuilderIT {
 
         try {
             // Get the raw Spring AI ChatModel directly
-            Llm llm = llms.stream()
+            SpringAiLlmService springAiLlm = llms.stream()
                     .filter(l -> "qwen3:latest".equals(l.getName()))
+                    .filter(l -> l instanceof SpringAiLlmService)
+                    .map(l -> (SpringAiLlmService) l)
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("LLM qwen3:latest not found"));
 
-            org.springframework.ai.chat.model.ChatModel chatModel = llm.getModel(); // as
+            org.springframework.ai.chat.model.ChatModel chatModel = springAiLlm.getModel();
 
 
             System.out.println("DEBUG: Testing raw Spring AI streaming...");

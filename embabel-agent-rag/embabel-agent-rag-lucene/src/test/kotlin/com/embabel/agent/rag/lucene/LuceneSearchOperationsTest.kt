@@ -16,8 +16,9 @@
 package com.embabel.agent.rag.lucene
 
 import com.embabel.agent.rag.service.RagRequest
-import com.embabel.common.ai.model.SpringEmbeddingService
-import org.junit.jupiter.api.Assertions.*
+import com.embabel.common.ai.model.SpringAiEmbeddingService
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.document.Document
 
@@ -214,7 +215,7 @@ class LuceneSearchOperationsTest : LuceneSearchOperationsTestBase() {
     fun `should weight vector similarity appropriately`() {
         val ragServiceHighVector = LuceneSearchOperations(
             name = "high-vector-weight",
-            embeddingService = SpringEmbeddingService("name", "provider", mockEmbeddingModel),
+            embeddingService = SpringAiEmbeddingService("name", "provider", mockEmbeddingModel),
             vectorWeight = 0.9 // High vector weight
         )
 

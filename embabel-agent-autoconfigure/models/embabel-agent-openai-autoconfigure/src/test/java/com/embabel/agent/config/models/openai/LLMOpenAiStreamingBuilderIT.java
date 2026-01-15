@@ -20,7 +20,7 @@ import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.streaming.StreamingPromptRunnerBuilder;
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration;
-import com.embabel.common.ai.model.Llm;
+import com.embabel.agent.spi.LlmService;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -106,7 +106,7 @@ class LLMOpenAiStreamingBuilderIT {
     private Ai ai;
 
     @Autowired
-    private List<Llm> llms;
+    private List<LlmService<?>> llms;
 
     /**
      * Simple data class for testing streaming object creation

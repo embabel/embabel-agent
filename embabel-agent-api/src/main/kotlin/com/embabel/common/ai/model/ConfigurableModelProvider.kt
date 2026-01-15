@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.util.indent
 import com.embabel.common.util.loggerFor
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -57,7 +58,7 @@ data class ConfigurableModelProviderProperties(
  * Take LLM definitions from configuration
  */
 class ConfigurableModelProvider(
-    private val llms: List<Llm>,
+    private val llms: List<LlmService<*>>,
     private val embeddingServices: List<EmbeddingService>,
     private val properties: ConfigurableModelProviderProperties,
 ) : ModelProvider {
@@ -87,10 +88,16 @@ class ConfigurableModelProvider(
         }
     }
 
-    private fun showModel(model: AiModel<*>): String {
+    private fun showModel(model: LlmService<*>): String {
         val roles = properties.llms.filter { it.value == model.name }.keys
         val maybeRoles = if (roles.isNotEmpty()) " - Roles: ${roles.joinToString(", ")}" else ""
-        return "${model.infoString(verbose = false)}$maybeRoles"
+        return "name: ${model.name}, provider: ${model.provider}$maybeRoles"
+    }
+
+    private fun showEmbeddingModel(model: EmbeddingService): String {
+        val roles = properties.embeddingServices.filter { it.value == model.name }.keys
+        val maybeRoles = if (roles.isNotEmpty()) " - Roles: ${roles.joinToString(", ")}" else ""
+        return "name: ${model.name}, provider: ${model.provider}$maybeRoles"
     }
 
     override fun listModels(): List<ModelMetadata> =
@@ -113,59 +120,59 @@ class ConfigurableModelProvider(
         verbose: Boolean?,
         indent: Int,
     ): String {
-        val llms = "Available LLMs:\n\t${
+        val llmsInfo = "Available LLMs:\n\t${
             llms
                 .sortedBy { it.name }
                 .joinToString("\n\t") { showModel(it) }
         }"
-        val embeddingServices =
+        val embeddingServicesInfo =
             "Available embedding services:\n\t${
                 embeddingServices
                     .sortedBy { it.name }
-                    .joinToString("\n\t") { showModel(it) }
+                    .joinToString("\n\t") { showEmbeddingModel(it) }
             }"
-        return "Default LLM: ${properties.defaultLlm}\n$llms\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServices".indent(
+        return "Default LLM: ${properties.defaultLlm}\n$llmsInfo\nDefault embedding service: ${properties.defaultEmbeddingModel}\n$embeddingServicesInfo".indent(
             indent
         )
     }
 
     override fun listRoles(modelClass: Class<out AiModel<*>>): List<String> {
-        return when (modelClass) {
-            Llm::class.java -> properties.llms.keys.toList()
-            EmbeddingService::class.java -> properties.embeddingServices.keys.toList()
+        return when {
+            LlmService::class.java.isAssignableFrom(modelClass) -> properties.llms.keys.toList()
+            EmbeddingService::class.java.isAssignableFrom(modelClass) -> properties.embeddingServices.keys.toList()
             else -> throw IllegalArgumentException("Unsupported model class: $modelClass")
         }
     }
 
     override fun listModelNames(modelClass: Class<out AiModel<*>>): List<String> {
-        return when (modelClass) {
-            Llm::class.java -> llms.map { it.name }
-            EmbeddingService::class.java -> embeddingServices.map { it.name }
+        return when {
+            LlmService::class.java.isAssignableFrom(modelClass) -> llms.map { it.name }
+            EmbeddingService::class.java.isAssignableFrom(modelClass) -> embeddingServices.map { it.name }
             else -> throw IllegalArgumentException("Unsupported model class: $modelClass")
         }
     }
 
-    override fun getLlm(criteria: ModelSelectionCriteria): Llm =
+    override fun getLlm(criteria: ModelSelectionCriteria): LlmService<*> =
         when (criteria) {
             is ByRoleModelSelectionCriteria -> {
-                val modelName = properties.llms[criteria.role] ?: throw NoSuitableModelException(criteria, llms)
-                llms.firstOrNull { it.name == modelName } ?: throw NoSuitableModelException(criteria, llms)
+                val modelName = properties.llms[criteria.role] ?: throw NoSuitableModelException(criteria, llms.map { it.name })
+                llms.firstOrNull { it.name == modelName } ?: throw NoSuitableModelException(criteria, llms.map { it.name })
             }
 
             is ByNameModelSelectionCriteria -> {
-                llms.firstOrNull { it.name == criteria.name } ?: throw NoSuitableModelException(criteria, llms)
+                llms.firstOrNull { it.name == criteria.name } ?: throw NoSuitableModelException(criteria, llms.map { it.name })
             }
 
             is RandomByNameModelSelectionCriteria -> {
                 val models = llms.filter { criteria.names.contains(it.name) }
                 if (models.isEmpty()) {
-                    throw NoSuitableModelException(criteria, llms)
+                    throw NoSuitableModelException(criteria, llms.map { it.name })
                 }
                 models.random()
             }
 
             is FallbackByNameModelSelectionCriteria -> {
-                var llm: Llm? = null
+                var llm: LlmService<*>? = null
                 for (requestedName in criteria.names) {
                     llm = llms.firstOrNull { requestedName == it.name }
                     if (llm != null) {
@@ -175,7 +182,7 @@ class ConfigurableModelProvider(
                     }
                 }
                 llm
-                    ?: throw NoSuitableModelException(criteria, llms)
+                    ?: throw NoSuitableModelException(criteria, llms.map { it.name })
             }
 
             is AutoModelSelectionCriteria -> {
@@ -193,11 +200,11 @@ class ConfigurableModelProvider(
         when (criteria) {
             is ByRoleModelSelectionCriteria -> {
                 val modelName =
-                    properties.embeddingServices[criteria.role] ?: throw NoSuitableModelException(
+                    properties.embeddingServices[criteria.role] ?: throw NoSuitableModelException.forModels(
                         criteria,
                         embeddingServices,
                     )
-                embeddingServices.firstOrNull { it.name == modelName } ?: throw NoSuitableModelException(
+                embeddingServices.firstOrNull { it.name == modelName } ?: throw NoSuitableModelException.forModels(
                     criteria,
                     embeddingServices,
                 )

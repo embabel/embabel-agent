@@ -22,7 +22,7 @@ import org.springframework.ai.embedding.EmbeddingModel
  * Wraps a Spring AI EmbeddingModel exposing an embedding service.
  */
 @JsonSerialize(`as` = EmbeddingServiceMetadata::class)
-data class SpringEmbeddingService(
+data class SpringAiEmbeddingService(
     override val name: String,
     override val provider: String,
     override val model: EmbeddingModel,

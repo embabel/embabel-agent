@@ -24,11 +24,12 @@ import com.embabel.agent.api.common.streaming.asStreaming
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.FakeChatModel
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.DefaultOptionsConverter
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.textio.template.TemplateRenderer
@@ -94,10 +95,10 @@ class StreamingTestConfig {
     }
 
     @Bean
-    fun nonStreamingTestLlm(): Llm {
-        return Llm(
+    fun nonStreamingTestLlm(): LlmService<*> {
+        return SpringAiLlmService(
             name = NON_STREAMING_MODEL_NAME,
-            model = FakeChatModel(NON_STREAMING_RESPONSE),
+            chatModel = FakeChatModel(NON_STREAMING_RESPONSE),
             pricingModel = PricingModel.usdPer1MTokens(LOW_COST, LOW_COST),
             provider = TEST_PROVIDER,
             optionsConverter = DefaultOptionsConverter,
@@ -105,10 +106,10 @@ class StreamingTestConfig {
     }
 
     @Bean
-    fun streamingTestLlm(): Llm {
-        return Llm(
+    fun streamingTestLlm(): LlmService<*> {
+        return SpringAiLlmService(
             name = STREAMING_MODEL_NAME,
-            model = FakeStreamingChatModel(STREAMING_RESPONSE),
+            chatModel = FakeStreamingChatModel(STREAMING_RESPONSE),
             pricingModel = PricingModel.usdPer1MTokens(HIGHER_COST, HIGHER_COST),
             provider = TEST_PROVIDER,
             optionsConverter = DefaultOptionsConverter,

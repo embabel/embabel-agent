@@ -21,7 +21,8 @@ import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.createObject
 import com.embabel.agent.api.common.streaming.asStreaming
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
-import com.embabel.common.ai.model.Llm
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.core.streaming.StreamingEvent
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -111,7 +112,7 @@ class SimpleTool {
 class LLMStreamingIT(
     @param:Autowired private val autonomy: Autonomy,
     @param:Autowired private val ai: Ai,
-    @param:Autowired private val llms: List<Llm>,
+    @param:Autowired private val llms: List<LlmService<*>>,
 ) {
 
     private val logger = LoggerFactory.getLogger(LLMStreamingIT::class.java)
@@ -215,8 +216,8 @@ class LLMStreamingIT(
 
         try {
             // Get the raw Spring AI ChatModel directly
-            val llm = llms.find { it.name == "gpt-4.1-mini" }!!
-            val chatModel = llm.model //as org.springframework.ai.chat.model.ChatModel
+            val llm = llms.find { it.name == "gpt-4.1-mini" } as SpringAiLlmService
+            val chatModel = llm.model
 
             println("DEBUG: Testing raw Spring AI streaming...")
 

@@ -16,13 +16,16 @@
 package com.embabel.agent.core
 
 import com.embabel.agent.api.common.ToolsStats
-import com.embabel.common.ai.model.Llm
+import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
 import org.springframework.ai.chat.metadata.DefaultUsage
 import java.time.Duration
 import java.time.Instant
 
+/**
+ * History of LLM invocations made during an agent process.
+ */
 interface LlmInvocationHistory {
 
     val llmInvocations: List<LlmInvocation>
@@ -36,8 +39,8 @@ interface LlmInvocationHistory {
     /**
      * Distinct list of LLMs use, sorted by name.
      */
-    fun modelsUsed(): List<Llm> {
-        return llmInvocations.map { it.llm }
+    fun modelsUsed(): List<LlmMetadata> {
+        return llmInvocations.map { it.llmMetadata }
             .distinctBy { it.name }
             .sortedBy { it.name }
     }
@@ -74,43 +77,11 @@ interface LlmInvocationHistory {
 }
 
 /**
- * LLM usage data
- */
-data class Usage(
-    val promptTokens: Int?,
-    val completionTokens: Int?,
-    val nativeUsage: Any?,
-) {
-
-    val totalTokens: Int?
-        get() = when {
-            promptTokens == null && completionTokens == null -> null
-            else -> (promptTokens ?: 0) + (completionTokens ?: 0)
-        }
-
-    /**
-     * Combine two Usage instances by summing their token counts.
-     * Used for accumulating usage across multiple LLM calls in a tool loop.
-     */
-    operator fun plus(other: Usage): Usage = Usage(
-        promptTokens = when {
-            this.promptTokens == null && other.promptTokens == null -> null
-            else -> (this.promptTokens ?: 0) + (other.promptTokens ?: 0)
-        },
-        completionTokens = when {
-            this.completionTokens == null && other.completionTokens == null -> null
-            else -> (this.completionTokens ?: 0) + (other.completionTokens ?: 0)
-        },
-        nativeUsage = null, // Cannot combine native usage objects
-    )
-}
-
-/**
  * Invocation we made to an LLM
  * @param agentName name of the agent, if known
  */
 data class LlmInvocation(
-    val llm: Llm,
+    val llmMetadata: LlmMetadata,
     val usage: Usage,
     val agentName: String? = null,
     override val timestamp: Instant,
@@ -120,7 +91,7 @@ data class LlmInvocation(
     /**
      * Dollar cost of this interaction.
      */
-    fun cost(): Double = llm.pricingModel?.costOf(
+    fun cost(): Double = llmMetadata.pricingModel?.costOf(
         DefaultUsage(
             usage.promptTokens ?: 0,
             usage.completionTokens ?: 0,

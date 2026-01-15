@@ -24,7 +24,7 @@ import com.embabel.agent.api.dsl.support.promptTransformer
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
 import com.embabel.agent.experimental.primitive.PromptCondition
-import com.embabel.agent.spi.LlmCall
+import com.embabel.agent.core.support.LlmCall
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer

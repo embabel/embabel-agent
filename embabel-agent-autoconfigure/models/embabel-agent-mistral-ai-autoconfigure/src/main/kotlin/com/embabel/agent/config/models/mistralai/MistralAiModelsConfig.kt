@@ -16,11 +16,12 @@
 package com.embabel.agent.config.models.mistralai
 
 import com.embabel.agent.api.models.MistralAiModels
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
@@ -98,7 +99,7 @@ class MistralAiModelsConfig(
 
     private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
     private val apiKey: String = envApiKey ?: properties.apiKey
-        ?: error("Mistral AI API key required: set MISTRAL_API_KEY env var or embabel.agent.platform.models.mistralai.api-key")
+    ?: error("Mistral AI API key required: set MISTRAL_API_KEY env var or embabel.agent.platform.models.mistralai.api-key")
 
     init {
         logger.info("Mistral AI models are available: {}", properties)
@@ -140,8 +141,8 @@ class MistralAiModelsConfig(
     /**
      * Creates an individual Mistral AI model from configuration.
      */
-    private fun createMistralAiLlm(modelDef: MistralAiModelDefinition): Llm {
-        val chatModel = MistralAiChatModel
+    private fun createMistralAiLlm(modelDef: MistralAiModelDefinition): LlmService<*> {
+        val mistralChatModel = MistralAiChatModel
             .builder()
             .defaultOptions(createDefaultOptions(modelDef))
             .mistralAiApi(createMistralAiApi())
@@ -154,9 +155,9 @@ class MistralAiModelsConfig(
             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
             .build()
 
-        return Llm(
+        return SpringAiLlmService(
             name = modelDef.modelId,
-            model = chatModel,
+            chatModel = mistralChatModel,
             provider = MistralAiModels.PROVIDER,
             optionsConverter = MistralAiOptionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,

@@ -15,7 +15,7 @@
  */
 package com.embabel.common.ai.model
 
-
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -28,16 +28,16 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.embedding.EmbeddingModel
 import kotlin.test.assertContains
 
-class ConfigurableModelProviderTest() {
+class ConfigurableModelProviderTest {
 
     private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(
-            Llm("gpt40", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
-            Llm("gpt-4.1-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
-            Llm("embedding", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
+            SpringAiLlmService("gpt40", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+            SpringAiLlmService("gpt-4.1-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+            SpringAiLlmService("embedding", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
         ),
         embeddingServices = listOf(
-            SpringEmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
+            SpringAiEmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
         ),
         properties = ConfigurableModelProviderProperties(
             llms = mapOf(
@@ -55,7 +55,7 @@ class ConfigurableModelProviderTest() {
 
         @Test
         fun llmRoles() {
-            val roles = mp.listRoles(Llm::class.java)
+            val roles = mp.listRoles(SpringAiLlmService::class.java)
             assertFalse(roles.isEmpty())
             assertContains(roles, BEST_ROLE)
         }
@@ -69,7 +69,7 @@ class ConfigurableModelProviderTest() {
 
         @Test
         fun llmNames() {
-            val names = mp.listModelNames(Llm::class.java)
+            val names = mp.listModelNames(SpringAiLlmService::class.java)
             assertFalse(names.isEmpty())
             assertContains(names, "gpt40")
         }
@@ -88,7 +88,9 @@ class ConfigurableModelProviderTest() {
             assertContains(models.map { it.name }, "gpt40")
             assertContains(models.map { it.name }, "text-embedding-3-small")
             assertEquals(
-                0, models.filterIsInstance<Llm>().size, "Should not have Llm class, but safe metadata class",
+                0,
+                models.filterIsInstance<SpringAiLlmService>().size,
+                "Should not have SpringAiLlm class, but safe metadata class",
             )
             assertEquals(
                 0,

@@ -18,14 +18,20 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.InvalidLlmReturnFormatException
+import com.embabel.agent.core.support.LlmCall
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.chat.UserMessage
-import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.DefaultOptionsConverter
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
@@ -87,7 +93,7 @@ class ChatClientLlmOperationsThinkingTest {
 
         val mockModelProvider = mockk<ModelProvider>()
         val crit = slot<ModelSelectionCriteria>()
-        val fakeLlm = Llm("fake", "provider", fakeChatModel, DefaultOptionsConverter)
+        val fakeLlm = SpringAiLlmService("fake", "provider", fakeChatModel, DefaultOptionsConverter)
         every { mockModelProvider.getLlm(capture(crit)) } returns fakeLlm
         val cco = ChatClientLlmOperations(
             modelProvider = mockModelProvider,
@@ -395,7 +401,7 @@ class ChatClientLlmOperationsThinkingTest {
             )
             // If we get here without exception, that's unexpected for empty response
             assertTrue(false, "Expected exception for empty response")
-        } catch (e: com.embabel.agent.spi.InvalidLlmReturnFormatException) {
+        } catch (e: InvalidLlmReturnFormatException) {
             // Expected exception - validates proper error handling
             assertTrue(e.message!!.contains("Invalid LLM return"))
             assertTrue(e.message!!.contains("No content to map"))
@@ -466,7 +472,7 @@ class ChatClientLlmOperationsThinkingTest {
 
         val toolInteraction = LlmInteraction(
             InteractionId("tool-test"),
-            llm = com.embabel.common.ai.model.LlmOptions.withDefaults()
+            llm = LlmOptions.withDefaults()
         )
 
         // When: Call doTransform with tool interaction
@@ -840,7 +846,7 @@ class ChatClientLlmOperationsThinkingTest {
 
         // Access the shouldGenerateExamples method
         val shouldGenerateMethod = setup.llmOperations::class.java.getDeclaredMethod(
-            "shouldGenerateExamples", com.embabel.agent.spi.LlmCall::class.java
+            "shouldGenerateExamples", LlmCall::class.java
         )
         shouldGenerateMethod.isAccessible = true
 

@@ -34,7 +34,7 @@ import com.embabel.agent.config.models.bedrock.BedrockModelsConfig.Companion.US_
 import com.embabel.agent.config.models.bedrock.BedrockModelsConfig.Companion.US_ANTHROPIC_CLAUDE_OPUS_4
 import com.embabel.agent.config.models.bedrock.BedrockModelsConfig.Companion.US_ANTHROPIC_CLAUDE_SONNET_4
 import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.common.ai.model.Llm
+import com.embabel.agent.spi.LlmService
 import org.junit.jupiter.api.Test
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel.COHERE_EMBED_ENGLISH_V3
 import org.springframework.ai.bedrock.cohere.api.CohereEmbeddingBedrockApi.CohereEmbeddingModel.COHERE_EMBED_MULTILINGUAL_V3
@@ -63,9 +63,9 @@ class BedrockModelsIntegrationTest {
 
     @Test
     fun `should register Bedrock Llms`() {
-        val bedrockLlmsNames = applicationContext.getBeanNamesForType(Llm::class.java)
+        val bedrockLlmsNames = applicationContext.getBeanNamesForType(LlmService::class.java)
             .filter { it.startsWith("bedrockModel-") }
-            .map { applicationContext.getBean(it, Llm::class.java) }
+            .map { applicationContext.getBean(it, LlmService::class.java) }
             .map { it.name }
 
         assertTrue(

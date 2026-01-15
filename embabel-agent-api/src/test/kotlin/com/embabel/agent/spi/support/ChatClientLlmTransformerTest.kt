@@ -20,14 +20,14 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.*
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.spi.support.springai.MaybeReturn
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.DefaultOptionsConverter
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -165,7 +165,7 @@ class ChatClientLlmTransformerTest {
                     Generation(AssistantMessage(llmReturn)),
                 ),
             )
-            every { mockModelProvider.getLlm(any()) } returns Llm(
+            every { mockModelProvider.getLlm(any()) } returns SpringAiLlmService(
                 "test", "provider", mockChatModel,
                 DefaultOptionsConverter
             )
@@ -344,7 +344,7 @@ class ChatClientLlmTransformerTest {
                     Generation(AssistantMessage(llmReturn)),
                 ),
             )
-            every { mockModelProvider.getLlm(any()) } returns Llm(
+            every { mockModelProvider.getLlm(any()) } returns SpringAiLlmService(
                 "test", "provider", mockChatModel,
                 DefaultOptionsConverter
             )

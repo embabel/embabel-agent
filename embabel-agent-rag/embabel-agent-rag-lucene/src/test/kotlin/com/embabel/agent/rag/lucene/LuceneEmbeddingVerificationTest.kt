@@ -19,7 +19,7 @@ import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.LeafSection
 import com.embabel.agent.rag.model.MaterializedDocument
 import com.embabel.agent.rag.service.RagRequest
-import com.embabel.common.ai.model.SpringEmbeddingService
+import com.embabel.common.ai.model.SpringAiEmbeddingService
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -40,7 +40,7 @@ class LuceneEmbeddingVerificationTest : LuceneSearchOperationsTestBase() {
         trackingEmbeddingModel = TrackingEmbeddingModel()
         ragServiceWithTracking = LuceneSearchOperations(
             name = "tracking-rag",
-            embeddingService = SpringEmbeddingService("model", "provider", trackingEmbeddingModel),
+            embeddingService = SpringAiEmbeddingService("model", "provider", trackingEmbeddingModel),
             vectorWeight = 0.5
         )
     }

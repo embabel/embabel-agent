@@ -20,7 +20,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
 import com.embabel.agent.core.support.AbstractAction
 import com.embabel.agent.core.support.Rerun
-import com.embabel.agent.spi.LlmInteraction
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.common.core.types.Semver
 import org.slf4j.LoggerFactory
 import com.embabel.agent.core.Agent as CoreAgent

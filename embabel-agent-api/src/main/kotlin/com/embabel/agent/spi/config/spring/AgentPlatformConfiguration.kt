@@ -26,7 +26,10 @@ import com.embabel.agent.spi.logging.LoggingAgenticEventListener
 import com.embabel.agent.spi.support.*
 import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.common.ai.autoconfig.ProviderInitialization
-import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.ConfigurableModelProvider
+import com.embabel.common.ai.model.ConfigurableModelProviderProperties
+import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.NameGenerator
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
@@ -170,7 +173,7 @@ class AgentPlatformConfiguration(
     ): ModelProvider {
 
         return ConfigurableModelProvider(
-            llms = applicationContext.getBeansOfType(Llm::class.java).values.toList(),
+            llms = applicationContext.getBeansOfType(LlmService::class.java).values.toList(),
             embeddingServices = applicationContext.getBeansOfType(EmbeddingService::class.java).values.toList(),
             properties = properties,
         )

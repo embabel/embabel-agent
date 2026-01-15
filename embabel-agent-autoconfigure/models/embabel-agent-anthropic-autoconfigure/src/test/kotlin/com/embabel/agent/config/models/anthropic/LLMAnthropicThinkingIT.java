@@ -19,7 +19,7 @@ import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
-import com.embabel.common.ai.model.Llm;
+import com.embabel.agent.spi.LlmService;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import org.junit.jupiter.api.Test;
@@ -104,7 +104,7 @@ class LLMAnthropicThinkingIT {
     private Ai ai;
 
     @Autowired
-    private List<Llm> llms;
+    private List<LlmService<?>> llms;
 
     /**
      * Simple data class for testing thinking object creation

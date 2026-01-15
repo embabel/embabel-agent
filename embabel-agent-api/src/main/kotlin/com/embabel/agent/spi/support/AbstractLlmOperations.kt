@@ -13,19 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.core.support
+package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.*
-import com.embabel.agent.spi.support.LlmDataBindingProperties
+import com.embabel.agent.core.support.InvalidLlmReturnTypeException
+import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
+import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
-import com.embabel.common.ai.model.*
+import com.embabel.common.ai.model.AutoModelSelectionCriteria
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.util.time
 import jakarta.validation.Validator
 import org.slf4j.Logger
@@ -172,7 +179,7 @@ abstract class AbstractLlmOperations(
 
     protected fun chooseLlm(
         llmOptions: LlmOptions,
-    ): Llm {
+    ): LlmService<*> {
         val crit: ModelSelectionCriteria = when (llmOptions.criteria) {
             is AutoModelSelectionCriteria ->
                 autoLlmSelectionCriteriaResolver.resolveAutoLlm()
@@ -203,7 +210,7 @@ abstract class AbstractLlmOperations(
             action = action,
             outputClass = outputClass,
             interaction = interaction.copy(tools = allTools),
-            llm = chooseLlm(llmOptions = interaction.llm),
+            llmMetadata = chooseLlm(llmOptions = interaction.llm),
             messages = messages,
         )
         agentProcess.processContext.onProcessEvent(llmRequestEvent)

@@ -16,6 +16,8 @@
 package com.embabel.agent.openai
 
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ObjectProviders
 import com.embabel.common.util.loggerFor
@@ -119,10 +121,10 @@ open class OpenAiCompatibleModelFactory(
         knowledgeCutoffDate: LocalDate?,
         optionsConverter: OptionsConverter<*> = OpenAiChatOptionsConverter,
         retryTemplate: RetryTemplate = RetryUtils.DEFAULT_RETRY_TEMPLATE,
-    ): Llm {
-        return Llm(
+    ): LlmService<*> {
+        return SpringAiLlmService(
             name = model,
-            model = chatModelOf(model, retryTemplate),
+            chatModel = chatModelOf(model, retryTemplate),
             provider = provider,
             optionsConverter = optionsConverter,
             pricingModel = pricingModel,
@@ -141,7 +143,7 @@ open class OpenAiCompatibleModelFactory(
                 .model(model)
                 .build(),
         )
-        return SpringEmbeddingService(
+        return SpringAiEmbeddingService(
             name = model,
             model = embeddingModel,
             provider = provider,

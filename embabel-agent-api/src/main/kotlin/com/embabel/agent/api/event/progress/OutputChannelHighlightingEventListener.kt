@@ -46,7 +46,7 @@ class OutputChannelHighlightingEventListener(
             }
 
             is LlmRequestEvent<*> -> {
-                val message = "Calling LLM ${event.llm.name}"
+                val message = "Calling LLM ${event.llmMetadata.name}"
                 outputChannel.send(
                     ProgressOutputChannelEvent(
                         processId = event.processId,

@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.common.core.thinking.ThinkingBlock
@@ -103,7 +104,7 @@ class ThinkingPromptRunnerOperationsTest {
         every {
             mockChatClientOps.doTransformWithThinking<ProcessedData>(
                 any<List<com.embabel.chat.Message>>(),
-                any<com.embabel.agent.spi.LlmInteraction>(),
+                any<LlmInteraction>(),
                 any<Class<ProcessedData>>(),
                 isNull()
             )

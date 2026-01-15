@@ -17,10 +17,11 @@ package com.embabel.agent.config.models.openai.custom
 
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
@@ -109,7 +110,8 @@ class OpenAiCustomModelsConfig(
     requestFactory: ObjectProvider<ClientHttpRequestFactory>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
-    apiKey = envApiKey ?: properties.apiKey ?: error("OpenAI Custom API key required: set OPENAI_CUSTOM_API_KEY env var or embabel.agent.platform.models.openai.custom.api-key"),
+    apiKey = envApiKey ?: properties.apiKey
+    ?: error("OpenAI Custom API key required: set OPENAI_CUSTOM_API_KEY env var or embabel.agent.platform.models.openai.custom.api-key"),
     completionsPath = null,
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
@@ -163,15 +165,15 @@ class OpenAiCustomModelsConfig(
      * Creates an LLM for a custom model specified via OPENAI_CUSTOM_MODELS.
      * Uses standard OpenAI options converter since we don't know the model's capabilities.
      */
-    private fun createCustomLlm(modelId: String): Llm {
+    private fun createCustomLlm(modelId: String): LlmService<*> {
         val chatModel = chatModelOf(
             model = modelId,
             retryTemplate = properties.retryTemplate(modelId)
         )
 
-        return Llm(
+        return SpringAiLlmService(
             name = modelId,
-            model = chatModel,
+            chatModel = chatModel,
             provider = CUSTOM_PROVIDER,
             optionsConverter = StandardOpenAiOptionsConverter,
         )

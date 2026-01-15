@@ -15,6 +15,8 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.ModelProvider.Companion.BEST_ROLE
 import com.embabel.common.ai.model.ModelProvider.Companion.CHEAPEST_ROLE
 import io.mockk.mockk
@@ -44,19 +46,19 @@ class ConfigurableModelProviderIntegrationTest {
     class TestConfig {
 
         @Bean
-        fun llmList(): List<Llm> = listOf(
-            Llm("gpt-4o", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
-            Llm("gpt-4o-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
+        fun llmList(): List<LlmService<*>> = listOf(
+            SpringAiLlmService("gpt-4o", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+            SpringAiLlmService("gpt-4o-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
         )
 
         @Bean
         fun embeddingServices(): List<EmbeddingService> = listOf(
-            SpringEmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
+            SpringAiEmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
         )
 
         @Bean
         fun applicationPropertiesModelProvider(
-            llms: List<Llm>,
+            llms: List<LlmService<*>>,
             embeddingServices: List<EmbeddingService>,
             properties: ConfigurableModelProviderProperties
         ): ModelProvider = ConfigurableModelProvider(
@@ -72,7 +74,7 @@ class ConfigurableModelProviderIntegrationTest {
 
         @Test
         fun llmRoles() {
-            val roles = modelProvider.listRoles(Llm::class.java)
+            val roles = modelProvider.listRoles(SpringAiLlmService::class.java)
             assertFalse(roles.isEmpty())
             assertContains(roles, BEST_ROLE)
             assertContains(roles, CHEAPEST_ROLE)
@@ -87,7 +89,7 @@ class ConfigurableModelProviderIntegrationTest {
 
         @Test
         fun llmNames() {
-            val names = modelProvider.listModelNames(Llm::class.java)
+            val names = modelProvider.listModelNames(SpringAiLlmService::class.java)
             assertFalse(names.isEmpty())
             assertContains(names, "gpt-4o")
             assertContains(names, "gpt-4o-mini")

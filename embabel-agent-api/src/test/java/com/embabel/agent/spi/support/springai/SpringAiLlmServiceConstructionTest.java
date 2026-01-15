@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.model;
+package com.embabel.agent.spi.support.springai;
 
+import com.embabel.common.ai.model.DefaultOptionsConverter;
+import com.embabel.common.ai.model.OptionsConverter;
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate;
 import com.embabel.common.ai.prompt.PromptContributor;
 import org.junit.jupiter.api.Test;
@@ -26,27 +28,27 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 /**
- * Test simplified construction of Llm instances in Java
+ * Test simplified construction of SpringAiLlm instances in Java
  */
-public class LlmConstructionTest {
+public class SpringAiLlmServiceConstructionTest {
 
     @Test
     void demonstrateJavaConstructionWithRequiredParameters() {
         // Create a mock ChatModel for testing
         ChatModel mockChatModel = mock(ChatModel.class);
 
-        // Construct Llm with the 3 required parameters
-        var llm = new Llm(
+        // Construct SpringAiLlm with the required parameters
+        var llm = new SpringAiLlmService(
                 "gpt-4",           // name
                 "OpenAI",          // provider
-                mockChatModel      // model
+                mockChatModel      // chatModel
         );
 
         // Verify construction
         assertNotNull(llm);
         assertEquals("gpt-4", llm.getName());
         assertEquals("OpenAI", llm.getProvider());
-        assertSame(mockChatModel, llm.getModel());
+        assertSame(mockChatModel, llm.getChatModel());
         assertNotNull(llm.getOptionsConverter());
         assertNull(llm.getKnowledgeCutoffDate());
         assertNotNull(llm.getPromptContributors());
@@ -59,8 +61,8 @@ public class LlmConstructionTest {
         // Create a mock ChatModel for testing
         ChatModel mockChatModel = mock(ChatModel.class);
 
-        // Construct initial Llm
-        var llm = new Llm(
+        // Construct initial SpringAiLlm
+        var llm = new SpringAiLlmService(
                 "gpt-4",
                 "OpenAI",
                 mockChatModel
@@ -100,7 +102,7 @@ public class LlmConstructionTest {
         ChatModel mockChatModel = mock(ChatModel.class);
 
         // Demonstrate fluent chaining of withers
-        var llm = new Llm("gpt-4", "OpenAI", mockChatModel)
+        var llm = new SpringAiLlmService("gpt-4", "OpenAI", mockChatModel)
                 .withKnowledgeCutoffDate(LocalDate.of(2024, 1, 1))
                 .withOptionsConverter(DefaultOptionsConverter.INSTANCE)
                 .withPromptContributor(mock(PromptContributor.class));

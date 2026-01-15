@@ -15,9 +15,10 @@
  */
 package com.embabel.agent.model
 
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.FakeChatModel
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.DefaultOptionsConverter
-import com.embabel.common.ai.model.Llm
 import com.embabel.common.ai.model.PricingModel
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -28,12 +29,23 @@ import org.springframework.context.annotation.Profile
 class TestModels {
 
     @Bean
-    fun testLlm(): Llm {
-        return Llm(
-            name = "test-llm",
-            model = FakeChatModel("I am a fake chat model"),
+    fun gpt4o(): LlmService<*> {
+        return SpringAiLlmService(
+            name = "gpt-4o",
+            chatModel = FakeChatModel("I am a fake gpt-4o model"),
             pricingModel = PricingModel.usdPer1MTokens(.1, .1),
-            provider = "test",
+            provider = "OpenAI",
+            optionsConverter = DefaultOptionsConverter,
+        )
+    }
+
+    @Bean
+    fun gpt4oMini(): LlmService<*> {
+        return SpringAiLlmService(
+            name = "gpt-4o-mini",
+            chatModel = FakeChatModel("I am a fake gpt-4o-mini model"),
+            pricingModel = PricingModel.usdPer1MTokens(.05, .05),
+            provider = "OpenAI",
             optionsConverter = DefaultOptionsConverter,
         )
     }

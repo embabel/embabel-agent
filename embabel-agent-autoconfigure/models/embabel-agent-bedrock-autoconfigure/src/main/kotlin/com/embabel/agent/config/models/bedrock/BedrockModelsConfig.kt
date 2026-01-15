@@ -15,7 +15,9 @@
  */
 package com.embabel.agent.config.models.bedrock
 
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
@@ -170,12 +172,12 @@ class BedrockModelsConfig(
     /**
      * Creates an individual Bedrock LLM from configuration.
      */
-    private fun createBedrockLlm(modelDef: BedrockModelDefinition): Llm {
+    private fun createBedrockLlm(modelDef: BedrockModelDefinition): LlmService<*> {
         val chatModel = createBedrockChatModel(modelDef.modelId)
 
-        return Llm(
+        return SpringAiLlmService(
             name = modelDef.modelId,
-            model = chatModel,
+            chatModel = chatModel,
             provider = PROVIDER,
             optionsConverter = BedrockOptionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
@@ -223,7 +225,7 @@ class BedrockModelsConfig(
     }
 
     private fun createTitanEmbedding(embeddingDef: BedrockEmbeddingModelDefinition): EmbeddingService {
-        return SpringEmbeddingService(
+        return SpringAiEmbeddingService(
             name = embeddingDef.modelId,
             model = BedrockTitanEmbeddingModel(
                 TitanEmbeddingBedrockApi(
@@ -239,7 +241,7 @@ class BedrockModelsConfig(
     }
 
     private fun createCohereEmbedding(embeddingDef: BedrockEmbeddingModelDefinition): EmbeddingService {
-        return SpringEmbeddingService(
+        return SpringAiEmbeddingService(
             name = embeddingDef.modelId,
             model = BedrockCohereEmbeddingModel(
                 CohereEmbeddingBedrockApi(
