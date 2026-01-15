@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.MatryoshkaTool
+import com.embabel.agent.spi.support.unwrapAs
 import org.slf4j.LoggerFactory
 
 /**
@@ -43,15 +44,14 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     override fun evaluate(context: ToolInjectionContext): ToolInjectionResult {
-        // Find the invoked tool
-        val invokedTool = context.currentTools.find {
+        // Find the invoked tool (may be wrapped in decorators)
+        val wrappedTool = context.currentTools.find {
             it.definition.name == context.lastToolCall.toolName
-        }
+        } ?: return ToolInjectionResult.noChange()
 
-        // Only handle MatryoshkaTool invocations
-        if (invokedTool !is MatryoshkaTool) {
-            return ToolInjectionResult.noChange()
-        }
+        // Unwrap to find underlying MatryoshkaTool (handles decorator wrappers)
+        val invokedTool = wrappedTool.unwrapAs<MatryoshkaTool>()
+            ?: return ToolInjectionResult.noChange()
 
         // Select tools based on input
         val selectedTools = invokedTool.selectTools(context.lastToolCall.toolInput)
@@ -63,8 +63,9 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
                 context.lastToolCall.toolInput
             )
             // Still remove the facade if configured, even with no tools selected
+            // Note: remove the wrappedTool (which may have decorators), not the unwrapped invokedTool
             return if (invokedTool.removeOnInvoke) {
-                ToolInjectionResult.remove(listOf(invokedTool))
+                ToolInjectionResult.remove(listOf(wrappedTool))
             } else {
                 ToolInjectionResult.noChange()
             }
@@ -77,8 +78,9 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
             selectedTools.map { it.definition.name }
         )
 
+        // Note: remove the wrappedTool (which may have decorators), not the unwrapped invokedTool
         return if (invokedTool.removeOnInvoke) {
-            ToolInjectionResult.replace(invokedTool, selectedTools)
+            ToolInjectionResult.replace(wrappedTool, selectedTools)
         } else {
             ToolInjectionResult.add(selectedTools)
         }

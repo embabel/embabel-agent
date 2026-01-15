@@ -40,12 +40,47 @@ private val Tool.Result.content: String
     }
 
 /**
+ * Interface for tool decorators that wrap another tool.
+ * Enables unwrapping to find the underlying tool implementation.
+ */
+interface DelegatingTool : Tool {
+    val delegate: Tool
+}
+
+/**
+ * Unwrap a tool to find the innermost implementation.
+ * Recursively unwraps [DelegatingTool] wrappers.
+ */
+fun Tool.unwrap(): Tool {
+    var current = this
+    while (current is DelegatingTool) {
+        current = current.delegate
+    }
+    return current
+}
+
+/**
+ * Unwrap a tool to find a specific type, or return null if not found.
+ */
+inline fun <reified T : Tool> Tool.unwrapAs(): T? {
+    var current = this
+    while (true) {
+        if (current is T) return current
+        if (current is DelegatingTool) {
+            current = current.delegate
+        } else {
+            return null
+        }
+    }
+}
+
+/**
  * Tool decorator that adds Micrometer Observability.
  */
 class ObservabilityTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     private val observationRegistry: ObservationRegistry? = null,
-) : Tool {
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
@@ -91,9 +126,9 @@ class ObservabilityTool(
  * Tool decorator that transforms the output using a provided [StringTransformer].
  */
 class OutputTransformingTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     private val outputTransformer: StringTransformer,
-) : Tool {
+) : DelegatingTool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -120,9 +155,9 @@ class OutputTransformingTool(
  * Tool decorator that adds metadata about the tool group.
  */
 class MetadataEnrichedTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     val toolGroupMetadata: ToolGroupMetadata?,
-) : Tool {
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
@@ -147,11 +182,11 @@ class MetadataEnrichedTool(
  * Tool decorator that publishes events for tool calls.
  */
 class EventPublishingTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     private val agentProcess: AgentProcess,
     private val action: Action?,
     private val llmOptions: LlmOptions,
-) : Tool {
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
@@ -208,8 +243,8 @@ fun Tool.withEventPublication(
  * Tool decorator that suppresses exceptions and returns a warning message instead.
  */
 class ExceptionSuppressingTool(
-    private val delegate: Tool,
-) : Tool {
+    override val delegate: Tool,
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
@@ -227,9 +262,9 @@ class ExceptionSuppressingTool(
  * Tool decorator that binds AgentProcess to thread-local for tool execution.
  */
 class AgentProcessBindingTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     private val agentProcess: AgentProcess,
-) : Tool {
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
