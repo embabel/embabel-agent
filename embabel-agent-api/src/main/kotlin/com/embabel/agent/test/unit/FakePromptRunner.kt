@@ -195,9 +195,11 @@ data class FakePromptRunner(
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(generateExamples = generateExamples)
 
+    @Deprecated("Use creating().withPropertyFilter() instead")
     override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
         copy(propertyFilter = this.propertyFilter.and(filter))
 
+    @Deprecated("Use creating().withValidation() instead")
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(validation = validation)
 

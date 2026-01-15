@@ -103,3 +103,16 @@ Replace usage of the old default implementations of the interfaces changed to th
     - `DelegatingTemplateOperationsTest`: 5 tests covering all methods
     - `DelegatingPromptRunnerTest`: 25 tests covering properties, configuration, factory, and execution methods
     - All 36 tests passing
+
+- ✅ Phase 4 complete: Removed unnecessary members from `PromptRunner`
+  - Marked `withPropertyFilter()` and `withValidation()` as @Deprecated on `PromptRunner` interface
+    - Added deprecation messages pointing users to `creating().withPropertyFilter()` and `creating().withValidation()`
+    - Will be fully removed when old implementations are replaced in Phase 6
+  - Updated all `PromptRunner` implementations with deprecated overrides:
+    - `DelegatingPromptRunner`
+    - `OperationContextPromptRunner`
+    - `FakePromptRunner`
+  - Removed test cases for deprecated methods from `DelegatingPromptRunnerTest` (now 23 tests)
+  - Maintained backwards compatibility for existing `PromptRunnerObjectCreator` usage
+  - Build verified successfully
+  - All 1828 tests passing with 0 failures

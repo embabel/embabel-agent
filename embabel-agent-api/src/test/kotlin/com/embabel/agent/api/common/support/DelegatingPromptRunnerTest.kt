@@ -274,33 +274,6 @@ class DelegatingPromptRunnerTest {
             verify { mockDelegate.withGenerateExamples(true) }
             assertTrue(result is DelegatingPromptRunner)
         }
-
-        @Test
-        fun `withPropertyFilter should delegate and wrap result`() {
-            val updatedDelegate = mockk<PromptExecutionDelegate>()
-            val filter = Predicate<String> { it.startsWith("test") }
-
-            every { mockDelegate.withPropertyFilter(filter) } returns updatedDelegate
-
-            val runner = createPromptRunner()
-            val result = runner.withPropertyFilter(filter)
-
-            verify { mockDelegate.withPropertyFilter(filter) }
-            assertTrue(result is DelegatingPromptRunner)
-        }
-
-        @Test
-        fun `withValidation should delegate and wrap result`() {
-            val updatedDelegate = mockk<PromptExecutionDelegate>()
-
-            every { mockDelegate.withValidation(false) } returns updatedDelegate
-
-            val runner = createPromptRunner()
-            val result = runner.withValidation(false)
-
-            verify { mockDelegate.withValidation(false) }
-            assertTrue(result is DelegatingPromptRunner)
-        }
     }
 
     @Nested

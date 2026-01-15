@@ -110,9 +110,11 @@ internal data class DelegatingPromptRunner(
     override fun withGenerateExamples(generateExamples: Boolean): PromptRunner =
         copy(delegate = delegate.withGenerateExamples(generateExamples))
 
+    @Deprecated("Use creating().withPropertyFilter() instead")
     override fun withPropertyFilter(filter: java.util.function.Predicate<String>): PromptRunner =
         copy(delegate = delegate.withPropertyFilter(filter))
 
+    @Deprecated("Use creating().withValidation() instead")
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(delegate = delegate.withValidation(validation))
 
