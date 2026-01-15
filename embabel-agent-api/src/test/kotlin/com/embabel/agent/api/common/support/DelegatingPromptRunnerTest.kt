@@ -46,8 +46,6 @@ class DelegatingPromptRunnerTest {
     private fun createPromptRunner(): DelegatingPromptRunner {
         return DelegatingPromptRunner(
             delegate = mockDelegate,
-            templateRenderer = templateRenderer,
-            objectMapper = objectMapper,
         )
     }
 

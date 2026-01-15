@@ -24,6 +24,8 @@ import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.textio.template.TemplateRenderer
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.function.Predicate
 
 /**
@@ -32,6 +34,9 @@ import java.util.function.Predicate
  * Used as the underlying implementation for PromptRunner, ObjectCreator, and TemplateOperations.
  */
 interface PromptExecutionDelegate : LlmUse {
+
+    val templateRenderer: TemplateRenderer
+    val objectMapper: ObjectMapper
 
     /**
      * Additional objects with @Tool annotation for use in this delegate
@@ -177,4 +182,5 @@ interface PromptExecutionDelegate : LlmUse {
         context: String,
         confidenceThreshold: ZeroToOne = 0.8,
     ): Boolean
+
 }

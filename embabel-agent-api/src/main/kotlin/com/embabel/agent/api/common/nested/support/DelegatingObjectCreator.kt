@@ -27,9 +27,11 @@ import java.util.function.Predicate
 internal data class DelegatingObjectCreator<T>(
     internal val delegate: PromptExecutionDelegate,
     internal val outputClass: Class<T>,
-    private val objectMapper: ObjectMapper,
-    private val templateRenderer: TemplateRenderer,
 ) : ObjectCreator<T> {
+
+    private val objectMapper: ObjectMapper = delegate.objectMapper
+
+    private val templateRenderer: TemplateRenderer = delegate.templateRenderer
 
     override fun withExample(
         example: ObjectCreationExample<T>,

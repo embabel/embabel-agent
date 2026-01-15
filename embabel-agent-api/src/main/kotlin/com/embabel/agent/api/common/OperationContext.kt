@@ -15,7 +15,8 @@
  */
 package com.embabel.agent.api.common
 
-import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.api.common.support.DelegatingPromptRunner
+import com.embabel.agent.api.common.support.OperationContextDelegate
 import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.identity.User
@@ -86,14 +87,16 @@ interface OperationContext : Blackboard, ToolGroupConsumer {
         generateExamples: Boolean = false,
     ): PromptRunner {
         val promptContributorsToUse = (promptContributors + CurrentDate()).distinctBy { it.promptContribution().role }
-        return OperationContextPromptRunner(
-            context = this,
-            llm = llm,
-            toolGroups = toolGroups,
-            toolObjects = toolObjects,
-            promptContributors = promptContributorsToUse,
-            contextualPromptContributors = contextualPromptContributors,
-            generateExamples = generateExamples,
+        return DelegatingPromptRunner(
+            delegate = OperationContextDelegate(
+                context = this,
+                llm = llm,
+                toolGroups = toolGroups,
+                toolObjects = toolObjects,
+                promptContributors = promptContributorsToUse,
+                contextualPromptContributors = contextualPromptContributors,
+                generateExamples = generateExamples,
+            ),
         )
     }
 

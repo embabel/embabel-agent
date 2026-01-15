@@ -34,7 +34,9 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.loggerFor
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.function.Predicate
 
 /**
@@ -94,6 +96,12 @@ internal data class OperationContextDelegate(
             return messages + UserMessage(parts = imageParts)
         }
     }
+
+    override val objectMapper: ObjectMapper
+        get() = context.agentPlatform().platformServices.objectMapper
+
+    override val templateRenderer: TemplateRenderer
+        get() = context.agentPlatform().platformServices.templateRenderer
 
     override fun withInteractionId(interactionId: InteractionId): PromptExecutionDelegate =
         copy(interactionId = interactionId)

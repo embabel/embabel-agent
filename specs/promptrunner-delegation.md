@@ -140,13 +140,19 @@ Replace usage of the old default implementations of the interfaces changed to th
 
 - ✅ Phase 6 complete: Replaced usage of old implementations with new ones
   - Updated `OperationContext.promptRunner()` to create `DelegatingPromptRunner` with `OperationContextDelegate`
+    - Changed from returning `OperationContextPromptRunner` to `DelegatingPromptRunner`
+    - Passes `OperationContextDelegate` as the delegate parameter
   - Updated `ActionContext.promptRunner()` to create `DelegatingPromptRunner` with `OperationContextDelegate`
+    - Same pattern as OperationContext
+    - Maintains domain object instances integration
   - Made `DelegatingPromptRunner` constructor parameters lazy (lambdas) to avoid eager platformServices access
+    - Changed `templateRenderer: TemplateRenderer` to `templateRenderer: () -> TemplateRenderer`
+    - Changed `objectMapper: ObjectMapper` to `objectMapper: () -> ObjectMapper`
     - Prevents test failures from mocked ProcessContext without full platformServices chain
   - Implemented `StreamingPromptRunner` interface in `DelegatingPromptRunner`
     - Added `supportsStreaming()` and `stream()` methods that delegate to context via `OperationContextDelegate`
     - Added `supportsThinking()` and `withThinking()` methods for thinking extraction support
-  - Exposed `context` property in `OperationContextDelegate` as internal for access by `DelegatingPromptRunner`
+    - Casts delegate to `OperationContextDelegate` to access internal `context` property
   - Updated `DelegatingPromptRunnerTest` to use lazy parameter evaluation
   - All 1847 tests passing with 0 failures
   - Build verified successfully

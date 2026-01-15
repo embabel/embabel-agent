@@ -36,6 +36,7 @@ class DelegatingTemplateOperationsTest {
 
     @BeforeEach
     fun setup() {
+        every { mockDelegate.templateRenderer } returns mockTemplateRenderer
         every { mockTemplateRenderer.compileLoadedTemplate(templateName) } returns mockCompiledTemplate
     }
 
@@ -43,7 +44,6 @@ class DelegatingTemplateOperationsTest {
         return DelegatingTemplateOperations(
             delegate = mockDelegate,
             templateName = templateName,
-            templateRenderer = mockTemplateRenderer,
         )
     }
 
@@ -63,6 +63,8 @@ class DelegatingTemplateOperationsTest {
             val operations = createTemplateOperations()
             val result = operations.createObject(String::class.java, model)
 
+            verify { mockDelegate.templateRenderer }
+            verify { mockTemplateRenderer.compileLoadedTemplate(templateName) }
             verify { mockCompiledTemplate.render(model) }
             verify { mockDelegate.createObject(any(), String::class.java) }
             assertEquals(expectedResult, result)
@@ -86,6 +88,8 @@ class DelegatingTemplateOperationsTest {
             val operations = createTemplateOperations()
             val result = operations.createObject(TestOutput::class.java, model)
 
+            verify { mockDelegate.templateRenderer }
+            verify { mockTemplateRenderer.compileLoadedTemplate(templateName) }
             verify { mockDelegate.createObject(any(), TestOutput::class.java) }
             assertEquals(expectedResult, result)
         }
@@ -107,6 +111,8 @@ class DelegatingTemplateOperationsTest {
             val operations = createTemplateOperations()
             val result = operations.generateText(model)
 
+            verify { mockDelegate.templateRenderer }
+            verify { mockTemplateRenderer.compileLoadedTemplate(templateName) }
             verify { mockCompiledTemplate.render(model) }
             verify { mockDelegate.createObject(any(), String::class.java) }
             assertEquals(expectedResult, result)
@@ -137,6 +143,8 @@ class DelegatingTemplateOperationsTest {
             val operations = createTemplateOperations()
             val result = operations.respondWithSystemPrompt(conversation, model)
 
+            verify { mockDelegate.templateRenderer }
+            verify { mockTemplateRenderer.compileLoadedTemplate(templateName) }
             verify { mockCompiledTemplate.render(model) }
             verify { mockDelegate.respond(any()) }
             assertEquals(expectedResponse, result)
@@ -162,6 +170,8 @@ class DelegatingTemplateOperationsTest {
             val operations = createTemplateOperations()
             val result = operations.respondWithSystemPrompt(conversation, emptyMap())
 
+            verify { mockDelegate.templateRenderer }
+            verify { mockTemplateRenderer.compileLoadedTemplate(templateName) }
             verify { mockCompiledTemplate.render(emptyMap()) }
             verify { mockDelegate.respond(any()) }
             assertEquals(expectedResponse, result)

@@ -18,7 +18,8 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.channel.MessageOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannelEvent
 import com.embabel.agent.api.channel.ProgressOutputChannelEvent
-import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.api.common.support.DelegatingPromptRunner
+import com.embabel.agent.api.common.support.OperationContextDelegate
 import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.core.*
 import com.embabel.chat.Message
@@ -141,14 +142,16 @@ interface ActionContext : ExecutingOperationContext {
         val promptContributorsToUse = (promptContributors + CurrentDate()).distinctBy { it.promptContribution().role }
 
         val doi = domainObjectInstances()
-        return OperationContextPromptRunner(
-            this,
-            llm = llm,
-            toolGroups = this.toolGroups + toolGroups,
-            toolObjects = (toolObjects + doi.map { ToolObject(it) }).distinct(),
-            promptContributors = promptContributorsToUse,
-            contextualPromptContributors = contextualPromptContributors,
-            generateExamples = generateExamples,
+        return DelegatingPromptRunner(
+            delegate = OperationContextDelegate(
+                context = this,
+                llm = llm,
+                toolGroups = this.toolGroups + toolGroups,
+                toolObjects = (toolObjects + doi.map { ToolObject(it) }).distinct(),
+                promptContributors = promptContributorsToUse,
+                contextualPromptContributors = contextualPromptContributors,
+                generateExamples = generateExamples,
+            ),
         )
     }
 

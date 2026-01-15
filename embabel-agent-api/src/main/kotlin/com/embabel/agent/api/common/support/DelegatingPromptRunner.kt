@@ -20,22 +20,29 @@ import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.nested.support.DelegatingObjectCreator
 import com.embabel.agent.api.common.nested.support.DelegatingTemplateOperations
+import com.embabel.agent.api.common.streaming.StreamingPromptRunner
+import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
+import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
+import com.embabel.agent.api.common.support.streaming.StreamingPromptRunnerOperationsImpl
+import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
+import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.safelyGetTools
+import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
+import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
-import com.embabel.common.textio.template.TemplateRenderer
-import com.fasterxml.jackson.databind.ObjectMapper
 
 internal data class DelegatingPromptRunner(
     internal val delegate: PromptExecutionDelegate,
-    private val templateRenderer: TemplateRenderer,
-    private val objectMapper: ObjectMapper,
-) : PromptRunner {
+) : StreamingPromptRunner {
 
     // Properties delegated to the delegate
     override val toolObjects: List<ToolObject>
@@ -122,9 +129,7 @@ internal data class DelegatingPromptRunner(
     override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
         return DelegatingObjectCreator(
             delegate = delegate,
-            outputClass = outputClass,
-            objectMapper = objectMapper,
-            templateRenderer = templateRenderer,
+            outputClass = outputClass
         )
     }
 
@@ -132,7 +137,6 @@ internal data class DelegatingPromptRunner(
         return DelegatingTemplateOperations(
             delegate = delegate,
             templateName = templateName,
-            templateRenderer = templateRenderer,
         )
     }
 
@@ -156,4 +160,77 @@ internal data class DelegatingPromptRunner(
         context: String,
         confidenceThreshold: ZeroToOne,
     ): Boolean = delegate.evaluateCondition(condition, context, confidenceThreshold)
+
+    // Streaming support - requires access to context through OperationContextDelegate
+    override fun supportsStreaming(): Boolean {
+        val operationContextDelegate = delegate as? OperationContextDelegate
+            ?: return false
+        val context = operationContextDelegate.context
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+        return StreamingCapabilityDetector.supportsStreaming(llmOperations, delegate.llm)
+    }
+
+    override fun stream(): StreamingPromptRunnerOperations {
+        if (!supportsStreaming()) {
+            throw UnsupportedOperationException(
+                "Streaming not supported. Check supportsStreaming() before calling stream()."
+            )
+        }
+
+        val operationContextDelegate = delegate as OperationContextDelegate
+        val context = operationContextDelegate.context
+        val action = (context as? ActionContext)?.action
+
+        return StreamingPromptRunnerOperationsImpl(
+            streamingLlmOperations = StreamingChatClientOperations(
+                context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
+            ),
+            interaction = LlmInteraction(
+                llm = delegate.llm,
+                toolGroups = delegate.toolGroups,
+                tools = safelyGetTools(delegate.toolObjects),
+                promptContributors = delegate.promptContributors,
+                id = InteractionId("${context.operation.name}-streaming"),
+                generateExamples = delegate.generateExamples,
+                propertyFilter = delegate.propertyFilter,
+            ),
+            messages = delegate.messages,
+            agentProcess = context.processContext.agentProcess,
+            action = action,
+        )
+    }
+
+    override fun supportsThinking(): Boolean = true
+
+    override fun withThinking(): ThinkingPromptRunnerOperations {
+        val operationContextDelegate = delegate as? OperationContextDelegate
+            ?: throw UnsupportedOperationException("Thinking extraction requires OperationContextDelegate")
+
+        val context = operationContextDelegate.context
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+
+        if (llmOperations !is ChatClientLlmOperations) {
+            throw UnsupportedOperationException(
+                "Thinking extraction not supported by underlying LLM operations."
+            )
+        }
+
+        val action = (context as? ActionContext)?.action
+
+        return ThinkingPromptRunnerOperationsImpl(
+            chatClientOperations = llmOperations,
+            interaction = LlmInteraction(
+                llm = delegate.llm.withThinking(Thinking.withExtraction()),
+                toolGroups = delegate.toolGroups,
+                tools = safelyGetTools(delegate.toolObjects),
+                promptContributors = delegate.promptContributors,
+                id = InteractionId("${context.operation.name}-thinking"),
+                generateExamples = delegate.generateExamples,
+                propertyFilter = delegate.propertyFilter,
+            ),
+            messages = delegate.messages,
+            agentProcess = context.processContext.agentProcess,
+            action = action,
+        )
+    }
 }

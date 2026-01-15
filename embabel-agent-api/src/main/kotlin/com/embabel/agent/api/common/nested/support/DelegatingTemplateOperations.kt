@@ -21,13 +21,13 @@ import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
-import com.embabel.common.textio.template.TemplateRenderer
 
 internal data class DelegatingTemplateOperations(
     internal val delegate: PromptExecutionDelegate,
     internal val templateName: String,
-    private val templateRenderer: TemplateRenderer,
 ) : TemplateOperations {
+
+    private val templateRenderer = delegate.templateRenderer
 
     private val compiledTemplate = templateRenderer.compileLoadedTemplate(templateName)
 

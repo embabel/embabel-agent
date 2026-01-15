@@ -38,11 +38,11 @@ class DelegatingObjectCreatorTest {
     private val mockTemplateRenderer = mockk<com.embabel.common.textio.template.TemplateRenderer>()
 
     private fun createObjectCreator(): DelegatingObjectCreator<String> {
+        every { mockDelegate.objectMapper } returns objectMapper
+        every { mockDelegate.templateRenderer } returns mockTemplateRenderer
         return DelegatingObjectCreator(
             delegate = mockDelegate,
             outputClass = String::class.java,
-            objectMapper = objectMapper,
-            templateRenderer = mockTemplateRenderer,
         )
     }
 
@@ -56,6 +56,8 @@ class DelegatingObjectCreatorTest {
 
             every { mockDelegate.withGenerateExamples(false) } returns withGenerateExamplesDelegate
             every { withGenerateExamplesDelegate.withPromptContributors(any()) } returns updatedDelegate
+            every { updatedDelegate.objectMapper } returns objectMapper
+            every { updatedDelegate.templateRenderer } returns mockTemplateRenderer
 
             val example = ObjectCreationExample("test example", "example value")
             val creator = createObjectCreator()
@@ -64,6 +66,8 @@ class DelegatingObjectCreatorTest {
 
             verify { mockDelegate.withGenerateExamples(false) }
             verify { withGenerateExamplesDelegate.withPromptContributors(any()) }
+            verify { updatedDelegate.objectMapper }
+            verify { updatedDelegate.templateRenderer }
             assertEquals(updatedDelegate, (result as DelegatingObjectCreator<String>).delegate)
         }
 
@@ -73,8 +77,12 @@ class DelegatingObjectCreatorTest {
             val withGenerateExamplesDelegate = mockk<PromptExecutionDelegate>()
             val promptContributorsSlot = slot<List<PromptContributor>>()
 
+            every { mockDelegate.objectMapper } returns objectMapper
+            every { mockDelegate.templateRenderer } returns mockTemplateRenderer
             every { mockDelegate.withGenerateExamples(false) } returns withGenerateExamplesDelegate
             every { withGenerateExamplesDelegate.withPromptContributors(capture(promptContributorsSlot)) } returns updatedDelegate
+            every { updatedDelegate.objectMapper } returns objectMapper
+            every { updatedDelegate.templateRenderer } returns mockTemplateRenderer
 
             data class TestObject(val name: String, val value: Int)
 
@@ -83,12 +91,14 @@ class DelegatingObjectCreatorTest {
             val creator = DelegatingObjectCreator(
                 delegate = mockDelegate,
                 outputClass = TestObject::class.java,
-                objectMapper = objectMapper,
-                templateRenderer = mockTemplateRenderer,
             )
 
             creator.withExample(example)
 
+            verify { mockDelegate.objectMapper }
+            verify { mockDelegate.templateRenderer }
+            verify { updatedDelegate.objectMapper }
+            verify { updatedDelegate.templateRenderer }
             val capturedContributors = promptContributorsSlot.captured
             assertEquals(1, capturedContributors.size)
         }
@@ -103,11 +113,15 @@ class DelegatingObjectCreatorTest {
             val filter = Predicate<String> { it.startsWith("test") }
 
             every { mockDelegate.withPropertyFilter(filter) } returns updatedDelegate
+            every { updatedDelegate.objectMapper } returns objectMapper
+            every { updatedDelegate.templateRenderer } returns mockTemplateRenderer
 
             val creator = createObjectCreator()
             val result = creator.withPropertyFilter(filter)
 
             verify { mockDelegate.withPropertyFilter(filter) }
+            verify { updatedDelegate.objectMapper }
+            verify { updatedDelegate.templateRenderer }
             assertEquals(updatedDelegate, (result as DelegatingObjectCreator<String>).delegate)
         }
     }
@@ -120,11 +134,15 @@ class DelegatingObjectCreatorTest {
             val updatedDelegate = mockk<PromptExecutionDelegate>()
 
             every { mockDelegate.withValidation(false) } returns updatedDelegate
+            every { updatedDelegate.objectMapper } returns objectMapper
+            every { updatedDelegate.templateRenderer } returns mockTemplateRenderer
 
             val creator = createObjectCreator()
             val result = creator.withValidation(false)
 
             verify { mockDelegate.withValidation(false) }
+            verify { updatedDelegate.objectMapper }
+            verify { updatedDelegate.templateRenderer }
             assertEquals(updatedDelegate, (result as DelegatingObjectCreator<String>).delegate)
         }
     }
