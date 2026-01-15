@@ -58,6 +58,12 @@ interface NavigableDocument : ContentRoot, NavigableContainerSection {
 
     override fun propertiesToPersist(): Map<String, Any?> = super<ContentRoot>.propertiesToPersist()
 
+    /**
+     * Return a new document with the given metadata merged with existing metadata.
+     * The new metadata takes precedence over existing metadata for duplicate keys.
+     */
+    fun withMetadata(additionalMetadata: Map<String, Any?>): NavigableDocument
+
 }
 
 /**
@@ -70,4 +76,8 @@ data class MaterializedDocument(
     override val ingestionTimestamp: Instant = Instant.now(),
     override val children: List<NavigableSection>,
     override val metadata: Map<String, Any?> = emptyMap(),
-) : NavigableDocument
+) : NavigableDocument {
+
+    override fun withMetadata(additionalMetadata: Map<String, Any?>): NavigableDocument =
+        copy(metadata = metadata + additionalMetadata)
+}
