@@ -83,3 +83,23 @@ Replace usage of the old default implementations of the interfaces changed to th
     - State properties: `toolObjects`, `messages`, `images`, plus inherited from `LlmUse`
     - Configuration methods: all `with*` methods returning `PromptExecutionDelegate`
   - Build verified successfully
+
+- ✅ Phase 3 complete: Migrated to `PromptExecutionDelegate`
+  - Created `DelegatingObjectCreator` internal implementation that delegates to `PromptExecutionDelegate`
+    - Handles examples by delegating to `withPromptContributors()`
+    - Delegates property filtering and validation to delegate methods
+    - Implements `fromTemplate()` by compiling template and calling `delegate.createObject()`
+  - Created `DelegatingTemplateOperations` internal implementation that delegates to `PromptExecutionDelegate`
+    - Compiles templates using `TemplateRenderer`
+    - Converts rendered templates to `UserMessage` for delegate execution
+  - Created `DelegatingPromptRunner` internal implementation that delegates to `PromptExecutionDelegate`
+    - Returns `DelegatingObjectCreator` from `creating()`
+    - Returns `DelegatingTemplateOperations` from `withTemplate()`
+    - All configuration methods wrap delegate and return new `DelegatingPromptRunner`
+    - Execution methods directly delegate to `PromptExecutionDelegate`
+  - Build verified successfully
+  - Added comprehensive unit tests using MockK:
+    - `DelegatingObjectCreatorTest`: 6 tests covering all methods
+    - `DelegatingTemplateOperationsTest`: 5 tests covering all methods
+    - `DelegatingPromptRunnerTest`: 25 tests covering properties, configuration, factory, and execution methods
+    - All 36 tests passing
