@@ -49,6 +49,7 @@ internal class DefaultToolLoop(
         val conversationHistory = initialMessages.toMutableList()
         val availableTools = initialTools.toMutableList()
         val injectedTools = mutableListOf<Tool>()
+        val removedTools = mutableListOf<Tool>()
         var accumulatedUsage: Usage? = null
         var iterations = 0
 
@@ -80,6 +81,7 @@ internal class DefaultToolLoop(
                     conversationHistory = conversationHistory,
                     totalIterations = iterations,
                     injectedTools = injectedTools,
+                    removedTools = removedTools,
                     totalUsage = accumulatedUsage,
                 )
             }
@@ -114,17 +116,32 @@ internal class DefaultToolLoop(
                     iterationCount = iterations,
                 )
 
-                val newTools = injectionStrategy.evaluateToolResult(context)
-                if (newTools.isNotEmpty()) {
-                    availableTools.addAll(newTools)
-                    injectedTools.addAll(newTools)
+                val injectionResult = injectionStrategy.evaluate(context)
+                if (injectionResult.hasChanges()) {
+                    // Remove tools first
+                    if (injectionResult.toolsToRemove.isNotEmpty()) {
+                        val namesToRemove = injectionResult.toolsToRemove.map { it.definition.name }.toSet()
+                        availableTools.removeIf { it.definition.name in namesToRemove }
+                        removedTools.addAll(injectionResult.toolsToRemove)
+                        logger.info(
+                            "Strategy removed {} tools after {}: {}",
+                            injectionResult.toolsToRemove.size,
+                            toolCall.name,
+                            namesToRemove
+                        )
+                    }
 
-                    logger.info(
-                        "Strategy injected {} tools after {}: {}",
-                        newTools.size,
-                        toolCall.name,
-                        newTools.map { it.definition.name }
-                    )
+                    // Then add new tools
+                    if (injectionResult.toolsToAdd.isNotEmpty()) {
+                        availableTools.addAll(injectionResult.toolsToAdd)
+                        injectedTools.addAll(injectionResult.toolsToAdd)
+                        logger.info(
+                            "Strategy injected {} tools after {}: {}",
+                            injectionResult.toolsToAdd.size,
+                            toolCall.name,
+                            injectionResult.toolsToAdd.map { it.definition.name }
+                        )
+                    }
                 }
 
                 // 5d. Add tool result to history

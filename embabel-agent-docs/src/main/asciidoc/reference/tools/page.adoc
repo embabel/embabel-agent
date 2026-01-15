@@ -906,3 +906,372 @@ Use `AgenticTool` for simple cases or as a migration stepping stone; graduate to
 
 TIP: For supervisor-style orchestration with typed outputs and full blackboard state management, see <<reference.planners__supervisor-invocation,SupervisorInvocation>>.
 It operates at a higher level than `AgenticTool`, orchestrating `@Action` methods rather than `Tool` instances, and produces typed goal objects with currying support.
+
+[[reference.tools__matryoshka]]
+==== MatryoshkaTool: Progressive Tool Disclosure
+
+A `MatryoshkaTool` is a special tool that presents a high-level description to the LLM and, when invoked, exposes its inner tools.
+Named after Russian nesting dolls, this pattern enables *progressive tool disclosure* - presenting a simplified interface initially, then revealing more granular tools on demand.
+
+===== When to Use MatryoshkaTool
+
+MatryoshkaTool is useful when:
+
+* You have many related tools that might overwhelm the LLM with choices
+* You want to group tools by category (e.g., "database operations", "file operations")
+* You want the LLM to express intent before revealing detailed options
+* You need to reduce token usage for tool descriptions
+
+===== Creating a Simple MatryoshkaTool
+
+The simplest form exposes all inner tools when invoked:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.tool.MatryoshkaTool;
+import com.embabel.agent.api.tool.Tool;
+
+// Create inner tools
+Tool queryTool = Tool.create("query_table", "Execute a SQL query",
+    Tool.InputSchema.of(Tool.Parameter.string("sql", "The SQL query to execute")),
+    input -> Tool.Result.text("{\"rows\": 5}")
+);
+
+Tool insertTool = Tool.create("insert_record", "Insert a new record",
+    Tool.InputSchema.of(Tool.Parameter.string("table", "Table name")),
+    input -> Tool.Result.text("{\"id\": 123}")
+);
+
+Tool deleteTool = Tool.create("delete_record", "Delete a record",
+    Tool.InputSchema.of(Tool.Parameter.integer("id", "Record ID to delete")),
+    input -> Tool.Result.text("{\"deleted\": true}")
+);
+
+// Create the MatryoshkaTool facade
+MatryoshkaTool databaseTool = MatryoshkaTool.of(
+    "database_operations",
+    "Use this tool to work with the database. Invoke to see specific operations.",
+    List.of(queryTool, insertTool, deleteTool)
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.tool.MatryoshkaTool
+import com.embabel.agent.api.tool.Tool
+
+// Create inner tools
+val queryTool = Tool.of(
+    name = "query_table",
+    description = "Execute a SQL query",
+    inputSchema = Tool.InputSchema.of(Tool.Parameter.string("sql", "The SQL query to execute"))
+) { input -> Tool.Result.text("""{"rows": 5}""") }
+
+val insertTool = Tool.of(
+    name = "insert_record",
+    description = "Insert a new record",
+    inputSchema = Tool.InputSchema.of(Tool.Parameter.string("table", "Table name"))
+) { input -> Tool.Result.text("""{"id": 123}""") }
+
+val deleteTool = Tool.of(
+    name = "delete_record",
+    description = "Delete a record",
+    inputSchema = Tool.InputSchema.of(Tool.Parameter.integer("id", "Record ID to delete"))
+) { input -> Tool.Result.text("""{"deleted": true}""") }
+
+// Create the MatryoshkaTool facade
+val databaseTool = MatryoshkaTool.of(
+    name = "database_operations",
+    description = "Use this tool to work with the database. Invoke to see specific operations.",
+    innerTools = listOf(queryTool, insertTool, deleteTool)
+)
+----
+====
+
+===== Category-Based Tool Selection
+
+Use `byCategory` to expose different tools based on the category the LLM selects:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.tool.MatryoshkaTool;
+import java.util.Map;
+
+// Define tools by category
+Map<String, List<Tool>> toolsByCategory = Map.of(
+    "read", List.of(readFileTool, listDirectoryTool, searchFilesTool),
+    "write", List.of(writeFileTool, deleteFileTool, moveFileTool)
+);
+
+// Create category-based MatryoshkaTool
+MatryoshkaTool fileTool = MatryoshkaTool.byCategory(
+    "file_operations",
+    "File operations. Pass category: 'read' for reading files, 'write' for modifying files.",
+    toolsByCategory
+);
+
+// The tool's schema automatically includes the category as an enum parameter
+// When invoked with {"category": "read"}, only read tools are exposed
+// When invoked with {"category": "write"}, only write tools are exposed
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.tool.MatryoshkaTool
+
+// Define tools by category
+val toolsByCategory = mapOf(
+    "read" to listOf(readFileTool, listDirectoryTool, searchFilesTool),
+    "write" to listOf(writeFileTool, deleteFileTool, moveFileTool)
+)
+
+// Create category-based MatryoshkaTool
+val fileTool = MatryoshkaTool.byCategory(
+    name = "file_operations",
+    description = "File operations. Pass category: 'read' for reading files, 'write' for modifying files.",
+    toolsByCategory = toolsByCategory
+)
+
+// The tool's schema automatically includes the category as an enum parameter
+// When invoked with {"category": "read"}, only read tools are exposed
+// When invoked with {"category": "write"}, only write tools are exposed
+----
+====
+
+===== Custom Selection Logic
+
+For more complex selection logic, use `selectable`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.tool.MatryoshkaTool;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+List<Tool> allTools = List.of(basicTool, advancedTool, adminTool);
+
+MatryoshkaTool permissionBasedTool = MatryoshkaTool.selectable(
+    "api_operations",
+    "API operations. Pass 'accessLevel': 'basic', 'advanced', or 'admin'.",
+    allTools,
+    Tool.InputSchema.of(
+        Tool.Parameter.string("accessLevel", "Access level for operations",
+            true, List.of("basic", "advanced", "admin"))
+    ),
+    true,  // removeOnInvoke
+    input -> {
+        // Custom selection logic
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> params = mapper.readValue(input, Map.class);
+            String level = (String) params.get("accessLevel");
+            return switch (level) {
+                case "basic" -> List.of(basicTool);
+                case "advanced" -> List.of(basicTool, advancedTool);
+                case "admin" -> allTools;
+                default -> List.of(basicTool);
+            };
+        } catch (Exception e) {
+            return List.of(basicTool);
+        }
+    }
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.tool.MatryoshkaTool
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+
+val allTools = listOf(basicTool, advancedTool, adminTool)
+
+val permissionBasedTool = MatryoshkaTool.selectable(
+    name = "api_operations",
+    description = "API operations. Pass 'accessLevel': 'basic', 'advanced', or 'admin'.",
+    innerTools = allTools,
+    inputSchema = Tool.InputSchema.of(
+        Tool.Parameter.string("accessLevel", "Access level for operations",
+            required = true, enumValues = listOf("basic", "advanced", "admin"))
+    ),
+) { input ->
+    // Custom selection logic
+    val mapper = jacksonObjectMapper()
+    val params = mapper.readValue(input, Map::class.java)
+    when (params["accessLevel"]) {
+        "basic" -> listOf(basicTool)
+        "advanced" -> listOf(basicTool, advancedTool)
+        "admin" -> allTools
+        else -> listOf(basicTool)
+    }
+}
+----
+====
+
+===== Keeping the Facade Available
+
+By default, a MatryoshkaTool is removed after invocation (replaced by its inner tools).
+Set `removeOnInvoke = false` to keep the facade available for re-invocation with different arguments:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Facade stays available after invocation
+MatryoshkaTool persistentTool = MatryoshkaTool.of(
+    "operations",
+    "Operations. Invoke multiple times with different needs.",
+    allTools,
+    false  // removeOnInvoke = false
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Facade stays available after invocation
+val persistentTool = MatryoshkaTool.of(
+    name = "operations",
+    description = "Operations. Invoke multiple times with different needs.",
+    innerTools = allTools,
+    removeOnInvoke = false
+)
+----
+====
+
+===== Enabling MatryoshkaTool in the Tool Loop
+
+MatryoshkaTool requires the `MatryoshkaToolInjectionStrategy` to be enabled.
+This strategy watches for MatryoshkaTool invocations and performs the tool replacement.
+
+When using Embabel's own tool loop (the default), enable it via the injection strategy:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy;
+import com.embabel.agent.spi.loop.CompositeToolInjectionStrategy;
+
+// Use the singleton instance
+MatryoshkaToolInjectionStrategy strategy = MatryoshkaToolInjectionStrategy.INSTANCE;
+
+// Or combine with other strategies
+CompositeToolInjectionStrategy combined =
+    CompositeToolInjectionStrategy.withMatryoshka(otherStrategy1, otherStrategy2);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy
+import com.embabel.agent.spi.loop.CompositeToolInjectionStrategy
+
+// Use the singleton instance
+val strategy = MatryoshkaToolInjectionStrategy.INSTANCE
+
+// Or combine with other strategies
+val combined = CompositeToolInjectionStrategy.withMatryoshka(otherStrategy1, otherStrategy2)
+----
+====
+
+===== How MatryoshkaTool Works
+
+1. **Initial state**: The LLM sees only the facade tool (e.g., "database_operations")
+2. **LLM invokes**: The LLM calls the facade with optional arguments
+3. **Strategy evaluates**: `MatryoshkaToolInjectionStrategy` detects the invocation
+4. **Tools replaced**: The facade is removed (if `removeOnInvoke` is true) and inner tools are added
+5. **Continue**: The LLM now sees and can use the specific inner tools
+
+This flow reduces the initial tool set complexity while allowing the LLM to access detailed tools when it needs them.
+
+===== Nested MatryoshkaTools
+
+MatryoshkaTools can be nested for multi-level progressive disclosure:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Inner matryoshka for user management
+MatryoshkaTool userManagement = MatryoshkaTool.of(
+    "user_management",
+    "User management operations",
+    List.of(createUserTool, deleteUserTool, updateUserTool)
+);
+
+// Inner matryoshka for system config
+MatryoshkaTool systemConfig = MatryoshkaTool.of(
+    "system_config",
+    "System configuration operations",
+    List.of(updateConfigTool, backupTool, restoreTool)
+);
+
+// Outer matryoshka containing both
+MatryoshkaTool adminTool = MatryoshkaTool.of(
+    "admin_operations",
+    "Administrative operations. Invoke to see categories.",
+    List.of(userManagement, systemConfig)
+);
+
+// Flow:
+// 1. LLM sees: admin_operations
+// 2. LLM invokes: admin_operations -> sees: user_management, system_config
+// 3. LLM invokes: user_management -> sees: createUser, deleteUser, updateUser
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Inner matryoshka for user management
+val userManagement = MatryoshkaTool.of(
+    name = "user_management",
+    description = "User management operations",
+    innerTools = listOf(createUserTool, deleteUserTool, updateUserTool)
+)
+
+// Inner matryoshka for system config
+val systemConfig = MatryoshkaTool.of(
+    name = "system_config",
+    description = "System configuration operations",
+    innerTools = listOf(updateConfigTool, backupTool, restoreTool)
+)
+
+// Outer matryoshka containing both
+val adminTool = MatryoshkaTool.of(
+    name = "admin_operations",
+    description = "Administrative operations. Invoke to see categories.",
+    innerTools = listOf(userManagement, systemConfig)
+)
+
+// Flow:
+// 1. LLM sees: admin_operations
+// 2. LLM invokes: admin_operations -> sees: user_management, system_config
+// 3. LLM invokes: user_management -> sees: createUser, deleteUser, updateUser
+----
+====
