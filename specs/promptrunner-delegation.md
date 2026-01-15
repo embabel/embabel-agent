@@ -42,12 +42,16 @@ Remove all functionality that is exposed in `ObjectCreator` or `TemplateOperatio
 
 Create an internal implementation of `PromptExecutionDelegate` named `OperationContextDelegate` and that uses the
 `OperationContext` as a delegate, similarly as `OperationContextPromptRunner` does.
+Create a unit test for `OperationContextDelegate`, similar to `OperationContextPromptRunnerTest` and other existing
+tests.stuff,
 
 ### Phase 6: Replace usage of old implementations with new ones
 
 Replace usage of the old default implementations of the interfaces changed to the new ones:
 
 - `OperationContextPromptRunner` usage should become `OperationContextDelegate`
+- `PromptRunnerObjectCreator` should become `DelegatingObjectCreator`
+- `TemplateOperations` should become `DelegatingTemplateOperations`
 
 ## Considerations
 
@@ -116,3 +120,33 @@ Replace usage of the old default implementations of the interfaces changed to th
   - Maintained backwards compatibility for existing `PromptRunnerObjectCreator` usage
   - Build verified successfully
   - All 1828 tests passing with 0 failures
+
+- ✅ Phase 5 complete: Created default implementation of `PromptExecutionDelegate`
+  - Created `OperationContextDelegate` internal implementation that uses `OperationContext` as delegate
+  - Implements all `PromptExecutionDelegate` methods:
+    - Core execution methods: `createObject`, `createObjectIfPossible`, `respond`, `evaluateCondition`
+    - All configuration `with*` methods returning `PromptExecutionDelegate`
+    - Image combining logic copied from `OperationContextPromptRunner`
+    - Builds `LlmInteraction` objects for process context execution
+  - Delegates actual LLM execution to `context.processContext.createObject()` and `createObjectIfPossible()`
+  - Handles handoffs and subagents using the same pattern as `OperationContextPromptRunner`
+  - Created comprehensive unit test `OperationContextDelegateTest`:
+    - 19 tests organized into 3 nested test classes
+    - ConfigurationMethods: 9 tests verifying all with* methods
+    - ImmutabilityTest: 3 tests verifying configuration methods return new instances
+    - PropertyAccessTest: 7 tests verifying all properties are accessible
+  - Build verified successfully
+  - All 1847 tests passing with 0 failures
+
+- ✅ Phase 6 complete: Replaced usage of old implementations with new ones
+  - Updated `OperationContext.promptRunner()` to create `DelegatingPromptRunner` with `OperationContextDelegate`
+  - Updated `ActionContext.promptRunner()` to create `DelegatingPromptRunner` with `OperationContextDelegate`
+  - Made `DelegatingPromptRunner` constructor parameters lazy (lambdas) to avoid eager platformServices access
+    - Prevents test failures from mocked ProcessContext without full platformServices chain
+  - Implemented `StreamingPromptRunner` interface in `DelegatingPromptRunner`
+    - Added `supportsStreaming()` and `stream()` methods that delegate to context via `OperationContextDelegate`
+    - Added `supportsThinking()` and `withThinking()` methods for thinking extraction support
+  - Exposed `context` property in `OperationContextDelegate` as internal for access by `DelegatingPromptRunner`
+  - Updated `DelegatingPromptRunnerTest` to use lazy parameter evaluation
+  - All 1847 tests passing with 0 failures
+  - Build verified successfully
