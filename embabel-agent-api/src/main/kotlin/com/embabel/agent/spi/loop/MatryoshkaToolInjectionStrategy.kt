@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory
  * 3. Result: database_operations removed, query_table/insert/update/delete added
  * 4. LLM can now use specific database tools
  *
- * This strategy can be combined with other strategies using [CompositeToolInjectionStrategy].
+ * This strategy can be combined with other strategies using [ChainedToolInjectionStrategy].
  *
  * @see MatryoshkaTool
  */
@@ -94,45 +94,10 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
 }
 
 /**
- * Combines multiple injection strategies.
- *
- * Evaluates strategies in order and combines their results.
- * Tool additions are accumulated, tool removals are accumulated.
- *
- * @param strategies The strategies to combine, evaluated in order
+ * @deprecated Use [ChainedToolInjectionStrategy] instead.
  */
-class CompositeToolInjectionStrategy(
-    private val strategies: List<ToolInjectionStrategy>,
-) : ToolInjectionStrategy {
-
-    constructor(vararg strategies: ToolInjectionStrategy) : this(strategies.toList())
-
-    override fun evaluate(context: ToolInjectionContext): ToolInjectionResult {
-        val allToAdd = mutableListOf<com.embabel.agent.api.tool.Tool>()
-        val allToRemove = mutableListOf<com.embabel.agent.api.tool.Tool>()
-
-        for (strategy in strategies) {
-            val result = strategy.evaluate(context)
-            allToAdd.addAll(result.toolsToAdd)
-            allToRemove.addAll(result.toolsToRemove)
-        }
-
-        return ToolInjectionResult(
-            toolsToAdd = allToAdd,
-            toolsToRemove = allToRemove,
-        )
-    }
-
-    companion object {
-
-        /**
-         * Create a strategy that includes MatryoshkaTool support plus custom strategies.
-         */
-        @JvmStatic
-        fun withMatryoshka(vararg additionalStrategies: ToolInjectionStrategy): CompositeToolInjectionStrategy {
-            return CompositeToolInjectionStrategy(
-                listOf(MatryoshkaToolInjectionStrategy.INSTANCE) + additionalStrategies.toList()
-            )
-        }
-    }
-}
+@Deprecated(
+    message = "Renamed to ChainedToolInjectionStrategy",
+    replaceWith = ReplaceWith("ChainedToolInjectionStrategy")
+)
+typealias CompositeToolInjectionStrategy = ChainedToolInjectionStrategy

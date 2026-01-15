@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.spi.loop
 
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
@@ -23,6 +25,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 class MatryoshkaToolTest {
 
@@ -360,10 +363,10 @@ class MatryoshkaToolTest {
     }
 
     @Nested
-    inner class CompositeToolInjectionStrategyTest {
+    inner class ChainedToolInjectionStrategyTest {
 
         @Test
-        fun `composite combines multiple strategies`() {
+        fun `chained combines multiple strategies`() {
             val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
             val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
 
@@ -377,7 +380,7 @@ class MatryoshkaToolTest {
                     ToolInjectionResult.add(tool2)
             }
 
-            val composite = CompositeToolInjectionStrategy(strategy1, strategy2)
+            val chained = ChainedToolInjectionStrategy(strategy1, strategy2)
 
             val context = ToolInjectionContext(
                 conversationHistory = emptyList(),
@@ -386,7 +389,7 @@ class MatryoshkaToolTest {
                 iterationCount = 1,
             )
 
-            val result = composite.evaluate(context)
+            val result = chained.evaluate(context)
 
             assertEquals(2, result.toolsToAdd.size)
         }
@@ -400,7 +403,7 @@ class MatryoshkaToolTest {
                 innerTools = listOf(innerTool),
             )
 
-            val composite = CompositeToolInjectionStrategy.withMatryoshka()
+            val chained = ChainedToolInjectionStrategy.withMatryoshka()
 
             val context = ToolInjectionContext(
                 conversationHistory = emptyList(),
@@ -414,7 +417,7 @@ class MatryoshkaToolTest {
                 iterationCount = 1,
             )
 
-            val result = composite.evaluate(context)
+            val result = chained.evaluate(context)
 
             assertEquals(1, result.toolsToAdd.size)
             assertEquals(1, result.toolsToRemove.size)
@@ -573,4 +576,203 @@ class MatryoshkaToolTest {
             assertEquals(2, result.removedTools.size)
         }
     }
+
+    @Nested
+    inner class AnnotationBasedMatryoshkaToolTest {
+
+        @Test
+        fun `fromInstance creates simple MatryoshkaTool from annotated class`() {
+            val matryoshka = MatryoshkaTool.fromInstance(SimpleDatabaseTools())
+
+            assertEquals("database_operations", matryoshka.definition.name)
+            assertEquals("Database operations. Invoke to see specific tools.", matryoshka.definition.description)
+            assertEquals(2, matryoshka.innerTools.size)
+            assertTrue(matryoshka.removeOnInvoke)
+
+            val toolNames = matryoshka.innerTools.map { it.definition.name }
+            assertTrue(toolNames.contains("query"))
+            assertTrue(toolNames.contains("insert"))
+        }
+
+        @Test
+        fun `fromInstance creates category-based MatryoshkaTool when categories are used`() {
+            val matryoshka = MatryoshkaTool.fromInstance(CategoryBasedFileTools())
+
+            assertEquals("file_operations", matryoshka.definition.name)
+            assertEquals(4, matryoshka.innerTools.size) // 2 read + 2 write
+
+            // Verify category selection works
+            val readTools = matryoshka.selectTools("""{"category": "read"}""")
+            assertEquals(2, readTools.size)
+            assertTrue(readTools.all { it.definition.name in listOf("readFile", "listDir") })
+
+            val writeTools = matryoshka.selectTools("""{"category": "write"}""")
+            assertEquals(2, writeTools.size)
+            assertTrue(writeTools.all { it.definition.name in listOf("writeFile", "deleteFile") })
+        }
+
+        @Test
+        fun `fromInstance respects removeOnInvoke annotation attribute`() {
+            val matryoshka = MatryoshkaTool.fromInstance(PersistentTools())
+
+            assertEquals("persistent_tools", matryoshka.definition.name)
+            assertFalse(matryoshka.removeOnInvoke)
+        }
+
+        @Test
+        fun `fromInstance throws for class without MatryoshkaTools annotation`() {
+            val exception = assertThrows<IllegalArgumentException> {
+                MatryoshkaTool.fromInstance(NonAnnotatedClass())
+            }
+            assertTrue(exception.message!!.contains("not annotated with @MatryoshkaTools"))
+        }
+
+        @Test
+        fun `fromInstance throws for class without LlmTool methods`() {
+            val exception = assertThrows<IllegalArgumentException> {
+                MatryoshkaTool.fromInstance(NoToolMethods())
+            }
+            assertTrue(exception.message!!.contains("no methods annotated with @LlmTool"))
+        }
+
+        @Test
+        fun `safelyFromInstance returns null for non-annotated class`() {
+            val result = MatryoshkaTool.safelyFromInstance(NonAnnotatedClass())
+            assertNull(result)
+        }
+
+        @Test
+        fun `safelyFromInstance returns MatryoshkaTool for valid class`() {
+            val result = MatryoshkaTool.safelyFromInstance(SimpleDatabaseTools())
+            assertNotNull(result)
+            assertEquals("database_operations", result!!.definition.name)
+        }
+
+        @Test
+        fun `category-based MatryoshkaTool includes uncategorized tools in all category`() {
+            val matryoshka = MatryoshkaTool.fromInstance(MixedCategoryTools())
+
+            // The "all" category should include everything
+            val allTools = matryoshka.selectTools("""{"category": "all"}""")
+            assertEquals(3, allTools.size)
+
+            // Read category should have read tool + uncategorized tool
+            val readTools = matryoshka.selectTools("""{"category": "read"}""")
+            assertEquals(2, readTools.size)
+        }
+
+        @Test
+        fun `tools from annotated class are callable`() {
+            val matryoshka = MatryoshkaTool.fromInstance(SimpleDatabaseTools())
+
+            val queryTool = matryoshka.innerTools.find { it.definition.name == "query" }!!
+            val result = queryTool.call("""{"sql": "SELECT * FROM users"}""")
+
+            assertTrue(result is Tool.Result.Text)
+            assertTrue((result as Tool.Result.Text).content.contains("5 rows"))
+        }
+
+        @Test
+        fun `Tool_fromInstance returns MatryoshkaTool when class has MatryoshkaTools annotation`() {
+            val tools = Tool.fromInstance(SimpleDatabaseTools())
+
+            assertEquals(1, tools.size)
+            assertTrue(tools[0] is MatryoshkaTool)
+            assertEquals("database_operations", tools[0].definition.name)
+
+            val matryoshka = tools[0] as MatryoshkaTool
+            assertEquals(2, matryoshka.innerTools.size)
+        }
+
+        @Test
+        fun `Tool_fromInstance returns individual tools when class lacks MatryoshkaTools annotation`() {
+            val tools = Tool.fromInstance(NonAnnotatedClass())
+
+            assertEquals(1, tools.size)
+            assertFalse(tools[0] is MatryoshkaTool)
+            assertEquals("tool", tools[0].definition.name)
+        }
+
+        @Test
+        fun `Tool_safelyFromInstance returns MatryoshkaTool when class has MatryoshkaTools annotation`() {
+            val tools = Tool.safelyFromInstance(SimpleDatabaseTools())
+
+            assertEquals(1, tools.size)
+            assertTrue(tools[0] is MatryoshkaTool)
+        }
+    }
+}
+
+// Test fixture classes
+
+@MatryoshkaTools(
+    name = "database_operations",
+    description = "Database operations. Invoke to see specific tools."
+)
+class SimpleDatabaseTools {
+
+    @LlmTool(description = "Execute a SQL query")
+    fun query(sql: String): String = "Query returned 5 rows"
+
+    @LlmTool(description = "Insert a record")
+    fun insert(table: String, data: String): String = "Inserted record with id 123"
+}
+
+@MatryoshkaTools(
+    name = "file_operations",
+    description = "File operations. Pass category to select tools."
+)
+class CategoryBasedFileTools {
+
+    @LlmTool(description = "Read file contents", category = "read")
+    fun readFile(path: String): String = "file contents"
+
+    @LlmTool(description = "List directory", category = "read")
+    fun listDir(path: String): List<String> = listOf("file1.txt", "file2.txt")
+
+    @LlmTool(description = "Write file", category = "write")
+    fun writeFile(path: String, content: String): String = "Written"
+
+    @LlmTool(description = "Delete file", category = "write")
+    fun deleteFile(path: String): String = "Deleted"
+}
+
+@MatryoshkaTools(
+    name = "persistent_tools",
+    description = "Persistent tools",
+    removeOnInvoke = false
+)
+class PersistentTools {
+
+    @LlmTool(description = "Do something")
+    fun doSomething(): String = "done"
+}
+
+@MatryoshkaTools(
+    name = "mixed_tools",
+    description = "Mixed category tools"
+)
+class MixedCategoryTools {
+
+    @LlmTool(description = "Read operation", category = "read")
+    fun readOp(): String = "read"
+
+    @LlmTool(description = "Write operation", category = "write")
+    fun writeOp(): String = "write"
+
+    @LlmTool(description = "Always available tool")
+    fun alwaysAvailable(): String = "available"
+}
+
+class NonAnnotatedClass {
+    @LlmTool(description = "A tool")
+    fun tool(): String = "result"
+}
+
+@MatryoshkaTools(
+    name = "empty",
+    description = "Empty"
+)
+class NoToolMethods {
+    fun notATool(): String = "not a tool"
 }

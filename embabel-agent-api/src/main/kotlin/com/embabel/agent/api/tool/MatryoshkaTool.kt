@@ -15,6 +15,15 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.MatryoshkaTools
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import org.slf4j.LoggerFactory
+import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.functions
+import kotlin.reflect.full.hasAnnotation
+
 /**
  * A tool that contains other tools, enabling progressive tool disclosure.
  *
@@ -192,10 +201,173 @@ interface MatryoshkaTool : Tool {
             if (input.isBlank()) return null
             return try {
                 @Suppress("UNCHECKED_CAST")
-                val map = com.fasterxml.jackson.databind.ObjectMapper()
+                val map = ObjectMapper()
                     .readValue(input, Map::class.java) as Map<String, Any?>
                 map[paramName] as? String
             } catch (e: Exception) {
+                null
+            }
+        }
+
+        private val logger = LoggerFactory.getLogger(MatryoshkaTool::class.java)
+
+        /**
+         * Create a MatryoshkaTool from an instance annotated with [@MatryoshkaTools][MatryoshkaTools].
+         *
+         * The instance's class must be annotated with `@MatryoshkaTools` and contain
+         * methods annotated with `@LlmTool`. If any `@LlmTool` methods have a `category`
+         * specified, a category-based MatryoshkaTool is created; otherwise, all tools
+         * are exposed when the facade is invoked.
+         *
+         * Example - Simple facade:
+         * ```java
+         * @MatryoshkaTools(
+         *     name = "database_operations",
+         *     description = "Database operations. Invoke to see specific tools."
+         * )
+         * public class DatabaseTools {
+         *     @LlmTool(description = "Execute a SQL query")
+         *     public QueryResult query(String sql) { ... }
+         *
+         *     @LlmTool(description = "Insert a record")
+         *     public InsertResult insert(String table, String data) { ... }
+         * }
+         *
+         * MatryoshkaTool tool = MatryoshkaTool.fromInstance(new DatabaseTools());
+         * ```
+         *
+         * Example - Category-based:
+         * ```java
+         * @MatryoshkaTools(
+         *     name = "file_operations",
+         *     description = "File operations. Pass category to select tools."
+         * )
+         * public class FileTools {
+         *     @LlmTool(description = "Read file", category = "read")
+         *     public String readFile(String path) { ... }
+         *
+         *     @LlmTool(description = "Write file", category = "write")
+         *     public void writeFile(String path, String content) { ... }
+         * }
+         *
+         * MatryoshkaTool tool = MatryoshkaTool.fromInstance(new FileTools());
+         * // Automatically creates category-based selection with "read" and "write" categories
+         * ```
+         *
+         * @param instance The object instance annotated with `@MatryoshkaTools`
+         * @param objectMapper ObjectMapper for JSON parsing (optional)
+         * @return A MatryoshkaTool wrapping the annotated methods
+         * @throws IllegalArgumentException if the class is not annotated with `@MatryoshkaTools`
+         *         or has no `@LlmTool` methods
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun fromInstance(
+            instance: Any,
+            objectMapper: ObjectMapper = jacksonObjectMapper(),
+        ): MatryoshkaTool {
+            val klass = instance::class
+            val annotation = klass.findAnnotation<MatryoshkaTools>()
+                ?: throw IllegalArgumentException(
+                    "Class ${klass.simpleName} is not annotated with @MatryoshkaTools"
+                )
+
+            // Find all @LlmTool methods and create Tool instances
+            val toolMethods = klass.functions.filter { it.hasAnnotation<LlmTool>() }
+            if (toolMethods.isEmpty()) {
+                throw IllegalArgumentException(
+                    "Class ${klass.simpleName} has no methods annotated with @LlmTool"
+                )
+            }
+
+            // Group tools by category
+            val toolsByCategory = mutableMapOf<String, MutableList<Tool>>()
+            val uncategorizedTools = mutableListOf<Tool>()
+
+            for (method in toolMethods) {
+                val tool = Tool.fromMethod(instance, method, objectMapper)
+                val llmToolAnnotation = method.findAnnotation<LlmTool>()!!
+                val category = llmToolAnnotation.category
+
+                if (category.isNotEmpty()) {
+                    toolsByCategory.getOrPut(category) { mutableListOf() }.add(tool)
+                } else {
+                    uncategorizedTools.add(tool)
+                }
+            }
+
+            // If we have categories, create a category-based MatryoshkaTool
+            return if (toolsByCategory.isNotEmpty()) {
+                // Add uncategorized tools to all categories
+                if (uncategorizedTools.isNotEmpty()) {
+                    toolsByCategory.forEach { (_, tools) ->
+                        tools.addAll(uncategorizedTools)
+                    }
+                    // Also add a special "all" category if there are uncategorized tools
+                    val allTools = toolsByCategory.values.flatten().toSet() + uncategorizedTools
+                    toolsByCategory["all"] = allTools.toMutableList()
+                }
+
+                logger.debug(
+                    "Creating category-based MatryoshkaTool '{}' with categories: {}",
+                    annotation.name,
+                    toolsByCategory.keys
+                )
+
+                byCategory(
+                    name = annotation.name,
+                    description = annotation.description,
+                    toolsByCategory = toolsByCategory,
+                    categoryParameter = annotation.categoryParameter,
+                    removeOnInvoke = annotation.removeOnInvoke,
+                )
+            } else {
+                // No categories - create simple MatryoshkaTool
+                logger.debug(
+                    "Creating simple MatryoshkaTool '{}' with {} tools",
+                    annotation.name,
+                    uncategorizedTools.size
+                )
+
+                of(
+                    name = annotation.name,
+                    description = annotation.description,
+                    innerTools = uncategorizedTools,
+                    removeOnInvoke = annotation.removeOnInvoke,
+                )
+            }
+        }
+
+        /**
+         * Safely create a MatryoshkaTool from an instance.
+         * Returns null if the class is not annotated with `@MatryoshkaTools`
+         * or has no `@LlmTool` methods.
+         *
+         * @param instance The object instance to check
+         * @param objectMapper ObjectMapper for JSON parsing (optional)
+         * @return A MatryoshkaTool if the instance is properly annotated, null otherwise
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun safelyFromInstance(
+            instance: Any,
+            objectMapper: ObjectMapper = jacksonObjectMapper(),
+        ): MatryoshkaTool? {
+            return try {
+                fromInstance(instance, objectMapper)
+            } catch (e: IllegalArgumentException) {
+                logger.debug(
+                    "Instance {} is not a valid MatryoshkaTool source: {}",
+                    instance::class.simpleName,
+                    e.message
+                )
+                null
+            } catch (e: Throwable) {
+                logger.debug(
+                    "Failed to create MatryoshkaTool from {}: {}",
+                    instance::class.simpleName,
+                    e.message
+                )
                 null
             }
         }

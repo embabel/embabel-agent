@@ -33,11 +33,18 @@ annotation class LlmTool(
      */
     val name: String = "",
 
-
     /**
      * Whether to return the result directly without further LLM processing.
      */
     val returnDirect: Boolean = false,
+
+    /**
+     * Optional category for use with [MatryoshkaTools].
+     * When the containing class has `@MatryoshkaTools`, tools with the same category
+     * are grouped together and exposed when that category is selected.
+     * Leave empty for tools that should always be exposed.
+     */
+    val category: String = "",
 ) {
 
     /**

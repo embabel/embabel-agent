@@ -129,6 +129,19 @@ interface ToolInjectionStrategy {
             @Deprecated("Use evaluate()")
             override fun evaluateToolResult(context: ToolInjectionContext): List<Tool> = emptyList()
         }
+
+        /**
+         * The default strategy that handles common patterns automatically.
+         *
+         * Uses [ChainedToolInjectionStrategy] to combine built-in strategies:
+         * - [MatryoshkaTool] progressive disclosure
+         *
+         * Use this instead of [NONE] to get automatic support for built-in tool patterns
+         * without needing to know about specific strategy implementations.
+         */
+        val DEFAULT: ToolInjectionStrategy by lazy {
+            ChainedToolInjectionStrategy.withMatryoshka()
+        }
     }
 }
 

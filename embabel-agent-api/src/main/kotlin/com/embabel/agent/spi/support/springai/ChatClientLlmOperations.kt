@@ -203,7 +203,7 @@ internal class ChatClientLlmOperations(
         val toolLoop = DefaultToolLoop(
             llmCaller = messageSender,
             objectMapper = objectMapper,
-            injectionStrategy = ToolInjectionStrategy.NONE,
+            injectionStrategy = ToolInjectionStrategy.DEFAULT,
             maxIterations = interaction.maxToolIterations,
         )
 

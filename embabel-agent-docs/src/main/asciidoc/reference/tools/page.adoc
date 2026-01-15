@@ -1207,6 +1207,190 @@ val combined = CompositeToolInjectionStrategy.withMatryoshka(otherStrategy1, oth
 
 This flow reduces the initial tool set complexity while allowing the LLM to access detailed tools when it needs them.
 
+===== Annotation-Based MatryoshkaTool
+
+For a more declarative approach, use the `@MatryoshkaTools` class annotation combined with `@LlmTool` method annotations:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.annotation.MatryoshkaTools;
+import com.embabel.agent.api.annotation.LlmTool;
+
+@MatryoshkaTools(
+    name = "database_operations",
+    description = "Database operations. Invoke to see specific tools."
+)
+public class DatabaseTools {
+
+    @LlmTool(description = "Execute a SQL query")
+    public QueryResult query(String sql) {
+        // implementation
+    }
+
+    @LlmTool(description = "Insert a record")
+    public InsertResult insert(String table, Map<String, Object> data) {
+        // implementation
+    }
+
+    @LlmTool(description = "Delete a record")
+    public void delete(long id) {
+        // implementation
+    }
+}
+
+// Create the MatryoshkaTool from the annotated class
+MatryoshkaTool tool = MatryoshkaTool.fromInstance(new DatabaseTools());
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.annotation.MatryoshkaTools
+import com.embabel.agent.api.annotation.LlmTool
+
+@MatryoshkaTools(
+    name = "database_operations",
+    description = "Database operations. Invoke to see specific tools."
+)
+class DatabaseTools {
+
+    @LlmTool(description = "Execute a SQL query")
+    fun query(sql: String): QueryResult {
+        // implementation
+    }
+
+    @LlmTool(description = "Insert a record")
+    fun insert(table: String, data: Map<String, Any>): InsertResult {
+        // implementation
+    }
+
+    @LlmTool(description = "Delete a record")
+    fun delete(id: Long) {
+        // implementation
+    }
+}
+
+// Create the MatryoshkaTool from the annotated class
+val tool = MatryoshkaTool.fromInstance(DatabaseTools())
+----
+====
+
+===== Category-Based Selection with Annotations
+
+Add `category` to `@LlmTool` annotations to automatically create a category-based MatryoshkaTool:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@MatryoshkaTools(
+    name = "file_operations",
+    description = "File operations. Pass category: 'read' or 'write'."
+)
+public class FileTools {
+
+    @LlmTool(description = "Read file contents", category = "read")
+    public String readFile(String path) {
+        return Files.readString(Path.of(path));
+    }
+
+    @LlmTool(description = "List directory contents", category = "read")
+    public List<String> listDir(String path) {
+        return Files.list(Path.of(path)).map(Path::toString).toList();
+    }
+
+    @LlmTool(description = "Write file contents", category = "write")
+    public void writeFile(String path, String content) {
+        Files.writeString(Path.of(path), content);
+    }
+
+    @LlmTool(description = "Delete a file", category = "write")
+    public void deleteFile(String path) {
+        Files.delete(Path.of(path));
+    }
+}
+
+// Automatically creates category-based selection
+MatryoshkaTool tool = MatryoshkaTool.fromInstance(new FileTools());
+// When invoked with {"category": "read"}, only read tools are exposed
+// When invoked with {"category": "write"}, only write tools are exposed
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@MatryoshkaTools(
+    name = "file_operations",
+    description = "File operations. Pass category: 'read' or 'write'."
+)
+class FileTools {
+
+    @LlmTool(description = "Read file contents", category = "read")
+    fun readFile(path: String): String = File(path).readText()
+
+    @LlmTool(description = "List directory contents", category = "read")
+    fun listDir(path: String): List<String> = File(path).list()?.toList() ?: emptyList()
+
+    @LlmTool(description = "Write file contents", category = "write")
+    fun writeFile(path: String, content: String) {
+        File(path).writeText(content)
+    }
+
+    @LlmTool(description = "Delete a file", category = "write")
+    fun deleteFile(path: String) {
+        File(path).delete()
+    }
+}
+
+// Automatically creates category-based selection
+val tool = MatryoshkaTool.fromInstance(FileTools())
+// When invoked with {"category": "read"}, only read tools are exposed
+// When invoked with {"category": "write"}, only write tools are exposed
+----
+====
+
+===== @MatryoshkaTools Annotation Attributes
+
+|===
+|Attribute |Type |Default |Description
+
+|`name`
+|String
+|Required
+|Name of the facade tool the LLM will see
+
+|`description`
+|String
+|Required
+|Description explaining the tool category
+
+|`removeOnInvoke`
+|boolean
+|`true`
+|Whether to remove the facade after invocation
+
+|`categoryParameter`
+|String
+|`"category"`
+|Name of the parameter for category selection
+|===
+
+===== @LlmTool Category Attribute
+
+The `category` attribute on `@LlmTool` is used when the containing class has `@MatryoshkaTools`:
+
+- Tools with the same category are grouped together
+- Tools without a category are added to all category groups plus an "all" category
+- If no tools have categories, a simple (non-category-based) MatryoshkaTool is created
+
 ===== Nested MatryoshkaTools
 
 MatryoshkaTools can be nested for multi-level progressive disclosure:

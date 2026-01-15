@@ -17,6 +17,7 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
+import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
@@ -403,10 +404,14 @@ interface Tool {
         /**
          * Create Tools from all methods annotated with [LlmTool] on an instance.
          *
+         * If the instance's class is annotated with [@MatryoshkaTools][MatryoshkaTools],
+         * returns a single [MatryoshkaTool] containing all the inner tools.
+         * Otherwise, returns individual tools for each annotated method.
+         *
          * @param instance The object instance to scan for annotated methods
          * @param objectMapper ObjectMapper for JSON parsing (optional)
-         * @return List of Tools, one for each annotated method
-         * @throws IllegalArgumentException if no methods are annotated with @Tool.Method
+         * @return List of Tools, one for each annotated method (or single MatryoshkaTool if @MatryoshkaTools present)
+         * @throws IllegalArgumentException if no methods are annotated with @LlmTool
          */
         @JvmStatic
         @JvmOverloads
@@ -414,6 +419,11 @@ interface Tool {
             instance: Any,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): List<Tool> {
+            // Check for @MatryoshkaTools annotation first
+            if (instance::class.hasAnnotation<MatryoshkaTools>()) {
+                return listOf(MatryoshkaTool.fromInstance(instance, objectMapper))
+            }
+
             val tools = instance::class.functions
                 .filter { it.hasAnnotation<LlmTool>() }
                 .map { fromMethod(instance, it, objectMapper) }
