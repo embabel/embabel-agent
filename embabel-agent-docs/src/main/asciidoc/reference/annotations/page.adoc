@@ -32,8 +32,6 @@ It can also make persistence of flows more efficient by dispensing with objects 
 Defaults to false.
 - `cost`:Relative cost of the action from 0-1. Defaults to 0.0.
 - `value`: Relative value of performing the action from 0-1. Defaults to 0.0.
-- `toolGroups`: Named tool groups the action requires.
-- `toolGroupRequirements`: Tool group requirements with QoS constraints.
 
 ===== Clearing the Blackboard
 

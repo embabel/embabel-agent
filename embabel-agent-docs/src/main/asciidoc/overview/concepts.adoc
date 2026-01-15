@@ -54,7 +54,7 @@ public class StarNewsFinder {
         return new Horoscope(horoscopeService.dailyHoroscope(starPerson.sign()));  // <9>
     }
 
-    @Action(toolGroups = {CoreToolGroups.WEB})  // <10>
+    @Action  // <10>
     public RelevantNewsStories findNewsStories(
             StarPerson person, Horoscope horoscope, OperationContext context) {  // <11>
         var prompt = """
@@ -63,7 +63,9 @@ public class StarNewsFinder {
             Given this, use web tools to find %d relevant news stories.
             """.formatted(person.name(), person.sign(), horoscope.summary(), storyCount);
 
-        return context.ai().withDefaultLlm().createObject(prompt, RelevantNewsStories.class);  // <12>
+        return context.ai().withDefaultLlm()
+            .withToolGroup(CoreToolGroups.WEB)  // <12>
+            .createObject(prompt, RelevantNewsStories.class);
     }
 
     @AchievesGoal(description = "Write an amusing writeup based on horoscope and news")  // <13>
@@ -120,11 +122,11 @@ Each action represents a capability.
 
 <9> **Regular Service Call**: This action calls a traditional Spring service - demonstrating how agents blend AI and conventional operations.
 
-<10> **Tool Requirements**: `toolGroups = {CoreToolGroups.WEB}` specifies this action needs web search capabilities.
+<10> **Another Action**: This action uses tools specified at the `PromptRunner` level.
 
 <11> **Multi-Input Dependencies**: This method requires both `StarPerson` and `Horoscope` - showing complex data flow orchestration.
 
-<12> **Tool-Enabled LLM**: The LLM can use web tools to search for current news stories based on the horoscope context.
+<12> **Tool-Enabled LLM**: `withToolGroup(CoreToolGroups.WEB)` adds web search tools to this LLM call, allowing it to search for current news stories.
 
 <13> **Goal Achievement**: `@AchievesGoal` marks this as a terminal action that completes the agent's objective.
 

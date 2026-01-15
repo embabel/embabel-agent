@@ -178,7 +178,9 @@ annotation class Action(
     val value: ZeroToOne = 0.0,
     val costMethod: String = "",
     val valueMethod: String = "",
+    @Deprecated("Add tools to individual LLM calls instead")
     val toolGroups: Array<String> = [],
+    @Deprecated("Add tools to individual LLM calls instead")
     val toolGroupRequirements: Array<ToolGroup> = [],
     val trigger: KClass<*> = Unit::class,
 )

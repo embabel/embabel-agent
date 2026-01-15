@@ -175,12 +175,12 @@ public class MyToolGroupsConfiguration {
 
 This approach leverages Spring's dependency injection to provide tool groups with the services and resources they need, while maintaining clean separation of concerns between tool configuration and agent logic.
 
-===== Tool Usage in Action Methods
+===== Using Tools in Action Methods
 
-The `toolGroups` parameter on `@Action` methods specifies which tool groups are required for that action to execute.
-The framework automatically provides these tools to the LLM when the action runs.
+Tools are specified on the `PromptRunner` when making LLM calls.
+This gives you fine-grained control over which tools are available for each specific prompt.
 
-Here's an example from the `StarNewsFinder` agent that demonstrates web tool usage:
+Here's an example from the `StarNewsFinder` agent that demonstrates web tool usage within an action:
 
 [tabs]
 ====
@@ -188,8 +188,7 @@ Java::
 +
 [source,java]
 ----
-// toolGroups specifies tools that are required for this action to run
-@Action(toolGroups = {CoreToolGroups.WEB})
+@Action
 public RelevantNewsStories findNewsStories(
         StarPerson person, Horoscope horoscope, OperationContext context) {
     var prompt = """
@@ -204,7 +203,10 @@ public RelevantNewsStories findNewsStories(
             """.formatted(
             person.name(), person.sign(), horoscope.summary(), storyCount);
 
-    return context.ai().withDefaultLlm().createObject(prompt, RelevantNewsStories.class);
+    // Tools are specified on the PromptRunner
+    return context.ai().withDefaultLlm()
+        .withToolGroup(CoreToolGroups.WEB)  // Add web search tools
+        .createObject(prompt, RelevantNewsStories.class);
 }
 ----
 
@@ -212,48 +214,43 @@ Kotlin::
 +
 [source,kotlin]
 ----
-// toolGroups specifies tools that are required for this action to run
-@Action(toolGroups = [CoreToolGroups.WEB, CoreToolGroups.BROWSER_AUTOMATION])
+@Action
 internal fun findNewsStories(
     person: StarPerson,
     horoscope: Horoscope,
     context: OperationContext,
 ): RelevantNewsStories =
-    context.ai().withDefaultLlm() createObject (
-        """
-        ${person.name} is an astrology believer with the sign ${person.sign}.
-        Their horoscope for today is:
-            <horoscope>${horoscope.summary}</horoscope>
-        Given this, use web tools and generate search queries
-        to find $storyCount relevant news stories summarize them in a few sentences.
-        Include the URL for each story.
-        Do not look for another horoscope reading or return results directly about astrology;
-        find stories relevant to the reading above.
-        """.trimIndent()
-    )
+    context.ai().withDefaultLlm()
+        .withToolGroup(CoreToolGroups.WEB)  // Add web search tools
+        .withToolGroup(CoreToolGroups.BROWSER_AUTOMATION)  // Add browser tools
+        .createObject(
+            """
+            ${person.name} is an astrology believer with the sign ${person.sign}.
+            Their horoscope for today is:
+                <horoscope>${horoscope.summary}</horoscope>
+            Given this, use web tools and generate search queries
+            to find $storyCount relevant news stories summarize them in a few sentences.
+            Include the URL for each story.
+            Do not look for another horoscope reading or return results directly about astrology;
+            find stories relevant to the reading above.
+            """.trimIndent()
+        )
 ----
 ====
 
 ===== Key Tool Usage Patterns
 
-**Tool Group Declaration:**
-The `toolGroups` parameter on `@Action` methods explicitly declares which tool groups the action needs.
-This ensures the LLM has access to the appropriate tools when executing that specific action.
+**PromptRunner Tool Methods:**
+Tools are added to the `PromptRunner` fluent API using methods like `withToolGroup()`, `withTools()`, and `withToolObject()`.
 
 **Multiple Tool Groups:**
-Actions can specify multiple tool groups (e.g., `[CoreToolGroups.WEB, CoreToolGroups.BROWSER_AUTOMATION]`) when they need different types of capabilities.
-
-**Automatic Tool Provisioning:**
-The framework automatically makes the specified tools available to the LLM during the action execution.
-Developers don't need to manually manage tool availability - they simply declare what's needed.
+Actions can add multiple tool groups by chaining `withToolGroup()` calls when they need different types of capabilities.
 
 **Tool-Aware Prompts:**
 Prompts should explicitly instruct the LLM to use the available tools.
 For example, "use web tools and generate search queries" clearly directs the LLM to utilize the web search capabilities.
 
-===== Using Tools at PromptRunner Level
-
-Instead of declaring tools at the action level, you can also specify tools directly on the `PromptRunner` for more granular control:
+===== Additional PromptRunner Examples
 
 [source,kotlin]
 ----

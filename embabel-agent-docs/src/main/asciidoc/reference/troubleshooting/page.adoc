@@ -30,7 +30,7 @@ This section covers common issues you might encounter when developing with Embab
 |<<overview__concepts,Type-Driven Flow>>
 
 |**Tools Not Available to Agent**
-|Ensure you've specified the correct `toolGroups` in your `@Action` annotation. Tools must be explicitly declared for the action to access them. Check that required tool groups are available in your environment.
+|Ensure you've specified tools using `withToolGroup()` or `withTools()` on your `PromptRunner`. Tools must be explicitly added to each LLM call that needs them. Check that required tool groups are available in your environment.
 |<<reference.tools,Tools>>
 
 |**Agent Runs But Produces Poor Results**
