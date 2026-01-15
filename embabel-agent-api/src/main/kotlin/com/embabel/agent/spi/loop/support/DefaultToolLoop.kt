@@ -17,7 +17,14 @@ package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
-import com.embabel.agent.spi.loop.*
+import com.embabel.agent.spi.loop.LlmMessageSender
+import com.embabel.agent.spi.loop.MaxIterationsExceededException
+import com.embabel.agent.spi.loop.ToolCallResult
+import com.embabel.agent.spi.loop.ToolInjectionContext
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolLoop
+import com.embabel.agent.spi.loop.ToolLoopResult
+import com.embabel.agent.spi.loop.ToolNotFoundException
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.Message
 import com.embabel.chat.ToolResultMessage
@@ -35,7 +42,7 @@ import org.slf4j.LoggerFactory
 internal class DefaultToolLoop(
     private val llmCaller: LlmMessageSender,
     private val objectMapper: ObjectMapper,
-    private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.Companion.NONE,
+    private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
     private val maxIterations: Int = 20,
 ) : ToolLoop {
 
@@ -86,24 +93,19 @@ internal class DefaultToolLoop(
                 )
             }
 
-            // 5. Execute each tool call
             for (toolCall in assistantMessage.toolCalls) {
                 val tool = findTool(availableTools, toolCall.name)
                     ?: throw ToolNotFoundException(toolCall.name, availableTools.map { it.definition.name })
 
-                // 5a. Execute the tool
                 logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
-                val toolResult = tool.call(toolCall.arguments)
-                val resultContent = when (toolResult) {
+                val resultContent = when (val toolResult = tool.call(toolCall.arguments)) {
                     is Tool.Result.Text -> toolResult.content
                     is Tool.Result.WithArtifact -> toolResult.content
                     is Tool.Result.Error -> "Error: ${toolResult.message}"
                 }
 
-                // 5b. Try to deserialize result for strategy inspection
                 val resultObject = tryDeserialize(resultContent)
 
-                // 5c. Evaluate injection strategy
                 val context = ToolInjectionContext(
                     conversationHistory = conversationHistory,
                     currentTools = availableTools,
@@ -144,7 +146,7 @@ internal class DefaultToolLoop(
                     }
                 }
 
-                // 5d. Add tool result to history
+                // Add tool result to history
                 val toolResultMessage = ToolResultMessage(
                     toolCallId = toolCall.id,
                     toolName = toolCall.name,
@@ -153,7 +155,7 @@ internal class DefaultToolLoop(
                 conversationHistory.add(toolResultMessage)
             }
 
-            // 6. Continue loop - LLM will see updated history and tools
+            // Continue loop - LLM will see updated history and tools
         }
 
         throw MaxIterationsExceededException(maxIterations)

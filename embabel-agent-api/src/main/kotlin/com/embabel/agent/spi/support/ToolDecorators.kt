@@ -40,41 +40,6 @@ private val Tool.Result.content: String
     }
 
 /**
- * Interface for tool decorators that wrap another tool.
- * Enables unwrapping to find the underlying tool implementation.
- */
-interface DelegatingTool : Tool {
-    val delegate: Tool
-}
-
-/**
- * Unwrap a tool to find the innermost implementation.
- * Recursively unwraps [DelegatingTool] wrappers.
- */
-fun Tool.unwrap(): Tool {
-    var current = this
-    while (current is DelegatingTool) {
-        current = current.delegate
-    }
-    return current
-}
-
-/**
- * Unwrap a tool to find a specific type, or return null if not found.
- */
-inline fun <reified T : Tool> Tool.unwrapAs(): T? {
-    var current = this
-    while (true) {
-        if (current is T) return current
-        if (current is DelegatingTool) {
-            current = current.delegate
-        } else {
-            return null
-        }
-    }
-}
-
-/**
  * Tool decorator that adds Micrometer Observability.
  */
 class ObservabilityTool(
