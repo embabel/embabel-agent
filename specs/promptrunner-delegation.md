@@ -52,6 +52,7 @@ Replace usage of the old default implementations of the interfaces changed to th
 ## Considerations
 
 - Do not break backwards compatibility, except for the members mentioned in step 4.
+- Do not introduce cyclic dependencies between packages, and if possible remove current ones.
 
 ## Testing Strategy
 
@@ -72,3 +73,13 @@ Replace usage of the old default implementations of the interfaces changed to th
     - Created `PromptRunnerTemplateOperations` internal implementation
     - Updated `OperationContextPromptRunner` and `FakePromptRunner` to use new implementation
     - Build verified successfully
+
+- ✅ Phase 2 complete: Introduced `PromptExecutionDelegate` interface
+  - Analyzed core functionality used by `PromptRunner`, `PromptRunnerObjectCreator`, and
+    `PromptRunnerTemplateOperations`
+  - Identified primitive operations (execution methods, state properties, configuration methods)
+  - Created `PromptExecutionDelegate` interface extending `LlmUse` with:
+    - Core execution methods: `createObject`, `createObjectIfPossible`, `respond`, `evaluateCondition`
+    - State properties: `toolObjects`, `messages`, `images`, plus inherited from `LlmUse`
+    - Configuration methods: all `with*` methods returning `PromptExecutionDelegate`
+  - Build verified successfully
