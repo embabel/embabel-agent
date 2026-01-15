@@ -371,7 +371,7 @@ internal data class OperationContextPromptRunner(
                 """.trimIndent()
             )
         }
-        11
+
         // Auto-enable thinking extraction when withThinking() is called
         val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
 

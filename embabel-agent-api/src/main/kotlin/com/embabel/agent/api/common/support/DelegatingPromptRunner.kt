@@ -18,8 +18,6 @@ package com.embabel.agent.api.common.support
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
-import com.embabel.agent.api.common.nested.support.DelegatingObjectCreator
-import com.embabel.agent.api.common.nested.support.DelegatingTemplateOperations
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector

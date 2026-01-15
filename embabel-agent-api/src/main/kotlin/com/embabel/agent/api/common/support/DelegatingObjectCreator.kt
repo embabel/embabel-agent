@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.common.nested.support
+package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.PromptExecutionDelegate
 import com.embabel.agent.api.common.nested.ObjectCreationExample
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.chat.Message
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -41,7 +42,7 @@ internal data class DelegatingObjectCreator<T>(
                 .withGenerateExamples(false)
                 .withPromptContributors(
                     listOf(
-                        PromptContributor.Companion.fixed(
+                        PromptContributor.fixed(
                             """
                             Example: ${example.description}
                             ${objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(example.value)}
@@ -54,28 +55,22 @@ internal data class DelegatingObjectCreator<T>(
 
     override fun withPropertyFilter(
         filter: Predicate<String>
-    ): ObjectCreator<T> {
-        return copy(
-            delegate = delegate.withPropertyFilter(filter)
-        )
-    }
+    ): ObjectCreator<T> = copy(
+        delegate = delegate.withPropertyFilter(filter)
+    )
 
     override fun withValidation(
         validation: Boolean
-    ): ObjectCreator<T> {
-        return copy(
-            delegate = delegate.withValidation(validation)
-        )
-    }
+    ): ObjectCreator<T> = copy(
+        delegate = delegate.withValidation(validation)
+    )
 
     override fun fromMessages(
         messages: List<Message>,
-    ): T {
-        return delegate.createObject(
-            messages = messages,
-            outputClass = outputClass,
-        )
-    }
+    ): T = delegate.createObject(
+        messages = messages,
+        outputClass = outputClass,
+    )
 
     override fun fromTemplate(
         templateName: String,
@@ -84,7 +79,7 @@ internal data class DelegatingObjectCreator<T>(
         val compiledTemplate = templateRenderer.compileLoadedTemplate(templateName)
         val prompt = compiledTemplate.render(model = model)
         return delegate.createObject(
-            messages = listOf(com.embabel.chat.UserMessage(prompt)),
+            messages = listOf(UserMessage(prompt)),
             outputClass = outputClass,
         )
     }

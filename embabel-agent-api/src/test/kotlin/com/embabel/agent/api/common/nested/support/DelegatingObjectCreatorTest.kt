@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.nested.support
 
 import com.embabel.agent.api.common.PromptExecutionDelegate
 import com.embabel.agent.api.common.nested.ObjectCreationExample
+import com.embabel.agent.api.common.support.DelegatingObjectCreator
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.prompt.PromptContributor

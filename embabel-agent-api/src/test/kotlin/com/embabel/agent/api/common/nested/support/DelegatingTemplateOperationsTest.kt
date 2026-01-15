@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common.nested.support
 
 import com.embabel.agent.api.common.PromptExecutionDelegate
+import com.embabel.agent.api.common.support.DelegatingTemplateOperations
 import com.embabel.chat.*
 import com.embabel.common.textio.template.CompiledTemplate
 import io.mockk.every

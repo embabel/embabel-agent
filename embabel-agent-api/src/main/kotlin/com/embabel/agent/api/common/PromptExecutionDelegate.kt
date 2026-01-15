@@ -29,50 +29,23 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.function.Predicate
 
 /**
- * Core delegate interface for prompt execution functionality.
+ * Delegate interface for prompt execution functionality.
  * Contains only primitive operations that cannot be expressed in terms of other methods.
- * Used as the underlying implementation for PromptRunner, ObjectCreator, and TemplateOperations.
+ * Used in [com.embabel.agent.api.common.support.DelegatingPromptRunner],
+ * [com.embabel.agent.api.common.support.DelegatingObjectCreator], and
+ * [com.embabel.agent.api.common.support.DelegatingTemplateOperations].
  */
-interface PromptExecutionDelegate : LlmUse {
+internal interface PromptExecutionDelegate : LlmUse {
 
     val templateRenderer: TemplateRenderer
+
     val objectMapper: ObjectMapper
 
-    /**
-     * Additional objects with @Tool annotation for use in this delegate
-     */
     val toolObjects: List<ToolObject>
 
-    /**
-     * Messages added to this delegate
-     */
     val messages: List<Message>
 
-    /**
-     * Images added to this delegate
-     */
     val images: List<AgentImage>
-
-    /**
-     * Whether to generate examples of the output in the prompt.
-     * null means use platform defaults.
-     */
-    override val generateExamples: Boolean?
-
-    /**
-     * Filter that determines which properties are to be included when creating an object
-     */
-    override val propertyFilter: Predicate<String>
-
-    /**
-     * Whether to validate created objects
-     */
-    override val validation: Boolean
-
-    /**
-     * Prompt contributors added to this delegate
-     */
-    override val promptContributors: List<PromptContributor>
 
     /**
      * Set an interaction id for this delegate.

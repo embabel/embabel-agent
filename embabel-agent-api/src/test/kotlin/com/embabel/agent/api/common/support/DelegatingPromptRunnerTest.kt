@@ -26,8 +26,6 @@ import com.embabel.chat.AssistantMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
-import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -40,8 +38,6 @@ import java.util.function.Predicate
 class DelegatingPromptRunnerTest {
 
     private val mockDelegate = mockk<PromptExecutionDelegate>()
-    private val templateRenderer = JinjavaTemplateRenderer()
-    private val objectMapper = jacksonObjectMapper()
 
     private fun createPromptRunner(): DelegatingPromptRunner {
         return DelegatingPromptRunner(
