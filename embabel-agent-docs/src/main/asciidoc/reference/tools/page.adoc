@@ -910,6 +910,14 @@ It operates at a higher level than `AgenticTool`, orchestrating `@Action` method
 [[reference.tools__matryoshka]]
 ==== MatryoshkaTool: Progressive Tool Disclosure
 
+[quote,Augustus De Morgan]
+____
+Great fleas have little fleas upon their backs to bite 'em, +
+And little fleas have lesser fleas, and so ad infinitum. +
+And the great fleas themselves, in turn, have greater fleas to go on; +
+While these again have greater still, and greater still, and so on.
+____
+
 A `MatryoshkaTool` is a special tool that presents a high-level description to the LLM and, when invoked, exposes its inner tools.
 Named after Russian nesting dolls, this pattern enables *progressive tool disclosure* - presenting a simplified interface initially, then revealing more granular tools on demand.
 
