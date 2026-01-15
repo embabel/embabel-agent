@@ -19,11 +19,12 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
+import com.embabel.agent.api.common.nested.support.PromptRunnerTemplateOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -216,10 +217,10 @@ data class FakePromptRunner(
         )
 
     override fun withTemplate(templateName: String): TemplateOperations {
-        return TemplateOperations(
-            templateName,
+        return PromptRunnerTemplateOperations(
+            promptRunner = this,
+            templateName = templateName,
             templateRenderer = JinjavaTemplateRenderer(),
-            promptRunnerOperations = this,
         )
     }
 
