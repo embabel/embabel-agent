@@ -64,6 +64,7 @@ data class ProductImpl(
 class NativeStoreHooksTest {
 
     private val testDictionary = DataDictionary.fromClasses(
+        "test",
         Product::class.java,
         Category::class.java
     )

@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test
 
 class InMemoryNamedEntityDataRepositoryTest {
 
-    private val emptyDictionary = DataDictionary.fromClasses()
+    private val emptyDictionary = DataDictionary.fromClasses("mt")
 
     @Nested
     inner class BasicOperationsTest {
@@ -89,27 +89,33 @@ class InMemoryNamedEntityDataRepositoryTest {
 
         @Test
         fun `findByLabel returns matching entities`() {
-            repository.save(SimpleNamedEntityData(
-                id = "person-1",
-                name = "Alice",
-                description = "A person",
-                labels = setOf("Person"),
-                properties = emptyMap()
-            ))
-            repository.save(SimpleNamedEntityData(
-                id = "person-2",
-                name = "Bob",
-                description = "Another person",
-                labels = setOf("Person", "Manager"),
-                properties = emptyMap()
-            ))
-            repository.save(SimpleNamedEntityData(
-                id = "org-1",
-                name = "Acme",
-                description = "A company",
-                labels = setOf("Organization"),
-                properties = emptyMap()
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "person-1",
+                    name = "Alice",
+                    description = "A person",
+                    labels = setOf("Person"),
+                    properties = emptyMap()
+                )
+            )
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "person-2",
+                    name = "Bob",
+                    description = "Another person",
+                    labels = setOf("Person", "Manager"),
+                    properties = emptyMap()
+                )
+            )
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "org-1",
+                    name = "Acme",
+                    description = "A company",
+                    labels = setOf("Organization"),
+                    properties = emptyMap()
+                )
+            )
 
             val persons = repository.findByLabel("Person")
             assertEquals(2, persons.size)
@@ -121,20 +127,24 @@ class InMemoryNamedEntityDataRepositoryTest {
 
         @Test
         fun `clear removes all entities`() {
-            repository.save(SimpleNamedEntityData(
-                id = "clear-1",
-                name = "Entity 1",
-                description = "First",
-                labels = setOf("Test"),
-                properties = emptyMap()
-            ))
-            repository.save(SimpleNamedEntityData(
-                id = "clear-2",
-                name = "Entity 2",
-                description = "Second",
-                labels = setOf("Test"),
-                properties = emptyMap()
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "clear-1",
+                    name = "Entity 1",
+                    description = "First",
+                    labels = setOf("Test"),
+                    properties = emptyMap()
+                )
+            )
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "clear-2",
+                    name = "Entity 2",
+                    description = "Second",
+                    labels = setOf("Test"),
+                    properties = emptyMap()
+                )
+            )
 
             assertEquals(2, repository.size)
 
@@ -146,13 +156,15 @@ class InMemoryNamedEntityDataRepositoryTest {
 
         @Test
         fun `vectorSearch returns empty without embedding service`() {
-            repository.save(SimpleNamedEntityData(
-                id = "vec-1",
-                name = "Vector Entity",
-                description = "For vector search",
-                labels = setOf("Test"),
-                properties = emptyMap()
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "vec-1",
+                    name = "Vector Entity",
+                    description = "For vector search",
+                    labels = setOf("Test"),
+                    properties = emptyMap()
+                )
+            )
 
             val request = TextSimilaritySearchRequest(
                 query = "vector",
@@ -173,27 +185,33 @@ class InMemoryNamedEntityDataRepositoryTest {
         @BeforeEach
         fun setup() {
             repository = InMemoryNamedEntityDataRepository(emptyDictionary)
-            repository.save(SimpleNamedEntityData(
-                id = "kotlin-1",
-                name = "Kotlin Programming",
-                description = "A modern programming language",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
-            repository.save(SimpleNamedEntityData(
-                id = "java-1",
-                name = "Java Programming",
-                description = "A classic programming language",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
-            repository.save(SimpleNamedEntityData(
-                id = "go-1",
-                name = "Go",
-                description = "A systems programming language by Google",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "kotlin-1",
+                    name = "Kotlin Programming",
+                    description = "A modern programming language",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "java-1",
+                    name = "Java Programming",
+                    description = "A classic programming language",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "go-1",
+                    name = "Go",
+                    description = "A systems programming language by Google",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
         }
 
         @Test
@@ -291,20 +309,24 @@ class InMemoryNamedEntityDataRepositoryTest {
             every { embeddingService.embed(match<String> { it.contains("Kotlin") }) } returns kotlinEmbedding
             every { embeddingService.embed(match<String> { it.contains("Java") }) } returns javaEmbedding
 
-            repository.save(SimpleNamedEntityData(
-                id = "entity-1",
-                name = "Kotlin coroutines",
-                description = "Async programming in Kotlin",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
-            repository.save(SimpleNamedEntityData(
-                id = "entity-2",
-                name = "Java threads",
-                description = "Concurrency in Java",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "entity-1",
+                    name = "Kotlin coroutines",
+                    description = "Async programming in Kotlin",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "entity-2",
+                    name = "Java threads",
+                    description = "Concurrency in Java",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
 
             val request = TextSimilaritySearchRequest(
                 query = "Kotlin async",
@@ -324,13 +346,15 @@ class InMemoryNamedEntityDataRepositoryTest {
         fun `vectorSearch respects similarity threshold`() {
             every { embeddingService.embed(any<String>()) } returns pythonEmbedding
 
-            repository.save(SimpleNamedEntityData(
-                id = "python-1",
-                name = "Python programming",
-                description = "Python language",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "python-1",
+                    name = "Python programming",
+                    description = "Python language",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
 
             // Use kotlin embedding for query - orthogonal to python, so similarity ~0
             every { embeddingService.embed("kotlin query") } returns kotlinEmbedding
@@ -352,13 +376,15 @@ class InMemoryNamedEntityDataRepositoryTest {
             every { embeddingService.embed(any<String>()) } returns kotlinEmbedding
 
             repeat(5) { i ->
-                repository.save(SimpleNamedEntityData(
-                    id = "entity-$i",
-                    name = "Entity $i",
-                    description = "Description $i",
-                    labels = setOf("Topic"),
-                    properties = emptyMap()
-                ))
+                repository.save(
+                    SimpleNamedEntityData(
+                        id = "entity-$i",
+                        name = "Entity $i",
+                        description = "Description $i",
+                        labels = setOf("Topic"),
+                        properties = emptyMap()
+                    )
+                )
             }
 
             val request = TextSimilaritySearchRequest(
@@ -376,13 +402,15 @@ class InMemoryNamedEntityDataRepositoryTest {
         fun `delete removes embedding`() {
             every { embeddingService.embed(any<String>()) } returns kotlinEmbedding
 
-            repository.save(SimpleNamedEntityData(
-                id = "to-delete",
-                name = "Delete Me",
-                description = "Should be deleted",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "to-delete",
+                    name = "Delete Me",
+                    description = "Should be deleted",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
 
             repository.delete("to-delete")
 
@@ -400,20 +428,24 @@ class InMemoryNamedEntityDataRepositoryTest {
         fun `clear removes all embeddings`() {
             every { embeddingService.embed(any<String>()) } returns kotlinEmbedding
 
-            repository.save(SimpleNamedEntityData(
-                id = "entity-1",
-                name = "First",
-                description = "First entity",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
-            repository.save(SimpleNamedEntityData(
-                id = "entity-2",
-                name = "Second",
-                description = "Second entity",
-                labels = setOf("Topic"),
-                properties = emptyMap()
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "entity-1",
+                    name = "First",
+                    description = "First entity",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "entity-2",
+                    name = "Second",
+                    description = "Second entity",
+                    labels = setOf("Topic"),
+                    properties = emptyMap()
+                )
+            )
 
             repository.clear()
 

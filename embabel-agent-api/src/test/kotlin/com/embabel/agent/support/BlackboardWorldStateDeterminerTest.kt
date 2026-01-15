@@ -155,8 +155,9 @@ class BlackboardWorldStateDeterminerTest {
             blackboard.getValue(
                 firstArg(),
                 secondArg(),
-                DataDictionary.fromClasses(
-                    *blackboard.objects.map { it.javaClass }.toTypedArray()
+                DataDictionary.fromDomainTypes(
+                    "test",
+                    blackboard.objects.map { JvmType(it.javaClass) }
                 ),
             )
         }
@@ -332,8 +333,9 @@ class BlackboardWorldStateDeterminerTest {
                 blackboard.getValue(
                     firstArg(),
                     secondArg(),
-                    DataDictionary.fromClasses(
-                        *blackboard.objects.map { it.javaClass }.toTypedArray()
+                    DataDictionary.fromDomainTypes(
+                        "test",
+                        blackboard.objects.map { JvmType(it.javaClass) }
                     )
                 )
             }

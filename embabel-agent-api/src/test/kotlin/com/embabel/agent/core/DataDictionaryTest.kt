@@ -38,14 +38,14 @@ class DataDictionaryTest {
 
     @Test
     fun `should return empty relationships when no domain types have relationships`() {
-        val dictionary = DataDictionary.fromClasses(Person::class.java)
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java)
         val relationships = dictionary.allowedRelationships()
         assertEquals(0, relationships.size)
     }
 
     @Test
     fun `should find relationships in JvmType with nested entity`() {
-        val dictionary = DataDictionary.fromClasses(Customer::class.java, Address::class.java)
+        val dictionary = DataDictionary.fromClasses("test", Customer::class.java, Address::class.java)
         val relationships = dictionary.allowedRelationships()
 
         assertEquals(1, relationships.size)
@@ -64,7 +64,7 @@ class DataDictionaryTest {
 
     @Test
     fun `should find multiple relationships from same type`() {
-        val dictionary = DataDictionary.fromClasses(Company::class.java, Address::class.java)
+        val dictionary = DataDictionary.fromClasses("test", Company::class.java, Address::class.java)
         val relationships = dictionary.allowedRelationships()
 
         assertEquals(2, relationships.size)
@@ -80,7 +80,7 @@ class DataDictionaryTest {
 
     @Test
     fun `should find all relationships across multiple types`() {
-        val dictionary = DataDictionary.fromClasses(Order::class.java, Customer::class.java, Address::class.java)
+        val dictionary = DataDictionary.fromClasses("test", Order::class.java, Customer::class.java, Address::class.java)
         val relationships = dictionary.allowedRelationships()
 
         assertEquals(3, relationships.size)
@@ -109,7 +109,7 @@ class DataDictionaryTest {
             ),
         )
 
-        val dictionary = DataDictionary.fromDomainTypes(listOf(personType, addressType))
+        val dictionary = DataDictionary.fromDomainTypes("test", listOf(personType, addressType))
         val relationships = dictionary.allowedRelationships()
 
         assertEquals(1, relationships.size)
@@ -131,7 +131,7 @@ class DataDictionaryTest {
             ),
         )
 
-        val dictionary = DataDictionary.fromDomainTypes(listOf(personType, jvmAddress))
+        val dictionary = DataDictionary.fromDomainTypes("test", listOf(personType, jvmAddress))
         val relationships = dictionary.allowedRelationships()
 
         assertEquals(1, relationships.size)
@@ -165,7 +165,7 @@ class DataDictionaryTest {
             parents = listOf(basePersonType),
         )
 
-        val dictionary = DataDictionary.fromDomainTypes(listOf(employeeType, basePersonType, addressType))
+        val dictionary = DataDictionary.fromDomainTypes("test", listOf(employeeType, basePersonType, addressType))
         val relationships = dictionary.allowedRelationships()
 
         // Employee should have the inherited address relationship
@@ -189,7 +189,7 @@ class DataDictionaryTest {
 
     @Test
     fun `should capture cardinality LIST for collection relationships`() {
-        val dictionary = DataDictionary.fromClasses(Library::class.java, Address::class.java)
+        val dictionary = DataDictionary.fromClasses("test", Library::class.java, Address::class.java)
         val relationships = dictionary.allowedRelationships()
 
         assertEquals(1, relationships.size)
@@ -230,7 +230,7 @@ class DataDictionaryTest {
             ),
         )
 
-        val dictionary = DataDictionary.fromDomainTypes(listOf(libraryType, bookType))
+        val dictionary = DataDictionary.fromDomainTypes("test", listOf(libraryType, bookType))
         val relationships = dictionary.allowedRelationships()
 
         assertEquals(4, relationships.size)

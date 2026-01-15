@@ -23,7 +23,11 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.MultiTransformationAction
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.*
+import com.embabel.agent.core.Action
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.DataDictionary
+import com.embabel.agent.core.DomainType
+import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.support.BlackboardWorldState
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.plan.CostComputation
@@ -359,5 +363,6 @@ internal class DefaultActionMethodManager(
  * at planning time without access to full agent metadata.
  */
 private object EmptyDataDictionary : DataDictionary {
+    override val name: String = "EmptyDataDictionary"
     override val domainTypes: Collection<DomainType> = emptyList()
 }

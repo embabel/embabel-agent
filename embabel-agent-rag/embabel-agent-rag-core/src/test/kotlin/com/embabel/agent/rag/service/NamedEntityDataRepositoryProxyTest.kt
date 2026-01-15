@@ -46,6 +46,7 @@ interface Customer : NamedEntity {
 class NamedEntityDataRepositoryProxyTest {
 
     private val testDictionary = DataDictionary.fromClasses(
+        "test",
         Person::class.java,
         Manager::class.java,
         Employee::class.java,
@@ -71,13 +72,15 @@ class NamedEntityDataRepositoryProxyTest {
 
         @Test
         fun `findById returns proxy for single matching interface`() {
-            repository.save(SimpleNamedEntityData(
-                id = "person-1",
-                name = "Alice",
-                description = "A person",
-                labels = setOf("Person"),
-                properties = mapOf("age" to 30)
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "person-1",
+                    name = "Alice",
+                    description = "A person",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 30)
+                )
+            )
 
             val result = repository.findById("person-1", Person::class.java)
 
@@ -91,17 +94,19 @@ class NamedEntityDataRepositoryProxyTest {
 
         @Test
         fun `findById returns proxy implementing multiple matching interfaces`() {
-            repository.save(SimpleNamedEntityData(
-                id = "mgr-1",
-                name = "Bob",
-                description = "A manager",
-                labels = setOf("Person", "Manager"),
-                properties = mapOf(
-                    "age" to 45,
-                    "directReports" to 5,
-                    "department" to "Engineering"
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "mgr-1",
+                    name = "Bob",
+                    description = "A manager",
+                    labels = setOf("Person", "Manager"),
+                    properties = mapOf(
+                        "age" to 45,
+                        "directReports" to 5,
+                        "department" to "Engineering"
+                    )
                 )
-            ))
+            )
 
             val result = repository.findById(
                 "mgr-1",
@@ -125,17 +130,19 @@ class NamedEntityDataRepositoryProxyTest {
         @Test
         fun `findById filters to only matching interfaces`() {
             // Entity has Person and Manager labels, but not Employee
-            repository.save(SimpleNamedEntityData(
-                id = "mgr-2",
-                name = "Carol",
-                description = "A manager who is not an employee",
-                labels = setOf("Person", "Manager"),
-                properties = mapOf(
-                    "age" to 50,
-                    "directReports" to 3,
-                    "department" to "HR"
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "mgr-2",
+                    name = "Carol",
+                    description = "A manager who is not an employee",
+                    labels = setOf("Person", "Manager"),
+                    properties = mapOf(
+                        "age" to 50,
+                        "directReports" to 3,
+                        "department" to "HR"
+                    )
                 )
-            ))
+            )
 
             // Request Person, Manager, and Employee interfaces
             val result = repository.findById(
@@ -155,13 +162,15 @@ class NamedEntityDataRepositoryProxyTest {
 
         @Test
         fun `findById returns null when no interfaces match labels`() {
-            repository.save(SimpleNamedEntityData(
-                id = "customer-1",
-                name = "Dave",
-                description = "A customer",
-                labels = setOf("Customer"),
-                properties = mapOf("customerId" to "C001")
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "customer-1",
+                    name = "Dave",
+                    description = "A customer",
+                    labels = setOf("Customer"),
+                    properties = mapOf("customerId" to "C001")
+                )
+            )
 
             // Request Person interface, but entity has Customer label
             val result = repository.findById("customer-1", Person::class.java)
@@ -171,18 +180,20 @@ class NamedEntityDataRepositoryProxyTest {
 
         @Test
         fun `findById handles entity with many labels`() {
-            repository.save(SimpleNamedEntityData(
-                id = "multi-1",
-                name = "Eve",
-                description = "Multiple roles",
-                labels = setOf("Person", "Manager", "Employee"),
-                properties = mapOf(
-                    "age" to 35,
-                    "directReports" to 2,
-                    "department" to "Sales",
-                    "employeeId" to "E001"
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "multi-1",
+                    name = "Eve",
+                    description = "Multiple roles",
+                    labels = setOf("Person", "Manager", "Employee"),
+                    properties = mapOf(
+                        "age" to 35,
+                        "directReports" to 2,
+                        "department" to "Sales",
+                        "employeeId" to "E001"
+                    )
                 )
-            ))
+            )
 
             val result = repository.findById(
                 "multi-1",
@@ -206,13 +217,15 @@ class NamedEntityDataRepositoryProxyTest {
 
         @Test
         fun `findById includes Entity label from RetrievableEntity`() {
-            repository.save(SimpleNamedEntityData(
-                id = "entity-1",
-                name = "Frank",
-                description = "An entity",
-                labels = setOf("Person"),  // SimpleNamedEntityData adds ENTITY_LABEL (__Entity__) via super.labels()
-                properties = mapOf("age" to 25)
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "entity-1",
+                    name = "Frank",
+                    description = "An entity",
+                    labels = setOf("Person"),  // SimpleNamedEntityData adds ENTITY_LABEL (__Entity__) via super.labels()
+                    properties = mapOf("age" to 25)
+                )
+            )
 
             val entity = repository.findById("entity-1")
 
@@ -223,13 +236,15 @@ class NamedEntityDataRepositoryProxyTest {
 
         @Test
         fun `findById proxy has correct toString`() {
-            repository.save(SimpleNamedEntityData(
-                id = "str-1",
-                name = "Grace",
-                description = "Testing toString",
-                labels = setOf("Person"),
-                properties = mapOf("age" to 28)
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "str-1",
+                    name = "Grace",
+                    description = "Testing toString",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 28)
+                )
+            )
 
             val result = repository.findById("str-1", Person::class.java)
 
@@ -241,13 +256,15 @@ class NamedEntityDataRepositoryProxyTest {
 
         @Test
         fun `findById proxy equals works with same ID`() {
-            repository.save(SimpleNamedEntityData(
-                id = "eq-1",
-                name = "Henry",
-                description = "First",
-                labels = setOf("Person"),
-                properties = mapOf("age" to 40)
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "eq-1",
+                    name = "Henry",
+                    description = "First",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 40)
+                )
+            )
 
             val result1 = repository.findById("eq-1", Person::class.java)
             val result2 = repository.findById("eq-1", Person::class.java)
@@ -258,19 +275,21 @@ class NamedEntityDataRepositoryProxyTest {
 
         @Test
         fun `findById proxy properties are accessible`() {
-            repository.save(SimpleNamedEntityData(
-                id = "props-1",
-                uri = "http://example.com/person/1",
-                name = "Ivy",
-                description = "Testing properties",
-                labels = setOf("Person", "Manager"),
-                properties = mapOf(
-                    "age" to 33,
-                    "directReports" to 4,
-                    "department" to "Finance"
-                ),
-                metadata = mapOf("source" to "test")
-            ))
+            repository.save(
+                SimpleNamedEntityData(
+                    id = "props-1",
+                    uri = "http://example.com/person/1",
+                    name = "Ivy",
+                    description = "Testing properties",
+                    labels = setOf("Person", "Manager"),
+                    properties = mapOf(
+                        "age" to 33,
+                        "directReports" to 4,
+                        "department" to "Finance"
+                    ),
+                    metadata = mapOf("source" to "test")
+                )
+            )
 
             val result = repository.findById(
                 "props-1",
@@ -302,7 +321,7 @@ class NamedEntityDataRepositoryProxyTest {
         @Test
         fun `findEntityById returns null when entity not found`() {
             val dictRepository = InMemoryNamedEntityDataRepository(
-                dataDictionary = DataDictionary.fromClasses(Person::class.java)
+                dataDictionary = DataDictionary.fromClasses("test", Person::class.java)
             )
 
             val result = dictRepository.findEntityById("nonexistent")
@@ -313,15 +332,21 @@ class NamedEntityDataRepositoryProxyTest {
         @Test
         fun `findEntityById returns instance implementing single matching interface`() {
             val dictRepository = InMemoryNamedEntityDataRepository(
-                dataDictionary = DataDictionary.fromClasses(Person::class.java, Manager::class.java)
+                dataDictionary = DataDictionary.fromClasses(
+                    "test",
+                    Person::class.java,
+                    Manager::class.java,
+                )
             )
-            dictRepository.save(SimpleNamedEntityData(
-                id = "person-1",
-                name = "Alice",
-                description = "A person",
-                labels = setOf("Person"),
-                properties = mapOf("age" to 30)
-            ))
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "person-1",
+                    name = "Alice",
+                    description = "A person",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 30)
+                )
+            )
 
             val result = dictRepository.findEntityById("person-1")
 
@@ -335,22 +360,25 @@ class NamedEntityDataRepositoryProxyTest {
         fun `findEntityById returns instance implementing multiple matching interfaces`() {
             val dictRepository = InMemoryNamedEntityDataRepository(
                 dataDictionary = DataDictionary.fromClasses(
+                    "test",
                     Person::class.java,
                     Manager::class.java,
                     Employee::class.java
                 )
             )
-            dictRepository.save(SimpleNamedEntityData(
-                id = "mgr-1",
-                name = "Bob",
-                description = "A manager",
-                labels = setOf("Person", "Manager"),
-                properties = mapOf(
-                    "age" to 45,
-                    "directReports" to 5,
-                    "department" to "Engineering"
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "mgr-1",
+                    name = "Bob",
+                    description = "A manager",
+                    labels = setOf("Person", "Manager"),
+                    properties = mapOf(
+                        "age" to 45,
+                        "directReports" to 5,
+                        "department" to "Engineering"
+                    )
                 )
-            ))
+            )
 
             val result = dictRepository.findEntityById("mgr-1")
 
@@ -367,15 +395,17 @@ class NamedEntityDataRepositoryProxyTest {
         @Test
         fun `findEntityById returns null when no interfaces match entity labels`() {
             val dictRepository = InMemoryNamedEntityDataRepository(
-                dataDictionary = DataDictionary.fromClasses(Person::class.java)
+                dataDictionary = DataDictionary.fromClasses("test", Person::class.java)
             )
-            dictRepository.save(SimpleNamedEntityData(
-                id = "customer-1",
-                name = "Charlie",
-                description = "A customer",
-                labels = setOf("Customer"),
-                properties = mapOf("customerId" to "C001")
-            ))
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "customer-1",
+                    name = "Charlie",
+                    description = "A customer",
+                    labels = setOf("Customer"),
+                    properties = mapOf("customerId" to "C001")
+                )
+            )
 
             val result = dictRepository.findEntityById("customer-1")
 
@@ -386,24 +416,27 @@ class NamedEntityDataRepositoryProxyTest {
         fun `findEntityById implements all matching interfaces from dictionary`() {
             val dictRepository = InMemoryNamedEntityDataRepository(
                 dataDictionary = DataDictionary.fromClasses(
+                    "test",
                     Person::class.java,
                     Manager::class.java,
                     Employee::class.java,
                     Customer::class.java
                 )
             )
-            dictRepository.save(SimpleNamedEntityData(
-                id = "multi-1",
-                name = "Diana",
-                description = "Multiple roles",
-                labels = setOf("Person", "Manager", "Employee"),
-                properties = mapOf(
-                    "age" to 35,
-                    "directReports" to 2,
-                    "department" to "Sales",
-                    "employeeId" to "E001"
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "multi-1",
+                    name = "Diana",
+                    description = "Multiple roles",
+                    labels = setOf("Person", "Manager", "Employee"),
+                    properties = mapOf(
+                        "age" to 35,
+                        "directReports" to 2,
+                        "department" to "Sales",
+                        "employeeId" to "E001"
+                    )
                 )
-            ))
+            )
 
             val result = dictRepository.findEntityById("multi-1")
 
@@ -430,7 +463,11 @@ class NamedEntityDataRepositoryProxyTest {
 
             // Repository that returns native implementation for Person
             val dictRepository = object : InMemoryNamedEntityDataRepository(
-                dataDictionary = DataDictionary.fromClasses(Person::class.java, Manager::class.java)
+                dataDictionary = DataDictionary.fromClasses(
+                    "rwar",
+                    Person::class.java,
+                    Manager::class.java,
+                )
             ) {
                 override fun isNativeType(type: Class<*>): Boolean = type == Person::class.java
 
@@ -445,13 +482,15 @@ class NamedEntityDataRepositoryProxyTest {
             }
 
             // Save entity data (this would normally be found by findById)
-            dictRepository.save(SimpleNamedEntityData(
-                id = "native-1",
-                name = "Proxy Alice",
-                description = "Would be loaded as proxy",
-                labels = setOf("Person"),
-                properties = mapOf("age" to 30)
-            ))
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "native-1",
+                    name = "Proxy Alice",
+                    description = "Would be loaded as proxy",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 30)
+                )
+            )
 
             val result = dictRepository.findEntityById("native-1")
 
@@ -466,18 +505,20 @@ class NamedEntityDataRepositoryProxyTest {
         fun `findEntityById falls back to proxy when native returns null`() {
             // Repository where findNativeById always returns null
             val dictRepository = object : InMemoryNamedEntityDataRepository(
-                dataDictionary = DataDictionary.fromClasses(Person::class.java)
+                dataDictionary = DataDictionary.fromClasses("test", Person::class.java)
             ) {
                 override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? = null
             }
 
-            dictRepository.save(SimpleNamedEntityData(
-                id = "proxy-1",
-                name = "Proxy Bob",
-                description = "Should be loaded as proxy",
-                labels = setOf("Person"),
-                properties = mapOf("age" to 42)
-            ))
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "proxy-1",
+                    name = "Proxy Bob",
+                    description = "Should be loaded as proxy",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 42)
+                )
+            )
 
             val result = dictRepository.findEntityById("proxy-1")
 
@@ -493,7 +534,7 @@ class NamedEntityDataRepositoryProxyTest {
             var managerNativeCallCount = 0
 
             val dictRepository = object : InMemoryNamedEntityDataRepository(
-                dataDictionary = DataDictionary.fromClasses(Person::class.java, Manager::class.java)
+                dataDictionary = DataDictionary.fromClasses("test", Person::class.java, Manager::class.java)
             ) {
                 override fun isNativeType(type: Class<*>): Boolean = true
 
@@ -506,19 +547,23 @@ class NamedEntityDataRepositoryProxyTest {
                 }
             }
 
-            dictRepository.save(SimpleNamedEntityData(
-                id = "both-1",
-                name = "Both",
-                description = "Has both labels",
-                labels = setOf("Person", "Manager"),
-                properties = mapOf("age" to 30, "directReports" to 5, "department" to "IT")
-            ))
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "both-1",
+                    name = "Both",
+                    description = "Has both labels",
+                    labels = setOf("Person", "Manager"),
+                    properties = mapOf("age" to 30, "directReports" to 5, "department" to "IT")
+                )
+            )
 
             dictRepository.findEntityById("both-1")
 
             // Should have tried native loading for both matching types
-            assertTrue(personNativeCallCount > 0 || managerNativeCallCount > 0,
-                "Should try native loading for at least one matching type")
+            assertTrue(
+                personNativeCallCount > 0 || managerNativeCallCount > 0,
+                "Should try native loading for at least one matching type"
+            )
         }
 
         @Test
@@ -526,7 +571,7 @@ class NamedEntityDataRepositoryProxyTest {
             var nativeCallCount = 0
 
             val dictRepository = object : InMemoryNamedEntityDataRepository(
-                dataDictionary = DataDictionary.fromClasses(Person::class.java, Manager::class.java)
+                dataDictionary = DataDictionary.fromClasses("test", Person::class.java, Manager::class.java)
             ) {
                 override fun isNativeType(type: Class<*>): Boolean = false
 
@@ -536,13 +581,15 @@ class NamedEntityDataRepositoryProxyTest {
                 }
             }
 
-            dictRepository.save(SimpleNamedEntityData(
-                id = "skip-1",
-                name = "Skip",
-                description = "Should skip native",
-                labels = setOf("Person"),
-                properties = mapOf("age" to 25)
-            ))
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "skip-1",
+                    name = "Skip",
+                    description = "Should skip native",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 25)
+                )
+            )
 
             val result = dictRepository.findEntityById("skip-1")
 
@@ -559,7 +606,7 @@ class NamedEntityDataRepositoryProxyTest {
             var managerNativeCallCount = 0
 
             val dictRepository = object : InMemoryNamedEntityDataRepository(
-                dataDictionary = DataDictionary.fromClasses(Person::class.java, Manager::class.java)
+                dataDictionary = DataDictionary.fromClasses("test", Person::class.java, Manager::class.java)
             ) {
                 // Only Person is native, Manager is not
                 override fun isNativeType(type: Class<*>): Boolean =
@@ -574,13 +621,15 @@ class NamedEntityDataRepositoryProxyTest {
                 }
             }
 
-            dictRepository.save(SimpleNamedEntityData(
-                id = "selective-1",
-                name = "Selective",
-                description = "Selective native",
-                labels = setOf("Person", "Manager"),
-                properties = mapOf("age" to 30, "directReports" to 5, "department" to "IT")
-            ))
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "selective-1",
+                    name = "Selective",
+                    description = "Selective native",
+                    labels = setOf("Person", "Manager"),
+                    properties = mapOf("age" to 30, "directReports" to 5, "department" to "IT")
+                )
+            )
 
             dictRepository.findEntityById("selective-1")
 

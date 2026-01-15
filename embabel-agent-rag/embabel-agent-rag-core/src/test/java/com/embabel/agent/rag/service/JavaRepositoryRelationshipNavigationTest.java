@@ -36,9 +36,10 @@ public class JavaRepositoryRelationshipNavigationTest {
     @BeforeEach
     void setUp() {
         DataDictionary dataDictionary = DataDictionary.fromClasses(
-            JavaPersonEntity.class,
-            JavaAddressEntity.class,
-            JavaCompanyEntity.class
+                "test",
+                JavaPersonEntity.class,
+                JavaAddressEntity.class,
+                JavaCompanyEntity.class
         );
         repository = new InMemoryNamedEntityDataRepository(dataDictionary);
     }
@@ -50,14 +51,14 @@ public class JavaRepositoryRelationshipNavigationTest {
         properties.put("street", street);
         properties.put("city", city);
         return new SimpleNamedEntityData(
-            id,
-            null,
-            street + ", " + city,
-            "Address",
-            labels,
-            properties,
-            new HashMap<>(),
-            null
+                id,
+                null,
+                street + ", " + city,
+                "Address",
+                labels,
+                properties,
+                new HashMap<>(),
+                null
         );
     }
 
@@ -67,14 +68,14 @@ public class JavaRepositoryRelationshipNavigationTest {
         Map<String, Object> properties = new HashMap<>();
         properties.put("industry", industry);
         return new SimpleNamedEntityData(
-            id,
-            null,
-            name,
-            "A company",
-            labels,
-            properties,
-            new HashMap<>(),
-            null
+                id,
+                null,
+                name,
+                "A company",
+                labels,
+                properties,
+                new HashMap<>(),
+                null
         );
     }
 
@@ -84,14 +85,14 @@ public class JavaRepositoryRelationshipNavigationTest {
         Map<String, Object> properties = new HashMap<>();
         properties.put("age", age);
         return new SimpleNamedEntityData(
-            id,
-            null,
-            name,
-            "A person",
-            labels,
-            properties,
-            new HashMap<>(),
-            null
+                id,
+                null,
+                name,
+                "A person",
+                labels,
+                properties,
+                new HashMap<>(),
+                null
         );
     }
 
@@ -108,14 +109,14 @@ public class JavaRepositoryRelationshipNavigationTest {
 
         // Create relationships
         repository.createRelationship(
-            new RetrievableIdentifier("p1", "JavaPersonEntity"),
-            new RetrievableIdentifier("a1", "JavaAddressEntity"),
-            new RelationshipData("HAS_ADDRESS", Map.of())
+                new RetrievableIdentifier("p1", "JavaPersonEntity"),
+                new RetrievableIdentifier("a1", "JavaAddressEntity"),
+                new RelationshipData("HAS_ADDRESS", Map.of())
         );
         repository.createRelationship(
-            new RetrievableIdentifier("p1", "JavaPersonEntity"),
-            new RetrievableIdentifier("a2", "JavaAddressEntity"),
-            new RelationshipData("HAS_ADDRESS", Map.of())
+                new RetrievableIdentifier("p1", "JavaPersonEntity"),
+                new RetrievableIdentifier("a2", "JavaAddressEntity"),
+                new RelationshipData("HAS_ADDRESS", Map.of())
         );
 
         // Load person via repository - should have navigator attached
@@ -139,9 +140,9 @@ public class JavaRepositoryRelationshipNavigationTest {
         repository.save(company);
 
         repository.createRelationship(
-            new RetrievableIdentifier("p1", "JavaPersonEntity"),
-            new RetrievableIdentifier("c1", "JavaCompanyEntity"),
-            new RelationshipData("HAS_EMPLOYER", Map.of())
+                new RetrievableIdentifier("p1", "JavaPersonEntity"),
+                new RetrievableIdentifier("c1", "JavaCompanyEntity"),
+                new RelationshipData("HAS_EMPLOYER", Map.of())
         );
 
         JavaPersonEntity person = repository.findById("p1", JavaPersonEntity.class);
@@ -191,14 +192,14 @@ public class JavaRepositoryRelationshipNavigationTest {
         repository.save(address2);
 
         repository.createRelationship(
-            new RetrievableIdentifier("p1", "JavaPersonEntity"),
-            new RetrievableIdentifier("a1", "JavaAddressEntity"),
-            new RelationshipData("HAS_ADDRESS", Map.of())
+                new RetrievableIdentifier("p1", "JavaPersonEntity"),
+                new RetrievableIdentifier("a1", "JavaAddressEntity"),
+                new RelationshipData("HAS_ADDRESS", Map.of())
         );
         repository.createRelationship(
-            new RetrievableIdentifier("p1", "JavaPersonEntity"),
-            new RetrievableIdentifier("a2", "JavaAddressEntity"),
-            new RelationshipData("HAS_ADDRESS", Map.of())
+                new RetrievableIdentifier("p1", "JavaPersonEntity"),
+                new RetrievableIdentifier("a2", "JavaAddressEntity"),
+                new RelationshipData("HAS_ADDRESS", Map.of())
         );
 
         JavaPersonEntity person = repository.findById("p1", JavaPersonEntity.class);
