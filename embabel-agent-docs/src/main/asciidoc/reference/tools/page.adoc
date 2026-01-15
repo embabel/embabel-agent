@@ -1832,15 +1832,17 @@ val cartTool = MatryoshkaTool.selectable(
 ----
 ====
 
-===== Comparison with Search-Based Tool Discovery
+===== Comparison with Other Approaches
 
-Other agent frameworks address large tool collections with *search-based* approaches that require additional infrastructure:
+Other agent frameworks address large tool collections with different approaches, each with trade-offs:
 
 * **Anthropic's Tool Search Tool**: Uses a `defer_loading: true` flag to prevent tools from being loaded upfront. Tools are discovered via a separate "Tool Search Tool" that searches tool metadata. This requires maintaining searchable tool descriptions and adds latency for each discovery step.
 
 * **LangGraph Dynamic Tool Calling**: Uses vector stores and semantic search to select relevant tools based on the user's query. This requires embedding infrastructure, vector database setup, and careful tuning of similarity thresholds.
 
 * **Google ADK AgentTool**: Uses sub-agents that recursively delegate to other agents, each potentially having their own tool sets. Tool discovery is implicit through the agent hierarchy.
+
+* **LangChain4j ToolProvider**: Provides a `ToolProvider` interface for dynamic tool selection, but it works _before_ the LLM call by analyzing the incoming user message. For example, "if the message contains 'booking', include booking tools." This is pre-filtering based on message content, not progressive disclosure through tool invocation. LangChain4j's documentation also suggests embedding-based classification, RAG over tool descriptions, or two-pass LLM selection—all requiring additional infrastructure or extra LLM calls.
 
 MatryoshkaTool takes a fundamentally different approach: *invoke to reveal*.
 Instead of searching through tool metadata, the LLM simply invokes a facade tool to unlock the tools it contains.
@@ -1862,14 +1864,18 @@ This is fundamentally impossible with search-based discovery, which can only ret
 This provides several advantages:
 
 |===
-|Aspect |Search-Based Approaches |MatryoshkaTool
+|Aspect |Other Approaches |MatryoshkaTool
 
 |*Infrastructure*
-|Requires vector stores, embeddings, or search indices
+|Requires vector stores, embeddings, search indices, or pre-filtering logic
 |No additional infrastructure required
 
+|*Selection Timing*
+|Before LLM call (pre-filtering based on message analysis)
+|After LLM decides to invoke a facade (LLM-driven discovery)
+
 |*Latency*
-|Search adds latency per discovery step
+|Search/embedding adds latency; two-pass selection doubles LLM calls
 |Instant unlock on invocation
 
 |*Scalability*
@@ -1881,7 +1887,7 @@ This provides several advantages:
 |Deterministic: invoking a facade always reveals the same tools
 
 |*Cost*
-|Embedding generation and vector search incur compute costs
+|Embedding generation, vector search, or extra LLM calls incur compute costs
 |No additional compute beyond the tool call itself
 
 |*Dynamic Behavior*
