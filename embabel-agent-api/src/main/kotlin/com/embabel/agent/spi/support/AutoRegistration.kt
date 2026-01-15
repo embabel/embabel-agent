@@ -122,8 +122,8 @@ internal class DelegatingAgentScanningBeanPostProcessor(
     }
 
     private fun processPendingBeans() {
-        var beanInfo: BeanProcessingInfo
-        while ((pendingBeans.poll().also { beanInfo = it }) != null) {
+        while (true) {
+            val beanInfo = pendingBeans.poll() ?: break
             // Apply the processing that was deferred
             val processedBean = processBean(beanInfo.bean, beanInfo.beanName)
         }
