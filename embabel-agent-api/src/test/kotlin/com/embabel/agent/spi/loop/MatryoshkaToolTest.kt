@@ -701,6 +701,482 @@ class MatryoshkaToolTest {
             assertTrue(tools[0] is MatryoshkaTool)
         }
     }
+
+    @Nested
+    inner class ConfiguredInnerToolsTest {
+
+        @Test
+        fun `MatryoshkaTool can pass parameters to configure inner tools`() {
+            // Create a MatryoshkaTool that creates configured instances based on input
+            val matryoshka = MatryoshkaTool.selectable(
+                name = "database",
+                description = "Database operations. Pass 'connection' to configure tools.",
+                innerTools = emptyList(), // Inner tools will be created dynamically
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter.string("connection", "Database connection string")
+                ),
+            ) { input ->
+                // Parse the connection parameter from input
+                val connectionString = try {
+                    val params = objectMapper.readValue(input, Map::class.java)
+                    params["connection"] as? String ?: "default"
+                } catch (e: Exception) {
+                    "default"
+                }
+
+                // Create configured tool instances
+                listOf(
+                    Tool.of(
+                        name = "query",
+                        description = "Query database at $connectionString"
+                    ) { _ ->
+                        Tool.Result.text("Connected to $connectionString and executed query")
+                    },
+                    Tool.of(
+                        name = "insert",
+                        description = "Insert into database at $connectionString"
+                    ) { _ ->
+                        Tool.Result.text("Inserted into $connectionString")
+                    }
+                )
+            }
+
+            // Test that different connection strings produce differently configured tools
+            val prodTools = matryoshka.selectTools("""{"connection": "prod-db.example.com"}""")
+            assertEquals(2, prodTools.size)
+            assertTrue(prodTools[0].definition.description.contains("prod-db.example.com"))
+
+            val devTools = matryoshka.selectTools("""{"connection": "localhost:5432"}""")
+            assertEquals(2, devTools.size)
+            assertTrue(devTools[0].definition.description.contains("localhost:5432"))
+
+            // Verify the tools are callable with the configured connection
+            val result = prodTools[0].call("{}")
+            assertTrue((result as Tool.Result.Text).content.contains("prod-db.example.com"))
+        }
+
+        @Test
+        fun `tool loop uses configured inner tools from MatryoshkaTool parameters`() {
+            // Create a MatryoshkaTool that configures tools based on user selection
+            var capturedRegion = ""
+            val regionTool = MatryoshkaTool.selectable(
+                name = "cloud_services",
+                description = "Cloud operations. Pass 'region' to select datacenter.",
+                innerTools = emptyList(),
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter.string("region", "Cloud region", true, listOf("us-east", "eu-west", "ap-south"))
+                ),
+            ) { input ->
+                val region = try {
+                    val params = objectMapper.readValue(input, Map::class.java)
+                    params["region"] as? String ?: "us-east"
+                } catch (e: Exception) {
+                    "us-east"
+                }
+                capturedRegion = region
+
+                listOf(
+                    Tool.of("deploy", "Deploy to $region") { _ ->
+                        Tool.Result.text("Deployed to region $region")
+                    }
+                )
+            }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    // LLM invokes with region parameter
+                    MockLlmMessageSender.toolCallResponse(
+                        "c1", "cloud_services",
+                        """{"region": "eu-west"}"""
+                    ),
+                    // LLM uses the configured deploy tool
+                    MockLlmMessageSender.toolCallResponse("c2", "deploy", "{}"),
+                    MockLlmMessageSender.textResponse("Deployment complete")
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmCaller = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Deploy to EU")),
+                initialTools = listOf(regionTool),
+                outputParser = { it }
+            )
+
+            assertEquals("Deployment complete", result.result)
+            assertEquals("eu-west", capturedRegion)
+            // Verify the injected tool was configured with the region
+            val deployTool = result.injectedTools.find { it.definition.name == "deploy" }
+            assertNotNull(deployTool)
+            assertTrue(deployTool!!.definition.description.contains("eu-west"))
+        }
+
+        @Test
+        fun `MatryoshkaTool can create stateful tool instances`() {
+            // Create a MatryoshkaTool that creates tools with captured state
+            val matryoshka = MatryoshkaTool.selectable(
+                name = "shopping_cart",
+                description = "Shopping cart operations. Pass 'cart_id' to select cart.",
+                innerTools = emptyList(),
+                inputSchema = Tool.InputSchema.of(
+                    Tool.Parameter.string("cart_id", "Shopping cart ID")
+                ),
+            ) { input ->
+                val cartId = try {
+                    val params = objectMapper.readValue(input, Map::class.java)
+                    params["cart_id"] as? String ?: "default-cart"
+                } catch (e: Exception) {
+                    "default-cart"
+                }
+
+                // Simulated cart state
+                val cartItems = mutableListOf<String>()
+
+                listOf(
+                    Tool.of(
+                        name = "add_item",
+                        description = "Add item to cart $cartId",
+                        inputSchema = Tool.InputSchema.of(
+                            Tool.Parameter.string("item", "Item to add")
+                        )
+                    ) { itemInput ->
+                        val itemParams = objectMapper.readValue(itemInput, Map::class.java)
+                        val item = itemParams["item"] as? String ?: "unknown"
+                        cartItems.add(item)
+                        Tool.Result.text("Added $item to cart $cartId. Items: ${cartItems.size}")
+                    },
+                    Tool.of(
+                        name = "get_cart",
+                        description = "Get contents of cart $cartId"
+                    ) { _ ->
+                        Tool.Result.text("Cart $cartId contains: ${cartItems.joinToString(", ")}")
+                    }
+                )
+            }
+
+            // Get tools for a specific cart
+            val cartTools = matryoshka.selectTools("""{"cart_id": "cart-123"}""")
+            assertEquals(2, cartTools.size)
+
+            // Add items and verify state is maintained
+            val addTool = cartTools.find { it.definition.name == "add_item" }!!
+            val getTool = cartTools.find { it.definition.name == "get_cart" }!!
+
+            addTool.call("""{"item": "apple"}""")
+            addTool.call("""{"item": "banana"}""")
+
+            val result = getTool.call("{}")
+            val content = (result as Tool.Result.Text).content
+            assertTrue(content.contains("apple"))
+            assertTrue(content.contains("banana"))
+            assertTrue(content.contains("cart-123"))
+        }
+    }
+
+    @Nested
+    inner class DeepNestingProgrammaticTest {
+
+        @Test
+        fun `three level nesting with programmatic interface`() {
+            // Level 3 - leaf tools
+            val leafTool1 = MockTool("leaf_query", "Execute query") { Tool.Result.text("query result") }
+            val leafTool2 = MockTool("leaf_insert", "Insert data") { Tool.Result.text("insert result") }
+
+            // Level 2 - contains leaf tools
+            val level2 = MatryoshkaTool.of(
+                name = "level2_database",
+                description = "Database operations",
+                innerTools = listOf(leafTool1, leafTool2),
+            )
+
+            // Level 1 - contains level 2
+            val level1 = MatryoshkaTool.of(
+                name = "level1_admin",
+                description = "Admin operations",
+                innerTools = listOf(level2),
+            )
+
+            // Verify structure
+            assertEquals("level1_admin", level1.definition.name)
+            assertEquals(1, level1.innerTools.size)
+
+            val innerLevel2 = level1.innerTools[0] as MatryoshkaTool
+            assertEquals("level2_database", innerLevel2.definition.name)
+            assertEquals(2, innerLevel2.innerTools.size)
+        }
+
+        @Test
+        fun `five level nesting with programmatic interface`() {
+            // Level 5 - deepest leaf tools
+            val leaf1 = MockTool("deep_read", "Read data") { Tool.Result.text("read") }
+            val leaf2 = MockTool("deep_write", "Write data") { Tool.Result.text("write") }
+
+            // Level 4
+            val level4 = MatryoshkaTool.of(
+                name = "level4_io",
+                description = "I/O operations",
+                innerTools = listOf(leaf1, leaf2),
+            )
+
+            // Level 3
+            val level3 = MatryoshkaTool.of(
+                name = "level3_storage",
+                description = "Storage operations",
+                innerTools = listOf(level4),
+            )
+
+            // Level 2
+            val level2 = MatryoshkaTool.of(
+                name = "level2_data",
+                description = "Data operations",
+                innerTools = listOf(level3),
+            )
+
+            // Level 1 - top
+            val level1 = MatryoshkaTool.of(
+                name = "level1_root",
+                description = "Root operations",
+                innerTools = listOf(level2),
+            )
+
+            // Verify the chain
+            assertEquals("level1_root", level1.definition.name)
+            val l2 = level1.innerTools[0] as MatryoshkaTool
+            assertEquals("level2_data", l2.definition.name)
+            val l3 = l2.innerTools[0] as MatryoshkaTool
+            assertEquals("level3_storage", l3.definition.name)
+            val l4 = l3.innerTools[0] as MatryoshkaTool
+            assertEquals("level4_io", l4.definition.name)
+            assertEquals(2, l4.innerTools.size)
+            assertEquals("deep_read", l4.innerTools[0].definition.name)
+            assertEquals("deep_write", l4.innerTools[1].definition.name)
+        }
+
+        @Test
+        fun `tool loop handles five level nesting`() {
+            // Build 5-level hierarchy
+            val leaf = MockTool("leaf", "Leaf tool") { Tool.Result.text("leaf result") }
+            val level4 = MatryoshkaTool.of("level4", "Level 4", listOf(leaf))
+            val level3 = MatryoshkaTool.of("level3", "Level 3", listOf(level4))
+            val level2 = MatryoshkaTool.of("level2", "Level 2", listOf(level3))
+            val level1 = MatryoshkaTool.of("level1", "Level 1", listOf(level2))
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("c1", "level1", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c2", "level2", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c3", "level3", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c4", "level4", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c5", "leaf", "{}"),
+                    MockLlmMessageSender.textResponse("Traversed 5 levels to reach leaf")
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmCaller = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Drill deep")),
+                initialTools = listOf(level1),
+                outputParser = { it }
+            )
+
+            assertEquals("Traversed 5 levels to reach leaf", result.result)
+            // 4 matryoshka tools removed (level1-4), 4 injected (level2-4 + leaf)
+            assertEquals(4, result.removedTools.size)
+            assertEquals(4, result.injectedTools.size)
+            assertEquals("leaf", result.injectedTools.last().definition.name)
+        }
+
+        @Test
+        fun `mixed nesting with multiple branches at each level`() {
+            // Level 2 branches
+            val branch1Leaf = MockTool("b1_leaf", "Branch 1 leaf") { Tool.Result.text("b1") }
+            val branch2Leaf = MockTool("b2_leaf", "Branch 2 leaf") { Tool.Result.text("b2") }
+
+            val branch1 = MatryoshkaTool.of(
+                name = "branch1",
+                description = "Branch 1",
+                innerTools = listOf(branch1Leaf),
+            )
+
+            val branch2 = MatryoshkaTool.of(
+                name = "branch2",
+                description = "Branch 2",
+                innerTools = listOf(branch2Leaf),
+            )
+
+            // Level 1 with two branches
+            val level1 = MatryoshkaTool.of(
+                name = "root",
+                description = "Root with branches",
+                innerTools = listOf(branch1, branch2),
+            )
+
+            // Verify structure
+            assertEquals(2, level1.innerTools.size)
+            assertTrue(level1.innerTools[0] is MatryoshkaTool)
+            assertTrue(level1.innerTools[1] is MatryoshkaTool)
+
+            // Test branch selection via tool loop
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("c1", "root", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c2", "branch1", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c3", "b1_leaf", "{}"),
+                    MockLlmMessageSender.textResponse("Used branch 1")
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmCaller = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Use branch 1")),
+                initialTools = listOf(level1),
+                outputParser = { it }
+            )
+
+            assertEquals("Used branch 1", result.result)
+            // root and branch1 removed, branch1+branch2+b1_leaf injected
+            assertEquals(2, result.removedTools.size)
+            assertTrue(result.removedTools.any { it.definition.name == "root" })
+            assertTrue(result.removedTools.any { it.definition.name == "branch1" })
+        }
+    }
+
+    @Nested
+    inner class DeepNestingAnnotationTest {
+
+        @Test
+        fun `creates MatryoshkaTool with nested inner class MatryoshkaTools`() {
+            val matryoshka = MatryoshkaTool.fromInstance(Level2Category())
+
+            assertEquals("level2_category", matryoshka.definition.name)
+            // Should have 1 direct tool + 1 inner MatryoshkaTool
+            assertEquals(2, matryoshka.innerTools.size)
+
+            val directTool = matryoshka.innerTools.find { it.definition.name == "level2Util" }
+            assertNotNull(directTool)
+            assertFalse(directTool is MatryoshkaTool)
+
+            val innerMatryoshka = matryoshka.innerTools.find { it.definition.name == "level3_inner" }
+            assertNotNull(innerMatryoshka)
+            assertTrue(innerMatryoshka is MatryoshkaTool)
+
+            val level3 = innerMatryoshka as MatryoshkaTool
+            assertEquals(2, level3.innerTools.size)
+            assertTrue(level3.innerTools.any { it.definition.name == "innerQuery" })
+            assertTrue(level3.innerTools.any { it.definition.name == "innerInsert" })
+        }
+
+        @Test
+        fun `creates three level deep MatryoshkaTool hierarchy from nested annotations`() {
+            val level1 = MatryoshkaTool.fromInstance(Level1Top())
+
+            assertEquals("level1_top", level1.definition.name)
+            // 1 direct tool (status) + 1 inner MatryoshkaTool (level2_inner)
+            assertEquals(2, level1.innerTools.size)
+
+            val statusTool = level1.innerTools.find { it.definition.name == "status" }
+            assertNotNull(statusTool)
+
+            val level2 = level1.innerTools.find { it.definition.name == "level2_inner" } as? MatryoshkaTool
+            assertNotNull(level2)
+            // 1 direct tool (level2Op) + 1 inner MatryoshkaTool (level3_deepest)
+            assertEquals(2, level2!!.innerTools.size)
+
+            val level2Op = level2.innerTools.find { it.definition.name == "level2Op" }
+            assertNotNull(level2Op)
+
+            val level3 = level2.innerTools.find { it.definition.name == "level3_deepest" } as? MatryoshkaTool
+            assertNotNull(level3)
+            assertEquals(2, level3!!.innerTools.size)
+            assertTrue(level3.innerTools.any { it.definition.name == "deepQuery" })
+            assertTrue(level3.innerTools.any { it.definition.name == "deepMutate" })
+        }
+
+        @Test
+        fun `tool loop traverses annotation-based nested hierarchy`() {
+            val level1 = MatryoshkaTool.fromInstance(Level1Top())
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    // Invoke level1
+                    MockLlmMessageSender.toolCallResponse("c1", "level1_top", "{}"),
+                    // Invoke level2
+                    MockLlmMessageSender.toolCallResponse("c2", "level2_inner", "{}"),
+                    // Invoke level3
+                    MockLlmMessageSender.toolCallResponse("c3", "level3_deepest", "{}"),
+                    // Use deepest tool
+                    MockLlmMessageSender.toolCallResponse("c4", "deepQuery", "{}"),
+                    MockLlmMessageSender.textResponse("Executed deep query")
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmCaller = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Run deep query")),
+                initialTools = listOf(level1),
+                outputParser = { it }
+            )
+
+            assertEquals("Executed deep query", result.result)
+            // All 3 matryoshka levels removed
+            assertEquals(3, result.removedTools.size)
+            assertTrue(result.removedTools.any { it.definition.name == "level1_top" })
+            assertTrue(result.removedTools.any { it.definition.name == "level2_inner" })
+            assertTrue(result.removedTools.any { it.definition.name == "level3_deepest" })
+        }
+
+        @Test
+        fun `inner tools from nested annotations are callable`() {
+            val level1 = MatryoshkaTool.fromInstance(Level1Top())
+
+            // Get level2
+            val level2 = level1.innerTools.find { it.definition.name == "level2_inner" } as MatryoshkaTool
+
+            // Get level3
+            val level3 = level2.innerTools.find { it.definition.name == "level3_deepest" } as MatryoshkaTool
+
+            // Call the deepest tool
+            val deepQueryTool = level3.innerTools.find { it.definition.name == "deepQuery" }!!
+            val result = deepQueryTool.call("{}")
+
+            assertTrue(result is Tool.Result.Text)
+            assertEquals("Deep query result", (result as Tool.Result.Text).content)
+        }
+
+        @Test
+        fun `Tool_fromInstance detects nested MatryoshkaTools in inner classes`() {
+            val tools = Tool.fromInstance(Level1Top())
+
+            assertEquals(1, tools.size)
+            assertTrue(tools[0] is MatryoshkaTool)
+
+            val level1 = tools[0] as MatryoshkaTool
+            assertEquals("level1_top", level1.definition.name)
+
+            // Verify nested structure
+            val level2 = level1.innerTools.find { it is MatryoshkaTool && it.definition.name == "level2_inner" }
+            assertNotNull(level2)
+        }
+    }
 }
 
 // Test fixture classes
@@ -775,4 +1251,82 @@ class NonAnnotatedClass {
 )
 class NoToolMethods {
     fun notATool(): String = "not a tool"
+}
+
+/**
+ * Level 3 - deepest level with actual tools
+ */
+@MatryoshkaTools(
+    name = "level3_tools",
+    description = "Level 3 tools - the actual operations"
+)
+class Level3Tools {
+
+    @LlmTool(description = "Execute a query")
+    fun query(sql: String): String = "Query result: $sql"
+
+    @LlmTool(description = "Insert data")
+    fun insert(table: String): String = "Inserted into $table"
+}
+
+/**
+ * Level 2 - contains Level 3 as an inner class
+ */
+@MatryoshkaTools(
+    name = "level2_category",
+    description = "Level 2 category - contains Level 3"
+)
+class Level2Category {
+
+    @LlmTool(description = "Level 2 utility function")
+    fun level2Util(): String = "Level 2 utility"
+
+    @MatryoshkaTools(
+        name = "level3_inner",
+        description = "Inner Level 3 tools"
+    )
+    class Level3Inner {
+
+        @LlmTool(description = "Inner query")
+        fun innerQuery(): String = "Inner query result"
+
+        @LlmTool(description = "Inner insert")
+        fun innerInsert(): String = "Inner insert result"
+    }
+}
+
+/**
+ * Level 1 - top level that contains Level 2
+ */
+@MatryoshkaTools(
+    name = "level1_top",
+    description = "Top level - invoke to access Level 2"
+)
+class Level1Top {
+
+    @LlmTool(description = "Top level status")
+    fun status(): String = "System status: OK"
+
+    @MatryoshkaTools(
+        name = "level2_inner",
+        description = "Inner Level 2 category"
+    )
+    class Level2Inner {
+
+        @LlmTool(description = "Level 2 inner operation")
+        fun level2Op(): String = "Level 2 operation"
+
+        @MatryoshkaTools(
+            name = "level3_deepest",
+            description = "Deepest Level 3 tools"
+        )
+        class Level3Deepest {
+
+            @LlmTool(description = "Deepest query")
+            fun deepQuery(): String = "Deep query result"
+
+            @LlmTool(description = "Deepest mutation")
+            fun deepMutate(): String = "Deep mutation result"
+        }
+    }
 }
