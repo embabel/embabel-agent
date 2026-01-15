@@ -16,6 +16,8 @@
 package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.MatryoshkaTool
+import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.agent.spi.support.unwrapAs
 import org.slf4j.LoggerFactory
 
@@ -47,11 +49,26 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
         // Find the invoked tool (may be wrapped in decorators)
         val wrappedTool = context.currentTools.find {
             it.definition.name == context.lastToolCall.toolName
-        } ?: return ToolInjectionResult.noChange()
+        }
+        if (wrappedTool == null) {
+            logger.debug("Tool '{}' not found in current tools: {}",
+                context.lastToolCall.toolName,
+                context.currentTools.map { it.definition.name })
+            return ToolInjectionResult.noChange()
+        }
+
+        logger.debug("Found tool '{}' of type {}, attempting unwrap",
+            wrappedTool.definition.name, wrappedTool::class.simpleName)
 
         // Unwrap to find underlying MatryoshkaTool (handles decorator wrappers)
         val invokedTool = wrappedTool.unwrapAs<MatryoshkaTool>()
-            ?: return ToolInjectionResult.noChange()
+        if (invokedTool == null) {
+            logger.debug("Tool '{}' is not a MatryoshkaTool after unwrap. Chain: {}",
+                wrappedTool.definition.name, getUnwrapChain(wrappedTool))
+            return ToolInjectionResult.noChange()
+        }
+
+        logger.debug("Successfully unwrapped '{}' to MatryoshkaTool", invokedTool.definition.name)
 
         // Select tools based on input
         val selectedTools = invokedTool.selectTools(context.lastToolCall.toolInput)
@@ -84,6 +101,23 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
         } else {
             ToolInjectionResult.add(selectedTools)
         }
+    }
+
+    /**
+     * Build a string showing the decorator chain for debugging.
+     */
+    private fun getUnwrapChain(tool: Tool): String {
+        val chain = mutableListOf<String>()
+        var current: Tool = tool
+        while (true) {
+            chain.add(current::class.simpleName ?: "Unknown")
+            if (current is DelegatingTool) {
+                current = current.delegate
+            } else {
+                break
+            }
+        }
+        return chain.joinToString(" -> ")
     }
 
     companion object {

@@ -15,6 +15,7 @@
  */
 package com.embabel.chat
 
+import com.embabel.agent.domain.io.AssistantContent
 import java.time.Instant
 
 /**
@@ -28,18 +29,28 @@ data class ToolCall(
 
 /**
  * An assistant message that includes tool calls.
- * Extends AssistantMessage to include the tool calls the LLM wants to make.
+ * When an LLM requests tool calls, it may or may not include text content.
+ * This class handles both cases - empty content is valid for tool-call-only responses.
  */
 class AssistantMessageWithToolCalls @JvmOverloads constructor(
     content: String = "",
     val toolCalls: List<ToolCall>,
     name: String? = null,
     timestamp: Instant = Instant.now(),
-) : AssistantMessage(
-    content = content,
+) : Message(
+    role = Role.ASSISTANT,
+    // Only include TextPart if content is non-empty
+    parts = if (content.isNotEmpty()) listOf(TextPart(content)) else emptyList(),
     name = name,
     timestamp = timestamp,
-) {
+), AssistantContent {
+
+    /**
+     * Get the text content, or empty string if none.
+     */
+    override val content: String
+        get() = parts.filterIsInstance<TextPart>().joinToString("") { it.text }
+
     override fun toString(): String {
         return "AssistantMessageWithToolCalls(toolCalls=${toolCalls.map { it.name }})"
     }

@@ -85,6 +85,7 @@ internal class SpringAiLlmMessageSender(
         }
 
         // Use ToolCallingChatOptions to pass tool definitions
+        // IMPORTANT: Disable internal tool execution - we handle tools ourselves in DefaultToolLoop
         return org.springframework.ai.model.tool.ToolCallingChatOptions.builder()
             .model(chatOptions.model)
             .temperature(chatOptions.temperature)
@@ -95,6 +96,7 @@ internal class SpringAiLlmMessageSender(
             .presencePenalty(chatOptions.presencePenalty)
             .stopSequences(chatOptions.stopSequences)
             .toolCallbacks(toolCallbacks)
+            .internalToolExecutionEnabled(false)
             .build()
     }
 }

@@ -50,9 +50,8 @@ sealed class Message(
     override val timestamp: Instant = Instant.now(),
 ) : HasContent, Timestamped {
 
-    init {
-        require(parts.isNotEmpty()) { "Message must contain at least one content part" }
-    }
+    // Note: Empty parts are allowed for special cases like AssistantMessageWithToolCalls
+    // where the "content" is the tool calls, not text parts.
 
     /**
      * Maintains backward compatibility with HasContent interface.

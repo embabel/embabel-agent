@@ -1160,10 +1160,10 @@ val persistentTool = MatryoshkaTool.of(
 
 ===== Enabling MatryoshkaTool in the Tool Loop
 
-MatryoshkaTool requires the `MatryoshkaToolInjectionStrategy` to be enabled.
-This strategy watches for MatryoshkaTool invocations and performs the tool replacement.
+MatryoshkaTool is **enabled by default** when using Embabel's tool loop.
+The `ToolInjectionStrategy.DEFAULT` includes `MatryoshkaToolInjectionStrategy`, so no additional configuration is needed.
 
-When using Embabel's own tool loop (the default), enable it via the injection strategy:
+If you need to combine with custom strategies, use `ChainedToolInjectionStrategy`:
 
 [tabs]
 ====
@@ -1171,29 +1171,21 @@ Java::
 +
 [source,java]
 ----
-import com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy;
-import com.embabel.agent.spi.loop.CompositeToolInjectionStrategy;
+import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy;
 
-// Use the singleton instance
-MatryoshkaToolInjectionStrategy strategy = MatryoshkaToolInjectionStrategy.INSTANCE;
-
-// Or combine with other strategies
-CompositeToolInjectionStrategy combined =
-    CompositeToolInjectionStrategy.withMatryoshka(otherStrategy1, otherStrategy2);
+// Combine MatryoshkaTool support with custom strategies
+ChainedToolInjectionStrategy combined =
+    ChainedToolInjectionStrategy.withMatryoshka(customStrategy1, customStrategy2);
 ----
 
 Kotlin::
 +
 [source,kotlin]
 ----
-import com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy
-import com.embabel.agent.spi.loop.CompositeToolInjectionStrategy
+import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
 
-// Use the singleton instance
-val strategy = MatryoshkaToolInjectionStrategy.INSTANCE
-
-// Or combine with other strategies
-val combined = CompositeToolInjectionStrategy.withMatryoshka(otherStrategy1, otherStrategy2)
+// Combine MatryoshkaTool support with custom strategies
+val combined = ChainedToolInjectionStrategy.withMatryoshka(customStrategy1, customStrategy2)
 ----
 ====
 
@@ -1390,6 +1382,67 @@ The `category` attribute on `@LlmTool` is used when the containing class has `@M
 - Tools with the same category are grouped together
 - Tools without a category are added to all category groups plus an "all" category
 - If no tools have categories, a simple (non-category-based) MatryoshkaTool is created
+
+===== Real-World Example: Spotify Integration
+
+Here's a real-world example from the Impromptu chatbot that uses `@MatryoshkaTools` to progressively disclose Spotify functionality:
+
+[source,java]
+----
+@MatryoshkaTools(
+    name = "spotify",
+    description = "Access Spotify music features. Invoke this tool to enable Spotify " +
+            "operations like playing music, searching tracks, managing playlists, " +
+            "and controlling playback."
+)
+public record SpotifyTools(ImpromptuUser user, SpotifyService spotifyService) {
+
+    @LlmTool(description = "Check if user has linked their Spotify account")
+    public String checkSpotifyStatus() { /* ... */ }
+
+    @LlmTool(description = "Get the user's Spotify playlists")
+    public String getPlaylists() { /* ... */ }
+
+    @LlmTool(description = "Search for tracks on Spotify by song name, artist, or both")
+    public String searchTracks(String query) { /* ... */ }
+
+    @LlmTool(description = "Play a track on Spotify by searching for it")
+    public String playTrack(String query) { /* ... */ }
+
+    @LlmTool(description = "Pause the current Spotify playback")
+    public String pausePlayback() { /* ... */ }
+
+    // ... more tools
+}
+----
+
+With this setup:
+
+1. The LLM initially sees a single `spotify` tool
+2. When the user says "play some jazz", the LLM invokes `spotify`
+3. The `spotify` facade is replaced with all the inner tools (`getPlaylists`, `searchTracks`, `playTrack`, etc.)
+4. The LLM can then call `searchTracks` or `playTrack` to fulfill the request
+
+===== Auto-Detection with Tool.fromInstance()
+
+When you use `Tool.fromInstance()` on a class annotated with `@MatryoshkaTools`, it automatically creates a `MatryoshkaTool`:
+
+[source,java]
+----
+// Auto-detects @MatryoshkaTools and creates a MatryoshkaTool
+List<Tool> tools = Tool.fromInstance(new SpotifyTools(user, service));
+// Returns a single MatryoshkaTool, not individual tools
+----
+
+This works seamlessly with `withToolObject()` on PromptRunner:
+
+[source,java]
+----
+context.ai()
+    .withToolObject(new SpotifyTools(user, spotifyService))
+    .respond("Play some classical music");
+// The SpotifyTools are automatically exposed as a single MatryoshkaTool facade
+----
 
 ===== Nested MatryoshkaTools
 
