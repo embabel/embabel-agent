@@ -21,6 +21,7 @@ import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -390,13 +391,19 @@ class DelegatingStreamingPromptRunnerTest {
         fun `evaluateCondition should delegate to delegate`() {
             val condition = "test condition"
             val context = "test context"
+            val determination = Determination(
+                result = true,
+                confidence = 0.9,
+                explanation = "Test explanation"
+            )
 
-            every { mockDelegate.evaluateCondition(condition, context, any()) } returns true
+            every { mockDelegate.createObject(any(), Determination::class.java) } returns determination
+            every { mockDelegate.llm } returns null
 
             val runner = createPromptRunner()
             val result = runner.evaluateCondition(condition, context)
 
-            verify { mockDelegate.evaluateCondition(condition, context, any()) }
+            verify { mockDelegate.createObject(any(), Determination::class.java) }
             assertEquals(true, result)
         }
 

@@ -204,10 +204,6 @@ data class FakePromptRunner(
             return this@FakePromptRunner.createObjectIfPossible(messages, outputClass)
         }
 
-        override fun evaluateCondition(condition: String, context: String, confidenceThreshold: ZeroToOne): Boolean {
-            return this@FakePromptRunner.evaluateCondition(condition, context, confidenceThreshold)
-        }
-
         override fun supportsStreaming(): Boolean = false
 
         override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {

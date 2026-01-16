@@ -24,11 +24,14 @@ import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
+import com.embabel.common.util.loggerFor
 
 /**
  * Implementation of [StreamingPromptRunner] that delegates to a [PromptExecutionDelegate].
@@ -143,7 +146,30 @@ internal data class DelegatingStreamingPromptRunner(
         condition: String,
         context: String,
         confidenceThreshold: ZeroToOne,
-    ): Boolean = delegate.evaluateCondition(condition, context, confidenceThreshold)
+    ): Boolean {
+        val prompt = """
+            Evaluate this condition given the context.
+            Return "result": whether you think it is true, your confidence level from 0-1,
+            and an explanation of what you base this on.
+
+            # Condition
+            $condition
+
+            # Context
+            $context
+            """.trimIndent()
+        val determination = createObject(
+            messages = listOf(UserMessage(prompt)),
+            outputClass = Determination::class.java,
+        )
+        loggerFor<DelegatingStreamingPromptRunner>().info(
+            "Condition {}: determination from {} was {}",
+            condition,
+            llm?.criteria,
+            determination,
+        )
+        return determination.result && determination.confidence >= confidenceThreshold
+    }
 
     // Factory methods
     override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> =

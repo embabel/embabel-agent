@@ -257,35 +257,6 @@ internal data class OperationContextDelegate(
         }
     }
 
-    override fun evaluateCondition(
-        condition: String,
-        context: String,
-        confidenceThreshold: ZeroToOne,
-    ): Boolean {
-        val prompt = """
-            Evaluate this condition given the context.
-            Return "result": whether you think it is true, your confidence level from 0-1,
-            and an explanation of what you base this on.
-
-            # Condition
-            $condition
-
-            # Context
-            $context
-            """.trimIndent()
-        val determination = createObject(
-            messages = listOf(UserMessage(prompt)),
-            outputClass = Determination::class.java,
-        )
-        loggerFor<OperationContextDelegate>().info(
-            "Condition {}: determination from {} was {}",
-            condition,
-            llm.criteria,
-            determination,
-        )
-        return determination.result && determination.confidence >= confidenceThreshold
-    }
-
     override fun supportsStreaming(): Boolean {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
         return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)

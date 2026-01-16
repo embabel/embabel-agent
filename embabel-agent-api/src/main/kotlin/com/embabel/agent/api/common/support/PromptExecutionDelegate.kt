@@ -99,12 +99,6 @@ internal interface PromptExecutionDelegate : LlmUse {
         outputClass: Class<T>,
     ): T?
 
-    fun evaluateCondition(
-        condition: String,
-        context: String,
-        confidenceThreshold: ZeroToOne,
-    ): Boolean
-
     fun supportsStreaming(): Boolean
 
     fun <T> createObjectStream(itemClass: Class<T>): Flux<T>
