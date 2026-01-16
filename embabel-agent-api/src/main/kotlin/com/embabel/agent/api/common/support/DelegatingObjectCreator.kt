@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.PromptExecutionDelegate
 import com.embabel.agent.api.common.nested.ObjectCreationExample
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.chat.Message
@@ -25,6 +24,9 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.function.Predicate
 
+/**
+ * Implementation of [ObjectCreator] that delegates to a [PromptExecutionDelegate].
+ */
 internal data class DelegatingObjectCreator<T>(
     internal val delegate: PromptExecutionDelegate,
     internal val outputClass: Class<T>,

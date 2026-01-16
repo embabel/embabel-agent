@@ -17,7 +17,6 @@ package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.AgentImage
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.PromptExecutionDelegate
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
@@ -38,12 +37,12 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
 import java.util.function.Predicate
 
-class DelegatingPromptRunnerTest {
+class DelegatingStreamingPromptRunnerTest {
 
     private val mockDelegate = mockk<PromptExecutionDelegate>()
 
-    private fun createPromptRunner(): DelegatingPromptRunner {
-        return DelegatingPromptRunner(
+    private fun createPromptRunner(): DelegatingStreamingPromptRunner {
+        return DelegatingStreamingPromptRunner(
             delegate = mockDelegate,
         )
     }
@@ -141,8 +140,8 @@ class DelegatingPromptRunnerTest {
             val result = runner.withInteractionId(interactionId)
 
             verify { mockDelegate.withInteractionId(interactionId) }
-            assertTrue(result is DelegatingPromptRunner)
-            assertEquals(updatedDelegate, (result as DelegatingPromptRunner).delegate)
+            assertTrue(result is DelegatingStreamingPromptRunner)
+            assertEquals(updatedDelegate, (result as DelegatingStreamingPromptRunner).delegate)
         }
 
         @Test
@@ -156,8 +155,8 @@ class DelegatingPromptRunnerTest {
             val result = runner.withLlm(llm)
 
             verify { mockDelegate.withLlm(llm) }
-            assertTrue(result is DelegatingPromptRunner)
-            assertEquals(updatedDelegate, (result as DelegatingPromptRunner).delegate)
+            assertTrue(result is DelegatingStreamingPromptRunner)
+            assertEquals(updatedDelegate, (result as DelegatingStreamingPromptRunner).delegate)
         }
 
         @Test
@@ -171,8 +170,8 @@ class DelegatingPromptRunnerTest {
             val result = runner.withMessages(messages)
 
             verify { mockDelegate.withMessages(messages) }
-            assertTrue(result is DelegatingPromptRunner)
-            assertEquals(updatedDelegate, (result as DelegatingPromptRunner).delegate)
+            assertTrue(result is DelegatingStreamingPromptRunner)
+            assertEquals(updatedDelegate, (result as DelegatingStreamingPromptRunner).delegate)
         }
 
         @Test
@@ -186,7 +185,7 @@ class DelegatingPromptRunnerTest {
             val result = runner.withImages(images)
 
             verify { mockDelegate.withImages(images) }
-            assertTrue(result is DelegatingPromptRunner)
+            assertTrue(result is DelegatingStreamingPromptRunner)
         }
 
         @Test
@@ -200,7 +199,7 @@ class DelegatingPromptRunnerTest {
             val result = runner.withToolGroup(groupRole)
 
             verify { mockDelegate.withToolGroup(match<ToolGroupRequirement> { it.role == groupRole }) }
-            assertTrue(result is DelegatingPromptRunner)
+            assertTrue(result is DelegatingStreamingPromptRunner)
         }
 
         @Test
@@ -214,7 +213,7 @@ class DelegatingPromptRunnerTest {
             val result = runner.withToolGroup(toolGroup)
 
             verify { mockDelegate.withToolGroup(toolGroup) }
-            assertTrue(result is DelegatingPromptRunner)
+            assertTrue(result is DelegatingStreamingPromptRunner)
         }
 
         @Test
@@ -228,7 +227,7 @@ class DelegatingPromptRunnerTest {
             val result = runner.withToolObject(toolObject)
 
             verify { mockDelegate.withToolObject(toolObject) }
-            assertTrue(result is DelegatingPromptRunner)
+            assertTrue(result is DelegatingStreamingPromptRunner)
         }
 
         @Test
@@ -242,7 +241,7 @@ class DelegatingPromptRunnerTest {
             val result = runner.withTool(tool)
 
             verify { mockDelegate.withTool(tool) }
-            assertTrue(result is DelegatingPromptRunner)
+            assertTrue(result is DelegatingStreamingPromptRunner)
         }
 
         @Test
@@ -256,7 +255,7 @@ class DelegatingPromptRunnerTest {
             val result = runner.withPromptContributors(contributors)
 
             verify { mockDelegate.withPromptContributors(contributors) }
-            assertTrue(result is DelegatingPromptRunner)
+            assertTrue(result is DelegatingStreamingPromptRunner)
         }
 
         @Test
@@ -269,7 +268,7 @@ class DelegatingPromptRunnerTest {
             val result = runner.withGenerateExamples(true)
 
             verify { mockDelegate.withGenerateExamples(true) }
-            assertTrue(result is DelegatingPromptRunner)
+            assertTrue(result is DelegatingStreamingPromptRunner)
         }
     }
 

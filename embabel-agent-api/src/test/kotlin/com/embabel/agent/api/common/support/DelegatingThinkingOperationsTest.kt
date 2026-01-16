@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.PromptExecutionDelegate
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.thinking.ThinkingBlock

@@ -15,13 +15,15 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.PromptExecutionDelegate
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
 
+/**
+ * Implementation of [TemplateOperations] that delegates to a [PromptExecutionDelegate].
+ */
 internal data class DelegatingTemplateOperations(
     internal val delegate: PromptExecutionDelegate,
     internal val templateName: String,

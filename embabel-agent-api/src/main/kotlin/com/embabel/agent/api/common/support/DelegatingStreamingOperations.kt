@@ -15,13 +15,15 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.PromptExecutionDelegate
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.streaming.StreamingEvent
 import reactor.core.publisher.Flux
 
+/**
+ * Implementation of [StreamingPromptRunnerOperations] that delegates to a [PromptExecutionDelegate].
+ */
 internal data class DelegatingStreamingOperations(
     private val delegate: PromptExecutionDelegate,
 ) : StreamingPromptRunnerOperations {

@@ -15,13 +15,15 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.PromptExecutionDelegate
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 
+/**
+ * Implementation of [ThinkingPromptRunnerOperations] that delegates to a [PromptExecutionDelegate].
+ */
 internal data class DelegatingThinkingOperations(
     private val delegate: PromptExecutionDelegate,
 ) : ThinkingPromptRunnerOperations {

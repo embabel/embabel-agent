@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.common
 
+package com.embabel.agent.api.common.support
+
+import com.embabel.agent.api.common.*
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -35,12 +37,13 @@ import java.util.function.Predicate
 /**
  * Delegate interface for prompt execution functionality.
  * Contains only primitive operations that cannot be expressed in terms of other methods.
- * Used in [com.embabel.agent.api.common.support.DelegatingPromptRunner],
- * [com.embabel.agent.api.common.support.DelegatingObjectCreator], and
- * [com.embabel.agent.api.common.support.DelegatingTemplateOperations].
+ * Used in [DelegatingStreamingPromptRunner],
+ * [DelegatingObjectCreator], and
+ * [DelegatingTemplateOperations].
  */
 internal interface PromptExecutionDelegate : LlmUse {
 
+    // Properties
     val llmOperations: LlmOperations
 
     val templateRenderer: TemplateRenderer
@@ -53,86 +56,40 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     val images: List<AgentImage>
 
-    /**
-     * Set an interaction id for this delegate.
-     */
+    // With-ers
     fun withInteractionId(interactionId: InteractionId): PromptExecutionDelegate
 
-    /**
-     * Specify an LLM for the delegate
-     */
     fun withLlm(llm: LlmOptions): PromptExecutionDelegate
 
-    /**
-     * Add messages that will be included in the final prompt.
-     */
     fun withMessages(messages: List<Message>): PromptExecutionDelegate
 
-    /**
-     * Add images that will be included in the final prompt.
-     */
     fun withImages(images: List<AgentImage>): PromptExecutionDelegate
 
-    /**
-     * Add a tool group to the delegate
-     */
     fun withToolGroup(toolGroup: ToolGroupRequirement): PromptExecutionDelegate
 
-    /**
-     * Add a dynamic tool group to the delegate
-     */
     fun withToolGroup(toolGroup: ToolGroup): PromptExecutionDelegate
 
-    /**
-     * Add a tool object to the delegate
-     */
     fun withToolObject(toolObject: ToolObject): PromptExecutionDelegate
 
-    /**
-     * Add a framework-agnostic Tool to the delegate
-     */
     fun withTool(tool: Tool): PromptExecutionDelegate
 
-    /**
-     * Add a list of handoffs to agents on this platform
-     */
     fun withHandoffs(vararg outputTypes: Class<*>): PromptExecutionDelegate
 
-    /**
-     * Add a list of subagents to hand off to
-     */
     fun withSubagents(vararg subagents: Subagent): PromptExecutionDelegate
 
-    /**
-     * Add prompt contributors that can add to the prompt
-     */
     fun withPromptContributors(promptContributors: List<PromptContributor>): PromptExecutionDelegate
 
-    /**
-     * Add prompt contributors that can see context
-     */
     fun withContextualPromptContributors(
         contextualPromptContributors: List<ContextualPromptElement>,
     ): PromptExecutionDelegate
 
-    /**
-     * Set whether to generate examples of the output in the prompt
-     */
     fun withGenerateExamples(generateExamples: Boolean): PromptExecutionDelegate
 
-    /**
-     * Adds a filter that determines which properties are to be included when creating an object
-     */
     fun withPropertyFilter(filter: Predicate<String>): PromptExecutionDelegate
 
-    /**
-     * Set whether to validate created objects
-     */
     fun withValidation(validation: Boolean): PromptExecutionDelegate
 
-    /**
-     * Create an object from messages (core execution method)
-     */
+    // Execution methods
     fun <T> createObject(
         messages: List<Message>,
         outputClass: Class<T>,

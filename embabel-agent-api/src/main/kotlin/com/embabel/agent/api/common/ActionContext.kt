@@ -18,7 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.channel.MessageOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannelEvent
 import com.embabel.agent.api.channel.ProgressOutputChannelEvent
-import com.embabel.agent.api.common.support.DelegatingPromptRunner
+import com.embabel.agent.api.common.support.DelegatingStreamingPromptRunner
 import com.embabel.agent.api.common.support.OperationContextDelegate
 import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.core.*
@@ -142,7 +142,7 @@ interface ActionContext : ExecutingOperationContext {
         val promptContributorsToUse = (promptContributors + CurrentDate()).distinctBy { it.promptContribution().role }
 
         val doi = domainObjectInstances()
-        return DelegatingPromptRunner(
+        return DelegatingStreamingPromptRunner(
             delegate = OperationContextDelegate(
                 context = this,
                 llm = llm,

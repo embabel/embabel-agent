@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.common
 
-import com.embabel.agent.api.common.support.DelegatingPromptRunner
+import com.embabel.agent.api.common.support.DelegatingStreamingPromptRunner
 import com.embabel.agent.api.common.support.OperationContextDelegate
 import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.api.event.AgenticEventListener
@@ -87,7 +87,7 @@ interface OperationContext : Blackboard, ToolGroupConsumer {
         generateExamples: Boolean = false,
     ): PromptRunner {
         val promptContributorsToUse = (promptContributors + CurrentDate()).distinctBy { it.promptContribution().role }
-        return DelegatingPromptRunner(
+        return DelegatingStreamingPromptRunner(
             delegate = OperationContextDelegate(
                 context = this,
                 llm = llm,

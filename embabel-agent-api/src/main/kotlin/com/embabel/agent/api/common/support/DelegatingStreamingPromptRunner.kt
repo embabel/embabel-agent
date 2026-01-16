@@ -30,11 +30,14 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
 
-internal data class DelegatingPromptRunner(
+/**
+ * Implementation of [StreamingPromptRunner] that delegates to a [PromptExecutionDelegate].
+ */
+internal data class DelegatingStreamingPromptRunner(
     internal val delegate: PromptExecutionDelegate,
 ) : StreamingPromptRunner {
 
-    // Properties delegated to the delegate
+    // Properties
     override val toolObjects: List<ToolObject>
         get() = delegate.toolObjects
 
@@ -62,7 +65,7 @@ internal data class DelegatingPromptRunner(
     override val toolGroups: Set<ToolGroupRequirement>
         get() = delegate.toolGroups
 
-    // Configuration methods - wrap delegate and return new DelegatingPromptRunner
+    // With-ers
     override fun withInteractionId(interactionId: InteractionId): PromptRunner =
         copy(delegate = delegate.withInteractionId(interactionId))
 
@@ -115,22 +118,7 @@ internal data class DelegatingPromptRunner(
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(delegate = delegate.withValidation(validation))
 
-    // Factory methods - create nested delegates
-    override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
-        return DelegatingObjectCreator(
-            delegate = delegate,
-            outputClass = outputClass
-        )
-    }
-
-    override fun withTemplate(templateName: String): TemplateOperations {
-        return DelegatingTemplateOperations(
-            delegate = delegate,
-            templateName = templateName,
-        )
-    }
-
-    // Execution methods - delegate to core methods
+    // Execution methods
     override fun <T> createObject(
         messages: List<Message>,
         outputClass: Class<T>,
@@ -151,7 +139,19 @@ internal data class DelegatingPromptRunner(
         confidenceThreshold: ZeroToOne,
     ): Boolean = delegate.evaluateCondition(condition, context, confidenceThreshold)
 
-    // Streaming support
+    // Factory methods
+    override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> =
+        DelegatingObjectCreator(
+            delegate = delegate,
+            outputClass = outputClass
+        )
+
+    override fun withTemplate(templateName: String): TemplateOperations =
+        DelegatingTemplateOperations(
+            delegate = delegate,
+            templateName = templateName,
+        )
+
     override fun supportsStreaming(): Boolean =
         delegate.supportsStreaming()
 
@@ -170,7 +170,6 @@ internal data class DelegatingPromptRunner(
         )
     }
 
-    // Thinking support
     override fun supportsThinking(): Boolean =
         delegate.supportsThinking()
 

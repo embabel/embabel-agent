@@ -49,9 +49,7 @@ import reactor.core.publisher.Flux
 import java.util.function.Predicate
 
 /**
- * Default implementation of PromptExecutionDelegate that delegates to OperationContext.
- * Default implementation used by DelegatingPromptRunner, DelegatingObjectCreator,
- * and DelegatingTemplateOperations.
+ * Default implementation of [PromptExecutionDelegate] that delegates to a [OperationContext].
  */
 internal data class OperationContextDelegate(
     internal val context: OperationContext,
@@ -71,50 +69,17 @@ internal data class OperationContextDelegate(
 
     val action = (context as? ActionContext)?.action
 
-    private fun idForPrompt(
-        outputClass: Class<*>,
-    ): InteractionId {
-        return InteractionId("${context.operation.name}-${outputClass.name}")
-    }
-
-    /**
-     * Combine stored images with messages.
-     * If there are images, they are added to the last message or a new UserMessage is created.
-     */
-    private fun combineImagesWithMessages(messages: List<Message>): List<Message> {
-        if (images.isEmpty()) {
-            return messages
-        }
-
-        val imageParts = images.map { ImagePart(it.mimeType, it.data) }
-
-        // If there are no messages, create a UserMessage with just images
-        if (messages.isEmpty()) {
-            return listOf(UserMessage(parts = imageParts))
-        }
-
-        // Add images to the last message if it's a UserMessage
-        val lastMessage = messages.last()
-        if (lastMessage is UserMessage) {
-            val updatedLastMessage = UserMessage(
-                parts = lastMessage.parts + imageParts, name = lastMessage.name, timestamp = lastMessage.timestamp
-            )
-            return messages.dropLast(1) + updatedLastMessage
-        } else {
-            // If last message is not a UserMessage, append a new UserMessage with images
-            return messages + UserMessage(parts = imageParts)
-        }
-    }
-
-    override val objectMapper: ObjectMapper
-        get() = context.agentPlatform().platformServices.objectMapper
-
+    // Properties
     override val llmOperations: LlmOperations
         get() = context.agentPlatform().platformServices.llmOperations
 
     override val templateRenderer: TemplateRenderer
         get() = context.agentPlatform().platformServices.templateRenderer
 
+    override val objectMapper: ObjectMapper
+        get() = context.agentPlatform().platformServices.objectMapper
+
+    // With-ers
     override fun withInteractionId(interactionId: InteractionId): PromptExecutionDelegate =
         copy(interactionId = interactionId)
 
@@ -191,6 +156,8 @@ internal data class OperationContextDelegate(
 
     override fun withValidation(validation: Boolean): PromptExecutionDelegate = copy(validation = validation)
 
+
+    // Execution methods
     override fun <T> createObject(
         messages: List<Message>,
         outputClass: Class<T>,
@@ -255,6 +222,41 @@ internal data class OperationContextDelegate(
         return result.getOrNull()
     }
 
+    private fun idForPrompt(
+        outputClass: Class<*>,
+    ): InteractionId {
+        return InteractionId("${context.operation.name}-${outputClass.name}")
+    }
+
+    /**
+     * Combine stored images with messages.
+     * If there are images, they are added to the last message or a new UserMessage is created.
+     */
+    private fun combineImagesWithMessages(messages: List<Message>): List<Message> {
+        if (images.isEmpty()) {
+            return messages
+        }
+
+        val imageParts = images.map { ImagePart(it.mimeType, it.data) }
+
+        // If there are no messages, create a UserMessage with just images
+        if (messages.isEmpty()) {
+            return listOf(UserMessage(parts = imageParts))
+        }
+
+        // Add images to the last message if it's a UserMessage
+        val lastMessage = messages.last()
+        if (lastMessage is UserMessage) {
+            val updatedLastMessage = UserMessage(
+                parts = lastMessage.parts + imageParts, name = lastMessage.name, timestamp = lastMessage.timestamp
+            )
+            return messages.dropLast(1) + updatedLastMessage
+        } else {
+            // If last message is not a UserMessage, append a new UserMessage with images
+            return messages + UserMessage(parts = imageParts)
+        }
+    }
+
     override fun respond(messages: List<Message>): AssistantMessage {
         val response = createObject(
             messages = messages,
@@ -291,8 +293,6 @@ internal data class OperationContextDelegate(
         )
         return determination.result && determination.confidence >= confidenceThreshold
     }
-
-    // streaming
 
     override fun supportsStreaming(): Boolean {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
@@ -336,8 +336,6 @@ internal data class OperationContextDelegate(
             generateExamples = generateExamples,
             propertyFilter = propertyFilter,
         )
-
-    // thinking
 
     override fun supportsThinking(): Boolean = true
 
