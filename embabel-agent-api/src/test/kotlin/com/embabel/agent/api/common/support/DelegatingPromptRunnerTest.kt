@@ -26,6 +26,8 @@ import com.embabel.chat.AssistantMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.textio.template.TemplateRenderer
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertNotNull
 import java.util.function.Predicate
 
 class DelegatingPromptRunnerTest {
@@ -271,6 +274,76 @@ class DelegatingPromptRunnerTest {
     }
 
     @Nested
+    inner class FactoryMethodsTest {
+
+        @Test
+        fun `creating should not return null`() {
+            val outputClass = String::class.java
+            val mockObjectMapper = mockk<ObjectMapper>()
+            val mockTemplateRenderer = mockk<TemplateRenderer>()
+
+            every { mockDelegate.objectMapper } returns mockObjectMapper
+            every { mockDelegate.templateRenderer } returns mockTemplateRenderer
+
+            val runner = createPromptRunner()
+            val result = runner.creating(outputClass)
+
+            assertNotNull(result)
+        }
+
+        @Test
+        fun `withTemplate should not return null`() {
+            val templateName = "test-template"
+            val mockTemplateRenderer = mockk<TemplateRenderer>()
+            val mockCompiledTemplate = mockk<com.embabel.common.textio.template.CompiledTemplate>()
+
+            every { mockDelegate.templateRenderer } returns mockTemplateRenderer
+            every { mockTemplateRenderer.compileLoadedTemplate(templateName) } returns mockCompiledTemplate
+
+            val runner = createPromptRunner()
+            val result = runner.withTemplate(templateName)
+
+
+            assertNotNull(result)
+        }
+
+        @Test
+        fun `stream should return not return null when streaming is supported`() {
+            every { mockDelegate.supportsStreaming() } returns true
+
+            val runner = createPromptRunner()
+            val result = runner.stream()
+
+            verify { mockDelegate.supportsStreaming() }
+            assertNotNull(result)
+        }
+
+        @Test
+        fun `stream should throw exception when streaming is not supported`() {
+            every { mockDelegate.supportsStreaming() } returns false
+            every { mockDelegate.llmOperations } returns mockk()
+
+            val runner = createPromptRunner()
+
+            try {
+                runner.stream()
+                throw AssertionError("Expected UnsupportedOperationException")
+            } catch (_: UnsupportedOperationException) {
+            }
+
+            verify { mockDelegate.supportsStreaming() }
+        }
+
+        @Test
+        fun `withThinking should not return null`() {
+            val runner = createPromptRunner()
+            val result = runner.withThinking()
+
+            assertNotNull(result)
+        }
+    }
+
+    @Nested
     inner class ExecutionMethodsTest {
 
         @Test
@@ -326,6 +399,28 @@ class DelegatingPromptRunnerTest {
             val result = runner.evaluateCondition(condition, context)
 
             verify { mockDelegate.evaluateCondition(condition, context, any()) }
+            assertEquals(true, result)
+        }
+
+        @Test
+        fun `supportsStreaming should delegate to delegate`() {
+            every { mockDelegate.supportsStreaming() } returns true
+
+            val runner = createPromptRunner()
+            val result = runner.supportsStreaming()
+
+            verify { mockDelegate.supportsStreaming() }
+            assertEquals(true, result)
+        }
+
+        @Test
+        fun `supportsThinking should delegate to delegate`() {
+            every { mockDelegate.supportsThinking() } returns true
+
+            val runner = createPromptRunner()
+            val result = runner.supportsThinking()
+
+            verify { mockDelegate.supportsThinking() }
             assertEquals(true, result)
         }
     }
