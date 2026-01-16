@@ -18,7 +18,12 @@ package com.embabel.agent.spi.loop
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
-import com.embabel.chat.*
+import com.embabel.chat.AssistantMessage
+import com.embabel.chat.AssistantMessageWithToolCalls
+import com.embabel.chat.Message
+import com.embabel.chat.ToolCall
+import com.embabel.chat.ToolResultMessage
+import com.embabel.chat.UserMessage
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -45,7 +50,7 @@ class ToolLoopTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -70,7 +75,7 @@ class ToolLoopTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -114,7 +119,7 @@ class ToolLoopTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -143,7 +148,7 @@ class ToolLoopTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -198,7 +203,7 @@ class ToolLoopTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
             )
@@ -234,7 +239,7 @@ class ToolLoopTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 maxIterations = 5,
             )
@@ -343,7 +348,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -368,7 +373,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -413,7 +418,7 @@ class ToolLoopAdditionalTests {
             }
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -453,7 +458,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -485,7 +490,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -552,7 +557,7 @@ class ToolLoopAdditionalTests {
             }
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -625,7 +630,7 @@ class ToolLoopAdditionalTests {
             }
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -667,7 +672,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
             )
@@ -709,7 +714,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
             )
@@ -747,7 +752,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = ToolInjectionStrategy.NONE,
             )
@@ -777,7 +782,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -811,7 +816,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 maxIterations = 3,
             )
@@ -848,7 +853,7 @@ class ToolLoopAdditionalTests {
             }
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -882,7 +887,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -925,7 +930,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
 
@@ -970,7 +975,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
             )
@@ -1029,7 +1034,7 @@ class ToolLoopAdditionalTests {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = strategy,
             )

@@ -16,6 +16,7 @@
 package com.embabel.chat
 
 import com.embabel.agent.domain.io.AssistantContent
+import com.embabel.common.util.trim
 import java.time.Instant
 
 /**
@@ -52,7 +53,7 @@ class AssistantMessageWithToolCalls @JvmOverloads constructor(
         get() = parts.filterIsInstance<TextPart>().joinToString("") { it.text }
 
     override fun toString(): String {
-        return "AssistantMessageWithToolCalls(toolCalls=${toolCalls.map { it.name }})"
+        return "${javaClass.simpleName}(toolCalls=${toolCalls.map { it.name }})"
     }
 }
 
@@ -72,6 +73,12 @@ class ToolResultMessage @JvmOverloads constructor(
     timestamp = timestamp,
 ) {
     override fun toString(): String {
-        return "ToolResultMessage(toolCallId='$toolCallId', toolName='$toolName')"
+        return "ToolResultMessage(toolCallId='$toolCallId', toolName='$toolName', content='${
+            trim(
+                s = content,
+                max = 70,
+                keepRight = 3,
+            )
+        }')"
     }
 }

@@ -201,7 +201,7 @@ internal class ChatClientLlmOperations(
 
         // Create our tool loop
         val toolLoop = DefaultToolLoop(
-            llmCaller = messageSender,
+            llmMessageSender = messageSender,
             objectMapper = objectMapper,
             injectionStrategy = ToolInjectionStrategy.DEFAULT,
             maxIterations = interaction.maxToolIterations,

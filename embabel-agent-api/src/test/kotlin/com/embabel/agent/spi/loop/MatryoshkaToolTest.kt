@@ -508,7 +508,7 @@ class MatryoshkaToolTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
             )
@@ -558,7 +558,7 @@ class MatryoshkaToolTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
             )
@@ -796,7 +796,7 @@ class MatryoshkaToolTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
             )
@@ -977,7 +977,7 @@ class MatryoshkaToolTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
             )
@@ -1036,7 +1036,7 @@ class MatryoshkaToolTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
             )
@@ -1125,7 +1125,7 @@ class MatryoshkaToolTest {
             )
 
             val toolLoop = DefaultToolLoop(
-                llmCaller = mockCaller,
+                llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
                 injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
             )

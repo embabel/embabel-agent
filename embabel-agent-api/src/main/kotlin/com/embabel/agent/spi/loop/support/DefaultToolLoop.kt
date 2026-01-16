@@ -34,13 +34,13 @@ import org.slf4j.LoggerFactory
 /**
  * Default implementation of [com.embabel.agent.spi.loop.ToolLoop].
  *
- * @param llmCaller Framework-agnostic interface for making single LLM calls
+ * @param llmMessageSender Framework-agnostic interface for making single LLM calls
  * @param objectMapper ObjectMapper for deserializing tool results
  * @param injectionStrategy Strategy for dynamically injecting tools
  * @param maxIterations Maximum number of tool loop iterations (default 20)
  */
 internal class DefaultToolLoop(
-    private val llmCaller: LlmMessageSender,
+    private val llmMessageSender: LlmMessageSender,
     private val objectMapper: ObjectMapper,
     private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
     private val maxIterations: Int = 20,
@@ -65,7 +65,7 @@ internal class DefaultToolLoop(
             logger.debug("Tool loop iteration {} with {} available tools", iterations, availableTools.size)
 
             // 1. Call LLM (single inference, no internal tool loop)
-            val callResult = llmCaller.call(conversationHistory, availableTools)
+            val callResult = llmMessageSender.call(conversationHistory, availableTools)
 
             // 2. Accumulate usage
             callResult.usage?.let { usage ->
@@ -76,11 +76,17 @@ internal class DefaultToolLoop(
             val assistantMessage = callResult.message
             conversationHistory.add(assistantMessage)
 
+            logger.debug(
+                "ToolLoop returned. Passed messages:\n{}\nResult: {}",
+                conversationHistory.joinToString("\n") { "\t" + it },
+                assistantMessage,
+            )
+
             // 4. Check if LLM wants to call tools
             if (assistantMessage !is AssistantMessageWithToolCalls || assistantMessage.toolCalls.isEmpty()) {
                 // No tool calls - LLM is done, parse final response
                 val finalText = callResult.textContent
-                logger.debug("Tool loop completed after {} iterations", iterations)
+                logger.info("Tool loop completed after {} iterations", iterations)
 
                 val result = outputParser(finalText)
                 return ToolLoopResult(

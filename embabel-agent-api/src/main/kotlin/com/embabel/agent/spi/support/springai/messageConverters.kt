@@ -22,21 +22,38 @@ import org.springframework.util.MimeTypeUtils
 import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
 import org.springframework.ai.chat.messages.Message as SpringAiMessage
 import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessage
+import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 
 /**
  * Convert one of our messages to a Spring AI message with multimodal support.
- *
- * Note: Tool-related messages (AssistantMessageWithToolCalls, ToolResultMessage)
- * are converted to their text-only equivalents for now. Full tool call message
- * support will be added in Phase 3 of progressive tools implementation.
  */
 fun Message.toSpringAiMessage(): SpringAiMessage {
     val metadata: Map<String, Any> = emptyMap()
     return when (this) {
-        // Tool messages are converted to basic text for now
-        is AssistantMessageWithToolCalls -> SpringAiAssistantMessage(this.textContent)
-        is ToolResultMessage -> SpringAiAssistantMessage("[Tool: ${this.toolName}] ${this.textContent}")
+        is AssistantMessageWithToolCalls -> {
+            val springToolCalls = this.toolCalls.map { toolCall ->
+                SpringAiAssistantMessage.ToolCall(
+                    toolCall.id,
+                    "function",
+                    toolCall.name,
+                    toolCall.arguments
+                )
+            }
+            SpringAiAssistantMessage.builder()
+                .content(this.textContent)
+                .toolCalls(springToolCalls)
+                .build()
+        }
+
+        is ToolResultMessage -> {
+            val toolResponse = ToolResponseMessage.ToolResponse(
+                this.toolCallId,
+                this.toolName,
+                this.textContent
+            )
+            ToolResponseMessage.builder().responses(listOf(toolResponse)).metadata(metadata).build()
+        }
 
         is AssistantMessage -> SpringAiAssistantMessage(this.textContent)
 
