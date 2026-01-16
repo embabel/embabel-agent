@@ -19,13 +19,17 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmUse
+import com.embabel.agent.spi.LlmOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.core.streaming.StreamingEvent
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
+import reactor.core.publisher.Flux
 import java.util.function.Predicate
 
 /**
@@ -36,6 +40,8 @@ import java.util.function.Predicate
  * [com.embabel.agent.api.common.support.DelegatingTemplateOperations].
  */
 internal interface PromptExecutionDelegate : LlmUse {
+
+    val llmOperations: LlmOperations
 
     val templateRenderer: TemplateRenderer
 
@@ -153,7 +159,33 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun evaluateCondition(
         condition: String,
         context: String,
-        confidenceThreshold: ZeroToOne = 0.8,
+        confidenceThreshold: ZeroToOne,
     ): Boolean
+
+    fun supportsStreaming(): Boolean
+
+    fun <T> createObjectStream(itemClass: Class<T>): Flux<T>
+
+    fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>>
+
+    fun supportsThinking(): Boolean
+
+    fun <T> createObjectIfPossibleWithThinking(
+        messages: List<Message>,
+        outputClass: Class<T>,
+    ): ThinkingResponse<T?>
+
+    fun <T> createObjectWithThinking(
+        messages: List<Message>,
+        outputClass: Class<T>
+    ): ThinkingResponse<T>
+
+    fun respondWithThinking(messages: List<Message>): ThinkingResponse<AssistantMessage>
+
+    fun evaluateConditionWithThinking(
+        condition: String,
+        context: String,
+        confidenceThreshold: ZeroToOne
+    ): ThinkingResponse<Boolean>
 
 }

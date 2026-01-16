@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
+import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
@@ -24,6 +25,9 @@ import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
+import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
+import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.agent.tools.agent.AgentTool
 import com.embabel.agent.tools.agent.Handoffs
 import com.embabel.agent.tools.agent.PromptedTextCommunicator
@@ -32,11 +36,16 @@ import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.core.streaming.StreamingEvent
+import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.ObjectMapper
+import reactor.core.publisher.Flux
 import java.util.function.Predicate
 
 /**
@@ -99,6 +108,9 @@ internal data class OperationContextDelegate(
 
     override val objectMapper: ObjectMapper
         get() = context.agentPlatform().platformServices.objectMapper
+
+    override val llmOperations: LlmOperations
+        get() = context.agentPlatform().platformServices.llmOperations
 
     override val templateRenderer: TemplateRenderer
         get() = context.agentPlatform().platformServices.templateRenderer
@@ -279,4 +291,158 @@ internal data class OperationContextDelegate(
         )
         return determination.result && determination.confidence >= confidenceThreshold
     }
+
+    // streaming
+
+    override fun supportsStreaming(): Boolean {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+        return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)
+    }
+
+    override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
+        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+
+        return streamingLlmOperations.createObjectStream(
+            messages = messages,
+            interaction = streamingInteraction(),
+            outputClass = itemClass,
+            agentProcess = context.processContext.agentProcess,
+            action = action,
+        )
+    }
+
+    override fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>> {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
+        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+        return streamingLlmOperations.createObjectStreamWithThinking(
+            messages = messages,
+            interaction = streamingInteraction(),
+            outputClass = itemClass,
+            agentProcess = context.processContext.agentProcess,
+            action = action,
+        )
+    }
+
+    private fun streamingInteraction(): LlmInteraction =
+        LlmInteraction(
+            llm = llm,
+            toolGroups = toolGroups,
+            tools = safelyGetTools(toolObjects) + otherTools,
+            promptContributors = promptContributors + contextualPromptContributors.map {
+                it.toPromptContributor(context)
+            },
+            id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
+            generateExamples = generateExamples,
+            propertyFilter = propertyFilter,
+        )
+
+    // thinking
+
+    override fun supportsThinking(): Boolean = true
+
+    override fun <T> createObjectWithThinking(
+        messages: List<Message>,
+        outputClass: Class<T>
+    ): ThinkingResponse<T> {
+        val combinedMessages = this.messages + messages
+        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
+        return llmOperations.doTransformWithThinking(
+            messages = combinedMessages,
+            interaction = thinkingInteraction(),
+            outputClass = outputClass,
+            llmRequestEvent = null
+        )
+    }
+
+    override fun <T> createObjectIfPossibleWithThinking(
+        messages: List<Message>,
+        outputClass: Class<T>
+    ): ThinkingResponse<T?> {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
+        val combinedMessages = this.messages + messages
+        val result = llmOperations.doTransformWithThinkingIfPossible(
+            messages = combinedMessages,
+            interaction = thinkingInteraction(),
+            outputClass = outputClass,
+            llmRequestEvent = null
+        )
+
+        return when {
+            result.isSuccess -> {
+                val successResponse = result.getOrThrow()
+                ThinkingResponse<T?>(
+                    result = successResponse.result,
+                    thinkingBlocks = successResponse.thinkingBlocks
+                )
+            }
+
+            else -> {
+                // Preserve thinking blocks even when object creation fails
+                val exception = result.exceptionOrNull()
+                val thinkingBlocks = if (exception is ThinkingException) {
+                    exception.thinkingBlocks
+                } else {
+                    emptyList()
+                }
+                ThinkingResponse<T?>(
+                    result = null,
+                    thinkingBlocks = thinkingBlocks
+                )
+            }
+        }
+    }
+
+    override fun respondWithThinking(messages: List<Message>): ThinkingResponse<AssistantMessage> {
+        return createObjectWithThinking(messages, AssistantMessage::class.java)
+    }
+
+    override fun evaluateConditionWithThinking(
+        condition: String,
+        context: String,
+        confidenceThreshold: ZeroToOne
+    ): ThinkingResponse<Boolean> {
+        val prompt =
+            """
+            Evaluate this condition given the context.
+            Return "result": whether you think it is true, your confidence level from 0-1,
+            and an explanation of what you base this on.
+
+            # Condition
+            $condition
+
+            # Context
+            $context
+            """.trimIndent()
+
+        val response = createObjectWithThinking(
+            messages = listOf(UserMessage(prompt)),
+            outputClass = Determination::class.java,
+        )
+
+        val result = response.result?.let {
+            it.result && it.confidence >= confidenceThreshold
+        } ?: false
+
+        return ThinkingResponse(
+            result = result,
+            thinkingBlocks = response.thinkingBlocks
+        )
+    }
+
+    private fun thinkingInteraction(): LlmInteraction {
+        val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
+        return LlmInteraction(
+            llm = thinkingEnabledLlm,
+            toolGroups = toolGroups,
+            tools = safelyGetTools(toolObjects) + otherTools,
+            promptContributors = promptContributors + contextualPromptContributors.map {
+                it.toPromptContributor(context)
+            },
+            id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
+            generateExamples = generateExamples,
+            propertyFilter = propertyFilter,
+        )
+    }
+
 }

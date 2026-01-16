@@ -25,13 +25,18 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
+import com.embabel.agent.spi.LlmOperations
+import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.MobyNameGenerator
+import com.embabel.common.core.streaming.StreamingEvent
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import org.slf4j.LoggerFactory
+import reactor.core.publisher.Flux
 import java.util.function.Predicate
 
 enum class Method {
@@ -85,6 +90,9 @@ data class FakePromptRunner(
      * Internal adapter that implements PromptExecutionDelegate for use with delegating implementations.
      */
     private inner class DelegateAdapter : PromptExecutionDelegate {
+        override val llmOperations: LlmOperations
+            get() = context.agentPlatform().platformServices.llmOperations
+
         override val templateRenderer: com.embabel.common.textio.template.TemplateRenderer
             get() = context.agentPlatform().platformServices.templateRenderer
 
@@ -201,6 +209,43 @@ data class FakePromptRunner(
 
         override fun evaluateCondition(condition: String, context: String, confidenceThreshold: ZeroToOne): Boolean {
             return this@FakePromptRunner.evaluateCondition(condition, context, confidenceThreshold)
+        }
+
+        override fun supportsStreaming(): Boolean = false
+
+        override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
+            TODO("Not yet implemented")
+        }
+
+        override fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>> {
+            TODO("Not yet implemented")
+        }
+
+        override fun supportsThinking(): Boolean = false
+        override fun <T> createObjectIfPossibleWithThinking(
+            messages: List<Message>,
+            outputClass: Class<T>
+        ): ThinkingResponse<T?> {
+            TODO("Not yet implemented")
+        }
+
+        override fun <T> createObjectWithThinking(
+            messages: List<Message>,
+            outputClass: Class<T>
+        ): ThinkingResponse<T> {
+            TODO("Not yet implemented")
+        }
+
+        override fun respondWithThinking(messages: List<Message>): ThinkingResponse<AssistantMessage> {
+            TODO("Not yet implemented")
+        }
+
+        override fun evaluateConditionWithThinking(
+            condition: String,
+            context: String,
+            confidenceThreshold: ZeroToOne
+        ): ThinkingResponse<Boolean> {
+            TODO("Not yet implemented")
         }
     }
 

@@ -21,9 +21,9 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
-import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.chat.Message
 import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 
 /**
