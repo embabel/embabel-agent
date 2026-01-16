@@ -131,7 +131,13 @@ internal data class DelegatingStreamingPromptRunner(
 
     override fun respond(
         messages: List<Message>,
-    ): AssistantMessage = delegate.respond(messages)
+    ): AssistantMessage {
+        val response = delegate.createObject(
+            messages = messages,
+            outputClass = String::class.java,
+        )
+        return AssistantMessage(response)
+    }
 
     override fun evaluateCondition(
         condition: String,

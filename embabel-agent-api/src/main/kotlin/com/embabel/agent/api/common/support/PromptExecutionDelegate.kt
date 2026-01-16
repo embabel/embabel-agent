@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
@@ -95,24 +94,11 @@ internal interface PromptExecutionDelegate : LlmUse {
         outputClass: Class<T>,
     ): T
 
-    /**
-     * Try to create an object from messages (core execution method)
-     */
     fun <T> createObjectIfPossible(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T?
 
-    /**
-     * Respond in a conversation (core execution method)
-     */
-    fun respond(
-        messages: List<Message>,
-    ): AssistantMessage
-
-    /**
-     * Evaluate a condition given context (core execution method)
-     */
     fun evaluateCondition(
         condition: String,
         context: String,

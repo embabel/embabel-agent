@@ -17,7 +17,10 @@ package com.embabel.agent.api.common.nested.support
 
 import com.embabel.agent.api.common.support.DelegatingTemplateOperations
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
-import com.embabel.chat.*
+import com.embabel.chat.Conversation
+import com.embabel.chat.Message
+import com.embabel.chat.SystemMessage
+import com.embabel.chat.UserMessage
 import com.embabel.common.textio.template.CompiledTemplate
 import io.mockk.every
 import io.mockk.mockk
@@ -135,11 +138,11 @@ class DelegatingTemplateOperationsTest {
             val conversationMessages = listOf(UserMessage("What is 2+2?"))
             every { conversation.messages } returns conversationMessages
 
-            val expectedResponse = AssistantMessage("4")
+            val expectedResponse = "4"
             val messagesSlot = slot<List<Message>>()
 
             every { mockCompiledTemplate.render(model) } returns renderedText
-            every { mockDelegate.respond(capture(messagesSlot)) } returns expectedResponse
+            every { mockDelegate.createObject(capture(messagesSlot), String::class.java) } returns "4"
 
             val operations = createTemplateOperations()
             val result = operations.respondWithSystemPrompt(conversation, model)
@@ -147,8 +150,8 @@ class DelegatingTemplateOperationsTest {
             verify { mockDelegate.templateRenderer }
             verify { mockTemplateRenderer.compileLoadedTemplate(templateName) }
             verify { mockCompiledTemplate.render(model) }
-            verify { mockDelegate.respond(any()) }
-            assertEquals(expectedResponse, result)
+            verify { mockDelegate.createObject(messagesSlot.captured, String::class.java) }
+            assertEquals(expectedResponse, result.content)
 
             val capturedMessages = messagesSlot.captured
             assertEquals(2, capturedMessages.size)
@@ -163,10 +166,10 @@ class DelegatingTemplateOperationsTest {
             val conversationMessages = listOf(UserMessage("test"))
             every { conversation.messages } returns conversationMessages
 
-            val expectedResponse = AssistantMessage("response")
+            val expectedResponse = "response"
 
             every { mockCompiledTemplate.render(emptyMap()) } returns renderedText
-            every { mockDelegate.respond(any()) } returns expectedResponse
+            every { mockDelegate.createObject(any(), String::class.java) } returns expectedResponse
 
             val operations = createTemplateOperations()
             val result = operations.respondWithSystemPrompt(conversation, emptyMap())
@@ -174,8 +177,8 @@ class DelegatingTemplateOperationsTest {
             verify { mockDelegate.templateRenderer }
             verify { mockTemplateRenderer.compileLoadedTemplate(templateName) }
             verify { mockCompiledTemplate.render(emptyMap()) }
-            verify { mockDelegate.respond(any()) }
-            assertEquals(expectedResponse, result)
+            verify { mockDelegate.createObject(any(), String::class.java) }
+            assertEquals(expectedResponse, result.content)
         }
     }
 }

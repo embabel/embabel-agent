@@ -204,10 +204,6 @@ data class FakePromptRunner(
             return this@FakePromptRunner.createObjectIfPossible(messages, outputClass)
         }
 
-        override fun respond(messages: List<Message>): com.embabel.chat.AssistantMessage {
-            TODO("Not yet implemented in FakePromptRunner")
-        }
-
         override fun evaluateCondition(condition: String, context: String, confidenceThreshold: ZeroToOne): Boolean {
             return this@FakePromptRunner.evaluateCondition(condition, context, confidenceThreshold)
         }

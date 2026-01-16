@@ -57,11 +57,15 @@ internal data class DelegatingTemplateOperations(
     override fun respondWithSystemPrompt(
         conversation: Conversation,
         model: Map<String, Any>,
-    ): AssistantMessage = delegate.respond(
-        messages = listOf(
-            SystemMessage(
-                content = compiledTemplate.render(model = model)
-            )
-        ) + conversation.messages,
-    )
+    ): AssistantMessage {
+        val response = delegate.createObject(
+            messages = listOf(
+                SystemMessage(
+                    content = compiledTemplate.render(model = model)
+                )
+            ) + conversation.messages,
+            outputClass = String::class.java,
+        )
+        return AssistantMessage(response)
+    }
 }

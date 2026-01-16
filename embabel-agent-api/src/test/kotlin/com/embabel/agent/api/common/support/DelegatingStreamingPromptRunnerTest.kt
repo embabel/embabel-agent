@@ -21,7 +21,6 @@ import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.chat.AssistantMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -376,15 +375,15 @@ class DelegatingStreamingPromptRunnerTest {
         @Test
         fun `respond should delegate to delegate`() {
             val messages = listOf(UserMessage("test"))
-            val expectedResponse = AssistantMessage("response")
+            val expectedResponse = "response"
 
-            every { mockDelegate.respond(messages) } returns expectedResponse
+            every { mockDelegate.createObject(messages, String::class.java) } returns expectedResponse
 
             val runner = createPromptRunner()
             val result = runner.respond(messages)
 
-            verify { mockDelegate.respond(messages) }
-            assertEquals(expectedResponse, result)
+            verify { mockDelegate.createObject(any(), any()) }
+            assertEquals(expectedResponse, result.content)
         }
 
         @Test
