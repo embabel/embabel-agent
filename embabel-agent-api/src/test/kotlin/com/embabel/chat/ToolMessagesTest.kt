@@ -92,6 +92,43 @@ class ToolMessagesTest {
         }
 
         @Test
+        fun `creates message with empty content for tool-call-only responses`() {
+            // LLMs often return tool calls without accompanying text
+            val message = AssistantMessageWithToolCalls(
+                content = "",
+                toolCalls = listOf(ToolCall("id", "tool", "{}")),
+            )
+
+            assertEquals("", message.content)
+            assertEquals("", message.textContent)
+            assertTrue(message.parts.isEmpty())
+            assertEquals(1, message.toolCalls.size)
+        }
+
+        @Test
+        fun `creates message with default empty content`() {
+            // Using default parameter
+            val message = AssistantMessageWithToolCalls(
+                toolCalls = listOf(ToolCall("id", "tool", "{}")),
+            )
+
+            assertEquals("", message.content)
+            assertTrue(message.parts.isEmpty())
+        }
+
+        @Test
+        fun `content property returns text from parts`() {
+            val message = AssistantMessageWithToolCalls(
+                content = "Some text",
+                toolCalls = listOf(ToolCall("id", "tool", "{}")),
+            )
+
+            assertEquals("Some text", message.content)
+            assertEquals(1, message.parts.size)
+            assertTrue(message.parts[0] is TextPart)
+        }
+
+        @Test
         fun `message has assistant role`() {
             val message = AssistantMessageWithToolCalls(
                 content = " ",
@@ -131,13 +168,14 @@ class ToolMessagesTest {
         }
 
         @Test
-        fun `extends AssistantMessage`() {
+        fun `extends Message and implements AssistantContent`() {
             val message = AssistantMessageWithToolCalls(
                 content = "test",
                 toolCalls = listOf(ToolCall("id", "tool", "{}")),
             )
 
-            assertTrue(message is AssistantMessage)
+            assertTrue(message is Message)
+            assertTrue(message is com.embabel.agent.domain.io.AssistantContent)
         }
     }
 

@@ -43,9 +43,9 @@ private val Tool.Result.content: String
  * Tool decorator that adds Micrometer Observability.
  */
 class ObservabilityTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     private val observationRegistry: ObservationRegistry? = null,
-) : Tool {
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
@@ -91,9 +91,9 @@ class ObservabilityTool(
  * Tool decorator that transforms the output using a provided [StringTransformer].
  */
 class OutputTransformingTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     private val outputTransformer: StringTransformer,
-) : Tool {
+) : DelegatingTool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -120,9 +120,9 @@ class OutputTransformingTool(
  * Tool decorator that adds metadata about the tool group.
  */
 class MetadataEnrichedTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     val toolGroupMetadata: ToolGroupMetadata?,
-) : Tool {
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
@@ -147,11 +147,11 @@ class MetadataEnrichedTool(
  * Tool decorator that publishes events for tool calls.
  */
 class EventPublishingTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     private val agentProcess: AgentProcess,
     private val action: Action?,
     private val llmOptions: LlmOptions,
-) : Tool {
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
@@ -208,8 +208,8 @@ fun Tool.withEventPublication(
  * Tool decorator that suppresses exceptions and returns a warning message instead.
  */
 class ExceptionSuppressingTool(
-    private val delegate: Tool,
-) : Tool {
+    override val delegate: Tool,
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
@@ -227,9 +227,9 @@ class ExceptionSuppressingTool(
  * Tool decorator that binds AgentProcess to thread-local for tool execution.
  */
 class AgentProcessBindingTool(
-    private val delegate: Tool,
+    override val delegate: Tool,
     private val agentProcess: AgentProcess,
-) : Tool {
+) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata

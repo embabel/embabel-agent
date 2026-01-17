@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
 import org.springframework.ai.chat.messages.SystemMessage as SpringAiSystemMessage
+import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 
 /**
@@ -191,7 +192,7 @@ class MessageConversionTest {
         }
 
         @Test
-        fun `converts ToolResultMessage to Spring AI message`() {
+        fun `converts ToolResultMessage to Spring AI ToolResponseMessage`() {
             val message = ToolResultMessage(
                 toolCallId = "call-1",
                 toolName = "get_weather",
@@ -200,9 +201,13 @@ class MessageConversionTest {
 
             val springAiMessage = message.toSpringAiMessage()
 
-            assertThat(springAiMessage).isInstanceOf(SpringAiAssistantMessage::class.java)
-            assertThat(springAiMessage.text).contains("get_weather")
-            assertThat(springAiMessage.text).contains("""{"temperature": 72}""")
+            assertThat(springAiMessage).isInstanceOf(ToolResponseMessage::class.java)
+            val toolResponseMessage = springAiMessage as ToolResponseMessage
+            assertThat(toolResponseMessage.responses).hasSize(1)
+            val response = toolResponseMessage.responses[0]
+            assertThat(response.id()).isEqualTo("call-1")
+            assertThat(response.name()).isEqualTo("get_weather")
+            assertThat(response.responseData()).isEqualTo("""{"temperature": 72}""")
         }
     }
 

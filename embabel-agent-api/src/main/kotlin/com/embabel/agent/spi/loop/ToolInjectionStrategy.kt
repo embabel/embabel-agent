@@ -19,32 +19,128 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.Message
 
 /**
+ * Result of tool injection evaluation.
+ *
+ * Supports both adding new tools and removing existing ones, enabling
+ * patterns like MatryoshkaTool where a facade tool is replaced by its inner tools.
+ */
+data class ToolInjectionResult(
+    val toolsToAdd: List<Tool> = emptyList(),
+    val toolsToRemove: List<Tool> = emptyList(),
+) {
+    companion object {
+        private val NO_CHANGE = ToolInjectionResult()
+
+        /**
+         * No tools to add or remove.
+         */
+        @JvmStatic
+        fun noChange(): ToolInjectionResult = NO_CHANGE
+
+        /**
+         * Add tools without removing any.
+         */
+        @JvmStatic
+        fun add(tools: List<Tool>): ToolInjectionResult =
+            if (tools.isEmpty()) NO_CHANGE else ToolInjectionResult(toolsToAdd = tools)
+
+        /**
+         * Add a single tool.
+         */
+        @JvmStatic
+        fun add(tool: Tool): ToolInjectionResult = ToolInjectionResult(toolsToAdd = listOf(tool))
+
+        /**
+         * Replace a tool with others (remove one, add many).
+         */
+        @JvmStatic
+        fun replace(remove: Tool, add: List<Tool>): ToolInjectionResult =
+            ToolInjectionResult(toolsToRemove = listOf(remove), toolsToAdd = add)
+
+        /**
+         * Remove tools without adding any.
+         */
+        @JvmStatic
+        fun remove(tools: List<Tool>): ToolInjectionResult =
+            if (tools.isEmpty()) NO_CHANGE else ToolInjectionResult(toolsToRemove = tools)
+    }
+
+    /**
+     * Whether this result represents any changes.
+     */
+    fun hasChanges(): Boolean = toolsToAdd.isNotEmpty() || toolsToRemove.isNotEmpty()
+}
+
+/**
  * Strategy for dynamically injecting tools during a conversation.
  *
  * Implementations examine tool call results and conversation state
- * to determine if additional tools should become available.
+ * to determine if tools should be added or removed.
  *
- * This interface is designed for extensibility. Future strategies could include:
+ * This interface is designed for extensibility. Strategies include:
  * - Conditional unlocks based on agent performance
  * - Phase-based tools (planning vs execution)
  * - Skill acquisition patterns
+ * - MatryoshkaTool progressive disclosure
+ *
+ * ## Migration Guide
+ * New implementations should override [evaluate] instead of [evaluateToolResult].
+ * The [evaluate] method supports both adding and removing tools.
  */
 interface ToolInjectionStrategy {
 
     /**
-     * Called after each tool execution to determine if new tools should be injected.
+     * Called after each tool execution to determine tool changes.
+     *
+     * Default implementation bridges to legacy [evaluateToolResult] for backward compatibility.
+     * Override this method for new implementations that need to add/remove tools.
+     *
+     * @param context The current state of the tool loop
+     * @return Result containing tools to add and/or remove
+     */
+    fun evaluate(context: ToolInjectionContext): ToolInjectionResult {
+        // Bridge to legacy method for backward compatibility
+        @Suppress("DEPRECATION")
+        val toolsToAdd = evaluateToolResult(context)
+        return ToolInjectionResult.add(toolsToAdd)
+    }
+
+    /**
+     * Legacy method for backward compatibility.
+     * Override [evaluate] instead for new implementations.
      *
      * @param context The current state of the tool loop
      * @return Tools to add, or empty list if none
      */
-    fun evaluateToolResult(context: ToolInjectionContext): List<Tool>
+    @Deprecated(
+        message = "Use evaluate() which supports both adding and removing tools",
+        replaceWith = ReplaceWith("evaluate(context)")
+    )
+    fun evaluateToolResult(context: ToolInjectionContext): List<Tool> = emptyList()
 
     companion object {
         /**
-         * A no-op strategy that never injects tools.
+         * A no-op strategy that never changes tools.
          */
         val NONE: ToolInjectionStrategy = object : ToolInjectionStrategy {
+            override fun evaluate(context: ToolInjectionContext): ToolInjectionResult =
+                ToolInjectionResult.noChange()
+
+            @Deprecated("Use evaluate()")
             override fun evaluateToolResult(context: ToolInjectionContext): List<Tool> = emptyList()
+        }
+
+        /**
+         * The default strategy that handles common patterns automatically.
+         *
+         * Uses [ChainedToolInjectionStrategy] to combine built-in strategies:
+         * - [MatryoshkaTool] progressive disclosure
+         *
+         * Use this instead of [NONE] to get automatic support for built-in tool patterns
+         * without needing to know about specific strategy implementations.
+         */
+        val DEFAULT: ToolInjectionStrategy by lazy {
+            ChainedToolInjectionStrategy.withMatryoshka()
         }
     }
 }

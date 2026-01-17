@@ -20,6 +20,7 @@ import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.chat.Message
+import com.embabel.common.util.loggerFor
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -31,7 +32,7 @@ import org.springframework.ai.tool.ToolCallback
  *
  * Makes a single LLM inference call using Spring AI's ChatModel.
  * Does NOT execute tools - just returns the response including any tool call requests.
- * Tool execution is handled by [EmbabelToolLoop].
+ * Tool execution is handled by [com.embabel.agent.spi.loop.ToolLoop].
  *
  * @param chatModel The Spring AI ChatModel to use for LLM calls
  * @param chatOptions Options for the LLM call (temperature, etc.)
@@ -40,6 +41,8 @@ internal class SpringAiLlmMessageSender(
     private val chatModel: ChatModel,
     private val chatOptions: ChatOptions,
 ) : LlmMessageSender {
+
+    private val logger = loggerFor<SpringAiLlmMessageSender>()
 
     override fun call(
         messages: List<Message>,
@@ -59,6 +62,8 @@ internal class SpringAiLlmMessageSender(
 
         // Call LLM - returns response which may include tool call requests
         val response: ChatResponse = chatModel.call(prompt)
+
+        logger.debug("Prompt: {}\nResponse: {}", prompt, response)
 
         // Convert response to Embabel message
         val assistantMessage = response.result.output
@@ -85,6 +90,7 @@ internal class SpringAiLlmMessageSender(
         }
 
         // Use ToolCallingChatOptions to pass tool definitions
+        // IMPORTANT: Disable internal tool execution - we handle tools ourselves in DefaultToolLoop
         return org.springframework.ai.model.tool.ToolCallingChatOptions.builder()
             .model(chatOptions.model)
             .temperature(chatOptions.temperature)
@@ -95,6 +101,7 @@ internal class SpringAiLlmMessageSender(
             .presencePenalty(chatOptions.presencePenalty)
             .stopSequences(chatOptions.stopSequences)
             .toolCallbacks(toolCallbacks)
+            .internalToolExecutionEnabled(false)
             .build()
     }
 }

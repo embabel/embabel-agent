@@ -1,0 +1,459 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.api.tool
+
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.MatryoshkaTools
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import org.slf4j.LoggerFactory
+import kotlin.reflect.KClass
+import kotlin.reflect.full.createInstance
+import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.functions
+import kotlin.reflect.full.hasAnnotation
+
+/**
+ * A tool that contains other tools, enabling progressive tool disclosure.
+ *
+ * Named after Russian nesting dolls, a MatryoshkaTool presents a high-level
+ * description to the LLM. When invoked, its inner tools become available and
+ * (optionally) the MatryoshkaTool itself is removed.
+ *
+ * This pattern is useful for:
+ * - Reducing tool set complexity for the LLM
+ * - Grouping related tools under a category facade
+ * - Progressive disclosure based on LLM intent
+ *
+ * Example:
+ * ```kotlin
+ * val databaseTool = MatryoshkaTool.of(
+ *     name = "database_operations",
+ *     description = "Use this to work with the database. Invoke to see specific operations.",
+ *     innerTools = listOf(queryTableTool, insertRecordTool, updateRecordTool)
+ * )
+ * ```
+ *
+ * @see com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy
+ */
+interface MatryoshkaTool : Tool {
+
+    /**
+     * The inner tools that will be exposed when this tool is invoked.
+     */
+    val innerTools: List<Tool>
+
+    /**
+     * Whether to remove this MatryoshkaTool after invocation.
+     *
+     * When `true` (default), the facade is replaced by its contents.
+     * When `false`, the facade remains available for re-invocation
+     * (useful for category-based selection with different arguments).
+     */
+    val removeOnInvoke: Boolean get() = true
+
+    /**
+     * Select which inner tools to expose based on invocation input.
+     *
+     * Override this method to implement category-based or argument-driven
+     * tool selection. Default implementation returns all inner tools.
+     *
+     * @param input The JSON input string provided to this tool
+     * @return The tools to expose (subset of [innerTools] or all)
+     */
+    fun selectTools(input: String): List<Tool> = innerTools
+
+    companion object {
+
+        /**
+         * Create a MatryoshkaTool that exposes all inner tools when invoked.
+         *
+         * @param name Unique name for the tool
+         * @param description Description explaining when to use this tool category
+         * @param innerTools The tools to expose when invoked
+         * @param removeOnInvoke Whether to remove this tool after invocation (default true)
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun of(
+            name: String,
+            description: String,
+            innerTools: List<Tool>,
+            removeOnInvoke: Boolean = true,
+        ): MatryoshkaTool = SimpleMatryoshkaTool(
+            definition = Tool.Definition(
+                name = name,
+                description = description,
+                inputSchema = Tool.InputSchema.empty(),
+            ),
+            innerTools = innerTools,
+            removeOnInvoke = removeOnInvoke,
+        )
+
+        /**
+         * Create a MatryoshkaTool with a custom tool selector.
+         *
+         * The selector receives the JSON input string and returns the tools to expose.
+         * This enables category-based tool disclosure.
+         *
+         * Example:
+         * ```kotlin
+         * val fileTool = MatryoshkaTool.selectable(
+         *     name = "file_operations",
+         *     description = "File operations. Pass 'category': 'read' or 'write'.",
+         *     innerTools = allFileTools,
+         *     inputSchema = Tool.InputSchema.of(
+         *         Tool.Parameter.string("category", "The category of file operations", required = true)
+         *     ),
+         * ) { input ->
+         *     val json = ObjectMapper().readValue(input, Map::class.java)
+         *     val category = json["category"] as? String
+         *     when (category) {
+         *         "read" -> listOf(readFileTool, listDirTool)
+         *         "write" -> listOf(writeFileTool, deleteTool)
+         *         else -> allFileTools
+         *     }
+         * }
+         * ```
+         *
+         * @param name Unique name for the tool
+         * @param description Description explaining when to use this tool category
+         * @param innerTools All possible inner tools
+         * @param inputSchema Schema describing the selection parameters
+         * @param removeOnInvoke Whether to remove this tool after invocation
+         * @param selector Function to select tools based on input
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun selectable(
+            name: String,
+            description: String,
+            innerTools: List<Tool>,
+            inputSchema: Tool.InputSchema,
+            removeOnInvoke: Boolean = true,
+            selector: (String) -> List<Tool>,
+        ): MatryoshkaTool = SelectableMatryoshkaTool(
+            definition = Tool.Definition(
+                name = name,
+                description = description,
+                inputSchema = inputSchema,
+            ),
+            innerTools = innerTools,
+            removeOnInvoke = removeOnInvoke,
+            selector = selector,
+        )
+
+        /**
+         * Create a MatryoshkaTool with category-based selection.
+         *
+         * @param name Unique name for the tool
+         * @param description Description explaining when to use this tool category
+         * @param toolsByCategory Map of category names to their tools
+         * @param categoryParameter Name of the category parameter (default "category")
+         * @param removeOnInvoke Whether to remove this tool after invocation
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun byCategory(
+            name: String,
+            description: String,
+            toolsByCategory: Map<String, List<Tool>>,
+            categoryParameter: String = "category",
+            removeOnInvoke: Boolean = true,
+        ): MatryoshkaTool {
+            val allTools = toolsByCategory.values.flatten()
+            val categoryNames = toolsByCategory.keys.toList()
+
+            return SelectableMatryoshkaTool(
+                definition = Tool.Definition(
+                    name = name,
+                    description = description,
+                    inputSchema = Tool.InputSchema.of(
+                        Tool.Parameter.string(
+                            name = categoryParameter,
+                            description = "Category to access. Available: ${categoryNames.joinToString(", ")}",
+                            required = true,
+                            enumValues = categoryNames,
+                        )
+                    ),
+                ),
+                innerTools = allTools,
+                removeOnInvoke = removeOnInvoke,
+                selector = { input ->
+                    val category = extractCategory(input, categoryParameter)
+                    toolsByCategory[category] ?: allTools
+                },
+            )
+        }
+
+        private fun extractCategory(input: String, paramName: String): String? {
+            if (input.isBlank()) return null
+            return try {
+                @Suppress("UNCHECKED_CAST")
+                val map = ObjectMapper()
+                    .readValue(input, Map::class.java) as Map<String, Any?>
+                map[paramName] as? String
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        private val logger = LoggerFactory.getLogger(MatryoshkaTool::class.java)
+
+        /**
+         * Create a MatryoshkaTool from an instance annotated with [@MatryoshkaTools][MatryoshkaTools].
+         *
+         * The instance's class must be annotated with `@MatryoshkaTools` and contain
+         * methods annotated with `@LlmTool`. If any `@LlmTool` methods have a `category`
+         * specified, a category-based MatryoshkaTool is created; otherwise, all tools
+         * are exposed when the facade is invoked.
+         *
+         * Example - Simple facade:
+         * ```java
+         * @MatryoshkaTools(
+         *     name = "database_operations",
+         *     description = "Database operations. Invoke to see specific tools."
+         * )
+         * public class DatabaseTools {
+         *     @LlmTool(description = "Execute a SQL query")
+         *     public QueryResult query(String sql) { ... }
+         *
+         *     @LlmTool(description = "Insert a record")
+         *     public InsertResult insert(String table, String data) { ... }
+         * }
+         *
+         * MatryoshkaTool tool = MatryoshkaTool.fromInstance(new DatabaseTools());
+         * ```
+         *
+         * Example - Category-based:
+         * ```java
+         * @MatryoshkaTools(
+         *     name = "file_operations",
+         *     description = "File operations. Pass category to select tools."
+         * )
+         * public class FileTools {
+         *     @LlmTool(description = "Read file", category = "read")
+         *     public String readFile(String path) { ... }
+         *
+         *     @LlmTool(description = "Write file", category = "write")
+         *     public void writeFile(String path, String content) { ... }
+         * }
+         *
+         * MatryoshkaTool tool = MatryoshkaTool.fromInstance(new FileTools());
+         * // Automatically creates category-based selection with "read" and "write" categories
+         * ```
+         *
+         * @param instance The object instance annotated with `@MatryoshkaTools`
+         * @param objectMapper ObjectMapper for JSON parsing (optional)
+         * @return A MatryoshkaTool wrapping the annotated methods
+         * @throws IllegalArgumentException if the class is not annotated with `@MatryoshkaTools`
+         *         or has no `@LlmTool` methods
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun fromInstance(
+            instance: Any,
+            objectMapper: ObjectMapper = jacksonObjectMapper(),
+        ): MatryoshkaTool {
+            val klass = instance::class
+            val annotation = klass.findAnnotation<MatryoshkaTools>()
+                ?: throw IllegalArgumentException(
+                    "Class ${klass.simpleName} is not annotated with @MatryoshkaTools"
+                )
+
+            // Find all @LlmTool methods and create Tool instances
+            val toolMethods = klass.functions.filter { it.hasAnnotation<LlmTool>() }
+
+            // Find nested inner classes with @MatryoshkaTools annotation
+            val nestedMatryoshkaTools = findNestedMatryoshkaTools(klass, objectMapper)
+
+            if (toolMethods.isEmpty() && nestedMatryoshkaTools.isEmpty()) {
+                throw IllegalArgumentException(
+                    "Class ${klass.simpleName} has no methods annotated with @LlmTool " +
+                        "and no inner classes annotated with @MatryoshkaTools"
+                )
+            }
+
+            // Group tools by category
+            val toolsByCategory = mutableMapOf<String, MutableList<Tool>>()
+            val uncategorizedTools = mutableListOf<Tool>()
+
+            for (method in toolMethods) {
+                val tool = Tool.fromMethod(instance, method, objectMapper)
+                val llmToolAnnotation = method.findAnnotation<LlmTool>()!!
+                val category = llmToolAnnotation.category
+
+                if (category.isNotEmpty()) {
+                    toolsByCategory.getOrPut(category) { mutableListOf() }.add(tool)
+                } else {
+                    uncategorizedTools.add(tool)
+                }
+            }
+
+            // Add nested MatryoshkaTools to uncategorized tools
+            uncategorizedTools.addAll(nestedMatryoshkaTools)
+
+            // If we have categories, create a category-based MatryoshkaTool
+            return if (toolsByCategory.isNotEmpty()) {
+                // Add uncategorized tools to all categories
+                if (uncategorizedTools.isNotEmpty()) {
+                    toolsByCategory.forEach { (_, tools) ->
+                        tools.addAll(uncategorizedTools)
+                    }
+                    // Also add a special "all" category if there are uncategorized tools
+                    val allTools = toolsByCategory.values.flatten().toSet() + uncategorizedTools
+                    toolsByCategory["all"] = allTools.toMutableList()
+                }
+
+                logger.debug(
+                    "Creating category-based MatryoshkaTool '{}' with categories: {}",
+                    annotation.name,
+                    toolsByCategory.keys
+                )
+
+                byCategory(
+                    name = annotation.name,
+                    description = annotation.description,
+                    toolsByCategory = toolsByCategory,
+                    categoryParameter = annotation.categoryParameter,
+                    removeOnInvoke = annotation.removeOnInvoke,
+                )
+            } else {
+                // No categories - create simple MatryoshkaTool
+                logger.debug(
+                    "Creating simple MatryoshkaTool '{}' with {} tools ({} nested)",
+                    annotation.name,
+                    uncategorizedTools.size,
+                    nestedMatryoshkaTools.size
+                )
+
+                of(
+                    name = annotation.name,
+                    description = annotation.description,
+                    innerTools = uncategorizedTools,
+                    removeOnInvoke = annotation.removeOnInvoke,
+                )
+            }
+        }
+
+        /**
+         * Find nested inner classes annotated with @MatryoshkaTools and create MatryoshkaTool instances.
+         */
+        private fun findNestedMatryoshkaTools(
+            klass: KClass<*>,
+            objectMapper: ObjectMapper,
+        ): List<MatryoshkaTool> {
+            val nestedTools = mutableListOf<MatryoshkaTool>()
+
+            // Get all nested classes
+            for (nestedClass in klass.nestedClasses) {
+                if (nestedClass.findAnnotation<MatryoshkaTools>() != null) {
+                    try {
+                        // Create an instance of the nested class
+                        val nestedInstance = nestedClass.createInstance()
+                        val nestedMatryoshka = fromInstance(nestedInstance, objectMapper)
+                        nestedTools.add(nestedMatryoshka)
+                        logger.debug(
+                            "Found nested MatryoshkaTool '{}' in class {}",
+                            nestedMatryoshka.definition.name,
+                            klass.simpleName
+                        )
+                    } catch (e: Exception) {
+                        logger.warn(
+                            "Failed to create nested MatryoshkaTool from {}: {}",
+                            nestedClass.simpleName,
+                            e.message
+                        )
+                    }
+                }
+            }
+
+            return nestedTools
+        }
+
+        /**
+         * Safely create a MatryoshkaTool from an instance.
+         * Returns null if the class is not annotated with `@MatryoshkaTools`
+         * or has no `@LlmTool` methods.
+         *
+         * @param instance The object instance to check
+         * @param objectMapper ObjectMapper for JSON parsing (optional)
+         * @return A MatryoshkaTool if the instance is properly annotated, null otherwise
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun safelyFromInstance(
+            instance: Any,
+            objectMapper: ObjectMapper = jacksonObjectMapper(),
+        ): MatryoshkaTool? {
+            return try {
+                fromInstance(instance, objectMapper)
+            } catch (e: IllegalArgumentException) {
+                logger.debug(
+                    "Instance {} is not a valid MatryoshkaTool source: {}",
+                    instance::class.simpleName,
+                    e.message
+                )
+                null
+            } catch (e: Throwable) {
+                logger.debug(
+                    "Failed to create MatryoshkaTool from {}: {}",
+                    instance::class.simpleName,
+                    e.message
+                )
+                null
+            }
+        }
+    }
+}
+
+/**
+ * Simple implementation that exposes all inner tools.
+ */
+private class SimpleMatryoshkaTool(
+    override val definition: Tool.Definition,
+    override val innerTools: List<Tool>,
+    override val removeOnInvoke: Boolean,
+) : MatryoshkaTool {
+
+    override fun call(input: String): Tool.Result {
+        val toolNames = innerTools.map { it.definition.name }
+        return Tool.Result.text(
+            "Enabled ${innerTools.size} tools: ${toolNames.joinToString(", ")}"
+        )
+    }
+}
+
+/**
+ * Implementation with custom tool selection logic.
+ */
+private class SelectableMatryoshkaTool(
+    override val definition: Tool.Definition,
+    override val innerTools: List<Tool>,
+    override val removeOnInvoke: Boolean,
+    private val selector: (String) -> List<Tool>,
+) : MatryoshkaTool {
+
+    override fun selectTools(input: String): List<Tool> = selector(input)
+
+    override fun call(input: String): Tool.Result {
+        val selected = selectTools(input)
+        val toolNames = selected.map { it.definition.name }
+        return Tool.Result.text(
+            "Enabled ${selected.size} tools: ${toolNames.joinToString(", ")}"
+        )
+    }
+}
