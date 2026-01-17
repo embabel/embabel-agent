@@ -126,6 +126,12 @@ data class LlmInteraction(
 
     override val name: String = id.value
 
+    /**
+     * Get the interaction ID as a String.
+     * Provided for Java compatibility since value classes don't generate standard getters.
+     */
+    fun getId(): String = id.value
+
     companion object {
 
         @JvmStatic
