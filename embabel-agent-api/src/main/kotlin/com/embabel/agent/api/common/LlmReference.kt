@@ -84,4 +84,98 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * @see toolInstances for Spring AI @Tool annotated objects
      */
     fun tools(): List<Tool> = emptyList()
+
+    companion object {
+
+        /**
+         * Create an LlmReference with tools.
+         *
+         * @param name The reference name (used as tool prefix)
+         * @param description A description of what this reference provides
+         * @param notes The text content to include in the prompt
+         * @param tools The tools provided by this reference
+         * @return An LlmReference with the given content and tools
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun of(
+            name: String,
+            description: String,
+            tools: List<Tool>,
+            notes: String = "",
+        ): LlmReference = SimpleLlmReference(
+            name = name,
+            description = description,
+            notes = notes,
+            tools = tools,
+        )
+
+        /**
+         * Create an LlmReference with a single tool object.
+         *
+         * @param name The reference name (used as tool prefix)
+         * @param description A description of what this reference provides
+         * @param notes The text content to include in the prompt
+         * @param tool The single tool provided by this reference.
+         * May be a [Tool] object or an object with @LlmTool annotated methods.
+         * @return An LlmReference with the given content and tools
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun of(
+            name: String,
+            description: String,
+            tool: Any,
+            notes: String = ""
+        ) = fromToolInstances(
+            name = name,
+            description = description,
+            notes = notes,
+            toolInstances = arrayOf(tool),
+        )
+
+        /**
+         * Create an LlmReference from tool instances.
+         * Accepts both [Tool] objects directly and objects with @LlmTool annotated methods.
+         *
+         * @param name The reference name (used as tool prefix)
+         * @param description A description of what this reference provides
+         * @param notes The text content to include in the prompt
+         * @param toolInstances Tool objects or objects containing @LlmTool annotated methods
+         * @return An LlmReference with the given tools
+         */
+        @JvmStatic
+        fun fromToolInstances(
+            name: String,
+            description: String,
+            notes: String,
+            vararg toolInstances: Any,
+        ): LlmReference {
+            val tools = toolInstances.flatMap { instance ->
+                when (instance) {
+                    is Tool -> listOf(instance)
+                    else -> Tool.fromInstance(instance)
+                }
+            }
+            return SimpleLlmReference(
+                name = name,
+                description = description,
+                notes = notes,
+                tools = tools,
+            )
+        }
+    }
+}
+
+/**
+ * Simple implementation of LlmReference for factory methods.
+ */
+private data class SimpleLlmReference(
+    override val name: String,
+    override val description: String,
+    private val notes: String,
+    private val tools: List<Tool>,
+) : LlmReference {
+    override fun notes(): String = notes
+    override fun tools(): List<Tool> = tools
 }

@@ -580,6 +580,134 @@ class FakePromptRunnerTest {
             assertTrue(invocation.interaction.tools.isNotEmpty())
         }
     }
+
+    @Nested
+    inner class ToolGroupTests {
+
+        @Test
+        fun `withToolGroup adds tools from ToolGroup to interaction`() {
+            val context = FakeOperationContext.create()
+            val tool = com.embabel.agent.api.tool.Tool.of("test_tool", "A test tool") {
+                com.embabel.agent.api.tool.Tool.Result.text("ok")
+            }
+            val toolGroup = com.embabel.agent.core.ToolGroup.ofTools(
+                metadata = com.embabel.agent.core.ToolGroupMetadata(
+                    description = "Test tool group",
+                    role = "test",
+                    name = "test-group",
+                    provider = "test-provider",
+                    permissions = emptySet()
+                ),
+                tools = listOf(tool)
+            )
+            context.expectResponse("result")
+
+            context.ai()
+                .withDefaultLlm()
+                .withToolGroup(toolGroup)
+                .createObject("Use tool", String::class.java)
+
+            val invocation = context.llmInvocations[0]
+            assertEquals(1, invocation.interaction.tools.size)
+            assertEquals("test_tool", invocation.interaction.tools[0].definition.name)
+        }
+
+        @Test
+        fun `withToolGroup with multiple tools adds all tools`() {
+            val context = FakeOperationContext.create()
+            val tool1 = com.embabel.agent.api.tool.Tool.of("tool_one", "First tool") {
+                com.embabel.agent.api.tool.Tool.Result.text("one")
+            }
+            val tool2 = com.embabel.agent.api.tool.Tool.of("tool_two", "Second tool") {
+                com.embabel.agent.api.tool.Tool.Result.text("two")
+            }
+            val toolGroup = com.embabel.agent.core.ToolGroup.ofTools(
+                metadata = com.embabel.agent.core.ToolGroupMetadata(
+                    description = "Multi-tool group",
+                    role = "multi",
+                    name = "multi-group",
+                    provider = "test-provider",
+                    permissions = emptySet()
+                ),
+                tools = listOf(tool1, tool2)
+            )
+            context.expectResponse("result")
+
+            context.ai()
+                .withDefaultLlm()
+                .withToolGroup(toolGroup)
+                .createObject("Use tools", String::class.java)
+
+            val invocation = context.llmInvocations[0]
+            assertEquals(2, invocation.interaction.tools.size)
+            val toolNames = invocation.interaction.tools.map { it.definition.name }
+            assertTrue(toolNames.contains("tool_one"))
+            assertTrue(toolNames.contains("tool_two"))
+        }
+
+        @Test
+        fun `withToolGroup is chainable with other methods`() {
+            val context = FakeOperationContext.create()
+            val tool = com.embabel.agent.api.tool.Tool.of("chained_tool", "Chained tool") {
+                com.embabel.agent.api.tool.Tool.Result.text("chained")
+            }
+            val toolGroup = com.embabel.agent.core.ToolGroup.ofTools(
+                metadata = com.embabel.agent.core.ToolGroupMetadata(
+                    description = "Chained group",
+                    role = "chained",
+                    name = "chained-group",
+                    provider = "test-provider",
+                    permissions = emptySet()
+                ),
+                tools = listOf(tool)
+            )
+            val llmOptions = LlmOptions.withModel("test-model")
+            context.expectResponse("result")
+
+            context.ai()
+                .withLlm(llmOptions)
+                .withId("chained-op")
+                .withToolGroup(toolGroup)
+                .withSystemPrompt("System prompt")
+                .createObject("Use tool", String::class.java)
+
+            val invocation = context.llmInvocations[0]
+            assertEquals(llmOptions, invocation.interaction.llm)
+            assertEquals(InteractionId("chained-op"), invocation.interaction.id)
+            assertEquals(1, invocation.interaction.tools.size)
+            assertTrue(invocation.interaction.promptContributors.isNotEmpty())
+        }
+
+        @Test
+        fun `withToolGroup is immutable and returns new instance`() {
+            val context = FakeOperationContext.create()
+            val tool = com.embabel.agent.api.tool.Tool.of("immutable_tool", "Immutable tool") {
+                com.embabel.agent.api.tool.Tool.Result.text("immutable")
+            }
+            val toolGroup = com.embabel.agent.core.ToolGroup.ofTools(
+                metadata = com.embabel.agent.core.ToolGroupMetadata(
+                    description = "Immutable group",
+                    role = "immutable",
+                    name = "immutable-group",
+                    provider = "test-provider",
+                    permissions = emptySet()
+                ),
+                tools = listOf(tool)
+            )
+
+            val original = context.ai().withDefaultLlm()
+            val modified = original.withToolGroup(toolGroup)
+
+            assertTrue(original is FakePromptRunner)
+            assertTrue(modified is FakePromptRunner)
+            // Original should not have the tool
+            assertTrue((original as FakePromptRunner).let { runner ->
+                context.expectResponse("original")
+                runner.createObject("test", String::class.java)
+                context.llmInvocations[0].interaction.tools.isEmpty()
+            })
+        }
+    }
 }
 
 // Tool object class defined outside the test class

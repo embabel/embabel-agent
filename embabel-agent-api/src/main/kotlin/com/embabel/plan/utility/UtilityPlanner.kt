@@ -17,7 +17,12 @@ package com.embabel.plan.utility
 
 import com.embabel.plan.Action
 import com.embabel.plan.Goal
-import com.embabel.plan.common.condition.*
+import com.embabel.plan.common.condition.AbstractConditionPlanner
+import com.embabel.plan.common.condition.ConditionAction
+import com.embabel.plan.common.condition.ConditionGoal
+import com.embabel.plan.common.condition.ConditionPlan
+import com.embabel.plan.common.condition.ConditionPlanningSystem
+import com.embabel.plan.common.condition.WorldStateDeterminer
 
 /**
  * Planner using utility AI
@@ -36,13 +41,16 @@ class UtilityPlanner(
             .filter { it.isAchievable(currentState) }
             .map { Pair(it, it.netValue(currentState)) }
             .sortedByDescending { it.second }
-        logger.info("${availableActions.size}/${actions.size} known actions available in current state:\n\t${availableActions.map { "${it.first.name} - ${it.second}" }}")
+        val actionList = if (availableActions.isNotEmpty()) {
+            ":\n\t${availableActions.map { "${it.first.name} - ${it.second}" }}"
+        } else ""
+        logger.info("{}/{} known actions available in current state{}", availableActions.size, actions.size, actionList)
         val firstAction = availableActions.map { it.first }.firstOrNull()
 
         if (goal.name == NIRVANA) {
             if (firstAction == null) {
                 // Special case. No available actions for Nirvana goal
-                // We still never satisfy this goal
+                // We still never satisfy this goal, but that's OK
                 return null
             }
             // We won't get there, but we take the next step
@@ -60,8 +68,8 @@ class UtilityPlanner(
         }
 
         // We have a meaningful, achievable goal
-        // Are we there?
         if (firstAction == null) {
+            // Are we already there?
             if (businessGoal.isAchievable(currentState)) {
                 logger.info("Business goal {} is satisfied", businessGoal.name)
                 return ConditionPlan(
@@ -92,6 +100,10 @@ class UtilityPlanner(
     }
 
     companion object {
+
+        /**
+         * Name of the goal where there's nothing more to do
+         */
         const val NIRVANA = "Nirvana"
     }
 }

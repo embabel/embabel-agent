@@ -44,7 +44,9 @@ class DefaultProcessCallbackTools(
         description = "Resume a process by providing the process ID and form content",
     )
     fun submitFormAndResumeProcess(
+        @LlmTool.Param(description = "The unique identifier of the process to be resumed", required = true)
         processId: String,
+        @LlmTool.Param(description = "The form content for resuming the process", required = true)
         formData: String,
     ): String {
         logger.info("Form submission tool called with processId: {}, form input: {}", processId, formData)
@@ -85,10 +87,12 @@ class DefaultProcessCallbackTools(
 
     @LlmTool(
         name = CONFIRMATION_TOOL_NAME,
-        description = "Resume a process by providing the process ID and form content",
+        description = "Confirms or rejects a pending process ID",
     )
     fun confirmation(
+        @LlmTool.Param(description = "The unique identifier of the process to be confirmed", required = true)
         processId: String,
+        @LlmTool.Param(description = "Set to true to proceed with the process, or false to cancel it", required = true)
         confirmed: Boolean,
     ): String {
         logger.info("Confirmation tool called with processId: {}, confirmed: {}", processId, confirmed)

@@ -139,6 +139,12 @@ The following are modules intended for direct use (versus supporting infrastruct
 | RAG store for Neo4j graph database
 | Incubating
 
+| `embabel-rag-pgvector`
+| `embabel/embabel-rag-pgvector`
+| PostgreSQL pgvector RAG
+| RAG store for PostgreSQL with pgvector extension supporting hybrid search (vector, full-text, fuzzy)
+| Incubating
+
 | `dice`
 | `embabel/dice`
 | Support for https://medium.com/@springrod/context-engineering-needs-domain-understanding-b4387e8e4bf8:[Domain Oriented Context Engineering]
