@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.core.DomainType
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -104,7 +103,5 @@ class MultiTransformationActionTest {
 
         val domainTypes = action.domainTypes
         assertNotNull(domainTypes, "domainTypes should never be null")
-        // Even if there are issues, it should return an empty collection, not null
-        assertTrue(domainTypes is Collection<DomainType>, "Should return a collection")
     }
 }

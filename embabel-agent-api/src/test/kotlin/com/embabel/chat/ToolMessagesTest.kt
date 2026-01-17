@@ -173,9 +173,6 @@ class ToolMessagesTest {
                 content = "test",
                 toolCalls = listOf(ToolCall("id", "tool", "{}")),
             )
-
-            assertTrue(message is Message)
-            assertTrue(message is com.embabel.agent.domain.io.AssistantContent)
         }
     }
 

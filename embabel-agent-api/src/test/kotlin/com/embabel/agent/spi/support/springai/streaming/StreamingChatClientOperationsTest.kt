@@ -193,7 +193,6 @@ class StreamingChatClientOperationsTest {
 
         // Then
         assertNotNull(result)
-        assertTrue(result is Flux<String>)
     }
 
     @Test
@@ -208,7 +207,6 @@ class StreamingChatClientOperationsTest {
 
         // Then
         assertNotNull(result)
-        assertTrue(result is Flux<TestItem>)
     }
 
     @Test
