@@ -15,15 +15,21 @@
  */
 package com.embabel.agent.test.unit
 
-import com.embabel.agent.api.common.*
+import com.embabel.agent.api.common.AgentImage
+import com.embabel.agent.api.common.ContextualPromptElement
+import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.api.common.Subagent
+import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -49,9 +55,16 @@ data class LlmInvocation(
     /**
      * The prompt text (content of all messages concatenated).
      * Convenience property for testing assertions.
+     *
+     * Note: Use this property (or getPrompt() in Java) to get the full prompt content.
+     * The default toString() of Message objects truncates content for readability.
      */
     val prompt: String
-        get() = messages.joinToString("\n") { it.content }
+        get() = messages.joinToString("\n") { it.textContent }
+
+    override fun toString(): String {
+        return "LlmInvocation(id=${interaction.id}, method=$method, messageCount=${messages.size})"
+    }
 }
 
 data class FakePromptRunner(
@@ -112,10 +125,7 @@ data class FakePromptRunner(
                     """.trimIndent()
             )
         }
-        val maybeT = responses[llmInvocations.size - 1]
-        if (maybeT == null) {
-            return null
-        }
+        val maybeT = responses[llmInvocations.size - 1] ?: return null
         if (!outputClass.isInstance(maybeT)) {
             throw IllegalStateException(
                 "Expected response of type ${outputClass.name}, but got ${maybeT.javaClass.name}."
@@ -200,7 +210,6 @@ data class FakePromptRunner(
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(validation = validation)
 
-
     private fun createLlmInteraction() =
         LlmInteraction(
             llm = llm ?: LlmOptions(),
@@ -231,9 +240,8 @@ data class FakePromptRunner(
         TODO("Implement subagent handoff support")
     }
 
-    override fun withToolGroup(toolGroup: ToolGroup): PromptRunner {
-        TODO("Not yet implemented")
-    }
+    override fun withToolGroup(toolGroup: ToolGroup): PromptRunner =
+        copy(otherTools = this.otherTools + toolGroup.tools)
 
     override fun withTool(tool: Tool): PromptRunner =
         copy(otherTools = this.otherTools + tool)

@@ -60,4 +60,24 @@ public class FakeOperationContextJavaTest {
         assertEquals("op-1", context.getLlmInvocations().get(0).getInteraction().getId());
         assertEquals("op-2", context.getLlmInvocations().get(1).getInteraction().getId());
     }
+
+    @Test
+    public void testGetPromptReturnsFullContent() {
+        var context = FakeOperationContext.create();
+        context.expectResponse("result");
+
+        var longPrompt = "This is a very long prompt that should be fully returned without any truncation. " +
+                "It contains multiple sentences and should be preserved in its entirety when calling getPrompt().";
+
+        context.ai().withDefaultLlm().withId("test")
+                .createObject(longPrompt, String.class);
+
+        var invocation = context.getLlmInvocations().get(0);
+
+        // getPrompt() should return the full prompt, not truncated
+        assertEquals(longPrompt, invocation.getPrompt());
+
+        // Verify it's not the toString() representation
+        assertFalse(invocation.getPrompt().contains("UserMessage("));
+    }
 }
