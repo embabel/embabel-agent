@@ -669,9 +669,9 @@ class ChatClientLlmOperationsThinkingTest {
 
     @Test
     fun `getTimeoutMillis should return configured timeout`() {
-        // Given: LlmOperations with access to private method
+        // Given: LlmOperations with access to protected method in parent class
         val setup = createChatClientLlmOperations(FakeChatModel("test"))
-        val getTimeoutMillisMethod = setup.llmOperations::class.java.getDeclaredMethod(
+        val getTimeoutMillisMethod = ToolLoopLlmOperations::class.java.getDeclaredMethod(
             "getTimeoutMillis",
             LlmOptions::class.java
         )
@@ -844,8 +844,8 @@ class ChatClientLlmOperationsThinkingTest {
             dataBindingProps
         )
 
-        // Access the shouldGenerateExamples method
-        val shouldGenerateMethod = setup.llmOperations::class.java.getDeclaredMethod(
+        // Access the shouldGenerateExamples method in parent class
+        val shouldGenerateMethod = ToolLoopLlmOperations::class.java.getDeclaredMethod(
             "shouldGenerateExamples", LlmCall::class.java
         )
         shouldGenerateMethod.isAccessible = true

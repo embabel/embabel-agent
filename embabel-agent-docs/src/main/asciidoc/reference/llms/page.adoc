@@ -27,3 +27,179 @@ TIP: Trial and error is your friend.
 Embabel makes it easy to switch LLMs; try the cheapest thing that could work and switch if it doesn't.
 
 
+==== Advanced: Custom LLM Integration
+
+Embabel's tool loop is framework-agnostic, allowing you to integrate any LLM provider by implementing the `LlmMessageSender` interface.
+This is useful when:
+
+- You want to use an LLM provider not supported by Spring AI
+- You need custom request/response handling
+- You're integrating with a proprietary or internal LLM service
+
+===== The LlmMessageSender Interface
+
+The core abstraction is the `LlmMessageSender` functional interface:
+
+[source,kotlin]
+----
+fun interface LlmMessageSender {
+    fun call(
+        messages: List<Message>,
+        tools: List<Tool>,
+    ): LlmMessageResponse
+}
+----
+
+The implementation makes a single LLM inference call and returns the response.
+Importantly, it does **not** execute tools--it only returns any tool call requests from the LLM.
+Tool execution is handled by Embabel's `DefaultToolLoop`.
+
+===== Response Types
+
+The `LlmMessageResponse` contains:
+
+- `message`: The LLM's response as an Embabel `Message`
+- `textContent`: Text content from the response
+- `usage`: Optional token usage information
+
+For responses that include tool calls, return an `AssistantMessageWithToolCalls`:
+
+[source,kotlin]
+----
+data class ToolCall(
+    val id: String,      // Unique identifier for the tool call
+    val name: String,    // Name of the tool to invoke
+    val arguments: String, // JSON arguments for the tool
+)
+----
+
+===== Example: Custom LLM Provider
+
+Here's an example of implementing `LlmMessageSender` for a hypothetical HTTP-based LLM API:
+
+[source,kotlin]
+----
+class MyCustomLlmMessageSender(
+    private val httpClient: HttpClient,
+    private val apiKey: String,
+    private val model: String,
+) : LlmMessageSender {
+
+    override fun call(
+        messages: List<Message>,
+        tools: List<Tool>,
+    ): LlmMessageResponse {
+        // Convert Embabel messages to your API's format
+        val apiMessages = messages.map { message ->
+            mapOf(
+                "role" to message.role.name.lowercase(),
+                "content" to message.textContent
+            )
+        }
+
+        // Convert tool definitions to your API's format
+        val apiTools = tools.map { tool ->
+            mapOf(
+                "name" to tool.definition.name,
+                "description" to tool.definition.description,
+                "parameters" to tool.definition.inputSchema.jsonSchema()
+            )
+        }
+
+        // Make API request
+        val response = httpClient.post("https://api.my-llm.com/chat") {
+            header("Authorization", "Bearer $apiKey")
+            body = mapOf(
+                "model" to model,
+                "messages" to apiMessages,
+                "tools" to apiTools.ifEmpty { null }
+            )
+        }
+
+        // Parse response and convert to Embabel types
+        val responseBody = response.body<MyApiResponse>()
+
+        // Check if LLM requested tool calls
+        val toolCalls = responseBody.toolCalls?.map { call ->
+            ToolCall(
+                id = call.id,
+                name = call.function.name,
+                arguments = call.function.arguments
+            )
+        }
+
+        val embabelMessage = if (toolCalls.isNullOrEmpty()) {
+            AssistantMessage(responseBody.content ?: "")
+        } else {
+            AssistantMessageWithToolCalls(
+                content = responseBody.content ?: "",
+                toolCalls = toolCalls
+            )
+        }
+
+        return LlmMessageResponse(
+            message = embabelMessage,
+            textContent = responseBody.content ?: "",
+            usage = responseBody.usage?.let { u ->
+                Usage(
+                    inputTokens = u.promptTokens,
+                    outputTokens = u.completionTokens,
+                )
+            }
+        )
+    }
+}
+----
+
+===== Using Your Custom Implementation
+
+To use your custom `LlmMessageSender` with Embabel, extend `ToolLoopLlmOperations`:
+
+[source,kotlin]
+----
+class MyCustomLlmOperations(
+    private val httpClient: HttpClient,
+    private val apiKey: String,
+    modelProvider: ModelProvider,
+    toolDecorator: ToolDecorator,
+    validator: Validator,
+) : ToolLoopLlmOperations(
+    modelProvider = modelProvider,
+    toolDecorator = toolDecorator,
+    validator = validator,
+) {
+    override fun createMessageSender(
+        llm: LlmService<*>,
+        options: LlmOptions,
+    ): LlmMessageSender {
+        return MyCustomLlmMessageSender(
+            httpClient = httpClient,
+            apiKey = apiKey,
+            model = options.model ?: "default-model",
+        )
+    }
+}
+----
+
+The `ToolLoopLlmOperations` base class provides several extension points:
+
+- `createMessageSender()`: Create the LLM communication layer
+- `createOutputConverter()`: Parse LLM responses into typed objects
+- `sanitizeStringOutput()`: Clean up raw text responses
+- `emitCallEvent()`: Emit observability events
+
+===== Key Implementation Notes
+
+1. **Tool calls are not executed by your sender.** Just return the tool call requests--Embabel's tool loop handles execution and continuation.
+
+2. **Handle both tool and non-tool responses.** Return `AssistantMessage` for plain text, `AssistantMessageWithToolCalls` when the LLM wants to invoke tools.
+
+3. **Include usage information when available.** This enables cost tracking and observability.
+
+4. **Message types matter.** The tool loop expects specific message types:
+   - `UserMessage`: User input
+   - `SystemMessage`: System prompts
+   - `AssistantMessage`: LLM text response
+   - `AssistantMessageWithToolCalls`: LLM response with tool requests
+   - `ToolResultMessage`: Result returned to LLM after tool execution
+

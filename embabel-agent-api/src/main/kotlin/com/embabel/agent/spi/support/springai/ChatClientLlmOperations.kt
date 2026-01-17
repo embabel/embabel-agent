@@ -16,24 +16,21 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.event.LlmRequestEvent
-import com.embabel.agent.core.LlmInvocation
-import com.embabel.agent.core.Usage
-import com.embabel.agent.core.support.LlmCall
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.LlmMessageSender
-import com.embabel.agent.spi.loop.ToolInjectionStrategy
-import com.embabel.agent.spi.loop.support.DefaultToolLoop
-import com.embabel.agent.spi.support.AbstractLlmOperations
 import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
+import com.embabel.agent.spi.support.OutputConverter
+import com.embabel.agent.spi.support.ToolLoopLlmOperations
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingResponse
@@ -61,22 +58,24 @@ import org.springframework.core.ParameterizedTypeReference
 import org.springframework.retry.support.RetrySynchronizationManager
 import org.springframework.stereotype.Service
 import java.lang.reflect.ParameterizedType
-import java.time.Duration
-import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import com.embabel.chat.SystemMessage as EmbabelSystemMessage
-
-const val PROMPT_ELEMENT_SEPARATOR = "\n----\n"
 
 // Log message constants to avoid duplication
 private const val LLM_TIMEOUT_MESSAGE = "LLM {}: attempt {} timed out after {}ms"
 private const val LLM_INTERRUPTED_MESSAGE = "LLM {}: attempt {} was interrupted"
 
 /**
- * LlmOperations implementation that uses the Spring AI ChatClient
+ * Spring AI implementation of LlmOperations using ChatClient.
+ *
+ * This class extends [ToolLoopLlmOperations] to inherit the framework-agnostic
+ * tool loop implementation, and adds Spring AI-specific functionality:
+ * - Spring AI converters for structured output
+ * - ChatClient for the legacy Spring AI tool handling path
+ * - Spring AI message/prompt building
+ *
  * @param modelProvider ModelProvider to get the LLM model
  * @param toolDecorator ToolDecorator to decorate tools to make them aware of platform
  * @param templateRenderer TemplateRenderer to render templates
@@ -90,19 +89,21 @@ internal class ChatClientLlmOperations(
     validationPromptGenerator: ValidationPromptGenerator = DefaultValidationPromptGenerator(),
     private val templateRenderer: TemplateRenderer,
     dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
-    private val llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
+    llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
-    internal val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+    objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     private val customizers: List<ChatClientCustomizer> = emptyList()
-) : AbstractLlmOperations(
+) : ToolLoopLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
     validator = validator,
     validationPromptGenerator = validationPromptGenerator,
     dataBindingProperties = dataBindingProperties,
-    autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver
+    autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver,
+    promptsProperties = llmOperationsPromptsProperties,
+    objectMapper = objectMapper,
 ) {
 
     @PostConstruct
@@ -121,7 +122,7 @@ internal class ChatClientLlmOperations(
             logger.warn("LLM Data Binding: Using fallback defaults")
         }
 
-        if (promptsFromContext === llmOperationsPromptsProperties) {
+        if (promptsFromContext === promptsProperties) {
             logger.info("LLM Prompts: Using Spring-managed properties")
         } else {
             logger.warn("LLM Prompts: Using fallback defaults")
@@ -131,13 +132,13 @@ internal class ChatClientLlmOperations(
             "Current LLM settings: maxAttempts=${dataBindingProperties.maxAttempts}, fixedBackoffMillis=${
                 dataBindingProperties.fixedBackoffMillis
             }ms, timeout=${
-                llmOperationsPromptsProperties.defaultTimeout.seconds
+                promptsProperties.defaultTimeout.seconds
             }s"
         )
     }
 
     // ====================================
-    // NON-THINKING IMPLEMENTATION (uses responseEntity)
+    // OVERRIDES FROM ToolLoopLlmOperations
     // ====================================
 
     override fun <O> doTransform(
@@ -148,215 +149,60 @@ internal class ChatClientLlmOperations(
     ): O {
         // Check if we should use Embabel's tool loop or Spring AI's internal loop
         return if (interaction.useEmbabelToolLoop) {
-            doTransformWithEmbabelToolLoop(messages, interaction, outputClass, llmRequestEvent)
+            super.doTransform(messages, interaction, outputClass, llmRequestEvent)
         } else {
             doTransformWithSpringAi(messages, interaction, outputClass, llmRequestEvent)
         }
     }
 
-    /**
-     * Transform using Embabel's own tool loop.
-     * This gives us control over message history, tool injection, and observability.
-     */
-    private fun <O> doTransformWithEmbabelToolLoop(
-        messages: List<Message>,
-        interaction: LlmInteraction,
-        outputClass: Class<O>,
-        llmRequestEvent: LlmRequestEvent<O>?,
-    ): O {
-        val llm = chooseLlm(interaction.llm)
-        val promptContributions =
-            (interaction.promptContributors + llm.promptContributors).joinToString(PROMPT_ELEMENT_SEPARATOR) { it.contribution() }
-
-        // Create message sender - supports both new SpringAiLlm and deprecated Llm
-        val messageSender = createMessageSenderFor(llm, interaction.llm)
-
-        // Build the output parser and get schema format for structured output
-        val converter = if (outputClass != String::class.java) {
-            ExceptionWrappingConverter(
-                expectedType = outputClass,
-                delegate = WithExampleConverter(
-                    delegate = SuppressThinkingConverter(
-                        FilteringJacksonOutputConverter(
-                            clazz = outputClass,
-                            objectMapper = objectMapper,
-                            propertyFilter = interaction.propertyFilter,
-                        )
-                    ),
-                    outputClass = outputClass,
-                    ifPossible = false,
-                    generateExamples = shouldGenerateExamples(interaction),
-                )
-            )
-        } else null
-
-        val schemaFormat = converter?.getFormat()
-
-        val outputParser: (String) -> O = if (outputClass == String::class.java) {
-            @Suppress("UNCHECKED_CAST")
-            { text -> stringWithoutThinkBlocks(text) as O }
-        } else {
-            { text -> converter!!.convert(text)!! }
-        }
-
-        // Create our tool loop
-        val toolLoop = DefaultToolLoop(
-            llmMessageSender = messageSender,
-            objectMapper = objectMapper,
-            injectionStrategy = ToolInjectionStrategy.DEFAULT,
-            maxIterations = interaction.maxToolIterations,
-        )
-
-        // Build initial messages with prompt contributions and schema
-        val initialMessages = buildInitialMessagesForToolLoop(promptContributions, messages, schemaFormat)
-
-        // Emit call event for observability
-        val springAiPrompt = if (schemaFormat != null) {
-            buildPromptWithSchema(promptContributions, messages, schemaFormat)
-        } else {
-            buildBasicPrompt(promptContributions, messages)
-        }
-        llmRequestEvent?.let {
-            it.agentProcess.processContext.onProcessEvent(
-                it.chatModelCallEvent(springAiPrompt)
-            )
-        }
-
-        // Use native Tool directly - no conversion needed thanks to migration
-        val tools = interaction.tools
-
-        // Execute the tool loop
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
-
-        // Record usage if available
-        result.totalUsage?.let { usage ->
-            recordUsage(llm, usage, llmRequestEvent)
-        }
-
-        return result.result
+    override fun createMessageSender(
+        llm: LlmService<*>,
+        options: LlmOptions,
+    ): LlmMessageSender {
+        return llm.createMessageSender(options)
     }
 
-    /**
-     * Build initial messages for the tool loop, including system prompt contributions and schema.
-     */
-    private fun buildInitialMessagesForToolLoop(
+    override fun <O> createOutputConverter(
+        outputClass: Class<O>,
+        interaction: LlmInteraction,
+    ): OutputConverter<O> {
+        val springAiConverter = ExceptionWrappingConverter(
+            expectedType = outputClass,
+            delegate = WithExampleConverter(
+                delegate = SuppressThinkingConverter(
+                    FilteringJacksonOutputConverter(
+                        clazz = outputClass,
+                        objectMapper = objectMapper,
+                        propertyFilter = interaction.propertyFilter,
+                    )
+                ),
+                outputClass = outputClass,
+                ifPossible = false,
+                generateExamples = shouldGenerateExamples(interaction),
+            )
+        )
+        return SpringAiOutputConverterAdapter(springAiConverter)
+    }
+
+    override fun sanitizeStringOutput(text: String): String {
+        return stringWithoutThinkBlocks(text)
+    }
+
+    override fun emitCallEvent(
+        llmRequestEvent: LlmRequestEvent<*>?,
         promptContributions: String,
         messages: List<Message>,
-        schemaFormat: String? = null,
-    ): List<Message> {
-        return buildList {
-            if (promptContributions.isNotEmpty()) {
-                add(EmbabelSystemMessage(promptContributions))
-            }
-            addAll(messages)
-            if (schemaFormat != null) {
-                add(EmbabelSystemMessage(schemaFormat))
-            }
-        }
-    }
-
-    /**
-     * Transform using Spring AI's ChatClient with internal tool handling.
-     * This is the original implementation preserved for backwards compatibility.
-     */
-    private fun <O> doTransformWithSpringAi(
-        messages: List<Message>,
-        interaction: LlmInteraction,
-        outputClass: Class<O>,
-        llmRequestEvent: LlmRequestEvent<O>?,
-    ): O {
-        val llm = chooseLlm(interaction.llm)
-        val chatClient = createChatClient(llm)
-        val promptContributions =
-            (interaction.promptContributors + llm.promptContributors).joinToString(PROMPT_ELEMENT_SEPARATOR) { it.contribution() }
-
-        val springAiPrompt = buildBasicPrompt(promptContributions, messages)
+        schemaFormat: String?,
+    ) {
         llmRequestEvent?.let {
+            val springAiPrompt = if (schemaFormat != null) {
+                buildPromptWithSchema(promptContributions, messages, schemaFormat)
+            } else {
+                buildBasicPrompt(promptContributions, messages)
+            }
             it.agentProcess.processContext.onProcessEvent(
                 it.chatModelCallEvent(springAiPrompt)
             )
-        }
-
-        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
-        val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
-
-        return dataBindingProperties.retryTemplate(interaction.id.value).execute<O, DatabindException> {
-            val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
-
-            val future = CompletableFuture.supplyAsync {
-                chatClient
-                    .prompt(springAiPrompt)
-                    .toolCallbacks(interaction.tools.toSpringToolCallbacks())
-                    .options(chatOptions)
-                    .call()
-            }
-
-            val callResponse = try {
-                future.get(
-                    timeoutMillis,
-                    TimeUnit.MILLISECONDS
-                ) // NOSONAR: CompletableFuture.get() is not collection access
-            } catch (e: Exception) {
-                handleFutureException(e, future, interaction, timeoutMillis, attempt)
-            }
-
-            if (outputClass == String::class.java) {
-                val chatResponse = callResponse.chatResponse()
-                chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
-                val rawText = chatResponse!!.result.output.text as String
-                stringWithoutThinkBlocks(rawText) as O
-            } else {
-                val re = callResponse.responseEntity(
-                    ExceptionWrappingConverter(
-                        expectedType = outputClass,
-                        delegate = WithExampleConverter(
-                            delegate = SuppressThinkingConverter(
-                                FilteringJacksonOutputConverter(
-                                    clazz = outputClass,
-                                    objectMapper = objectMapper,
-                                    propertyFilter = interaction.propertyFilter,
-                                )
-                            ),
-                            outputClass = outputClass,
-                            ifPossible = false,
-                            generateExamples = shouldGenerateExamples(interaction),
-                        )
-                    ),
-                )
-                re.response?.let { recordUsage(llm, it, llmRequestEvent) }
-                re.entity!!
-            }
-        }
-    }
-
-    private fun recordUsage(
-        llm: LlmService<*>,
-        chatResponse: ChatResponse,
-        llmRequestEvent: LlmRequestEvent<*>?,
-    ) {
-        logger.debug("Usage is {}", chatResponse.metadata.usage)
-        recordUsage(llm, chatResponse.metadata.usage.toEmbabelUsage(), llmRequestEvent)
-    }
-
-    private fun recordUsage(
-        llm: LlmService<*>,
-        usage: Usage,
-        llmRequestEvent: LlmRequestEvent<*>?,
-    ) {
-        logger.debug("Usage is {}", usage)
-        llmRequestEvent?.let {
-            val llmi = LlmInvocation(
-                llmMetadata = llm,
-                usage = usage,
-                agentName = it.agentProcess.agent.name,
-                timestamp = it.timestamp,
-                runningTime = Duration.between(it.timestamp, Instant.now()),
-            )
-            it.agentProcess.recordLlmInvocation(llmi)
         }
     }
 
@@ -367,14 +213,13 @@ internal class ChatClientLlmOperations(
         llmRequestEvent: LlmRequestEvent<O>,
     ): Result<O> {
         val maybeReturnPromptContribution = templateRenderer.renderLoadedTemplate(
-            llmOperationsPromptsProperties.maybePromptTemplate,
+            promptsProperties.maybePromptTemplate,
             emptyMap(),
         )
 
         val llm = chooseLlm(interaction.llm)
         val chatClient = createChatClient(llm)
-        val promptContributions =
-            (interaction.promptContributors + llm.promptContributors).joinToString("\n") { it.contribution() }
+        val promptContributions = buildPromptContributions(interaction, llm)
         val springAiPrompt = buildPromptWithMaybeReturn(promptContributions, messages, maybeReturnPromptContribution)
         llmRequestEvent.agentProcess.processContext.onProcessEvent(
             llmRequestEvent.chatModelCallEvent(springAiPrompt)
@@ -385,7 +230,7 @@ internal class ChatClientLlmOperations(
             outputClass,
         )
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
-        val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+        val timeoutMillis = getTimeoutMillis(interaction.llm)
 
         return dataBindingProperties.retryTemplate(interaction.id.value).execute<Result<O>, DatabindException> {
             val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
@@ -477,7 +322,84 @@ internal class ChatClientLlmOperations(
     }
 
     // ====================================
-    // THINKING IMPLEMENTATION (manual converter chains)
+    // SPRING AI SPECIFIC: LEGACY PATH
+    // ====================================
+
+    /**
+     * Transform using Spring AI's ChatClient with internal tool handling.
+     * This is the original implementation preserved for backwards compatibility.
+     */
+    private fun <O> doTransformWithSpringAi(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): O {
+        val llm = chooseLlm(interaction.llm)
+        val chatClient = createChatClient(llm)
+        val promptContributions = buildPromptContributions(interaction, llm)
+
+        val springAiPrompt = buildBasicPrompt(promptContributions, messages)
+        llmRequestEvent?.let {
+            it.agentProcess.processContext.onProcessEvent(
+                it.chatModelCallEvent(springAiPrompt)
+            )
+        }
+
+        val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
+        val timeoutMillis = getTimeoutMillis(interaction.llm)
+
+        return dataBindingProperties.retryTemplate(interaction.id.value).execute<O, DatabindException> {
+            val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
+
+            val future = CompletableFuture.supplyAsync {
+                chatClient
+                    .prompt(springAiPrompt)
+                    .toolCallbacks(interaction.tools.toSpringToolCallbacks())
+                    .options(chatOptions)
+                    .call()
+            }
+
+            val callResponse = try {
+                future.get(
+                    timeoutMillis,
+                    TimeUnit.MILLISECONDS
+                ) // NOSONAR: CompletableFuture.get() is not collection access
+            } catch (e: Exception) {
+                handleFutureException(e, future, interaction, timeoutMillis, attempt)
+            }
+
+            if (outputClass == String::class.java) {
+                val chatResponse = callResponse.chatResponse()
+                chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
+                val rawText = chatResponse!!.result.output.text as String
+                stringWithoutThinkBlocks(rawText) as O
+            } else {
+                val re = callResponse.responseEntity(
+                    ExceptionWrappingConverter(
+                        expectedType = outputClass,
+                        delegate = WithExampleConverter(
+                            delegate = SuppressThinkingConverter(
+                                FilteringJacksonOutputConverter(
+                                    clazz = outputClass,
+                                    objectMapper = objectMapper,
+                                    propertyFilter = interaction.propertyFilter,
+                                )
+                            ),
+                            outputClass = outputClass,
+                            ifPossible = false,
+                            generateExamples = shouldGenerateExamples(interaction),
+                        )
+                    ),
+                )
+                re.response?.let { recordUsage(llm, it, llmRequestEvent) }
+                re.entity!!
+            }
+        }
+    }
+
+    // ====================================
+    // THINKING IMPLEMENTATION
     // ====================================
 
     /**
@@ -494,8 +416,7 @@ internal class ChatClientLlmOperations(
 
         val llm = chooseLlm(interaction.llm)
         val chatClient = createChatClient(llm)
-        val promptContributions =
-            (interaction.promptContributors + llm.promptContributors).joinToString(PROMPT_ELEMENT_SEPARATOR) { it.contribution() }
+        val promptContributions = buildPromptContributions(interaction, llm)
 
         // Create converter chain once for both schema format and actual conversion
         val converter = if (outputClass != String::class.java) {
@@ -613,14 +534,13 @@ internal class ChatClientLlmOperations(
     ): Result<ThinkingResponse<O>> {
         return try {
             val maybeReturnPromptContribution = templateRenderer.renderLoadedTemplate(
-                llmOperationsPromptsProperties.maybePromptTemplate,
+                promptsProperties.maybePromptTemplate,
                 emptyMap(),
             )
 
             val llm = chooseLlm(interaction.llm)
             val chatClient = createChatClient(llm)
-            val promptContributions =
-                (interaction.promptContributors + llm.promptContributors).joinToString("\\n") { it.contribution() }
+            val promptContributions = buildPromptContributions(interaction, llm)
 
             val typeReference = createParameterizedTypeReference<MaybeReturn<*>>(
                 MaybeReturn::class.java,
@@ -659,7 +579,7 @@ internal class ChatClientLlmOperations(
             )
 
             val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
-            val timeoutMillis = (interaction.llm.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+            val timeoutMillis = getTimeoutMillis(interaction.llm)
 
             val result = dataBindingProperties.retryTemplate(interaction.id.value)
                 .execute<Result<ThinkingResponse<O>>, DatabindException> {
@@ -726,7 +646,7 @@ internal class ChatClientLlmOperations(
     }
 
     // ====================================
-    // PRIVATE FUNCTIONS
+    // SPRING AI SPECIFIC UTILITIES
     // ====================================
 
     @Suppress("UNCHECKED_CAST")
@@ -779,25 +699,17 @@ internal class ChatClientLlmOperations(
             }.build()
     }
 
-    /**
-     * Create an LlmMessageSender for the given LLM.
-     */
-    private fun createMessageSenderFor(
+    private fun recordUsage(
         llm: LlmService<*>,
-        options: com.embabel.common.ai.model.LlmOptions,
-    ): LlmMessageSender {
-        return llm.createMessageSender(options)
-    }
-
-    private fun shouldGenerateExamples(llmCall: LlmCall): Boolean {
-        if (llmOperationsPromptsProperties.generateExamplesByDefault) {
-            return llmCall.generateExamples != false
-        }
-        return llmCall.generateExamples == true
+        chatResponse: ChatResponse,
+        llmRequestEvent: LlmRequestEvent<*>?,
+    ) {
+        logger.debug("Usage is {}", chatResponse.metadata.usage)
+        recordUsage(llm, chatResponse.metadata.usage.toEmbabelUsage(), llmRequestEvent)
     }
 
     // ====================================
-    // PRIVATE THINKING FUNCTIONS
+    // SPRING AI PROMPT BUILDERS
     // ====================================
 
     /**
@@ -868,21 +780,12 @@ internal class ChatClientLlmOperations(
         )
     }
 
-    private fun getTimeoutMillis(llmOptions: com.embabel.common.ai.model.LlmOptions): Long =
-        (llmOptions.timeout ?: llmOperationsPromptsProperties.defaultTimeout).toMillis()
+    // ====================================
+    // EXCEPTION HANDLING
+    // ====================================
 
     /**
      * Handles exceptions from CompletableFuture execution during LLM calls.
-     *
-     * Provides centralized exception handling for timeout, interruption, and execution failures.
-     * Cancels the future, logs appropriate warnings/errors, and throws descriptive RuntimeExceptions.
-     *
-     * @param e The exception that occurred during future execution
-     * @param future The CompletableFuture to cancel on error
-     * @param interaction The LLM interaction context for error messages
-     * @param timeoutMillis The timeout value for error reporting
-     * @param attempt The retry attempt number for logging
-     * @throws RuntimeException Always throws with appropriate error message based on exception type
      */
     private fun handleFutureException(
         e: Exception,
@@ -935,17 +838,7 @@ internal class ChatClientLlmOperations(
     }
 
     /**
-     * Handles exceptions from CompletableFuture execution during LLM calls, returning Result.failure.
-     *
-     * Similar to handleFutureException but returns Result.failure with ThinkingException
-     * instead of throwing. Used for methods that return Result types rather than throwing exceptions.
-     *
-     * @param e The exception that occurred during future execution
-     * @param future The CompletableFuture to cancel on error
-     * @param interaction The LLM interaction context for error messages
-     * @param timeoutMillis The timeout value for error reporting
-     * @param attempt The retry attempt number for logging
-     * @return Result.failure with ThinkingException containing empty thinking blocks
+     * Handles exceptions from CompletableFuture execution, returning Result.failure.
      */
     private fun <O> handleFutureExceptionAsResult(
         e: Exception,
@@ -961,7 +854,7 @@ internal class ChatClientLlmOperations(
                 Result.failure(
                     ThinkingException(
                         message = "ChatClient call for interaction ${interaction.id.value} timed out after ${timeoutMillis}ms",
-                        thinkingBlocks = emptyList() // No response = no thinking blocks
+                        thinkingBlocks = emptyList()
                     )
                 )
             }
@@ -973,7 +866,7 @@ internal class ChatClientLlmOperations(
                 Result.failure(
                     ThinkingException(
                         message = "ChatClient call for interaction ${interaction.id.value} was interrupted",
-                        thinkingBlocks = emptyList() // No response = no thinking blocks
+                        thinkingBlocks = emptyList()
                     )
                 )
             }
@@ -984,13 +877,22 @@ internal class ChatClientLlmOperations(
                 Result.failure(
                     ThinkingException(
                         message = "ChatClient call for interaction ${interaction.id.value} failed: ${e.message}",
-                        thinkingBlocks = emptyList() // No response = no thinking blocks
+                        thinkingBlocks = emptyList()
                     )
                 )
             }
         }
     }
+}
 
+/**
+ * Adapter to wrap Spring AI's StructuredOutputConverter as our OutputConverter.
+ */
+private class SpringAiOutputConverterAdapter<T>(
+    private val delegate: org.springframework.ai.converter.StructuredOutputConverter<T>,
+) : OutputConverter<T> {
+    override fun convert(source: String): T? = delegate.convert(source)
+    override fun getFormat(): String? = delegate.format
 }
 
 /**
