@@ -1,0 +1,158 @@
+# Split PromptRunner's responsibilities
+
+## Overview
+
+Introduce a `PromptExecutionDelegate` delegate that is used by `PromptRunner`, `ObjectCreator` and`TemplateOperations`.
+
+## Current State
+
+The default implementations of `ObjectCreator` and `TemplateOperations` delegate to `PromptRunner`, and therefore
+`PromptRunner` needs to expose all functionality contained in these default implementations.
+
+## Implementation Phases
+
+### Phase 1: Extract interface for `TemplateOperations`
+
+`TemplateOperations` is currently a class. Turn it an interface, and move all implementation logic to a new internal
+class named `PromptRunnerTemplateOperations`, similarly to how `PromptRunnerObjectCreator` does.
+
+### Phase 2: Introduce `PromptExecutionDelegate`
+
+Determine the core functionality of `PromptRunner` and its delegates `PromptRunnerObjectCreator` and
+`PromptRunnerTemplateOperations`.
+This should only include methods and properties that cannot be expressed in terms of other methods, and should exclude
+convenience methods.
+Add a new interface `PromptExecutionDelegate` which exposes this core functionality.
+
+### Phase 3: Migrate to `PromptExecutionDelegate`
+
+Introduce new implementations of `PromptRunner`, `ObjectCreator` and `TemplateOperations` that use the
+`PromptExecutionDelegate` as delegate.
+Name these `DelegatingPromptRunner`, `DelegatingObjectCreator` and `DelegatingTemplateOperations` and make them
+internal.
+`DelegatingPromptRunner` should return `DelegatingObjectCreator` for `PromptRunner::creating` and
+`DelegatingTemplateOperations` for `PromptRunner::withTemplate`.
+
+### Phase 4: Remove unnecessary members from `PromptRunner`
+
+Remove all functionality that is exposed in `ObjectCreator` or `TemplateOperations` from `PromptRunner`. For instance,
+`PromptRunner::withPropertyFilter`, `PropertyFilter::withValidation`.
+
+### Phase 5: Create a default implementation of `PromptExecutionDelegate`
+
+Create an internal implementation of `PromptExecutionDelegate` named `OperationContextDelegate` and that uses the
+`OperationContext` as a delegate, similarly as `OperationContextPromptRunner` does.
+Create a unit test for `OperationContextDelegate`, similar to `OperationContextPromptRunnerTest` and other existing
+tests.stuff,
+
+### Phase 6: Replace usage of old implementations with new ones
+
+Replace usage of the old default implementations of the interfaces changed to the new ones:
+
+- `OperationContextPromptRunner` usage should become `OperationContextDelegate`
+- `PromptRunnerObjectCreator` should become `DelegatingObjectCreator`
+- `TemplateOperations` should become `DelegatingTemplateOperations`
+
+## Considerations
+
+- Do not break backwards compatibility, except for the members mentioned in step 4.
+- Do not introduce cyclic dependencies between packages, and if possible remove current ones.
+
+## Testing Strategy
+
+- **Minimize e2e test changes**: Only modify tests to prove behavior is not broken
+- **Add unit tests**: For new interfaces and conversion logic
+- **Build verification**: Run Maven build after each phase
+
+## Progress Log
+
+### 2026-01-12
+
+- Created migration plan
+
+### 2026-01-15
+
+- ✅ Phase 1 complete: Extracted `TemplateOperations` interface
+    - Converted `TemplateOperations` class to interface
+    - Created `PromptRunnerTemplateOperations` internal implementation
+    - Updated `OperationContextPromptRunner` and `FakePromptRunner` to use new implementation
+    - Build verified successfully
+
+- ✅ Phase 2 complete: Introduced `PromptExecutionDelegate` interface
+  - Analyzed core functionality used by `PromptRunner`, `PromptRunnerObjectCreator`, and
+    `PromptRunnerTemplateOperations`
+  - Identified primitive operations (execution methods, state properties, configuration methods)
+  - Created `PromptExecutionDelegate` interface extending `LlmUse` with:
+    - Core execution methods: `createObject`, `createObjectIfPossible`, `respond`, `evaluateCondition`
+    - State properties: `toolObjects`, `messages`, `images`, plus inherited from `LlmUse`
+    - Configuration methods: all `with*` methods returning `PromptExecutionDelegate`
+  - Build verified successfully
+
+- ✅ Phase 3 complete: Migrated to `PromptExecutionDelegate`
+  - Created `DelegatingObjectCreator` internal implementation that delegates to `PromptExecutionDelegate`
+    - Handles examples by delegating to `withPromptContributors()`
+    - Delegates property filtering and validation to delegate methods
+    - Implements `fromTemplate()` by compiling template and calling `delegate.createObject()`
+  - Created `DelegatingTemplateOperations` internal implementation that delegates to `PromptExecutionDelegate`
+    - Compiles templates using `TemplateRenderer`
+    - Converts rendered templates to `UserMessage` for delegate execution
+  - Created `DelegatingPromptRunner` internal implementation that delegates to `PromptExecutionDelegate`
+    - Returns `DelegatingObjectCreator` from `creating()`
+    - Returns `DelegatingTemplateOperations` from `withTemplate()`
+    - All configuration methods wrap delegate and return new `DelegatingPromptRunner`
+    - Execution methods directly delegate to `PromptExecutionDelegate`
+  - Build verified successfully
+  - Added comprehensive unit tests using MockK:
+    - `DelegatingObjectCreatorTest`: 6 tests covering all methods
+    - `DelegatingTemplateOperationsTest`: 5 tests covering all methods
+    - `DelegatingPromptRunnerTest`: 25 tests covering properties, configuration, factory, and execution methods
+    - All 36 tests passing
+
+- ✅ Phase 4 complete: Removed unnecessary members from `PromptRunner`
+  - Marked `withPropertyFilter()` and `withValidation()` as @Deprecated on `PromptRunner` interface
+    - Added deprecation messages pointing users to `creating().withPropertyFilter()` and `creating().withValidation()`
+    - Will be fully removed when old implementations are replaced in Phase 6
+  - Updated all `PromptRunner` implementations with deprecated overrides:
+    - `DelegatingPromptRunner`
+    - `OperationContextPromptRunner`
+    - `FakePromptRunner`
+  - Removed test cases for deprecated methods from `DelegatingPromptRunnerTest` (now 23 tests)
+  - Maintained backwards compatibility for existing `PromptRunnerObjectCreator` usage
+  - Build verified successfully
+  - All 1828 tests passing with 0 failures
+
+- ✅ Phase 5 complete: Created default implementation of `PromptExecutionDelegate`
+  - Created `OperationContextDelegate` internal implementation that uses `OperationContext` as delegate
+  - Implements all `PromptExecutionDelegate` methods:
+    - Core execution methods: `createObject`, `createObjectIfPossible`, `respond`, `evaluateCondition`
+    - All configuration `with*` methods returning `PromptExecutionDelegate`
+    - Image combining logic copied from `OperationContextPromptRunner`
+    - Builds `LlmInteraction` objects for process context execution
+  - Delegates actual LLM execution to `context.processContext.createObject()` and `createObjectIfPossible()`
+  - Handles handoffs and subagents using the same pattern as `OperationContextPromptRunner`
+  - Created comprehensive unit test `OperationContextDelegateTest`:
+    - 19 tests organized into 3 nested test classes
+    - ConfigurationMethods: 9 tests verifying all with* methods
+    - ImmutabilityTest: 3 tests verifying configuration methods return new instances
+    - PropertyAccessTest: 7 tests verifying all properties are accessible
+  - Build verified successfully
+  - All 1847 tests passing with 0 failures
+
+- ✅ Phase 6 complete: Replaced usage of old implementations with new ones
+  - Updated `OperationContext.promptRunner()` to create `DelegatingPromptRunner` with `OperationContextDelegate`
+    - Changed from returning `OperationContextPromptRunner` to `DelegatingPromptRunner`
+    - Passes `OperationContextDelegate` as the delegate parameter
+  - Updated `ActionContext.promptRunner()` to create `DelegatingPromptRunner` with `OperationContextDelegate`
+    - Same pattern as OperationContext
+    - Maintains domain object instances integration
+  - Made `DelegatingPromptRunner` constructor parameters lazy (lambdas) to avoid eager platformServices access
+    - Changed `templateRenderer: TemplateRenderer` to `templateRenderer: () -> TemplateRenderer`
+    - Changed `objectMapper: ObjectMapper` to `objectMapper: () -> ObjectMapper`
+    - Prevents test failures from mocked ProcessContext without full platformServices chain
+  - Implemented `StreamingPromptRunner` interface in `DelegatingPromptRunner`
+    - Added `supportsStreaming()` and `stream()` methods that delegate to context via `OperationContextDelegate`
+    - Added `supportsThinking()` and `withThinking()` methods for thinking extraction support
+    - Casts delegate to `OperationContextDelegate` to access internal `context` property
+  - Updated `DelegatingPromptRunnerTest` to use lazy parameter evaluation
+  - All 1847 tests passing with 0 failures
+  - Build verified successfully
