@@ -850,6 +850,12 @@ Omit `.withIndexPath()` for in-memory only storage.
 Graph database store for RAG (available in separate modules `embabel-agent-rag-neo-drivine` and `embabel-agent-rag-neo-ogm`).
 Ideal when you need graph relationships between content elements.
 
+===== PostgreSQL pgvector (embabel-rag-pgvector)
+
+PostgreSQL-based RAG store using the pgvector extension (available in the separate `embabel/embabel-rag-pgvector` repository).
+Supports hybrid search combining vector similarity, full-text search via tsvector/tsquery, and fuzzy matching via pg_trgm.
+Ideal when you already use PostgreSQL and want a familiar, battle-tested database for RAG.
+
 ===== Spring AI VectorStore (SpringVectorStoreVectorSearch)
 
 Adapter that wraps any Spring AI `VectorStore`, enabling use of any vector database Spring AI supports:
@@ -935,3 +941,4 @@ See the https://github.com/embabel/rag-demo[rag-demo] project for a complete wor
 - Chatbot with RAG-powered responses
 - Jinja prompt templates for system prompts
 - Spring Shell commands for interactive testing
+
