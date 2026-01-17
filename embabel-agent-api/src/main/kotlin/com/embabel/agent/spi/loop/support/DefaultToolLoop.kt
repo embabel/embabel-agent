@@ -27,6 +27,7 @@ import com.embabel.agent.spi.loop.ToolLoopResult
 import com.embabel.agent.spi.loop.ToolNotFoundException
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.Message
+import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -53,119 +54,161 @@ internal class DefaultToolLoop(
         initialTools: List<Tool>,
         outputParser: (String) -> O,
     ): ToolLoopResult<O> {
-        val conversationHistory = initialMessages.toMutableList()
-        val availableTools = initialTools.toMutableList()
-        val injectedTools = mutableListOf<Tool>()
-        val removedTools = mutableListOf<Tool>()
-        var accumulatedUsage: Usage? = null
-        var iterations = 0
+        val state = LoopState(
+            conversationHistory = initialMessages.toMutableList(),
+            availableTools = initialTools.toMutableList(),
+        )
 
-        while (iterations < maxIterations) {
-            iterations++
-            logger.debug("Tool loop iteration {} with {} available tools", iterations, availableTools.size)
+        while (state.iterations < maxIterations) {
+            state.iterations++
+            logger.debug("Tool loop iteration {} with {} available tools", state.iterations, state.availableTools.size)
 
-            // 1. Call LLM (single inference, no internal tool loop)
-            val callResult = llmMessageSender.call(conversationHistory, availableTools)
-
-            // 2. Accumulate usage
-            callResult.usage?.let { usage ->
-                accumulatedUsage = accumulatedUsage?.plus(usage) ?: usage
-            }
-
-            // 3. Add assistant message to history
-            val assistantMessage = callResult.message
-            conversationHistory.add(assistantMessage)
+            val callResult = llmMessageSender.call(state.conversationHistory, state.availableTools)
+            accumulateUsage(callResult.usage, state)
+            state.conversationHistory.add(callResult.message)
 
             logger.debug(
                 "ToolLoop returned. Passed messages:\n{}\nResult: {}",
-                conversationHistory.joinToString("\n") { "\t" + it },
-                assistantMessage,
+                state.conversationHistory.joinToString("\n") { "\t" + it },
+                callResult.message,
             )
 
-            // 4. Check if LLM wants to call tools
-            if (assistantMessage !is AssistantMessageWithToolCalls || assistantMessage.toolCalls.isEmpty()) {
-                // No tool calls - LLM is done, parse final response
-                val finalText = callResult.textContent
-                logger.info("Tool loop completed after {} iterations", iterations)
-
-                val result = outputParser(finalText)
-                return ToolLoopResult(
-                    result = result,
-                    conversationHistory = conversationHistory,
-                    totalIterations = iterations,
-                    injectedTools = injectedTools,
-                    removedTools = removedTools,
-                    totalUsage = accumulatedUsage,
-                )
+            if (!hasToolCalls(callResult.message)) {
+                logger.info("Tool loop completed after {} iterations", state.iterations)
+                return buildResult(callResult.textContent, outputParser, state)
             }
 
+            val assistantMessage = callResult.message as AssistantMessageWithToolCalls
             for (toolCall in assistantMessage.toolCalls) {
-                val tool = findTool(availableTools, toolCall.name)
-                    ?: throw ToolNotFoundException(toolCall.name, availableTools.map { it.definition.name })
-
-                logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
-                val resultContent = when (val toolResult = tool.call(toolCall.arguments)) {
-                    is Tool.Result.Text -> toolResult.content
-                    is Tool.Result.WithArtifact -> toolResult.content
-                    is Tool.Result.Error -> "Error: ${toolResult.message}"
-                }
-
-                val resultObject = tryDeserialize(resultContent)
-
-                val context = ToolInjectionContext(
-                    conversationHistory = conversationHistory,
-                    currentTools = availableTools,
-                    lastToolCall = ToolCallResult(
-                        toolName = toolCall.name,
-                        toolInput = toolCall.arguments,
-                        result = resultContent,
-                        resultObject = resultObject,
-                    ),
-                    iterationCount = iterations,
-                )
-
-                val injectionResult = injectionStrategy.evaluate(context)
-                if (injectionResult.hasChanges()) {
-                    // Remove tools first
-                    if (injectionResult.toolsToRemove.isNotEmpty()) {
-                        val namesToRemove = injectionResult.toolsToRemove.map { it.definition.name }.toSet()
-                        availableTools.removeIf { it.definition.name in namesToRemove }
-                        removedTools.addAll(injectionResult.toolsToRemove)
-                        logger.info(
-                            "Strategy removed {} tools after {}: {}",
-                            injectionResult.toolsToRemove.size,
-                            toolCall.name,
-                            namesToRemove
-                        )
-                    }
-
-                    // Then add new tools
-                    if (injectionResult.toolsToAdd.isNotEmpty()) {
-                        availableTools.addAll(injectionResult.toolsToAdd)
-                        injectedTools.addAll(injectionResult.toolsToAdd)
-                        logger.info(
-                            "Strategy injected {} tools after {}: {}",
-                            injectionResult.toolsToAdd.size,
-                            toolCall.name,
-                            injectionResult.toolsToAdd.map { it.definition.name }
-                        )
-                    }
-                }
-
-                // Add tool result to history
-                val toolResultMessage = ToolResultMessage(
-                    toolCallId = toolCall.id,
-                    toolName = toolCall.name,
-                    content = resultContent,
-                )
-                conversationHistory.add(toolResultMessage)
+                processToolCall(toolCall, state)
             }
-
-            // Continue loop - LLM will see updated history and tools
         }
 
         throw MaxIterationsExceededException(maxIterations)
     }
+
+    private fun hasToolCalls(message: Message): Boolean =
+        message is AssistantMessageWithToolCalls && message.toolCalls.isNotEmpty()
+
+    private fun accumulateUsage(usage: Usage?, state: LoopState) {
+        usage?.let {
+            state.accumulatedUsage = state.accumulatedUsage?.plus(it) ?: it
+        }
+    }
+
+    private fun <O> buildResult(
+        finalText: String,
+        outputParser: (String) -> O,
+        state: LoopState,
+    ): ToolLoopResult<O> = ToolLoopResult(
+        result = outputParser(finalText),
+        conversationHistory = state.conversationHistory,
+        totalIterations = state.iterations,
+        injectedTools = state.injectedTools,
+        removedTools = state.removedTools,
+        totalUsage = state.accumulatedUsage,
+    )
+
+    private fun processToolCall(
+        toolCall: ToolCall,
+        state: LoopState,
+    ) {
+        val tool = findTool(state.availableTools, toolCall.name)
+            ?: throw ToolNotFoundException(toolCall.name, state.availableTools.map { it.definition.name })
+
+        val resultContent = executeToolCall(tool, toolCall)
+        applyInjectionStrategy(toolCall, resultContent, state)
+        addToolResultToHistory(toolCall, resultContent, state)
+    }
+
+    private fun executeToolCall(
+        tool: Tool,
+        toolCall: ToolCall,
+    ): String {
+        logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
+        return when (val toolResult = tool.call(toolCall.arguments)) {
+            is Tool.Result.Text -> toolResult.content
+            is Tool.Result.WithArtifact -> toolResult.content
+            is Tool.Result.Error -> "Error: ${toolResult.message}"
+        }
+    }
+
+    private fun applyInjectionStrategy(
+        toolCall: ToolCall,
+        resultContent: String,
+        state: LoopState,
+    ) {
+        val context = ToolInjectionContext(
+            conversationHistory = state.conversationHistory,
+            currentTools = state.availableTools,
+            lastToolCall = ToolCallResult(
+                toolName = toolCall.name,
+                toolInput = toolCall.arguments,
+                result = resultContent,
+                resultObject = tryDeserialize(resultContent),
+            ),
+            iterationCount = state.iterations,
+        )
+
+        val injectionResult = injectionStrategy.evaluate(context)
+        if (!injectionResult.hasChanges()) return
+
+        removeTools(injectionResult.toolsToRemove, toolCall.name, state)
+        addTools(injectionResult.toolsToAdd, toolCall.name, state)
+    }
+
+    private fun removeTools(
+        toolsToRemove: List<Tool>,
+        afterToolName: String,
+        state: LoopState,
+    ) {
+        if (toolsToRemove.isEmpty()) return
+
+        val namesToRemove = toolsToRemove.map { it.definition.name }.toSet()
+        state.availableTools.removeIf { it.definition.name in namesToRemove }
+        state.removedTools.addAll(toolsToRemove)
+        logger.info("Strategy removed {} tools after {}: {}", toolsToRemove.size, afterToolName, namesToRemove)
+    }
+
+    private fun addTools(
+        toolsToAdd: List<Tool>,
+        afterToolName: String,
+        state: LoopState,
+    ) {
+        if (toolsToAdd.isEmpty()) return
+
+        state.availableTools.addAll(toolsToAdd)
+        state.injectedTools.addAll(toolsToAdd)
+        logger.info(
+            "Strategy injected {} tools after {}: {}",
+            toolsToAdd.size,
+            afterToolName,
+            toolsToAdd.map { it.definition.name }
+        )
+    }
+
+    private fun addToolResultToHistory(
+        toolCall: ToolCall,
+        resultContent: String,
+        state: LoopState,
+    ) {
+        state.conversationHistory.add(
+            ToolResultMessage(
+                toolCallId = toolCall.id,
+                toolName = toolCall.name,
+                content = resultContent,
+            )
+        )
+    }
+
+    private class LoopState(
+        val conversationHistory: MutableList<Message>,
+        val availableTools: MutableList<Tool>,
+        val injectedTools: MutableList<Tool> = mutableListOf(),
+        val removedTools: MutableList<Tool> = mutableListOf(),
+        var accumulatedUsage: Usage? = null,
+        var iterations: Int = 0,
+    )
 
     /**
      * Find a tool by name.
@@ -176,8 +219,13 @@ internal class DefaultToolLoop(
 
     /**
      * Try to deserialize a JSON result string.
+     * Only attempts parsing if the result looks like JSON (starts with `{` or `[`).
      */
     private fun tryDeserialize(jsonResult: String): Any? {
+        val trimmed = jsonResult.trimStart()
+        if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+            return null
+        }
         return try {
             objectMapper.readValue(jsonResult, Any::class.java)
         } catch (e: Exception) {
