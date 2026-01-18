@@ -38,6 +38,14 @@ import jakarta.validation.Validator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.time.Duration
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+
+// Log message constants to avoid duplication
+private const val LLM_TIMEOUT_MESSAGE = "LLM {}: attempt {} timed out after {}ms"
+private const val LLM_INTERRUPTED_MESSAGE = "LLM {}: attempt {} was interrupted"
 
 /**
  * Convenient superclass for LlmOperations implementations,
@@ -52,9 +60,71 @@ abstract class AbstractLlmOperations(
     private val validationPromptGenerator: ValidationPromptGenerator = DefaultValidationPromptGenerator(),
     private val autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver,
     protected val dataBindingProperties: LlmDataBindingProperties,
+    protected val promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
 ) : LlmOperations {
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
+
+    /**
+     * Get timeout in milliseconds from options or default.
+     */
+    protected fun getTimeoutMillis(llmOptions: LlmOptions): Long =
+        (llmOptions.timeout ?: promptsProperties.defaultTimeout).toMillis()
+
+    /**
+     * Execute an LLM operation with timeout.
+     * Wraps the operation in a CompletableFuture with configured timeout.
+     *
+     * @param interactionId Identifier for logging
+     * @param llmOptions Options containing timeout configuration
+     * @param attempt Current retry attempt number for logging
+     * @param operation The LLM operation to execute
+     * @return The result of the operation
+     * @throws RuntimeException if the operation times out or fails
+     */
+    protected fun <T> executeWithTimeout(
+        interactionId: String,
+        llmOptions: LlmOptions,
+        attempt: Int = 1,
+        operation: () -> T,
+    ): T {
+        val timeoutMillis = getTimeoutMillis(llmOptions)
+
+        val future = CompletableFuture.supplyAsync { operation() }
+
+        return try {
+            future.get(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (e: TimeoutException) {
+            future.cancel(true)
+            logger.warn(LLM_TIMEOUT_MESSAGE, interactionId, attempt, timeoutMillis)
+            throw RuntimeException(
+                "LLM call for interaction $interactionId timed out after ${timeoutMillis}ms",
+                e
+            )
+        } catch (e: InterruptedException) {
+            future.cancel(true)
+            Thread.currentThread().interrupt()
+            logger.warn(LLM_INTERRUPTED_MESSAGE, interactionId, attempt)
+            throw RuntimeException(
+                "LLM call for interaction $interactionId was interrupted",
+                e
+            )
+        } catch (e: ExecutionException) {
+            future.cancel(true)
+            val cause = e.cause
+            when (cause) {
+                is RuntimeException -> throw cause
+                is Exception -> throw RuntimeException(
+                    "LLM call for interaction $interactionId failed",
+                    cause
+                )
+                else -> throw RuntimeException(
+                    "LLM call for interaction $interactionId failed with unknown error",
+                    e
+                )
+            }
+        }
+    }
 
     final override fun <O> createObject(
         messages: List<Message>,
@@ -98,14 +168,20 @@ abstract class AbstractLlmOperations(
                 }
 
             // Wrap doTransform with retry for transient failures (e.g., malformed JSON)
+            // and timeout for operations that take too long
             var candidate = dataBindingProperties.retryTemplate(interaction.id.value)
                 .execute<O, Exception> {
-                    doTransform(
-                        messages = initialMessages,
-                        interaction = interactionWithToolDecoration,
-                        outputClass = outputClass,
-                        llmRequestEvent = llmRequestEvent,
-                    )
+                    executeWithTimeout(
+                        interactionId = interaction.id.value,
+                        llmOptions = interaction.llm,
+                    ) {
+                        doTransform(
+                            messages = initialMessages,
+                            interaction = interactionWithToolDecoration,
+                            outputClass = outputClass,
+                            llmRequestEvent = llmRequestEvent,
+                        )
+                    }
                 }
             if (interaction.validation) {
                 var constraintViolations = validator.validate(candidate)
@@ -113,16 +189,21 @@ abstract class AbstractLlmOperations(
                     // If we had violations, try again, once, before throwing an exception
                     candidate = dataBindingProperties.retryTemplate(interaction.id.value)
                         .execute<O, Exception> {
-                            doTransform(
-                                messages = messages + UserMessage(
-                                    validationPromptGenerator.generateViolationsReport(
-                                        constraintViolations
-                                    )
-                                ),
-                                interaction = interactionWithToolDecoration,
-                                outputClass = outputClass,
-                                llmRequestEvent = llmRequestEvent,
-                            )
+                            executeWithTimeout(
+                                interactionId = interaction.id.value,
+                                llmOptions = interaction.llm,
+                            ) {
+                                doTransform(
+                                    messages = messages + UserMessage(
+                                        validationPromptGenerator.generateViolationsReport(
+                                            constraintViolations
+                                        )
+                                    ),
+                                    interaction = interactionWithToolDecoration,
+                                    outputClass = outputClass,
+                                    llmRequestEvent = llmRequestEvent,
+                                )
+                            }
                         }
                     constraintViolations = validator.validate(candidate)
                     if (constraintViolations.isNotEmpty()) {

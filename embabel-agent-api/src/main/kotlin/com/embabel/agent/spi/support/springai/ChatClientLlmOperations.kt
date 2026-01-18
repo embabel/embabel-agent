@@ -328,6 +328,9 @@ internal class ChatClientLlmOperations(
     /**
      * Transform using Spring AI's ChatClient with internal tool handling.
      * This is the original implementation preserved for backwards compatibility.
+     *
+     * Note: Timeout is handled at the AbstractLlmOperations level via executeWithTimeout(),
+     * so this method makes synchronous calls without its own timeout wrapper.
      */
     private fun <O> doTransformWithSpringAi(
         messages: List<Message>,
@@ -347,25 +350,12 @@ internal class ChatClientLlmOperations(
         }
 
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
-        val timeoutMillis = getTimeoutMillis(interaction.llm)
 
-        // Retry logic is now handled at the AbstractLlmOperations level for consistency
-        val future = CompletableFuture.supplyAsync {
-            chatClient
-                .prompt(springAiPrompt)
-                .toolCallbacks(interaction.tools.toSpringToolCallbacks())
-                .options(chatOptions)
-                .call()
-        }
-
-        val callResponse = try {
-            future.get(
-                timeoutMillis,
-                TimeUnit.MILLISECONDS
-            ) // NOSONAR: CompletableFuture.get() is not collection access
-        } catch (e: Exception) {
-            handleFutureException(e, future, interaction, timeoutMillis, attempt = 1)
-        }
+        val callResponse = chatClient
+            .prompt(springAiPrompt)
+            .toolCallbacks(interaction.tools.toSpringToolCallbacks())
+            .options(chatOptions)
+            .call()
 
         return if (outputClass == String::class.java) {
             val chatResponse = callResponse.chatResponse()

@@ -84,7 +84,7 @@ open class ToolLoopLlmOperations(
     validationPromptGenerator: ValidationPromptGenerator = DefaultValidationPromptGenerator(),
     dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
-    protected val promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
+    promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     internal open val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
@@ -93,6 +93,7 @@ open class ToolLoopLlmOperations(
     validationPromptGenerator = validationPromptGenerator,
     dataBindingProperties = dataBindingProperties,
     autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver,
+    promptsProperties = promptsProperties,
 ) {
 
     override fun <O> doTransform(
@@ -283,10 +284,4 @@ open class ToolLoopLlmOperations(
         }
         return llmCall.generateExamples == true
     }
-
-    /**
-     * Get timeout in milliseconds from options or default.
-     */
-    protected fun getTimeoutMillis(llmOptions: LlmOptions): Long =
-        (llmOptions.timeout ?: promptsProperties.defaultTimeout).toMillis()
 }

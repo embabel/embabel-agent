@@ -671,7 +671,7 @@ class ChatClientLlmOperationsThinkingTest {
     fun `getTimeoutMillis should return configured timeout`() {
         // Given: LlmOperations with access to protected method in parent class
         val setup = createChatClientLlmOperations(FakeChatModel("test"))
-        val getTimeoutMillisMethod = ToolLoopLlmOperations::class.java.getDeclaredMethod(
+        val getTimeoutMillisMethod = AbstractLlmOperations::class.java.getDeclaredMethod(
             "getTimeoutMillis",
             LlmOptions::class.java
         )

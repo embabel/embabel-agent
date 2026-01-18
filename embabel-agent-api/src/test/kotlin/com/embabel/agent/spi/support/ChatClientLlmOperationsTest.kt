@@ -587,6 +587,143 @@ class ChatClientLlmOperationsTest {
     }
 
     @Nested
+    inner class TimeoutBehavior {
+
+        /**
+         * Fake ChatModel that introduces a delay before returning.
+         * Used to test timeout behavior.
+         */
+        inner class DelayingFakeChatModel(
+            private val response: String,
+            private val delayMillis: Long,
+            options: ChatOptions = DefaultChatOptions(),
+        ) : ChatModel {
+            private val defaultOptions = options
+            val callCount = java.util.concurrent.atomic.AtomicInteger(0)
+
+            override fun getDefaultOptions(): ChatOptions = defaultOptions
+
+            override fun call(prompt: Prompt): ChatResponse {
+                callCount.incrementAndGet()
+                Thread.sleep(delayMillis)
+                val options = prompt.options as? ToolCallingChatOptions
+                    ?: throw IllegalArgumentException("Expected ToolCallingChatOptions")
+                return ChatResponse(listOf(Generation(AssistantMessage(response))))
+            }
+        }
+
+        @Test
+        fun `Spring AI path should timeout when LLM call exceeds timeout`() {
+            // LLM takes 2000ms, but timeout is 200ms - should definitely timeout
+            val duke = Dog("Duke")
+            val delayingChatModel = DelayingFakeChatModel(
+                response = jacksonObjectMapper().writeValueAsString(duke),
+                delayMillis = 2000,
+            )
+
+            val setup = createChatClientLlmOperationsWithDelayingModel(delayingChatModel)
+
+            // Spring AI path (useEmbabelToolLoop=false) has timeout - should fail
+            val exception = assertThrows(RuntimeException::class.java) {
+                setup.llmOperations.createObject(
+                    messages = listOf(UserMessage("Give me a dog")),
+                    interaction = LlmInteraction(
+                        id = InteractionId("timeout-test-springai"),
+                        llm = LlmOptions().withTimeout(java.time.Duration.ofMillis(200)),
+                        useEmbabelToolLoop = false,
+                    ),
+                    outputClass = Dog::class.java,
+                    action = SimpleTestAgent.actions.first(),
+                    agentProcess = setup.mockAgentProcess,
+                )
+            }
+
+            assertTrue(
+                exception.message?.contains("timed out") == true ||
+                exception.cause is java.util.concurrent.TimeoutException,
+                "Should have timed out, but got: ${exception.message}"
+            )
+        }
+
+        @Test
+        fun `Embabel tool loop path should timeout when LLM call exceeds timeout`() {
+            // LLM takes 500ms, but timeout is 100ms - should timeout
+            // THIS TEST CURRENTLY FAILS because Embabel tool loop has no timeout!
+            val duke = Dog("Duke")
+            val delayingChatModel = DelayingFakeChatModel(
+                response = jacksonObjectMapper().writeValueAsString(duke),
+                delayMillis = 500,
+            )
+
+            val setup = createChatClientLlmOperationsWithDelayingModel(delayingChatModel)
+
+            // Embabel tool loop path (useEmbabelToolLoop=true) should also timeout
+            val exception = assertThrows(RuntimeException::class.java) {
+                setup.llmOperations.createObject(
+                    messages = listOf(UserMessage("Give me a dog")),
+                    interaction = LlmInteraction(
+                        id = InteractionId("timeout-test-embabel"),
+                        llm = LlmOptions().withTimeout(java.time.Duration.ofMillis(100)),
+                        useEmbabelToolLoop = true,
+                    ),
+                    outputClass = Dog::class.java,
+                    action = SimpleTestAgent.actions.first(),
+                    agentProcess = setup.mockAgentProcess,
+                )
+            }
+
+            assertTrue(
+                exception.message?.contains("timed out") == true ||
+                exception.cause is java.util.concurrent.TimeoutException,
+                "Should have timed out, but got: ${exception.message}"
+            )
+        }
+
+        private fun createChatClientLlmOperationsWithDelayingModel(
+            delayingChatModel: DelayingFakeChatModel,
+        ): Setup {
+            val ese = EventSavingAgenticEventListener()
+            val mutableLlmInvocationHistory = MutableLlmInvocationHistory()
+            val mockProcessContext = mockk<ProcessContext>()
+            every { mockProcessContext.platformServices } returns mockk()
+            every { mockProcessContext.platformServices.agentPlatform } returns mockk()
+            every { mockProcessContext.platformServices.agentPlatform.toolGroupResolver } returns RegistryToolGroupResolver(
+                "mt",
+                emptyList()
+            )
+            every { mockProcessContext.platformServices.eventListener } returns ese
+            val mockAgentProcess = mockk<AgentProcess>()
+            every { mockAgentProcess.recordLlmInvocation(any()) } answers {
+                mutableLlmInvocationHistory.invocations.add(firstArg())
+            }
+            every { mockProcessContext.onProcessEvent(any()) } answers { ese.onProcessEvent(firstArg()) }
+            every { mockProcessContext.agentProcess } returns mockAgentProcess
+
+            every { mockAgentProcess.agent } returns SimpleTestAgent
+            every { mockAgentProcess.processContext } returns mockProcessContext
+
+            val mockModelProvider = mockk<ModelProvider>()
+            val crit = slot<ModelSelectionCriteria>()
+            val fakeLlm = SpringAiLlmService("fake", "provider", delayingChatModel, DefaultOptionsConverter)
+            every { mockModelProvider.getLlm(capture(crit)) } returns fakeLlm
+            val promptsProperties = LlmOperationsPromptsProperties().apply {
+                defaultTimeout = java.time.Duration.ofMillis(100)  // Short default timeout
+            }
+            val cco = ChatClientLlmOperations(
+                modelProvider = mockModelProvider,
+                toolDecorator = DefaultToolDecorator(),
+                validator = Validation.buildDefaultValidatorFactory().validator,
+                validationPromptGenerator = DefaultValidationPromptGenerator(),
+                templateRenderer = JinjavaTemplateRenderer(),
+                objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+                dataBindingProperties = LlmDataBindingProperties(maxAttempts = 1),  // No retries for timeout tests
+                llmOperationsPromptsProperties = promptsProperties,
+            )
+            return Setup(cco, mockAgentProcess, mutableLlmInvocationHistory)
+        }
+    }
+
+    @Nested
     inner class RetryOnInvalidJson {
 
         @Test
