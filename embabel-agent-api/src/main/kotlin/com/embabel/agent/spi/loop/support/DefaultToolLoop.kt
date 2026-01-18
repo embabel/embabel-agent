@@ -39,12 +39,16 @@ import org.slf4j.LoggerFactory
  * @param objectMapper ObjectMapper for deserializing tool results
  * @param injectionStrategy Strategy for dynamically injecting tools
  * @param maxIterations Maximum number of tool loop iterations (default 20)
+ * @param toolDecorator Optional decorator applied to tools when they are dynamically injected.
+ * This ensures injected tools (e.g., from MatryoshkaTool) receive the same decoration
+ * as initial tools, including event publication, observability, and error handling.
  */
 internal class DefaultToolLoop(
     private val llmMessageSender: LlmMessageSender,
     private val objectMapper: ObjectMapper,
     private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
     private val maxIterations: Int = 20,
+    private val toolDecorator: ((Tool) -> Tool)? = null,
 ) : ToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -177,13 +181,19 @@ internal class DefaultToolLoop(
     ) {
         if (toolsToAdd.isEmpty()) return
 
-        state.availableTools.addAll(toolsToAdd)
-        state.injectedTools.addAll(toolsToAdd)
+        val decoratedTools = if (toolDecorator != null) {
+            toolsToAdd.map { toolDecorator.invoke(it) }
+        } else {
+            toolsToAdd
+        }
+
+        state.availableTools.addAll(decoratedTools)
+        state.injectedTools.addAll(decoratedTools)
         logger.info(
             "Strategy injected {} tools after {}: {}",
-            toolsToAdd.size,
+            decoratedTools.size,
             afterToolName,
-            toolsToAdd.map { it.definition.name }
+            decoratedTools.map { it.definition.name }
         )
     }
 

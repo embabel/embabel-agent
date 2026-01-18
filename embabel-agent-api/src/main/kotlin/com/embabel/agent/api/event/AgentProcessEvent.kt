@@ -183,7 +183,7 @@ class AgentProcessStuckEvent(
 
 class LlmRequestEvent<O>(
     agentProcess: AgentProcess,
-    action: Action?,
+    val action: Action?,
     val outputClass: Class<O>,
     val interaction: LlmInteraction,
     val llmMetadata: LlmMetadata,

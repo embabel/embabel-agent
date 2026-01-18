@@ -1177,6 +1177,162 @@ class MatryoshkaToolTest {
             assertNotNull(level2)
         }
     }
+
+    @Nested
+    inner class InjectedToolDecorationTest {
+
+        /**
+         * Verifies that when DefaultToolLoop has a toolDecorator,
+         * injected tools from MatryoshkaTool are decorated.
+         */
+        @Test
+        fun `injected tools should be decorated when toolDecorator is provided`() {
+            val decoratedToolNames = mutableListOf<String>()
+
+            // Decorator that tracks which tools are decorated
+            val trackingDecorator: (Tool) -> Tool = { tool ->
+                decoratedToolNames.add(tool.definition.name)
+                tool // Just track, don't actually wrap
+            }
+
+            val childTool = MockTool("child_tool", "Child tool") {
+                Tool.Result.text("child result")
+            }
+
+            val matryoshka = MatryoshkaTool.of(
+                name = "parent",
+                description = "Parent tool",
+                innerTools = listOf(childTool),
+            )
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("c1", "parent", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c2", "child_tool", "{}"),
+                    MockLlmMessageSender.textResponse("Done")
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
+                toolDecorator = trackingDecorator,
+            )
+
+            toolLoop.execute(
+                initialMessages = listOf(UserMessage("Test")),
+                initialTools = listOf(matryoshka),
+                outputParser = { it }
+            )
+
+            // Injected child tool should be decorated
+            assertTrue(
+                decoratedToolNames.contains("child_tool"),
+                "Child tool should be decorated, but only these were: $decoratedToolNames"
+            )
+        }
+
+        /**
+         * Verifies that injected tools in the result are the decorated versions.
+         */
+        @Test
+        fun `injectedTools in result are the decorated versions`() {
+            val childTool = MockTool("child_tool", "Child tool") {
+                Tool.Result.text("child result")
+            }
+
+            // Wrapper that marks decorated tools
+            class DecoratedTool(val delegate: Tool) : Tool by delegate
+
+            val matryoshka = MatryoshkaTool.of(
+                name = "parent",
+                description = "Parent tool",
+                innerTools = listOf(childTool),
+            )
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("c1", "parent", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c2", "child_tool", "{}"),
+                    MockLlmMessageSender.textResponse("Done")
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
+                toolDecorator = { tool -> DecoratedTool(tool) },
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Test")),
+                initialTools = listOf(matryoshka),
+                outputParser = { it }
+            )
+
+            // The injected tool should be wrapped in DecoratedTool
+            val injectedTool = result.injectedTools.first()
+            assertTrue(
+                injectedTool is DecoratedTool,
+                "Injected tool should be decorated"
+            )
+        }
+
+        /**
+         * Verifies that nested MatryoshkaTool child tools are all decorated.
+         */
+        @Test
+        fun `nested MatryoshkaTool child tools are all decorated`() {
+            val decoratedToolNames = mutableListOf<String>()
+
+            val leafTool = MockTool("leaf", "Leaf tool") {
+                Tool.Result.text("leaf result")
+            }
+
+            val innerMatryoshka = MatryoshkaTool.of(
+                name = "inner",
+                description = "Inner category",
+                innerTools = listOf(leafTool),
+            )
+
+            val outerMatryoshka = MatryoshkaTool.of(
+                name = "outer",
+                description = "Outer category",
+                innerTools = listOf(innerMatryoshka),
+            )
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("c1", "outer", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c2", "inner", "{}"),
+                    MockLlmMessageSender.toolCallResponse("c3", "leaf", "{}"),
+                    MockLlmMessageSender.textResponse("Done")
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = MatryoshkaToolInjectionStrategy.INSTANCE,
+                toolDecorator = { tool ->
+                    decoratedToolNames.add(tool.definition.name)
+                    tool
+                },
+            )
+
+            toolLoop.execute(
+                initialMessages = listOf(UserMessage("Test")),
+                initialTools = listOf(outerMatryoshka),
+                outputParser = { it }
+            )
+
+            // Both inner matryoshka and leaf should be decorated
+            assertTrue(decoratedToolNames.contains("inner"), "inner should be decorated")
+            assertTrue(decoratedToolNames.contains("leaf"), "leaf should be decorated")
+        }
+    }
 }
 
 // Test fixture classes

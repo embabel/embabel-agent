@@ -46,7 +46,7 @@ import java.time.Duration
  * Also emits events.
  */
 abstract class AbstractLlmOperations(
-    private val toolDecorator: ToolDecorator,
+    protected val toolDecorator: ToolDecorator,
     private val modelProvider: ModelProvider,
     private val validator: Validator,
     private val validationPromptGenerator: ValidationPromptGenerator = DefaultValidationPromptGenerator(),

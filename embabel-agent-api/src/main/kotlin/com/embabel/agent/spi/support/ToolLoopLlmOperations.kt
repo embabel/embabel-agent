@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.Usage
 import com.embabel.agent.core.support.LlmCall
@@ -118,11 +119,24 @@ open class ToolLoopLlmOperations(
             { text -> converter!!.convert(text)!! }
         }
 
+        // Create a decorator for dynamically injected tools (e.g., from MatryoshkaTool)
+        val injectedToolDecorator: ((Tool) -> Tool)? = llmRequestEvent?.let { event ->
+            { tool: Tool ->
+                toolDecorator.decorate(
+                    tool = tool,
+                    agentProcess = event.agentProcess,
+                    action = event.action,
+                    llmOptions = interaction.llm,
+                )
+            }
+        }
+
         val toolLoop = DefaultToolLoop(
             llmMessageSender = messageSender,
             objectMapper = objectMapper,
             injectionStrategy = ToolInjectionStrategy.DEFAULT,
             maxIterations = interaction.maxToolIterations,
+            toolDecorator = injectedToolDecorator,
         )
 
         val initialMessages = buildInitialMessages(promptContributions, messages, schemaFormat)
