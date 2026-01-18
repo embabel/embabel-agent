@@ -25,10 +25,9 @@ import com.embabel.chat.Message
  * - Message capture and history management
  * - Dynamic tool injection via strategies
  * - Observability and event emission
- * - Integration with Embabel's autonomy system
  *
  * This interface is framework-agnostic - implementations use [LlmMessageSender] for LLM communication,
- * allowing different backends (Spring AI, LangChain4j, etc.) to be plugged in.
+ * allowing different backends (Spring AI, LangChain4j, etc.) to be plugged in, as well as direct LLM access.
  */
 interface ToolLoop {
 
