@@ -152,6 +152,7 @@ enum class Cardinality {
 @JsonSubTypes(
     JsonSubTypes.Type(value = ValuePropertyDefinition::class, name = "simple"),
     JsonSubTypes.Type(value = DomainTypePropertyDefinition::class, name = "domain"),
+    JsonSubTypes.Type(value = ValidatedPropertyDefinition::class, name = "validated"),
 )
 sealed interface PropertyDefinition {
     val name: String
@@ -192,3 +193,76 @@ data class DomainTypePropertyDefinition @JvmOverloads constructor(
     override val description: String = name,
     override val metadata: Map<String, String> = emptyMap(),
 ) : PropertyDefinition
+
+/**
+ * Value property with type-safe validation rules.
+ * Extends ValuePropertyDefinition with compile-time checked validation.
+ *
+ * Example usage:
+ * ```kotlin
+ * ValidatedPropertyDefinition(
+ *     name = "name",
+ *     validationRules = listOf(
+ *         NoVagueReferences(),
+ *         LengthConstraint(maxLength = 150)
+ *     )
+ * )
+ * ```
+ *
+ * @property validationRules List of validation rules to apply to mentions of this property
+ */
+data class ValidatedPropertyDefinition @JvmOverloads constructor(
+    override val name: String,
+    val type: String = "string",
+    override val cardinality: Cardinality = Cardinality.ONE,
+    override val description: String = name,
+    override val metadata: Map<String, String> = emptyMap(),
+    val validationRules: List<PropertyValidationRule> = emptyList(),
+) : PropertyDefinition {
+
+    /**
+     * Validate a mention against all rules defined for this property.
+     * @param mention The mention text to validate
+     * @return true if all rules pass, false otherwise
+     */
+    fun isValid(mention: String): Boolean {
+        return validationRules.all { rule -> rule.isValid(mention) }
+    }
+
+    /**
+     * Get the first validation failure reason, if any.
+     * @param mention The mention text to validate
+     * @return The failure reason, or null if all rules pass
+     */
+    fun failureReason(mention: String): String? {
+        return validationRules.firstNotNullOfOrNull { rule ->
+            if (!rule.isValid(mention)) rule.failureReason(mention) else null
+        }
+    }
+}
+
+/**
+ * Type-safe validation rule interface for property validation.
+ * Implement this interface to create custom validation rules.
+ */
+interface PropertyValidationRule {
+    /**
+     * Human-readable description of this rule.
+     */
+    val description: String
+
+    /**
+     * Check if the mention is valid according to this rule.
+     * @param mention The mention text to validate
+     * @return true if valid, false otherwise
+     */
+    fun isValid(mention: String): Boolean
+
+    /**
+     * Get the failure reason for an invalid mention.
+     * @param mention The mention text that failed validation
+     * @return Human-readable description of why validation failed
+     */
+    fun failureReason(mention: String): String? =
+        if (!isValid(mention)) "Failed validation: $description" else null
+}
