@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common.thinking.support
 
+import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
@@ -141,5 +142,15 @@ internal class ThinkingPromptRunnerOperationsImpl(
             result = result,
             thinkingBlocks = response.thinkingBlocks
         )
+    }
+
+    /**
+     * Create template operations - delegates to underlying implementation.
+     * Template operations don't support thinking extraction, so this returns
+     * standard TemplateOperations without thinking capabilities.
+     */
+     fun withTemplate(templateName: String): TemplateOperations {
+        // TODO: Implement thinking-aware template operations or delegate to base implementation
+        throw UnsupportedOperationException("Template operations with thinking extraction not yet implemented")
     }
 }

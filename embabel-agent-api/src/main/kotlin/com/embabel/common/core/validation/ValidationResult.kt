@@ -20,6 +20,20 @@ data class ValidationResult(
     val errors: List<ValidationError>,
 ) {
 
+    /**
+     * Returns the highest severity level among all errors, or null if no errors exist.
+     * Severity is ranked: CRITICAL > ERROR > WARNING > INFO
+     */
+    fun getHighestSeverity(): ValidationSeverity? {
+        val severityPriority = mapOf(
+            ValidationSeverity.INFO to 1,
+            ValidationSeverity.WARNING to 2,
+            ValidationSeverity.ERROR to 3,
+            ValidationSeverity.CRITICAL to 4
+        )
+        return errors.maxByOrNull { severityPriority[it.severity] ?: 0 }?.severity
+    }
+
     companion object {
         val VALID = ValidationResult(
             isValid = true,

@@ -13,11 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.core.validation
+package com.embabel.agent.api.validation.guardrails
 
-data class ValidationError(
-    val code: String,
-    val message: String,
-    val severity: ValidationSeverity,
-    val location: ValidationLocation? = null,
-)
+import com.embabel.common.core.validation.ValidationSeverity
+
+/**
+ * Exception thrown when a guardrail detects a critical policy violation.
+ *
+ * Critical violations block execution to prevent potentially harmful,
+ * inappropriate, or policy-violating content from being processed.
+ */
+class GuardRailViolationException(
+    val guard: String,
+    val violation: String,
+    val severity: ValidationSeverity
+) : RuntimeException("GuardRail '$guard' violation: $violation (severity: $severity)")

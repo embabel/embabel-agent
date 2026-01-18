@@ -16,7 +16,13 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.common.PromptRunnerOptions
+import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
+import com.embabel.agent.api.validation.guardrails.GuardRailConfiguration
+import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.InvalidLlmReturnFormatException
 import com.embabel.agent.core.support.LlmCall
@@ -33,6 +39,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -90,6 +97,10 @@ class ChatClientLlmOperationsThinkingTest {
 
         every { mockAgentProcess.agent } returns SimpleTestAgent
         every { mockAgentProcess.processContext } returns mockProcessContext
+
+        // Add blackboard for guardrail validation (defensive - returns null if not needed)
+        val blackboard = mockk<com.embabel.agent.core.Blackboard>(relaxed = true)
+        every { mockAgentProcess.blackboard } returns blackboard
 
         val mockModelProvider = mockk<ModelProvider>()
         val crit = slot<ModelSelectionCriteria>()
@@ -897,5 +908,253 @@ class ChatClientLlmOperationsThinkingTest {
             }
             assertTrue(future.isCancelled)
         }
+    }
+
+    @Test
+    fun `doTransformWithThinking should validate guardrails for user input and assistant response`() {
+        val inputValidationCalled = mutableListOf<String>()
+        val responseValidationCalled = mutableListOf<com.embabel.common.core.thinking.ThinkingResponse<*>>()
+
+        val userInputGuard = object : UserInputGuardRail {
+            override val name = "TestUserInputGuard"
+            override val description = "Test user input validation"
+            override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                inputValidationCalled.add(input)
+                return ValidationResult.VALID
+            }
+        }
+
+        val assistantGuard = object : AssistantMessageGuardRail {
+            override val name = "TestAssistantGuard"
+            override val description = "Test assistant response validation"
+            override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                return ValidationResult.VALID
+            }
+
+            override fun validate(
+                response: com.embabel.common.core.thinking.ThinkingResponse<*>,
+                blackboard: Blackboard,
+            ): ValidationResult {
+                responseValidationCalled.add(response)
+                return ValidationResult.VALID
+            }
+        }
+
+        val rawLlmResponse = """
+            <think>
+            This is test thinking for guardrail validation.
+            </think>
+
+            Thinking response with guardrails
+        """.trimIndent()
+
+        val fakeChatModel = FakeChatModel(rawLlmResponse)
+        val setup = createChatClientLlmOperations(fakeChatModel)
+
+        val guardrailConfig = GuardRailConfiguration(guards = listOf(userInputGuard, assistantGuard))
+        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
+        val interaction = LlmInteraction(
+            id = InteractionId("test-thinking-guardrails"),
+            llm = LlmOptions(),
+            tools = emptyList(),
+            promptContributors = emptyList(),
+            options = options
+        )
+
+        val llmRequestEvent = mockk<LlmRequestEvent<String>>(relaxed = true)
+        every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
+
+        val result = setup.llmOperations.doTransformWithThinking<String>(
+            messages = listOf(UserMessage("Test thinking input with guardrails")),
+            interaction = interaction,
+            outputClass = String::class.java,
+            llmRequestEvent = llmRequestEvent
+        )
+
+        assertNotNull(result)
+        assertEquals(rawLlmResponse, result.result)
+        assertEquals(1, result.thinkingBlocks.size)
+        assertTrue(result.thinkingBlocks[0].content.contains("test thinking for guardrail validation"))
+
+        // Verify guardrail validations were called
+        assertEquals(1, inputValidationCalled.size)
+        assertEquals(1, responseValidationCalled.size)
+        assertTrue(inputValidationCalled[0].contains("Test thinking input with guardrails"))
+        assertEquals(rawLlmResponse, responseValidationCalled[0].result)
+        assertEquals(1, responseValidationCalled[0].thinkingBlocks.size)
+    }
+
+    @Test
+    fun `doTransformWithThinkingIfPossible should validate guardrails for user input and assistant response`() {
+        val inputValidationCalled = mutableListOf<String>()
+        val responseValidationCalled = mutableListOf<com.embabel.common.core.thinking.ThinkingResponse<*>>()
+
+        val userInputGuard = object : UserInputGuardRail {
+            override val name = "TestUserInputGuard"
+            override val description = "Test user input validation"
+            override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                inputValidationCalled.add(input)
+                return ValidationResult.VALID
+            }
+        }
+
+        val assistantGuard = object : AssistantMessageGuardRail {
+            override val name = "TestAssistantGuard"
+            override val description = "Test assistant response validation"
+            override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                return ValidationResult.VALID
+            }
+
+            override fun validate(
+                response: com.embabel.common.core.thinking.ThinkingResponse<*>,
+                blackboard: Blackboard,
+            ): ValidationResult {
+                responseValidationCalled.add(response)
+                return ValidationResult.VALID
+            }
+        }
+
+        // MaybeReturn success response with thinking blocks
+        val successResponse = """
+            <think>
+            This is test thinking for thinking if possible guardrail validation.
+            </think>
+
+            {
+                "success": {
+                    "status": "thinking_success",
+                    "value": 222
+                }
+            }
+        """.trimIndent()
+
+        val fakeChatModel = FakeChatModel(successResponse)
+        val setup = createChatClientLlmOperations(fakeChatModel)
+
+        val guardrailConfig = GuardRailConfiguration(guards = listOf(userInputGuard, assistantGuard))
+        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
+        val interaction = LlmInteraction(
+            id = InteractionId("test-thinking-ifpossible-guardrails"),
+            llm = LlmOptions(),
+            tools = emptyList(),
+            promptContributors = emptyList(),
+            options = options
+        )
+
+        val llmRequestEvent = mockk<LlmRequestEvent<SimpleResult>>(relaxed = true)
+        every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
+
+        val result = setup.llmOperations.doTransformWithThinkingIfPossible<SimpleResult>(
+            messages = listOf(UserMessage("Test thinking if possible input with guardrails")),
+            interaction = interaction,
+            outputClass = SimpleResult::class.java,
+            llmRequestEvent = llmRequestEvent
+        )
+
+        assertTrue(result.isSuccess, "Should return successful result")
+        val thinkingResponse = result.getOrThrow()
+        assertNotNull(thinkingResponse.result)
+        assertEquals("thinking_success", thinkingResponse.result!!.status)
+        assertEquals(222, thinkingResponse.result.value)
+        assertEquals(1, thinkingResponse.thinkingBlocks.size)
+        assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("thinking if possible guardrail validation"))
+
+        // Verify guardrail validations were called
+        assertEquals(1, inputValidationCalled.size)
+        assertEquals(1, responseValidationCalled.size)
+        assertTrue(inputValidationCalled[0].contains("Test thinking if possible input with guardrails"))
+        assertEquals("thinking_success", (responseValidationCalled[0].result as SimpleResult).status)
+        assertEquals(1, responseValidationCalled[0].thinkingBlocks.size)
+    }
+
+    @Test
+    fun `doTransformWithThinking should preserve thinking blocks in ThinkingException on conversion failure`() {
+        // Given: Response with thinking blocks but malformed JSON that fails conversion
+        val rawLlmResponse = """
+            <think>
+            I need to process this carefully but the JSON will be malformed.
+            </think>
+
+            { this is completely malformed JSON for SimpleResult
+        """.trimIndent()
+
+        val fakeChatModel = FakeChatModel(rawLlmResponse)
+        val setup = createChatClientLlmOperations(fakeChatModel)
+
+        // When/Then: Should throw ThinkingException with preserved thinking blocks
+        try {
+            setup.llmOperations.doTransformWithThinking<SimpleResult>(
+                messages = listOf(UserMessage("Generate malformed response")),
+                interaction = LlmInteraction(InteractionId("thinking-exception-test")),
+                outputClass = SimpleResult::class.java,
+                llmRequestEvent = null
+            )
+            assertTrue(false, "Expected ThinkingException")
+        } catch (e: ThinkingException) {
+            // Verify thinking blocks are preserved in exception
+            assertEquals(1, e.thinkingBlocks.size)
+            assertTrue(e.thinkingBlocks[0].content.contains("process this carefully"))
+            assertTrue(e.message!!.contains("Conversion failed"))
+        }
+    }
+
+    @Test
+    fun `doTransformWithThinkingIfPossible should handle failure scenarios with preserved thinking blocks`() {
+        // Test both MaybeReturn failure and conversion exception scenarios
+
+        // Scenario 1: MaybeReturn failure response
+        val failureResponse = """
+            <think>
+            I analyzed the request but cannot fulfill it due to insufficient data.
+            </think>
+
+            {
+                "success": null,
+                "failure": "Cannot process request due to insufficient data"
+            }
+        """.trimIndent()
+
+        val fakeChatModel1 = FakeChatModel(failureResponse)
+        val setup1 = createChatClientLlmOperations(fakeChatModel1)
+
+        val result1 = setup1.llmOperations.doTransformWithThinkingIfPossible<SimpleResult>(
+            messages = listOf(UserMessage("Process insufficient data")),
+            interaction = LlmInteraction(InteractionId("thinking-ifpossible-failure")),
+            outputClass = SimpleResult::class.java,
+            llmRequestEvent = null
+        )
+
+        // Verify MaybeReturn failure path
+        assertTrue(result1.isFailure, "Should be failure for MaybeReturn failure")
+        val exception1 = result1.exceptionOrNull() as ThinkingException
+        assertEquals(1, exception1.thinkingBlocks.size)
+        assertTrue(exception1.thinkingBlocks[0].content.contains("analyzed the request"))
+        assertTrue(exception1.message!!.contains("Object creation not possible"))
+
+        // Scenario 2: Conversion exception (malformed JSON)
+        val malformedResponse = """
+            <think>
+            This response will have malformed JSON that fails parsing.
+            </think>
+
+            { completely malformed JSON that cannot be parsed
+        """.trimIndent()
+
+        val fakeChatModel2 = FakeChatModel(malformedResponse)
+        val setup2 = createChatClientLlmOperations(fakeChatModel2)
+
+        val result2 = setup2.llmOperations.doTransformWithThinkingIfPossible<SimpleResult>(
+            messages = listOf(UserMessage("Generate malformed JSON")),
+            interaction = LlmInteraction(InteractionId("thinking-ifpossible-exception")),
+            outputClass = SimpleResult::class.java,
+            llmRequestEvent = null
+        )
+
+        // Verify conversion exception path
+        assertTrue(result2.isFailure, "Should be failure for conversion exception")
+        val exception2 = result2.exceptionOrNull() as ThinkingException
+        assertEquals(1, exception2.thinkingBlocks.size)
+        assertTrue(exception2.thinkingBlocks[0].content.contains("malformed JSON that fails parsing"))
+        assertTrue(exception2.message!!.contains("Conversion failed"))
     }
 }

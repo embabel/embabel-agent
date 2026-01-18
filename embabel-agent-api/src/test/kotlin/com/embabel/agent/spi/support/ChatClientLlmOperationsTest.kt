@@ -136,6 +136,10 @@ class ChatClientLlmOperationsTest {
         every { mockAgentProcess.agent } returns SimpleTestAgent
         every { mockAgentProcess.processContext } returns mockProcessContext
 
+        // Add blackboard for guardrail validation (defensive - returns null if not needed)
+        val blackboard = mockk<com.embabel.agent.core.Blackboard>(relaxed = true)
+        every { mockAgentProcess.blackboard } returns blackboard
+
         val mockModelProvider = mockk<ModelProvider>()
         val crit = slot<ModelSelectionCriteria>()
         val fakeLlm = SpringAiLlmService("fake", "provider", fakeChatModel, DefaultOptionsConverter)

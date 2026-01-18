@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmUse
@@ -87,6 +88,8 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withPropertyFilter(filter: Predicate<String>): PromptExecutionDelegate
 
     fun withValidation(validation: Boolean): PromptExecutionDelegate
+
+    fun withGuards(vararg guards: GuardRail): PromptExecutionDelegate
 
     // Execution methods
     fun <T> createObject(

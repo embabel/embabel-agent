@@ -24,6 +24,8 @@ import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
+import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
+import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.support.OutputConverter
 import com.embabel.agent.spi.support.ToolLoopLlmOperations
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -221,6 +223,11 @@ internal class ChatClientLlmOperations(
         val chatClient = createChatClient(llm)
         val promptContributions = buildPromptContributions(interaction, llm)
         val springAiPrompt = buildPromptWithMaybeReturn(promptContributions, messages, maybeReturnPromptContribution)
+
+        // Guardrails: Pre-validation of user input
+        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
+        validateUserInput(userInput, interaction, llmRequestEvent.agentProcess.blackboard)
+
         llmRequestEvent.agentProcess.processContext.onProcessEvent(
             llmRequestEvent.chatModelCallEvent(springAiPrompt)
         )
@@ -317,6 +324,14 @@ internal class ChatClientLlmOperations(
                 )
 
             responseEntity.response?.let { recordUsage(llm, it, llmRequestEvent) }
+
+            // Guardrails: Post-validation of assistant response
+            // Note: When using ResponseEntity, assistant response validation has limited value since
+            // the JSON has already been parsed and converted to an object. However, we cannot
+            // block users from configuring validators, so we validate the raw JSON string.
+            val rawText = responseEntity.response?.result?.output?.text ?: ""
+            validateAssistantResponse(rawText, interaction, llmRequestEvent.agentProcess.blackboard)
+
             responseEntity.entity!!.toResult() as Result<O>
         }
     }
@@ -432,6 +447,10 @@ internal class ChatClientLlmOperations(
             buildBasicPrompt(promptContributions, messages)
         }
 
+        // Guardrails: Pre-validation of user input
+        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
+        validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
         llmRequestEvent?.let {
             it.agentProcess.processContext.onProcessEvent(
                 it.chatModelCallEvent(springAiPrompt)
@@ -473,10 +492,15 @@ internal class ChatClientLlmOperations(
                     val thinkingBlocks = extractAllThinkingBlocks(rawText)
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
 
-                    ThinkingResponse(
+                    val thinkingResponse = ThinkingResponse(
                         result = rawText as O, // NOSONAR: Safe cast verified by outputClass == String::class.java check
                         thinkingBlocks = thinkingBlocks
                     )
+
+                    // Guardrails: Post-validation of assistant response (ThinkingResponse with thinking blocks)
+                    validateAssistantResponse(thinkingResponse, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
+                    thinkingResponse
                 } else {
                     // Extract thinking blocks from raw response text FIRST
                     val chatResponse = callResponse.chatResponse()
@@ -494,10 +518,15 @@ internal class ChatClientLlmOperations(
                     try {
                         val result = converter!!.convert(rawText)
 
-                        ThinkingResponse(
-                            result = result!!,
+                        val thinkingResponse: ThinkingResponse<O> = ThinkingResponse(
+                            result = result!! as O,
                             thinkingBlocks = thinkingBlocks
                         )
+
+                        // Guardrails: Post-validation of assistant response (ThinkingResponse with thinking blocks)
+                        validateAssistantResponse(thinkingResponse, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
+                        thinkingResponse
                     } catch (e: Exception) {
                         // Preserve thinking blocks in exceptions
                         throw ThinkingException(
@@ -561,6 +590,10 @@ internal class ChatClientLlmOperations(
                 schemaFormat
             )
 
+            // Guardrails: Pre-validation of user input
+            val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
+            validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
             llmRequestEvent?.agentProcess?.processContext?.onProcessEvent(
                 llmRequestEvent.chatModelCallEvent(springAiPrompt)
             )
@@ -602,19 +635,35 @@ internal class ChatClientLlmOperations(
                         val result =
                             maybeResult!!.toResult() as Result<O> // NOSONAR: Safe cast, MaybeReturn<O>.toResult() returns Result<O>
                         when {
-                            result.isSuccess -> Result.success(
-                                ThinkingResponse(
+                            result.isSuccess -> {
+                                val thinkingResponse = ThinkingResponse(
                                     result = result.getOrThrow(),
                                     thinkingBlocks = thinkingBlocks
                                 )
-                            )
 
-                            else -> Result.failure(
-                                ThinkingException(
-                                    message = "Object creation not possible: ${result.exceptionOrNull()?.message ?: "Unknown error"}",
-                                    thinkingBlocks = thinkingBlocks
+                                // Guardrails: Post-validation of assistant response (ThinkingResponse with thinking blocks)
+                                validateAssistantResponse(thinkingResponse, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
+                                Result.success(thinkingResponse)
+                            }
+
+                            else -> {
+                                // Validate thinking blocks even when object creation fails
+                                if (thinkingBlocks.isNotEmpty()) {
+                                    val thinkingResponse = ThinkingResponse(
+                                        result = null,
+                                        thinkingBlocks = thinkingBlocks
+                                    )
+                                    validateAssistantResponse(thinkingResponse, interaction, llmRequestEvent?.agentProcess?.blackboard)
+                                }
+
+                                Result.failure(
+                                    ThinkingException(
+                                        message = "Object creation not possible: ${result.exceptionOrNull()?.message ?: "Unknown error"}",
+                                        thinkingBlocks = thinkingBlocks
+                                    )
                                 )
-                            )
+                            }
                         }
                     } catch (e: Exception) {
                         // Other failures, preserve thinking blocks
@@ -696,7 +745,7 @@ internal class ChatClientLlmOperations(
     }
 
     // ====================================
-    // SPRING AI PROMPT BUILDERS
+    // PRIVATE THINKING FUNCTIONS
     // ====================================
 
     /**
@@ -773,6 +822,16 @@ internal class ChatClientLlmOperations(
 
     /**
      * Handles exceptions from CompletableFuture execution during LLM calls.
+     *
+     * Provides centralized exception handling for timeout, interruption, and execution failures.
+     * Cancels the future, logs appropriate warnings/errors, and throws descriptive RuntimeExceptions.
+     *
+     * @param e The exception that occurred during future execution
+     * @param future The CompletableFuture to cancel on error
+     * @param interaction The LLM interaction context for error messages
+     * @param timeoutMillis The timeout value for error reporting
+     * @param attempt The retry attempt number for logging
+     * @throws RuntimeException Always throws with appropriate error message based on exception type
      */
     private fun handleFutureException(
         e: Exception,
@@ -853,7 +912,7 @@ internal class ChatClientLlmOperations(
                 Result.failure(
                     ThinkingException(
                         message = "ChatClient call for interaction ${interaction.id.value} was interrupted",
-                        thinkingBlocks = emptyList()
+                        thinkingBlocks = emptyList() // No response = no thinking blocks
                     )
                 )
             }
@@ -864,7 +923,7 @@ internal class ChatClientLlmOperations(
                 Result.failure(
                     ThinkingException(
                         message = "ChatClient call for interaction ${interaction.id.value} failed: ${e.message}",
-                        thinkingBlocks = emptyList()
+                        thinkingBlocks = emptyList() // No response = no thinking blocks
                     )
                 )
             }

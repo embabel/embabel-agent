@@ -18,6 +18,7 @@ package com.embabel.agent.api.common.support
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -65,6 +66,7 @@ internal data class OperationContextDelegate(
     override val propertyFilter: Predicate<String> = Predicate { true },
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
+    private val options: PromptRunnerOptions = PromptRunnerOptions.DEFAULT,
 ) : PromptExecutionDelegate {
 
     val action = (context as? ActionContext)?.action
@@ -156,6 +158,9 @@ internal data class OperationContextDelegate(
 
     override fun withValidation(validation: Boolean): PromptExecutionDelegate = copy(validation = validation)
 
+    override fun withGuards(vararg guards: GuardRail): PromptExecutionDelegate =
+        copy(options = options.withGuards(*guards))
+
 
     // Execution methods
     override fun <T> createObject(
@@ -179,6 +184,7 @@ internal data class OperationContextDelegate(
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 validation = validation,
+                options = options,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -206,6 +212,7 @@ internal data class OperationContextDelegate(
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 validation = validation,
+                options = options,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -298,6 +305,7 @@ internal data class OperationContextDelegate(
             id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
             generateExamples = generateExamples,
             propertyFilter = propertyFilter,
+            options = options,
         )
 
     override fun supportsThinking(): Boolean = true
@@ -403,6 +411,7 @@ internal data class OperationContextDelegate(
             id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
             generateExamples = generateExamples,
             propertyFilter = propertyFilter,
+            options = options,
         )
     }
 

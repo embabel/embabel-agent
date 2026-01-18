@@ -1,0 +1,60 @@
+[[reference.guardrails]]
+
+=== Working with Guardrails
+
+Usage of Guardrails in Agentic AI becomes norm nowadays.
+Guardrails providers allow to validate user's input and LLM responses using configurable policies as external services.
+Please refer to links below on some vendor-supported guardrails:
+
+- https://guardrailsai.com/docs[Guardrails Hub]
+- https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html[Amazon Bedrock Guardrails]
+
+Embabel provides with _framework_ for building your own guardrails, by enabling developers with ability to build custom guardrails with integration options of choice.
+
+
+==== Motivation
+
+Developer can guardrail (raw) user prompt or thinking blocks using custom validators.
+While this is certainly possible, Embabel provides with framework on _standardizing_ this area with standard API _withGuards_.
+Developers are empowered with plugging in guardrails as POJOs or Spring beans by adhering to Embabel guardrail interfaces.
+When to use guardrails:
+
+- input validation with common, streaming, or thinking prompt runners;
+- LLM response validation really shines while using  _withThinkig_ API, (see <<_example__simple_streaming_with_callbacks>>) where thinking blocks from LLM are available even if LLM cant construct an object
+- in predominant case when LLM constructs object, validation on LLM output is still possible, however validation content is an object JSON
+- in case of streaming _StreamingEvent.Thinking_ on _doOnNext_ callback does provide direct access to LLM reasoning content, and as of now content-subject for validation is available for immediate consumption rather than though API, see for references <<reference.streaming>>
+
+One of the benefits of using framework is access to _Blackboard_ object, and as such guardrail logic can take into account entities participating in agentic workflow.
+
+
+==== Concepts
+
+- Interfaces _UserInputGuardRail_ and _AssistantMessageGuardRail_  for specifying user input and LLM responses guardrails consequently
+- guardrails got referenced in _withGuards_ APIs, and API can be chained
+
+====  Example: LLM Cant Create Object, Use Guardrails to incept analysis
+
+[source,java]
+----
+ PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                        .withToolObject(Tooling.class)
+                        .withGuards(new UserInputThinkingtGuardRail())
+                        .withGuards(new ThinkingBlocksGuardRail());
+
+        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+
+        // When: Use factory method for more natural chaining - not recommended (testing alternative syntax)
+        ThinkingResponse<MonthItem> response = runner
+                .withThinking()
+                .createObjectIfPossible(prompt, MonthItem.class);
+
+
+----
+
+
+In the example above LLM can't provide definite answer, and can't construct an object, and here is possible response:
+```
+Since I must be SURE about EVERY field and cannot make assumptions or provide approximate values, I cannot provide the success structure with confidence
+```
+
+Guardrails can be instrumental in automating further LLM responses analysis, for example using semantic text processing with the help of https://stanfordnlp.github.io/CoreNLP/[CoreNLP]

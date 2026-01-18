@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.ToolGroup
@@ -469,6 +470,14 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
                 outputClass = String::class.java,
             )
         )
+
+    /**
+     * Add guardrail instances to this PromptRunner (additive).
+     *
+     * @param guards the guardrail instances to add
+     * @return PromptRunner instance with additional guardrails configured
+     */
+    fun withGuards(vararg guards: GuardRail): PromptRunner
 
 }
 
