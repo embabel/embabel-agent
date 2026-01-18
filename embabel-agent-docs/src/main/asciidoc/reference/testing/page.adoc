@@ -400,10 +400,12 @@ void shouldTestCompleteFluentApiChain() {
 - Use `context.getLlmInvocations().getFirst().getPrompt()` to get the actual prompt sent to the LLM
 - Verify that key domain data is properly included in the prompt using `assertTrue(prompt.contains(...))`
 
-**Testing Tool Group Configuration:**
+**Testing Tools:**
 
-- Access tool groups via `getInteraction().getToolGroups()`
-- Verify expected tool groups are present or absent as required
+- Access tools via `getInteraction().getTools()` to verify tools added via `withToolObject()` or `withTool()`
+- Access tool group requirements via `getInteraction().getToolGroups()` to verify named tool group requirements added via `withToolGroup(ToolGroupRequirement)`
+
+NOTE: `getTools()` returns actual `Tool` instances (from `withToolObject()` and `withTool()`), while `getToolGroups()` returns `ToolGroupRequirement` objects (named requirements like "web_search" added via `withToolGroup()`). Most tests should use `getTools()`.
 
 **Testing with Spring Dependencies:**
 
