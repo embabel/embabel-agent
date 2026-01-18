@@ -15,11 +15,202 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.core.AgentProcess
+import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 class ToolUtilsTest {
+
+    @Nested
+    inner class ReplanAlwaysTests {
+
+        private val mockAgentProcess = mockk<AgentProcess>()
+
+        @BeforeEach
+        fun setUp() {
+            AgentProcess.set(mockAgentProcess)
+        }
+
+        @AfterEach
+        fun tearDown() {
+            AgentProcess.remove()
+        }
+
+        @Test
+        fun `replanAlways throws ReplanRequestedException on any call`() {
+            val tool = Tool.of("my_tool", "A tool") { Tool.Result.text("result") }
+            val replanningTool = ToolUtils.replanAlways(tool)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                replanningTool.call("{}")
+            }
+
+            assertThat(exception.reason).contains("my_tool")
+            assertThat(exception.reason).contains("replans")
+        }
+    }
+
+    @Nested
+    inner class ReplanWhenTests {
+
+        private val mockAgentProcess = mockk<AgentProcess>()
+
+        @BeforeEach
+        fun setUp() {
+            AgentProcess.set(mockAgentProcess)
+        }
+
+        @AfterEach
+        fun tearDown() {
+            AgentProcess.remove()
+        }
+
+        @Test
+        fun `replanWhen with predicate triggers replan when predicate matches`() {
+            data class Score(val value: Int)
+
+            val tool = Tool.of("scorer", "Scores things") {
+                Tool.Result.WithArtifact("Score: 95", Score(95))
+            }
+
+            val replanningTool = ToolUtils.replanWhen(
+                tool = tool,
+                predicate = { score: Score -> score.value > 90 }
+            )
+
+            val exception = assertThrows<ReplanRequestedException> {
+                replanningTool.call("{}")
+            }
+
+            assertThat(exception.reason).contains("scorer")
+        }
+
+        @Test
+        fun `replanWhen with predicate returns normally when predicate does not match`() {
+            data class Score(val value: Int)
+
+            val tool = Tool.of("scorer", "Scores things") {
+                Tool.Result.WithArtifact("Score: 50", Score(50))
+            }
+
+            val replanningTool = ToolUtils.replanWhen(
+                tool = tool,
+                predicate = { score: Score -> score.value > 90 }
+            )
+
+            val result = replanningTool.call("{}")
+
+            assertThat((result as Tool.Result.WithArtifact).content).isEqualTo("Score: 50")
+        }
+
+        @Test
+        fun `replanWhen with predicate returns normally when artifact is wrong type`() {
+            val tool = Tool.of("tool", "A tool") {
+                Tool.Result.WithArtifact("content", "string artifact")
+            }
+
+            val replanningTool = ToolUtils.replanWhen(
+                tool = tool,
+                predicate = { num: Int -> num > 10 }
+            )
+
+            val result = replanningTool.call("{}")
+
+            assertThat((result as Tool.Result.WithArtifact).content).isEqualTo("content")
+        }
+
+        @Test
+        fun `replanWhen with predicate returns normally when no artifact`() {
+            val tool = Tool.of("tool", "A tool") {
+                Tool.Result.text("just text")
+            }
+
+            val replanningTool = ToolUtils.replanWhen(
+                tool = tool,
+                predicate = { _: Any -> true }
+            )
+
+            val result = replanningTool.call("{}")
+
+            assertThat((result as Tool.Result.Text).content).isEqualTo("just text")
+        }
+
+        @Test
+        fun `conditionalReplan with decider triggers replan with custom decision`() {
+            data class Routing(val target: String, val confidence: Double)
+
+            val tool = Tool.of("router", "Routes requests") {
+                Tool.Result.WithArtifact("Routing to support", Routing("support", 0.95))
+            }
+
+            val replanningTool = ToolUtils.conditionalReplan<Routing>(
+                tool = tool,
+            ) { routing, _ ->
+                if (routing.confidence > 0.9) {
+                    ReplanDecision(
+                        reason = "High confidence routing to ${routing.target}",
+                        blackboardUpdates = mapOf("target" to routing.target)
+                    )
+                } else null
+            }
+
+            val exception = assertThrows<ReplanRequestedException> {
+                replanningTool.call("{}")
+            }
+
+            assertThat(exception.reason).isEqualTo("High confidence routing to support")
+            assertThat(exception.blackboardUpdates["target"]).isEqualTo("support")
+        }
+
+        @Test
+        fun `conditionalReplan with decider returns normally when decider returns null`() {
+            data class Routing(val target: String, val confidence: Double)
+
+            val tool = Tool.of("router", "Routes requests") {
+                Tool.Result.WithArtifact("Low confidence", Routing("support", 0.5))
+            }
+
+            val replanningTool = ToolUtils.conditionalReplan<Routing>(
+                tool = tool,
+            ) { routing, _ ->
+                if (routing.confidence > 0.9) {
+                    ReplanDecision("High confidence")
+                } else null
+            }
+
+            val result = replanningTool.call("{}")
+
+            assertThat((result as Tool.Result.WithArtifact).content).isEqualTo("Low confidence")
+        }
+
+        @Test
+        fun `conditionalReplan with decider has access to ReplanContext`() {
+            data class Data(val x: Int)
+
+            val tool = Tool.of("context_tool", "Uses context") {
+                Tool.Result.WithArtifact("content", Data(42))
+            }
+
+            var capturedToolName: String? = null
+            val replanningTool = ToolUtils.conditionalReplan<Data>(
+                tool = tool,
+            ) { _, context ->
+                capturedToolName = context.tool.definition.name
+                ReplanDecision("Got context")
+            }
+
+            assertThrows<ReplanRequestedException> {
+                replanningTool.call("{}")
+            }
+
+            assertThat(capturedToolName).isEqualTo("context_tool")
+        }
+    }
 
     @Nested
     inner class FormatToolTreeTests {

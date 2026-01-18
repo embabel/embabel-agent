@@ -18,6 +18,7 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.MatryoshkaTools
+import com.embabel.agent.api.tool.Tool.Definition
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
@@ -30,19 +31,28 @@ import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
 
 /**
+ * Tool information including definition and metadata,
+ * without execution logic.
+ */
+interface ToolInfo {
+
+    /** Tool definition for LLM */
+    val definition: Definition
+
+    /** Optional metadata */
+    val metadata: Tool.Metadata get() = Tool.Metadata.DEFAULT
+
+}
+
+/**
  * Framework-agnostic tool that can be invoked by an LLM.
  * Adapters in SPI layer bridge to Spring AI ToolCallback or LangChain4j ToolSpecification/ToolExecutor.
  *
  * All nested types are scoped within this interface to avoid naming conflicts with
  * framework-specific types (e.g., Spring AI's ToolDefinition, ToolMetadata).
  */
-interface Tool {
+interface Tool : ToolInfo {
 
-    /** Tool definition for LLM */
-    val definition: Definition
-
-    /** Optional metadata */
-    val metadata: Metadata get() = Metadata.DEFAULT
 
     /**
      * Execute the tool with JSON input.

@@ -29,6 +29,9 @@ import com.embabel.chat.Message
  * @param injectedTools All tools added during the conversation via injection strategies
  * @param removedTools All tools removed during the conversation via injection strategies
  * @param totalUsage Accumulated usage across all LLM calls in the loop
+ * @param replanRequested True if the loop terminated due to a tool requesting replanning
+ * @param replanReason Human-readable explanation of why replan was requested
+ * @param blackboardUpdates Key-value pairs to add to the blackboard before replanning
  */
 data class ToolLoopResult<O>(
     val result: O,
@@ -37,4 +40,7 @@ data class ToolLoopResult<O>(
     val injectedTools: List<Tool>,
     val removedTools: List<Tool> = emptyList(),
     val totalUsage: Usage? = null,
+    val replanRequested: Boolean = false,
+    val replanReason: String? = null,
+    val blackboardUpdates: Map<String, Any> = emptyMap(),
 )

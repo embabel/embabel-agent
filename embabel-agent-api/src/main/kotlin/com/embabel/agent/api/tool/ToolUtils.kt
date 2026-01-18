@@ -15,10 +15,69 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.spi.support.DelegatingTool
+
 /**
  * Utility functions for working with tools.
  */
 object ToolUtils {
+
+    /**
+     * Make this tool always replan before execution.
+     */
+    @JvmStatic
+    fun replanAlways(tool: Tool): Tool {
+        return ConditionalReplanningTool(tool)
+        { ReplanDecision("${tool.definition.name} replans") }
+    }
+
+    /**
+     * When the decider returns a [ReplanDecision], replan before execution.
+     * The decider receives the artifact cast to type T and the replan context.
+     * If the artifact is null or cannot be cast to T, the decider is not called.
+     */
+    @JvmStatic
+    @Suppress("UNCHECKED_CAST")
+    fun <T> conditionalReplan(
+        tool: Tool,
+        decider: (t: T, replanContext: ReplanContext) -> ReplanDecision?,
+    ): DelegatingTool {
+        return ConditionalReplanningTool(tool)
+        { replanContext ->
+            val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
+            try {
+                decider(artifact as T, replanContext)
+            } catch (_: ClassCastException) {
+                null
+            }
+        }
+    }
+
+    /**
+     * When the predicate matches the tool result artifact, replan.
+     * The predicate receives the artifact cast to type T.
+     * If the artifact is null or cannot be cast to T, returns normally.
+     */
+    @JvmStatic
+    @Suppress("UNCHECKED_CAST")
+    fun <T> replanWhen(
+        tool: Tool,
+        predicate: (t: T) -> Boolean,
+    ): DelegatingTool {
+        return ConditionalReplanningTool(tool)
+        { replanContext ->
+            val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
+            try {
+                if (predicate(artifact as T)) {
+                    ReplanDecision("${tool.definition.name} replans based on result")
+                } else {
+                    null
+                }
+            } catch (_: ClassCastException) {
+                null
+            }
+        }
+    }
 
     /**
      * Format a list of tools as an ASCII tree structure.
