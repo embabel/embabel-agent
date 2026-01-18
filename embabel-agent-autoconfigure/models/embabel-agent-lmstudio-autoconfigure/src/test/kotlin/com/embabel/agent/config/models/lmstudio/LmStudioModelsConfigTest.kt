@@ -78,9 +78,9 @@ class LmStudioModelsConfigTest {
         // Given
         val jsonResponse = """
             {
-              "data": [
-                { "id": "model-1" },
-                { "id": "user/model-2" }
+              "models": [
+                { "key": "model-1" ,"type": "llm"},
+                { "key": "user/model-2", "type": "embedding"}
               ]
             }
         """.trimIndent()
@@ -100,6 +100,7 @@ class LmStudioModelsConfigTest {
         verify {
             mockBeanFactory.registerSingleton("lmStudioModel-model-1", any())
             mockBeanFactory.registerSingleton("lmStudioModel-user-model-2", any())
+
         }
     }
 
@@ -144,8 +145,8 @@ class LmStudioModelsConfigTest {
         // Given
         val jsonResponse = """
             {
-              "data": [
-                { "id": "Organization/Model:Name" }
+              "models": [
+                { "key": "Organization/Model:Name","type": "llm" }
               ]
             }
         """.trimIndent()
@@ -167,4 +168,5 @@ class LmStudioModelsConfigTest {
             mockBeanFactory.registerSingleton("lmStudioModel-organization-model-name", any())
         }
     }
+
 }
