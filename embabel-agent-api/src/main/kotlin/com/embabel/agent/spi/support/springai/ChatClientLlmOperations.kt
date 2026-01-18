@@ -349,52 +349,49 @@ internal class ChatClientLlmOperations(
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
         val timeoutMillis = getTimeoutMillis(interaction.llm)
 
-        return dataBindingProperties.retryTemplate(interaction.id.value).execute<O, DatabindException> {
-            val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
+        // Retry logic is now handled at the AbstractLlmOperations level for consistency
+        val future = CompletableFuture.supplyAsync {
+            chatClient
+                .prompt(springAiPrompt)
+                .toolCallbacks(interaction.tools.toSpringToolCallbacks())
+                .options(chatOptions)
+                .call()
+        }
 
-            val future = CompletableFuture.supplyAsync {
-                chatClient
-                    .prompt(springAiPrompt)
-                    .toolCallbacks(interaction.tools.toSpringToolCallbacks())
-                    .options(chatOptions)
-                    .call()
-            }
+        val callResponse = try {
+            future.get(
+                timeoutMillis,
+                TimeUnit.MILLISECONDS
+            ) // NOSONAR: CompletableFuture.get() is not collection access
+        } catch (e: Exception) {
+            handleFutureException(e, future, interaction, timeoutMillis, attempt = 1)
+        }
 
-            val callResponse = try {
-                future.get(
-                    timeoutMillis,
-                    TimeUnit.MILLISECONDS
-                ) // NOSONAR: CompletableFuture.get() is not collection access
-            } catch (e: Exception) {
-                handleFutureException(e, future, interaction, timeoutMillis, attempt)
-            }
-
-            if (outputClass == String::class.java) {
-                val chatResponse = callResponse.chatResponse()
-                chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
-                val rawText = chatResponse!!.result.output.text as String
-                stringWithoutThinkBlocks(rawText) as O
-            } else {
-                val re = callResponse.responseEntity(
-                    ExceptionWrappingConverter(
-                        expectedType = outputClass,
-                        delegate = WithExampleConverter(
-                            delegate = SuppressThinkingConverter(
-                                FilteringJacksonOutputConverter(
-                                    clazz = outputClass,
-                                    objectMapper = objectMapper,
-                                    propertyFilter = interaction.propertyFilter,
-                                )
-                            ),
-                            outputClass = outputClass,
-                            ifPossible = false,
-                            generateExamples = shouldGenerateExamples(interaction),
-                        )
-                    ),
-                )
-                re.response?.let { recordUsage(llm, it, llmRequestEvent) }
-                re.entity!!
-            }
+        return if (outputClass == String::class.java) {
+            val chatResponse = callResponse.chatResponse()
+            chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
+            val rawText = chatResponse!!.result.output.text as String
+            stringWithoutThinkBlocks(rawText) as O
+        } else {
+            val re = callResponse.responseEntity(
+                ExceptionWrappingConverter(
+                    expectedType = outputClass,
+                    delegate = WithExampleConverter(
+                        delegate = SuppressThinkingConverter(
+                            FilteringJacksonOutputConverter(
+                                clazz = outputClass,
+                                objectMapper = objectMapper,
+                                propertyFilter = interaction.propertyFilter,
+                            )
+                        ),
+                        outputClass = outputClass,
+                        ifPossible = false,
+                        generateExamples = shouldGenerateExamples(interaction),
+                    )
+                ),
+            )
+            re.response?.let { recordUsage(llm, it, llmRequestEvent) }
+            re.entity!!
         }
     }
 

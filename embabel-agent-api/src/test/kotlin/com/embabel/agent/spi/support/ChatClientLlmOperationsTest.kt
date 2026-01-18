@@ -587,6 +587,83 @@ class ChatClientLlmOperationsTest {
     }
 
     @Nested
+    inner class RetryOnInvalidJson {
+
+        @Test
+        fun `should retry on invalid JSON and succeed with Embabel tool loop`() {
+            // This test demonstrates the bug: when useEmbabelToolLoop=true (default),
+            // InvalidLlmReturnFormatException is NOT retried, causing the operation to fail
+            // even when a subsequent attempt would succeed.
+            val duke = Dog("Duke")
+
+            // First response is invalid JSON, second is valid
+            val fakeChatModel = FakeChatModel(
+                responses = listOf(
+                    "This ain't no JSON - malformed response",
+                    jacksonObjectMapper().writeValueAsString(duke)
+                )
+            )
+
+            val setup = createChatClientLlmOperations(
+                fakeChatModel,
+                LlmDataBindingProperties(maxAttempts = 3)
+            )
+
+            // With useEmbabelToolLoop=true (default), this should retry and succeed
+            // Currently it fails because the Embabel tool loop path has no retry wrapper
+            val result = setup.llmOperations.createObject(
+                messages = listOf(UserMessage("Give me a dog")),
+                interaction = LlmInteraction(
+                    id = InteractionId("retry-test"),
+                    llm = LlmOptions(),
+                    useEmbabelToolLoop = true,  // This is the default, making it explicit
+                ),
+                outputClass = Dog::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            assertEquals(duke, result, "Should have retried and got valid response")
+            assertEquals(2, fakeChatModel.promptsPassed.size, "Should have made 2 attempts")
+        }
+
+        @Test
+        fun `should retry on invalid JSON and succeed with Spring AI tool loop`() {
+            // This test shows the Spring AI path DOES have retry logic
+            val duke = Dog("Duke")
+
+            // First response is invalid JSON, second is valid
+            val fakeChatModel = FakeChatModel(
+                responses = listOf(
+                    "This ain't no JSON - malformed response",
+                    jacksonObjectMapper().writeValueAsString(duke)
+                )
+            )
+
+            val setup = createChatClientLlmOperations(
+                fakeChatModel,
+                LlmDataBindingProperties(maxAttempts = 3)
+            )
+
+            // With useEmbabelToolLoop=false, this uses Spring AI's path which has retry
+            val result = setup.llmOperations.createObject(
+                messages = listOf(UserMessage("Give me a dog")),
+                interaction = LlmInteraction(
+                    id = InteractionId("retry-test-springai"),
+                    llm = LlmOptions(),
+                    useEmbabelToolLoop = false,  // Use Spring AI path which has retry
+                ),
+                outputClass = Dog::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            assertEquals(duke, result, "Should have retried and got valid response")
+            assertEquals(2, fakeChatModel.promptsPassed.size, "Should have made 2 attempts")
+        }
+    }
+
+    @Nested
     inner class ReturnValidation {
 
         @Test

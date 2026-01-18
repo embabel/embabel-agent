@@ -97,26 +97,33 @@ abstract class AbstractLlmOperations(
                     messages
                 }
 
-            var candidate = doTransform(
-                messages = initialMessages,
-                interaction = interactionWithToolDecoration,
-                outputClass = outputClass,
-                llmRequestEvent = llmRequestEvent,
-            )
-            if (interaction.validation) {
-                var constraintViolations = validator.validate(candidate)
-                if (constraintViolations.isNotEmpty()) {
-                    // If we had violations, try again, once, before throwing an exception
-                    candidate = doTransform(
-                        messages = messages + UserMessage(
-                            validationPromptGenerator.generateViolationsReport(
-                                constraintViolations
-                            )
-                        ),
+            // Wrap doTransform with retry for transient failures (e.g., malformed JSON)
+            var candidate = dataBindingProperties.retryTemplate(interaction.id.value)
+                .execute<O, Exception> {
+                    doTransform(
+                        messages = initialMessages,
                         interaction = interactionWithToolDecoration,
                         outputClass = outputClass,
                         llmRequestEvent = llmRequestEvent,
                     )
+                }
+            if (interaction.validation) {
+                var constraintViolations = validator.validate(candidate)
+                if (constraintViolations.isNotEmpty()) {
+                    // If we had violations, try again, once, before throwing an exception
+                    candidate = dataBindingProperties.retryTemplate(interaction.id.value)
+                        .execute<O, Exception> {
+                            doTransform(
+                                messages = messages + UserMessage(
+                                    validationPromptGenerator.generateViolationsReport(
+                                        constraintViolations
+                                    )
+                                ),
+                                interaction = interactionWithToolDecoration,
+                                outputClass = outputClass,
+                                llmRequestEvent = llmRequestEvent,
+                            )
+                        }
                     constraintViolations = validator.validate(candidate)
                     if (constraintViolations.isNotEmpty()) {
                         throw InvalidLlmReturnTypeException(
