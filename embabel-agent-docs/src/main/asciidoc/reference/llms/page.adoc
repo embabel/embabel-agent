@@ -151,9 +151,80 @@ class MyCustomLlmMessageSender(
 }
 ----
 
-===== Using Your Custom Implementation
+===== Creating an LlmService
 
-To use your custom `LlmMessageSender` with Embabel, extend `ToolLoopLlmOperations`:
+To make your custom LLM available through Embabel's `ModelProvider`, implement the `LlmService` interface:
+
+[source,kotlin]
+----
+data class MyCustomLlmService(
+    override val name: String,
+    override val provider: String,
+    private val httpClient: HttpClient,
+    private val apiKey: String,
+    override val knowledgeCutoffDate: LocalDate? = null,
+    override val promptContributors: List<PromptContributor> =
+        buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
+    override val pricingModel: PricingModel? = null,
+) : LlmService<MyCustomLlmService> {
+
+    override fun createMessageSender(options: LlmOptions): LlmMessageSender {
+        return MyCustomLlmMessageSender(
+            httpClient = httpClient,
+            apiKey = apiKey,
+            model = options.model ?: name,
+        )
+    }
+
+    override fun withKnowledgeCutoffDate(date: LocalDate): MyCustomLlmService =
+        copy(
+            knowledgeCutoffDate = date,
+            promptContributors = promptContributors + KnowledgeCutoffDate(date)
+        )
+
+    override fun withPromptContributor(promptContributor: PromptContributor): MyCustomLlmService =
+        copy(promptContributors = promptContributors + promptContributor)
+}
+----
+
+Then register it as a Spring bean:
+
+[source,kotlin]
+----
+@Configuration
+class MyLlmConfiguration {
+
+    @Bean
+    fun myCustomLlm(
+        httpClient: HttpClient,
+        @Value("\${my-llm.api-key}") apiKey: String,
+    ): LlmService<*> = MyCustomLlmService(
+        name = "my-custom-model",
+        provider = "MyProvider",
+        httpClient = httpClient,
+        apiKey = apiKey,
+        knowledgeCutoffDate = LocalDate.of(2024, 12, 1),
+    )
+}
+----
+
+The bean will be automatically discovered and made available through the `ModelProvider`.
+You can then use it by name or role:
+
+[source,kotlin]
+----
+// By name
+@LlmCall(llm = "my-custom-model")
+fun myAction(): String
+
+// Or by role (if configured)
+@LlmCall(llm = "#best")
+fun myAction(): String
+----
+
+===== Using Your Custom Implementation (Alternative)
+
+If you need more control over the LLM operations layer itself, you can extend `ToolLoopLlmOperations`:
 
 [source,kotlin]
 ----
