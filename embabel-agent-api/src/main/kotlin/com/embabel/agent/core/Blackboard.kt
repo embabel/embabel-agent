@@ -48,6 +48,18 @@ interface Bindable {
     ): Bindable
 
     /**
+     * Bind a value to a name and mark it as protected.
+     * Protected bindings survive [Blackboard.clear] operations,
+     * which occur during state transitions.
+     * Use this for bindings that should persist across states,
+     * such as conversation history and user identity.
+     */
+    fun bindProtected(
+        key: String,
+        value: Any,
+    ): Bindable
+
+    /**
      * Add to entries without binding to a variable name.
      * Implementations must respect the order in which
      * entities were added.

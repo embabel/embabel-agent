@@ -316,6 +316,10 @@ class InMemoryContextTest {
             return this
         }
 
+        override fun bindProtected(key: String, value: Any): Blackboard {
+            return bind(key, value)
+        }
+
         override fun addObject(value: Any): Blackboard {
             addedObjects.add(value)
             return this

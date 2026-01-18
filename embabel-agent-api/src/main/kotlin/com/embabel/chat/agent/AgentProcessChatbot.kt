@@ -143,7 +143,7 @@ private class AgentProcessChatSession(
         agentProcess[KEY] as? Conversation
             ?: run {
                 val conversation = InMemoryConversation(id = agentProcess.id)
-                agentProcess[KEY] = conversation
+                agentProcess.bindProtected(KEY, conversation)
                 conversation.also {
                     agentProcess.processContext.outputChannel.send(
                         LoggingOutputChannelEvent(

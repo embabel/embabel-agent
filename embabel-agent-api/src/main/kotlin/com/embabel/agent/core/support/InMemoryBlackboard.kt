@@ -33,6 +33,7 @@ class InMemoryBlackboard(
     private val _map: MutableMap<String, Any> = ConcurrentHashMap()
     private val _entries: MutableList<Any> = Collections.synchronizedList(mutableListOf())
     private val hiddens: MutableSet<Any> = Collections.synchronizedSet(mutableSetOf())
+    private val protectedKeys: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
 
     override fun spawn(): Blackboard {
         return InMemoryBlackboard().apply {
@@ -40,15 +41,25 @@ class InMemoryBlackboard(
             synchronized(_entries) {
                 _entries.addAll(this@InMemoryBlackboard._entries)
             }
+            protectedKeys.addAll(this@InMemoryBlackboard.protectedKeys)
         }
     }
 
     override fun clear() {
-        _map.clear()
+        // Preserve protected bindings and their values
+        val protectedValues = protectedKeys.mapNotNull { _map[it] }.toSet()
+
+        // Clear non-protected map entries
+        val keysToRemove = _map.keys - protectedKeys
+        keysToRemove.forEach { _map.remove(it) }
+
+        // Clear non-protected entries from the list
         synchronized(_entries) {
-            _entries.clear()
+            _entries.removeIf { it !in protectedValues }
         }
-        hiddens.clear()
+
+        // Clear hiddens that aren't protected values
+        hiddens.removeIf { it !in protectedValues }
     }
 
     override fun hide(what: Any) {
@@ -77,6 +88,14 @@ class InMemoryBlackboard(
         _map[key] = value
         _entries.add(value)
         return this
+    }
+
+    override fun bindProtected(
+        key: String,
+        value: Any,
+    ): Blackboard {
+        protectedKeys.add(key)
+        return bind(key, value)
     }
 
     override operator fun plusAssign(value: Any) {
