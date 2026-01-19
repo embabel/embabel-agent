@@ -53,6 +53,14 @@ open class SimpleAgentProcess(
 
     override val planner: Planner<*, *, *> = plannerFactory.createPlanner(processOptions, worldStateDeterminer)
 
+    /**
+     * Actions to exclude from the next planning cycle.
+     * Used to prevent infinite loops when an action requests replan but
+     * would be the only applicable action again.
+     * Cleared after each successful planning cycle.
+     */
+    private val replanBlacklist = mutableSetOf<String>()
+
     protected fun handlePlanNotFound(worldState: WorldState): AgentProcess {
         logger.debug(
             "🚦 Process $id stuck\n" +
@@ -110,10 +118,27 @@ open class SimpleAgentProcess(
     }
 
     override fun formulateAndExecutePlan(worldState: WorldState): AgentProcess {
-        val plan = planner.bestValuePlanToAnyGoal(system = agent.planningSystem)
+        // Use blacklist to exclude actions that just triggered replan
+        val plan = planner.bestValuePlanToAnyGoal(
+            system = agent.planningSystem,
+            excludedActionNames = replanBlacklist,
+        )
         if (plan == null) {
+            // If no plan found with blacklist, try without it as a fallback
+            // This handles the case where the blacklisted action is the only option
+            if (replanBlacklist.isNotEmpty()) {
+                logger.debug(
+                    "No plan found with blacklist {}, clearing and retrying",
+                    replanBlacklist,
+                )
+                replanBlacklist.clear()
+                return formulateAndExecutePlan(worldState)
+            }
             return handlePlanNotFound(worldState)
         }
+
+        // Clear blacklist after successful planning
+        replanBlacklist.clear()
 
         _goal = plan.goal
 
@@ -135,8 +160,10 @@ open class SimpleAgentProcess(
             } catch (rpe: ReplanRequestedException) {
                 // Apply blackboard updates from the replan request
                 rpe.blackboardUpdater(blackboard)
+                // Blacklist this action for the next planning cycle to prevent infinite loops
+                replanBlacklist.add(action.name)
                 logger.info(
-                    "🔄 Action {} requested replan: {}.",
+                    "🔄 Action {} requested replan: {}. Blacklisted for next cycle.",
                     action.name,
                     rpe.reason,
                 )

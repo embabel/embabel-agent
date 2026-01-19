@@ -85,6 +85,28 @@ interface Planner<S : PlanningSystem, W : WorldState, P : Plan> {
         plansToGoals(system).firstOrNull()
 
     /**
+     * Return the best plan to any goal, excluding specified actions.
+     * Used to prevent infinite loops when replanning.
+     * @param system The planning system
+     * @param excludedActionNames Names of actions to exclude from planning
+     */
+    fun bestValuePlanToAnyGoal(
+        system: PlanningSystem,
+        excludedActionNames: Set<String>,
+    ): P? {
+        if (excludedActionNames.isEmpty()) {
+            return bestValuePlanToAnyGoal(system)
+        }
+        val filteredSystem = object : PlanningSystem {
+            override val actions = system.actions.filter { it.name !in excludedActionNames }.toSet()
+            override val goals = system.goals
+            override fun knownConditions() = system.knownConditions()
+            override fun infoString(verbose: Boolean?, indent: Int) = system.infoString(verbose, indent)
+        }
+        return bestValuePlanToAnyGoal(filteredSystem)
+    }
+
+    /**
      * Return a PlanningSystem that excludes all actions that cannot
      * help achieve one of the goals from the present world state.
      */

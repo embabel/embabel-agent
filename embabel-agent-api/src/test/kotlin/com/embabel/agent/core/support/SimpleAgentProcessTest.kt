@@ -174,6 +174,32 @@ val MultiReplanAgent = agent("MultiReplanner", description = "Agent that replans
     goal(name = "frog_goal", description = "Turn input into frog", satisfiedBy = Frog::class)
 }
 
+/**
+ * Agent to test blacklist behavior: has two actions that can both run from UserInput.
+ * Action A always requests replan. Action B completes normally.
+ * After A is blacklisted, B should be selected.
+ */
+val BlacklistTestAgent = agent("BlacklistTester", description = "Agent that tests replan blacklist") {
+    // Action A: Always requests replan (would cause infinite loop without blacklist)
+    transformation<UserInput, LocalPerson>(name = "always_replans") {
+        throw ReplanRequestedException(
+            reason = "Always replanning",
+            blackboardUpdater = { bb -> bb["replanAttempts"] = ((bb["replanAttempts"] as? Int) ?: 0) + 1 }
+        )
+    }
+
+    // Action B: Completes normally - should be selected after A is blacklisted
+    transformation<UserInput, LocalPerson>(name = "completes_normally") {
+        LocalPerson(name = "Completed via fallback: ${it.input.content}")
+    }
+
+    transformation<LocalPerson, Frog>(name = "to_frog") {
+        Frog(it.input.name)
+    }
+
+    goal(name = "frog_goal", description = "Turn input into frog", satisfiedBy = Frog::class)
+}
+
 class SimpleAgentProcessTest {
 
     @Nested
@@ -562,6 +588,75 @@ class SimpleAgentProcessTest {
             assertEquals(AgentProcessStatusCode.COMPLETED, finalResult.status)
             val frog = blackboard.lastResult() as Frog
             assertEquals("Alternate: TickUser", frog.name)
+        }
+
+        @Test
+        fun `replan blacklist prevents infinite loop by selecting alternate action`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("BlacklistTest")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-blacklist",
+                agent = BlacklistTestAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            val result = agentProcess.run()
+
+            // Process should complete successfully by using the alternate action
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.status)
+
+            // The always_replans action should have run once and requested replan
+            assertEquals(1, blackboard["replanAttempts"])
+
+            // Final result should be from the completes_normally action (the fallback)
+            val frog = blackboard.lastResult() as Frog
+            assertTrue(
+                frog.name.contains("Completed via fallback"),
+                "Expected fallback action to complete, got: ${frog.name}"
+            )
+        }
+
+        @Test
+        fun `blacklist is cleared after successful planning allowing previously blacklisted action later`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("ClearBlacklistTest")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-clear-blacklist",
+                agent = ReplanningAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            // First tick: routing_transform runs and requests replan
+            val tick1 = agentProcess.tick()
+            assertEquals(AgentProcessStatusCode.RUNNING, tick1.status)
+            assertEquals("alternate", blackboard["routedTo"])
+
+            // Second tick: routing_transform should run again (blacklist cleared after successful plan)
+            // because the blackboard state changed allowing it to proceed
+            val tick2 = agentProcess.tick()
+            assertEquals(AgentProcessStatusCode.RUNNING, tick2.status)
+
+            // Continue to completion
+            var result = tick2
+            var maxTicks = 10
+            while (result.status == AgentProcessStatusCode.RUNNING && maxTicks > 0) {
+                result = agentProcess.tick()
+                maxTicks--
+            }
+
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.status)
         }
     }
 

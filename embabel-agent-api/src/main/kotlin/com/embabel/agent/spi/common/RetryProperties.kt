@@ -17,14 +17,12 @@ package com.embabel.agent.spi.common
 
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.isRateLimitError
+import com.embabel.agent.spi.support.springai.SpringAiRetryPolicy
 import com.embabel.common.util.loggerFor
-import org.springframework.ai.retry.NonTransientAiException
-import org.springframework.ai.retry.TransientAiException
 import org.springframework.retry.RetryCallback
 import org.springframework.retry.RetryContext
 import org.springframework.retry.RetryListener
 import org.springframework.retry.RetryPolicy
-import org.springframework.retry.context.RetryContextSupport
 import org.springframework.retry.support.RetryTemplate
 import java.time.Duration
 
@@ -77,62 +75,5 @@ interface RetryProperties : RetryTemplateProvider {
                 }
             })
             .build()
-    }
-}
-
-/**
- * Retry policy for Spring AI operations.
- */
-private class SpringAiRetryPolicy(
-    private val maxAttempts: Int,
-    private val rateLimitPhrases: Set<String> = setOf("rate limit", "rate-limit"),
-) : RetryPolicy {
-
-    override fun open(parent: RetryContext?): RetryContext {
-        return RetryContextSupport(parent)
-    }
-
-    override fun close(context: RetryContext?) {
-        // No cleanup needed for this implementation
-    }
-
-    override fun registerThrowable(
-        context: RetryContext?,
-        throwable: Throwable?,
-    ) {
-        if (context is RetryContextSupport && throwable != null) {
-            context.registerThrowable(throwable)
-        }
-    }
-
-    override fun canRetry(context: RetryContext): Boolean {
-        if (context.retryCount == 0) {
-            // First attempt, always retry
-            return true
-        }
-        if (context.retryCount >= maxAttempts) {
-            return false
-        }
-
-        return when (val lastException = context.lastThrowable) {
-            // ReplanRequestedException is a control flow signal, not an error to retry
-            is ReplanRequestedException -> false
-
-            is TransientAiException -> true
-            is NonTransientAiException -> {
-                val m = lastException.message ?: return false
-                rateLimitPhrases.any { phrase ->
-                    m.contains(phrase, ignoreCase = true)
-                }
-            }
-
-            is IllegalArgumentException -> false
-
-            is IllegalStateException -> false
-
-            is UnsupportedOperationException -> false
-
-            else -> true
-        }
     }
 }
