@@ -18,9 +18,9 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.spi.support.DelegatingTool
 
 /**
- * Utility functions for working with tools.
+ * Convenient functions for working with tools.
  */
-object ToolUtils {
+object Tools {
 
     /**
      * Make this tool always replan before execution.
