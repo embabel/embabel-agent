@@ -358,6 +358,11 @@ internal class ChatClientLlmOperations(
         val promptContributions = buildPromptContributions(interaction, llm)
 
         val springAiPrompt = buildBasicPrompt(promptContributions, messages)
+
+        // Guardrails: Pre-validation of user input
+        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
+        validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
         llmRequestEvent?.let {
             it.agentProcess.processContext.onProcessEvent(
                 it.chatModelCallEvent(springAiPrompt)
@@ -376,7 +381,12 @@ internal class ChatClientLlmOperations(
             val chatResponse = callResponse.chatResponse()
             chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
             val rawText = chatResponse!!.result.output.text as String
-            stringWithoutThinkBlocks(rawText) as O
+            val result = stringWithoutThinkBlocks(rawText) as O
+
+            // Guardrails: Post-validation of assistant response
+            validateAssistantResponse(rawText, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
+            result
         } else {
             val re = callResponse.responseEntity(
                 ExceptionWrappingConverter(
@@ -396,7 +406,17 @@ internal class ChatClientLlmOperations(
                 ),
             )
             re.response?.let { recordUsage(llm, it, llmRequestEvent) }
-            re.entity!!
+            val result = re.entity!!
+
+            // Guardrails: Post-validation of assistant response
+            // Note: When using ResponseEntity, assistant response validation has limited value since
+            // the JSON has already been parsed and converted to an object. However, we cannot
+            // block users from configuring validators, so we validate the raw JSON string.
+            re.response?.result?.output?.text?.let { rawText ->
+                validateAssistantResponse(rawText, interaction, llmRequestEvent?.agentProcess?.blackboard)
+            }
+
+            result
         }
     }
 

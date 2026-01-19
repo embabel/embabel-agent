@@ -28,8 +28,11 @@ import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
+import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
+import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
+import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.SystemMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -145,6 +148,10 @@ open class ToolLoopLlmOperations(
 
         emitCallEvent(llmRequestEvent, promptContributions, messages, schemaFormat)
 
+        // Guardrails: Pre-validation of user input
+        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
+        validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
         val tools = interaction.tools
 
         val result = toolLoop.execute(
@@ -165,7 +172,17 @@ open class ToolLoopLlmOperations(
             )
         }
 
-        return result.result
+        // Guardrails: Post-validation of assistant response
+        // For the tool loop path, validate the final result based on its type
+        val finalResult = result.result
+        when (finalResult) {
+            is String -> validateAssistantResponse(finalResult, interaction, llmRequestEvent?.agentProcess?.blackboard)
+            is AssistantMessage -> validateAssistantResponse(finalResult, interaction, llmRequestEvent?.agentProcess?.blackboard)
+            // For other object types, we don't have the raw response text to validate
+            // but guardrails could be extended to validate structured objects in the future
+        }
+
+        return finalResult
     }
 
     override fun <O> doTransformIfPossible(
