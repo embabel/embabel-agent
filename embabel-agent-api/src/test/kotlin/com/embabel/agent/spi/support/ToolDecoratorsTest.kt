@@ -108,7 +108,7 @@ class ToolDecoratorsTest {
 
             assertEquals("Need to replan", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard["key"] = "value" }
         }
 
@@ -131,7 +131,7 @@ class ToolDecoratorsTest {
             }
 
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard["intent"] = "support" }
             verify { mockBlackboard["confidence"] = 0.95 }
             verify { mockBlackboard["target"] = "handleSupport" }
@@ -288,7 +288,7 @@ class ToolDecoratorsTest {
 
             assertEquals("Need to replan", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard["key"] = "value" }
         }
 
@@ -311,7 +311,7 @@ class ToolDecoratorsTest {
 
             assertEquals("Classified user intent", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard["intent"] = "billing" }
             verify { mockBlackboard["confidence"] = 0.87 }
         }

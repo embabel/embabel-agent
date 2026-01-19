@@ -375,7 +375,7 @@ class ToolLoopLlmOperationsTest {
 
             assertEquals("User needs support", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard["intent"] = "support" }
         }
 
@@ -415,7 +415,7 @@ class ToolLoopLlmOperationsTest {
 
             assertEquals("Classified as billing request", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard["intent"] = "billing" }
             verify { mockBlackboard["confidence"] = 0.95 }
             verify { mockBlackboard["targetAction"] = "handleBilling" }
@@ -452,7 +452,7 @@ class ToolLoopLlmOperationsTest {
             assertEquals("Replan needed", exception.reason)
             // Verify the empty callback doesn't fail when invoked
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
         }
 
         @Test

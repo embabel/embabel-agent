@@ -16,6 +16,19 @@
 package com.embabel.agent.core
 
 /**
+ * Callback to update the blackboard before replanning.
+ * Defined as a fun interface for Java interoperability.
+ */
+fun interface BlackboardUpdater {
+    /**
+     * Update the blackboard with any necessary state changes.
+     *
+     * @param blackboard The blackboard to update
+     */
+    fun accept(blackboard: Blackboard)
+}
+
+/**
  * Exception thrown by a tool to signal that the tool loop should terminate
  * and the agent should replan based on the updated blackboard state.
  *
@@ -48,7 +61,7 @@ package com.embabel.agent.core
  * @param reason Human-readable explanation of why replan is needed
  * @param blackboardUpdater Callback to update the blackboard before replanning
  */
-class ReplanRequestedException(
+class ReplanRequestedException @JvmOverloads constructor(
     val reason: String,
-    val blackboardUpdater: (Blackboard) -> Unit = {},
+    val blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
 ) : RuntimeException(reason)

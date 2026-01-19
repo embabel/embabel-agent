@@ -49,7 +49,7 @@ class LlmDataBindingPropertiesTest {
             assertEquals(1, attemptCount)
             assertEquals("Replan needed", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard["key"] = "value" }
         }
 
@@ -90,7 +90,7 @@ class LlmDataBindingPropertiesTest {
 
             assertEquals("Routing decision", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard["intent"] = "support" }
             verify { mockBlackboard["confidence"] = 0.95 }
             verify { mockBlackboard["target"] = "handleSupport" }

@@ -159,7 +159,7 @@ open class SimpleAgentProcess(
                 setStatus(actionStatusToAgentProcessStatus(actionStatus))
             } catch (rpe: ReplanRequestedException) {
                 // Apply blackboard updates from the replan request
-                rpe.blackboardUpdater(blackboard)
+                rpe.blackboardUpdater.accept(blackboard)
                 // Blacklist this action for the next planning cycle to prevent infinite loops
                 replanBlacklist.add(action.name)
                 logger.info(

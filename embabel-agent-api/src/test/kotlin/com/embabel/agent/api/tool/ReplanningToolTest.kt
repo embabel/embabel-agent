@@ -83,7 +83,7 @@ class ReplanningToolTest {
             }
 
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject("route_to_sales") }
         }
 
@@ -109,7 +109,7 @@ class ReplanningToolTest {
             // The blackboardUpdater captures content and passes it to the exception's callback
             // We need to invoke the exception's callback to trigger the captured lambda
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             assertEquals("""{"intent": "refund"}""", capturedContent)
         }
     }
@@ -157,7 +157,7 @@ class ReplanningToolTest {
             }
 
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject("content") }
         }
 
@@ -176,7 +176,7 @@ class ReplanningToolTest {
             }
 
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject("Something went wrong") }
         }
     }
@@ -238,7 +238,7 @@ class ReplanningToolTest {
 
             assertEquals("Escalation required", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject("escalated") }
         }
 
@@ -292,7 +292,7 @@ class ReplanningToolTest {
 
             assertEquals("High score detected", exception.reason)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject(95) }
             verify { mockBlackboard.addObject("premium") }
         }
@@ -320,7 +320,7 @@ class ReplanningToolTest {
 
             assertEquals("my-special-tool", capturedToolName)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject("my-special-tool") }
         }
 
@@ -365,7 +365,7 @@ class ReplanningToolTest {
 
             assertEquals(routingResult, capturedArtifact)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject(routingResult) }
         }
 
@@ -400,7 +400,7 @@ class ReplanningToolTest {
 
             assertEquals(classification, capturedClassification)
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject("refund") }
         }
 

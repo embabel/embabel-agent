@@ -301,7 +301,7 @@ class ToolLoopTest {
             assertTrue(result.replanRequested)
             // Verify the blackboardUpdater is present by invoking it
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            result.blackboardUpdater(mockBlackboard)
+            result.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject(routingDecision) }
             verify { mockBlackboard.addObject("support") }
         }

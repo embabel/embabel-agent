@@ -71,7 +71,7 @@ class ToolsTest {
             }
 
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject(artifact) }
         }
 
@@ -85,7 +85,7 @@ class ToolsTest {
             }
 
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify(exactly = 0) { mockBlackboard.addObject(any()) }
         }
     }
@@ -125,7 +125,7 @@ class ToolsTest {
 
             assertThat(exception.reason).contains("scorer")
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject(artifact) }
         }
 
@@ -205,7 +205,7 @@ class ToolsTest {
 
             assertThat(exception.reason).isEqualTo("High confidence routing to support")
             val mockBlackboard = mockk<Blackboard>(relaxed = true)
-            exception.blackboardUpdater(mockBlackboard)
+            exception.blackboardUpdater.accept(mockBlackboard)
             verify { mockBlackboard.addObject(artifact) }
             verify { mockBlackboard.addObject("support") }
         }

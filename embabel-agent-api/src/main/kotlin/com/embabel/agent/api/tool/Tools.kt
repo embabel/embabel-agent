@@ -53,7 +53,7 @@ object Tools {
                     ?: return@ConditionalReplanningTool null
                 ReplanDecision(decision.reason) { bb ->
                     bb.addObject(artifact)
-                    decision.blackboardUpdater(bb)
+                    decision.blackboardUpdater.accept(bb)
                 }
             } catch (_: ClassCastException) {
                 null

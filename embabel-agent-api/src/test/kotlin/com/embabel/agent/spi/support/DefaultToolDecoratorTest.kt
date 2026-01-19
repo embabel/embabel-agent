@@ -142,7 +142,7 @@ class DefaultToolDecoratorTest {
 
         assertEquals("Classified as support request", exception.reason)
         val mockBlackboard = mockk<Blackboard>(relaxed = true)
-        exception.blackboardUpdater(mockBlackboard)
+        exception.blackboardUpdater.accept(mockBlackboard)
         verify { mockBlackboard["intent"] = "support" }
         verify { mockBlackboard["confidence"] = 0.95 }
         verify { mockBlackboard["originalMessage"] = "I need help with billing" }
@@ -166,7 +166,7 @@ class DefaultToolDecoratorTest {
 
         assertEquals("Replan triggered by tool", exception.reason)
         val mockBlackboard = mockk<Blackboard>(relaxed = true)
-        exception.blackboardUpdater(mockBlackboard)
+        exception.blackboardUpdater.accept(mockBlackboard)
         verify { mockBlackboard["triggered"] = true }
     }
 
@@ -204,7 +204,7 @@ class DefaultToolDecoratorTest {
         }
 
         val mockBlackboard = mockk<Blackboard>(relaxed = true)
-        exception.blackboardUpdater(mockBlackboard)
+        exception.blackboardUpdater.accept(mockBlackboard)
         verify { mockBlackboard["stringValue"] = "test" }
         verify { mockBlackboard["intValue"] = 42 }
         verify { mockBlackboard["doubleValue"] = 3.14 }

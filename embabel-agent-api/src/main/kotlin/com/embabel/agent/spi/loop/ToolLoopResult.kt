@@ -16,7 +16,7 @@
 package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.Usage
 import com.embabel.chat.Message
 
@@ -43,5 +43,5 @@ data class ToolLoopResult<O>(
     val totalUsage: Usage? = null,
     val replanRequested: Boolean = false,
     val replanReason: String? = null,
-    val blackboardUpdater: (Blackboard) -> Unit = {},
+    val blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
 )

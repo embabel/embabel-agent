@@ -17,8 +17,23 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.support.DelegatingTool
+
+/**
+ * Callback to update the blackboard with tool result content.
+ * Defined as a fun interface for Java interoperability.
+ */
+fun interface ReplanningToolBlackboardUpdater {
+    /**
+     * Update the blackboard with the tool result content.
+     *
+     * @param blackboard The blackboard to update
+     * @param resultContent The text content from the tool result
+     */
+    fun update(blackboard: Blackboard, resultContent: String)
+}
 
 /**
  * Tool decorator that executes the wrapped tool, adds its result to the blackboard,
@@ -38,10 +53,10 @@ import com.embabel.agent.spi.support.DelegatingTool
  *        Receives the result content and can add objects to the blackboard.
  *        Defaults to adding the result content as a string.
  */
-class ReplanningTool(
+class ReplanningTool @JvmOverloads constructor(
     override val delegate: Tool,
     private val reason: String,
-    private val blackboardUpdater: (Blackboard, String) -> Unit = { bb, content -> bb.addObject(content) },
+    private val blackboardUpdater: ReplanningToolBlackboardUpdater = ReplanningToolBlackboardUpdater { bb, content -> bb.addObject(content) },
 ) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
@@ -53,7 +68,7 @@ class ReplanningTool(
 
         throw ReplanRequestedException(
             reason = reason,
-            blackboardUpdater = { bb -> blackboardUpdater(bb, resultContent) },
+            blackboardUpdater = { bb -> blackboardUpdater.update(bb, resultContent) },
         )
     }
 }
@@ -64,9 +79,9 @@ class ReplanningTool(
  * @param reason Human-readable explanation of why replan is needed
  * @param blackboardUpdater Callback to update the blackboard before replanning
  */
-data class ReplanDecision(
+data class ReplanDecision @JvmOverloads constructor(
     val reason: String,
-    val blackboardUpdater: (Blackboard) -> Unit = {},
+    val blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
 )
 
 /**
@@ -147,7 +162,7 @@ class ConditionalReplanningTool(
         if (decision != null) {
             throw ReplanRequestedException(
                 reason = decision.reason,
-                blackboardUpdater = decision.blackboardUpdater,
+                blackboardUpdater = { bb -> decision.blackboardUpdater.accept(bb) },
             )
         }
 

@@ -16,7 +16,7 @@
 package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.LlmMessageSender
@@ -242,7 +242,7 @@ internal class DefaultToolLoop(
         var iterations: Int = 0,
         var replanRequested: Boolean = false,
         var replanReason: String? = null,
-        var blackboardUpdater: (Blackboard) -> Unit = {},
+        var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
     )
 
     /**
