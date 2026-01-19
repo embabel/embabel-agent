@@ -15,7 +15,33 @@
  */
 package com.embabel.agent.spi.logging
 
-import com.embabel.agent.api.event.*
+import com.embabel.agent.api.event.ActionExecutionResultEvent
+import com.embabel.agent.api.event.ActionExecutionStartEvent
+import com.embabel.agent.api.event.AgentDeploymentEvent
+import com.embabel.agent.api.event.AgentPlatformEvent
+import com.embabel.agent.api.event.AgentProcessCreationEvent
+import com.embabel.agent.api.event.AgentProcessEvent
+import com.embabel.agent.api.event.AgentProcessFinishedEvent
+import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
+import com.embabel.agent.api.event.AgentProcessReadyToPlanEvent
+import com.embabel.agent.api.event.AgentProcessStuckEvent
+import com.embabel.agent.api.event.AgentProcessWaitingEvent
+import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.event.DynamicAgentCreationEvent
+import com.embabel.agent.api.event.GoalAchievedEvent
+import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.LlmResponseEvent
+import com.embabel.agent.api.event.ObjectAddedEvent
+import com.embabel.agent.api.event.ObjectBoundEvent
+import com.embabel.agent.api.event.ProcessKilledEvent
+import com.embabel.agent.api.event.ProgressUpdateEvent
+import com.embabel.agent.api.event.RankingChoiceCouldNotBeMadeEvent
+import com.embabel.agent.api.event.RankingChoiceMadeEvent
+import com.embabel.agent.api.event.RankingChoiceRequestEvent
+import com.embabel.agent.api.event.ReplanRequestedEvent
+import com.embabel.agent.api.event.StateTransitionEvent
+import com.embabel.agent.api.event.ToolCallRequestEvent
+import com.embabel.agent.api.event.ToolCallResponseEvent
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.EarlyTermination
 import com.embabel.agent.spi.logging.personality.severance.LumonColorPalette
@@ -381,6 +407,10 @@ open class LoggingAgenticEventListener(
 
             is ProcessKilledEvent -> {
                 logger.info("[${event.processId}] process killed")
+            }
+
+            is ReplanRequestedEvent -> {
+                logger.info("[${event.processId}] replanning requested: ${event.reason}")
             }
 
             else -> {

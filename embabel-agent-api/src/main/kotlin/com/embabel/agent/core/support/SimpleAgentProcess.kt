@@ -18,6 +18,7 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.api.event.GoalAchievedEvent
+import com.embabel.agent.api.event.ReplanRequestedEvent
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
@@ -171,6 +172,12 @@ open class SimpleAgentProcess(
                     "Action {} requested replan: {}. Blacklisted for next cycle.",
                     action.name,
                     rpe.reason,
+                )
+                platformServices.eventListener.onProcessEvent(
+                    ReplanRequestedEvent(
+                        agentProcess = this,
+                        reason = rpe.reason,
+                    )
                 )
                 // Keep status as RUNNING to trigger replanning on next tick
                 setStatus(AgentProcessStatusCode.RUNNING)
