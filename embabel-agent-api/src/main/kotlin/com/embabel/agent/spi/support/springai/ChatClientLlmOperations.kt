@@ -765,7 +765,7 @@ internal class ChatClientLlmOperations(
     }
 
     // ====================================
-    // PRIVATE THINKING FUNCTIONS
+    // SPRING AI PROMPT BUILDERS
     // ====================================
 
     /**
