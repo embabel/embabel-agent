@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.tool
+package com.embabel.agent.core
 
 /**
  * Exception thrown by a tool to signal that the tool loop should terminate
@@ -30,7 +30,7 @@ package com.embabel.agent.api.tool
  *
  * When caught by the tool loop:
  * 1. The loop terminates gracefully (no error)
- * 2. [blackboardUpdates] are made available for the caller to apply
+ * 2. [blackboardUpdater] is made available for the caller to apply
  * 3. The caller (typically action executor) can trigger GOAP replanning
  *
  * Example usage:
@@ -40,15 +40,15 @@ package com.embabel.agent.api.tool
  *     val intent = classifyIntent(message)
  *     throw ReplanRequestedException(
  *         reason = "Classified as $intent request",
- *         blackboardUpdates = mapOf("userIntent" to intent)
+ *         blackboardUpdater = { bb -> bb.addObject(intent) }
  *     )
  * }
  * ```
  *
  * @param reason Human-readable explanation of why replan is needed
- * @param blackboardUpdates Key-value pairs to add to the blackboard before replanning
+ * @param blackboardUpdater Callback to update the blackboard before replanning
  */
 class ReplanRequestedException(
     val reason: String,
-    val blackboardUpdates: Map<String, Any> = emptyMap(),
+    val blackboardUpdater: (Blackboard) -> Unit = {},
 ) : RuntimeException(reason)

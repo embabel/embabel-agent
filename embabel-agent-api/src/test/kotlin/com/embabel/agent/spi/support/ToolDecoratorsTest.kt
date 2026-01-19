@@ -16,8 +16,12 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.common.util.StringTransformer
+import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -86,6 +90,51 @@ class ToolDecoratorsTest {
             val suppressingTool = ExceptionSuppressingTool(delegateTool)
 
             assertEquals(delegateTool.metadata, suppressingTool.metadata)
+        }
+
+        @Test
+        fun `does not suppress ReplanRequestedException`() {
+            val delegateTool = createMockTool("replanning-tool") {
+                throw ReplanRequestedException(
+                    reason = "Need to replan",
+                    blackboardUpdater = { bb -> bb["key"] = "value" }
+                )
+            }
+            val suppressingTool = ExceptionSuppressingTool(delegateTool)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                suppressingTool.call("{}")
+            }
+
+            assertEquals("Need to replan", exception.reason)
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard["key"] = "value" }
+        }
+
+        @Test
+        fun `ReplanRequestedException propagates with blackboard updater`() {
+            val delegateTool = createMockTool("routing-tool") {
+                throw ReplanRequestedException(
+                    reason = "Routing decision made",
+                    blackboardUpdater = { bb ->
+                        bb["intent"] = "support"
+                        bb["confidence"] = 0.95
+                        bb["target"] = "handleSupport"
+                    }
+                )
+            }
+            val suppressingTool = ExceptionSuppressingTool(delegateTool)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                suppressingTool.call("{}")
+            }
+
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard["intent"] = "support" }
+            verify { mockBlackboard["confidence"] = 0.95 }
+            verify { mockBlackboard["target"] = "handleSupport" }
         }
     }
 
@@ -220,6 +269,51 @@ class ToolDecoratorsTest {
 
             assertTrue(str.contains("my-tool"))
             assertTrue(str.contains("MetadataEnrichedTool"))
+        }
+
+        @Test
+        fun `does not log ReplanRequestedException as failure`() {
+            val delegateTool = createMockTool("replanning-tool") {
+                throw ReplanRequestedException(
+                    reason = "Need to replan",
+                    blackboardUpdater = { bb -> bb["key"] = "value" }
+                )
+            }
+            val enrichedTool = MetadataEnrichedTool(delegateTool, null)
+
+            // Should throw ReplanRequestedException without logging as failure
+            val exception = assertThrows<ReplanRequestedException> {
+                enrichedTool.call("{}")
+            }
+
+            assertEquals("Need to replan", exception.reason)
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard["key"] = "value" }
+        }
+
+        @Test
+        fun `ReplanRequestedException propagates with full context`() {
+            val delegateTool = createMockTool("routing-tool") {
+                throw ReplanRequestedException(
+                    reason = "Classified user intent",
+                    blackboardUpdater = { bb ->
+                        bb["intent"] = "billing"
+                        bb["confidence"] = 0.87
+                    }
+                )
+            }
+            val enrichedTool = MetadataEnrichedTool(delegateTool, null)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                enrichedTool.call("{}")
+            }
+
+            assertEquals("Classified user intent", exception.reason)
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard["intent"] = "billing" }
+            verify { mockBlackboard["confidence"] = 0.87 }
         }
     }
 

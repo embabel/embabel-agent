@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.LlmInvocation
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
 import com.embabel.agent.core.support.LlmCall
 import com.embabel.agent.core.support.LlmInteraction
@@ -154,6 +155,14 @@ open class ToolLoopLlmOperations(
 
         result.totalUsage?.let { usage ->
             recordUsage(llm, usage, llmRequestEvent)
+        }
+
+        // If replan was requested, re-throw the exception to propagate to action executor
+        if (result.replanRequested) {
+            throw ReplanRequestedException(
+                reason = result.replanReason ?: "Tool requested replan",
+                blackboardUpdater = result.blackboardUpdater,
+            )
         }
 
         return result.result

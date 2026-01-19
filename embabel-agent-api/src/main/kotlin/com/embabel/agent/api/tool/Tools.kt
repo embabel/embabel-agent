@@ -23,16 +23,20 @@ import com.embabel.agent.spi.support.DelegatingTool
 object Tools {
 
     /**
-     * Make this tool always replan before execution.
+     * Make this tool always replan after execution, adding the artifact to the blackboard.
      */
     @JvmStatic
     fun replanAlways(tool: Tool): Tool {
-        return ConditionalReplanningTool(tool)
-        { ReplanDecision("${tool.definition.name} replans") }
+        return ConditionalReplanningTool(tool) { context ->
+            ReplanDecision("${tool.definition.name} replans") { bb ->
+                context.artifact?.let { bb.addObject(it) }
+            }
+        }
     }
 
     /**
-     * When the decider returns a [ReplanDecision], replan before execution.
+     * When the decider returns a [ReplanDecision], replan after execution, adding the artifact
+     * to the blackboard along with any additional updates from the decision.
      * The decider receives the artifact cast to type T and the replan context.
      * If the artifact is null or cannot be cast to T, the decider is not called.
      */
@@ -42,11 +46,15 @@ object Tools {
         tool: Tool,
         decider: (t: T, replanContext: ReplanContext) -> ReplanDecision?,
     ): DelegatingTool {
-        return ConditionalReplanningTool(tool)
-        { replanContext ->
+        return ConditionalReplanningTool(tool) { replanContext ->
             val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
             try {
-                decider(artifact as T, replanContext)
+                val decision = decider(artifact as T, replanContext)
+                    ?: return@ConditionalReplanningTool null
+                ReplanDecision(decision.reason) { bb ->
+                    bb.addObject(artifact)
+                    decision.blackboardUpdater(bb)
+                }
             } catch (_: ClassCastException) {
                 null
             }
@@ -54,7 +62,7 @@ object Tools {
     }
 
     /**
-     * When the predicate matches the tool result artifact, replan.
+     * When the predicate matches the tool result artifact, replan, adding the artifact to the blackboard.
      * The predicate receives the artifact cast to type T.
      * If the artifact is null or cannot be cast to T, returns normally.
      */
@@ -64,12 +72,13 @@ object Tools {
         tool: Tool,
         predicate: (t: T) -> Boolean,
     ): DelegatingTool {
-        return ConditionalReplanningTool(tool)
-        { replanContext ->
+        return ConditionalReplanningTool(tool) { replanContext ->
             val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
             try {
                 if (predicate(artifact as T)) {
-                    ReplanDecision("${tool.definition.name} replans based on result")
+                    ReplanDecision("${tool.definition.name} replans based on result") { bb ->
+                        bb.addObject(artifact)
+                    }
                 } else {
                     null
                 }

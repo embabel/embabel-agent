@@ -125,6 +125,55 @@ val DslWaitingAgent = agent("Waiter", description = "Simple test agent that wait
     goal(name = "done", description = "done", satisfiedBy = Frog::class)
 }
 
+/**
+ * Agent that throws ReplanRequestedException on first action, triggering replanning.
+ * Uses blackboard state to decide whether to throw or proceed.
+ */
+val ReplanningAgent = agent("Replanner", description = "Agent that triggers replanning") {
+    // Single action that either throws ReplanRequestedException or proceeds based on blackboard state
+    transformation<UserInput, LocalPerson>(name = "routing_transform") {
+        val routedTo = it["routedTo"] as? String
+        if (routedTo == "alternate") {
+            // Already routed, proceed normally
+            LocalPerson(name = "Alternate: ${it.input.content}")
+        } else {
+            // First time: throw ReplanRequestedException to trigger replanning with blackboard updates
+            throw ReplanRequestedException(
+                reason = "Routing to alternate path",
+                blackboardUpdater = { bb -> bb["routedTo"] = "alternate" }
+            )
+        }
+    }
+
+    transformation<LocalPerson, Frog>(name = "to_frog") {
+        Frog(it.input.name)
+    }
+
+    goal(name = "frog_goal", description = "Turn input into frog", satisfiedBy = Frog::class)
+}
+
+/**
+ * Agent with multiple replans testing repeated replanning
+ */
+val MultiReplanAgent = agent("MultiReplanner", description = "Agent that replans multiple times") {
+    transformation<UserInput, LocalPerson>(name = "counting_transform") {
+        val count = (it["replanCount"] as? Int) ?: 0
+        if (count < 3) {
+            throw ReplanRequestedException(
+                reason = "Need more replans (count=$count)",
+                blackboardUpdater = { bb -> bb["replanCount"] = count + 1 }
+            )
+        }
+        LocalPerson(name = "Finally done after $count replans: ${it.input.content}")
+    }
+
+    transformation<LocalPerson, Frog>(name = "person_to_frog") {
+        Frog(it.input.name)
+    }
+
+    goal(name = "frog_goal", description = "Turn input into frog", satisfiedBy = Frog::class)
+}
+
 class SimpleAgentProcessTest {
 
     @Nested
@@ -417,6 +466,103 @@ class SimpleAgentProcessTest {
 
         }
 
+    }
+
+    @Nested
+    inner class ReplanRequestedExceptionHandling {
+
+        @Test
+        fun `ReplanRequestedException applies blackboard updates and triggers replanning`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("TestUser")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-replan",
+                agent = ReplanningAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            val result = agentProcess.run()
+
+            // Process should complete successfully after replanning
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.status)
+
+            // Blackboard should have the routedTo update applied
+            assertEquals("alternate", blackboard["routedTo"])
+
+            // Final result should be a Frog with alternate path prefix
+            val frog = blackboard.lastResult() as Frog
+            assertEquals("Alternate: TestUser", frog.name)
+        }
+
+        @Test
+        fun `ReplanRequestedException handles multiple consecutive replans`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("CountingUser")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-multi-replan",
+                agent = MultiReplanAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            val result = agentProcess.run()
+
+            // Process should complete successfully after multiple replans
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.status)
+
+            // Blackboard should have the replan count incremented
+            assertEquals(3, blackboard["replanCount"])
+
+            // Final result should be a Frog
+            val frog = blackboard.lastResult() as Frog
+            assertTrue(frog.name.contains("CountingUser"))
+            assertTrue(frog.name.contains("3 replans"))
+        }
+
+        @Test
+        fun `tick handles ReplanRequestedException and continues running`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("TickUser")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-tick-replan",
+                agent = ReplanningAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            // First tick should trigger replan and keep process running
+            val tickResult1 = agentProcess.tick()
+            assertEquals(AgentProcessStatusCode.RUNNING, tickResult1.status)
+            assertEquals("alternate", blackboard["routedTo"], "Blackboard should be updated after first tick")
+
+            // Subsequent ticks should progress and eventually complete
+            var finalResult = tickResult1
+            var maxTicks = 10
+            while (finalResult.status == AgentProcessStatusCode.RUNNING && maxTicks > 0) {
+                finalResult = agentProcess.tick()
+                maxTicks--
+            }
+
+            assertEquals(AgentProcessStatusCode.COMPLETED, finalResult.status)
+            val frog = blackboard.lastResult() as Frog
+            assertEquals("Alternate: TickUser", frog.name)
+        }
     }
 
 }

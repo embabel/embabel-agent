@@ -19,6 +19,7 @@ import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.tool.Tool.Definition
+import com.embabel.agent.core.ReplanRequestedException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
@@ -568,6 +569,12 @@ private class MethodTool(
         } catch (e: Exception) {
             // Unwrap InvocationTargetException to get the actual cause
             val actualCause = e.cause ?: e
+
+            // ReplanRequestedException must propagate - it's a control flow signal, not an error
+            if (actualCause is ReplanRequestedException) {
+                throw actualCause
+            }
+
             val message = actualCause.message ?: e.message ?: "Tool invocation failed"
             logger.error("Error invoking tool '{}': {}", definition.name, message, actualCause)
             Tool.Result.error(message, actualCause)

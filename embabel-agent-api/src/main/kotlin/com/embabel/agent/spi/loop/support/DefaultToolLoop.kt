@@ -15,8 +15,9 @@
  */
 package com.embabel.agent.spi.loop.support
 
-import com.embabel.agent.api.tool.ReplanRequestedException
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.MaxIterationsExceededException
@@ -119,7 +120,7 @@ internal class DefaultToolLoop(
         totalUsage = state.accumulatedUsage,
         replanRequested = state.replanRequested,
         replanReason = state.replanReason,
-        blackboardUpdates = state.blackboardUpdates,
+        blackboardUpdater = state.blackboardUpdater,
     )
 
     /**
@@ -141,7 +142,7 @@ internal class DefaultToolLoop(
             logger.info("Tool '{}' requested replan: {}", toolCall.name, e.reason)
             state.replanRequested = true
             state.replanReason = e.reason
-            state.blackboardUpdates = e.blackboardUpdates
+            state.blackboardUpdater = e.blackboardUpdater
             false
         }
     }
@@ -241,7 +242,7 @@ internal class DefaultToolLoop(
         var iterations: Int = 0,
         var replanRequested: Boolean = false,
         var replanReason: String? = null,
-        var blackboardUpdates: Map<String, Any> = emptyMap(),
+        var blackboardUpdater: (Blackboard) -> Unit = {},
     )
 
     /**

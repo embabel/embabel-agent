@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.Usage
 import com.embabel.chat.Message
 
@@ -31,7 +32,7 @@ import com.embabel.chat.Message
  * @param totalUsage Accumulated usage across all LLM calls in the loop
  * @param replanRequested True if the loop terminated due to a tool requesting replanning
  * @param replanReason Human-readable explanation of why replan was requested
- * @param blackboardUpdates Key-value pairs to add to the blackboard before replanning
+ * @param blackboardUpdater Callback to update the blackboard before replanning
  */
 data class ToolLoopResult<O>(
     val result: O,
@@ -42,5 +43,5 @@ data class ToolLoopResult<O>(
     val totalUsage: Usage? = null,
     val replanRequested: Boolean = false,
     val replanReason: String? = null,
-    val blackboardUpdates: Map<String, Any> = emptyMap(),
+    val blackboardUpdater: (Blackboard) -> Unit = {},
 )

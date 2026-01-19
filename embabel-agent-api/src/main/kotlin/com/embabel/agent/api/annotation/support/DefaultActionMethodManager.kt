@@ -28,6 +28,7 @@ import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.DataDictionary
 import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.support.BlackboardWorldState
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.plan.CostComputation
@@ -347,6 +348,11 @@ internal class DefaultActionMethodManager(
         methodName: String,
         t: Throwable,
     ) {
+        // ReplanRequestedException is a control flow signal, not an error
+        // Throw it but don't log it
+        if (t is ReplanRequestedException) {
+            throw t
+        }
         logger.warn(
             "Error invoking action method {}.{}: {}",
             instanceName,

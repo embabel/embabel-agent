@@ -62,6 +62,10 @@ interface ActionRunner {
 
                     processContext.blackboard.addObject(are.awaitable)
                     ActionStatusCode.WAITING
+                } catch (rpe: ReplanRequestedException) {
+                    // ReplanRequestedException is a control flow signal, not an error.
+                    // Propagate it up to the agent process for replanning.
+                    throw rpe
                 } catch (t: Throwable) {
                     if (logger.isDebugEnabled) {
                         logger.debug(

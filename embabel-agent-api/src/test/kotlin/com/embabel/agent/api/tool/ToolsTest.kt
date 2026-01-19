@@ -16,7 +16,10 @@
 package com.embabel.agent.api.tool
 
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ReplanRequestedException
 import io.mockk.mockk
+import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -53,6 +56,38 @@ class ToolsTest {
             assertThat(exception.reason).contains("my_tool")
             assertThat(exception.reason).contains("replans")
         }
+
+        @Test
+        fun `replanAlways adds artifact to blackboard when present`() {
+            data class MyArtifact(val value: String)
+            val artifact = MyArtifact("test-value")
+            val tool = Tool.of("my_tool", "A tool") {
+                Tool.Result.WithArtifact("content", artifact)
+            }
+            val replanningTool = Tools.replanAlways(tool)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                replanningTool.call("{}")
+            }
+
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject(artifact) }
+        }
+
+        @Test
+        fun `replanAlways does not add to blackboard when no artifact`() {
+            val tool = Tool.of("my_tool", "A tool") { Tool.Result.text("result") }
+            val replanningTool = Tools.replanAlways(tool)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                replanningTool.call("{}")
+            }
+
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify(exactly = 0) { mockBlackboard.addObject(any()) }
+        }
     }
 
     @Nested
@@ -73,9 +108,10 @@ class ToolsTest {
         @Test
         fun `replanWhen with predicate triggers replan when predicate matches`() {
             data class Score(val value: Int)
+            val artifact = Score(95)
 
             val tool = Tool.of("scorer", "Scores things") {
-                Tool.Result.WithArtifact("Score: 95", Score(95))
+                Tool.Result.WithArtifact("Score: 95", artifact)
             }
 
             val replanningTool = Tools.replanWhen(
@@ -88,6 +124,9 @@ class ToolsTest {
             }
 
             assertThat(exception.reason).contains("scorer")
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject(artifact) }
         }
 
         @Test
@@ -143,9 +182,10 @@ class ToolsTest {
         @Test
         fun `conditionalReplan with decider triggers replan with custom decision`() {
             data class Routing(val target: String, val confidence: Double)
+            val artifact = Routing("support", 0.95)
 
             val tool = Tool.of("router", "Routes requests") {
-                Tool.Result.WithArtifact("Routing to support", Routing("support", 0.95))
+                Tool.Result.WithArtifact("Routing to support", artifact)
             }
 
             val replanningTool = Tools.conditionalReplan<Routing>(
@@ -154,7 +194,7 @@ class ToolsTest {
                 if (routing.confidence > 0.9) {
                     ReplanDecision(
                         reason = "High confidence routing to ${routing.target}",
-                        blackboardUpdates = mapOf("target" to routing.target)
+                        blackboardUpdater = { bb -> bb.addObject(routing.target) }
                     )
                 } else null
             }
@@ -164,7 +204,10 @@ class ToolsTest {
             }
 
             assertThat(exception.reason).isEqualTo("High confidence routing to support")
-            assertThat(exception.blackboardUpdates["target"]).isEqualTo("support")
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject(artifact) }
+            verify { mockBlackboard.addObject("support") }
         }
 
         @Test

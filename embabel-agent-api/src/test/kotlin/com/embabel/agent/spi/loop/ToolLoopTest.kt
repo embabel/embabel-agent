@@ -15,9 +15,12 @@
  */
 package com.embabel.agent.spi.loop
 
-import com.embabel.agent.api.tool.ReplanRequestedException
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import io.mockk.mockk
+import io.mockk.verify
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
@@ -260,8 +263,9 @@ class ToolLoopTest {
         }
 
         @Test
-        fun `ReplanRequestedException can include blackboard updates`() {
+        fun `ReplanRequestedException can include blackboard updater`() {
             data class RoutingDecision(val targetAction: String, val confidence: Double)
+            val routingDecision = RoutingDecision("handleSupport", 0.95)
 
             val replanningTool = MockTool(
                 name = "intent_classifier",
@@ -269,10 +273,10 @@ class ToolLoopTest {
                 onCall = {
                     throw ReplanRequestedException(
                         reason = "Classified as support request",
-                        blackboardUpdates = mapOf(
-                            "routingDecision" to RoutingDecision("handleSupport", 0.95),
-                            "intent" to "support"
-                        )
+                        blackboardUpdater = { bb ->
+                            bb.addObject(routingDecision)
+                            bb.addObject("support")
+                        }
                     )
                 }
             )
@@ -295,8 +299,11 @@ class ToolLoopTest {
             )
 
             assertTrue(result.replanRequested)
-            assertEquals(2, result.blackboardUpdates.size)
-            assertEquals("support", result.blackboardUpdates["intent"])
+            // Verify the blackboardUpdater is present by invoking it
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            result.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject(routingDecision) }
+            verify { mockBlackboard.addObject("support") }
         }
 
         @Test

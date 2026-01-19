@@ -16,11 +16,13 @@
 package com.embabel.agent.api.tool
 
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.support.DelegatingTool
 
 /**
- * Tool decorator that executes the wrapped tool, adds its result to the blackboard
- * updates, then throws [ReplanRequestedException] to terminate the tool loop and
+ * Tool decorator that executes the wrapped tool, adds its result to the blackboard,
+ * then throws [ReplanRequestedException] to terminate the tool loop and
  * trigger replanning.
  *
  * This enables patterns like:
@@ -32,15 +34,14 @@ import com.embabel.agent.spi.support.DelegatingTool
  *
  * @param delegate The tool to wrap
  * @param reason Human-readable explanation of why replan is needed
- * @param resultKey The key under which to store the tool result (defaults to tool name)
- * @param additionalUpdates Optional function to compute additional blackboard updates
- *        from the result content and agent process
+ * @param blackboardUpdater Callback to update the blackboard before replanning.
+ *        Receives the result content and can add objects to the blackboard.
+ *        Defaults to adding the result content as a string.
  */
 class ReplanningTool(
     override val delegate: Tool,
     private val reason: String,
-    private val resultKey: String = delegate.definition.name,
-    private val additionalUpdates: ((String, AgentProcess) -> Map<String, Any>)? = null,
+    private val blackboardUpdater: (Blackboard, String) -> Unit = { bb, content -> bb.addObject(content) },
 ) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
@@ -50,16 +51,9 @@ class ReplanningTool(
         val result = delegate.call(input)
         val resultContent = result.content
 
-        val blackboardUpdates = mutableMapOf<String, Any>(resultKey to resultContent)
-        additionalUpdates?.let {
-            val agentProcess = AgentProcess.get()
-                ?: throw IllegalStateException("No AgentProcess available for ReplanningTool")
-            blackboardUpdates.putAll(it.invoke(resultContent, agentProcess))
-        }
-
         throw ReplanRequestedException(
             reason = reason,
-            blackboardUpdates = blackboardUpdates,
+            blackboardUpdater = { bb -> blackboardUpdater(bb, resultContent) },
         )
     }
 }
@@ -68,11 +62,11 @@ class ReplanningTool(
  * Decision returned by [ReplanDecider] to indicate whether replanning is needed.
  *
  * @param reason Human-readable explanation of why replan is needed
- * @param blackboardUpdates Key-value pairs to add to the blackboard before replanning
+ * @param blackboardUpdater Callback to update the blackboard before replanning
  */
 data class ReplanDecision(
     val reason: String,
-    val blackboardUpdates: Map<String, Any> = emptyMap(),
+    val blackboardUpdater: (Blackboard) -> Unit = {},
 )
 
 /**
@@ -153,7 +147,7 @@ class ConditionalReplanningTool(
         if (decision != null) {
             throw ReplanRequestedException(
                 reason = decision.reason,
-                blackboardUpdates = decision.blackboardUpdates,
+                blackboardUpdater = decision.blackboardUpdater,
             )
         }
 

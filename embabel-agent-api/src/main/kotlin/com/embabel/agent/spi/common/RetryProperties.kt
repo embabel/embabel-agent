@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.common
 
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.isRateLimitError
 import com.embabel.common.util.loggerFor
 import org.springframework.ai.retry.NonTransientAiException
@@ -56,6 +57,10 @@ interface RetryProperties : RetryTemplateProvider {
                     callback: RetryCallback<T, E>,
                     throwable: Throwable,
                 ) {
+                    // ReplanRequestedException is a control flow signal, not an error
+                    if (throwable is ReplanRequestedException) {
+                        return
+                    }
                     if (isRateLimitError(throwable)) {
                         loggerFor<RetryProperties>().info(
                             "🔒 LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
@@ -110,6 +115,9 @@ private class SpringAiRetryPolicy(
         }
 
         return when (val lastException = context.lastThrowable) {
+            // ReplanRequestedException is a control flow signal, not an error to retry
+            is ReplanRequestedException -> false
+
             is TransientAiException -> true
             is NonTransientAiException -> {
                 val m = lastException.message ?: return false

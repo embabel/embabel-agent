@@ -16,9 +16,12 @@
 package com.embabel.agent.api.tool
 
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.support.DelegatingTool
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -56,7 +59,6 @@ class ReplanningToolTest {
             val replanningTool = ReplanningTool(
                 delegate = delegateTool,
                 reason = "Classified user intent",
-                resultKey = "classification",
             )
 
             val exception = assertThrows<ReplanRequestedException> {
@@ -64,11 +66,10 @@ class ReplanningToolTest {
             }
 
             assertEquals("Classified user intent", exception.reason)
-            assertEquals("support_request", exception.blackboardUpdates["classification"])
         }
 
         @Test
-        fun `includes tool result in blackboard updates with default key`() {
+        fun `default blackboard updater adds content to blackboard`() {
             val delegateTool = createMockTool("router") {
                 Tool.Result.text("route_to_sales")
             }
@@ -81,79 +82,23 @@ class ReplanningToolTest {
                 replanningTool.call("{}")
             }
 
-            // Default key should be the tool name
-            assertEquals("route_to_sales", exception.blackboardUpdates["router"])
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject("route_to_sales") }
         }
-    }
-
-    @Nested
-    inner class AdditionalUpdatesTest {
 
         @Test
-        fun `allows additional blackboard updates via lambda`() {
+        fun `custom blackboard updater is called with content`() {
             val delegateTool = createMockTool("analyzer") {
-                Tool.Result.text("""{"intent": "refund", "confidence": 0.95}""")
-            }
-            val replanningTool = ReplanningTool(
-                delegate = delegateTool,
-                reason = "Analysis complete",
-                resultKey = "rawResult",
-                additionalUpdates = { resultContent, _ ->
-                    // Parse the result and add structured data
-                    mapOf(
-                        "intent" to "refund",
-                        "confidence" to 0.95
-                    )
-                }
-            )
-
-            val exception = assertThrows<ReplanRequestedException> {
-                replanningTool.call("{}")
-            }
-
-            assertEquals("""{"intent": "refund", "confidence": 0.95}""", exception.blackboardUpdates["rawResult"])
-            assertEquals("refund", exception.blackboardUpdates["intent"])
-            assertEquals(0.95, exception.blackboardUpdates["confidence"])
-        }
-
-        @Test
-        fun `additional updates can access result content`() {
-            val delegateTool = createMockTool("scorer") {
-                Tool.Result.text("HIGH")
+                Tool.Result.text("""{"intent": "refund"}""")
             }
             var capturedContent: String? = null
             val replanningTool = ReplanningTool(
                 delegate = delegateTool,
-                reason = "Score determined",
-                resultKey = "score",
-                additionalUpdates = { resultContent, _ ->
-                    capturedContent = resultContent
-                    mapOf("priority" to if (resultContent == "HIGH") 1 else 2)
-                }
-            )
-
-            assertThrows<ReplanRequestedException> {
-                replanningTool.call("{}")
-            }
-
-            assertEquals("HIGH", capturedContent)
-        }
-
-        @Test
-        fun `additional updates can access AgentProcess`() {
-            every { mockAgentProcess.id } returns "test-process-123"
-
-            val delegateTool = createMockTool("context-aware") {
-                Tool.Result.text("result")
-            }
-            var capturedProcessId: String? = null
-            val replanningTool = ReplanningTool(
-                delegate = delegateTool,
-                reason = "Context captured",
-                resultKey = "result",
-                additionalUpdates = { _, agentProcess ->
-                    capturedProcessId = agentProcess.id
-                    mapOf("processId" to agentProcess.id)
+                reason = "Analysis complete",
+                blackboardUpdater = { bb, content ->
+                    capturedContent = content
+                    bb.addObject(content)
                 }
             )
 
@@ -161,8 +106,11 @@ class ReplanningToolTest {
                 replanningTool.call("{}")
             }
 
-            assertEquals("test-process-123", capturedProcessId)
-            assertEquals("test-process-123", exception.blackboardUpdates["processId"])
+            // The blackboardUpdater captures content and passes it to the exception's callback
+            // We need to invoke the exception's callback to trigger the captured lambda
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            assertEquals("""{"intent": "refund"}""", capturedContent)
         }
     }
 
@@ -202,14 +150,15 @@ class ReplanningToolTest {
             val replanningTool = ReplanningTool(
                 delegate = delegateTool,
                 reason = "Artifact created",
-                resultKey = "result",
             )
 
             val exception = assertThrows<ReplanRequestedException> {
                 replanningTool.call("{}")
             }
 
-            assertEquals("content", exception.blackboardUpdates["result"])
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject("content") }
         }
 
         @Test
@@ -220,14 +169,15 @@ class ReplanningToolTest {
             val replanningTool = ReplanningTool(
                 delegate = delegateTool,
                 reason = "Error occurred, need different approach",
-                resultKey = "errorResult",
             )
 
             val exception = assertThrows<ReplanRequestedException> {
                 replanningTool.call("{}")
             }
 
-            assertEquals("Something went wrong", exception.blackboardUpdates["errorResult"])
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject("Something went wrong") }
         }
     }
 
@@ -276,7 +226,7 @@ class ReplanningToolTest {
                     if (context.resultContent == "needs_escalation") {
                         ReplanDecision(
                             reason = "Escalation required",
-                            blackboardUpdates = mapOf("escalate" to true)
+                            blackboardUpdater = { bb -> bb.addObject("escalated") }
                         )
                     } else null
                 }
@@ -287,7 +237,9 @@ class ReplanningToolTest {
             }
 
             assertEquals("Escalation required", exception.reason)
-            assertEquals(true, exception.blackboardUpdates["escalate"])
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject("escalated") }
         }
 
         @Test
@@ -325,7 +277,10 @@ class ReplanningToolTest {
                     if (score > 90) {
                         ReplanDecision(
                             reason = "High score detected",
-                            blackboardUpdates = mapOf("score" to score, "tier" to "premium")
+                            blackboardUpdater = { bb ->
+                                bb.addObject(score)
+                                bb.addObject("premium")
+                            }
                         )
                     } else null
                 }
@@ -336,8 +291,10 @@ class ReplanningToolTest {
             }
 
             assertEquals("High score detected", exception.reason)
-            assertEquals(95, exception.blackboardUpdates["score"])
-            assertEquals("premium", exception.blackboardUpdates["tier"])
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject(95) }
+            verify { mockBlackboard.addObject("premium") }
         }
 
         @Test
@@ -352,7 +309,7 @@ class ReplanningToolTest {
                     capturedToolName = context.tool.definition.name
                     ReplanDecision(
                         reason = "Tool info captured",
-                        blackboardUpdates = mapOf("toolName" to context.tool.definition.name)
+                        blackboardUpdater = { bb -> bb.addObject(context.tool.definition.name) }
                     )
                 }
             )
@@ -362,7 +319,9 @@ class ReplanningToolTest {
             }
 
             assertEquals("my-special-tool", capturedToolName)
-            assertEquals("my-special-tool", exception.blackboardUpdates["toolName"])
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject("my-special-tool") }
         }
 
         @Test
@@ -395,7 +354,7 @@ class ReplanningToolTest {
                     capturedArtifact = context.artifact
                     ReplanDecision(
                         reason = "Routing decision made",
-                        blackboardUpdates = mapOf("routing" to context.artifact!!)
+                        blackboardUpdater = { bb -> bb.addObject(context.artifact!!) }
                     )
                 }
             )
@@ -405,7 +364,9 @@ class ReplanningToolTest {
             }
 
             assertEquals(routingResult, capturedArtifact)
-            assertEquals(routingResult, exception.blackboardUpdates["routing"])
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject(routingResult) }
         }
 
         @Test
@@ -427,7 +388,7 @@ class ReplanningToolTest {
                     if (capturedClassification != null && capturedClassification!!.score > 0.8) {
                         ReplanDecision(
                             reason = "High confidence classification",
-                            blackboardUpdates = mapOf("intent" to capturedClassification!!.intent)
+                            blackboardUpdater = { bb -> bb.addObject(capturedClassification!!.intent) }
                         )
                     } else null
                 }
@@ -438,7 +399,9 @@ class ReplanningToolTest {
             }
 
             assertEquals(classification, capturedClassification)
-            assertEquals("refund", exception.blackboardUpdates["intent"])
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater(mockBlackboard)
+            verify { mockBlackboard.addObject("refund") }
         }
 
         @Test

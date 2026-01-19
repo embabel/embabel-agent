@@ -122,15 +122,27 @@ open class SimpleAgentProcess(
         } else {
             sendProcessRunningEvent(plan, worldState)
 
-            val agent = agent.actions.singleOrNull { it.name == plan.actions.first().name }
+            val action = agent.actions.singleOrNull { it.name == plan.actions.first().name }
                 ?: error(
                     "No unique action found for ${plan.actions.first().name} in ${agent.actions.map { it.name }}: Actions are\n${
                         agent.actions.joinToString(
                             "\n"
                         ) { it.name }
                     }")
-            val actionStatus = executeAction(agent)
-            setStatus(actionStatusToAgentProcessStatus(actionStatus))
+            try {
+                val actionStatus = executeAction(action)
+                setStatus(actionStatusToAgentProcessStatus(actionStatus))
+            } catch (rpe: ReplanRequestedException) {
+                // Apply blackboard updates from the replan request
+                rpe.blackboardUpdater(blackboard)
+                logger.info(
+                    "🔄 Action {} requested replan: {}.",
+                    action.name,
+                    rpe.reason,
+                )
+                // Keep status as RUNNING to trigger replanning on next tick
+                setStatus(AgentProcessStatusCode.RUNNING)
+            }
         }
         return this
     }
