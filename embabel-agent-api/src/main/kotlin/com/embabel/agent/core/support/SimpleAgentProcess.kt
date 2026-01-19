@@ -18,7 +18,12 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.api.event.GoalAchievedEvent
-import com.embabel.agent.core.*
+import com.embabel.agent.core.Agent
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.AgentProcessStatusCode
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.PlannerFactory
 import com.embabel.common.util.indentLines
 import com.embabel.plan.Plan
@@ -163,7 +168,7 @@ open class SimpleAgentProcess(
                 // Blacklist this action for the next planning cycle to prevent infinite loops
                 replanBlacklist.add(action.name)
                 logger.info(
-                    "🔄 Action {} requested replan: {}. Blacklisted for next cycle.",
+                    "Action {} requested replan: {}. Blacklisted for next cycle.",
                     action.name,
                     rpe.reason,
                 )

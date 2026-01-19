@@ -19,7 +19,9 @@ import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.tool.Tool.Definition
+import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
+import com.embabel.agent.spi.support.DelegatingTool
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
@@ -475,6 +477,108 @@ interface Tool : ToolInfo {
                     e.message,
                 )
                 emptyList()
+            }
+        }
+
+        /**
+         * Make this tool always replan after execution, adding the artifact to the blackboard.
+         */
+        @JvmStatic
+        fun replanAlways(tool: Tool): Tool {
+            return ConditionalReplanningTool(tool) { context ->
+                ReplanDecision("${tool.definition.name} replans") { bb ->
+                    context.artifact?.let { bb.addObject(it) }
+                }
+            }
+        }
+
+        /**
+         * When the decider returns a [ReplanDecision], replan after execution, adding the artifact
+         * to the blackboard along with any additional updates from the decision.
+         * The decider receives the artifact cast to type T and the replan context.
+         * If the artifact is null or cannot be cast to T, the decider is not called.
+         */
+        @JvmStatic
+        @Suppress("UNCHECKED_CAST")
+        fun <T> conditionalReplan(
+            tool: Tool,
+            decider: (t: T, replanContext: ReplanContext) -> ReplanDecision?,
+        ): DelegatingTool {
+            return ConditionalReplanningTool(tool) { replanContext ->
+                val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
+                try {
+                    val decision = decider(artifact as T, replanContext)
+                        ?: return@ConditionalReplanningTool null
+                    ReplanDecision(decision.reason) { bb ->
+                        bb.addObject(artifact)
+                        decision.blackboardUpdater.accept(bb)
+                    }
+                } catch (_: ClassCastException) {
+                    null
+                }
+            }
+        }
+
+        /**
+         * When the predicate matches the tool result artifact, replan, adding the artifact to the blackboard.
+         * The predicate receives the artifact cast to type T.
+         * If the artifact is null or cannot be cast to T, returns normally.
+         */
+        @JvmStatic
+        @Suppress("UNCHECKED_CAST")
+        fun <T> replanWhen(
+            tool: Tool,
+            predicate: (t: T) -> Boolean,
+        ): DelegatingTool {
+            return ConditionalReplanningTool(tool) { replanContext ->
+                val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
+                try {
+                    if (predicate(artifact as T)) {
+                        ReplanDecision("${tool.definition.name} replans based on result") { bb ->
+                            bb.addObject(artifact)
+                        }
+                    } else {
+                        null
+                    }
+                } catch (_: ClassCastException) {
+                    null
+                }
+            }
+        }
+
+        /**
+         * Format a list of tools as an ASCII tree structure.
+         * MatryoshkaTools are expanded recursively to show their inner tools.
+         *
+         * @param name The name to display at the root of the tree
+         * @param tools The list of tools to format
+         * @return A formatted tree string, or a message if no tools are present
+         */
+        @JvmStatic
+        fun formatToolTree(name: String, tools: List<Tool>): String {
+            if (tools.isEmpty()) {
+                return "$name has no tools"
+            }
+
+            val sb = StringBuilder()
+            sb.append(name).append("\n")
+            formatToolsRecursive(sb, tools, "")
+            return sb.toString().trim()
+        }
+
+        private fun formatToolsRecursive(sb: StringBuilder, tools: List<Tool>, indent: String) {
+            tools.forEachIndexed { i, tool ->
+                val isLast = i == tools.size - 1
+                val prefix = if (isLast) "└── " else "├── "
+                val childIndent = indent + if (isLast) "    " else "│   "
+
+                if (tool is MatryoshkaTool) {
+                    sb.append(indent).append(prefix).append(tool.definition.name)
+                        .append(" (").append(tool.innerTools.size).append(" inner tools)\n")
+                    formatToolsRecursive(sb, tool.innerTools, childIndent)
+                } else {
+                    sb.append(indent).append(prefix).append(tool.definition.name).append("\n")
+                }
             }
         }
     }

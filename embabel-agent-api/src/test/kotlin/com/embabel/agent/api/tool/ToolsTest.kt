@@ -47,7 +47,7 @@ class ToolsTest {
         @Test
         fun `replanAlways throws ReplanRequestedException on any call`() {
             val tool = Tool.of("my_tool", "A tool") { Tool.Result.text("result") }
-            val replanningTool = Tools.replanAlways(tool)
+            val replanningTool = Tool.replanAlways(tool)
 
             val exception = assertThrows<ReplanRequestedException> {
                 replanningTool.call("{}")
@@ -64,7 +64,7 @@ class ToolsTest {
             val tool = Tool.of("my_tool", "A tool") {
                 Tool.Result.WithArtifact("content", artifact)
             }
-            val replanningTool = Tools.replanAlways(tool)
+            val replanningTool = Tool.replanAlways(tool)
 
             val exception = assertThrows<ReplanRequestedException> {
                 replanningTool.call("{}")
@@ -78,7 +78,7 @@ class ToolsTest {
         @Test
         fun `replanAlways does not add to blackboard when no artifact`() {
             val tool = Tool.of("my_tool", "A tool") { Tool.Result.text("result") }
-            val replanningTool = Tools.replanAlways(tool)
+            val replanningTool = Tool.replanAlways(tool)
 
             val exception = assertThrows<ReplanRequestedException> {
                 replanningTool.call("{}")
@@ -114,7 +114,7 @@ class ToolsTest {
                 Tool.Result.WithArtifact("Score: 95", artifact)
             }
 
-            val replanningTool = Tools.replanWhen(
+            val replanningTool = Tool.replanWhen(
                 tool = tool,
                 predicate = { score: Score -> score.value > 90 }
             )
@@ -137,7 +137,7 @@ class ToolsTest {
                 Tool.Result.WithArtifact("Score: 50", Score(50))
             }
 
-            val replanningTool = Tools.replanWhen(
+            val replanningTool = Tool.replanWhen(
                 tool = tool,
                 predicate = { score: Score -> score.value > 90 }
             )
@@ -153,7 +153,7 @@ class ToolsTest {
                 Tool.Result.WithArtifact("content", "string artifact")
             }
 
-            val replanningTool = Tools.replanWhen(
+            val replanningTool = Tool.replanWhen(
                 tool = tool,
                 predicate = { num: Int -> num > 10 }
             )
@@ -169,7 +169,7 @@ class ToolsTest {
                 Tool.Result.text("just text")
             }
 
-            val replanningTool = Tools.replanWhen(
+            val replanningTool = Tool.replanWhen(
                 tool = tool,
                 predicate = { _: Any -> true }
             )
@@ -188,7 +188,7 @@ class ToolsTest {
                 Tool.Result.WithArtifact("Routing to support", artifact)
             }
 
-            val replanningTool = Tools.conditionalReplan<Routing>(
+            val replanningTool = Tool.conditionalReplan<Routing>(
                 tool = tool,
             ) { routing, _ ->
                 if (routing.confidence > 0.9) {
@@ -218,7 +218,7 @@ class ToolsTest {
                 Tool.Result.WithArtifact("Low confidence", Routing("support", 0.5))
             }
 
-            val replanningTool = Tools.conditionalReplan<Routing>(
+            val replanningTool = Tool.conditionalReplan<Routing>(
                 tool = tool,
             ) { routing, _ ->
                 if (routing.confidence > 0.9) {
@@ -240,7 +240,7 @@ class ToolsTest {
             }
 
             var capturedToolName: String? = null
-            val replanningTool = Tools.conditionalReplan<Data>(
+            val replanningTool = Tool.conditionalReplan<Data>(
                 tool = tool,
             ) { _, context ->
                 capturedToolName = context.tool.definition.name
@@ -260,7 +260,7 @@ class ToolsTest {
 
         @Test
         fun `returns message for empty tool list`() {
-            val result = Tools.formatToolTree("MyAgent", emptyList())
+            val result = Tool.formatToolTree("MyAgent", emptyList())
 
             assertThat(result).isEqualTo("MyAgent has no tools")
         }
@@ -269,7 +269,7 @@ class ToolsTest {
         fun `formats single tool`() {
             val tool = simpleTool("get_weather")
 
-            val result = Tools.formatToolTree("MyAgent", listOf(tool))
+            val result = Tool.formatToolTree("MyAgent", listOf(tool))
 
             assertThat(result).isEqualTo(
                 """
@@ -287,7 +287,7 @@ class ToolsTest {
                 simpleTool("read_file")
             )
 
-            val result = Tools.formatToolTree("MyAgent", tools)
+            val result = Tool.formatToolTree("MyAgent", tools)
 
             assertThat(result).isEqualTo(
                 """
@@ -311,7 +311,7 @@ class ToolsTest {
                 innerTools = innerTools
             )
 
-            val result = Tools.formatToolTree("MyAgent", listOf(matryoshka))
+            val result = Tool.formatToolTree("MyAgent", listOf(matryoshka))
 
             assertThat(result).isEqualTo(
                 """
@@ -341,7 +341,7 @@ class ToolsTest {
                 simpleTool("send_email")
             )
 
-            val result = Tools.formatToolTree("MyAgent", tools)
+            val result = Tool.formatToolTree("MyAgent", tools)
 
             assertThat(result).isEqualTo(
                 """
@@ -363,7 +363,7 @@ class ToolsTest {
                 innerTools = emptyList()
             )
 
-            val result = Tools.formatToolTree("MyAgent", listOf(matryoshka))
+            val result = Tool.formatToolTree("MyAgent", listOf(matryoshka))
 
             assertThat(result).isEqualTo(
                 """
@@ -390,7 +390,7 @@ class ToolsTest {
                 innerTools = listOf(simpleTool("sibling"), nestedMatryoshka)
             )
 
-            val result = Tools.formatToolTree("MyAgent", listOf(outerMatryoshka))
+            val result = Tool.formatToolTree("MyAgent", listOf(outerMatryoshka))
 
             assertThat(result).isEqualTo(
                 """
