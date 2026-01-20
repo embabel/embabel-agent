@@ -21,7 +21,15 @@ import com.embabel.agent.api.channel.ProgressOutputChannelEvent
 import com.embabel.agent.api.common.support.DelegatingStreamingPromptRunner
 import com.embabel.agent.api.common.support.OperationContextDelegate
 import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
-import com.embabel.agent.core.*
+import com.embabel.agent.core.Action
+import com.embabel.agent.core.Agent
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.InjectedType
+import com.embabel.agent.core.Operation
+import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.CurrentDate
@@ -42,10 +50,28 @@ interface ExecutingOperationContext : OperationContext {
         )
     }
 
+    /**
+     * Convenience method to send a message to the output channel of the process
+     * and save it to the conversation in the blackboard.
+     * @throws IllegalStateException if there is not exactly one Conversation in the blackboard.
+     */
+    infix fun sendAndSave(message: Message) {
+        sendMessage(message)
+        val conversation = processContext.blackboard.objectsOfType(Conversation::class.java)
+            .singleOrNull() ?: error("No single conversation found in blackboard to save message to")
+        conversation.addMessage(message)
+    }
+
+    /**
+     * Send a progress update to the output channel of the process.
+     */
     fun updateProgress(message: String) {
         sendOutputChannelEvent(ProgressOutputChannelEvent(agentProcess.id, message))
     }
 
+    /**
+     * Send an output channel event to the output channel of the process.
+     */
     fun sendOutputChannelEvent(event: OutputChannelEvent) {
         processContext.outputChannel.send(
             event
