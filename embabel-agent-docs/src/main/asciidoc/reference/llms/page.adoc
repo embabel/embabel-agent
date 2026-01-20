@@ -40,6 +40,23 @@ This is useful when:
 
 The core abstraction is the `LlmMessageSender` functional interface:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@FunctionalInterface
+public interface LlmMessageSender {
+    LlmMessageResponse call(
+        List<Message> messages,
+        List<Tool> tools
+    );
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 fun interface LlmMessageSender {
@@ -49,6 +66,7 @@ fun interface LlmMessageSender {
     ): LlmMessageResponse
 }
 ----
+====
 
 The implementation makes a single LLM inference call and returns the response.
 Importantly, it does **not** execute tools--it only returns any tool call requests from the LLM.
@@ -64,6 +82,21 @@ The `LlmMessageResponse` contains:
 
 For responses that include tool calls, return an `AssistantMessageWithToolCalls`:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public record ToolCall(
+    String id,         // Unique identifier for the tool call
+    String name,       // Name of the tool to invoke
+    String arguments   // JSON arguments for the tool
+) {}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 data class ToolCall(
@@ -72,11 +105,98 @@ data class ToolCall(
     val arguments: String, // JSON arguments for the tool
 )
 ----
+====
 
 ===== Example: Custom LLM Provider
 
 Here's an example of implementing `LlmMessageSender` for a hypothetical HTTP-based LLM API:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class MyCustomLlmMessageSender implements LlmMessageSender {
+
+    private final HttpClient httpClient;
+    private final String apiKey;
+    private final String model;
+
+    public MyCustomLlmMessageSender(HttpClient httpClient, String apiKey, String model) {
+        this.httpClient = httpClient;
+        this.apiKey = apiKey;
+        this.model = model;
+    }
+
+    @Override
+    public LlmMessageResponse call(List<Message> messages, List<Tool> tools) {
+        // Convert Embabel messages to your API's format
+        List<Map<String, Object>> apiMessages = messages.stream()
+            .map(message -> Map.<String, Object>of(
+                "role", message.getRole().name().toLowerCase(),
+                "content", message.getTextContent()
+            ))
+            .toList();
+
+        // Convert tool definitions to your API's format
+        List<Map<String, Object>> apiTools = tools.stream()
+            .map(tool -> Map.<String, Object>of(
+                "name", tool.getDefinition().getName(),
+                "description", tool.getDefinition().getDescription(),
+                "parameters", tool.getDefinition().getInputSchema().jsonSchema()
+            ))
+            .toList();
+
+        // Make API request (using your preferred HTTP client)
+        MyApiResponse responseBody = httpClient.post("https://api.my-llm.com/chat")
+            .header("Authorization", "Bearer " + apiKey)
+            .body(Map.of(
+                "model", model,
+                "messages", apiMessages,
+                "tools", apiTools.isEmpty() ? null : apiTools
+            ))
+            .execute(MyApiResponse.class);
+
+        // Check if LLM requested tool calls
+        List<ToolCall> toolCalls = null;
+        if (responseBody.getToolCalls() != null) {
+            toolCalls = responseBody.getToolCalls().stream()
+                .map(call -> new ToolCall(
+                    call.getId(),
+                    call.getFunction().getName(),
+                    call.getFunction().getArguments()
+                ))
+                .toList();
+        }
+
+        Message embabelMessage;
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            embabelMessage = new AssistantMessage(
+                responseBody.getContent() != null ? responseBody.getContent() : ""
+            );
+        } else {
+            embabelMessage = new AssistantMessageWithToolCalls(
+                responseBody.getContent() != null ? responseBody.getContent() : "",
+                toolCalls
+            );
+        }
+
+        Usage usage = null;
+        if (responseBody.getUsage() != null) {
+            usage = new Usage(
+                responseBody.getUsage().getPromptTokens(),
+                responseBody.getUsage().getCompletionTokens()
+            );
+        }
+
+        return new LlmMessageResponse(embabelMessage, responseBody.getContent(), usage);
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 class MyCustomLlmMessageSender(
@@ -150,11 +270,89 @@ class MyCustomLlmMessageSender(
     }
 }
 ----
+====
 
 ===== Creating an LlmService
 
 To make your custom LLM available through Embabel's `ModelProvider`, implement the `LlmService` interface:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class MyCustomLlmService implements LlmService<MyCustomLlmService> {
+
+    private final String name;
+    private final String provider;
+    private final HttpClient httpClient;
+    private final String apiKey;
+    private final LocalDate knowledgeCutoffDate;
+    private final List<PromptContributor> promptContributors;
+    private final PricingModel pricingModel;
+
+    public MyCustomLlmService(
+            String name,
+            String provider,
+            HttpClient httpClient,
+            String apiKey,
+            LocalDate knowledgeCutoffDate,
+            PricingModel pricingModel) {
+        this.name = name;
+        this.provider = provider;
+        this.httpClient = httpClient;
+        this.apiKey = apiKey;
+        this.knowledgeCutoffDate = knowledgeCutoffDate;
+        this.promptContributors = knowledgeCutoffDate != null
+            ? List.of(new KnowledgeCutoffDate(knowledgeCutoffDate))
+            : List.of();
+        this.pricingModel = pricingModel;
+    }
+
+    @Override
+    public String getName() { return name; }
+
+    @Override
+    public String getProvider() { return provider; }
+
+    @Override
+    public LocalDate getKnowledgeCutoffDate() { return knowledgeCutoffDate; }
+
+    @Override
+    public List<PromptContributor> getPromptContributors() { return promptContributors; }
+
+    @Override
+    public PricingModel getPricingModel() { return pricingModel; }
+
+    @Override
+    public LlmMessageSender createMessageSender(LlmOptions options) {
+        return new MyCustomLlmMessageSender(
+            httpClient,
+            apiKey,
+            options.getModel() != null ? options.getModel() : name
+        );
+    }
+
+    @Override
+    public MyCustomLlmService withKnowledgeCutoffDate(LocalDate date) {
+        return new MyCustomLlmService(name, provider, httpClient, apiKey, date, pricingModel);
+    }
+
+    @Override
+    public MyCustomLlmService withPromptContributor(PromptContributor promptContributor) {
+        var newContributors = new ArrayList<>(promptContributors);
+        newContributors.add(promptContributor);
+        return new MyCustomLlmService(
+            name, provider, httpClient, apiKey, knowledgeCutoffDate,
+            newContributors, pricingModel
+        );
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 data class MyCustomLlmService(
@@ -186,9 +384,37 @@ data class MyCustomLlmService(
         copy(promptContributors = promptContributors + promptContributor)
 }
 ----
+====
 
 Then register it as a Spring bean:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Configuration
+public class MyLlmConfiguration {
+
+    @Bean
+    public LlmService<?> myCustomLlm(
+            HttpClient httpClient,
+            @Value("${my-llm.api-key}") String apiKey) {
+        return new MyCustomLlmService(
+            "my-custom-model",
+            "MyProvider",
+            httpClient,
+            apiKey,
+            LocalDate.of(2024, 12, 1),
+            null
+        );
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Configuration
@@ -207,10 +433,28 @@ class MyLlmConfiguration {
     )
 }
 ----
+====
 
 The bean will be automatically discovered and made available through the `ModelProvider`.
 You can then use it by name or role:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// By name
+@LlmCall(llm = "my-custom-model")
+String myAction();
+
+// Or by role (if configured)
+@LlmCall(llm = "#best")
+String myAction();
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // By name
@@ -221,11 +465,47 @@ fun myAction(): String
 @LlmCall(llm = "#best")
 fun myAction(): String
 ----
+====
 
 ===== Using Your Custom Implementation (Alternative)
 
 If you need more control over the LLM operations layer itself, you can extend `ToolLoopLlmOperations`:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class MyCustomLlmOperations extends ToolLoopLlmOperations {
+
+    private final HttpClient httpClient;
+    private final String apiKey;
+
+    public MyCustomLlmOperations(
+            HttpClient httpClient,
+            String apiKey,
+            ModelProvider modelProvider,
+            ToolDecorator toolDecorator,
+            Validator validator) {
+        super(modelProvider, toolDecorator, validator);
+        this.httpClient = httpClient;
+        this.apiKey = apiKey;
+    }
+
+    @Override
+    protected LlmMessageSender createMessageSender(LlmService<?> llm, LlmOptions options) {
+        return new MyCustomLlmMessageSender(
+            httpClient,
+            apiKey,
+            options.getModel() != null ? options.getModel() : "default-model"
+        );
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 class MyCustomLlmOperations(
@@ -251,6 +531,7 @@ class MyCustomLlmOperations(
     }
 }
 ----
+====
 
 The `ToolLoopLlmOperations` base class provides several extension points:
 
