@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.support.MultiTransformationAction
 import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.ReplanRequestedException
 import org.slf4j.LoggerFactory
 import org.springframework.core.KotlinDetector
 import org.springframework.util.ReflectionUtils
@@ -230,6 +231,11 @@ internal class StateActionMethodManager(
         methodName: String,
         t: Throwable,
     ) {
+        // ReplanRequestedException is a control flow signal, not an error
+        // Throw it but don't log it
+        if (t is ReplanRequestedException) {
+            throw t
+        }
         logger.warn(
             "Error invoking state action method {}.{}: {}",
             instanceName,

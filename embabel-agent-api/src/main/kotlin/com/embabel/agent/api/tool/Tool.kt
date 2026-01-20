@@ -19,7 +19,6 @@ import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.tool.Tool.Definition
-import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.support.DelegatingTool
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -536,6 +535,34 @@ interface Tool : ToolInfo {
                     if (predicate(artifact as T)) {
                         ReplanDecision("${tool.definition.name} replans based on result") { bb ->
                             bb.addObject(artifact)
+                        }
+                    } else {
+                        null
+                    }
+                } catch (_: ClassCastException) {
+                    null
+                }
+            }
+        }
+
+        /**
+         * Replan and add the object returned by the predicate to the blackboard.
+         * @param tool The tool to wrap
+         * @param valueComputer Function that takes the artifact of type T and returns an object to add to the blackboard, or null to not replan
+         */
+        @JvmStatic
+        @Suppress("UNCHECKED_CAST")
+        fun <T> replanAndAdd(
+            tool: Tool,
+            valueComputer: (t: T) -> Any?,
+        ): DelegatingTool {
+            return ConditionalReplanningTool(tool) { replanContext ->
+                val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
+                try {
+                    val toAdd = valueComputer(artifact as T)
+                    if (toAdd != null) {
+                        ReplanDecision("${tool.definition.name} replans based on result") { bb ->
+                            bb.addObject(toAdd)
                         }
                     } else {
                         null

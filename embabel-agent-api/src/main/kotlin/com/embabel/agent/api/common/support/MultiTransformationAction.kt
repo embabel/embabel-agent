@@ -97,10 +97,22 @@ class MultiTransformationAction<O : Any>(
             }
 
             if (isStateType(output.javaClass)) {
+                // Hide any existing state objects to ensure only the current state's actions are available
+                // This provides state scoping without clearing the entire blackboard
+                val existingStates = processContext.blackboard.objects
+                    .filter { it !== output && isStateType(it.javaClass) }
+
+                val previousState = existingStates.lastOrNull()
+
+                existingStates.forEach { existingState ->
+                    processContext.blackboard.hide(existingState)
+                }
+
                 processContext.onProcessEvent(
                     StateTransitionEvent(
                         agentProcess = processContext.agentProcess,
                         newState = output,
+                        previousState = previousState,
                     )
                 )
             }

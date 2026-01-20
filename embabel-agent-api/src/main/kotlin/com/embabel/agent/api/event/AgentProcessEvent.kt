@@ -82,11 +82,23 @@ class AgentProcessPlanFormulatedEvent(
 /**
  * The agent process has transitioned to a new state.
  * @param newState the new state instance
+ * @param previousState the previous state instance, or null if this is the initial state
  */
 class StateTransitionEvent(
     agentProcess: AgentProcess,
     val newState: Any,
-) : AbstractAgentProcessEvent(agentProcess)
+    val previousState: Any? = null,
+) : AbstractAgentProcessEvent(agentProcess) {
+
+    /** True if this is the initial state entry (no previous state) */
+    val isInitialState: Boolean get() = previousState == null
+
+    /** True if staying in the same state instance (return this) */
+    val isSameInstance: Boolean get() = previousState === newState
+
+    /** True if transitioning to a new instance of the same state type */
+    val isSameType: Boolean get() = previousState != null && previousState.javaClass == newState.javaClass
+}
 
 class GoalAchievedEvent(
     agentProcess: AgentProcess,
