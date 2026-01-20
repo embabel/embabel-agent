@@ -61,7 +61,7 @@ interface RetryProperties : RetryTemplateProvider {
                     }
                     if (isRateLimitError(throwable)) {
                         loggerFor<RetryProperties>().info(
-                            "🔒 LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
+                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
                             name,
                             context.retryCount,
                             if (retryPolicy.maxAttempts > 0) retryPolicy.maxAttempts else "unknown",

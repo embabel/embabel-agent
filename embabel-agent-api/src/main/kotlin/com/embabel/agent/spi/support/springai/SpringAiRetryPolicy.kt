@@ -61,6 +61,7 @@ internal class SpringAiRetryPolicy(
             is ReplanRequestedException -> false
 
             is TransientAiException -> true
+
             is NonTransientAiException -> {
                 val m = lastException.message ?: return false
                 rateLimitPhrases.any { phrase ->

@@ -60,7 +60,7 @@ class LlmDataBindingProperties(
                     }
                     if (isRateLimitError(throwable)) {
                         logger.info(
-                            "🔒 LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
+                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
                             name,
                             context.retryCount,
                             maxAttempts,
