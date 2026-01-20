@@ -459,9 +459,9 @@ This is useful when states need access to shared context like user identity or c
 
 ==== State Class Requirements
 
-WARNING: State classes should be **static nested classes** (Java) or **top-level classes** (Kotlin), not non-static inner classes.
-Non-static inner classes hold a reference to their enclosing instance, which causes serialization and persistence issues.
-The framework will log a warning if it detects a non-static inner class annotated with `@State`.
+IMPORTANT: State classes **must be** either **static nested classes** (Java) or **top-level classes** (Kotlin).
+Non-static inner classes are **not allowed** because they hold a reference to their enclosing instance, causing serialization and persistence issues.
+The framework will throw an `IllegalStateException` if it detects a non-static inner class annotated with `@State`.
 
 [source,java]
 ----
@@ -469,13 +469,21 @@ The framework will log a warning if it detects a non-static inner class annotate
 @State
 record AssessStory(UserInput userInput, Story story) implements Stage { ... }
 
-// BAD: Non-static inner class - will cause persistence issues
+// GOOD: Top-level class
+@State
+record ProcessingState(String data) { ... }
+
+// BAD: Non-static inner class - will throw IllegalStateException
 @State
 class AssessStory implements Stage { ... } // Inner class in non-static context
 ----
 
 In Java, records declared inside a class are implicitly static, making them ideal for state classes.
-In Kotlin, data classes declared inside a class are inner by default; use top-level declarations or companion object patterns instead.
+In Kotlin, data classes declared inside a class are inner by default; use **top-level declarations** instead.
+
+TIP: Top-level state classes are the recommended pattern for Kotlin.
+They can access the enclosing component via the `@Provided` annotation.
+See xref:reference.annotations[The @Provided Annotation] for full documentation.
 
 ==== Key Points
 

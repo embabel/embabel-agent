@@ -360,21 +360,29 @@ class AgentMetadataReader(
     }
 
     /**
-     * Validates a @State class and logs warnings for potential issues.
-     * Non-static inner classes (Java) or inner classes (Kotlin) may cause
-     * serialization/persistence issues because they hold a reference to their enclosing instance.
+     * Validates a @State class and throws an exception for invalid configurations.
+     * Non-static inner classes (Java) or inner classes (Kotlin) are not allowed
+     * because they hold a reference to their enclosing instance, causing
+     * serialization/persistence issues.
      */
     private fun validateStateClass(stateClass: Class<*>) {
         if (stateClass.enclosingClass != null && !java.lang.reflect.Modifier.isStatic(stateClass.modifiers)) {
-            logger.warn(
+            throw IllegalStateException(
                 """
+                |@State class '${stateClass.simpleName}' is a non-static inner class.
+                |This is not allowed because it holds a reference to its enclosing class '${stateClass.enclosingClass.simpleName}'.
                 |
-                |========================================================================
-                | WARNING: @State class '${stateClass.simpleName}' is a non-static inner class.
-                | This may cause serialization/persistence issues because it holds a
-                | reference to its enclosing class '${stateClass.enclosingClass.simpleName}'.
-                | Consider making it a static nested class (Java) or a top-level class.
-                |========================================================================
+                |Solutions:
+                |  - In Java: Use a static nested class or a record (records are implicitly static)
+                |  - In Kotlin: Use a top-level class or a class in a companion object
+                |
+                |Example (Java record - recommended):
+                |  @State
+                |  record MyState(String data) { ... }
+                |
+                |Example (Kotlin top-level class):
+                |  @State
+                |  data class MyState(val data: String) { ... }
                 """.trimMargin()
             )
         }

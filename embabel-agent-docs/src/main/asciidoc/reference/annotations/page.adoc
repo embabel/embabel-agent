@@ -367,6 +367,105 @@ Typically, you will register (some of) the defaults as well your custom resolver
 
 TIP: Make sure to register the `BlackboardArgumentResolver` as last resolver, to ensure that others take precedence.
 
+===== The `@Provided` Annotation
+
+The `@Provided` annotation marks an action method parameter as being provided by the platform context (such as Spring's `ApplicationContext`) rather than resolved from the blackboard.
+
+This is particularly useful for:
+
+* **Accessing the enclosing component** from within `@State` classes (which must be static or top-level)
+* **Injecting services** that aren't domain objects but are needed for processing
+* **Accessing configuration** or other platform-managed beans
+
+[source,java]
+----
+@EmbabelComponent
+public class ReservationFlow {
+
+    private final BookingService bookingService;
+    private final NotificationService notificationService;
+
+    public ReservationFlow(BookingService bookingService, NotificationService notificationService) {
+        this.bookingService = bookingService;
+        this.notificationService = notificationService;
+    }
+
+    @Action
+    public CollectDetails start(UserRequest request) {
+        return new CollectDetails(request.customerId());
+    }
+
+    @State
+    public record CollectDetails(String customerId) {
+
+        @Action
+        public ConfirmReservation confirm(
+                ReservationDetails details,                    // <1>
+                @Provided ReservationFlow flow                 // <2>
+        ) {
+            var booking = flow.bookingService.reserve(details);
+            flow.notificationService.sendConfirmation(booking);
+            return new ConfirmReservation(booking);
+        }
+    }
+
+    @State
+    public record ConfirmReservation(Booking booking) {
+        @AchievesGoal(description = "Reservation completed")
+        @Action
+        public BookingResult complete() {
+            return new BookingResult(booking);
+        }
+    }
+}
+----
+
+<1> `ReservationDetails` is a domain object resolved from the blackboard.
+<2> `ReservationFlow` is injected via `@Provided` from the Spring context - this gives access to the services in the enclosing component.
+
+====== How It Works
+
+When Spring is available, the `SpringContextProvider` resolves `@Provided` parameters by looking up beans from the `ApplicationContext`.
+The parameter type must match a bean in the context.
+
+[source,kotlin]
+----
+@State
+data class ProcessingState(val data: String) {
+
+    @Action
+    fun process(
+        @Provided myService: MyService,     // <1>
+        @Provided config: AppConfig,        // <2>
+    ): NextState {
+        val result = myService.process(data, config.setting)
+        return NextState(result)
+    }
+}
+----
+
+<1> Any Spring bean can be injected using `@Provided`.
+<2> Multiple `@Provided` parameters can be used in a single method.
+
+====== When to Use `@Provided`
+
+Use `@Provided` when you need access to:
+
+* The enclosing `@EmbabelComponent` or `@Agent` class from a `@State` action
+* Services that are infrastructure concerns, not domain objects
+* Configuration or environment values
+
+Do **not** use `@Provided` for:
+
+* Domain objects that should drive planning (use regular parameters instead)
+* Objects that need to be tracked on the blackboard
+
+TIP: Since `@State` classes must be static nested classes or top-level classes, `@Provided` is the recommended way to access the enclosing component's services.
+This keeps state classes serializable while still providing access to dependencies.
+
+NOTE: `@Provided` parameters are resolved before blackboard parameters.
+If a type could come from either source, `@Provided` takes precedence.
+
 ==== Binding by name
 
 The `@RequireNameMatch` annotation can be used to <<reference.flow__binding, bind parameters by name>>.
