@@ -3,8 +3,8 @@
 
 Developer can choose piping data from LLM gradually, using Embabel streaming capabilities.
 
-Streams include LLM reasoning events, so-called "thinking", and stream of objects.
-This feature is well aligned with Embabel focus on object-oriented programming model
+In addition to streaming the raw text output from the LLM, Embabel streams can also include LLM reasoning events, so-called "thinking", and stream of objects created by the LLM.
+This feature is well aligned with Embabel focus on object-oriented programming model.
 
 ==== Concepts
 
@@ -13,7 +13,7 @@ This feature is well aligned with Embabel focus on object-oriented programming m
 - Spring Reactive Programming Support for Spring AI ChatClient as underlying infrastructure
 - All reactive callbacks, such as _doOnNext_, _doOnComplete_, etc. are at developer's disposal
 
-==== Example - Simple Streaming with Callbacks
+==== Example - Simple Thinking and Object Streaming with Callbacks
 [source,java]
 ----
 
@@ -44,6 +44,41 @@ This feature is well aligned with Embabel focus on object-oriented programming m
                         receivedEvents.add("OBJECT: " + obj.getName());
                         logger.info("Integration test received object: {}", obj.getName());
                     }
+                })
+                .doOnError(error -> {
+                    errorOccurred.set(error);
+                    logger.error("Integration test stream error: {}", error.getMessage());
+                })
+                .doOnComplete(() -> {
+                    completionCalled.set(true);
+                    logger.info("Integration test stream completed successfully");
+                })
+                .blockLast(Duration.ofSeconds(6000));
+----
+
+==== Example - Simple Raw Text Streaming with Callbacks
+[source,java]
+----
+
+        PromptRunner runner = ai.withLlm("qwen3:latest");
+
+        String prompt = "What is the highest building in Paris?";
+
+        // Use StreamingPromptBuilder instead of Kotlin extension function
+        Flux<String> results = new StreamingPromptRunnerBuilder(runner)
+                .withStreaming()
+                .withPrompt(prompt)
+                .generateStream();
+
+        // Subscribe with real reactive callbacks using builder pattern
+        results
+                .timeout(Duration.ofSeconds(150))
+                .doOnSubscribe(subscription -> {
+                    logger.info("Stream subscription started");
+                })
+                .doOnNext(content -> {
+                        receivedTextChunks.add(content);
+                        logger.info("Integration test received text chunk: {}", content);
                 })
                 .doOnError(error -> {
                     errorOccurred.set(error);

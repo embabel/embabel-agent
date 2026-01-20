@@ -101,6 +101,8 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     fun supportsStreaming(): Boolean
 
+    fun generateStream(): Flux<String>
+
     fun <T> createObjectStream(itemClass: Class<T>): Flux<T>
 
     fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>>

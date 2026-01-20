@@ -218,6 +218,55 @@ class LLMOllamaStreamingBuilderIT {
         logger.info("Integration streaming test completed successfully with {} total events", receivedEvents.size());
     }
 
+    @Test
+    void rawTextStreamingOllamaIntegrationWithReactiveCallbacks() {
+        // Enable Reactor debugging
+        reactor.util.Loggers.useVerboseConsoleLoggers();
+
+        // Given: Use the existing streaming test LLM (configured as "best")
+        PromptRunner runner = ai.withLlm("qwen3:latest");
+        assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");
+
+        // When: Subscribe with real reactive callbacks using builder pattern
+        List<String> receivedTextChunks = new CopyOnWriteArrayList<>();
+        AtomicReference<Throwable> errorOccurred = new AtomicReference<>();
+        AtomicBoolean completionCalled = new AtomicBoolean(false);
+
+        String prompt = "What is the highest building in Paris?";
+
+        // Use StreamingPromptBuilder instead of Kotlin extension function
+        Flux<String> results = new StreamingPromptRunnerBuilder(runner)
+                .withStreaming()
+                .withPrompt(prompt)
+                .generateStream();
+
+        // Subscribe with real reactive callbacks using builder pattern
+        results
+                .timeout(Duration.ofSeconds(150))
+                .doOnSubscribe(subscription -> {
+                    logger.info("Stream subscription started");
+                })
+                .doOnNext(content -> {
+                    receivedTextChunks.add(content);
+                    logger.info("Integration test received text chunk: {}", content);
+                })
+                .doOnError(error -> {
+                    errorOccurred.set(error);
+                    logger.error("Integration test stream error: {}", error.getMessage());
+                })
+                .doOnComplete(() -> {
+                    completionCalled.set(true);
+                    logger.info("Integration test stream completed successfully");
+                })
+                .blockLast(Duration.ofSeconds(6000));
+
+        // Then: Verify real integration streaming behavior
+        assertNull(errorOccurred.get(), "Integration streaming should not produce errors");
+        assertTrue(completionCalled.get(), "Integration stream should complete successfully");
+        assertFalse(receivedTextChunks.isEmpty(), "Should receive text chunks");
+
+        logger.info("Integration streaming test completed successfully with {} total text chunks", receivedTextChunks.size());
+    }
 
     @Test
     void testSpringOllamaStreamingDirectly() {

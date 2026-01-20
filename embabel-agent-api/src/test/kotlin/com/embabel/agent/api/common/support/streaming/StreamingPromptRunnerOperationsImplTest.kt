@@ -80,6 +80,31 @@ class StreamingPromptRunnerOperationsImplTest {
     }
 
     @Test
+    fun `should delegate generateStream to StreamingLlmOperations`() {
+        // Given
+        val mockStream = Flux.just("test")
+        every {
+            mockStreamingLlmOperations.generateStream(
+                eq(initialMessages), any(), mockAgentProcess, mockAction
+            )
+        } returns mockStream
+
+        // When
+        val result = streamingOperations.generateStream()
+
+        // Then
+        verify {
+            mockStreamingLlmOperations.generateStream(
+                initialMessages, mockInteraction, mockAgentProcess, mockAction
+            )
+        }
+
+        // Simple verification - get first item from stream
+        val firstItem = result.blockFirst()
+        assertEquals("test", firstItem)
+    }
+
+    @Test
     fun `should delegate createObjectStream to StreamingLlmOperations`() {
         // Given
         val outputClass = TestItem::class.java

@@ -34,6 +34,10 @@ internal data class DelegatingStreamingOperations(
     override fun withMessages(messages: List<Message>): StreamingPromptRunnerOperations =
         copy(delegate = delegate.withMessages((messages)))
 
+    override fun generateStream(): Flux<String> {
+        return delegate.generateStream()
+    }
+
     override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> =
         delegate.createObjectStream(itemClass)
 
