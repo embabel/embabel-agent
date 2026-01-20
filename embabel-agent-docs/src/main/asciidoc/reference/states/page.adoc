@@ -20,6 +20,10 @@ When an action returns a `@State`-annotated class, the framework:
 **Context is preserved** across state transitions - non-state objects (such as user messages, customer data, and conversation history) remain available.
 Only state objects are hidden, ensuring that only the current state's actions are considered by the planner.
 
+NOTE: State transitions **hide** previous state objects but do **not clear** the blackboard.
+Non-state objects remain available in the new state.
+To clear the entire blackboard (e.g., for looping), use `clearBlackboard = true` on the action.
+
 ==== When to Use States
 
 States are ideal for:
@@ -32,6 +36,35 @@ States are ideal for:
 
 States allow loopback to a whole state, which may contain one or more actions.
 This is more flexible than traditional GOAP, where looping requires careful management of preconditions.
+
+==== Staying in the Current State
+
+An action can return `this` to stay in the current state.
+This is useful for actions that respond to inputs without changing state, such as chat handlers:
+
+[source,java]
+----
+@State
+record ChitchatState(String context) {
+    @Action(canRerun = true)  // <1>
+    ChitchatState respond(UserMessage message, Ai ai) {
+        var response = ai.generateText("Respond to: " + message.content());
+        // ... send response
+        return this;  // <2>
+    }
+}
+----
+
+<1> `canRerun = true` is required - by default, actions only run once per process
+<2> Returning `this` keeps the same state instance active
+
+When an action returns `this`:
+
+- The state remains active with no transition
+- The blackboard is preserved (no clearing)
+- The action can run again on subsequent planning cycles (if `canRerun = true`)
+
+NOTE: Without `canRerun = true`, the action's `hasRun` flag would prevent it from executing again, even though it returned `this`.
 
 ==== Looping States
 
@@ -453,6 +486,8 @@ In Kotlin, data classes declared inside a class are inner by default; use top-le
 - State actions are automatically discovered and registered
 - **State scoping**: When entering a new state, previous states are hidden - only current state's actions are available
 - **Context is preserved**: Non-state objects (user data, conversation, etc.) remain available across transitions
+- **Blackboard preserved**: State transitions hide previous states but preserve all other blackboard contents
+- **Staying in state**: Return `this` with `canRerun = true` to stay in the current state without transitioning
 - For **looping states**, use `@Action(clearBlackboard = true)` to enable returning to previously-visited state types
 - When using `clearBlackboard = true`, pass all necessary data through state record fields
 - Goals are defined with `@AchievesGoal` on terminal state actions
