@@ -122,7 +122,7 @@ class LoopingStateAgent {
 
     @State
     data class ProcessingState(val data: String, val iteration: Int) : LoopOutcome {
-        @Action
+        @Action(clearBlackboard = true)
         fun process(): LoopOutcome {
             val newIteration = iteration + 1
             iterationCount++
@@ -281,5 +281,101 @@ class NestedStateExecutionTest {
             assertTrue(output!!.result.contains("iterations: 3"), "Output should show 3 iterations: ${output.result}")
             assertTrue(output.result.contains("x++"), "Output should show accumulated data: ${output.result}")
         }
+    }
+
+    @Nested
+    inner class StateScopingTests {
+
+        @Test
+        fun `previous state is hidden when entering new state`() {
+            val agent = reader.createAgentMetadata(LinearNestedStateAgent()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+            val process = ap.runAgentFrom(
+                agent,
+                ProcessOptions().withVerbosity(Verbosity.DEFAULT.showPlanning()),
+                mapOf("it" to TaskInput("test"))
+            )
+            assertEquals(AgentProcessStatusCode.COMPLETED, process.status)
+            // Verify only final state actions ran, not duplicates from previous states
+            val history = process.history.map { it.actionName }
+            assertEquals(1, history.count { it.contains("processFirst") }, "processFirst should run exactly once: $history")
+            assertEquals(1, history.count { it.contains("processSecond") }, "processSecond should run exactly once: $history")
+        }
+
+        @Test
+        fun `context is preserved across state transitions`() {
+            val agent = reader.createAgentMetadata(ContextPreservingAgent()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+            val process = ap.runAgentFrom(
+                agent,
+                ProcessOptions().withVerbosity(Verbosity.DEFAULT.showPlanning()),
+                mapOf("it" to TaskInput("test"), "context" to SharedContext("preserved-value"))
+            )
+            assertEquals(AgentProcessStatusCode.COMPLETED, process.status, "Agent should complete")
+            val output = process.getValue("it", ContextOutput::class.java.name) as? ContextOutput
+            assertNotNull(output, "Should have output")
+            assertEquals("preserved-value", output!!.contextValue, "Context should be preserved across states")
+        }
+
+        @Test
+        fun `only current state actions are available after transition`() {
+            val agent = reader.createAgentMetadata(StateScopingAgent()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+            val process = ap.runAgentFrom(
+                agent,
+                ProcessOptions().withVerbosity(Verbosity.DEFAULT.showPlanning()),
+                mapOf("it" to TaskInput("test"))
+            )
+            assertEquals(AgentProcessStatusCode.COMPLETED, process.status, "Agent should complete")
+            val history = process.history.map { it.actionName }
+            // StateA.actionA should run once, then transition to StateB
+            // StateA.actionA should NOT run again because StateA is hidden
+            assertEquals(1, history.count { it.contains("StateA.actionA") }, "StateA.actionA should run exactly once: $history")
+            assertEquals(1, history.count { it.contains("StateB.actionB") }, "StateB.actionB should run exactly once: $history")
+        }
+    }
+}
+
+// Test data classes for state scoping tests
+data class SharedContext(val value: String)
+data class ContextOutput(val contextValue: String)
+
+/**
+ * Agent that verifies context is preserved across state transitions
+ */
+@Agent(description = "Context preserving agent")
+class ContextPreservingAgent {
+
+    @Action
+    fun start(input: TaskInput): ContextState = ContextState()
+
+    @State
+    class ContextState {
+        @AchievesGoal(description = "Context preserved")
+        @Action
+        fun useContext(context: SharedContext): ContextOutput = ContextOutput(context.value)
+    }
+}
+
+/**
+ * Agent that verifies only current state's actions are available
+ */
+@Agent(description = "State scoping agent")
+class StateScopingAgent {
+
+    @Action
+    fun start(input: TaskInput): StateA = StateA()
+
+    @State
+    class StateA {
+        @Action
+        fun actionA(): StateB = StateB()
+    }
+
+    @State
+    class StateB {
+        @AchievesGoal(description = "Complete")
+        @Action
+        fun actionB(): TaskOutput = TaskOutput("done")
     }
 }

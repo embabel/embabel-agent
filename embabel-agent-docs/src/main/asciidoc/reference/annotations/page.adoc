@@ -35,9 +35,40 @@ Defaults to false.
 
 ===== Clearing the Blackboard
 
-The `clearBlackboard` attribute is useful in multi-step workflows where you want to reset the processing context.
+The `clearBlackboard` attribute is useful in two scenarios:
+
+1. **Multi-step workflows** where you want to reset the processing context
+2. **Looping states** where an action returns to a previously-visited state type
+
 When an action with `clearBlackboard = true` completes, all objects on the blackboard are removed except the action's output.
-This prevents accumulated intermediate data from affecting subsequent processing.
+This prevents accumulated intermediate data from affecting subsequent processing and enables loops.
+
+====== Looping States
+
+The most common use case for `clearBlackboard` is enabling loops in state-based workflows:
+
+[source,java]
+----
+@State
+record ProcessingState(String data, int iteration) {
+    @Action(clearBlackboard = true)  // <1>
+    LoopOutcome process() {
+        if (iteration >= 3) {
+            return new DoneState(data);
+        }
+        return new ProcessingState(data + "+", iteration + 1);  // <2>
+    }
+}
+----
+
+<1> `clearBlackboard = true` enables returning to the same state type
+<2> Without clearing, returning `ProcessingState` would be blocked since the type already exists
+
+See xref:reference.states[Using States] for more details on looping state patterns.
+
+====== Resetting Context
+
+You can also use `clearBlackboard` to reset context in multi-step workflows:
 
 [source,java]
 ----

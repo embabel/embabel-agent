@@ -196,8 +196,19 @@ open class LoggingAgenticEventListener(
             .trimMargin()
             .indentLines(level = 1, skipIndentFirstLine = true)
 
-    protected open fun getStateTransitionEventMessage(e: StateTransitionEvent): String =
-        "[${e.processId}] transitioned to state: ${e.newState}"
+    protected open fun getStateTransitionEventMessage(e: StateTransitionEvent): String {
+        val stateTypeName = e.newState::class.java.simpleName
+        val prefix = "[${e.processId}]"
+        return when {
+            e.isInitialState -> "$prefix ENTERED STATE: $stateTypeName"
+            e.isSameInstance -> "$prefix STAYING IN STATE: $stateTypeName"
+            e.isSameType -> "$prefix RE-ENTERED STATE: $stateTypeName (new instance)"
+            else -> {
+                val previousTypeName = e.previousState!!::class.java.simpleName
+                "$prefix STATE TRANSITION: $previousTypeName -> $stateTypeName"
+            }
+        }
+    }
 
     protected open fun getEarlyTerminationMessage(e: EarlyTermination): String =
         "[${e.processId}] early termination by ${e.policy} for ${e.reason} - error=${e.error}"

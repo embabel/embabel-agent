@@ -139,7 +139,7 @@ public class WriteAndReviewAgent {
             return new HumanFeedback("whatever");
         }
 
-        @Action
+        @Action(clearBlackboard = true)
         Stage assess(HumanFeedback feedback, Ai ai) {
             // First assessment rejects (count=0), subsequent assessments accept
             var assessment = new Assessment(assessmentCount.getAndIncrement() > 0);
@@ -154,7 +154,7 @@ public class WriteAndReviewAgent {
     @State
     record ReviseStory(UserInput userInput, Story story, HumanFeedback humanFeedback) implements Stage {
 
-        @Action
+        @Action(clearBlackboard = true)
         AssessStory reviseStory(Ai ai) {
             var draft = ai
                     // Higher temperature for more creative output

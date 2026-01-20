@@ -120,10 +120,12 @@ private fun isStateTypeRecursive(clazz: Class<*>?, visited: MutableSet<Class<*>>
 
 /**
  * Compute whether an action should clear the blackboard.
- * Returns true if the method returns a @State type or if explicitly set in annotation.
+ * Returns true only if explicitly set in annotation.
+ * State transitions no longer automatically clear the blackboard to preserve
+ * context needed for replanning and trigger-based state actions.
  */
 internal fun computeClearBlackboard(method: Method, actionAnnotation: ActionAnnotation): Boolean =
-    isStateType(method.returnType) || actionAnnotation.clearBlackboard
+    actionAnnotation.clearBlackboard
 
 /**
  * Compute trigger preconditions for an action method.

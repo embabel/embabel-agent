@@ -10,13 +10,19 @@ Within each state, GOAP planning works normally.
 Actions have preconditions based on the types they require, and effects based on the types they produce.
 The planner finds the optimal sequence of actions to reach the goal.
 
-The key difference is that when an action returns a `@State`-annotated class, the framework:
+When an action returns a `@State`-annotated class, the framework:
 
-1. **Clears the blackboard** - Only the returned state object remains
-2. **Re-plans from the new state** - The planner considers only actions available in the new state
-3. **Continues execution** - Until a goal is reached or no plan can be found
+1. **Hides previous state objects** - Any existing state objects are hidden from the blackboard
+2. **Binds the new state object** - The returned state is added to the blackboard
+3. **Re-plans from the new state** - The planner considers only actions from the new state
+4. **Continues execution** - Until a goal is reached or no plan can be found
 
-This blackboard clearing is what enables looping: when you return to a previously visited state type, the `hasRun` tracking is effectively reset because the blackboard has been cleared.
+**Context is preserved** across state transitions - non-state objects (such as user messages, customer data, and conversation history) remain available.
+Only state objects are hidden, ensuring that only the current state's actions are considered by the planner.
+
+NOTE: State transitions **hide** previous state objects but do **not clear** the blackboard.
+Non-state objects remain available in the new state.
+To clear the entire blackboard (e.g., for looping), use `clearBlackboard = true` on the action.
 
 ==== When to Use States
 
@@ -30,6 +36,63 @@ States are ideal for:
 
 States allow loopback to a whole state, which may contain one or more actions.
 This is more flexible than traditional GOAP, where looping requires careful management of preconditions.
+
+==== Staying in the Current State
+
+An action can return `this` to stay in the current state.
+This is useful for actions that respond to inputs without changing state, such as chat handlers:
+
+[source,java]
+----
+@State
+record ChitchatState(String context) {
+    @Action(canRerun = true)  // <1>
+    ChitchatState respond(UserMessage message, Ai ai) {
+        var response = ai.generateText("Respond to: " + message.content());
+        // ... send response
+        return this;  // <2>
+    }
+}
+----
+
+<1> `canRerun = true` is required - by default, actions only run once per process
+<2> Returning `this` keeps the same state instance active
+
+When an action returns `this`:
+
+- The state remains active with no transition
+- The blackboard is preserved (no clearing)
+- The action can run again on subsequent planning cycles (if `canRerun = true`)
+
+NOTE: Without `canRerun = true`, the action's `hasRun` flag would prevent it from executing again, even though it returned `this`.
+
+==== Looping States
+
+For looping patterns where an action may return to a previously-visited state type, use `clearBlackboard = true` on the looping action:
+
+[source,java]
+----
+@State
+record ProcessingState(String data, int iteration) implements LoopOutcome {
+    @Action(clearBlackboard = true)  // <1>
+    LoopOutcome process() {
+        if (iteration >= 3) {
+            return new DoneState(data);  // <2>
+        }
+        return new ProcessingState(data + "+", iteration + 1);  // <3>
+    }
+}
+----
+
+<1> `clearBlackboard = true` allows the action to loop back to the same state type
+<2> Terminal condition exits the loop
+<3> Returns a new instance of the same state type for another iteration
+
+Without `clearBlackboard = true`, the planner would see the output type already exists on the blackboard and skip the action.
+Clearing the blackboard resets the context, allowing natural loops.
+
+TIP: Only use `clearBlackboard = true` on actions that participate in loops.
+For linear state transitions, the default behavior (preserving the blackboard) is usually preferred.
 
 ==== The @State Annotation
 
@@ -76,14 +139,18 @@ This works with:
 
 When an action returns a `@State`-annotated class (or a class that inherits `@State`):
 
+- Any previous state objects are **hidden** from the blackboard (not removed, but no longer visible)
 - The returned object is bound to the blackboard (as `it`)
-- All other objects on the blackboard are cleared
-- Planning considers actions defined within the state class
+- Planning considers only actions defined within the **current** state class
 - Any `@AchievesGoal` methods in the state become potential goals
 
-IMPORTANT: When entering a state, **everything else on the blackboard is cleared**.
-This means you must pass any necessary data to the state instance itself.
-For example, in the `WriteAndReviewAgent` below, each state carries `userInput`, `story`, and `properties` as fields because these won't be available on the blackboard after the state transition.
+Context (non-state objects) is preserved across state transitions.
+This means user messages, customer data, conversation history, etc. remain available in the new state.
+Only state objects are hidden, providing **state scoping** - ensuring only the current state's actions are considered.
+
+TIP: For looping states that return to a previously-visited state type, use `@Action(clearBlackboard = true)` on the looping action.
+This clears the blackboard (including hasRun conditions) and allows the loop to continue.
+See <<Looping States>> for details.
 
 ==== Parent State Interface Pattern
 
@@ -223,8 +290,8 @@ public class WriteAndReviewAgent {
                     HumanFeedback.class);
         }
 
-        @Action
-        Stage assess(HumanFeedback feedback, Ai ai) { // <8>
+        @Action(clearBlackboard = true)  // <8>
+        Stage assess(HumanFeedback feedback, Ai ai) {
             var assessment = ai.withDefaultLlm().createObject("""
                     Based on the following human feedback, determine if the story is acceptable.
                     Return true if the story is acceptable, false otherwise.
@@ -248,8 +315,8 @@ public class WriteAndReviewAgent {
     record ReviseStory(UserInput userInput, Story story, HumanFeedback humanFeedback,
                        Properties properties) implements Stage {
 
-        @Action
-        AssessStory reviseStory(Ai ai) { // <11>
+        @Action(clearBlackboard = true)  // <11>
+        AssessStory reviseStory(Ai ai) {
             var draft = ai
                     .withLlm(LlmOptions.withAutoLlm().withTemperature(.7))
                     .withPromptContributor(Personas.WRITER)
@@ -311,13 +378,13 @@ public class WriteAndReviewAgent {
 <2> **Parent state interface**: Allows actions to return any implementing state dynamically
 <3> **Properties record**: Configuration bundled together for easy passing through states
 <4> **Entry action**: Uses LLM to generate initial story draft
-<5> **State transition**: Returns `AssessStory` with all necessary data; blackboard will be cleared
+<5> **State transition**: Returns `AssessStory` with all necessary data
 <6> **HITL data type**: Simple record to capture human feedback
 <7> **WaitFor integration**: Pauses execution and waits for user to submit feedback form
-<8> **LLM-powered assessment**: Uses AI to interpret human feedback and decide next state
+<8> **Looping action**: `clearBlackboard = true` enables returning to a previously-visited state type
 <9> **Terminal branch**: If acceptable, transitions to `Done` state
 <10> **Loop branch**: If not acceptable, transitions to `ReviseStory` with the feedback
-<11> **Revision action**: Uses LLM to revise story based on feedback
+<11> **Looping action**: `clearBlackboard = true` enables looping back to `AssessStory`
 <12> **Loop back**: Returns new `AssessStory` for another round of feedback
 <13> **Goal achievement**: Final action that produces the reviewed story and exports it
 
@@ -325,17 +392,17 @@ public class WriteAndReviewAgent {
 
 The execution flow for this agent:
 
-1. **`craftStory`** executes with LLM, returns `AssessStory` -> blackboard cleared, enters `AssessStory` state
+1. **`craftStory`** executes with LLM, returns `AssessStory` -> enters `AssessStory` state
 2. **`getFeedback`** calls `WaitFor.formSubmission()` -> agent pauses, waits for user input
 3. User submits feedback -> `HumanFeedback` added to blackboard
 4. **`assess`** executes with LLM to interpret feedback:
-   - If acceptable: returns `Done` -> enters `Done` state
-   - If not acceptable: returns `ReviseStory` -> enters `ReviseStory` state
-5. If in `ReviseStory`: **`reviseStory`** executes with LLM, returns `AssessStory` -> loop back to step 2
+   - If acceptable: returns `Done` -> blackboard cleared, enters `Done` state
+   - If not acceptable: returns `ReviseStory` -> blackboard cleared, enters `ReviseStory` state
+5. If in `ReviseStory`: **`reviseStory`** executes with LLM, returns `AssessStory` -> blackboard cleared, loop back to step 2
 6. When in `Done`: **`reviewStory`** executes with LLM, returns `ReviewedStory` -> goal achieved
 
 The planner handles all transitions automatically, including loops.
-Each state transition clears the blackboard, so the planner doesn't see stale objects from previous iterations.
+The looping actions (`assess` and `reviseStory`) use `clearBlackboard = true` to enable returning to previously-visited state types.
 
 ==== Human-in-the-Loop with WaitFor
 
@@ -365,7 +432,7 @@ This integrates naturally with the state pattern: the feedback stays within the 
 
 ==== Passing Data Through States
 
-Since the blackboard is cleared on state transitions, all necessary context must be passed through state records:
+When using `clearBlackboard = true` for looping states, all necessary context must be passed through state records since the blackboard is cleared:
 
 [source,java]
 ----
@@ -386,6 +453,9 @@ record ReviseStory(
 ----
 
 TIP: Use a `Properties` record to bundle configuration values that need to pass through multiple states, rather than repeating individual fields.
+
+NOTE: For non-looping state transitions (where `clearBlackboard` is not used), the blackboard is preserved, and data can be accessed from the blackboard directly.
+This is useful when states need access to shared context like user identity or conversation history.
 
 ==== State Class Requirements
 
@@ -414,8 +484,12 @@ In Kotlin, data classes declared inside a class are inner by default; use top-le
 - Use **static nested classes** (Java records) or **top-level classes** to avoid persistence issues
 - Use a parent interface for polymorphic state returns
 - State actions are automatically discovered and registered
-- Blackboard is cleared on state transitions, enabling natural loops
-- Pass all necessary data through state record fields
+- **State scoping**: When entering a new state, previous states are hidden - only current state's actions are available
+- **Context is preserved**: Non-state objects (user data, conversation, etc.) remain available across transitions
+- **Blackboard preserved**: State transitions hide previous states but preserve all other blackboard contents
+- **Staying in state**: Return `this` with `canRerun = true` to stay in the current state without transitioning
+- For **looping states**, use `@Action(clearBlackboard = true)` to enable returning to previously-visited state types
+- When using `clearBlackboard = true`, pass all necessary data through state record fields
 - Goals are defined with `@AchievesGoal` on terminal state actions
 - Use `WaitFor` for human-in-the-loop interactions within states
 - Within a state, normal GOAP planning applies to sequence actions
