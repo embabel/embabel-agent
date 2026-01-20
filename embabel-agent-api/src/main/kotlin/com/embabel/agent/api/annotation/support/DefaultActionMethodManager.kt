@@ -34,6 +34,7 @@ import com.embabel.common.core.types.ZeroToOne
 import com.embabel.plan.CostComputation
 import com.embabel.plan.WorldState
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.core.KotlinDetector
 import org.springframework.stereotype.Component
 import org.springframework.util.ReflectionUtils
@@ -54,13 +55,33 @@ import kotlin.reflect.jvm.kotlinFunction
 internal class DefaultActionMethodManager(
     val nameGenerator: MethodDefinedOperationNameGenerator = MethodDefinedOperationNameGenerator(),
     val actionQosProvider: ActionQosProvider = DefaultActionQosProvider(),
-    override val argumentResolvers: List<ActionMethodArgumentResolver> = listOf(
-        ProcessContextArgumentResolver(),
-        OperationContextArgumentResolver(),
-        AiArgumentResolver(),
-        BlackboardArgumentResolver(),
-    ),
+    @Autowired(required = false) contextProvider: ContextProvider? = null,
+    override val argumentResolvers: List<ActionMethodArgumentResolver> = buildArgumentResolvers(contextProvider),
 ) : ActionMethodManager {
+
+    companion object {
+        /**
+         * Build the list of argument resolvers, optionally including
+         * [ProvidedArgumentResolver] if a [ContextProvider] is available.
+         */
+        internal fun buildArgumentResolvers(
+            contextProvider: ContextProvider?,
+        ): List<ActionMethodArgumentResolver> {
+            val resolvers = mutableListOf<ActionMethodArgumentResolver>(
+                ProcessContextArgumentResolver(),
+                OperationContextArgumentResolver(),
+                AiArgumentResolver(),
+            )
+            // Add ProvidedArgumentResolver before BlackboardArgumentResolver
+            // so @Provided takes precedence over blackboard lookup
+            if (contextProvider != null) {
+                resolvers += ProvidedArgumentResolver(contextProvider)
+            }
+            // BlackboardArgumentResolver should be last as a fallback
+            resolvers += BlackboardArgumentResolver()
+            return resolvers
+        }
+    }
 
     private val logger = LoggerFactory.getLogger(DefaultActionMethodManager::class.java)
 
