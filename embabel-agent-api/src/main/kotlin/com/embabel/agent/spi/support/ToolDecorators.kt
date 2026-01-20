@@ -19,6 +19,7 @@ import com.embabel.agent.api.event.ToolCallRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.StringTransformer
@@ -130,6 +131,10 @@ class MetadataEnrichedTool(
     override fun call(input: String): Tool.Result {
         try {
             return delegate.call(input)
+        } catch (e: ReplanRequestedException) {
+            // ReplanRequestedException is not a failure - it's a control flow signal
+            // to terminate the tool loop and trigger replanning
+            throw e
         } catch (t: Throwable) {
             loggerFor<MetadataEnrichedTool>().warn(
                 "Tool call failure on ${delegate.definition.name}: input from LLM was <$input>",
@@ -206,6 +211,9 @@ fun Tool.withEventPublication(
 
 /**
  * Tool decorator that suppresses exceptions and returns a warning message instead.
+ *
+ * Note: [ReplanRequestedException] is NOT suppressed - it is a control flow signal
+ * that must propagate to the tool loop to trigger replanning.
  */
 class ExceptionSuppressingTool(
     override val delegate: Tool,
@@ -217,6 +225,9 @@ class ExceptionSuppressingTool(
     override fun call(input: String): Tool.Result {
         return try {
             delegate.call(input)
+        } catch (e: ReplanRequestedException) {
+            // ReplanRequestedException must propagate to trigger replanning
+            throw e
         } catch (t: Throwable) {
             Tool.Result.text("WARNING: Tool '${delegate.definition.name}' failed with exception: ${t.message ?: "No message"}")
         }

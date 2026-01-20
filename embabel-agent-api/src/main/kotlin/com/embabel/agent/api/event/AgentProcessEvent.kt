@@ -15,7 +15,13 @@
  */
 package com.embabel.agent.api.event
 
-import com.embabel.agent.core.*
+import com.embabel.agent.core.Action
+import com.embabel.agent.core.ActionInvocation
+import com.embabel.agent.core.ActionStatus
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.AgentProcessStatusReport
+import com.embabel.agent.core.InProcess
+import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmMetadata
@@ -60,6 +66,11 @@ class AgentProcessCreationEvent(
 class AgentProcessReadyToPlanEvent(
     agentProcess: AgentProcess,
     val worldState: WorldState,
+) : AbstractAgentProcessEvent(agentProcess)
+
+class ReplanRequestedEvent(
+    agentProcess: AgentProcess,
+    val reason: String,
 ) : AbstractAgentProcessEvent(agentProcess)
 
 class AgentProcessPlanFormulatedEvent(

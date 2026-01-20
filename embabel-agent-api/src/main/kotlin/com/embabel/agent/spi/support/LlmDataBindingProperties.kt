@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.common.RetryTemplateProvider
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -45,15 +46,21 @@ class LlmDataBindingProperties(
         return RetryTemplate.builder()
             .maxAttempts(maxAttempts)
             .fixedBackoff(Duration.ofMillis(fixedBackoffMillis))
+            // ReplanRequestedException is a control flow signal, not an error to retry
+            .notRetryOn(ReplanRequestedException::class.java)
             .withListener(object : RetryListener {
                 override fun <T : Any, E : Throwable> onError(
                     context: RetryContext,
                     callback: RetryCallback<T, E>,
                     throwable: Throwable,
                 ) {
+                    // ReplanRequestedException is a control flow signal, not an error
+                    if (throwable is ReplanRequestedException) {
+                        return
+                    }
                     if (isRateLimitError(throwable)) {
                         logger.info(
-                            "🔒 LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
+                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
                             name,
                             context.retryCount,
                             maxAttempts,

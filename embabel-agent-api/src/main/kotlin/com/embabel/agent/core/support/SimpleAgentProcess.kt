@@ -18,7 +18,13 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.api.event.GoalAchievedEvent
-import com.embabel.agent.core.*
+import com.embabel.agent.api.event.ReplanRequestedEvent
+import com.embabel.agent.core.Agent
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.AgentProcessStatusCode
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ProcessOptions
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.PlannerFactory
 import com.embabel.common.util.indentLines
 import com.embabel.plan.Plan
@@ -52,6 +58,14 @@ open class SimpleAgentProcess(
     )
 
     override val planner: Planner<*, *, *> = plannerFactory.createPlanner(processOptions, worldStateDeterminer)
+
+    /**
+     * Actions to exclude from the next planning cycle.
+     * Used to prevent infinite loops when an action requests replan but
+     * would be the only applicable action again.
+     * Cleared after each successful planning cycle.
+     */
+    private val replanBlacklist = mutableSetOf<String>()
 
     protected fun handlePlanNotFound(worldState: WorldState): AgentProcess {
         logger.debug(
@@ -110,10 +124,27 @@ open class SimpleAgentProcess(
     }
 
     override fun formulateAndExecutePlan(worldState: WorldState): AgentProcess {
-        val plan = planner.bestValuePlanToAnyGoal(system = agent.planningSystem)
+        // Use blacklist to exclude actions that just triggered replan
+        val plan = planner.bestValuePlanToAnyGoal(
+            system = agent.planningSystem,
+            excludedActionNames = replanBlacklist,
+        )
         if (plan == null) {
+            // If no plan found with blacklist, try without it as a fallback
+            // This handles the case where the blacklisted action is the only option
+            if (replanBlacklist.isNotEmpty()) {
+                logger.debug(
+                    "No plan found with blacklist {}, clearing and retrying",
+                    replanBlacklist,
+                )
+                replanBlacklist.clear()
+                return formulateAndExecutePlan(worldState)
+            }
             return handlePlanNotFound(worldState)
         }
+
+        // Clear blacklist after successful planning
+        replanBlacklist.clear()
 
         _goal = plan.goal
 
@@ -122,15 +153,35 @@ open class SimpleAgentProcess(
         } else {
             sendProcessRunningEvent(plan, worldState)
 
-            val agent = agent.actions.singleOrNull { it.name == plan.actions.first().name }
+            val action = agent.actions.singleOrNull { it.name == plan.actions.first().name }
                 ?: error(
                     "No unique action found for ${plan.actions.first().name} in ${agent.actions.map { it.name }}: Actions are\n${
                         agent.actions.joinToString(
                             "\n"
                         ) { it.name }
                     }")
-            val actionStatus = executeAction(agent)
-            setStatus(actionStatusToAgentProcessStatus(actionStatus))
+            try {
+                val actionStatus = executeAction(action)
+                setStatus(actionStatusToAgentProcessStatus(actionStatus))
+            } catch (rpe: ReplanRequestedException) {
+                // Apply blackboard updates from the replan request
+                rpe.blackboardUpdater.accept(blackboard)
+                // Blacklist this action for the next planning cycle to prevent infinite loops
+                replanBlacklist.add(action.name)
+                logger.info(
+                    "Action {} requested replan: {}. Blacklisted for next cycle.",
+                    action.name,
+                    rpe.reason,
+                )
+                platformServices.eventListener.onProcessEvent(
+                    ReplanRequestedEvent(
+                        agentProcess = this,
+                        reason = rpe.reason,
+                    )
+                )
+                // Keep status as RUNNING to trigger replanning on next tick
+                setStatus(AgentProcessStatusCode.RUNNING)
+            }
         }
         return this
     }

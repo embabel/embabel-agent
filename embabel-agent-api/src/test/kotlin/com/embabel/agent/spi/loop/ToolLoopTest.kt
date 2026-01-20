@@ -16,7 +16,11 @@
 package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import io.mockk.mockk
+import io.mockk.verify
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
@@ -217,6 +221,133 @@ class ToolLoopTest {
             assertTrue(strategyEvaluated)
             assertEquals(1, result.injectedTools.size)
             assertEquals("bonus_tool", result.injectedTools[0].definition.name)
+        }
+    }
+
+    @Nested
+    inner class ReplanRequestTest {
+
+        @Test
+        fun `tool loop terminates gracefully when tool throws ReplanRequestedException`() {
+            val replanningTool = MockTool(
+                name = "routing_tool",
+                description = "Routes to appropriate handler",
+                onCall = {
+                    // Tool decides a replan is needed
+                    throw ReplanRequestedException(
+                        reason = "User intent requires different action",
+                    )
+                }
+            )
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("call_1", "routing_tool", "{}"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Route me")),
+                initialTools = listOf(replanningTool),
+                outputParser = { it }
+            )
+
+            // Should terminate without error, indicating replan needed
+            assertTrue(result.replanRequested, "Should indicate replan was requested")
+            assertEquals("User intent requires different action", result.replanReason)
+        }
+
+        @Test
+        fun `ReplanRequestedException can include blackboard updater`() {
+            data class RoutingDecision(val targetAction: String, val confidence: Double)
+            val routingDecision = RoutingDecision("handleSupport", 0.95)
+
+            val replanningTool = MockTool(
+                name = "intent_classifier",
+                description = "Classifies user intent",
+                onCall = {
+                    throw ReplanRequestedException(
+                        reason = "Classified as support request",
+                        blackboardUpdater = { bb ->
+                            bb.addObject(routingDecision)
+                            bb.addObject("support")
+                        }
+                    )
+                }
+            )
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("call_1", "intent_classifier", "{}"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("I need help")),
+                initialTools = listOf(replanningTool),
+                outputParser = { it }
+            )
+
+            assertTrue(result.replanRequested)
+            // Verify the blackboardUpdater is present by invoking it
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            result.blackboardUpdater.accept(mockBlackboard)
+            verify { mockBlackboard.addObject(routingDecision) }
+            verify { mockBlackboard.addObject("support") }
+        }
+
+        @Test
+        fun `tool loop includes conversation history when replan requested`() {
+            var toolCallCount = 0
+            val normalTool = MockTool(
+                name = "gather_info",
+                description = "Gathers information",
+                onCall = {
+                    toolCallCount++
+                    Tool.Result.text("Info gathered")
+                }
+            )
+
+            val replanningTool = MockTool(
+                name = "decide",
+                description = "Makes decision",
+                onCall = {
+                    throw ReplanRequestedException(reason = "Need different approach")
+                }
+            )
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("call_1", "gather_info", "{}"),
+                    MockLlmMessageSender.toolCallResponse("call_2", "decide", "{}"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Do something")),
+                initialTools = listOf(normalTool, replanningTool),
+                outputParser = { it }
+            )
+
+            assertTrue(result.replanRequested)
+            assertEquals(1, toolCallCount) // First tool was called
+            // Conversation should include: User, Assistant(tool call), ToolResult, Assistant(tool call)
+            assertTrue(result.conversationHistory.size >= 3)
         }
     }
 

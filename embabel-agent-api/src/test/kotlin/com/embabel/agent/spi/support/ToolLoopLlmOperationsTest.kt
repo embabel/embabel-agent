@@ -19,8 +19,12 @@ import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import io.mockk.mockk
+import io.mockk.verify
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmService
@@ -52,6 +56,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -334,6 +339,145 @@ class ToolLoopLlmOperationsTest {
             )
 
             assertEquals("Done", result)
+        }
+    }
+
+    @Nested
+    inner class ReplanRequestedTests {
+
+        @Test
+        fun `doTransform throws ReplanRequestedException when tool requests replan`() {
+            val replanTool = TestTool(
+                name = "routing_tool",
+                description = "Routes to handler",
+                onCall = {
+                    throw ReplanRequestedException(
+                        reason = "User needs support",
+                        blackboardUpdater = { bb -> bb["intent"] = "support" }
+                    )
+                }
+            )
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    toolCallResponse("call_1", "routing_tool", "{}")
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                operations.testDoTransform(
+                    messages = listOf(UserMessage("Route me")),
+                    interaction = createInteraction(tools = listOf(replanTool)),
+                    outputClass = String::class.java,
+                )
+            }
+
+            assertEquals("User needs support", exception.reason)
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater.accept(mockBlackboard)
+            verify { mockBlackboard["intent"] = "support" }
+        }
+
+        @Test
+        fun `doTransform propagates blackboard updater from replan request`() {
+            val metadata = mapOf("source" to "classifier_v2")
+            val replanTool = TestTool(
+                name = "classifier",
+                description = "Classifies intent",
+                onCall = {
+                    throw ReplanRequestedException(
+                        reason = "Classified as billing request",
+                        blackboardUpdater = { bb ->
+                            bb["intent"] = "billing"
+                            bb["confidence"] = 0.95
+                            bb["targetAction"] = "handleBilling"
+                            bb["metadata"] = metadata
+                        }
+                    )
+                }
+            )
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    toolCallResponse("call_1", "classifier", """{"message": "billing question"}""")
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                operations.testDoTransform(
+                    messages = listOf(UserMessage("I have a billing question")),
+                    interaction = createInteraction(tools = listOf(replanTool)),
+                    outputClass = String::class.java,
+                )
+            }
+
+            assertEquals("Classified as billing request", exception.reason)
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater.accept(mockBlackboard)
+            verify { mockBlackboard["intent"] = "billing" }
+            verify { mockBlackboard["confidence"] = 0.95 }
+            verify { mockBlackboard["targetAction"] = "handleBilling" }
+            verify { mockBlackboard["metadata"] = metadata }
+        }
+
+        @Test
+        fun `doTransform rethrows ReplanRequestedException with empty blackboard updater`() {
+            val replanTool = TestTool(
+                name = "replan_tool",
+                description = "Triggers replan",
+                onCall = {
+                    throw ReplanRequestedException(
+                        reason = "Replan needed"
+                    )
+                }
+            )
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    toolCallResponse("call_1", "replan_tool", "{}")
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val exception = assertThrows<ReplanRequestedException> {
+                operations.testDoTransform(
+                    messages = listOf(UserMessage("Trigger replan")),
+                    interaction = createInteraction(tools = listOf(replanTool)),
+                    outputClass = String::class.java,
+                )
+            }
+
+            assertEquals("Replan needed", exception.reason)
+            // Verify the empty callback doesn't fail when invoked
+            val mockBlackboard = mockk<Blackboard>(relaxed = true)
+            exception.blackboardUpdater.accept(mockBlackboard)
+        }
+
+        @Test
+        fun `doTransform completes normally when tool executes without replan`() {
+            val normalTool = TestTool(
+                name = "normal_tool",
+                description = "A normal tool",
+                onCall = { Tool.Result.text("""{"status": "success"}""") }
+            )
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    toolCallResponse("call_1", "normal_tool", "{}"),
+                    textResponse("Tool executed successfully")
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val result = operations.testDoTransform(
+                messages = listOf(UserMessage("Use tool")),
+                interaction = createInteraction(tools = listOf(normalTool)),
+                outputClass = String::class.java,
+            )
+
+            assertEquals("Tool executed successfully", result)
         }
     }
 

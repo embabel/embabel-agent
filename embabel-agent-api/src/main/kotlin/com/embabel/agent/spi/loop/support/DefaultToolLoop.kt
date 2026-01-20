@@ -16,6 +16,8 @@
 package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.BlackboardUpdater
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.MaxIterationsExceededException
@@ -84,7 +86,12 @@ internal class DefaultToolLoop(
 
             val assistantMessage = callResult.message as AssistantMessageWithToolCalls
             for (toolCall in assistantMessage.toolCalls) {
-                processToolCall(toolCall, state)
+                val shouldContinue = processToolCall(toolCall, state)
+                if (!shouldContinue) {
+                    // Tool requested replan - terminate loop gracefully
+                    logger.info("Tool loop terminated for replan after {} iterations", state.iterations)
+                    return buildResult("", outputParser, state)
+                }
             }
         }
 
@@ -111,18 +118,33 @@ internal class DefaultToolLoop(
         injectedTools = state.injectedTools,
         removedTools = state.removedTools,
         totalUsage = state.accumulatedUsage,
+        replanRequested = state.replanRequested,
+        replanReason = state.replanReason,
+        blackboardUpdater = state.blackboardUpdater,
     )
 
+    /**
+     * Process a tool call, returning true if the loop should continue, false if replan was requested.
+     */
     private fun processToolCall(
         toolCall: ToolCall,
         state: LoopState,
-    ) {
+    ): Boolean {
         val tool = findTool(state.availableTools, toolCall.name)
             ?: throw ToolNotFoundException(toolCall.name, state.availableTools.map { it.definition.name })
 
-        val resultContent = executeToolCall(tool, toolCall)
-        applyInjectionStrategy(toolCall, resultContent, state)
-        addToolResultToHistory(toolCall, resultContent, state)
+        return try {
+            val resultContent = executeToolCall(tool, toolCall)
+            applyInjectionStrategy(toolCall, resultContent, state)
+            addToolResultToHistory(toolCall, resultContent, state)
+            true
+        } catch (e: ReplanRequestedException) {
+            logger.info("Tool '{}' requested replan: {}", toolCall.name, e.reason)
+            state.replanRequested = true
+            state.replanReason = e.reason
+            state.blackboardUpdater = e.blackboardUpdater
+            false
+        }
     }
 
     private fun executeToolCall(
@@ -218,6 +240,9 @@ internal class DefaultToolLoop(
         val removedTools: MutableList<Tool> = mutableListOf(),
         var accumulatedUsage: Usage? = null,
         var iterations: Int = 0,
+        var replanRequested: Boolean = false,
+        var replanReason: String? = null,
+        var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
     )
 
     /**
