@@ -16,7 +16,6 @@
 package com.embabel.agent.spi.support.springai.streaming
 
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.PromptRunnerOptions
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.validation.guardrails.GuardRailConfiguration
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
@@ -191,14 +190,12 @@ class StreamingChatClientOperationsGuardRailTest {
 
         val setup = createStreamingChatClientOperations(StreamingGuardRailTestFakeChatModel("Streaming response"))
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(userInputGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-streaming-interaction"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options
+            guardRails = listOf(userInputGuard)
         )
 
         val llmRequestEvent = mockk<LlmRequestEvent<String>>(relaxed = true)
@@ -244,14 +241,12 @@ class StreamingChatClientOperationsGuardRailTest {
 
         val setup = createStreamingChatClientOperations(StreamingGuardRailTestFakeChatModel("Should not reach this"))
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(criticalUserGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-streaming-critical"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options
+            guardRails = listOf(criticalUserGuard)
         )
 
         val llmRequestEvent = mockk<LlmRequestEvent<String>>(relaxed = true)

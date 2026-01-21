@@ -89,7 +89,7 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     fun withValidation(validation: Boolean): PromptExecutionDelegate
 
-    fun withGuards(vararg guards: GuardRail): PromptExecutionDelegate
+    fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate
 
     // Execution methods
     fun <T> createObject(

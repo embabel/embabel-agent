@@ -36,6 +36,38 @@ One of the benefits of using framework is access to _Blackboard_ object, and as 
 
 [source,java]
 ----
+// sample simple User Input Guard Rail
+record UserInputThinkingtGuardRail() implements UserInputGuardRail {
+
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull List<@NotNull UserMessage> userMessages, @NotNull Blackboard blackboard) {
+            logger.info("Validated User Input {}", userMessages);
+            return UserInputGuardRail.super.validate(userMessages, blackboard);
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull MultimodalContent content, @NotNull Blackboard blackboard) {
+            return UserInputGuardRail.super.validate(content, blackboard);
+        }
+
+        @Override
+        public @NotNull String getName() {
+            return "UserInputThinkingtGuardRail";
+        }
+
+        @Override
+        public @NotNull String getDescription() {
+            return "UserInputThinkingtGuardRail";
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+            logger.info("Validated Simple User Input {}", input);
+            return new ValidationResult(true, Collections.emptyList());
+        }
+    }
+
  PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
                         .withToolObject(Tooling.class)
                         .withGuards(new UserInputThinkingtGuardRail())
@@ -57,4 +89,8 @@ In the example above LLM can't provide definite answer, and can't construct an o
 Since I must be SURE about EVERY field and cannot make assumptions or provide approximate values, I cannot provide the success structure with confidence
 ```
 
+==== Guardrails and Agent Action Validation
+
 Guardrails can be instrumental in automating further LLM responses analysis, for example using semantic text processing with the help of https://stanfordnlp.github.io/CoreNLP/[CoreNLP]
+
+In the context of Agent Actions there is planned feature development of Validation framework with Actions being subject of validations. Validation framework expected to re-use basic data structures employed by Guardrails, such as _ValidationResult_, _ValidationError_, and _ContentValidator_.

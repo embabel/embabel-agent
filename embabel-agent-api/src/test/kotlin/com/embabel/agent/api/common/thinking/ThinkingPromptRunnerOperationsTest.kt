@@ -259,7 +259,7 @@ class ThinkingPromptRunnerOperationsTest {
             // Guardrail methods - no-op implementations for test purposes
             // These are required because StreamingPromptRunner extends PromptRunner which has guardrail methods
             // For test isolation, we don't need actual guardrail functionality
-            override fun withGuards(vararg guards: GuardRail): PromptRunner = this
+            override fun withGuardRails(vararg guards: GuardRail): PromptRunner = this
         }
 
         // When/Then: Call withThinking() on StreamingPromptRunner should throw exception

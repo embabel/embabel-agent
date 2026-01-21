@@ -38,7 +38,7 @@ internal fun validateUserInput(
     interaction: LlmInteraction,
     blackboard: Blackboard?
 ) {
-    val userInputGuards = interaction.options.guardRailConfig.guards
+    val userInputGuards = interaction.guardRails
         .filterIsInstance<UserInputGuardRail>()
 
     if (userInputGuards.isEmpty()) return
@@ -58,7 +58,7 @@ internal fun validateAssistantResponse(
     interaction: LlmInteraction,
     blackboard: Blackboard?
 ) {
-    val assistantGuards = interaction.options.guardRailConfig.guards
+    val assistantGuards = interaction.guardRails
         .filterIsInstance<AssistantMessageGuardRail>()
 
     if (assistantGuards.isEmpty()) return
@@ -78,7 +78,7 @@ internal fun validateAssistantResponse(
     interaction: LlmInteraction,
     blackboard: Blackboard?
 ) {
-    val assistantGuards = interaction.options.guardRailConfig.guards
+    val assistantGuards = interaction.guardRails
         .filterIsInstance<AssistantMessageGuardRail>()
 
     if (assistantGuards.isEmpty()) return
@@ -98,7 +98,7 @@ internal fun validateAssistantResponse(
     interaction: LlmInteraction,
     blackboard: Blackboard?
 ) {
-    val assistantGuards = interaction.options.guardRailConfig.guards
+    val assistantGuards = interaction.guardRails
         .filterIsInstance<AssistantMessageGuardRail>()
 
     if (assistantGuards.isEmpty()) return

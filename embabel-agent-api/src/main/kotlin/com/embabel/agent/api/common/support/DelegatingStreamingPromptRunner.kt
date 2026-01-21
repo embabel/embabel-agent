@@ -212,7 +212,7 @@ internal data class DelegatingStreamingPromptRunner(
         )
     }
 
-    override fun withGuards(vararg guards: GuardRail): PromptRunner {
-        return copy(delegate = delegate.withGuards(*guards))
+    override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
+        return copy(delegate = delegate.withGuardRails(*guards))
     }
 }

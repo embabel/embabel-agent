@@ -38,9 +38,9 @@ class GuardRailDefaultImplementationTest {
         val guard = object : UserInputGuardRail {
             override val name = "DefaultTestGuard"
             override val description = "Tests default implementations"
-            
+
             var lastValidatedInput: String? = null
-            
+
             override fun validate(input: String, blackboard: com.embabel.agent.core.Blackboard): ValidationResult {
                 lastValidatedInput = input
                 return ValidationResult.VALID
@@ -52,9 +52,9 @@ class GuardRailDefaultImplementationTest {
             UserMessage("First message"),
             UserMessage("Second message")
         )
-        
+
         val result = guard.validate(messages, blackboard)
-        
+
         assertEquals(ValidationResult.VALID, result)
         assertEquals("First message\nSecond message", guard.lastValidatedInput)
     }
@@ -64,20 +64,20 @@ class GuardRailDefaultImplementationTest {
         val guard = object : UserInputGuardRail {
             override val name = "DefaultTestGuard"
             override val description = "Tests default implementations"
-            
+
             var lastValidatedInput: String? = null
-            
+
             override fun validate(input: String, blackboard: com.embabel.agent.core.Blackboard): ValidationResult {
                 lastValidatedInput = input
                 return ValidationResult.VALID
             }
         }
 
-        // Test the default validate(MultimodalContent) implementation  
+        // Test the default validate(MultimodalContent) implementation
         val content = MultimodalContent(text = "Multimodal text")
-        
+
         val result = guard.validate(content, blackboard)
-        
+
         assertEquals(ValidationResult.VALID, result)
         assertEquals("Multimodal text", guard.lastValidatedInput)
     }
@@ -87,14 +87,14 @@ class GuardRailDefaultImplementationTest {
         val guard = object : AssistantMessageGuardRail {
             override val name = "DefaultAssistantTestGuard"
             override val description = "Tests default implementations"
-            
+
             var lastValidatedInput: String? = null
-            
+
             override fun validate(input: String, blackboard: com.embabel.agent.core.Blackboard): ValidationResult {
                 lastValidatedInput = input
                 return ValidationResult.VALID
             }
-            
+
             override fun validate(response: ThinkingResponse<*>, blackboard: com.embabel.agent.core.Blackboard): ValidationResult {
                 // Required implementation, but we're testing the AssistantMessage default method
                 return ValidationResult.VALID
@@ -103,9 +103,9 @@ class GuardRailDefaultImplementationTest {
 
         // Test the default validate(AssistantMessage) implementation
         val message = AssistantMessage("Assistant response content")
-        
+
         val result = guard.validate(message, blackboard)
-        
+
         assertEquals(ValidationResult.VALID, result)
         assertEquals("Assistant response content", guard.lastValidatedInput)
     }

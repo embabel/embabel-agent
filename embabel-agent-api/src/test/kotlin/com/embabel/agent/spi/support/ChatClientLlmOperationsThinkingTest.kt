@@ -16,7 +16,6 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.PromptRunnerOptions
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
 import com.embabel.agent.api.validation.guardrails.GuardRailConfiguration
@@ -951,14 +950,12 @@ class ChatClientLlmOperationsThinkingTest {
         val fakeChatModel = FakeChatModel(rawLlmResponse)
         val setup = createChatClientLlmOperations(fakeChatModel)
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(userInputGuard, assistantGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-thinking-guardrails"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options
+            guardRails = listOf(userInputGuard, assistantGuard)
         )
 
         val llmRequestEvent = mockk<LlmRequestEvent<String>>(relaxed = true)
@@ -1031,14 +1028,12 @@ class ChatClientLlmOperationsThinkingTest {
         val fakeChatModel = FakeChatModel(successResponse)
         val setup = createChatClientLlmOperations(fakeChatModel)
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(userInputGuard, assistantGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-thinking-ifpossible-guardrails"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options
+            guardRails = listOf(userInputGuard, assistantGuard)
         )
 
         val llmRequestEvent = mockk<LlmRequestEvent<SimpleResult>>(relaxed = true)

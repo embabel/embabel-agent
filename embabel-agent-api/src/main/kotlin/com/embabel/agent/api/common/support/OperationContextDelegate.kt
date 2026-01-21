@@ -66,7 +66,7 @@ internal data class OperationContextDelegate(
     override val propertyFilter: Predicate<String> = Predicate { true },
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
-    private val options: PromptRunnerOptions = PromptRunnerOptions.DEFAULT,
+    private val guardRails: List<GuardRail> = emptyList(),
 ) : PromptExecutionDelegate {
 
     val action = (context as? ActionContext)?.action
@@ -158,8 +158,8 @@ internal data class OperationContextDelegate(
 
     override fun withValidation(validation: Boolean): PromptExecutionDelegate = copy(validation = validation)
 
-    override fun withGuards(vararg guards: GuardRail): PromptExecutionDelegate =
-        copy(options = options.withGuards(*guards))
+    override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate =
+        copy(guardRails = this.guardRails + guards)
 
 
     // Execution methods
@@ -184,7 +184,7 @@ internal data class OperationContextDelegate(
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 validation = validation,
-                options = options,
+                guardRails = guardRails,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -212,7 +212,7 @@ internal data class OperationContextDelegate(
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 validation = validation,
-                options = options,
+                guardRails = guardRails,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -305,7 +305,7 @@ internal data class OperationContextDelegate(
             id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
             generateExamples = generateExamples,
             propertyFilter = propertyFilter,
-            options = options,
+            guardRails = guardRails,
         )
 
     override fun supportsThinking(): Boolean = true
@@ -411,7 +411,7 @@ internal data class OperationContextDelegate(
             id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
             generateExamples = generateExamples,
             propertyFilter = propertyFilter,
-            options = options,
+            guardRails = guardRails,
         )
     }
 

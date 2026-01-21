@@ -68,7 +68,7 @@ internal data class OperationContextPromptRunner(
     override val propertyFilter: Predicate<String> = Predicate { true },
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
-    val options: PromptRunnerOptions = PromptRunnerOptions.DEFAULT,
+    private val guardRails: List<GuardRail> = emptyList(),
 ) : StreamingPromptRunner {
 
     val action = (context as? ActionContext)?.action
@@ -141,7 +141,7 @@ internal data class OperationContextPromptRunner(
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 validation = validation,
-                options = options,
+                guardRails = guardRails,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -169,7 +169,7 @@ internal data class OperationContextPromptRunner(
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 validation = validation,
-                options = options,
+                guardRails = guardRails,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -345,7 +345,7 @@ internal data class OperationContextPromptRunner(
                 id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
-                options = options,
+                guardRails = guardRails,
             ),
             messages = messages,
             agentProcess = context.processContext.agentProcess,
@@ -392,7 +392,7 @@ internal data class OperationContextPromptRunner(
                 id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
-                options = options,
+                guardRails = guardRails,
             ),
             messages = messages,
             agentProcess = context.processContext.agentProcess,
@@ -403,9 +403,9 @@ internal data class OperationContextPromptRunner(
     /**
      * Add guardrail instances (additive).
      */
-    override fun withGuards(vararg guards: GuardRail): PromptRunner {
+    override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
         return copy(
-            options = options.withGuards(*guards)
+            guardRails = this.guardRails + guards
         )
     }
 

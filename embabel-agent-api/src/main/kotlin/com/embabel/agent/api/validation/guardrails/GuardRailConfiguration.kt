@@ -31,7 +31,7 @@ data class GuardRailConfiguration(
      * @param guards the guardrail instances to add
      * @return new configuration with the specified guards added
      */
-    fun withGuards(vararg guards: GuardRail): GuardRailConfiguration =
+    fun withGuardRails(vararg guards: GuardRail): GuardRailConfiguration =
         copy(guards = this.guards + guards)
 
     /**

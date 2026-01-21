@@ -477,7 +477,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * @param guards the guardrail instances to add
      * @return PromptRunner instance with additional guardrails configured
      */
-    fun withGuards(vararg guards: GuardRail): PromptRunner
+    fun withGuardRails(vararg guards: GuardRail): PromptRunner
 
 }
 

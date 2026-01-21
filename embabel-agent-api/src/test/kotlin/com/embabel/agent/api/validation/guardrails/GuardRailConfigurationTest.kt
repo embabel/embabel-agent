@@ -38,10 +38,10 @@ class GuardRailConfigurationTest {
     }
 
     @Test
-    fun `withGuards should preserve existing guards when building guard chains`() {
+    fun `withGuardRails should preserve existing guards when building guard chains`() {
         val baseConfig = GuardRailConfiguration(guards = listOf(createTestUserInputGuard()))
 
-        val enhancedConfig = baseConfig.withGuards(createTestAssistantGuard())
+        val enhancedConfig = baseConfig.withGuardRails(createTestAssistantGuard())
 
         assertEquals(1, baseConfig.guards.size)
         assertEquals(2, enhancedConfig.guards.size)
@@ -53,8 +53,8 @@ class GuardRailConfigurationTest {
     @Test
     fun `fluent configuration should support complex guardrail setup scenarios`() {
         val productionConfig = GuardRailConfiguration.NONE
-            .withGuards(createTestUserInputGuard())
-            .withGuards(createTestAssistantGuard())
+            .withGuardRails(createTestUserInputGuard())
+            .withGuardRails(createTestAssistantGuard())
 
         assertEquals(2, productionConfig.guards.size)
         assertTrue(productionConfig.hasGuards())
@@ -64,9 +64,9 @@ class GuardRailConfigurationTest {
     }
 
     @Test
-    fun `withGuards should handle multiple guard types correctly`() {
+    fun `withGuardRails should handle multiple guard types correctly`() {
         val mixedConfig = GuardRailConfiguration()
-            .withGuards(createTestUserInputGuard(), createTestAssistantGuard())
+            .withGuardRails(createTestUserInputGuard(), createTestAssistantGuard())
 
         assertEquals(2, mixedConfig.guards.size)
         assertTrue(mixedConfig.hasGuards())

@@ -23,7 +23,6 @@ import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail;
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
 import com.embabel.agent.core.Blackboard;
-import com.embabel.agent.core.hitl.ValidationError;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.chat.AssistantMessage;
 import com.embabel.chat.UserMessage;
@@ -42,7 +41,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -245,7 +243,7 @@ class LLMAnthropicThinkingIT {
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
                 .withToolObject(Tooling.class)
                 .withGenerateExamples(true)
-                .withGuards(new UserInputThinkingtGuardRail(), new ThinkingBlocksGuardRail());
+                .withGuardRails(new UserInputThinkingtGuardRail(), new ThinkingBlocksGuardRail());
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
@@ -283,8 +281,8 @@ class LLMAnthropicThinkingIT {
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
                         .withToolObject(Tooling.class)
-                        .withGuards(new UserInputThinkingtGuardRail())
-                        .withGuards(new ThinkingBlocksGuardRail());
+                        .withGuardRails(new UserInputThinkingtGuardRail())
+                        .withGuardRails(new ThinkingBlocksGuardRail());
 
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
 

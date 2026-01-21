@@ -17,7 +17,6 @@ package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.annotation.support.Wumpus
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.PromptRunnerOptions
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.LlmRequestEvent
@@ -174,14 +173,12 @@ class ChatClientLlmOperationsGuardRailTest {
 
         val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel("Test response"))
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(userInputGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-interaction"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options,
+            guardRails = listOf(userInputGuard),
             useEmbabelToolLoop = false
         )
 
@@ -221,9 +218,6 @@ class ChatClientLlmOperationsGuardRailTest {
 
         val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel("Assistant test response"))
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(assistantGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
-
         val llmRequestEvent = mockk<LlmRequestEvent<String>>(relaxed = true)
         every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
 
@@ -234,7 +228,7 @@ class ChatClientLlmOperationsGuardRailTest {
                 llm = LlmOptions(),
                 tools = emptyList(),
                 promptContributors = emptyList(),
-                options = options,
+                guardRails = listOf(assistantGuard),
                 useEmbabelToolLoop = false
             ),
             outputClass = String::class.java,
@@ -273,14 +267,12 @@ class ChatClientLlmOperationsGuardRailTest {
 
         val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel("Should not reach this"))
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(criticalUserGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-interaction"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options,
+            guardRails = listOf(criticalUserGuard),
             useEmbabelToolLoop = false
         )
 
@@ -335,14 +327,12 @@ class ChatClientLlmOperationsGuardRailTest {
 
         val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel("Violating response"))
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(criticalAssistantGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-interaction"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options,
+            guardRails = listOf(criticalAssistantGuard),
             useEmbabelToolLoop = false
         )
 
@@ -396,14 +386,12 @@ class ChatClientLlmOperationsGuardRailTest {
         val testResponse = jacksonObjectMapper().writeValueAsString(MaybeReturn(success = Dog("Test Dog")))
         val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel(testResponse))
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(userInputGuard, assistantGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-interaction"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options,
+            guardRails = listOf(userInputGuard, assistantGuard),
             useEmbabelToolLoop = false
         )
 
@@ -455,15 +443,13 @@ class ChatClientLlmOperationsGuardRailTest {
 
         val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel("Tool loop response"))
 
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(userInputGuard, assistantGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val tools = safelyGetToolsFrom(ToolObject(Wumpus("test-wumpus")))
         val interaction = LlmInteraction(
             id = InteractionId("test-interaction"),
             llm = LlmOptions(),
             tools = tools,
             promptContributors = emptyList(),
-            options = options,
+            guardRails = listOf(userInputGuard, assistantGuard),
             useEmbabelToolLoop = true
         )
 
@@ -546,14 +532,12 @@ class ChatClientLlmOperationsGuardRailTest {
         }
 
         val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel("Success response"))
-        val guardrailConfig = GuardRailConfiguration(guards = listOf(infoGuard, warningGuard, errorGuard))
-        val options = PromptRunnerOptions(guardRailConfig = guardrailConfig)
         val interaction = LlmInteraction(
             id = InteractionId("test-non-critical"),
             llm = LlmOptions(),
             tools = emptyList(),
             promptContributors = emptyList(),
-            options = options,
+            guardRails = listOf(infoGuard, warningGuard, errorGuard),
             useEmbabelToolLoop = false
         )
 

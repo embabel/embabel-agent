@@ -17,7 +17,6 @@ package com.embabel.agent.core.support
 
 import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.PromptRunnerOptions
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolConsumer
 import com.embabel.agent.core.ToolGroupConsumer
@@ -123,7 +122,7 @@ data class LlmInteraction(
     override val validation: Boolean = true,
     val useEmbabelToolLoop: Boolean = true,
     val maxToolIterations: Int = 20,
-    val options: PromptRunnerOptions = PromptRunnerOptions.DEFAULT,
+    val guardRails: List<com.embabel.agent.api.validation.guardrails.GuardRail> = emptyList(),
 ) : LlmCall {
 
     override val name: String = id.value

@@ -94,7 +94,7 @@ data class FakePromptRunner(
      * Can be inspected in tests to verify the correct ID was set.
      */
     val interactionId: InteractionId? = null,
-    private val options: PromptRunnerOptions = PromptRunnerOptions.DEFAULT,
+    private val guardRails: List<GuardRail> = emptyList(),
 ) : PromptRunner {
 
     private val logger = LoggerFactory.getLogger(FakePromptRunner::class.java)
@@ -213,9 +213,8 @@ data class FakePromptRunner(
             return this@FakePromptRunner.copy(validation = validation).DelegateAdapter()
         }
 
-        override fun withGuards(vararg guards: GuardRail): PromptExecutionDelegate {
-            val updatedOptions = this@FakePromptRunner.options.withGuards(*guards)
-            return this@FakePromptRunner.copy(options = updatedOptions).DelegateAdapter()
+        override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate {
+            return this@FakePromptRunner.copy(guardRails = this@FakePromptRunner.guardRails + guards).DelegateAdapter()
         }
 
         override fun <T> createObject(messages: List<Message>, outputClass: Class<T>): T {
@@ -423,8 +422,7 @@ data class FakePromptRunner(
         )
     }
 
-    override fun withGuards(vararg guards: GuardRail): PromptRunner {
-        val updatedOptions = options.withGuards(*guards)
-        return copy(options = updatedOptions)
+    override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
+        return copy(guardRails = this.guardRails + guards)
     }
 }
