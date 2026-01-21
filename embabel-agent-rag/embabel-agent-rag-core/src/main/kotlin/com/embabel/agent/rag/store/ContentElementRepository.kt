@@ -70,6 +70,11 @@ interface ContentElementRepository : Named {
     fun findById(id: String): ContentElement?
 
     /**
+     * Find all content elements of the given class.
+     */
+    fun <C : ContentElement> findAll(clazz: Class<C>): Iterable<C>
+
+    /**
      * Save or update the given content element.
      * Does not perform embedding or any other processing,
      * even if the ContentElementRepository supports that.

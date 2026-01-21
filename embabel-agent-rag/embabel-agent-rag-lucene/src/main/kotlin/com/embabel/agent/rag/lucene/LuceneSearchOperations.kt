@@ -217,7 +217,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         // No op here
     }
 
-    fun <T : ContentElement> findAll(clazz: Class<T>): List<T> {
+    override fun <T : ContentElement> findAll(clazz: Class<T>): List<T> {
         ensureChunksLoaded()
         logger.debug("Retrieving all content elements from storage")
         val allChunks = contentElementStorage.values

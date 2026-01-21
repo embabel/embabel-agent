@@ -17,9 +17,9 @@ package com.embabel.agent.rag.store
 
 import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
-import com.embabel.agent.rag.ingestion.RetrievableEnhancer
 import com.embabel.agent.rag.ingestion.transform.ChainedChunkTransformer
-import com.embabel.agent.rag.model.*
+import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.ai.model.EmbeddingService
 import io.mockk.every
 import io.mockk.mockk
@@ -179,58 +179,4 @@ class AbstractChunkingContentElementRepositoryTest {
         }
     }
 
-    /**
-     * Test implementation of AbstractChunkingContentElementRepository
-     */
-    private class TestChunkingRepository(
-        chunkerConfig: ContentChunker.Config,
-        chunkTransformer: ChunkTransformer,
-        embeddingService: EmbeddingService?,
-    ) : AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer, embeddingService) {
-
-        val persistedChunks = mutableListOf<Chunk>()
-        val persistedEmbeddings = mutableMapOf<String, FloatArray>()
-        val savedElements = mutableMapOf<String, ContentElement>()
-
-        override val name: String = "test-repo"
-        override val enhancers: List<RetrievableEnhancer> = emptyList()
-
-        override fun persistChunksWithEmbeddings(chunks: List<Chunk>, embeddings: Map<String, FloatArray>) {
-            persistedChunks.addAll(chunks)
-            persistedEmbeddings.putAll(embeddings)
-        }
-
-        override fun createInternalRelationships(root: NavigableDocument) {
-            // No-op for testing
-        }
-
-        override fun commit() {
-            // No-op for testing
-        }
-
-        override fun save(element: ContentElement): ContentElement {
-            savedElements[element.id] = element
-            return element
-        }
-
-        override fun findById(id: String): ContentElement? = savedElements[id]
-
-        override fun findChunksForEntity(entityId: String): List<Chunk> =
-            persistedChunks.filter { it.parentId == entityId }
-
-        override fun deleteRootAndDescendants(uri: String): DocumentDeletionResult? = null
-
-        override fun findContentRootByUri(uri: String): ContentRoot? = null
-
-        override fun findAllChunksById(chunkIds: List<String>): Iterable<Chunk> =
-            persistedChunks.filter { it.id in chunkIds }
-
-        override fun info(): ContentElementRepositoryInfo = object : ContentElementRepositoryInfo {
-            override val documentCount: Int = 0
-            override val chunkCount: Int = persistedChunks.size
-            override val contentElementCount: Int = savedElements.size
-            override val hasEmbeddings: Boolean = embeddingService != null
-            override val isPersistent: Boolean = false
-        }
-    }
 }

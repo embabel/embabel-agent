@@ -35,6 +35,10 @@ class ContentElementRepositoryPathFromRootTest {
 
         override val name: String = "test-repository"
 
+        override fun <C : ContentElement> findAll(clazz: Class<C>): Iterable<C> {
+            TODO("Not yet implemented")
+        }
+
         override fun findAllChunksById(chunkIds: List<String>): Iterable<Chunk> =
             chunkIds.mapNotNull { elements[it] as? Chunk }
 
