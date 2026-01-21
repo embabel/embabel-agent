@@ -23,7 +23,7 @@ import com.embabel.common.core.types.HasInfoString
  * Conversation shim for agent system.
  * Mutable.
  */
-interface Conversation : StableIdentified, HasInfoString {
+interface Conversation : StableIdentified, AssetTracker, HasInfoString {
 
     /**
      * Messages in the conversation in chronological order.

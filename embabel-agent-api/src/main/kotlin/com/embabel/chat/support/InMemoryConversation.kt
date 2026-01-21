@@ -15,6 +15,7 @@
  */
 package com.embabel.chat.support
 
+import com.embabel.chat.Asset
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.common.core.MobyNameGenerator
@@ -26,6 +27,7 @@ class InMemoryConversation private constructor(
     override val id: String = MobyNameGenerator.generateName(),
     private val persistent: Boolean = false,
     private val _messages: MutableList<Message> = mutableListOf(),
+    private val _assets: MutableSet<Asset> = mutableSetOf(),
 ) : Conversation {
 
     @JvmOverloads
@@ -44,8 +46,18 @@ class InMemoryConversation private constructor(
         return message
     }
 
+    override fun addAsset(asset: Asset) {
+        if (_assets.any { it.id == asset.id }) {
+            return
+        }
+        _assets += asset
+    }
+
+    override val assets: List<Asset>
+        get() = _assets.toList()
+
     override val messages: List<Message>
-        get() = _messages
+        get() = _messages.toList()
 
     override fun persistent(): Boolean = persistent
 
