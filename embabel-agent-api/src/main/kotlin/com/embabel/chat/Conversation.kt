@@ -25,6 +25,10 @@ import com.embabel.common.core.types.HasInfoString
  */
 interface Conversation : StableIdentified, HasInfoString {
 
+    /**
+     * Messages in the conversation in chronological order.
+     * Visible to user.
+     */
     val messages: List<Message>
 
     /**
@@ -40,7 +44,7 @@ interface Conversation : StableIdentified, HasInfoString {
 
     /**
      * Prompt contributor that represents the conversation so far.
-     * Usually we will want to add messages from the conversation
+     * Usually we will want to add messages from the conversation to a prompt
      * instead of formatting the conversation
      */
     fun promptContributor(

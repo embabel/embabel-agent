@@ -41,6 +41,10 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      */
     fun toolPrefix(): String = name.replace(Regex("[^a-zA-Z0-9 ]"), "_").lowercase()
 
+    /**
+     * Naming strategy for tools associated with this reference.
+     * Defaults to prefixing tool names with the tool prefix and an underscore.
+     */
     val namingStrategy: StringTransformer get() = StringTransformer { toolName -> "${toolPrefix()}_$toolName" }
 
     /**

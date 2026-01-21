@@ -19,9 +19,9 @@ import com.embabel.agent.api.common.LlmReference
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 /**
- * Serializable reference - supports dynamic subclass loading
- * This is important to allow LlmReferences to be externalized
- * in application.yml files.
+ * Provider of a serializable reference - supports dynamic subclass loading
+ * This is important to allow LlmReferences to be serialized, externalized
+ * in application.yml files, loaded from a database etc.
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.CLASS,
@@ -30,6 +30,9 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 )
 interface LlmReferenceProvider {
 
+    /**
+     * Create an LLM reference
+     */
     fun reference(): LlmReference
 
 }
