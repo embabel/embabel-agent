@@ -80,6 +80,25 @@ class DelegatingStreamingOperationsTest {
     }
 
     @Nested
+    inner class GenerateStreamTest {
+
+        @Test
+        fun `should delegate to delegate generateStream`() {
+            val mockStream = Flux.just("test")
+
+            every { mockDelegate.generateStream() } returns mockStream
+
+            val operations = createStreamingOperations()
+            val result = operations.generateStream()
+
+            verify { mockDelegate.generateStream() }
+
+            val firstItem = result.blockFirst()
+            assertEquals("test", firstItem)
+        }
+    }
+
+    @Nested
     inner class CreateObjectStreamTest {
 
         @Test

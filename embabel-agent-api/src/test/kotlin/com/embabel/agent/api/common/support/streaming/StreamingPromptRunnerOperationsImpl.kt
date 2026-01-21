@@ -60,6 +60,15 @@ internal class StreamingPromptRunnerOperationsImpl(
         return copy(messages = messages)
     }
 
+    override fun generateStream(): Flux<String> {
+        return streamingLlmOperations.generateStream(
+            messages = messages,
+            interaction = interaction,
+            agentProcess = agentProcess,
+            action = action
+        )
+    }
+
     override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
         return streamingLlmOperations.createObjectStream(
             messages = messages,

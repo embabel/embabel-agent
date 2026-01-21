@@ -61,6 +61,13 @@ interface StreamingPromptRunnerOperations : StreamingCapability {
      * @return Flux emitting StreamingEvent instances for objects and thinking
      */
     fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>>
+
+    /**
+     * Generate a reactive stream of text chunks as they arrive from the LLM.
+     *
+     * @return Flux emitting text chunks as they arrive from the LLM
+     */
+    fun generateStream(): Flux<String>
 }
 
 /**

@@ -262,6 +262,18 @@ internal data class OperationContextDelegate(
         return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)
     }
 
+    override fun generateStream(): Flux<String> {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
+        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+
+        return streamingLlmOperations.generateStream(
+            messages = messages,
+            interaction = streamingInteraction(),
+            agentProcess = context.processContext.agentProcess,
+            action = action,
+        )
+    }
+
     override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
         val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
         val streamingLlmOperations = StreamingChatClientOperations(llmOperations)

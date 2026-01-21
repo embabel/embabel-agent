@@ -220,6 +220,10 @@ data class FakePromptRunner(
 
         override fun supportsStreaming(): Boolean = false
 
+        override fun generateStream(): Flux<String> {
+            TODO("Not yet implemented")
+        }
+
         override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
             TODO("Not yet implemented")
         }
