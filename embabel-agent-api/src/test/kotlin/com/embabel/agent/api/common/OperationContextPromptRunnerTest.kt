@@ -725,6 +725,175 @@ class OperationContextPromptRunnerTest {
 
     }
 
+    @Nested
+    inner class WithToolObjectVariantsTests {
+
+        /**
+         * Scenario (a): withToolObject(ToolObject) works correctly
+         */
+        @Test
+        fun `withToolObject with ToolObject wrapper works correctly`() {
+            class MyTools {
+                @LlmTool(description = "Multiply two numbers")
+                fun multiply(
+                    @Param(description = "First number") a: Int,
+                    @Param(description = "Second number") b: Int,
+                ): Int = a * b
+            }
+
+            val myTools = MyTools()
+            val toolObject = ToolObject(myTools).withPrefix("custom_")
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolObject(toolObject) as OperationContextPromptRunner
+
+            // Verify ToolObject is stored correctly
+            assertEquals(1, ocpr.toolObjects.size, "Must have one tool object")
+            assertEquals(myTools, ocpr.toolObjects[0].objects[0], "Tool object instance not stored correctly")
+
+            // Verify tools are extracted correctly via safelyGetTools
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("otherTools")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val otherTools = field.get(ocpr) as List<Tool>
+
+            // otherTools should be empty - the tool is in toolObjects and extracted via safelyGetTools
+            assertEquals(0, otherTools.size, "Tool should be in toolObjects, not otherTools")
+
+            // Verify the naming strategy is applied when tools are extracted
+            val extractedTools = com.embabel.agent.core.support.safelyGetTools(ocpr.toolObjects)
+            assertEquals(1, extractedTools.size, "Must have one extracted tool")
+            assertEquals("custom_multiply", extractedTools[0].definition.name, "Naming strategy should be applied")
+        }
+
+        /**
+         * Scenario (b): withToolObject(any instance with @LlmTool methods) works correctly
+         */
+        @Test
+        fun `withToolObject with annotated instance works correctly`() {
+            class AnnotatedTools {
+                @LlmTool(description = "Calculate square")
+                fun square(@Param(description = "Number to square") n: Int): Int = n * n
+
+                @LlmTool(description = "Calculate cube")
+                fun cube(@Param(description = "Number to cube") n: Int): Int = n * n * n
+            }
+
+            val annotatedTools = AnnotatedTools()
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolObject(annotatedTools) as OperationContextPromptRunner
+
+            // Verify the instance is wrapped in ToolObject
+            assertEquals(1, ocpr.toolObjects.size, "Must have one tool object")
+            assertEquals(annotatedTools, ocpr.toolObjects[0].objects[0], "Instance should be wrapped")
+
+            // Verify tools are extracted correctly
+            val extractedTools = com.embabel.agent.core.support.safelyGetTools(ocpr.toolObjects)
+            assertEquals(2, extractedTools.size, "Must have two extracted tools")
+
+            val toolNames = extractedTools.map { it.definition.name }
+            assertTrue(toolNames.contains("square"), "Should have 'square' tool")
+            assertTrue(toolNames.contains("cube"), "Should have 'cube' tool")
+
+            // Verify tools execute correctly
+            val squareTool = extractedTools.find { it.definition.name == "square" }!!
+            val squareResult = squareTool.call("""{"n": 5}""")
+            assertEquals("25", squareResult.content, "Square should return 25")
+        }
+
+        /**
+         * Scenario (c): withToolObject with a Tool instance works correctly
+         * This tests that passing a Tool directly to withToolObject (instead of withTool)
+         * still works as expected.
+         */
+        @Test
+        fun `withToolObject with Tool instance works correctly`() {
+            var toolExecuted = false
+            val directTool = Tool.of(
+                name = "direct_tool",
+                description = "A tool passed directly to withToolObject",
+            ) { _ ->
+                toolExecuted = true
+                Tool.Result.text("direct result")
+            }
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolObject(directTool) as OperationContextPromptRunner
+
+            // Verify the Tool is wrapped in ToolObject
+            assertEquals(1, ocpr.toolObjects.size, "Must have one tool object")
+            assertEquals(directTool, ocpr.toolObjects[0].objects[0], "Tool should be wrapped in ToolObject")
+
+            // Verify tool is extracted correctly via safelyGetTools
+            val extractedTools = com.embabel.agent.core.support.safelyGetTools(ocpr.toolObjects)
+            assertEquals(1, extractedTools.size, "Must have one extracted tool")
+            assertEquals("direct_tool", extractedTools[0].definition.name, "Tool name should match")
+            assertEquals(
+                "A tool passed directly to withToolObject",
+                extractedTools[0].definition.description,
+                "Tool description should match"
+            )
+
+            // Verify tool executes correctly
+            val result = extractedTools[0].call("{}")
+            assertTrue(toolExecuted, "Tool should have been executed")
+            assertEquals("direct result", result.content, "Tool result should match")
+        }
+
+        /**
+         * Verify that withToolObject(Tool) and withTool(Tool) produce equivalent results
+         */
+        @Test
+        fun `withToolObject with Tool instance produces same result as withTool`() {
+            val tool = Tool.of(
+                name = "equivalent_tool",
+                description = "Test equivalence",
+            ) { _ -> Tool.Result.text("equivalent") }
+
+            // Using withToolObject
+            val ocprViaToolObject = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolObject(tool) as OperationContextPromptRunner
+
+            // Using withTool
+            val ocprViaTool = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withTool(tool) as OperationContextPromptRunner
+
+            // Extract tools from both
+            val toolsFromToolObject = com.embabel.agent.core.support.safelyGetTools(ocprViaToolObject.toolObjects)
+
+            val otherToolsField = OperationContextPromptRunner::class.java.getDeclaredField("otherTools")
+            otherToolsField.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val toolsFromOther = otherToolsField.get(ocprViaTool) as List<Tool>
+
+            // Both should have the same tool
+            assertEquals(1, toolsFromToolObject.size, "withToolObject should have one tool")
+            assertEquals(1, toolsFromOther.size, "withTool should have one tool")
+            assertEquals(
+                toolsFromToolObject[0].definition.name,
+                toolsFromOther[0].definition.name,
+                "Tool names should match"
+            )
+
+            // Both should execute the same
+            val resultFromToolObject = toolsFromToolObject[0].call("{}")
+            val resultFromOther = toolsFromOther[0].call("{}")
+            assertEquals(resultFromToolObject.content, resultFromOther.content, "Tool results should match")
+        }
+
+        /**
+         * Verify that null is handled correctly
+         */
+        @Test
+        fun `withToolObject with null does nothing`() {
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolObject(null) as OperationContextPromptRunner
+
+            assertEquals(0, ocpr.toolObjects.size, "Should have no tool objects when null is passed")
+        }
+    }
+
 }
 
 
