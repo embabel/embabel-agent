@@ -334,13 +334,13 @@ Tool greetTool = Tool.create(
     (input) -> Tool.Result.text("Hello!")
 );
 
-// Tool with parameters
+// Tool with parameters (using factory methods)
 Tool addTool = Tool.create(
     "add",
     "Adds two numbers together",
     Tool.InputSchema.of(
-        new Tool.Parameter("a", Tool.ParameterType.INTEGER, "First number", true, null),
-        new Tool.Parameter("b", Tool.ParameterType.INTEGER, "Second number", true, null)
+        Tool.Parameter.integer("a", "First number"),
+        Tool.Parameter.integer("b", "Second number")
     ),
     (input) -> {
         // Parse input JSON and compute result
@@ -369,13 +369,13 @@ val greetTool = Tool.of(
     Tool.Result.text("Hello!")
 }
 
-// Tool with parameters
+// Tool with parameters (using factory methods)
 val addTool = Tool.of(
     name = "add",
     description = "Adds two numbers together",
     inputSchema = Tool.InputSchema.of(
-        Tool.Parameter("a", Tool.ParameterType.INTEGER, "First number", true, null),
-        Tool.Parameter("b", Tool.ParameterType.INTEGER, "Second number", true, null)
+        Tool.Parameter.integer("a", "First number"),
+        Tool.Parameter.integer("b", "Second number")
     )
 ) { input ->
     // Parse input JSON and compute result
@@ -392,6 +392,16 @@ val directTool = Tool.of(
 }
 ----
 ====
+
+The `Tool.Parameter` class provides factory methods for common parameter types:
+
+- `Tool.Parameter.string(name, description)` - String parameter
+- `Tool.Parameter.string(name, description, required)` - String with optional flag
+- `Tool.Parameter.string(name, description, required, enumValues)` - String with allowed values
+- `Tool.Parameter.integer(name, description)` - Integer parameter
+- `Tool.Parameter.double(name, description)` - Floating-point parameter
+
+All factory methods default to `required = true`.
 
 ===== Creating Tools from Annotated Methods
 
