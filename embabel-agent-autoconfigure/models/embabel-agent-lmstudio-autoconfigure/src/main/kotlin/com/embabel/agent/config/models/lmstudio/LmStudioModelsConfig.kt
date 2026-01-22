@@ -21,14 +21,12 @@ import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.PricingModel
-import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -96,13 +94,19 @@ class LmStudioModelsConfig(
     // OpenAI-compatible models response
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class ModelResponse(
-        @param:JsonProperty("data") val data: List<ModelData>? = null,
+        @param:JsonProperty("models") val models: List<ModelData>? = null,
     )
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class ModelData(
-        @param:JsonProperty("id") val id: String,
+        @param:JsonProperty("key") val key: String,
+        @param:JsonProperty("type") val type: LlmType,
     )
+
+    enum class LlmType {
+        embedding,
+        llm
+    }
 
     @Bean
     fun lmStudioModelsInitializer(): ProviderInitialization {
@@ -118,34 +122,58 @@ class LmStudioModelsConfig(
         log.info("Discovered {} LM Studio models: {}", models.size, models)
 
         val registeredLlms = buildList {
-            models.forEach { modelId ->
+            models
+                .filter  { it.type == LlmType.llm }
+                .forEach { modelData   ->
                 try {
                     val llm = openAiCompatibleLlm(
-                        model = modelId,
+                        model = modelData.key,
                         pricingModel = PricingModel.ALL_YOU_CAN_EAT,
                         provider = LmStudioModels.PROVIDER,
                         knowledgeCutoffDate = null,
-                        retryTemplate = lmStudioProperties.retryTemplate("lmstudio-$modelId")
+                        retryTemplate = lmStudioProperties.retryTemplate("lmstudio-$modelData.key")
                     )
 
-                    val beanName = "lmStudioModel-${normalizeModelName(modelId)}"
+                    val beanName = "lmStudioModel-${normalizeModelName(modelData.key)}"
                     configurableBeanFactory.registerSingleton(beanName, llm)
-                    add(RegisteredModel(beanName = beanName, modelId = modelId))
-                    log.debug("Successfully registered LM Studio LLM {} as bean {}", modelId, beanName)
+                    add(RegisteredModel(beanName = beanName, modelId = modelData.key))
+                    log.debug("Successfully registered LM Studio LLM {} as bean {}", modelData.key, beanName)
 
                 } catch (e: Exception) {
-                    log.error("Failed to register LM Studio model {}: {}", modelId, e.message)
+                    log.error("Failed to register LM Studio model {}: {}", modelData.key, e.message)
                 }
             }
+        }
+
+        val registeredEmbeddings = buildList {
+            models
+                .filter  { it.type == LlmType.embedding }
+                .forEach { modelData ->
+                    try {
+                        val llm = openAiCompatibleEmbeddingService(
+                            model = modelData.key,
+                            provider = LmStudioModels.PROVIDER
+                        )
+
+                        val beanName = "lmStudioModel-${normalizeModelName(modelData.key)}"
+                        configurableBeanFactory.registerSingleton(beanName, llm)
+                        add(RegisteredModel(beanName = beanName, modelId = modelData.key))
+                        log.debug("Successfully registered LM Studio LLM {} as bean {}", modelData.key, beanName)
+
+                    } catch (e: Exception) {
+                        log.error("Failed to register LM Studio model {}: {}", modelData.key, e.message)
+                    }
+                }
         }
 
         return ProviderInitialization(
             provider = LmStudioModels.PROVIDER,
             registeredLlms = registeredLlms,
+            registeredEmbeddings = registeredEmbeddings
         ).also { logger.info(it.summary()) }
     }
 
-    private fun loadModelsFromUrl(): List<String> {
+    private fun loadModelsFromUrl(): List<ModelData> {
         return try {
             val requestFactory = SimpleClientHttpRequestFactory()
             requestFactory.setConnectTimeout(2000)
@@ -156,11 +184,16 @@ class LmStudioModelsConfig(
                 .build()
 
             val cleanBaseUrl = baseUrl?.trimEnd('/') ?: "http://127.0.0.1:1234"
-            // Ensure we hit /v1/models
-            val url = if (cleanBaseUrl.endsWith("/v1")) {
-                "$cleanBaseUrl/models"
+            val apiUrl = if (cleanBaseUrl.contains("/api")) {
+                cleanBaseUrl
             } else {
-                "$cleanBaseUrl/v1/models"
+                "$cleanBaseUrl/api"
+            }
+            // Ensure we hit /v1/models
+            val url = if (apiUrl.endsWith("/v1")) {
+                "$apiUrl/models"
+            } else {
+                "$apiUrl/v1/models"
             }
 
             log.info("Attempting to fetch models from: {}", url)
@@ -181,7 +214,7 @@ class LmStudioModelsConfig(
             val objectMapper = ObjectMapper()
             val response = objectMapper.readValue(responseBody, ModelResponse::class.java)
 
-            response.data?.map { it.id } ?: emptyList()
+            response.models?: emptyList()
         } catch (e: Exception) {
             log.warn("Failed to load models from {}: {}", baseUrl, e.message)
             emptyList()
