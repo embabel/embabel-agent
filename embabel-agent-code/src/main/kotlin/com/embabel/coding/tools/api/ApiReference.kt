@@ -17,6 +17,7 @@ package com.embabel.coding.tools.api
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.tool.Tool
 
 /**
  * API reference that can be exposed to LLMs as a prompt contribution and tools.
@@ -29,6 +30,8 @@ class ApiReference(
 ) : LlmReference {
 
     override val name = api.name
+
+    override fun tools(): List<Tool> = Tool.fromInstance(this)
 
     override fun notes(): String {
         if (api.classes.size > classLimit) {

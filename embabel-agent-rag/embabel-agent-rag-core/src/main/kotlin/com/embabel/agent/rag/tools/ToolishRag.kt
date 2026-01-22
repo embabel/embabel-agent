@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
@@ -99,7 +100,7 @@ data class ToolishRag @JvmOverloads constructor(
 
     private val validHints = hints.toMutableList()
 
-    private val toolInstances: List<Any> = run {
+    private val toolObjects: List<Any> = run {
         buildList {
             // If the search operations already implement SearchTools, use them directly
             if (searchOperations is SearchTools) {
@@ -194,7 +195,7 @@ data class ToolishRag @JvmOverloads constructor(
     fun withEntityFilter(filter: EntityFilter): ToolishRag =
         copy(entityFilter = filter)
 
-    override fun toolInstances() = toolInstances
+    override fun tools(): List<Tool> = toolObjects.flatMap { Tool.fromInstance(it) }
 
     override fun notes() = """
         ${

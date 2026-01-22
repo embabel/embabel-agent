@@ -116,7 +116,11 @@ interface McpToolExport : McpExportToolCallbackPublisher {
             llmReference: LlmReference,
             namingStrategy: StringTransformer = StringTransformer.IDENTITY,
         ): McpToolExport {
-            return fromToolObjects(listOf(llmReference.toolObject()), namingStrategy)
+            val toolObject = ToolObject(
+                objects = llmReference.tools(),
+                namingStrategy = llmReference.namingStrategy,
+            )
+            return fromToolObjects(listOf(toolObject), namingStrategy)
         }
 
         /**
@@ -133,7 +137,13 @@ interface McpToolExport : McpExportToolCallbackPublisher {
             llmReferences: List<LlmReference>,
             namingStrategy: StringTransformer = StringTransformer.IDENTITY,
         ): McpToolExport {
-            return fromToolObjects(llmReferences.map { it.toolObject() }, namingStrategy)
+            val toolObjects = llmReferences.map { ref ->
+                ToolObject(
+                    objects = ref.tools(),
+                    namingStrategy = ref.namingStrategy,
+                )
+            }
+            return fromToolObjects(toolObjects, namingStrategy)
         }
 
         private fun decorate(toolCallback: ToolCallback): ToolCallback {

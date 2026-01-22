@@ -17,6 +17,7 @@ package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.rag.service.PromptRunnerRagResponseSummarizer
 import org.jetbrains.annotations.ApiStatus
 
@@ -44,7 +45,7 @@ class RagServiceReference(
         }
     }
 
-    override fun toolInstances() = listOf(toolInstance)
+    override fun tools(): List<Tool> = Tool.fromInstance(toolInstance)
 
     override fun notes() = ""
 

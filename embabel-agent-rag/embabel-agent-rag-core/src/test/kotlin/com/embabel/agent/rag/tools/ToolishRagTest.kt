@@ -147,10 +147,10 @@ class ToolishRagTest {
         )
 
     @Nested
-    inner class ToolInstancesTests {
+    inner class ToolsTests {
 
         @Test
-        fun `should add VectorSearchTools when searchOperations is VectorSearch`() {
+        fun `should add vectorSearch tool when searchOperations is VectorSearch`() {
             val vectorSearch = mockk<VectorSearch>()
 
             val toolishRag = ToolishRag(
@@ -159,15 +159,14 @@ class ToolishRagTest {
                 searchOperations = vectorSearch
             )
 
-            val toolInstances = toolishRag.toolInstances()
+            val tools = toolishRag.tools()
+            val toolNames = tools.map { it.definition.name }
 
-            assertEquals(1, toolInstances.size)
-//            assertTrue(toolInstances.any { it is TypeRetrievalTools })
-            assertTrue(toolInstances.any { it is VectorSearchTools })
+            assertTrue(toolNames.any { it == "vectorSearch" })
         }
 
         @Test
-        fun `should add TextSearchTools when searchOperations is TextSearch`() {
+        fun `should add textSearch tool when searchOperations is TextSearch`() {
             val textSearch = mockk<TextSearch>()
 
             val toolishRag = ToolishRag(
@@ -176,11 +175,10 @@ class ToolishRagTest {
                 searchOperations = textSearch
             )
 
-            val toolInstances = toolishRag.toolInstances()
+            val tools = toolishRag.tools()
+            val toolNames = tools.map { it.definition.name }
 
-            assertEquals(1, toolInstances.size)
-            assertTrue(toolInstances.any { it is TextSearchTools })
-//            assertTrue(toolInstances.any { it is TypeRetrievalTools })
+            assertTrue(toolNames.any { it == "textSearch" })
         }
 
         @Test
@@ -193,17 +191,15 @@ class ToolishRagTest {
                 searchOperations = coreSearch
             )
 
-            val toolInstances = toolishRag.toolInstances()
+            val tools = toolishRag.tools()
+            val toolNames = tools.map { it.definition.name }
 
-            assertEquals(2, toolInstances.size)
-//            assertTrue(toolInstances.any { it is TypeRetrievalTools })
-            assertFalse(toolInstances.any { it is FinderTools })
-            assertTrue(toolInstances.any { it is VectorSearchTools })
-            assertTrue(toolInstances.any { it is TextSearchTools })
+            assertTrue(toolNames.any { it == "vectorSearch" })
+            assertTrue(toolNames.any { it == "textSearch" })
         }
 
         @Test
-        fun `should add RetrievalTools when searchOperations is RetrievalOperations`() {
+        fun `should add finder tools when searchOperations is FinderOperations`() {
             val retrievalOps = mockk<FinderOperations>()
 
             val toolishRag = ToolishRag(
@@ -212,11 +208,10 @@ class ToolishRagTest {
                 searchOperations = retrievalOps
             )
 
-            val toolInstances = toolishRag.toolInstances()
+            val tools = toolishRag.tools()
+            val toolNames = tools.map { it.definition.name }
 
-            assertEquals(1, toolInstances.size)
-//            assertTrue(toolInstances.any { it is TypeRetrievalTools })
-            assertTrue(toolInstances.any { it is FinderTools })
+            assertTrue(toolNames.any { it == "findById" })
         }
     }
 
@@ -551,7 +546,7 @@ class ToolishRagTest {
     inner class IntegrationTests {
 
         @Test
-        fun `toolInstances should return working tools that delegate correctly`() {
+        fun `tools should return working tools that delegate correctly`() {
             val coreSearch = mockk<CoreSearchOperations>()
             val chunk = createChunk("chunk1", "Integration test content")
 
@@ -569,18 +564,20 @@ class ToolishRagTest {
                 searchOperations = coreSearch
             )
 
-            val toolInstances = toolishRag.toolInstances()
-            assertEquals(2, toolInstances.size)
+            val tools = toolishRag.tools()
+            val toolNames = tools.map { it.definition.name }
+            assertTrue(toolNames.contains("vectorSearch"))
+            assertTrue(toolNames.contains("textSearch"))
 
-            // Get and use VectorSearchTools
-            val vectorTools = toolInstances.filterIsInstance<VectorSearchTools>().first()
-            val vectorResult = vectorTools.vectorSearch("test", 5, 0.5)
-            assertTrue(vectorResult.contains("Integration test content"))
+            // Get and use vectorSearch tool
+            val vectorTool = tools.first { it.definition.name == "vectorSearch" }
+            val vectorResult = vectorTool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
+            assertTrue((vectorResult as com.embabel.agent.api.tool.Tool.Result.Text).content.contains("Integration test content"))
 
-            // Get and use TextSearchTools
-            val textTools = toolInstances.filterIsInstance<TextSearchTools>().first()
-            val textResult = textTools.textSearch("test", 5, 0.5)
-            assertTrue(textResult.contains("Integration test content"))
+            // Get and use textSearch tool
+            val textTool = tools.first { it.definition.name == "textSearch" }
+            val textResult = textTool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
+            assertTrue((textResult as com.embabel.agent.api.tool.Tool.Result.Text).content.contains("Integration test content"))
 
             verify(exactly = 1) { coreSearch.vectorSearch(any(), Chunk::class.java) }
             verify(exactly = 1) { coreSearch.textSearch(any(), Chunk::class.java) }

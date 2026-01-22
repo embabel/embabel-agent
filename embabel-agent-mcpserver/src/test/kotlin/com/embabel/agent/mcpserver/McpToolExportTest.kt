@@ -17,6 +17,7 @@ package com.embabel.agent.mcpserver
 
 import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.test.type.FunnyTool
 import com.embabel.agent.test.type.PersonWithReverseTool
 import com.embabel.common.util.StringTransformer
@@ -340,7 +341,7 @@ class McpToolExportTest {
         override val description: String,
     ) : LlmReference {
         override fun notes(): String = "Test notes"
-        override fun toolInstances(): List<Any> = listOf(PersonWithReverseTool("test"))
+        override fun tools(): List<Tool> = Tool.fromInstance(PersonWithReverseTool("test"))
     }
 
     private class TestLlmReferenceWithFunnyTool(
@@ -348,6 +349,6 @@ class McpToolExportTest {
         override val description: String,
     ) : LlmReference {
         override fun notes(): String = "Test notes"
-        override fun toolInstances(): List<Any> = listOf(FunnyTool())
+        override fun tools(): List<Tool> = Tool.fromInstance(FunnyTool())
     }
 }

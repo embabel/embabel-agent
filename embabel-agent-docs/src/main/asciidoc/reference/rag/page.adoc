@@ -40,8 +40,8 @@ The `ToolishRag` class acts as a facade that:
 
 [source,kotlin]
 ----
-override fun toolInstances(): List<Any> =
-    buildList {
+override fun tools(): List<Tool> {
+    val toolObjects = buildList {
         if (searchOperations is VectorSearch) {
             add(VectorSearchTools(searchOperations))
         }
@@ -55,6 +55,8 @@ override fun toolInstances(): List<Any> =
             add(RegexSearchTools(searchOperations))
         }
     }
+    return toolObjects.flatMap { Tool.fromInstance(it) }
+}
 ----
 
 This means:

@@ -139,11 +139,7 @@ data class Skills @JvmOverloads constructor(
         return copy(skills = skills + loadedSkills)
     }
 
-    private val tools: List<Tool> = buildList { }
-
-    override fun tools(): List<Tool> = tools
-
-    override fun toolInstances() = listOf(this)
+    override fun tools(): List<Tool> = Tool.fromInstance(this)
 
     override fun notes(): String {
         return """
