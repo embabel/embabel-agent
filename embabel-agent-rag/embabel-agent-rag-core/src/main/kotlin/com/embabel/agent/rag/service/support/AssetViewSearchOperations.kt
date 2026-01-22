@@ -18,11 +18,12 @@ package com.embabel.agent.rag.service.support
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.CoreSearchOperations
 import com.embabel.chat.Asset
-import com.embabel.chat.AssetTracker
+import com.embabel.chat.AssetView
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.core.types.SimilarityResult
 import com.embabel.common.core.types.SimpleSimilaritySearchResult
 import com.embabel.common.core.types.TextSimilaritySearchRequest
+import org.jetbrains.annotations.ApiStatus
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -32,11 +33,12 @@ import java.util.concurrent.ConcurrentHashMap
  * Text search uses simple case-insensitive matching on asset text representation.
  * Vector search uses brute-force cosine similarity with cached embeddings.
  *
- * @param assetTracker The asset tracker to search
+ * @param assetView The asset view to search
  * @param embeddingService Optional embedding service for vector search; if null, only text search is available
  */
-class AssetTrackerSearchOperations(
-    val assetTracker: AssetTracker,
+@ApiStatus.Experimental
+class AssetViewSearchOperations(
+    val assetView: AssetView,
     private val embeddingService: EmbeddingService? = null,
 ) : CoreSearchOperations {
 
@@ -61,9 +63,10 @@ class AssetTrackerSearchOperations(
         }
 
         val queryEmbedding = embeddingService.embed(request.query)
-        val assets = assetTracker.assets
+        val assets = assetView.assets
 
         return assets
+            .asSequence()
             .map { asset ->
                 val assetEmbedding = getOrComputeEmbedding(asset)
                 val score = VectorMath.cosineSimilarity(queryEmbedding, assetEmbedding)
@@ -81,6 +84,7 @@ class AssetTrackerSearchOperations(
                     )
                 } else null
             }
+            .toList()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -90,12 +94,13 @@ class AssetTrackerSearchOperations(
     ): List<SimilarityResult<T>> {
         val queryLower = request.query.lowercase()
         val queryTerms = queryLower.split(Regex("\\s+")).filter { it.isNotBlank() }
-        val assets = assetTracker.assets
+        val assets = assetView.assets
 
         return assets
+            .asSequence()
             .map { asset ->
                 val text = getAssetText(asset).lowercase()
-                val score = calculateTextMatchScore(text, queryTerms)
+                val score = TextMath.textMatchScore(text, queryTerms)
                 asset to score
             }
             .filter { (_, score) -> score >= request.similarityThreshold }
@@ -110,16 +115,7 @@ class AssetTrackerSearchOperations(
                     )
                 } else null
             }
-    }
-
-    /**
-     * Calculate a simple text match score based on term matching.
-     * Score is between 0.0 and 1.0 based on percentage of query terms found.
-     */
-    private fun calculateTextMatchScore(text: String, queryTerms: List<String>): Double {
-        if (queryTerms.isEmpty()) return 0.0
-        val matchedTerms = queryTerms.count { term -> text.contains(term) }
-        return matchedTerms.toDouble() / queryTerms.size
+            .toList()
     }
 
     /**
@@ -151,7 +147,7 @@ class AssetTrackerSearchOperations(
      */
     fun precomputeEmbeddings() {
         if (embeddingService == null) return
-        assetTracker.assets.forEach { asset ->
+        assetView.assets.forEach { asset ->
             getOrComputeEmbedding(asset)
         }
     }

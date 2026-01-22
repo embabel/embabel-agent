@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
-class AssetTrackerSearchOperationsTest {
+class AssetViewSearchOperationsTest {
 
     @Nested
     inner class SupportsTypeTest {
@@ -37,7 +37,7 @@ class AssetTrackerSearchOperationsTest {
         @Test
         fun `supportsType returns true for Asset`() {
             val tracker = TestAssetTracker()
-            val ops = AssetTrackerSearchOperations(tracker)
+            val ops = AssetViewSearchOperations(tracker)
 
             assertTrue(ops.supportsType("Asset"))
         }
@@ -45,7 +45,7 @@ class AssetTrackerSearchOperationsTest {
         @Test
         fun `supportsType returns true for AssetRetrievable`() {
             val tracker = TestAssetTracker()
-            val ops = AssetTrackerSearchOperations(tracker)
+            val ops = AssetViewSearchOperations(tracker)
 
             assertTrue(ops.supportsType("AssetRetrievable"))
         }
@@ -53,7 +53,7 @@ class AssetTrackerSearchOperationsTest {
         @Test
         fun `supportsType returns false for other types`() {
             val tracker = TestAssetTracker()
-            val ops = AssetTrackerSearchOperations(tracker)
+            val ops = AssetViewSearchOperations(tracker)
 
             assertFalse(ops.supportsType("Chunk"))
             assertFalse(ops.supportsType("Document"))
@@ -64,12 +64,12 @@ class AssetTrackerSearchOperationsTest {
     inner class TextSearchTest {
 
         private lateinit var tracker: TestAssetTracker
-        private lateinit var ops: AssetTrackerSearchOperations
+        private lateinit var ops: AssetViewSearchOperations
 
         @BeforeEach
         fun setup() {
             tracker = TestAssetTracker()
-            ops = AssetTrackerSearchOperations(tracker)
+            ops = AssetViewSearchOperations(tracker)
 
             tracker.addAsset(createAsset("asset-1", "Kotlin Programming", "A modern JVM language"))
             tracker.addAsset(createAsset("asset-2", "Java Programming", "A classic JVM language"))
@@ -179,7 +179,7 @@ class AssetTrackerSearchOperationsTest {
         @Test
         fun `textSearch works with empty asset tracker`() {
             val emptyTracker = TestAssetTracker()
-            val emptyOps = AssetTrackerSearchOperations(emptyTracker)
+            val emptyOps = AssetViewSearchOperations(emptyTracker)
 
             val request = TextSimilaritySearchRequest(
                 query = "anything",
@@ -198,7 +198,7 @@ class AssetTrackerSearchOperationsTest {
 
         private lateinit var tracker: TestAssetTracker
         private lateinit var embeddingService: EmbeddingService
-        private lateinit var ops: AssetTrackerSearchOperations
+        private lateinit var ops: AssetViewSearchOperations
 
         // Pre-defined embeddings for predictable similarity
         private val kotlinEmbedding = floatArrayOf(1f, 0f, 0f, 0f).normalize()
@@ -209,7 +209,7 @@ class AssetTrackerSearchOperationsTest {
         fun setup() {
             tracker = TestAssetTracker()
             embeddingService = mockk()
-            ops = AssetTrackerSearchOperations(tracker, embeddingService)
+            ops = AssetViewSearchOperations(tracker, embeddingService)
 
             tracker.addAsset(createAsset("asset-1", "Kotlin Programming", "JVM language"))
             tracker.addAsset(createAsset("asset-2", "Java Programming", "JVM language"))
@@ -218,7 +218,7 @@ class AssetTrackerSearchOperationsTest {
 
         @Test
         fun `vectorSearch returns empty without embedding service`() {
-            val noEmbeddingOps = AssetTrackerSearchOperations(tracker)
+            val noEmbeddingOps = AssetViewSearchOperations(tracker)
 
             val request = TextSimilaritySearchRequest(
                 query = "kotlin",
@@ -343,7 +343,7 @@ class AssetTrackerSearchOperationsTest {
 
         @Test
         fun `precomputeEmbeddings does nothing without embedding service`() {
-            val noEmbeddingOps = AssetTrackerSearchOperations(tracker)
+            val noEmbeddingOps = AssetViewSearchOperations(tracker)
 
             // Should not throw
             noEmbeddingOps.precomputeEmbeddings()

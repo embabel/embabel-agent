@@ -15,31 +15,19 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.support.AssetAddingTool
 
 /**
  * Extended by anything, such as a conversation, that can track assets
  */
-interface AssetTracker {
+interface AssetTracker : AssetView {
 
     /**
      * Add an asset to be tracked.
      * If the asset is already being tracked, do nothing.
      */
     fun addAsset(asset: Asset)
-
-    /**
-     * All tracked assets.
-     */
-    val assets: List<Asset>
-
-    /**
-     * Convenience method to return references
-     */
-    fun references(): List<LlmReference> =
-        assets.map { it.reference() }
 
     /**
      * Wrap a tool so any outputs are tracked as assets.
