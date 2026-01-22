@@ -384,6 +384,11 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     fun <T> creating(outputClass: Class<T>): ObjectCreator<T>
 
     /**
+     * Use operations from a given template
+     */
+    fun withTemplate(templateName: String): TemplateOperations
+
+    /**
      * Check if true reactive streaming is supported by the underlying LLM model.
      * Always check this before calling stream() to avoid exceptions.
      *
