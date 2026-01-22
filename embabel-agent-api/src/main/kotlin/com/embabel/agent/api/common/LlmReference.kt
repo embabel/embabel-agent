@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.NamedAndDescribed
@@ -88,6 +89,12 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * @see toolInstances for Spring AI @Tool annotated objects
      */
     fun tools(): List<Tool> = emptyList()
+
+    /**
+     * Convert this reference to a MatryoshkaReference,
+     * exposing a single tool object that supports nesting.
+     */
+    fun asMatryoshka(): LlmReference = MatryoshkaReference(this)
 
     companion object {
 
@@ -182,4 +189,36 @@ private data class SimpleLlmReference(
 ) : LlmReference {
     override fun notes(): String = notes
     override fun tools(): List<Tool> = tools
+}
+
+
+internal class MatryoshkaReference(
+    private val delegate: LlmReference,
+) : LlmReference {
+
+    override val name: String get() = delegate.name
+
+    override val description: String get() = delegate.description
+
+    override fun toolPrefix(): String = delegate.toolPrefix()
+
+    override fun notes(): String = delegate.notes()
+
+    override fun contribution(): String = delegate.contribution()
+
+    override fun toolInstances(): List<Any> = emptyList()
+
+    override fun tools(): List<Tool> {
+        val innerTools = delegate.tools()
+        if (innerTools.isEmpty()) {
+            return emptyList()
+        }
+        return listOf(
+            MatryoshkaTool.of(
+                name = delegate.toolPrefix(),
+                description = delegate.description,
+                innerTools = innerTools,
+            )
+        )
+    }
 }

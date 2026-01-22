@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common
 
 import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
@@ -271,6 +272,106 @@ class LlmReferenceTest {
             assertThat(reference.tools()).hasSize(3)
             assertThat(reference.tools().map { it.definition.name })
                 .containsExactlyInAnyOrder("getWeather", "getForecast", "direct_tool")
+        }
+    }
+
+    @Nested
+    inner class AsMatryoshkaTests {
+
+        @Test
+        fun `asMatryoshka returns reference with single MatryoshkaTool containing all original tools`() {
+            val tool1 = Tool.of("tool_one", "First tool") { Tool.Result.text("one") }
+            val tool2 = Tool.of("tool_two", "Second tool") { Tool.Result.text("two") }
+
+            val reference = LlmReference.of(
+                name = "Test API",
+                description = "A test API reference",
+                tools = listOf(tool1, tool2),
+                notes = "Use this for testing"
+            )
+
+            val matryoshka = reference.asMatryoshka()
+
+            assertThat(matryoshka.tools()).hasSize(1)
+            val outerTool = matryoshka.tools()[0]
+            assertThat(outerTool).isInstanceOf(MatryoshkaTool::class.java)
+            val matryoshkaTool = outerTool as MatryoshkaTool
+            assertThat(matryoshkaTool.innerTools).hasSize(2)
+            assertThat(matryoshkaTool.innerTools.map { it.definition.name })
+                .containsExactlyInAnyOrder("tool_one", "tool_two")
+        }
+
+        @Test
+        fun `asMatryoshka preserves contribution from original reference`() {
+            val tool = Tool.of("test_tool", "Test") { Tool.Result.text("ok") }
+
+            val reference = LlmReference.of(
+                name = "My API",
+                description = "API description",
+                tools = listOf(tool),
+                notes = "Important notes"
+            )
+
+            val matryoshka = reference.asMatryoshka()
+
+            assertThat(matryoshka.contribution()).isEqualTo(reference.contribution())
+            assertThat(matryoshka.contribution()).contains("My API")
+            assertThat(matryoshka.contribution()).contains("API description")
+            assertThat(matryoshka.contribution()).contains("Important notes")
+        }
+
+        @Test
+        fun `asMatryoshka preserves name and description`() {
+            val reference = LlmReference.of(
+                name = "Test Ref",
+                description = "Reference description",
+                tools = listOf(Tool.of("t", "t") { Tool.Result.text("ok") })
+            )
+
+            val matryoshka = reference.asMatryoshka()
+
+            assertThat(matryoshka.name).isEqualTo("Test Ref")
+            assertThat(matryoshka.description).isEqualTo("Reference description")
+        }
+
+        @Test
+        fun `asMatryoshka uses tool prefix as MatryoshkaTool name`() {
+            val reference = LlmReference.of(
+                name = "Weather API",
+                description = "Weather tools",
+                tools = listOf(Tool.of("get_weather", "Get weather") { Tool.Result.text("sunny") })
+            )
+
+            val matryoshka = reference.asMatryoshka()
+
+            val matryoshkaTool = matryoshka.tools()[0] as MatryoshkaTool
+            assertThat(matryoshkaTool.definition.name).isEqualTo(reference.toolPrefix())
+        }
+
+        @Test
+        fun `asMatryoshka returns empty tools when original has no tools`() {
+            val reference = LlmReference.of(
+                name = "Empty Ref",
+                description = "No tools",
+                tools = emptyList()
+            )
+
+            val matryoshka = reference.asMatryoshka()
+
+            assertThat(matryoshka.tools()).isEmpty()
+        }
+
+        @Test
+        fun `asMatryoshka returns empty toolInstances`() {
+            val reference = LlmReference.of(
+                name = "Test",
+                description = "Test",
+                tools = listOf(Tool.of("t", "t") { Tool.Result.text("ok") })
+            )
+
+            val matryoshka = reference.asMatryoshka()
+
+            assertThat(matryoshka.toolInstances()).isEmpty()
         }
     }
 }
