@@ -356,7 +356,8 @@ internal data class OperationContextDelegate(
                 }
                 ThinkingResponse<T?>(
                     result = null,
-                    thinkingBlocks = thinkingBlocks
+                    thinkingBlocks = thinkingBlocks,
+                    exception = exception
                 )
             }
         }
