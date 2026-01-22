@@ -15,6 +15,7 @@
  */
 package com.embabel.chat
 
+import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.support.AssetAddingTool
 
@@ -33,6 +34,12 @@ interface AssetTracker {
      * All tracked assets.
      */
     val assets: List<Asset>
+
+    /**
+     * Convenience method to return references
+     */
+    fun references(): List<LlmReference> =
+        assets.map { it.reference() }
 
     /**
      * Wrap a tool so any outputs are tracked as assets.
