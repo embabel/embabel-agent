@@ -378,15 +378,30 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     fun withValidation(validation: Boolean = true): PromptRunner
 
     /**
-     * Create an object creator for the given output class.
-     * Allows setting strongly typed examples.
+     * Return an [ObjectCreator] for creating strongly-typed objects.
+     *
+     * @param T the type of object to create
+     * @param outputClass the class of objects to create
+     * @return object creator supporting examples, property filtering, and validation
      */
     fun <T> creating(outputClass: Class<T>): ObjectCreator<T>
 
     /**
      * Use operations from a given template
      */
-    fun withTemplate(templateName: String): TemplateOperations
+    @Deprecated(
+        "Use rendering(templateName) instead",
+        ReplaceWith("rendering(templateName)")
+    )
+    fun withTemplate(templateName: String): TemplateOperations = rendering(templateName)
+
+    /**
+     * Return a [TemplateOperations] for rendering the specified template.
+     *
+     * @param templateName the name of the template to render
+     * @return template operations for creating objects and generating text
+     */
+    fun rendering(templateName: String): TemplateOperations
 
     /**
      * Check if true reactive streaming is supported by the underlying LLM model.
@@ -406,7 +421,21 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * @return StreamingCapability instance providing access to streaming operations
      * @throws UnsupportedOperationException if streaming is not supported by this implementation
      */
-    fun stream(): StreamingCapability {
+    @Deprecated(
+        "Use streaming() instead",
+        ReplaceWith("streaming()")
+    )
+    fun stream(): StreamingCapability = streaming()
+
+    /**
+     * Return a [StreamingCapability] for reactive streaming operations.
+     * Throws an exception if the underlying LLM does not support streaming.
+     * Use [supportsStreaming] to check availability before calling.
+     *
+     * @return streaming capability for reactive object and text generation
+     * @throws UnsupportedOperationException if streaming is not supported
+     */
+    fun streaming(): StreamingCapability {
         throw UnsupportedOperationException(
             "Streaming not supported by this PromptRunner implementation. " +
                     "Check supportsStreaming() before calling stream()."
@@ -426,7 +455,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      */
     fun supportsThinking(): Boolean = false
 
-
     /**
      * Create a thinking-enhanced version of this prompt runner.
      *
@@ -443,7 +471,21 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * @throws UnsupportedOperationException if thinking is not supported by this implementation
      * @throws IllegalArgumentException if thinking is not enabled in LlmOptions configuration
      */
-    fun withThinking(): ThinkingPromptRunnerOperations {
+    @Deprecated(
+        message = "Use thinking() instead",
+        replaceWith = ReplaceWith("thinking()")
+    )
+    fun withThinking(): ThinkingPromptRunnerOperations = thinking()
+
+    /**
+     * Return a [ThinkingPromptRunnerOperations] for extracting thinking blocks.
+     * Throws an exception if the underlying LLM does not support thinking extraction.
+     * Use [supportsThinking] to check availability before calling.
+     *
+     * @return thinking operations returning results with extracted reasoning
+     * @throws UnsupportedOperationException if thinking is not supported
+     */
+    fun thinking(): ThinkingPromptRunnerOperations {
         if (!supportsThinking()) {
             throw UnsupportedOperationException(
                 """

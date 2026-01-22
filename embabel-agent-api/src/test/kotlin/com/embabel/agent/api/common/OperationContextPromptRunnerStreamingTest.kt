@@ -104,7 +104,7 @@ class OperationContextPromptRunnerStreamingTest {
         )
 
         // When: Call the stream() method
-        val result = promptRunner.stream()
+        val result = promptRunner.streaming()
 
         // Then: Verify object creation and types
         assertNotNull(result, "Stream method should return non-null result")
@@ -154,7 +154,7 @@ class OperationContextPromptRunnerStreamingTest {
 
         // When & Then: Expect UnsupportedOperationException due to explicit failure policy
         assertThrows<UnsupportedOperationException>("Should fail when streaming not supported") {
-            promptRunner.stream()
+            promptRunner.streaming()
         }
     }
 
@@ -225,7 +225,7 @@ class OperationContextPromptRunnerStreamingTest {
 
         // When & Then: Expect UnsupportedOperationException when LlmOperations is not ChatClientLlmOperations
         assertThrows<UnsupportedOperationException>("Should fail when LlmOperations is not ChatClientLlmOperations") {
-            promptRunner.stream()
+            promptRunner.streaming()
         }
     }
 }

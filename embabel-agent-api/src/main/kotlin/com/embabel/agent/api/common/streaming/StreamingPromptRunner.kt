@@ -41,8 +41,9 @@ interface StreamingPromptRunner : PromptRunner {
     override fun supportsStreaming(): Boolean = true
 
     /**
-     * Create streaming operations for this prompt runner configuration.
-     * @return StreamingPromptRunnerOperations instance for building streaming requests
+     * Return a [StreamingPromptRunnerOperations] for reactive streaming operations.
+     *
+     * @return streaming operations for reactive object and text generation
      */
-    override fun stream(): StreamingPromptRunnerOperations
+    override fun streaming(): StreamingPromptRunnerOperations
 }

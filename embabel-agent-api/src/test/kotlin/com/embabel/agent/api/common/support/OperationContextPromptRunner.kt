@@ -216,7 +216,7 @@ internal data class OperationContextPromptRunner(
         return determination.result && determination.confidence >= confidenceThreshold
     }
 
-    override fun withTemplate(templateName: String): TemplateOperations {
+    override fun rendering(templateName: String): TemplateOperations {
         return PromptRunnerTemplateOperations(
             templateName = templateName,
             promptRunner = this,
@@ -320,7 +320,7 @@ internal data class OperationContextPromptRunner(
         return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)
     }
 
-    override fun stream(): StreamingPromptRunnerOperations {
+    override fun streaming(): StreamingPromptRunnerOperations {
         if (!supportsStreaming()) {
             throw UnsupportedOperationException(
                 """

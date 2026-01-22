@@ -38,7 +38,7 @@ public record StreamingPromptRunnerBuilder(PromptRunner runner) {
             );
         }
 
-        StreamingCapability capability = runner.stream();
+        StreamingCapability capability = runner.streaming();
         if (capability instanceof StreamingPromptRunnerOperations
                 streamingPromptRunnerOperations) {
             return streamingPromptRunnerOperations;

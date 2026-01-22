@@ -122,6 +122,9 @@ internal data class DelegatingStreamingPromptRunner(
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(delegate = delegate.withValidation(validation))
 
+    override fun withGuardRails(vararg guards: GuardRail): PromptRunner =
+        copy(delegate = delegate.withGuardRails(*guards))
+
     // Execution methods
     override fun <T> createObject(
         messages: List<Message>,
@@ -179,7 +182,7 @@ internal data class DelegatingStreamingPromptRunner(
             outputClass = outputClass
         )
 
-    override fun withTemplate(templateName: String): TemplateOperations =
+    override fun rendering(templateName: String): TemplateOperations =
         DelegatingTemplateOperations(
             delegate = delegate,
             templateName = templateName,
@@ -188,7 +191,7 @@ internal data class DelegatingStreamingPromptRunner(
     override fun supportsStreaming(): Boolean =
         delegate.supportsStreaming()
 
-    override fun stream(): StreamingPromptRunnerOperations {
+    override fun streaming(): StreamingPromptRunnerOperations {
         if (!supportsStreaming()) {
             throw UnsupportedOperationException(
                 """
@@ -206,13 +209,8 @@ internal data class DelegatingStreamingPromptRunner(
     override fun supportsThinking(): Boolean =
         delegate.supportsThinking()
 
-    override fun withThinking(): ThinkingPromptRunnerOperations {
-        return DelegatingThinkingOperations(
+    override fun thinking(): ThinkingPromptRunnerOperations =
+        DelegatingThinkingOperations(
             delegate = delegate,
         )
-    }
-
-    override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
-        return copy(delegate = delegate.withGuardRails(*guards))
-    }
 }

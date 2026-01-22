@@ -75,7 +75,7 @@ interface StreamingPromptRunnerOperations : StreamingCapability {
  * Pure casting - assumes streaming support already verified.
  */
 fun PromptRunner.asStreaming(): StreamingPromptRunnerOperations {
-    return this.stream() as? StreamingPromptRunnerOperations
+    return this.streaming() as? StreamingPromptRunnerOperations
         ?: throw IllegalStateException("Stream operation did not return StreamingPromptRunnerOperations")
 }
 
@@ -87,6 +87,6 @@ fun PromptRunner.asStreamingWithValidation(): StreamingPromptRunnerOperations {
     if (!this.supportsStreaming()) {
         throw UnsupportedOperationException("PromptRunner does not support streaming")
     }
-    return this.stream() as? StreamingPromptRunnerOperations
+    return this.streaming() as? StreamingPromptRunnerOperations
         ?: throw IllegalStateException("Stream operation did not return StreamingPromptRunnerOperations")
 }

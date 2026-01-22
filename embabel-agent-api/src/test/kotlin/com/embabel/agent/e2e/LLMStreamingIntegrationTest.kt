@@ -194,7 +194,7 @@ class LLMStreamingIntegrationTest(
 
         assertTrue(runner.supportsStreaming(), "Streaming model should support streaming")
 
-        val streamingOperations = runner.stream()
+        val streamingOperations = runner.streaming()
         assertNotNull(streamingOperations, "stream() should return StreamingOperations")
 
         when (streamingOperations) {
@@ -224,7 +224,7 @@ class LLMStreamingIntegrationTest(
         val runner = ai.withLlmByRole("cheapest")
 
         val exception = assertThrows(UnsupportedOperationException::class.java) {
-            runner.stream()
+            runner.streaming()
         }
 
         assertTrue(
@@ -245,7 +245,7 @@ class LLMStreamingIntegrationTest(
         assertTrue(runner.supportsStreaming(), "Runner with tools should support streaming")
 
         // Verify streaming works with tools registered
-        val streamingOperations = runner.stream()
+        val streamingOperations = runner.streaming()
         assertNotNull(streamingOperations, "stream() should work with tools present")
 
         when (streamingOperations) {

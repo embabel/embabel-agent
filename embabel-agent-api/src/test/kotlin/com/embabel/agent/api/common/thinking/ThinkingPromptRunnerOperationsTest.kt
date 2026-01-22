@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common.thinking
 
 import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.core.ToolGroup
@@ -200,7 +201,7 @@ class ThinkingPromptRunnerOperationsTest {
                 return true
             }
 
-            override fun stream(): com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations {
+            override fun streaming(): com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
@@ -252,7 +253,7 @@ class ThinkingPromptRunnerOperationsTest {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
-            override fun withTemplate(templateName: String): com.embabel.agent.api.common.nested.TemplateOperations {
+            override fun rendering(templateName: String): TemplateOperations {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 

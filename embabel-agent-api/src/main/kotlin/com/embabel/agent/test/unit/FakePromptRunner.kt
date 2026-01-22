@@ -15,13 +15,6 @@
  */
 package com.embabel.agent.test.unit
 
-import com.embabel.agent.api.common.AgentImage
-import com.embabel.agent.api.common.ContextualPromptElement
-import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.OperationContext
-import com.embabel.agent.api.common.PromptRunner
-import com.embabel.agent.api.common.Subagent
-import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.ObjectCreator
@@ -398,7 +391,7 @@ data class FakePromptRunner(
             generateExamples = generateExamples,
         )
 
-    override fun withTemplate(templateName: String): TemplateOperations {
+    override fun rendering(templateName: String): TemplateOperations {
         return DelegatingTemplateOperations(
             delegate = DelegateAdapter(),
             templateName = templateName,

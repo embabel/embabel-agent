@@ -44,7 +44,7 @@ class StreamingPromptRunnerBuilderTest {
     @Test
     void shouldReturnStreamingOperationsWhenSupported() {
         when(mockRunner.supportsStreaming()).thenReturn(true);
-        when(mockRunner.stream()).thenReturn(mockOperations);
+        when(mockRunner.streaming()).thenReturn(mockOperations);
 
         var builder = new StreamingPromptRunnerBuilder(mockRunner);
         var result = builder.withStreaming();

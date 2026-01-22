@@ -311,7 +311,7 @@ class DelegatingStreamingPromptRunnerTest {
             every { mockDelegate.supportsStreaming() } returns true
 
             val runner = createPromptRunner()
-            val result = runner.stream()
+            val result = runner.streaming()
 
             verify { mockDelegate.supportsStreaming() }
             assertNotNull(result)
@@ -325,7 +325,7 @@ class DelegatingStreamingPromptRunnerTest {
             val runner = createPromptRunner()
 
             try {
-                runner.stream()
+                runner.streaming()
                 throw AssertionError("Expected UnsupportedOperationException")
             } catch (_: UnsupportedOperationException) {
             }
