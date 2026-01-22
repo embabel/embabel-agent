@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.lucene
 
+import com.embabel.agent.rag.service.support.VectorMath
 import com.embabel.agent.rag.model.*
 import com.embabel.common.util.loggerFor
 import org.apache.lucene.document.*
