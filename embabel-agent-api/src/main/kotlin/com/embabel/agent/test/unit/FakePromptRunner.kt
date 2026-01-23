@@ -20,7 +20,7 @@ import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.support.DelegatingCreating
-import com.embabel.agent.api.common.support.DelegatingTemplateOperations
+import com.embabel.agent.api.common.support.DelegatingRendering
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
@@ -391,8 +391,8 @@ data class FakePromptRunner(
             generateExamples = generateExamples,
         )
 
-    override fun rendering(templateName: String): TemplateOperations {
-        return DelegatingTemplateOperations(
+    override fun rendering(templateName: String): PromptRunner.Rendering {
+        return DelegatingRendering(
             delegate = DelegateAdapter(),
             templateName = templateName,
         )

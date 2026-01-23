@@ -16,9 +16,8 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
-import com.embabel.agent.api.common.nested.support.PromptRunnerTemplateOperations
+import com.embabel.agent.api.common.nested.support.PromptRunnerRendering
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
@@ -215,8 +214,8 @@ internal data class OperationContextPromptRunner(
         return determination.result && determination.confidence >= confidenceThreshold
     }
 
-    override fun rendering(templateName: String): TemplateOperations {
-        return PromptRunnerTemplateOperations(
+    override fun rendering(templateName: String): PromptRunner.Rendering {
+        return PromptRunnerRendering(
             templateName = templateName,
             promptRunner = this,
             templateRenderer = context.agentPlatform().platformServices.templateRenderer,

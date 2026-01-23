@@ -17,7 +17,6 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.api.annotation.support.AgenticInfo
 import com.embabel.agent.api.common.PromptRunner.Creating
-import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -27,6 +26,7 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmUse
 import com.embabel.chat.AssistantMessage
+import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -403,15 +403,15 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         "Use rendering(templateName) instead",
         ReplaceWith("rendering(templateName)")
     )
-    fun withTemplate(templateName: String): TemplateOperations = rendering(templateName)
+    fun withTemplate(templateName: String): Rendering = rendering(templateName)
 
     /**
-     * Return a [TemplateOperations] for rendering the specified template.
+     * Returns [Rendering] for rendering the specified template.
      *
      * @param templateName the name of the template to render
-     * @return template operations for creating objects and generating text
+     * @return rendering mode for creating objects and generating text from templates
      */
-    fun rendering(templateName: String): TemplateOperations
+    fun rendering(templateName: String): Rendering
 
     /**
      * Check if true reactive streaming is supported by the underlying LLM model.
@@ -687,6 +687,55 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         ): T
     }
 
+    /**
+     * Fluent interface for rendering templates and generating LLM responses.
+     * Provides operations for:
+     *
+     * - Creating strongly-typed objects from rendered templates
+     * - Generating text from rendered templates
+     * - Responding in conversations with templates as system prompts
+     *
+     * Instances are obtained via [PromptRunner.rendering].
+     */
+    interface Rendering {
+        /**
+         * Create an object of the given type using the given model to render the template
+         * and LLM options from context.
+         *
+         * @param T the type of object to create
+         * @param outputClass the class of objects to create
+         * @param model the model data to use for template rendering
+         * @return the created object of type T
+         */
+        fun <T> createObject(
+            outputClass: Class<T>,
+            model: Map<String, Any>,
+        ): T
+
+        /**
+         * Generate text using the given model to render the template
+         * and LLM options from context.
+         *
+         * @param model the model data to use for template rendering
+         * @return the generated text
+         */
+        fun generateText(
+            model: Map<String, Any>,
+        ): String
+
+        /**
+         * Respond in the conversation using the rendered template as system prompt.
+         *
+         * @param conversation the conversation so far
+         * @param model the model data to render the system prompt template with.
+         *        Defaults to the empty map (which is appropriate for static templates)
+         * @return the assistant message response
+         */
+        fun respondWithSystemPrompt(
+            conversation: Conversation,
+            model: Map<String, Any> = emptyMap(),
+        ): AssistantMessage
+    }
 }
 
 /**
@@ -743,7 +792,7 @@ inline infix fun <reified T> PromptRunner.create(prompt: String): T =
 inline fun <reified T> PromptRunner.createObjectIfPossible(prompt: String): T? =
     createObjectIfPossible(prompt, T::class.java)
 
-inline fun <reified T> TemplateOperations.createObject(
+inline fun <reified T> PromptRunner.Rendering.createObject(
     model: Map<String, Any>,
 ): T =
     createObject(outputClass = T::class.java, model = model)

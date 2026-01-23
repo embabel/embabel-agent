@@ -39,7 +39,7 @@ import java.util.function.Predicate
  * Contains only primitive operations that cannot be expressed in terms of other methods.
  * Used in [DelegatingStreamingPromptRunner],
  * [DelegatingCreating], and
- * [DelegatingTemplateOperations].
+ * [DelegatingRendering].
  */
 internal interface PromptExecutionDelegate : LlmUse {
 

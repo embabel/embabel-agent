@@ -181,8 +181,8 @@ internal data class DelegatingStreamingPromptRunner(
             outputClass = outputClass
         )
 
-    override fun rendering(templateName: String): TemplateOperations =
-        DelegatingTemplateOperations(
+    override fun rendering(templateName: String): PromptRunner.Rendering =
+        DelegatingRendering(
             delegate = delegate,
             templateName = templateName,
         )

@@ -253,7 +253,7 @@ class ThinkingPromptRunnerOperationsTest {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
-            override fun rendering(templateName: String): TemplateOperations {
+            override fun rendering(templateName: String): com.embabel.agent.api.common.PromptRunner.Rendering {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
