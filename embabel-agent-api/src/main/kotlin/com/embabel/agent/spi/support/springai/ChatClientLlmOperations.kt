@@ -93,8 +93,8 @@ internal class ChatClientLlmOperations(
     private val applicationContext: ApplicationContext? = null,
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
-    private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    private val customizers: List<ChatClientCustomizer> = emptyList()
+    observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    private val customizers: List<ChatClientCustomizer> = emptyList(),
 ) : ToolLoopLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -104,6 +104,7 @@ internal class ChatClientLlmOperations(
     autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver,
     promptsProperties = llmOperationsPromptsProperties,
     objectMapper = objectMapper,
+    observationRegistry = observationRegistry,
 ) {
 
     @PostConstruct
