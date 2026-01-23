@@ -339,4 +339,8 @@ private class TestAsset(
         description = "Test asset",
         tools = emptyList(),
     )
+
+    override fun persistent(): Boolean {
+        return false
+    }
 }

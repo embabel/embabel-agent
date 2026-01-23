@@ -16,20 +16,16 @@
 package com.embabel.chat
 
 import com.embabel.agent.api.common.reference.LlmReferenceProvider
+import com.embabel.common.core.StableIdentified
 import com.embabel.common.core.types.Timestamped
 import java.time.Instant
 import java.util.*
 
 /**
  * Asset associated with a conversation.
- * Immutable.
+ * An asset may be persistent or ephemeral.
  */
-interface Asset : LlmReferenceProvider, Timestamped {
-
-    /**
-     * Unique asset id
-     */
-    val id: String
+interface Asset : LlmReferenceProvider, StableIdentified, Timestamped {
 
     companion object {
 
@@ -38,6 +34,7 @@ interface Asset : LlmReferenceProvider, Timestamped {
             return LlmReferenceProviderAsset(
                 provider = provider,
                 id = UUID.randomUUID().toString(),
+                persistent = false,
             )
         }
 
@@ -49,5 +46,9 @@ interface Asset : LlmReferenceProvider, Timestamped {
 private class LlmReferenceProviderAsset(
     private val provider: LlmReferenceProvider,
     override val id: String,
+    private val persistent: Boolean,
     override val timestamp: Instant = Instant.now(),
-) : Asset, LlmReferenceProvider by provider
+) : Asset, LlmReferenceProvider by provider {
+
+    override fun persistent(): Boolean = persistent
+}

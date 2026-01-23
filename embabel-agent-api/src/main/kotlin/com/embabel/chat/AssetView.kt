@@ -29,10 +29,11 @@ interface AssetView {
     val assets: List<Asset>
 
     /**
-     * Convenience method to return references
+     * Convenience method to return references.
+     * References will be converted to matryoshka tools
      */
     fun references(): List<LlmReference> =
-        assets.map { it.reference() }
+        assets.map { it.reference().asMatryoshka() }
 
     /**
      * Assets timestamped since the given instant

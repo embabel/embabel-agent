@@ -425,6 +425,8 @@ class AssetViewSearchOperationsTest {
         override val timestamp: Instant = Instant.now()
     ) : Asset {
         override fun reference(): LlmReference = reference
+
+        override fun persistent(): Boolean = false
     }
 
     private class TestAssetTracker : AssetTracker {
