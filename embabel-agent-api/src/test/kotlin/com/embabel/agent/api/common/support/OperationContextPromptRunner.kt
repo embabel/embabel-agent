@@ -16,9 +16,8 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
-import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
+import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
 import com.embabel.agent.api.common.nested.support.PromptRunnerTemplateOperations
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
@@ -299,8 +298,8 @@ internal data class OperationContextPromptRunner(
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(validation = validation)
 
-    override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
-        return PromptRunnerObjectCreator(
+    override fun <T> creating(outputClass: Class<T>): PromptRunner.Creating<T> {
+        return PromptRunnerCreating(
             promptRunner = this,
             outputClass = outputClass,
             objectMapper = context.agentPlatform().platformServices.objectMapper,

@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.api.common.nested.support
 
-import com.embabel.agent.api.common.nested.ObjectCreationExample
-import com.embabel.agent.api.common.support.DelegatingObjectCreator
+import com.embabel.agent.api.common.CreationExample
+import com.embabel.agent.api.common.support.DelegatingCreating
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
@@ -32,16 +32,16 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.function.Predicate
 
-class DelegatingObjectCreatorTest {
+class DelegatingCreatingTest {
 
     private val mockDelegate = mockk<PromptExecutionDelegate>()
     private val objectMapper = jacksonObjectMapper()
     private val mockTemplateRenderer = mockk<com.embabel.common.textio.template.TemplateRenderer>()
 
-    private fun createObjectCreator(): DelegatingObjectCreator<String> {
+    private fun createObjectCreator(): DelegatingCreating<String> {
         every { mockDelegate.objectMapper } returns objectMapper
         every { mockDelegate.templateRenderer } returns mockTemplateRenderer
-        return DelegatingObjectCreator(
+        return DelegatingCreating(
             delegate = mockDelegate,
             outputClass = String::class.java,
         )
@@ -60,7 +60,7 @@ class DelegatingObjectCreatorTest {
             every { updatedDelegate.objectMapper } returns objectMapper
             every { updatedDelegate.templateRenderer } returns mockTemplateRenderer
 
-            val example = ObjectCreationExample("test example", "example value")
+            val example = CreationExample("test example", "example value")
             val creator = createObjectCreator()
 
             val result = creator.withExample(example)
@@ -69,7 +69,7 @@ class DelegatingObjectCreatorTest {
             verify { withGenerateExamplesDelegate.withPromptContributors(any()) }
             verify { updatedDelegate.objectMapper }
             verify { updatedDelegate.templateRenderer }
-            assertEquals(updatedDelegate, (result as DelegatingObjectCreator<String>).delegate)
+            assertEquals(updatedDelegate, (result as DelegatingCreating<String>).delegate)
         }
 
         @Test
@@ -87,9 +87,9 @@ class DelegatingObjectCreatorTest {
 
             data class TestObject(val name: String, val value: Int)
 
-            val example = ObjectCreationExample("good example", TestObject("test", 42))
+            val example = CreationExample("good example", TestObject("test", 42))
 
-            val creator = DelegatingObjectCreator(
+            val creator = DelegatingCreating(
                 delegate = mockDelegate,
                 outputClass = TestObject::class.java,
             )
@@ -123,7 +123,7 @@ class DelegatingObjectCreatorTest {
             verify { mockDelegate.withPropertyFilter(filter) }
             verify { updatedDelegate.objectMapper }
             verify { updatedDelegate.templateRenderer }
-            assertEquals(updatedDelegate, (result as DelegatingObjectCreator<String>).delegate)
+            assertEquals(updatedDelegate, (result as DelegatingCreating<String>).delegate)
         }
     }
 
@@ -144,7 +144,7 @@ class DelegatingObjectCreatorTest {
             verify { mockDelegate.withValidation(false) }
             verify { updatedDelegate.objectMapper }
             verify { updatedDelegate.templateRenderer }
-            assertEquals(updatedDelegate, (result as DelegatingObjectCreator<String>).delegate)
+            assertEquals(updatedDelegate, (result as DelegatingCreating<String>).delegate)
         }
     }
 

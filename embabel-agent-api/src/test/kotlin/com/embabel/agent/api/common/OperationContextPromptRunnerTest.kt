@@ -18,7 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.support.Wumpus
-import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
+import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Operation
@@ -329,7 +329,7 @@ class OperationContextPromptRunnerTest {
             val pr = spyk(createOperationContextPromptRunnerWithDefaults(context))
             val pr1 = (pr
                 .creating(Dog::class.java)
-                .withExample("Good dog", Dog("Duke")) as PromptRunnerObjectCreator).promptRunner
+                .withExample("Good dog", Dog("Duke")) as PromptRunnerCreating).promptRunner
             assertEquals(1, pr1.promptContributors.size, "Must be one contributor")
             val eg = pr1.promptContributors[0].contribution()
             assertTrue(eg.contains("Duke"), "Should include example dog name")

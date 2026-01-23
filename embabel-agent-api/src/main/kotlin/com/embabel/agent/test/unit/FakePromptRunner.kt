@@ -19,7 +19,7 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
-import com.embabel.agent.api.common.support.DelegatingObjectCreator
+import com.embabel.agent.api.common.support.DelegatingCreating
 import com.embabel.agent.api.common.support.DelegatingTemplateOperations
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
 import com.embabel.agent.api.tool.Tool
@@ -412,8 +412,8 @@ data class FakePromptRunner(
     override fun withTool(tool: Tool): PromptRunner =
         copy(otherTools = this.otherTools + tool)
 
-    override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
-        return DelegatingObjectCreator(
+    override fun <T> creating(outputClass: Class<T>): PromptRunner.Creating<T> {
+        return DelegatingCreating(
             delegate = DelegateAdapter(),
             outputClass = outputClass,
         )

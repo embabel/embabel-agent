@@ -16,7 +16,6 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
@@ -176,8 +175,8 @@ internal data class DelegatingStreamingPromptRunner(
     }
 
     // Factory methods
-    override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> =
-        DelegatingObjectCreator(
+    override fun <T> creating(outputClass: Class<T>): PromptRunner.Creating<T> =
+        DelegatingCreating(
             delegate = delegate,
             outputClass = outputClass
         )

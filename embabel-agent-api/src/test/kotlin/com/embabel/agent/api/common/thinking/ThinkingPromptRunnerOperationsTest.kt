@@ -249,7 +249,7 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withValidation(validation: Boolean): com.embabel.agent.api.common.PromptRunner =
                 this
 
-            override fun <T> creating(outputClass: Class<T>): com.embabel.agent.api.common.nested.ObjectCreator<T> {
+            override fun <T> creating(outputClass: Class<T>): com.embabel.agent.api.common.PromptRunner.Creating<T> {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 

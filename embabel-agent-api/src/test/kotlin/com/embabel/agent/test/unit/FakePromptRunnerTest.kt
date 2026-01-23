@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.test.unit
 
+import com.embabel.agent.api.common.CreationExample
 import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.nested.ObjectCreationExample
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -237,12 +237,12 @@ class FakePromptRunnerTest {
         }
 
         @Test
-        fun `creating with ObjectCreationExample data class works`() {
+        fun `creating with CreationExample data class works`() {
             val context = FakeOperationContext.create()
             val expectedPlan = TestChannelEditPlan(1, "Lead Vox")
             context.expectResponse(expectedPlan)
 
-            val example = ObjectCreationExample(
+            val example = CreationExample(
                 description = "Rename channel example",
                 value = TestChannelEditPlan(2, "Rhythm")
             )
@@ -267,9 +267,9 @@ class FakePromptRunnerTest {
             val expectedPlan = TestChannelEditPlan(1, "Lead Vox")
             context.expectResponse(expectedPlan)
 
-            val example1 = ObjectCreationExample("First example", TestChannelEditPlan(1, "Bass"))
-            val example2 = ObjectCreationExample("Second example", TestChannelEditPlan(2, "Drums"))
-            val example3 = ObjectCreationExample("Third example", TestChannelEditPlan(3, "Keys"))
+            val example1 = CreationExample("First example", TestChannelEditPlan(1, "Bass"))
+            val example2 = CreationExample("Second example", TestChannelEditPlan(2, "Drums"))
+            val example3 = CreationExample("Third example", TestChannelEditPlan(3, "Keys"))
 
             val result = context.ai()
                 .withDefaultLlm()
@@ -292,10 +292,10 @@ class FakePromptRunnerTest {
             context.expectResponse(expectedPlan)
 
             val examples = listOf(
-                ObjectCreationExample("Rename to Bass", TestChannelEditPlan(1, "Bass")),
-                ObjectCreationExample("Rename to Drums", TestChannelEditPlan(2, "Drums")),
-                ObjectCreationExample("Rename to Keys", TestChannelEditPlan(3, "Keys")),
-                ObjectCreationExample("Rename to Vocals", TestChannelEditPlan(4, "Vocals"))
+                CreationExample("Rename to Bass", TestChannelEditPlan(1, "Bass")),
+                CreationExample("Rename to Drums", TestChannelEditPlan(2, "Drums")),
+                CreationExample("Rename to Keys", TestChannelEditPlan(3, "Keys")),
+                CreationExample("Rename to Vocals", TestChannelEditPlan(4, "Vocals"))
             )
 
             val result = context.ai()
@@ -319,8 +319,8 @@ class FakePromptRunnerTest {
             context.expectResponse(expectedPlan)
 
             val examples = listOf(
-                ObjectCreationExample("List example 1", TestChannelEditPlan(1, "Bass")),
-                ObjectCreationExample("List example 2", TestChannelEditPlan(2, "Drums"))
+                CreationExample("List example 1", TestChannelEditPlan(1, "Bass")),
+                CreationExample("List example 2", TestChannelEditPlan(2, "Drums"))
             )
 
             val result = context.ai()
@@ -339,8 +339,8 @@ class FakePromptRunnerTest {
         }
 
         @Test
-        fun `ObjectCreationExample has correct properties`() {
-            val example = ObjectCreationExample(
+        fun `CreationExample has correct properties`() {
+            val example = CreationExample(
                 description = "Test description",
                 value = TestUserIntent("command", "Test command")
             )
