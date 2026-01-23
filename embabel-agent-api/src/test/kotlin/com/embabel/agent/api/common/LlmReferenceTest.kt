@@ -279,6 +279,22 @@ class LlmReferenceTest {
     inner class AsMatryoshkaTests {
 
         @Test
+        fun `does not rewrap`() {
+            val tool = Tool.of("simple_tool", "A simple tool") { Tool.Result.text("ok") }
+
+            val reference = LlmReference.of(
+                name = "Simple Ref",
+                description = "A simple reference",
+                tools = listOf(tool)
+            )
+
+            val matryoshka1 = reference.asMatryoshka()
+
+            assertThat(matryoshka1.asMatryoshka()).isSameAs(matryoshka1)
+            assertThat(matryoshka1.asMatryoshka().asMatryoshka()).isSameAs(matryoshka1)
+        }
+
+        @Test
         fun `asMatryoshka returns reference with single MatryoshkaTool containing all original tools`() {
             val tool1 = Tool.of("tool_one", "First tool") { Tool.Result.text("one") }
             val tool2 = Tool.of("tool_two", "Second tool") { Tool.Result.text("two") }

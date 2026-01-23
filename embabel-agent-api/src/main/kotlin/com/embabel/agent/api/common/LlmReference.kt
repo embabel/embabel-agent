@@ -115,8 +115,13 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
     /**
      * Convert this reference to a MatryoshkaReference,
      * exposing a single tool object that supports nesting.
+     * Do not rewrap a MatryoshkaReference. Thus
+     * repeated calls to this method are safe.
      */
-    fun asMatryoshka(): LlmReference = MatryoshkaReference(this)
+    fun asMatryoshka(): LlmReference = when (this) {
+        is MatryoshkaReference -> this
+        else -> MatryoshkaReference(this)
+    }
 
     companion object {
 
