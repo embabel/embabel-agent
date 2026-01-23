@@ -37,6 +37,8 @@ import com.embabel.common.ai.model.ModelProvider
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.micrometer.observation.Observation
+import io.micrometer.observation.ObservationRegistry
 import jakarta.validation.Validator
 import java.time.Duration
 import java.time.Instant
@@ -77,6 +79,7 @@ interface OutputConverter<T> {
  * @param autoLlmSelectionCriteriaResolver Resolver for auto LLM selection
  * @param promptsProperties Properties for prompt configuration
  * @param objectMapper ObjectMapper for JSON serialization
+ * @param observationRegistry Registry for distributed tracing observations
  */
 open class ToolLoopLlmOperations(
     modelProvider: ModelProvider,
@@ -87,6 +90,7 @@ open class ToolLoopLlmOperations(
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     internal open val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+    protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -147,11 +151,21 @@ open class ToolLoopLlmOperations(
 
         val tools = interaction.tools
 
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
+        val observation = Observation.createNotStarted("embabel.tool-loop", observationRegistry)
+            .contextualName("Tool Loop Execution")
+
+        observation.start()
+        val result = try {
+            observation.openScope().use {
+                toolLoop.execute(
+                    initialMessages = initialMessages,
+                    initialTools = tools,
+                    outputParser = outputParser,
+                )
+            }
+        } finally {
+            observation.stop()
+        }
 
         result.totalUsage?.let { usage ->
             recordUsage(llm, usage, llmRequestEvent)
