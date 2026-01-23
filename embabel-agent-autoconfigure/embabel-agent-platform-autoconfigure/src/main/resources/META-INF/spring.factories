@@ -1,1 +1,2 @@
 org.springframework.boot.env.EnvironmentPostProcessor=com.embabel.agent.config.annotation.spi.EnvironmentPostProcessor
+org.springframework.boot.autoconfigure.AutoConfigurationImportFilter=com.embabel.agent.autoconfigure.platform.AgentPlatformAutoConfigurationFilter
