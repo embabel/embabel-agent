@@ -139,10 +139,3 @@ internal fun computeTriggerPreconditions(method: Method): List<String> {
         emptyList()
     }
 }
-
-/**
- * Compute tool group requirements from an @Action annotation.
- */
-internal fun computeToolGroups(actionAnnotation: ActionAnnotation): Set<ToolGroupRequirement> =
-    (actionAnnotation.toolGroupRequirements.map { ToolGroupRequirement(it.role) } +
-            actionAnnotation.toolGroups.map { ToolGroupRequirement(it) }).toSet()

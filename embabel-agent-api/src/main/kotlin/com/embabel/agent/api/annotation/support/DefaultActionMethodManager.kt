@@ -129,7 +129,7 @@ internal class DefaultActionMethodManager(
             inputClasses = inputClasses,
             outputClass = method.returnType,
             outputVarName = actionAnnotation.outputBinding,
-            toolGroups = computeToolGroups(actionAnnotation),
+            toolGroups = emptySet(),
             qos = actionQosProvider.provideActionQos(method, instance),
         ) { context ->
             invokeActionMethod(
