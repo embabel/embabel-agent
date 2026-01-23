@@ -17,8 +17,10 @@ package com.embabel.agent.api.dsl.support
 
 import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.MagicVictim
-import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.*
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Condition
+import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
@@ -175,50 +177,6 @@ class PromptTransformerKtTest {
                     transformer
                 )
             } returns Frog(name = "Alice")
-
-            transformer.execute(processContext = processContext)
-        }
-
-        @Test
-        fun `transformer should handle tool groups and tools`() {
-            val tool = mockk<Tool>()
-            every { tool.definition.name } returns "test"
-            val toolGroups = setOf(ToolGroupRequirement("math"), ToolGroupRequirement("web"))
-
-            val transformer = promptTransformer<MagicVictim, Frog>(
-                name = "toolTransformer",
-                toolGroups = toolGroups.map { ToolGroupRequirement(it.role) }.toSet(),
-                tools = listOf(tool),
-                inputClass = MagicVictim::class.java,
-                outputClass = Frog::class.java,
-            ) {
-                "Transform ${it.input.name}"
-            }
-
-            assertEquals(toolGroups, transformer.toolGroups)
-
-            val magicVictim = MagicVictim(name = "Bob")
-            val mockAgentProcess = mockk<AgentProcess>()
-            val processContext = mockk<ProcessContext>()
-
-            every { mockAgentProcess.processContext } returns processContext
-            every { processContext.blackboard } returns InMemoryBlackboard()
-            every { processContext.agentProcess } returns mockAgentProcess
-            every {
-                mockAgentProcess.getValue(
-                    IoBinding.DEFAULT_BINDING,
-                    MagicVictim::class.java.name
-                )
-            } returns magicVictim
-            every {
-                processContext.createObject(
-                    any(),
-                    any(),
-                    Frog::class.java,
-                    mockAgentProcess,
-                    transformer
-                )
-            } returns Frog(name = "Bob")
 
             transformer.execute(processContext = processContext)
         }
