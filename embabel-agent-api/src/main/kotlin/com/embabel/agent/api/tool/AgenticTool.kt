@@ -17,6 +17,7 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
+import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
 
@@ -84,14 +85,27 @@ data class AgenticTool(
             definition.name,
             systemPrompt,
         )
+
+        // Wrap tools to capture any artifacts they produce
+        val artifacts = mutableListOf<Any>()
+        val wrappedTools = tools.map { tool ->
+            ArtifactCapturingTool(tool, artifacts)
+        }
+
         val ai = executingOperationContextFor(agentProcess).ai()
         val output = ai
             .withLlm(llm)
-            .withTools(tools)
+            .withId("agentic-tool-${definition.name}")
+            .withTools(wrappedTools)
             .withSystemPrompt(systemPrompt)
             .generateText(input)
 
-        return Tool.Result.text(output)
+        // Return with artifact(s) if any were captured, otherwise just text
+        return when (artifacts.size) {
+            0 -> Tool.Result.text(output)
+            1 -> Tool.Result.withArtifact(output, artifacts.single())
+            else -> Tool.Result.withArtifact(output, artifacts.toList())
+        }
     }
 
     /**
@@ -156,5 +170,31 @@ data class AgenticTool(
             Use the provided tools to perform the following task:
             $description
             """.trimIndent()
+    }
+}
+
+/**
+ * Tool wrapper that captures artifacts from [Tool.Result.WithArtifact] results.
+ * Used internally by [AgenticTool] to collect artifacts produced by sub-tools.
+ */
+internal class ArtifactCapturingTool(
+    override val delegate: Tool,
+    private val artifacts: MutableList<Any>,
+) : DelegatingTool {
+
+    override val definition: Tool.Definition = delegate.definition
+    override val metadata: Tool.Metadata = delegate.metadata
+
+    override fun call(input: String): Tool.Result {
+        val result = delegate.call(input)
+        if (result is Tool.Result.WithArtifact) {
+            artifacts.add(result.artifact)
+            loggerFor<ArtifactCapturingTool>().debug(
+                "Captured artifact of type {} from tool '{}'",
+                result.artifact::class.simpleName,
+                definition.name,
+            )
+        }
+        return result
     }
 }

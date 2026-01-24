@@ -32,6 +32,17 @@ class AgenticToolTest {
         Tool.Result.text(input.reversed())
     }
 
+    // Test fixtures - artifact-producing tools
+    data class TestArtifact(val id: String, val value: Int)
+
+    private val artifactTool = Tool.of("artifact", "Produces an artifact") { input ->
+        Tool.Result.withArtifact("Produced artifact", TestArtifact("test-1", 42))
+    }
+
+    private val anotherArtifactTool = Tool.of("another", "Produces another artifact") { input ->
+        Tool.Result.withArtifact("Another artifact", TestArtifact("test-2", 100))
+    }
+
     // Test fixtures - annotated tool classes
     class SearchTools {
         @LlmTool(description = "Search the web")
@@ -267,6 +278,200 @@ class AgenticToolTest {
             assertTrue(result is Tool.Result.Error)
             val error = result as Tool.Result.Error
             assertTrue(error.message.contains("No AgentProcess context"))
+        }
+    }
+
+    @Nested
+    inner class ArtifactCapturing {
+
+        @Test
+        fun `ArtifactCapturingTool delegates call to wrapped tool`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(echoTool, artifacts)
+
+            val result = wrapper.call("hello")
+
+            assertTrue(result is Tool.Result.Text)
+            assertEquals("Echo: hello", (result as Tool.Result.Text).content)
+        }
+
+        @Test
+        fun `ArtifactCapturingTool preserves definition from delegate`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(echoTool, artifacts)
+
+            assertEquals("echo", wrapper.definition.name)
+            assertEquals("Echo input", wrapper.definition.description)
+        }
+
+        @Test
+        fun `ArtifactCapturingTool preserves metadata from delegate`() {
+            val customMetadata = Tool.Metadata(returnDirect = true)
+            val toolWithMetadata = Tool.of(
+                name = "custom",
+                description = "Custom tool",
+                metadata = customMetadata
+            ) { Tool.Result.text("result") }
+
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(toolWithMetadata, artifacts)
+
+            assertEquals(customMetadata.returnDirect, wrapper.metadata.returnDirect)
+        }
+
+        @Test
+        fun `ArtifactCapturingTool captures artifact from WithArtifact result`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(artifactTool, artifacts)
+
+            wrapper.call("{}")
+
+            assertEquals(1, artifacts.size)
+            val captured = artifacts[0] as TestArtifact
+            assertEquals("test-1", captured.id)
+            assertEquals(42, captured.value)
+        }
+
+        @Test
+        fun `ArtifactCapturingTool returns original WithArtifact result unchanged`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(artifactTool, artifacts)
+
+            val result = wrapper.call("{}")
+
+            assertTrue(result is Tool.Result.WithArtifact)
+            val withArtifact = result as Tool.Result.WithArtifact
+            assertEquals("Produced artifact", withArtifact.content)
+            val artifact = withArtifact.artifact as TestArtifact
+            assertEquals("test-1", artifact.id)
+        }
+
+        @Test
+        fun `ArtifactCapturingTool does not capture from Text result`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(echoTool, artifacts)
+
+            wrapper.call("input")
+
+            assertTrue(artifacts.isEmpty())
+        }
+
+        @Test
+        fun `ArtifactCapturingTool does not capture from Error result`() {
+            val errorTool = Tool.of("error", "Error tool") { _ ->
+                Tool.Result.error("Something went wrong")
+            }
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(errorTool, artifacts)
+
+            val result = wrapper.call("{}")
+
+            assertTrue(artifacts.isEmpty())
+            assertTrue(result is Tool.Result.Error)
+        }
+
+        @Test
+        fun `multiple ArtifactCapturingTools share same artifacts list`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper1 = ArtifactCapturingTool(artifactTool, artifacts)
+            val wrapper2 = ArtifactCapturingTool(anotherArtifactTool, artifacts)
+
+            wrapper1.call("{}")
+            wrapper2.call("{}")
+
+            assertEquals(2, artifacts.size)
+            assertEquals("test-1", (artifacts[0] as TestArtifact).id)
+            assertEquals("test-2", (artifacts[1] as TestArtifact).id)
+        }
+
+        @Test
+        fun `ArtifactCapturingTool captures artifacts in call order`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper1 = ArtifactCapturingTool(artifactTool, artifacts)
+            val wrapper2 = ArtifactCapturingTool(anotherArtifactTool, artifacts)
+
+            // Call in reverse order
+            wrapper2.call("{}")
+            wrapper1.call("{}")
+
+            assertEquals(2, artifacts.size)
+            assertEquals("test-2", (artifacts[0] as TestArtifact).id) // First called
+            assertEquals("test-1", (artifacts[1] as TestArtifact).id) // Second called
+        }
+
+        @Test
+        fun `ArtifactCapturingTool captures different artifact types`() {
+            data class OtherArtifact(val name: String)
+
+            val stringArtifactTool = Tool.of("string", "String artifact") { _ ->
+                Tool.Result.withArtifact("String", "simple-string")
+            }
+            val objectArtifactTool = Tool.of("object", "Object artifact") { _ ->
+                Tool.Result.withArtifact("Object", OtherArtifact("other"))
+            }
+
+            val artifacts = mutableListOf<Any>()
+            val wrapper1 = ArtifactCapturingTool(stringArtifactTool, artifacts)
+            val wrapper2 = ArtifactCapturingTool(objectArtifactTool, artifacts)
+
+            wrapper1.call("{}")
+            wrapper2.call("{}")
+
+            assertEquals(2, artifacts.size)
+            assertEquals("simple-string", artifacts[0])
+            assertEquals(OtherArtifact("other"), artifacts[1])
+        }
+
+        @Test
+        fun `ArtifactCapturingTool is a DelegatingTool`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(echoTool, artifacts)
+
+            assertTrue(wrapper is com.embabel.agent.spi.support.DelegatingTool)
+            assertSame(echoTool, wrapper.delegate)
+        }
+    }
+
+    @Nested
+    inner class ArtifactCapturingBackwardCompatibility {
+
+        @Test
+        fun `agentic tool with text-only tools still returns Text result`() {
+            // This tests that when no artifacts are produced, behavior is unchanged
+            val agentic = AgenticTool("text-only", "Text only tools")
+                .withTools(echoTool, reverseTool)
+                .withSystemPrompt("Use tools")
+
+            // Without AgentProcess context, we get an error
+            // But the tools themselves don't produce artifacts
+            val result = agentic.call("{}")
+
+            // Should be error due to no AgentProcess, not related to artifacts
+            assertTrue(result is Tool.Result.Error)
+            assertTrue((result as Tool.Result.Error).message.contains("No AgentProcess context"))
+        }
+
+        @Test
+        fun `agentic tool with artifact tools configured correctly`() {
+            val agentic = AgenticTool("with-artifacts", "Artifact tools")
+                .withTools(artifactTool, anotherArtifactTool)
+                .withSystemPrompt("Use artifact tools")
+
+            // Verify tools are configured
+            assertEquals(2, agentic.tools.size)
+            assertTrue(agentic.tools.any { it.definition.name == "artifact" })
+            assertTrue(agentic.tools.any { it.definition.name == "another" })
+        }
+
+        @Test
+        fun `agentic tool with mixed text and artifact tools configured correctly`() {
+            val agentic = AgenticTool("mixed", "Mixed tools")
+                .withTools(echoTool, artifactTool)
+                .withSystemPrompt("Use any tools")
+
+            assertEquals(2, agentic.tools.size)
+            assertTrue(agentic.tools.any { it.definition.name == "echo" })
+            assertTrue(agentic.tools.any { it.definition.name == "artifact" })
         }
     }
 }

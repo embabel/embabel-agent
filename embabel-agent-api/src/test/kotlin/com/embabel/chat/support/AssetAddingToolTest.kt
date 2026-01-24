@@ -220,6 +220,127 @@ class AssetAddingToolTest {
             assertThat((result as Tool.Result.WithArtifact).content).isEqualTo("original content")
             assertThat(result.artifact).isSameAs(testAsset)
         }
+
+        @Test
+        fun `adds all assets when artifact is List of expected type`() {
+            val tracker = InMemoryAssetTracker()
+            val asset1 = TestAsset("list-asset-1")
+            val asset2 = TestAsset("list-asset-2")
+            val asset3 = TestAsset("list-asset-3")
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", listOf(asset1, asset2, asset3))
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+            )
+
+            assetAddingTool.call("{}")
+
+            assertThat(tracker.assets).hasSize(3)
+            assertThat(tracker.assets).containsExactly(asset1, asset2, asset3)
+        }
+
+        @Test
+        fun `adds all assets when artifact is Set of expected type`() {
+            val tracker = InMemoryAssetTracker()
+            val asset1 = TestAsset("set-asset-1")
+            val asset2 = TestAsset("set-asset-2")
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", setOf(asset1, asset2))
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+            )
+
+            assetAddingTool.call("{}")
+
+            assertThat(tracker.assets).hasSize(2)
+            assertThat(tracker.assets).contains(asset1, asset2)
+        }
+
+        @Test
+        fun `filters items in iterable to only expected type`() {
+            val tracker = InMemoryAssetTracker()
+            val asset1 = TestAsset("typed-asset-1")
+            val asset2 = TestAsset("typed-asset-2")
+
+            data class NotAnAsset(val value: String)
+
+            val mixedList = listOf(asset1, NotAnAsset("ignored"), asset2, "also ignored")
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", mixedList)
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+            )
+
+            assetAddingTool.call("{}")
+
+            assertThat(tracker.assets).hasSize(2)
+            assertThat(tracker.assets).containsExactly(asset1, asset2)
+        }
+
+        @Test
+        fun `handles empty iterable without error`() {
+            val tracker = InMemoryAssetTracker()
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", emptyList<Asset>())
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+            )
+
+            val result = assetAddingTool.call("{}")
+
+            assertThat(tracker.assets).isEmpty()
+            assertThat(result).isInstanceOf(Tool.Result.WithArtifact::class.java)
+        }
+
+        @Test
+        fun `converts each item in iterable using converter`() {
+            val tracker = InMemoryAssetTracker()
+
+            data class CustomData(val value: String)
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", listOf(
+                    CustomData("item-1"),
+                    CustomData("item-2"),
+                ))
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { data: CustomData -> TestAsset("converted-${data.value}") },
+                clazz = CustomData::class.java,
+            )
+
+            assetAddingTool.call("{}")
+
+            assertThat(tracker.assets).hasSize(2)
+            assertThat(tracker.assets.map { it.id }).containsExactly("converted-item-1", "converted-item-2")
+        }
     }
 
     @Nested

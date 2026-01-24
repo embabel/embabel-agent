@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory
 /**
  * Add the result of calling this tool as an asset
  * to the given AssetTracker if it is of the expected type.
+ * Also unwraps Iterables of the expected type.
  * @param T The type of artifact to convert to an Asset
  * @param delegate The tool to delegate to
  * @param assetTracker The asset tracker to add assets to
@@ -43,15 +44,19 @@ class AssetAddingTool<T>(
         val result = delegate.call(input)
         when (result) {
             is Tool.Result.WithArtifact -> {
-                if (clazz.isInstance(result.artifact)) {
-                    val asset = converter(result.artifact as T)
-                    assetTracker.addAsset(asset)
-                    logger.info(
-                        "Added asset of class {} with id={} from tool={}",
-                        asset.javaClass.name,
-                        asset.id,
-                        definition.name,
-                    )
+                val artifact = result.artifact
+                when {
+                    // Handle Iterable<T> - unwrap and add all items
+                    artifact is Iterable<*> -> {
+                        artifact.filterIsInstance(clazz).forEach { item ->
+                            addAsset(item)
+                        }
+                    }
+                    // Handle single item of type T
+                    clazz.isInstance(artifact) -> {
+                        @Suppress("UNCHECKED_CAST")
+                        addAsset(artifact as T)
+                    }
                 }
             }
 
@@ -60,6 +65,17 @@ class AssetAddingTool<T>(
             }
         }
         return result
+    }
+
+    private fun addAsset(item: T) {
+        val asset = converter(item)
+        assetTracker.addAsset(asset)
+        logger.info(
+            "Added asset of class {} with id={} from tool={}",
+            asset.javaClass.name,
+            asset.id,
+            definition.name,
+        )
     }
 
     override val definition: Tool.Definition = delegate.definition
