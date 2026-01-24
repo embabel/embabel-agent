@@ -21,18 +21,10 @@ import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.asAction
 import com.embabel.agent.api.common.support.TransformationAction
 import com.embabel.agent.api.dsl.support.promptTransformer
-import com.embabel.agent.core.Action
-import com.embabel.agent.core.ActionQos
-import com.embabel.agent.core.Agent
-import com.embabel.agent.core.AgentScope
-import com.embabel.agent.core.Condition
-import com.embabel.agent.core.Export
-import com.embabel.agent.core.Goal
-import com.embabel.agent.core.IoBinding
-import com.embabel.agent.core.JvmType
-import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.support.LlmCall
+import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.*
 import com.embabel.agent.experimental.primitive.PromptCondition
+import com.embabel.agent.core.support.LlmCall
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
@@ -181,6 +173,7 @@ class AgentBuilder(
         llm: LlmOptions = LlmOptions(),
         promptContributors: List<PromptContributor> = emptyList(),
         canRerun: Boolean = false,
+        tools: Collection<Tool> = emptyList(),
         noinline prompt: (actionContext: TransformationActionContext<I, O>) -> String,
     ) {
         val action = promptTransformer(
@@ -196,6 +189,7 @@ class AgentBuilder(
             referencedInputProperties = referencedInputProperties,
             llm = llm,
             canRerun = canRerun,
+            tools = tools,
             prompt = prompt,
             promptContributors = this.promptContributors + promptContributors,
             inputClass = I::class.java,
