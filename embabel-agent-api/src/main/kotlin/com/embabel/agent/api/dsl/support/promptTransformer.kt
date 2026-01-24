@@ -64,12 +64,14 @@ fun <I, O : Any> promptTransformer(
         toolGroups = toolGroups,
     ) {
         it.promptRunner(
-            llm = llm,
-            toolGroups = toolGroups,
-            promptContributors = promptContributors,
-        ).createObject(
-            prompt = prompt(it),
-            outputClass = outputClass,
-        )
+                llm = llm,
+                toolGroups = toolGroups,
+                promptContributors = promptContributors,
+            )
+            .withTools(tools.toList())
+            .createObject(
+                prompt = prompt(it),
+                outputClass = outputClass,
+            )
     }
 }
