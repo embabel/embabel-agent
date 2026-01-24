@@ -23,13 +23,18 @@ import com.embabel.common.core.types.HasInfoString
  * Conversation shim for agent system.
  * Mutable.
  */
-interface Conversation : StableIdentified, AssetTracker, HasInfoString {
+interface Conversation : StableIdentified, HasInfoString {
 
     /**
      * Messages in the conversation in chronological order.
      * Visible to user.
      */
     val messages: List<Message>
+
+    /**
+     * Assets tracked in the conversation.
+     */
+    val assetTracker: AssetTracker
 
     /**
      * Non-null if the conversation has messages and the last message is from the user.

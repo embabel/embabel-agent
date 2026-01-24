@@ -19,7 +19,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.support.AssetAddingTool
 
 /**
- * Extended by anything, such as a conversation, that can track assets
+ * Extended by anything that can track assets
  */
 interface AssetTracker : AssetView {
 
@@ -32,7 +32,7 @@ interface AssetTracker : AssetView {
     /**
      * Wrap a tool so any outputs are tracked as assets.
      */
-    fun trackAnyAsset(tool: Tool): Tool {
+    fun addReturnedAssets(tool: Tool): Tool {
         return AssetAddingTool(
             delegate = tool,
             assetTracker = this,
@@ -44,7 +44,7 @@ interface AssetTracker : AssetView {
     /**
      * Make these tools track any assets produced.
      */
-    fun trackAnyAssets(tools: List<Tool>): List<Tool> {
-        return tools.map { trackAnyAsset(it) }
+    fun addAnyReturnedAssets(tools: List<Tool>): List<Tool> {
+        return tools.map { addReturnedAssets(it) }
     }
 }

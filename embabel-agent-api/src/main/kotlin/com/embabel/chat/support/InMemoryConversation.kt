@@ -15,7 +15,7 @@
  */
 package com.embabel.chat.support
 
-import com.embabel.chat.Asset
+import com.embabel.chat.AssetTracker
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.common.core.MobyNameGenerator
@@ -27,7 +27,7 @@ class InMemoryConversation private constructor(
     override val id: String = MobyNameGenerator.generateName(),
     private val persistent: Boolean = false,
     private val _messages: MutableList<Message> = mutableListOf(),
-    private val _assets: MutableSet<Asset> = mutableSetOf(),
+    override val assetTracker: AssetTracker = InMemoryAssetTracker(),
 ) : Conversation {
 
     @JvmOverloads
@@ -35,26 +35,18 @@ class InMemoryConversation private constructor(
         messages: List<Message> = emptyList(),
         id: String = MobyNameGenerator.generateName(),
         persistent: Boolean = false,
+        assets: AssetTracker = InMemoryAssetTracker(),
     ) : this(
         id = id,
         persistent = persistent,
         _messages = messages.toMutableList(),
+        assetTracker = assets,
     )
 
     override fun addMessage(message: Message): Message {
         _messages += message
         return message
     }
-
-    override fun addAsset(asset: Asset) {
-        if (_assets.any { it.id == asset.id }) {
-            return
-        }
-        _assets += asset
-    }
-
-    override val assets: List<Asset>
-        get() = _assets.toList()
 
     override val messages: List<Message>
         get() = _messages.toList()
@@ -66,5 +58,6 @@ class InMemoryConversation private constructor(
             id = this.id,
             persistent = false,
             _messages = this._messages.takeLast(n).toMutableList(),
+            assetTracker = this.assetTracker,
         )
 }

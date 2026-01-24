@@ -19,7 +19,6 @@ import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.chat.Asset
-import com.embabel.chat.AssetTracker
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -32,7 +31,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `delegates call to underlying tool`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val delegateTool = Tool.of("test", "Test tool") { _ ->
                 Tool.Result.text("delegated result")
             }
@@ -52,7 +51,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `preserves tool definition from delegate`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val delegateTool = Tool.of(
                 name = "my_tool",
                 description = "My test tool description",
@@ -75,7 +74,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `implements DelegatingTool interface`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val delegateTool = Tool.of("test", "Test") { _ -> Tool.Result.text("result") }
 
             val assetAddingTool = AssetAddingTool(
@@ -91,7 +90,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `adds asset when result has artifact of expected type`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val testAsset = TestAsset("asset-123")
 
             val delegateTool = Tool.of("test", "Test") { _ ->
@@ -113,7 +112,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `converts artifact to asset using converter`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
 
             data class CustomData(val value: String)
 
@@ -136,7 +135,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `does not add asset when result is Text`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val delegateTool = Tool.of("test", "Test") { _ ->
                 Tool.Result.text("just text")
             }
@@ -156,7 +155,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `does not add asset when result is Error`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val delegateTool = Tool.of("test", "Test") { _ ->
                 Tool.Result.error("Something went wrong")
             }
@@ -176,7 +175,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `does not add asset when artifact is wrong type`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
 
             data class WrongType(val value: String)
 
@@ -201,7 +200,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `returns original result even when asset is added`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val testAsset = TestAsset("asset-456")
 
             val delegateTool = Tool.of("test", "Test") { _ ->
@@ -228,12 +227,12 @@ class AssetAddingToolTest {
 
         @Test
         fun `trackAnyAsset wraps tool correctly`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val originalTool = Tool.of("original", "Original tool") { _ ->
                 Tool.Result.text("result")
             }
 
-            val wrappedTool = tracker.trackAnyAsset(originalTool)
+            val wrappedTool = tracker.addReturnedAssets(originalTool)
 
             assertThat(wrappedTool).isInstanceOf(AssetAddingTool::class.java)
             assertThat((wrappedTool as DelegatingTool).delegate).isSameAs(originalTool)
@@ -242,14 +241,14 @@ class AssetAddingToolTest {
 
         @Test
         fun `trackAnyAsset adds Asset artifacts automatically`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val testAsset = TestAsset("tracked-asset")
 
             val originalTool = Tool.of("producer", "Produces assets") { _ ->
                 Tool.Result.withArtifact("produced", testAsset)
             }
 
-            val wrappedTool = tracker.trackAnyAsset(originalTool)
+            val wrappedTool = tracker.addReturnedAssets(originalTool)
             wrappedTool.call("{}")
 
             assertThat(tracker.assets).hasSize(1)
@@ -258,12 +257,12 @@ class AssetAddingToolTest {
 
         @Test
         fun `trackAnyAssets wraps multiple tools`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val tool1 = Tool.of("tool1", "First tool") { _ -> Tool.Result.text("1") }
             val tool2 = Tool.of("tool2", "Second tool") { _ -> Tool.Result.text("2") }
             val tool3 = Tool.of("tool3", "Third tool") { _ -> Tool.Result.text("3") }
 
-            val wrappedTools = tracker.trackAnyAssets(listOf(tool1, tool2, tool3))
+            val wrappedTools = tracker.addAnyReturnedAssets(listOf(tool1, tool2, tool3))
 
             assertThat(wrappedTools).hasSize(3)
             assertThat(wrappedTools).allMatch { it is AssetAddingTool<*> }
@@ -272,23 +271,23 @@ class AssetAddingToolTest {
 
         @Test
         fun `trackAnyAssets returns empty list for empty input`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
 
-            val wrappedTools = tracker.trackAnyAssets(emptyList())
+            val wrappedTools = tracker.addAnyReturnedAssets(emptyList())
 
             assertThat(wrappedTools).isEmpty()
         }
 
         @Test
         fun `multiple wrapped tools can add to same tracker`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
             val asset1 = TestAsset("asset-1")
             val asset2 = TestAsset("asset-2")
 
             val tool1 = Tool.of("tool1", "First") { _ -> Tool.Result.withArtifact("1", asset1) }
             val tool2 = Tool.of("tool2", "Second") { _ -> Tool.Result.withArtifact("2", asset2) }
 
-            val wrappedTools = tracker.trackAnyAssets(listOf(tool1, tool2))
+            val wrappedTools = tracker.addAnyReturnedAssets(listOf(tool1, tool2))
 
             wrappedTools[0].call("{}")
             wrappedTools[1].call("{}")
@@ -299,7 +298,7 @@ class AssetAddingToolTest {
 
         @Test
         fun `trackAnyAsset ignores non-Asset artifacts`() {
-            val tracker = TestAssetTracker()
+            val tracker = InMemoryAssetTracker()
 
             data class NotAnAsset(val data: String)
 
@@ -307,7 +306,7 @@ class AssetAddingToolTest {
                 Tool.Result.withArtifact("produced", NotAnAsset("not-an-asset"))
             }
 
-            val wrappedTool = tracker.trackAnyAsset(originalTool)
+            val wrappedTool = tracker.addReturnedAssets(originalTool)
             val result = wrappedTool.call("{}")
 
             assertThat(tracker.assets).isEmpty()
@@ -318,17 +317,6 @@ class AssetAddingToolTest {
 }
 
 // Test implementations
-
-private class TestAssetTracker : AssetTracker {
-    private val _assets = mutableListOf<Asset>()
-
-    override fun addAsset(asset: Asset) {
-        _assets.add(asset)
-    }
-
-    override val assets: List<Asset>
-        get() = _assets.toList()
-}
 
 private class TestAsset(
     override val id: String,
