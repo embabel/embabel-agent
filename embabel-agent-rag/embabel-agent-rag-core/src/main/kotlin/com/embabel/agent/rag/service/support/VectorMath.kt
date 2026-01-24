@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.rag.lucene
+package com.embabel.agent.rag.service.support
 
 import kotlin.math.sqrt
 
 /**
  * Helper functions for vector math operations used in similarity search.
  */
-internal object VectorMath {
+object VectorMath {
 
     /**
      * Calculate cosine similarity between two vectors.

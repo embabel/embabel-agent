@@ -32,6 +32,11 @@ interface Conversation : StableIdentified, HasInfoString {
     val messages: List<Message>
 
     /**
+     * Assets tracked in the conversation.
+     */
+    val assetTracker: AssetTracker
+
+    /**
      * Non-null if the conversation has messages and the last message is from the user.
      */
     fun lastMessageIfBeFromUser(): UserMessage? = messages.lastOrNull() as? UserMessage

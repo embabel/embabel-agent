@@ -15,6 +15,7 @@
  */
 package com.embabel.chat.support
 
+import com.embabel.chat.AssetTracker
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.common.core.MobyNameGenerator
@@ -26,6 +27,7 @@ class InMemoryConversation private constructor(
     override val id: String = MobyNameGenerator.generateName(),
     private val persistent: Boolean = false,
     private val _messages: MutableList<Message> = mutableListOf(),
+    override val assetTracker: AssetTracker = InMemoryAssetTracker(),
 ) : Conversation {
 
     @JvmOverloads
@@ -33,10 +35,12 @@ class InMemoryConversation private constructor(
         messages: List<Message> = emptyList(),
         id: String = MobyNameGenerator.generateName(),
         persistent: Boolean = false,
+        assets: AssetTracker = InMemoryAssetTracker(),
     ) : this(
         id = id,
         persistent = persistent,
         _messages = messages.toMutableList(),
+        assetTracker = assets,
     )
 
     override fun addMessage(message: Message): Message {
@@ -45,7 +49,7 @@ class InMemoryConversation private constructor(
     }
 
     override val messages: List<Message>
-        get() = _messages
+        get() = _messages.toList()
 
     override fun persistent(): Boolean = persistent
 
@@ -54,5 +58,6 @@ class InMemoryConversation private constructor(
             id = this.id,
             persistent = false,
             _messages = this._messages.takeLast(n).toMutableList(),
+            assetTracker = this.assetTracker,
         )
 }
