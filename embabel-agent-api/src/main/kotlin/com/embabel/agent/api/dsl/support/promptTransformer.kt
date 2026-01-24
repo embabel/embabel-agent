@@ -25,10 +25,12 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.plan.CostComputation
+import org.jetbrains.annotations.ApiStatus
 
 /**
- * Supports AgentBuilder. Not fur direct use in user code.
+ * Supports AgentBuilder. Not for direct use in user code.
  */
+@ApiStatus.Internal
 fun <I, O : Any> promptTransformer(
     name: String,
     description: String = name,
@@ -48,7 +50,7 @@ fun <I, O : Any> promptTransformer(
     tools: Collection<Tool> = emptyList(),
     prompt: (actionContext: TransformationActionContext<I, O>) -> String,
 ): TransformationAction<I, O> {
-    return TransformationAction<I, O>(
+    return TransformationAction(
         name = name,
         description = description,
         pre = pre.map { it.name },
@@ -64,10 +66,10 @@ fun <I, O : Any> promptTransformer(
         toolGroups = toolGroups,
     ) {
         it.promptRunner(
-                llm = llm,
-                toolGroups = toolGroups,
-                promptContributors = promptContributors,
-            )
+            llm = llm,
+            toolGroups = toolGroups,
+            promptContributors = promptContributors,
+        )
             .withTools(tools.toList())
             .createObject(
                 prompt = prompt(it),
