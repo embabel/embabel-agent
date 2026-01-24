@@ -24,6 +24,7 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
@@ -130,6 +131,7 @@ data class LlmInteraction(
      * Get the interaction ID as a String.
      * Provided for Java compatibility since value classes don't generate standard getters.
      */
+    @JsonIgnore
     fun getId(): String = id.value
 
     companion object {
