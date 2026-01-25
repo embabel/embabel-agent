@@ -471,8 +471,11 @@ allows you to run an LLM API server on localhost.
 
 To add LM Studio support, add the `embabel-agent-starter-lmstudio` starter.
 
-Add this with Maven as follows:
-
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
 [source,xml]
 ----
 <dependency>
@@ -481,13 +484,24 @@ Add this with Maven as follows:
     <version>${embabel-agent.version}</version>
 </dependency>
 ----
-
-With the Gradle Kotlin DSL:
-
-[source,gradle]
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
 ----
-implementation "com.embabel.agent:embabel-agent-starter-lmstudio:${embabelVersion}"
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-lmstudio:${embabel-agent.version}")
+}
 ----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-lmstudio:${embabel-agent.version}'
+}
+----
+====
 
 Configure an LLM API on LM Studio by following https://lmstudio.ai/docs/developer/core/server[these instructions].
 
