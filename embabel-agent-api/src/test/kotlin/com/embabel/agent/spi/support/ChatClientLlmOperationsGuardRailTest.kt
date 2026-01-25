@@ -471,6 +471,94 @@ class ChatClientLlmOperationsGuardRailTest {
     }
 
     @Test
+    fun `should use combineMessages when validating multiple user messages`() {
+        val combinedInputReceived = mutableListOf<String>()
+        val userInputGuard = object : UserInputGuardRail {
+            override val name = "CombineTestGuard"
+            override val description = "Tests combineMessages flow"
+            override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                combinedInputReceived.add(input)
+                return ValidationResult.VALID
+            }
+        }
+
+        val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel("Test response"))
+
+        val interaction = LlmInteraction(
+            id = InteractionId("test-combine-messages"),
+            llm = LlmOptions(),
+            tools = emptyList(),
+            promptContributors = emptyList(),
+            guardRails = listOf(userInputGuard),
+            useEmbabelToolLoop = false
+        )
+
+        val llmRequestEvent = mockk<LlmRequestEvent<String>>(relaxed = true)
+        every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
+
+        setup.llmOperations.doTransform(
+            messages = listOf(
+                UserMessage("First message"),
+                UserMessage("Second message"),
+                UserMessage("Third message")
+            ),
+            interaction = interaction,
+            outputClass = String::class.java,
+            llmRequestEvent = llmRequestEvent
+        )
+
+        assertEquals(1, combinedInputReceived.size)
+        // Default combineMessages joins with newline
+        assertEquals("First message\nSecond message\nThird message", combinedInputReceived[0])
+    }
+
+    @Test
+    fun `should use custom combineMessages implementation when provided`() {
+        val combinedInputReceived = mutableListOf<String>()
+        val customCombineGuard = object : UserInputGuardRail {
+            override val name = "CustomCombineGuard"
+            override val description = "Tests custom combineMessages"
+
+            override fun combineMessages(userMessages: List<UserMessage>): String {
+                // Custom separator and transformation
+                return userMessages.joinToString(" | ") { "[${it.content}]" }
+            }
+
+            override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                combinedInputReceived.add(input)
+                return ValidationResult.VALID
+            }
+        }
+
+        val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel("Test response"))
+
+        val interaction = LlmInteraction(
+            id = InteractionId("test-custom-combine"),
+            llm = LlmOptions(),
+            tools = emptyList(),
+            promptContributors = emptyList(),
+            guardRails = listOf(customCombineGuard),
+            useEmbabelToolLoop = false
+        )
+
+        val llmRequestEvent = mockk<LlmRequestEvent<String>>(relaxed = true)
+        every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
+
+        setup.llmOperations.doTransform(
+            messages = listOf(
+                UserMessage("msg1"),
+                UserMessage("msg2")
+            ),
+            interaction = interaction,
+            outputClass = String::class.java,
+            llmRequestEvent = llmRequestEvent
+        )
+
+        assertEquals(1, combinedInputReceived.size)
+        assertEquals("[msg1] | [msg2]", combinedInputReceived[0])
+    }
+
+    @Test
     fun `should not throw exception for non-critical validation violations`() {
         val validationsCalled = mutableListOf<String>()
 

@@ -36,23 +36,40 @@ interface UserInputGuardRail : GuardRail {
     // fun validate(input: String, blackboard: Blackboard): ValidationResult
 
     /**
+     * Combines multiple user messages into a single string for validation.
+     *
+     * Override this method to customize how messages are combined before validation.
+     * For example, implementations might want to:
+     * - Add separators or context markers between messages
+     * - Filter out certain message types
+     * - Apply message-specific preprocessing
+     *
+     * @param userMessages the list of user messages to combine
+     * @return the combined text representation of the messages
+     */
+    fun combineMessages(userMessages: List<UserMessage>): String {
+        return userMessages.joinToString(separator = "\n") { message ->
+            message.content
+        }
+    }
+
+    /**
      * Validate a list of user messages from a conversation.
      *
      * This method allows validation of multi-turn user inputs and can examine
      * the context and flow of user messages in the conversation.
      *
-     * Default implementation extracts text content from all user messages and validates
-     * the combined text, but implementations can override for more sophisticated
-     * conversation-aware validation.
+     * Default implementation uses [combineMessages] to extract and combine text content
+     * from all user messages, then validates the combined text. Implementations can
+     * override [combineMessages] for custom message combination, or override this
+     * method entirely for more sophisticated conversation-aware validation.
      *
      * @param userMessages the list of user messages to validate
      * @param blackboard the blackboard context
      * @return validation result indicating success or failure
      */
     fun validate(userMessages: List<UserMessage>, blackboard: Blackboard): ValidationResult {
-        val combinedText = userMessages.joinToString(separator = "\n") { message ->
-            message.content
-        }
+        val combinedText = combineMessages(userMessages)
         return validate(combinedText, blackboard)
     }
 

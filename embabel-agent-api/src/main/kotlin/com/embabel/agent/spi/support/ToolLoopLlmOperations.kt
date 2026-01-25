@@ -149,8 +149,8 @@ open class ToolLoopLlmOperations(
         emitCallEvent(llmRequestEvent, promptContributions, messages, schemaFormat)
 
         // Guardrails: Pre-validation of user input
-        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
-        validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         val tools = interaction.tools
 

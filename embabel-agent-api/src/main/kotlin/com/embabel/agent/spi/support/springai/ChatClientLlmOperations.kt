@@ -225,8 +225,8 @@ internal class ChatClientLlmOperations(
         val springAiPrompt = buildPromptWithMaybeReturn(promptContributions, messages, maybeReturnPromptContribution)
 
         // Guardrails: Pre-validation of user input
-        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
-        validateUserInput(userInput, interaction, llmRequestEvent.agentProcess.blackboard)
+        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent.agentProcess.blackboard)
 
         llmRequestEvent.agentProcess.processContext.onProcessEvent(
             llmRequestEvent.chatModelCallEvent(springAiPrompt)
@@ -360,8 +360,8 @@ internal class ChatClientLlmOperations(
         val springAiPrompt = buildBasicPrompt(promptContributions, messages)
 
         // Guardrails: Pre-validation of user input
-        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
-        validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         llmRequestEvent?.let {
             it.agentProcess.processContext.onProcessEvent(
@@ -468,8 +468,8 @@ internal class ChatClientLlmOperations(
         }
 
         // Guardrails: Pre-validation of user input
-        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
-        validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         llmRequestEvent?.let {
             it.agentProcess.processContext.onProcessEvent(
@@ -611,8 +611,8 @@ internal class ChatClientLlmOperations(
             )
 
             // Guardrails: Pre-validation of user input
-            val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
-            validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+            val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+            validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
             llmRequestEvent?.agentProcess?.processContext?.onProcessEvent(
                 llmRequestEvent.chatModelCallEvent(springAiPrompt)

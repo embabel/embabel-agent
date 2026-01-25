@@ -178,17 +178,6 @@ class LLMAnthropicThinkingIT {
 
 
         @Override
-        public @NotNull ValidationResult validate(@NotNull List<@NotNull UserMessage> userMessages, @NotNull Blackboard blackboard) {
-            logger.info("Validated User Input {}", userMessages);
-            return UserInputGuardRail.super.validate(userMessages, blackboard); // despatches to default impl
-        }
-
-        @Override
-        public @NotNull ValidationResult validate(@NotNull MultimodalContent content, @NotNull Blackboard blackboard) {
-            return UserInputGuardRail.super.validate(content, blackboard); // despatches to default impl
-        }
-
-        @Override
         public @NotNull String getName() {
             return "UserInputThinkingtGuardRail";
         }
@@ -250,7 +239,7 @@ class LLMAnthropicThinkingIT {
         public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
             logger.info("Validated Simple User Input {}", input);
             List<ValidationError> errors = new ArrayList<>();
-            errors.add(new ValidationError("guardrail-error", "something-wrong", ValidationSeverity.CRITICAL));
+            errors.add(new ValidationError("guardrail-error", "something-very-wrong", ValidationSeverity.CRITICAL));
             return new ValidationResult(true, errors);
         }
     }

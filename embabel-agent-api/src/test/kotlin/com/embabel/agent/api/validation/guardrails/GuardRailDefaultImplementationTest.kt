@@ -33,7 +33,54 @@ class GuardRailDefaultImplementationTest {
     private val blackboard = InMemoryBlackboard()
 
     @Test
-    fun `UserInputGuardRail default validate with List should combine messages and delegate to base validate`() {
+    fun `UserInputGuardRail default combineMessages should join messages with newline`() {
+        val guard = object : UserInputGuardRail {
+            override val name = "DefaultTestGuard"
+            override val description = "Tests default implementations"
+
+            override fun validate(input: String, blackboard: com.embabel.agent.core.Blackboard): ValidationResult {
+                return ValidationResult.VALID
+            }
+        }
+
+        val messages = listOf(
+            UserMessage("First message"),
+            UserMessage("Second message"),
+            UserMessage("Third message")
+        )
+
+        val combined = guard.combineMessages(messages)
+
+        assertEquals("First message\nSecond message\nThird message", combined)
+    }
+
+    @Test
+    fun `UserInputGuardRail custom combineMessages can be overridden`() {
+        val guard = object : UserInputGuardRail {
+            override val name = "CustomCombineGuard"
+            override val description = "Tests custom combineMessages"
+
+            override fun combineMessages(userMessages: List<UserMessage>): String {
+                return userMessages.joinToString(" | ") { it.content.uppercase() }
+            }
+
+            override fun validate(input: String, blackboard: com.embabel.agent.core.Blackboard): ValidationResult {
+                return ValidationResult.VALID
+            }
+        }
+
+        val messages = listOf(
+            UserMessage("hello"),
+            UserMessage("world")
+        )
+
+        val combined = guard.combineMessages(messages)
+
+        assertEquals("HELLO | WORLD", combined)
+    }
+
+    @Test
+    fun `UserInputGuardRail default validate with List should use combineMessages and delegate to base validate`() {
         // Create guard that only implements the base validate method - uses default implementations
         val guard = object : UserInputGuardRail {
             override val name = "DefaultTestGuard"
@@ -57,6 +104,35 @@ class GuardRailDefaultImplementationTest {
 
         assertEquals(ValidationResult.VALID, result)
         assertEquals("First message\nSecond message", guard.lastValidatedInput)
+    }
+
+    @Test
+    fun `UserInputGuardRail validate with List should use custom combineMessages`() {
+        val guard = object : UserInputGuardRail {
+            override val name = "CustomCombineGuard"
+            override val description = "Tests custom combineMessages in validation flow"
+
+            var lastValidatedInput: String? = null
+
+            override fun combineMessages(userMessages: List<UserMessage>): String {
+                return userMessages.joinToString(" --- ") { "[${it.content}]" }
+            }
+
+            override fun validate(input: String, blackboard: com.embabel.agent.core.Blackboard): ValidationResult {
+                lastValidatedInput = input
+                return ValidationResult.VALID
+            }
+        }
+
+        val messages = listOf(
+            UserMessage("msg1"),
+            UserMessage("msg2")
+        )
+
+        val result = guard.validate(messages, blackboard)
+
+        assertEquals(ValidationResult.VALID, result)
+        assertEquals("[msg1] --- [msg2]", guard.lastValidatedInput)
     }
 
     @Test

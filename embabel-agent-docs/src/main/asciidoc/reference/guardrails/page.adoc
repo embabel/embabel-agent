@@ -36,6 +36,50 @@ One of the benefits of using framework is access to _Blackboard_ object, and as 
 - Validation Severity level CRITICAL results in throwing _GuardRailValidationException_ on User Input Guardrails, thus blocking from executing LLM operation
 - By design philosophy _createObjectIfPossible_ handles exceptions and operation completes gracefully with no object being constructed, however _GuarRailValidationException_ gets wrapped inside _ThinkingResponse_ (if developer chooses _thinking_ mode)
 
+==== Customizing Message Combining
+
+When validating user input from multiple messages, the _UserInputGuardRail_ interface provides a _combineMessages_ method that can be overridden to customize how messages are combined before validation.
+
+The default implementation joins all user message contents with newlines:
+
+[source,kotlin]
+----
+fun combineMessages(userMessages: List<UserMessage>): String {
+    return userMessages.joinToString(separator = "\n") { message ->
+        message.content
+    }
+}
+----
+
+Override this method to customize message combining for your guardrail:
+
+[source,kotlin]
+----
+class CustomCombineGuardRail : UserInputGuardRail {
+    override val name = "CustomCombineGuard"
+    override val description = "Guardrail with custom message combining"
+
+    override fun combineMessages(userMessages: List<UserMessage>): String {
+        // Custom: add context markers between messages
+        return userMessages.mapIndexed { index, message ->
+            "[Message ${index + 1}]: ${message.content}"
+        }.joinToString("\n---\n")
+    }
+
+    override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+        // input now contains the custom-formatted combined messages
+        return ValidationResult.VALID
+    }
+}
+----
+
+This allows guardrails to:
+
+- Add separators or context markers between messages
+- Filter out certain message types
+- Apply message-specific preprocessing
+- Implement conversation-aware validation logic
+
 
 ====  Example: LLM Can't Create Object due to CRITICAL Guardrail Validation Error
 
@@ -145,7 +189,7 @@ Since I must be SURE about EVERY field and cannot make assumptions or provide ap
 
 Guardrails can be instrumental in automating further LLM responses analysis, for example using semantic text processing with the help of https://stanfordnlp.github.io/CoreNLP/[CoreNLP]
 
-More exampls can b found in:
+More examples can b found in:
 
 ```
 embabel-agent-autoconfigure/models/embabel-agent-anthropic-autoconfigure/src/test/kotlin/com/embabel/agent/config/models/anthropic/LLMAnthropicThinkingIT.java

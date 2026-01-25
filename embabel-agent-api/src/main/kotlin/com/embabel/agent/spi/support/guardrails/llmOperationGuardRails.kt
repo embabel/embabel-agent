@@ -23,6 +23,7 @@ import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.chat.AssistantMessage
+import com.embabel.chat.UserMessage
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.core.validation.ValidationSeverity
@@ -31,12 +32,12 @@ import com.embabel.common.util.loggerFor
 private val logger = loggerFor<Any>()
 
 /**
- * Validates user input using configured guardrails from interaction options.
+ * Internal helper for user input validation that handles common guardrail logic.
  */
-internal fun validateUserInput(
-    springAiPrompt: String,
+private fun validateUserInputInternal(
     interaction: LlmInteraction,
-    blackboard: Blackboard?
+    blackboard: Blackboard?,
+    validator: (UserInputGuardRail, Blackboard) -> ValidationResult
 ) {
     val userInputGuards = interaction.guardRails
         .filterIsInstance<UserInputGuardRail>()
@@ -45,9 +46,35 @@ internal fun validateUserInput(
 
     val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
     userInputGuards.forEach { guard ->
-        val result = guard.validate(springAiPrompt, effectiveBlackboard)
+        val result = validator(guard, effectiveBlackboard)
         handleValidationResult(guard.name, result)
     }
+}
+
+/**
+ * Validates user input using configured guardrails from interaction options.
+ */
+internal fun validateUserInput(
+    promptAsString: String,
+    interaction: LlmInteraction,
+    blackboard: Blackboard?
+) = validateUserInputInternal(interaction, blackboard) { guard, bb ->
+    guard.validate(promptAsString, bb)
+}
+
+/**
+ * Validates user input from a list of user messages using configured guardrails.
+ *
+ * This overload passes the full list of user messages to each guardrail,
+ * allowing guardrails to customize message combining via [UserInputGuardRail.combineMessages]
+ * or implement conversation-aware validation by overriding [UserInputGuardRail.validate].
+ */
+internal fun validateUserInput(
+    userMessages: List<UserMessage>,
+    interaction: LlmInteraction,
+    blackboard: Blackboard?
+) = validateUserInputInternal(interaction, blackboard) { guard, bb ->
+    guard.validate(userMessages, bb)
 }
 
 /**

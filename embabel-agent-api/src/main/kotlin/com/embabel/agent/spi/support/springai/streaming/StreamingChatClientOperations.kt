@@ -150,8 +150,8 @@ internal class StreamingChatClientOperations(
         val springAiPrompt = buildSpringAiPrompt(messages, promptContributions)
 
         // Guardrails: Pre-validation of user input
-        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
-        validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
 
@@ -329,8 +329,8 @@ internal class StreamingChatClientOperations(
         val springAiPrompt = buildSpringAiPrompt(messages, fullPromptContributions)
 
         // Guardrails: Pre-validation of user input
-        val userInput = messages.filterIsInstance<com.embabel.chat.UserMessage>().joinToString("\n") { it.content }
-        validateUserInput(userInput, interaction, llmRequestEvent?.agentProcess?.blackboard)
+        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         // Step 1: Original raw chunk stream from LLM
         val rawChunkFlux: Flux<String> = chatClient
