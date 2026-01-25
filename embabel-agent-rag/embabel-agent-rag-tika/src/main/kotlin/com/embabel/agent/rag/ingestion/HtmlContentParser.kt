@@ -111,6 +111,7 @@ internal class HtmlContentParser(
 
         // Build the hierarchical structure
         val documentTitle = metadata.get(TikaCoreProperties.TITLE)
+            ?: extractHtmlTitle(content)
             ?: metadata.get(TikaCoreProperties.RESOURCE_NAME_KEY)
             ?: (if (leafSections.isNotEmpty()) leafSections.first().title else "Document")
 
@@ -124,5 +125,16 @@ internal class HtmlContentParser(
             children = hierarchicalSections,
             metadata = ContentFormatParserUtils.extractMetadataMap(metadata)
         )
+    }
+
+    /**
+     * Extract the title from HTML <title> tag.
+     */
+    private fun extractHtmlTitle(content: String): String? {
+        val titlePattern = Regex("<title[^>]*>(.*?)</title>", RegexOption.IGNORE_CASE)
+        return titlePattern.find(content)?.groupValues?.get(1)
+            ?.replace(Regex("\\s+"), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 }
