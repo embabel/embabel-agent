@@ -103,6 +103,34 @@ sealed interface PropertyFilter {
     data class Contains(val key: String, val value: String) : PropertyFilter
 
     /**
+     * Contains substring (case-insensitive): properties[key].toString().lowercase().contains(value.lowercase())
+     */
+    data class ContainsIgnoreCase(val key: String, val value: String) : PropertyFilter
+
+    /**
+     * Equals (case-insensitive): properties[key].toString().lowercase() == value.lowercase()
+     */
+    data class EqIgnoreCase(val key: String, val value: String) : PropertyFilter
+
+    /**
+     * Starts with prefix: properties[key].toString().startsWith(value)
+     */
+    data class StartsWith(val key: String, val value: String) : PropertyFilter
+
+    /**
+     * Ends with suffix: properties[key].toString().endsWith(value)
+     */
+    data class EndsWith(val key: String, val value: String) : PropertyFilter
+
+    /**
+     * Regex pattern match: properties[key].toString().matches(Regex(pattern))
+     *
+     * Uses Java/Kotlin regex syntax. For case-insensitive matching,
+     * use the (?i) flag at the start of the pattern.
+     */
+    data class Like(val key: String, val pattern: String) : PropertyFilter
+
+    /**
      * Logical AND: all filters must match
      */
     data class And(val filters: List<PropertyFilter>) : PropertyFilter {
@@ -136,6 +164,11 @@ sealed interface PropertyFilter {
         fun nin(key: String, values: List<Any>) = Nin(key, values)
         fun nin(key: String, vararg values: Any) = Nin(key, values.toList())
         fun contains(key: String, value: String) = Contains(key, value)
+        fun containsIgnoreCase(key: String, value: String) = ContainsIgnoreCase(key, value)
+        fun eqIgnoreCase(key: String, value: String) = EqIgnoreCase(key, value)
+        fun startsWith(key: String, value: String) = StartsWith(key, value)
+        fun endsWith(key: String, value: String) = EndsWith(key, value)
+        fun like(key: String, pattern: String) = Like(key, pattern)
         fun and(vararg filters: PropertyFilter) = And(filters.toList())
         fun or(vararg filters: PropertyFilter) = Or(filters.toList())
         fun not(filter: PropertyFilter) = Not(filter)

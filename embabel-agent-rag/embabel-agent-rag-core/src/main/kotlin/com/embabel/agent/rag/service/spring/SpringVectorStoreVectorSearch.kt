@@ -143,6 +143,32 @@ fun PropertyFilter.toSpringAiExpression(): Filter.Expression = when (this) {
         Filter.Value(value)
     )
 
+    // String filters not natively supported by Spring AI - require in-memory filtering
+    is PropertyFilter.ContainsIgnoreCase -> throw UnsupportedOperationException(
+        "ContainsIgnoreCase filter cannot be translated to Spring AI filter expression. " +
+                "Use in-memory filtering instead."
+    )
+
+    is PropertyFilter.EqIgnoreCase -> throw UnsupportedOperationException(
+        "EqIgnoreCase filter cannot be translated to Spring AI filter expression. " +
+                "Use in-memory filtering instead."
+    )
+
+    is PropertyFilter.StartsWith -> throw UnsupportedOperationException(
+        "StartsWith filter cannot be translated to Spring AI filter expression. " +
+                "Use in-memory filtering instead."
+    )
+
+    is PropertyFilter.EndsWith -> throw UnsupportedOperationException(
+        "EndsWith filter cannot be translated to Spring AI filter expression. " +
+                "Use in-memory filtering instead."
+    )
+
+    is PropertyFilter.Like -> throw UnsupportedOperationException(
+        "Like filter cannot be translated to Spring AI filter expression. " +
+                "Use in-memory filtering instead."
+    )
+
     is PropertyFilter.And -> filters
         .map { it.toSpringAiExpression() }
         .reduce { left, right ->

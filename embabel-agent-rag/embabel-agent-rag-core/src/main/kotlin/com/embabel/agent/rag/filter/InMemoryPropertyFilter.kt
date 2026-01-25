@@ -50,6 +50,13 @@ object InMemoryPropertyFilter {
         is PropertyFilter.In -> properties[filter.key] in filter.values
         is PropertyFilter.Nin -> properties[filter.key] !in filter.values
         is PropertyFilter.Contains -> properties[filter.key]?.toString()?.contains(filter.value) == true
+        is PropertyFilter.ContainsIgnoreCase ->
+            properties[filter.key]?.toString()?.lowercase()?.contains(filter.value.lowercase()) == true
+        is PropertyFilter.EqIgnoreCase ->
+            properties[filter.key]?.toString()?.lowercase() == filter.value.lowercase()
+        is PropertyFilter.StartsWith -> properties[filter.key]?.toString()?.startsWith(filter.value) == true
+        is PropertyFilter.EndsWith -> properties[filter.key]?.toString()?.endsWith(filter.value) == true
+        is PropertyFilter.Like -> matchesRegex(properties[filter.key], filter.pattern)
         is PropertyFilter.And -> filter.filters.all { matches(it, properties) }
         is PropertyFilter.Or -> filter.filters.any { matches(it, properties) }
         is PropertyFilter.Not -> !matches(filter.filter, properties)
@@ -105,6 +112,13 @@ object InMemoryPropertyFilter {
         is PropertyFilter.In -> entity.properties[filter.key] in filter.values
         is PropertyFilter.Nin -> entity.properties[filter.key] !in filter.values
         is PropertyFilter.Contains -> entity.properties[filter.key]?.toString()?.contains(filter.value) == true
+        is PropertyFilter.ContainsIgnoreCase ->
+            entity.properties[filter.key]?.toString()?.lowercase()?.contains(filter.value.lowercase()) == true
+        is PropertyFilter.EqIgnoreCase ->
+            entity.properties[filter.key]?.toString()?.lowercase() == filter.value.lowercase()
+        is PropertyFilter.StartsWith -> entity.properties[filter.key]?.toString()?.startsWith(filter.value) == true
+        is PropertyFilter.EndsWith -> entity.properties[filter.key]?.toString()?.endsWith(filter.value) == true
+        is PropertyFilter.Like -> matchesRegex(entity.properties[filter.key], filter.pattern)
         is PropertyFilter.And -> filter.filters.all { matchesEntity(it, entity) }
         is PropertyFilter.Or -> filter.filters.any { matchesEntity(it, entity) }
         is PropertyFilter.Not -> !matchesEntity(filter.filter, entity)
@@ -185,5 +199,16 @@ object InMemoryPropertyFilter {
             else -> return false
         }
         return comparison(actualNum.compareTo(expected.toDouble()))
+    }
+
+    private fun matchesRegex(actual: Any?, pattern: String): Boolean {
+        if (actual == null) return false
+        return try {
+            val regex = Regex(pattern)
+            regex.containsMatchIn(actual.toString())
+        } catch (e: Exception) {
+            // Invalid regex pattern
+            false
+        }
     }
 }

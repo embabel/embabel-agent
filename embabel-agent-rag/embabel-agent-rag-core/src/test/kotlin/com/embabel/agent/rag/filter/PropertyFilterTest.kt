@@ -161,6 +161,164 @@ class PropertyFilterTest {
         }
 
         @Test
+        fun `Contains is case-sensitive`() {
+            val filter = PropertyFilter.Contains("name", "Alice")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("name" to "Alice Smith")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("name" to "alice smith")))
+        }
+
+        @Test
+        fun `ContainsIgnoreCase matches when string contains substring regardless of case`() {
+            val filter = PropertyFilter.ContainsIgnoreCase("name", "alice")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("name" to "Alice Smith")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("name" to "ALICE SMITH")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("name" to "alice smith")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("name" to "Meet Alice today")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("name" to "Bob Smith")))
+        }
+
+        @Test
+        fun `ContainsIgnoreCase handles null values`() {
+            val filter = PropertyFilter.ContainsIgnoreCase("name", "alice")
+
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("name" to null)))
+            assertFalse(InMemoryPropertyFilter.matches(filter, emptyMap()))
+        }
+
+        @Test
+        fun `EqIgnoreCase matches when strings are equal regardless of case`() {
+            val filter = PropertyFilter.EqIgnoreCase("status", "active")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("status" to "active")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("status" to "Active")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("status" to "ACTIVE")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("status" to "AcTiVe")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("status" to "inactive")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("status" to "active "))) // trailing space
+        }
+
+        @Test
+        fun `EqIgnoreCase handles null values`() {
+            val filter = PropertyFilter.EqIgnoreCase("status", "active")
+
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("status" to null)))
+            assertFalse(InMemoryPropertyFilter.matches(filter, emptyMap()))
+        }
+
+        @Test
+        fun `StartsWith matches when string starts with prefix`() {
+            val filter = PropertyFilter.StartsWith("path", "/api/")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("path" to "/api/users")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("path" to "/api/")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("path" to "/web/api/users")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("path" to "api/users")))
+        }
+
+        @Test
+        fun `StartsWith is case-sensitive`() {
+            val filter = PropertyFilter.StartsWith("name", "Dr.")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("name" to "Dr. Smith")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("name" to "dr. smith")))
+        }
+
+        @Test
+        fun `StartsWith handles null values`() {
+            val filter = PropertyFilter.StartsWith("path", "/api/")
+
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("path" to null)))
+            assertFalse(InMemoryPropertyFilter.matches(filter, emptyMap()))
+        }
+
+        @Test
+        fun `EndsWith matches when string ends with suffix`() {
+            val filter = PropertyFilter.EndsWith("filename", ".pdf")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("filename" to "report.pdf")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("filename" to ".pdf")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("filename" to "report.pdf.bak")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("filename" to "report.PDF")))
+        }
+
+        @Test
+        fun `EndsWith is case-sensitive`() {
+            val filter = PropertyFilter.EndsWith("email", "@example.com")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("email" to "user@example.com")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("email" to "user@EXAMPLE.COM")))
+        }
+
+        @Test
+        fun `EndsWith handles null values`() {
+            val filter = PropertyFilter.EndsWith("filename", ".pdf")
+
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("filename" to null)))
+            assertFalse(InMemoryPropertyFilter.matches(filter, emptyMap()))
+        }
+
+        @Test
+        fun `Like matches when regex pattern matches`() {
+            val filter = PropertyFilter.Like("code", "ERR-\\d{3}")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("code" to "ERR-123")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("code" to "ERR-999")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("code" to "prefix ERR-456 suffix")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("code" to "ERR-12"))) // only 2 digits
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("code" to "ERR-ABCD")))
+        }
+
+        @Test
+        fun `Like supports case-insensitive matching with flag`() {
+            val filter = PropertyFilter.Like("status", "(?i)^active$")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("status" to "active")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("status" to "Active")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("status" to "ACTIVE")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("status" to "inactive")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("status" to "active-ish")))
+        }
+
+        @Test
+        fun `Like handles complex patterns`() {
+            // Email pattern
+            val emailFilter = PropertyFilter.Like("email", "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
+
+            assertTrue(InMemoryPropertyFilter.matches(emailFilter, mapOf("email" to "user@example.com")))
+            assertTrue(InMemoryPropertyFilter.matches(emailFilter, mapOf("email" to "test.user+tag@sub.domain.org")))
+            assertFalse(InMemoryPropertyFilter.matches(emailFilter, mapOf("email" to "not-an-email")))
+            assertFalse(InMemoryPropertyFilter.matches(emailFilter, mapOf("email" to "user@")))
+        }
+
+        @Test
+        fun `Like handles invalid regex gracefully`() {
+            val filter = PropertyFilter.Like("text", "[invalid(regex")
+
+            // Invalid regex should return false, not throw
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("text" to "anything")))
+        }
+
+        @Test
+        fun `Like handles null values`() {
+            val filter = PropertyFilter.Like("code", "ERR-\\d+")
+
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("code" to null)))
+            assertFalse(InMemoryPropertyFilter.matches(filter, emptyMap()))
+        }
+
+        @Test
+        fun `Like with word boundaries`() {
+            val filter = PropertyFilter.Like("text", "\\bcat\\b")
+
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("text" to "the cat sat")))
+            assertTrue(InMemoryPropertyFilter.matches(filter, mapOf("text" to "cat")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("text" to "category")))
+            assertFalse(InMemoryPropertyFilter.matches(filter, mapOf("text" to "concatenate")))
+        }
+
+        @Test
         fun `And matches when all filters match`() {
             val filter = PropertyFilter.And(
                 PropertyFilter.Eq("owner", "alice"),
@@ -321,6 +479,11 @@ class PropertyFilterTest {
             assertEquals(PropertyFilter.In("k", listOf("a", "b")), PropertyFilter.`in`("k", "a", "b"))
             assertEquals(PropertyFilter.Nin("k", listOf("a", "b")), PropertyFilter.nin("k", "a", "b"))
             assertEquals(PropertyFilter.Contains("k", "v"), PropertyFilter.contains("k", "v"))
+            assertEquals(PropertyFilter.ContainsIgnoreCase("k", "v"), PropertyFilter.containsIgnoreCase("k", "v"))
+            assertEquals(PropertyFilter.EqIgnoreCase("k", "v"), PropertyFilter.eqIgnoreCase("k", "v"))
+            assertEquals(PropertyFilter.StartsWith("k", "v"), PropertyFilter.startsWith("k", "v"))
+            assertEquals(PropertyFilter.EndsWith("k", "v"), PropertyFilter.endsWith("k", "v"))
+            assertEquals(PropertyFilter.Like("k", ".*"), PropertyFilter.like("k", ".*"))
         }
 
         @Test

@@ -20,6 +20,7 @@ import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.JvmType
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
+import com.embabel.agent.rag.filter.matchesEntityFilter
 import com.embabel.agent.rag.model.NamedEntity
 import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.Relationship
@@ -383,6 +384,40 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * @param label The label to search for (e.g., "Person", "Organization")
      */
     fun findByLabel(label: String): List<NamedEntityData>
+
+    /**
+     * Find entities with a specific label, optionally filtered by property constraints.
+     *
+     * @param label The label to search for (e.g., "Person", "Organization")
+     * @param filter Optional property filter to apply to matching entities
+     * @return list of matching entities
+     */
+    fun find(label: String, filter: PropertyFilter? = null): List<NamedEntityData> {
+        val candidates = findByLabel(label)
+        return if (filter != null) {
+            candidates.filter { it.matchesEntityFilter(filter) }
+        } else {
+            candidates
+        }
+    }
+
+    /**
+     * Find entities matching any of the specified labels, optionally filtered by property constraints.
+     *
+     * @param labels The labels to search for (matches entities with any of the labels)
+     * @param filter Optional property filter to apply to matching entities
+     * @return list of matching entities (deduplicated by ID)
+     */
+    fun find(labels: EntityFilter.HasAnyLabel, filter: PropertyFilter? = null): List<NamedEntityData> {
+        val candidates = labels.labels
+            .flatMap { findByLabel(it) }
+            .distinctBy { it.id }
+        return if (filter != null) {
+            candidates.filter { it.matchesEntityFilter(filter) }
+        } else {
+            candidates
+        }
+    }
 
     // === Typed hydration methods ===
 
