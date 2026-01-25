@@ -22,6 +22,8 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.Subagent
 import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.common.*
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.support.DelegatingObjectCreator
@@ -92,6 +94,7 @@ data class FakePromptRunner(
      * Can be inspected in tests to verify the correct ID was set.
      */
     val interactionId: InteractionId? = null,
+    private val guardRails: List<GuardRail> = emptyList(),
 ) : PromptRunner {
 
     private val logger = LoggerFactory.getLogger(FakePromptRunner::class.java)
@@ -210,6 +213,10 @@ data class FakePromptRunner(
             return this@FakePromptRunner.copy(validation = validation).DelegateAdapter()
         }
 
+        override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate {
+            return this@FakePromptRunner.copy(guardRails = this@FakePromptRunner.guardRails + guards).DelegateAdapter()
+        }
+
         override fun <T> createObject(messages: List<Message>, outputClass: Class<T>): T {
             return this@FakePromptRunner.createObject(messages, outputClass)
         }
@@ -235,14 +242,14 @@ data class FakePromptRunner(
         override fun supportsThinking(): Boolean = false
         override fun <T> createObjectIfPossibleWithThinking(
             messages: List<Message>,
-            outputClass: Class<T>
+            outputClass: Class<T>,
         ): ThinkingResponse<T?> {
             TODO("Not yet implemented")
         }
 
         override fun <T> createObjectWithThinking(
             messages: List<Message>,
-            outputClass: Class<T>
+            outputClass: Class<T>,
         ): ThinkingResponse<T> {
             TODO("Not yet implemented")
         }
@@ -254,7 +261,7 @@ data class FakePromptRunner(
         override fun evaluateConditionWithThinking(
             condition: String,
             context: String,
-            confidenceThreshold: ZeroToOne
+            confidenceThreshold: ZeroToOne,
         ): ThinkingResponse<Boolean> {
             TODO("Not yet implemented")
         }
@@ -417,5 +424,9 @@ data class FakePromptRunner(
             delegate = DelegateAdapter(),
             outputClass = outputClass,
         )
+    }
+
+    override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
+        return copy(guardRails = this.guardRails + guards)
     }
 }

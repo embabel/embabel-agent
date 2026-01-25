@@ -19,6 +19,7 @@ import com.embabel.agent.api.annotation.support.Wumpus
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.core.support.InvalidLlmReturnFormatException
@@ -135,6 +136,10 @@ class ChatClientLlmOperationsTest {
 
         every { mockAgentProcess.agent } returns SimpleTestAgent
         every { mockAgentProcess.processContext } returns mockProcessContext
+
+        // Add blackboard for guardrail validation (defensive - returns null if not needed)
+        val blackboard = mockk<com.embabel.agent.core.Blackboard>(relaxed = true)
+        every { mockAgentProcess.blackboard } returns blackboard
 
         val mockModelProvider = mockk<ModelProvider>()
         val crit = slot<ModelSelectionCriteria>()
@@ -701,6 +706,10 @@ class ChatClientLlmOperationsTest {
 
             every { mockAgentProcess.agent } returns SimpleTestAgent
             every { mockAgentProcess.processContext } returns mockProcessContext
+
+            // Add blackboard for guardrail validation
+            val blackboard = mockk<Blackboard>(relaxed = true)
+            every { mockAgentProcess.blackboard } returns blackboard
 
             val mockModelProvider = mockk<ModelProvider>()
             val crit = slot<ModelSelectionCriteria>()

@@ -123,6 +123,7 @@ data class LlmInteraction(
     override val validation: Boolean = true,
     val useEmbabelToolLoop: Boolean = true,
     val maxToolIterations: Int = 20,
+    val guardRails: List<com.embabel.agent.api.validation.guardrails.GuardRail> = emptyList(),
 ) : LlmCall {
 
     override val name: String = id.value

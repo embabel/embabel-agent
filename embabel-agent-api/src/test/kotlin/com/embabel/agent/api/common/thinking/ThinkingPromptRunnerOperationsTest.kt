@@ -16,10 +16,11 @@
 package com.embabel.agent.api.common.thinking
 
 import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.common.core.thinking.ThinkingBlock
@@ -32,6 +33,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import com.embabel.agent.core.support.LlmInteraction
 
 /**
  * Test for the thinking prompt runner operations.
@@ -136,7 +138,7 @@ class ThinkingPromptRunnerOperationsTest {
         // Then: Verify complete pipeline worked
         assertNotNull(result.result)
         assertEquals("processed data", result.result!!.result)
-        assertEquals("success", result.result!!.status)
+        assertEquals("success", result.result.status)
 
         // Verify thinking blocks were extracted correctly
         assertEquals(2, result.thinkingBlocks.size)
@@ -253,6 +255,11 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withTemplate(templateName: String): com.embabel.agent.api.common.nested.TemplateOperations {
                 throw UnsupportedOperationException("Not implemented for test")
             }
+
+            // Guardrail methods - no-op implementations for test purposes
+            // These are required because StreamingPromptRunner extends PromptRunner which has guardrail methods
+            // For test isolation, we don't need actual guardrail functionality
+            override fun withGuardRails(vararg guards: GuardRail): PromptRunner = this
         }
 
         // When/Then: Call withThinking() on StreamingPromptRunner should throw exception

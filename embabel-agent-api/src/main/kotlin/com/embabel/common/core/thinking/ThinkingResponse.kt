@@ -24,8 +24,9 @@ package com.embabel.common.core.thinking
  * @param T The type of the converted result object
  * @property result The converted object of type T, or null if conversion failed
  * @property thinkingBlocks The reasoning content extracted from the LLM response
+ * @property exception, optional
  */
-data class ThinkingResponse<T>(
+data class ThinkingResponse<T> @JvmOverloads constructor(
     /**
      * The final converted result object.
      *
@@ -41,7 +42,12 @@ data class ThinkingResponse<T>(
      * expressed before producing the final result. Each block includes
      * metadata about the thinking pattern used.
      */
-    val thinkingBlocks: List<ThinkingBlock>
+    val thinkingBlocks: List<ThinkingBlock>,
+
+    /**
+     * Exception might occur even before LLM Operation with no result or thinking blocks
+     */
+    val exception: Throwable? = null,
 ) {
     /**
      * Check if the conversion was successful.

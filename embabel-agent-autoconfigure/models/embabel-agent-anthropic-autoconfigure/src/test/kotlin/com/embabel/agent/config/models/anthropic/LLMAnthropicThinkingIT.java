@@ -16,12 +16,23 @@
 package com.embabel.agent.config.models.anthropic;
 
 import com.embabel.agent.api.common.Ai;
+import com.embabel.agent.api.common.MultimodalContent;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
+import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail;
+import com.embabel.agent.api.validation.guardrails.GuardRailViolationException;
+import com.embabel.agent.api.validation.guardrails.UserInputGuardRail;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
+import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.chat.AssistantMessage;
+import com.embabel.chat.UserMessage;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import com.embabel.common.core.thinking.ThinkingResponse;
+import com.embabel.common.core.validation.ValidationError;
+import com.embabel.common.core.validation.ValidationResult;
+import com.embabel.common.core.validation.ValidationSeverity;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,10 +44,11 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Java integration test for Ollama thinking functionality using builder pattern.
@@ -159,6 +171,143 @@ class LLMAnthropicThinkingIT {
         }
     }
 
+    /**
+     * GuardRail For User Messages
+     */
+    record UserInputThinkingtGuardRail() implements UserInputGuardRail {
+
+
+        @Override
+        public @NotNull String getName() {
+            return "UserInputThinkingtGuardRail";
+        }
+
+        @Override
+        public @NotNull String getDescription() {
+            return "UserInputThinkingtGuardRail";
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+            logger.info("Validated Simple User Input {}", input);
+            return new ValidationResult(true, Collections.emptyList());
+        }
+    }
+
+    /**
+     * Simple Guard Rail, logs details on INFO level (as per severity)
+     */
+    record UserInputSimpleGuardRail() implements UserInputGuardRail {
+
+
+        @Override
+        public @NotNull String getName() {
+            return "UserInputSimpletGuardRail";
+        }
+
+        @Override
+        public @NotNull String getDescription() {
+            return "UserInputSimpleGuardRail";
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+            logger.info("Validated Simple User Input {}", input);
+            List<ValidationError> errors = new ArrayList<>();
+            errors.add(new ValidationError("guardrail-error", "something-wrong", ValidationSeverity.INFO));
+            return new ValidationResult(true, errors);
+        }
+    }
+
+    /**
+     * Simple Guard Rail, throws GuardRail Violation Exception
+     */
+    record UserInputCriticalSeveritytGuardRail() implements UserInputGuardRail {
+
+
+        @Override
+        public @NotNull String getName() {
+            return "UserInputCriticalSeveritytGuardRail";
+        }
+
+        @Override
+        public @NotNull String getDescription() {
+            return "UserInputCriticalSeveritytGuardRail";
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+            logger.info("Validated Simple User Input {}", input);
+            List<ValidationError> errors = new ArrayList<>();
+            errors.add(new ValidationError("guardrail-error", "something-very-wrong", ValidationSeverity.CRITICAL));
+            return new ValidationResult(true, errors);
+        }
+    }
+
+
+    /**
+     * Guard Rail for Assistant Messages
+     */
+    record ThinkingBlocksGuardRail() implements AssistantMessageGuardRail {
+
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull ThinkingResponse<?> response, @NotNull Blackboard blackboard) {
+            logger.info("Validated Thinking Block {}:", response.getThinkingBlocks());
+            return new ValidationResult(true, Collections.emptyList());
+        }
+
+        @Override
+        public @NotNull String getName() {
+            return "ThinkingBlocksGuardRail";
+        }
+
+        @Override
+        public @NotNull String getDescription() {
+            return "ThinkingBlocksGuardRail";
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+            return new ValidationResult(true, Collections.emptyList());
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull AssistantMessage message, @NotNull Blackboard blackboard) {
+            return AssistantMessageGuardRail.super.validate(message, blackboard);
+        }
+    }
+
+    /**
+     * Simple Guard Rail for Thinking Blocks
+     */
+    record SimpleThinkingBlocksGuardRail() implements AssistantMessageGuardRail {
+
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull ThinkingResponse<?> response, @NotNull Blackboard blackboard) {
+            logger.info("Validated Thinking Block {}:", response.getThinkingBlocks());
+            return new ValidationResult(true, Collections.emptyList());
+        }
+
+        @Override
+        public @NotNull String getName() {
+            return "SimpleThinkingBlocksGuardRail";
+        }
+
+        @Override
+        public @NotNull String getDescription() {
+            return "SimpleThinkingBlocksGuardRail";
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+            return new ValidationResult(true, Collections.emptyList());
+        }
+
+    }
+
+
     @Test
     void testThinkingCreateObject() {
         logger.info("Starting thinking createObject integration test");
@@ -166,7 +315,8 @@ class LLMAnthropicThinkingIT {
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
                 .withToolObject(Tooling.class)
-                .withGenerateExamples(true);
+                .withGenerateExamples(true)
+                .withGuardRails(new UserInputThinkingtGuardRail(), new ThinkingBlocksGuardRail());
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
@@ -203,12 +353,13 @@ class LLMAnthropicThinkingIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class);
-
+                .withToolObject(Tooling.class)
+                .withGuardRails(new UserInputSimpleGuardRail())
+                .withGuardRails(new ThinkingBlocksGuardRail());
 
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
 
-        // When: Use factory method for more natural chaining - not recommended (testing alternative syntax)
+
         ThinkingResponse<MonthItem> response = runner
                 .withThinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
@@ -235,12 +386,87 @@ class LLMAnthropicThinkingIT {
     }
 
     @Test
+    void testThinkingCreateObjectWithCriticalGuardRailSeverity() {
+        logger.info("Starting thinking createObject integration test");
+
+        // Given: Use the LLM configured for thinking tests
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                .withToolObject(Tooling.class)
+                .withGenerateExamples(true)
+                .withGuardRails(new UserInputCriticalSeveritytGuardRail(), new SimpleThinkingBlocksGuardRail());
+
+        String prompt = """
+                What is the hottest month in Florida and  provide its temperature.
+                Please respond with your reasoning using tags <reason>.
+                
+                The name should be the month name, temperature should be in Fahrenheit.
+                """;
+        ThinkingResponse<MonthItem> response = null;
+        try {
+            // When: create object with thinking
+            response = runner
+                    .withThinking()
+                    .createObject(prompt, MonthItem.class);
+        } catch (Exception ex) {
+            assertInstanceOf(GuardRailViolationException.class, ex, "expected guard rail exception");
+            logger.error(ex.getMessage());
+        }
+        // Then: Verify both result and thinking content
+        assertNull(response, "Response should  be null");
+
+        logger.info("Thinking ThinkingCreateObjectWithCriticalGuardRailSeverity test completed successfully");
+    }
+
+
+    @Test
+    void testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity() {
+        logger.info("Starting thinking testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity integration test");
+
+        // Given: Use the LLM configured for thinking tests
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                .withToolObject(Tooling.class)
+                .withGuardRails(new UserInputCriticalSeveritytGuardRail())
+                .withGuardRails(new SimpleThinkingBlocksGuardRail());
+
+        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+
+
+        ThinkingResponse<MonthItem> response = runner
+                .withThinking()
+                .createObjectIfPossible(prompt, MonthItem.class);
+
+
+        // Then: Verify response and thinking content (result may be null if creation not possible)
+        assertNotNull(response, "Response should not be null");
+        assertInstanceOf(GuardRailViolationException.class, response.getException());
+        logger.error(response.getException().toString());
+
+        MonthItem result = response.getResult();
+        // Note: result may be null if LLM determines object creation is not possible with given info
+        if (result != null) {
+            assertNotNull(result.getName(), "Month name should not be null");
+            logger.info("Created object if possible: {}", result);
+        } else {
+            logger.info("LLM correctly determined object creation not possible with given information");
+        }
+
+        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+        assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
+        assertTrue(thinkingBlocks.isEmpty(), "Should Not have thinking content due to Exception");
+
+        logger.info("Extracted {} thinking blocks", thinkingBlocks);
+
+        logger.info("Thinking testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity test completed successfully");
+    }
+
+
+    @Test
     void testThinkingWithComplexPrompt() {
         logger.info("Starting complex thinking integration test");
 
         // Given: Use the LLM with a complex reasoning prompt
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                                .withToolObject(Tooling.class);
+                .withToolObject(Tooling.class);
 
         String prompt = """
                 <think>

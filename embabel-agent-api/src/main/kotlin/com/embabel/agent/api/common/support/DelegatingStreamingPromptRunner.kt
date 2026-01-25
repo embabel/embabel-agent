@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.ObjectCreator
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
@@ -209,5 +210,9 @@ internal data class DelegatingStreamingPromptRunner(
         return DelegatingThinkingOperations(
             delegate = delegate,
         )
+    }
+
+    override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
+        return copy(delegate = delegate.withGuardRails(*guards))
     }
 }

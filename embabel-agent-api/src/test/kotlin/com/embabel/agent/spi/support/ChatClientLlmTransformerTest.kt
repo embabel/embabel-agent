@@ -156,6 +156,11 @@ class ChatClientLlmTransformerTest {
             every { mockProcessContext.platformServices } returns mockPlatformServices
             every { mockProcessContext.agentProcess } returns mockAgentProcess
             every { mockAgentProcess.processContext } returns mockProcessContext
+
+            // Add blackboard for guardrail validation (defensive - returns null if not needed)
+            val blackboard = mockk<com.embabel.agent.core.Blackboard>(relaxed = true)
+            every { mockAgentProcess.blackboard } returns blackboard
+
             val mockModelProvider = mockk<ModelProvider>()
             val mockChatModel = mockk<ChatModel>()
             every { mockChatModel.defaultOptions } returns DefaultChatOptions()
@@ -335,6 +340,11 @@ class ChatClientLlmTransformerTest {
                     firstArg()
                 )
             }
+
+            // Add blackboard for guardrail validation (defensive - returns null if not needed)
+            val blackboard = mockk<com.embabel.agent.core.Blackboard>(relaxed = true)
+            every { mockAgentProcess.blackboard } returns blackboard
+
             val mockModelProvider = mockk<ModelProvider>()
             val mockChatModel = mockk<ChatModel>()
             every { mockChatModel.defaultOptions } returns DefaultChatOptions()
