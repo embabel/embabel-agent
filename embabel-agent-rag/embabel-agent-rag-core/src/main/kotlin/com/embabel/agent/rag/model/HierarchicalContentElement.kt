@@ -59,7 +59,7 @@ interface ContentRoot : HierarchicalContentElement {
     )
 
     override fun labels(): Set<String> {
-        return super.labels() + setOf("Document")
+        return super.labels() + setOf("Document", "ContentRoot")
     }
 }
 
