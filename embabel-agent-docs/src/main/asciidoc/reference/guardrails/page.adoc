@@ -2,45 +2,51 @@
 
 === Working with Guardrails
 
-Usage of Guardrails in Agentic AI becomes norm nowadays.
-Guardrails providers allow to validate user's input and LLM responses using configurable policies as external services.
-Please refer to links below on some vendor-supported guardrails:
+Guardrails have become an essential component in agentic AI systems.
+They allow you to validate user inputs and LLM responses using configurable policies.
+For vendor-supported guardrails, see:
 
 - https://guardrailsai.com/docs[Guardrails Hub]
 - https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html[Amazon Bedrock Guardrails]
 
-Embabel provides with _framework_ for building your own guardrails, by enabling developers with ability to build custom guardrails with integration options of choice.
+Embabel provides a framework for building custom guardrails, enabling developers to integrate validation logic of their choice.
 
 
 ==== Motivation
 
-Developer can guardrail (raw) user prompt or thinking blocks using custom validators.
-While this is certainly possible, Embabel provides with framework on _standardizing_ this area with standard API _withGuardRails_.
-Developers are empowered with plugging in guardrails as POJOs or Spring beans by adhering to Embabel guardrail interfaces.
-When to use guardrails:
+While you can validate user prompts or thinking blocks using custom validators, Embabel provides a standardized framework through the `withGuardRails` API.
+Guardrails can be implemented as POJOs or Spring beans that implement Embabel's guardrail interfaces.
 
-- input validation with common, streaming, or thinking prompt runners;
-- LLM response validation really shines while using  _withThinkig_ API, (see <<_example__simple_streaming_with_callbacks>>) where thinking blocks from LLM are available even if LLM cant construct an object
-- in predominant case when LLM constructs object, validation on LLM output is still possible, however guardrails validation content is an object JSON
-- in case of streaming _StreamingEvent.Thinking_ on _doOnNext_ callback does provide direct access to LLM reasoning content, and as of now content-subject for validation is available for immediate consumption rather than though API, see for references <<reference.streaming>>
+Common use cases for guardrails:
 
-One of the benefits of using framework is access to _Blackboard_ object, and as such guardrail logic can take into account entities participating in agentic workflow.
+- **Input validation**: Validate user prompts with common, streaming, or thinking prompt runners
+- **Response validation with thinking**: The `withThinking` API (see <<_example__simple_streaming_with_callbacks>>) provides access to LLM thinking blocks, even when the LLM cannot construct an object
+- **Object response validation**: When the LLM constructs an object, you can still validate the output (the content being validated is the object's JSON representation)
+- **Streaming validation**: In streaming mode, `StreamingEvent.Thinking` provides direct access to LLM reasoning content via the `doOnNext` callback (see <<reference.streaming>>)
+
+A key benefit of this framework is access to the `Blackboard` object, which allows guardrail logic to consider other entities participating in the agentic workflow.
 
 
 ==== Concepts
 
-- Interfaces _UserInputGuardRail_ and _AssistantMessageGuardRail_  for specifying user input and LLM responses guardrails consequently
-- guardrails got referenced in _withGuardRails_ APIs, and API can be chained
-- GuardRail validation returns _ValidationResult_ object
-- Validation Errors as part of Validation Result got sorted by _ValidationSeverity_ level and got logged at corresponding level
-- Validation Severity level CRITICAL results in throwing _GuardRailValidationException_ on User Input Guardrails, thus blocking from executing LLM operation
-- By design philosophy _createObjectIfPossible_ handles exceptions and operation completes gracefully with no object being constructed, however _GuarRailValidationException_ gets wrapped inside _ThinkingResponse_ (if developer chooses _thinking_ mode)
+- `UserInputGuardRail` and `AssistantMessageGuardRail` interfaces define guardrails for user inputs and LLM responses, respectively
+- Guardrails are registered using the `withGuardRails` API, which can be chained
+- Guardrail validation returns a `ValidationResult` object
+- Validation errors are sorted by `ValidationSeverity` level and logged at the corresponding level
+- A `CRITICAL` severity level causes a `GuardRailViolationException` to be thrown for user input guardrails, preventing the LLM operation from executing
+- By design, `createObjectIfPossible` handles exceptions gracefully and completes without constructing an object; however, `GuardRailViolationException` is wrapped inside `ThinkingResponse` when using thinking mode
 
 ==== Customizing Message Combining
 
-When validating user input from multiple messages, the _UserInputGuardRail_ interface provides a _combineMessages_ method that can be overridden to customize how messages are combined before validation.
+In multi-turn conversations, guardrails often need to validate not just a single prompt but an entire conversation history. When `doTransform` or similar methods are called with multiple `UserMessage` objects, each `UserInputGuardRail` receives the full list and must combine them into a single string for validation.
 
-The default implementation joins all user message contents with newlines:
+The `combineMessages` method controls how this combination happens. Different guardrails may need different formats:
+
+- A toxicity filter might want all messages concatenated to check the overall tone
+- An audit guardrail might want each message tagged with its position in the conversation
+- A PII detector might want clear separators to identify which message contains sensitive data
+
+The default implementation joins messages with newlines:
 
 [source,kotlin]
 ----
@@ -51,162 +57,214 @@ fun combineMessages(userMessages: List<UserMessage>): String {
 }
 ----
 
-Override this method to customize message combining for your guardrail:
+For example, three messages `["Hello", "How are you?", "Tell me about X"]` become:
+
+----
+Hello
+How are you?
+Tell me about X
+----
+
+To customize this behavior, override `combineMessages` in your guardrail:
 
 [source,kotlin]
 ----
-class CustomCombineGuardRail : UserInputGuardRail {
-    override val name = "CustomCombineGuard"
-    override val description = "Guardrail with custom message combining"
+class AuditGuardRail : UserInputGuardRail {
+    override val name = "AuditGuard"
+    override val description = "Logs conversation with message markers for audit trail"
 
     override fun combineMessages(userMessages: List<UserMessage>): String {
-        // Custom: add context markers between messages
+        // Tag each message with its position for audit logging
         return userMessages.mapIndexed { index, message ->
-            "[Message ${index + 1}]: ${message.content}"
-        }.joinToString("\n---\n")
+            "[Turn ${index + 1}]: ${message.content}"
+        }.joinToString("\n")
     }
 
     override fun validate(input: String, blackboard: Blackboard): ValidationResult {
-        // input now contains the custom-formatted combined messages
+        // input now contains: "[Turn 1]: Hello\n[Turn 2]: How are you?\n[Turn 3]: Tell me about X"
+        logger.info("Audit trail: {}", input)
         return ValidationResult.VALID
     }
 }
 ----
 
-This allows guardrails to:
 
-- Add separators or context markers between messages
-- Filter out certain message types
-- Apply message-specific preprocessing
-- Implement conversation-aware validation logic
+==== Example: Blocking LLM Execution with CRITICAL Validation Errors
 
+This example demonstrates how a guardrail with `CRITICAL` severity prevents LLM execution by throwing a `GuardRailViolationException`.
 
-====  Example: LLM Can't Create Object due to CRITICAL Guardrail Validation Error
+**Step 1: Define the guardrails**
 
-[source,java]
-----
- /**
-     * Simple Guard Rail, throws GuardRail Violation Exception
-     */
-    record UserInputCriticalSeveritytGuardRail() implements UserInputGuardRail {
-
-
-        @Override
-        public @NotNull String getName() {
-            return "UserInputCriticalSeveritytGuardRail";
-        }
-
-        @Override
-        public @NotNull String getDescription() {
-            return "UserInputCriticalSeveritytGuardRail";
-        }
-
-        @Override
-        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
-            logger.info("Validated Simple User Input {}", input);
-            List<ValidationError> errors = new ArrayList<>();
-            errors.add(new ValidationError("guardrail-error", "something-wrong", ValidationSeverity.CRITICAL));
-            return new ValidationResult(true, errors);
-        }
-    }
-
-       /**
-     * Simple Guard Rail for Thinking Blocks
-     */
-    record SimpleThinkingBlocksGuardRail() implements AssistantMessageGuardRail {
-
-
-        @Override
-        public @NotNull ValidationResult validate(@NotNull ThinkingResponse<?> response, @NotNull Blackboard blackboard) {
-            logger.info("Validated Thinking Block {}:", response.getThinkingBlocks());
-            return new ValidationResult(true, Collections.emptyList());
-        }
-
-        @Override
-        public @NotNull String getName() {
-            return "SimpleThinkingBlocksGuardRail";
-        }
-
-        @Override
-        public @NotNull String getDescription() {
-            return "SimpleThinkingBlocksGuardRail";
-        }
-
-        @Override
-        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
-            return new ValidationResult(true, Collections.emptyList());
-        }
-
-    }
-
-       // Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
-                .withGenerateExamples(true)
-                .withGuardRails(new UserInputCriticalSeveritytGuardRail(), new SimpleThinkingBlocksGuardRail());
-
-        String prompt = """
-                What is the hottest month in Florida and  provide its temperature.
-                Please respond with your reasoning using tags <reason>.
-
-                The name should be the month name, temperature should be in Fahrenheit.
-                """;
-        ThinkingResponse<MonthItem> response = null;
-        try {
-            // Create object with thinking
-            response = runner
-                    .withThinking()
-                    .createObject(prompt, MonthItem.class);
-        } catch (Exception ex) {
-            assertInstanceOf(GuardRailViolationException.class, ex, "expected guard rail exception");
-            logger.error(ex.getMessage());
-        }
-----
-
-====  Example: LLM Can't Create Object, Use Guardrails to incept analysis
+First, define a user input guardrail that returns a `CRITICAL` validation error:
 
 [source,java]
 ----
-  PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
-                .withGuardRails(new UserInputGuardRail())  // some another guardrail
-                .withGuardRails(new SimpleThinkingBlocksGuardRail());
+/**
+ * A guardrail that blocks execution by returning a CRITICAL validation error.
+ */
+class CriticalUserInputGuardRail implements UserInputGuardRail {
 
-        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+    @Override
+    public @NotNull String getName() {
+        return "CriticalUserInputGuardRail";
+    }
 
+    @Override
+    public @NotNull String getDescription() {
+        return "Blocks execution when critical policy violations are detected";
+    }
 
-        ThinkingResponse<MonthItem> response = runner
-                .withThinking()
-                .createObjectIfPossible(prompt, MonthItem.class);
-
+    @Override
+    public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+        // Return a CRITICAL error to block LLM execution
+        return new ValidationResult(true, List.of(
+            new ValidationError("policy-violation", "Content violates safety policy", ValidationSeverity.CRITICAL)
+        ));
+    }
+}
 ----
 
+Next, define an assistant message guardrail to validate LLM responses:
 
-In the example above LLM can't provide definite answer, and can't construct an object, and here is possible response:
-```
-Since I must be SURE about EVERY field and cannot make assumptions or provide approximate values, I cannot provide the success structure with confidence
-```
+[source,java]
+----
+/**
+ * A guardrail that validates LLM thinking blocks.
+ */
+class ThinkingBlocksGuardRail implements AssistantMessageGuardRail {
 
-Guardrails can be instrumental in automating further LLM responses analysis, for example using semantic text processing with the help of https://stanfordnlp.github.io/CoreNLP/[CoreNLP]
+    @Override
+    public @NotNull String getName() {
+        return "ThinkingBlocksGuardRail";
+    }
 
-More examples can b found in:
+    @Override
+    public @NotNull String getDescription() {
+        return "Validates LLM thinking blocks for compliance";
+    }
 
-```
-embabel-agent-autoconfigure/models/embabel-agent-anthropic-autoconfigure/src/test/kotlin/com/embabel/agent/config/models/anthropic/LLMAnthropicThinkingIT.java
+    @Override
+    public @NotNull ValidationResult validate(@NotNull ThinkingResponse<?> response, @NotNull Blackboard blackboard) {
+        logger.info("Validating thinking blocks: {}", response.getThinkingBlocks());
+        return new ValidationResult(true, Collections.emptyList());
+    }
 
-```
-==== Relation with other Forms of Validation
+    @Override
+    public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+        return new ValidationResult(true, Collections.emptyList());
+    }
+}
+----
 
-Agent API framework allows to validate domain object constraints per Jakarta JSR-380 specification. Object constraints got injected into schema and got validated upon object construction.
+**Step 2: Use the guardrails with a PromptRunner**
 
-In the context of *Agent Actions* there is also planned feature development of Validation framework with Actions being subject of validations. Validation framework expected to re-use basic data structures employed by Guardrails, such as _ValidationResult_, _ValidationError_, and _ContentValidator_.
+[source,java]
+----
+// Configure the PromptRunner with guardrails
+PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        .withToolObject(Tooling.class)
+        .withGenerateExamples(true)
+        .withGuardRails(new CriticalUserInputGuardRail(), new ThinkingBlocksGuardRail());
 
-In summary:
+String prompt = """
+        What is the hottest month in Florida and provide its temperature.
+        The name should be the month name, temperature should be in Fahrenheit.
+        """;
 
-Guardrails and existing/planned validators are complementary but distinct validation components:
+try {
+    // Attempt to create an object with thinking
+    ThinkingResponse<MonthItem> response = runner
+            .withThinking()
+            .createObject(prompt, MonthItem.class);
+} catch (GuardRailViolationException ex) {
+    // CRITICAL validation errors cause this exception to be thrown,
+    // preventing the LLM operation from executing
+    logger.error("Guardrail blocked execution: {}", ex.getMessage());
+}
+----
 
-- Bean validation ensures objects are well-formed and meet business
-constraints
-- GuardRails ensure AI interactions are safe and compliant with policies
+==== Example: Using Guardrails for Response Analysis
 
-Both can be enabled independently and serve different aspects of the AI safety stack!
+When the LLM cannot construct an object (for example, when the prompt is ambiguous), guardrails can still analyze the LLM's thinking process. This is useful for understanding why object creation failed or for extracting insights from the reasoning.
+
+**Step 1: Define a simple user input guardrail**
+
+[source,java]
+----
+/**
+ * A guardrail that logs user input with INFO-level validation messages.
+ */
+class LoggingUserInputGuardRail implements UserInputGuardRail {
+
+    @Override
+    public @NotNull String getName() {
+        return "LoggingUserInputGuardRail";
+    }
+
+    @Override
+    public @NotNull String getDescription() {
+        return "Logs user input for auditing purposes";
+    }
+
+    @Override
+    public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+        logger.info("Processing user input: {}", input);
+        // Return an INFO-level message (does not block execution)
+        return new ValidationResult(true, List.of(
+            new ValidationError("audit", "Input logged", ValidationSeverity.INFO)
+        ));
+    }
+}
+----
+
+**Step 2: Use guardrails with createObjectIfPossible**
+
+[source,java]
+----
+// Configure the PromptRunner with chained guardrails
+PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        .withToolObject(Tooling.class)
+        .withGuardRails(new LoggingUserInputGuardRail())
+        .withGuardRails(new ThinkingBlocksGuardRail());
+
+String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
+
+// Use createObjectIfPossible to handle cases where object creation may fail
+ThinkingResponse<MonthItem> response = runner
+        .withThinking()
+        .createObjectIfPossible(prompt, MonthItem.class);
+
+// The LLM may not be able to construct an object if the prompt is ambiguous
+if (response.getResult() == null) {
+    // Analyze the thinking blocks to understand the LLM's reasoning
+    logger.info("Object creation not possible. Thinking blocks: {}", response.getThinkingBlocks());
+}
+----
+
+When the LLM cannot provide a definitive answer, you might see reasoning like:
+
+----
+Since I must be SURE about EVERY field and cannot make assumptions or provide approximate values,
+I cannot provide the success structure with confidence.
+----
+
+Guardrails can automate further analysis of LLM responses, for example by using semantic text processing tools like https://stanfordnlp.github.io/CoreNLP/[CoreNLP].
+
+For more examples, see:
+
+----
+embabel-agent-autoconfigure/models/embabel-agent-anthropic-autoconfigure/
+  src/test/kotlin/com/embabel/agent/config/models/anthropic/LLMAnthropicThinkingIT.java
+----
+==== Relationship with Other Validation Mechanisms
+
+The Agent API framework supports Jakarta Bean Validation (JSR-380) for domain object constraints. These constraints are injected into the schema and validated during object construction.
+
+In addition, a planned validation framework for Agent Actions will reuse the same data structures as guardrails, including `ValidationResult`, `ValidationError`, and `ContentValidator`.
+
+In summary, guardrails and bean validators are complementary but distinct:
+
+- **Bean validation** ensures objects are well-formed and meet business constraints
+- **Guardrails** ensure AI interactions are safe and compliant with policies
+
+Both can be enabled independently and serve different aspects of the AI safety stack.
