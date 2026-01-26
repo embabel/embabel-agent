@@ -16,6 +16,7 @@
 package com.embabel.agent.core
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -246,5 +247,45 @@ class DataDictionaryTest {
 
         val setRel = relationships.find { it.name == "uniqueBooks" }!!
         assertEquals(Cardinality.SET, setRel.cardinality)
+    }
+
+    // Test for Kotlin companion object filtering
+    class EntityWithCompanion(
+        val name: String,
+        val relatedAddress: Address,
+    ) {
+        companion object {
+            const val TYPE = "entity"
+            fun create(name: String) = EntityWithCompanion(name, Address("", ""))
+        }
+    }
+
+    @Test
+    fun `should not include Companion relationships from classes with companion objects`() {
+        val dictionary = DataDictionary.fromClasses(
+            "test",
+            EntityWithCompanion::class.java,
+            Address::class.java
+        )
+        val relationships = dictionary.allowedRelationships()
+
+        // Should only have the legitimate relatedAddress relationship
+        assertEquals(1, relationships.size)
+        assertEquals("relatedAddress", relationships[0].name)
+
+        // Should NOT have a Companion relationship
+        val relationshipNames = relationships.map { it.name }
+        assertFalse(relationshipNames.contains("Companion"), "Should not have Companion relationship")
+    }
+
+    @Test
+    fun `should not include Companion in domain type properties`() {
+        val dictionary = DataDictionary.fromClasses("test", EntityWithCompanion::class.java)
+        val entityType = dictionary.domainTypes.first()
+
+        val propertyNames = entityType.properties.map { it.name }
+        assertFalse(propertyNames.contains("Companion"), "Should not have Companion property")
+        assertTrue(propertyNames.contains("name"))
+        assertTrue(propertyNames.contains("relatedAddress"))
     }
 }

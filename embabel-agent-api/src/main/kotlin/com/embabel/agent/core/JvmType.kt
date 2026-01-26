@@ -143,7 +143,9 @@ data class JvmType @JsonCreator constructor(
     @get:JsonIgnore
     override val ownProperties: List<PropertyDefinition>
         get() {
-            return clazz.declaredFields.mapNotNull { field ->
+            return clazz.declaredFields
+                .filter { field -> !shouldExcludeField(field) }
+                .mapNotNull { field ->
                 val metadata = extractSemantics(field)
 
                 // Check if it's a collection with a generic type parameter
@@ -192,7 +194,29 @@ data class JvmType @JsonCreator constructor(
         return semantics.value.associate { it.key to it.value }
     }
 
+    /**
+     * Check if a field should be excluded from properties.
+     * Excludes:
+     * - Static fields (not instance properties, includes Kotlin const vals)
+     * - Companion object references (Kotlin companion objects)
+     */
+    private fun shouldExcludeField(field: java.lang.reflect.Field): Boolean {
+        // Exclude static fields (includes const vals from companion objects)
+        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+            return true
+        }
+        // Exclude Companion object fields
+        if (field.name == "Companion" && field.type.name.endsWith("\$Companion")) {
+            return true
+        }
+        return false
+    }
+
     private fun shouldNestAsEntity(type: Class<*>): Boolean {
+        // Kotlin companion objects are not entities
+        if (type.name.endsWith("\$Companion")) {
+            return false
+        }
         // Primitives and their wrappers are scalars
         if (type.isPrimitive || type == java.lang.Boolean::class.java ||
             type == java.lang.Byte::class.java || type == java.lang.Short::class.java ||

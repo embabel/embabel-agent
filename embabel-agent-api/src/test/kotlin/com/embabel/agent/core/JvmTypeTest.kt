@@ -558,6 +558,55 @@ class JvmTypeTest {
         assertTrue(nameProperty!!.metadata.isEmpty())
     }
 
+    // Test classes for Kotlin companion object filtering
+    class ClassWithCompanion(
+        val name: String,
+        val age: Int,
+    ) {
+        companion object {
+            const val DEFAULT_NAME = "Unknown"
+            fun create(name: String) = ClassWithCompanion(name, 0)
+        }
+    }
+
+    @Test
+    fun `should not include Companion field or static fields in properties`() {
+        val type = JvmType(ClassWithCompanion::class.java)
+        val propertyNames = type.ownProperties.map { it.name }
+
+        assertFalse(propertyNames.contains("Companion"), "Should not include Companion field")
+        assertFalse(propertyNames.contains("DEFAULT_NAME"), "Should not include static const from companion")
+        assertEquals(2, type.ownProperties.size, "Expected only name and age, but found: $propertyNames")
+        assertTrue(propertyNames.contains("name"))
+        assertTrue(propertyNames.contains("age"))
+    }
+
+    class OuterClass(
+        val name: String,
+    ) {
+        class InnerEntity(
+            val value: String,
+        )
+    }
+
+    class ClassWithInnerReference(
+        val name: String,
+        val inner: OuterClass.InnerEntity,
+    )
+
+    @Test
+    fun `should include legitimate inner class references as domain types`() {
+        val type = JvmType(ClassWithInnerReference::class.java)
+        val propertyNames = type.ownProperties.map { it.name }
+
+        assertEquals(2, type.ownProperties.size)
+        assertTrue(propertyNames.contains("name"))
+        assertTrue(propertyNames.contains("inner"))
+
+        val innerProperty = type.ownProperties.find { it.name == "inner" }
+        assertTrue(innerProperty is DomainTypePropertyDefinition, "Inner class should be a domain type")
+    }
+
     class MixedPerson(
         val name: String,
 
