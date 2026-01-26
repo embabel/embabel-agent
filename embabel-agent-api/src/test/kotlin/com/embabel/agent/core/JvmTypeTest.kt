@@ -423,21 +423,25 @@ class JvmTypeTest {
     class Employee(
         val name: String,
 
-        @field:Semantics([
-            With("predicate", "works at"),
-            With("inverse", "employs"),
-        ])
+        @field:Semantics(
+            [
+                With("predicate", "works at"),
+                With("inverse", "employs"),
+            ]
+        )
         val worksAt: Company,
     )
 
     class EmployeeWithAliases(
         val name: String,
 
-        @field:Semantics([
-            With("predicate", "works at"),
-            With("inverse", "employs"),
-            With("aliases", "is employed by, works for"),
-        ])
+        @field:Semantics(
+            [
+                With("predicate", "works at"),
+                With("inverse", "employs"),
+                With("aliases", "is employed by, works for"),
+            ]
+        )
         val worksAt: Company,
     )
 
@@ -447,20 +451,24 @@ class JvmTypeTest {
     )
 
     class PersonWithValueSemantics(
-        @field:Semantics([
-            With("format", "email"),
-            With("validation", "required"),
-        ])
+        @field:Semantics(
+            [
+                With("format", "email"),
+                With("validation", "required"),
+            ]
+        )
         val email: String,
     )
 
     class KennelWithCollectionSemantics(
         val name: String,
 
-        @field:Semantics([
-            With("predicate", "houses"),
-            With("inverse", "lives in"),
-        ])
+        @field:Semantics(
+            [
+                With("predicate", "houses"),
+                With("inverse", "lives in"),
+            ]
+        )
         val dogs: List<Dog>,
     )
 
@@ -629,5 +637,163 @@ class JvmTypeTest {
 
         val ageProperty = type.ownProperties.find { it.name == "age" }
         assertTrue(ageProperty!!.metadata.isEmpty())
+    }
+
+    // Test interfaces with getter methods
+    interface SimpleEntity {
+        fun getName(): String
+        fun getAge(): Int
+    }
+
+    @Test
+    fun `should extract properties from interface getter methods`() {
+        val type = JvmType(SimpleEntity::class.java)
+        val propertyNames = type.ownProperties.map { it.name }
+
+        assertTrue(propertyNames.contains("name"), "Should extract name from getName()")
+        assertTrue(propertyNames.contains("age"), "Should extract age from getAge()")
+    }
+
+    interface BooleanEntity {
+        fun isActive(): Boolean
+        fun getName(): String
+    }
+
+    @Test
+    fun `should extract properties from is-prefixed getters`() {
+        val type = JvmType(BooleanEntity::class.java)
+        val propertyNames = type.ownProperties.map { it.name }
+
+        assertTrue(propertyNames.contains("active"), "Should extract active from isActive()")
+        assertTrue(propertyNames.contains("name"), "Should extract name from getName()")
+    }
+
+    interface EntityWithRelationship {
+        fun getName(): String
+        fun getRelated(): Dog
+    }
+
+    @Test
+    fun `should extract entity relationships from interface methods`() {
+        val type = JvmType(EntityWithRelationship::class.java)
+
+        val relatedProperty = type.ownProperties.find { it.name == "related" }
+        assertNotNull(relatedProperty, "Should find related property")
+        assertTrue(relatedProperty is DomainTypePropertyDefinition, "Should be a domain type property")
+
+        val domainProp = relatedProperty as DomainTypePropertyDefinition
+        assertEquals(Dog::class.java.name, (domainProp.type as JvmType).className)
+    }
+
+    interface EntityWithCollection {
+        fun getName(): String
+        fun getItems(): List<Dog>
+    }
+
+    @Test
+    fun `should extract collection properties from interface methods`() {
+        val type = JvmType(EntityWithCollection::class.java)
+
+        val itemsProperty = type.ownProperties.find { it.name == "items" }
+        assertNotNull(itemsProperty, "Should find items property")
+        assertTrue(itemsProperty is DomainTypePropertyDefinition, "Should be a domain type property")
+
+        val domainProp = itemsProperty as DomainTypePropertyDefinition
+        assertEquals(Cardinality.LIST, domainProp.cardinality)
+        assertEquals(Dog::class.java.name, (domainProp.type as JvmType).className)
+    }
+
+    interface EntityWithSetCollection {
+        fun getName(): String
+        fun getItems(): Set<Dog>
+    }
+
+    @Test
+    fun `should extract Set collection with SET cardinality from interface methods`() {
+        val type = JvmType(EntityWithSetCollection::class.java)
+
+        val itemsProperty = type.ownProperties.find { it.name == "items" }
+        assertNotNull(itemsProperty, "Should find items property")
+        assertTrue(itemsProperty is DomainTypePropertyDefinition, "Should be a domain type property")
+
+        val domainProp = itemsProperty as DomainTypePropertyDefinition
+        assertEquals(Cardinality.SET, domainProp.cardinality)
+    }
+
+    // Test that field properties take precedence over method properties
+    class ClassWithFieldsAndMethods(
+        val name: String,
+    ) {
+        fun getComputed(): String = name.uppercase()
+    }
+
+    @Test
+    fun `field properties should take precedence over method properties`() {
+        val type = JvmType(ClassWithFieldsAndMethods::class.java)
+        val propertyNames = type.ownProperties.map { it.name }
+
+        assertTrue(propertyNames.contains("name"), "Should have name property")
+        assertTrue(propertyNames.contains("computed"), "Should have computed property from getter")
+
+        // Should not have duplicate name
+        assertEquals(propertyNames.size, propertyNames.distinct().size, "No duplicate properties")
+    }
+
+    // Test case mimicking Java-style interfaces like Composer and Work from impromptu
+    // This simulates the pattern: Composer -[COMPOSED]-> List<Work>
+    interface TestWork {
+        fun getTitle(): String
+        fun isPopular(): Boolean
+    }
+
+    interface TestComposer {
+        fun getName(): String
+        fun getBirthYear(): Long?
+
+        // Simulates @Relationship(name = "COMPOSED") - actual annotation tested via impromptu domain
+        fun getWorks(): List<TestWork>
+    }
+
+    @Test
+    fun `should extract properties from Java-style entity interface like Composer`() {
+        val composerType = JvmType(TestComposer::class.java)
+        val propertyNames = composerType.ownProperties.map { it.name }
+
+        assertTrue(propertyNames.contains("name"), "Should extract name from getName()")
+        assertTrue(propertyNames.contains("birthYear"), "Should extract birthYear from getBirthYear()")
+        assertTrue(propertyNames.contains("works"), "Should extract works from getWorks()")
+
+        // Check works property is a relationship to TestWork
+        val worksProperty = composerType.ownProperties.find { it.name == "works" }
+        assertNotNull(worksProperty)
+        assertTrue(worksProperty is DomainTypePropertyDefinition, "works should be a domain type property")
+
+        val domainProp = worksProperty as DomainTypePropertyDefinition
+        assertEquals(TestWork::class.java.name, (domainProp.type as JvmType).className)
+        assertEquals(Cardinality.LIST, domainProp.cardinality, "works should have LIST cardinality")
+    }
+
+    @Test
+    fun `should extract properties from Java-style entity interface like Work`() {
+        val workType = JvmType(TestWork::class.java)
+        val propertyNames = workType.ownProperties.map { it.name }
+
+        assertTrue(propertyNames.contains("title"), "Should extract title from getTitle()")
+        assertTrue(propertyNames.contains("popular"), "Should extract popular from isPopular()")
+    }
+
+    @Test
+    fun `DataDictionary should find relationships between Java-style interfaces`() {
+        val dictionary = DataDictionary.fromClasses("test", TestComposer::class.java, TestWork::class.java)
+        val relationships = dictionary.allowedRelationships()
+
+        // Should find the works relationship from TestComposer to TestWork
+        assertEquals(1, relationships.size, "Should find one relationship")
+
+        val rel = relationships[0]
+        assertEquals("TestComposer", rel.from.ownLabel)
+        assertEquals("TestWork", rel.to.ownLabel)
+        assertEquals("works", rel.name)
+        assertEquals(Cardinality.LIST, rel.cardinality)
     }
 }
