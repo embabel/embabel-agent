@@ -24,10 +24,10 @@ import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
-import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
-import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.support.OutputConverter
 import com.embabel.agent.spi.support.ToolLoopLlmOperations
+import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
+import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
@@ -55,6 +55,7 @@ import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.beans.factory.getBeansOfType
 import org.springframework.context.ApplicationContext
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.retry.support.RetrySynchronizationManager
@@ -112,31 +113,30 @@ internal class ChatClientLlmOperations(
     @PostConstruct
     private fun logPropertyConfiguration() {
         val dataBindingFromContext = applicationContext?.runCatching {
-            getBeansOfType(LlmDataBindingProperties::class.java).values.firstOrNull()
+            getBeansOfType<LlmDataBindingProperties>().values.firstOrNull()
         }?.getOrNull()
 
         val promptsFromContext = applicationContext?.runCatching {
-            getBeansOfType(LlmOperationsPromptsProperties::class.java).values.firstOrNull()
+            getBeansOfType<LlmOperationsPromptsProperties>().values.firstOrNull()
         }?.getOrNull()
 
         if (dataBindingFromContext === dataBindingProperties) {
-            logger.info("LLM Data Binding: Using Spring-managed properties")
+            logger.debug("LLM Data Binding: Using Spring-managed properties")
         } else {
             logger.warn("LLM Data Binding: Using fallback defaults")
         }
 
         if (promptsFromContext === promptsProperties) {
-            logger.info("LLM Prompts: Using Spring-managed properties")
+            logger.debug("LLM Prompts: Using Spring-managed properties")
         } else {
             logger.warn("LLM Prompts: Using fallback defaults")
         }
 
         logger.info(
-            "Current LLM settings: maxAttempts=${dataBindingProperties.maxAttempts}, fixedBackoffMillis=${
-                dataBindingProperties.fixedBackoffMillis
-            }ms, timeout=${
-                promptsProperties.defaultTimeout.seconds
-            }s"
+            "Current LLM settings: maxAttempts={}, fixedBackoffMillis={}ms, timeout={}s",
+            dataBindingProperties.maxAttempts,
+            dataBindingProperties.fixedBackoffMillis,
+            promptsProperties.defaultTimeout.seconds,
         )
     }
 
@@ -297,7 +297,7 @@ internal class ChatClientLlmOperations(
                 logger.warn(
                     LLM_INTERRUPTED_MESSAGE,
                     interaction.id.value,
-                    attempt
+                    attempt,
                 )
                 throw RuntimeException(
                     "ChatClient call for interaction ${interaction.id.value} was interrupted",
@@ -545,7 +545,11 @@ internal class ChatClientLlmOperations(
                         )
 
                         // Guardrails: Post-validation of assistant response (ThinkingResponse with thinking blocks)
-                        validateAssistantResponse(thinkingResponse, interaction, llmRequestEvent?.agentProcess?.blackboard)
+                        validateAssistantResponse(
+                            thinkingResponse,
+                            interaction,
+                            llmRequestEvent?.agentProcess?.blackboard
+                        )
 
                         thinkingResponse
                     } catch (e: Exception) {
@@ -663,7 +667,11 @@ internal class ChatClientLlmOperations(
                                 )
 
                                 // Guardrails: Post-validation of assistant response (ThinkingResponse with thinking blocks)
-                                validateAssistantResponse(thinkingResponse, interaction, llmRequestEvent?.agentProcess?.blackboard)
+                                validateAssistantResponse(
+                                    thinkingResponse,
+                                    interaction,
+                                    llmRequestEvent?.agentProcess?.blackboard
+                                )
 
                                 Result.success(thinkingResponse)
                             }
@@ -675,7 +683,11 @@ internal class ChatClientLlmOperations(
                                         result = null,
                                         thinkingBlocks = thinkingBlocks
                                     )
-                                    validateAssistantResponse(thinkingResponse, interaction, llmRequestEvent?.agentProcess?.blackboard)
+                                    validateAssistantResponse(
+                                        thinkingResponse,
+                                        interaction,
+                                        llmRequestEvent?.agentProcess?.blackboard
+                                    )
                                 }
 
                                 Result.failure(

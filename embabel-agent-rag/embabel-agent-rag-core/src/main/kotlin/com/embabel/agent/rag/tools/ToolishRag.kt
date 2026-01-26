@@ -104,20 +104,20 @@ data class ToolishRag @JvmOverloads constructor(
         buildList {
             // If the search operations already implement SearchTools, use them directly
             if (searchOperations is SearchTools) {
-                logger.info("Adding existing SearchTools to ToolishRag tools {}", name)
+                logger.info("Adding existing SearchTools to ToolishRag '{}'", name)
                 add(searchOperations)
             }
             // This can confuse guide. Let's skip it for now.
 //            if (searchOperations is TypeRetrievalOperations) {
-//                logger.info("Adding TypeRetrievalTools to ToolishRag tools {}", name)
+//                logger.info("Adding TypeRetrievalTools to ToolishRag '{}'", name)
 //                add(TypeRetrievalTools(searchOperations))
 //            }
             if (searchOperations is FinderOperations) {
-                logger.info("Adding FinderTools to ToolishRag tools {}", name)
+                logger.info("Adding FinderTools to ToolishRag '{}'", name)
                 add(FinderTools(searchOperations))
             }
             if (searchOperations is VectorSearch) {
-                logger.info("Adding VectorSearchTools to ToolishRag tools {}", name)
+                logger.info("Adding VectorSearchTools to ToolishRag '{}'", name)
                 add(VectorSearchTools(searchOperations, vectorSearchFor, metadataFilter, entityFilter, listener))
             } else {
                 if (hints.any { it is TryHyDE }) {
@@ -129,15 +129,15 @@ data class ToolishRag @JvmOverloads constructor(
                 }
             }
             if (searchOperations is TextSearch) {
-                logger.info("Adding TextSearchTools to ToolishRag tools {}", name)
+                logger.info("Adding TextSearchTools to ToolishRag '{}'", name)
                 add(TextSearchTools(searchOperations, textSearchFor, metadataFilter, entityFilter, listener))
             }
             if (searchOperations is ResultExpander) {
-                logger.info("Adding ResultExpanderTools to ToolishRag tools {}", name)
+                logger.info("Adding ResultExpanderTools to ToolishRag '{}'", name)
                 add(ResultExpanderTools(searchOperations))
             }
             if (searchOperations is RegexSearchOperations) {
-                logger.info("Adding RegexSearchTools to ToolishRag tools {}", name)
+                logger.info("Adding RegexSearchTools to ToolishRag '{}'", name)
                 add(RegexSearchTools(searchOperations, metadataFilter, entityFilter, listener))
             }
         }
