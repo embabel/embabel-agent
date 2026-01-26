@@ -19,7 +19,6 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -207,8 +206,8 @@ internal data class DelegatingStreamingPromptRunner(
     override fun supportsThinking(): Boolean =
         delegate.supportsThinking()
 
-    override fun thinking(): ThinkingPromptRunnerOperations =
-        DelegatingThinkingOperations(
+    override fun thinking(): PromptRunner.Thinking =
+        DelegatingThinking(
             delegate = delegate,
         )
 }

@@ -21,7 +21,6 @@ import com.embabel.agent.api.common.nested.support.PromptRunnerRendering
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.common.support.streaming.StreamingImpl
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -361,7 +360,7 @@ internal data class OperationContextPromptRunner(
      */
     override fun supportsThinking(): Boolean = true
 
-    override fun withThinking(): ThinkingPromptRunnerOperations {
+    override fun withThinking(): PromptRunner.Thinking {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
         if (llmOperations !is ChatClientLlmOperations) {

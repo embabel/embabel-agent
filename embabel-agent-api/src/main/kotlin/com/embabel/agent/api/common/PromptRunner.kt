@@ -17,7 +17,6 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.api.annotation.support.AgenticInfo
 import com.embabel.agent.api.common.PromptRunner.Creating
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.Agent
@@ -30,10 +29,12 @@ import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
-import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
 import com.embabel.common.core.streaming.StreamingCapability
+import com.embabel.common.core.thinking.ThinkingCapability
+import com.embabel.common.core.thinking.ThinkingResponse
+import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
 import org.jetbrains.annotations.ApiStatus
 import java.util.function.Predicate
@@ -485,17 +486,17 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         message = "Use thinking() instead",
         replaceWith = ReplaceWith("thinking()")
     )
-    fun withThinking(): ThinkingPromptRunnerOperations = thinking()
+    fun withThinking(): Thinking = thinking()
 
     /**
-     * Return a [ThinkingPromptRunnerOperations] for extracting thinking blocks.
+     * Return a [PromptRunner.Thinking] for extracting thinking blocks.
      * Throws an exception if the underlying LLM does not support thinking extraction.
      * Use [supportsThinking] to check availability before calling.
      *
      * @return thinking operations returning results with extracted reasoning
      * @throws UnsupportedOperationException if thinking is not supported
      */
-    fun thinking(): ThinkingPromptRunnerOperations {
+    fun thinking(): Thinking {
         if (!supportsThinking()) {
             throw UnsupportedOperationException(
                 """
@@ -506,7 +507,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         }
 
         val thinking = llm?.thinking
-        require(thinking != null && thinking != Thinking.NONE) {
+        require(thinking != null && thinking != com.embabel.common.ai.model.Thinking.NONE) {
             """
             Thinking capability requires thinking to be enabled in LlmOptions.
             Use withLlm(LlmOptions.withThinking(Thinking.withExtraction()))
@@ -735,6 +736,175 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
             conversation: Conversation,
             model: Map<String, Any> = emptyMap(),
         ): AssistantMessage
+    }
+
+    /**
+     * Fluent interface for operations that extract thinking blocks from LLM responses.
+     * Provides access to:
+     *
+     * - Creating objects or text with thinking extraction
+     * - Processing multimodal content with thinkingg
+     *
+     * Instances are obtained via [PromptRunner.thinking].
+     */
+    interface Thinking : ThinkingCapability {
+
+        /**
+         * Generate text with thinking block extraction.
+         * @param prompt The text prompt to send to the LLM
+         * @return Response containing both generated text and extracted thinking blocks
+         */
+        infix fun generateText(prompt: String): ThinkingResponse<String> =
+            createObject(
+                prompt = prompt,
+                outputClass = String::class.java,
+            )
+
+        /**
+         * Create an object of the given type with thinking block extraction.
+         *
+         * Uses the given prompt and LLM options from context to generate a structured
+         * object while capturing the LLM's reasoning process.
+         * @param T The type of object to create
+         * @param prompt The text prompt to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response containing both the converted object and extracted thinking blocks
+         */
+        fun <T> createObject(
+            prompt: String,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T> = createObject(
+            messages = listOf(com.embabel.chat.UserMessage(prompt)),
+            outputClass = outputClass,
+        )
+
+        /**
+         * Try to create an object of the given type with thinking block extraction.
+         *
+         * Similar to [createObject] but designed for scenarios where the conversion
+         * might fail. Returns thinking blocks even when object creation fails.
+         *
+         * @param T The type of object to create
+         * @param prompt The text prompt to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response with potentially null result but always available thinking blocks
+         */
+        fun <T> createObjectIfPossible(
+            prompt: String,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T?> = createObjectIfPossible(
+            listOf(com.embabel.chat.UserMessage(prompt)),
+            outputClass
+        )
+
+        /**
+         * Try to create an object from messages with thinking block extraction.
+         *
+         * @param T The type of object to create
+         * @param messages The conversation messages to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response with potentially null result but always available thinking blocks
+         */
+        fun <T> createObjectIfPossible(
+            messages: List<Message>,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T?>
+
+        /**
+         * Create an object from messages with thinking block extraction.
+         *
+         * @param T The type of object to create
+         * @param messages The conversation messages to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response containing both the converted object and extracted thinking blocks
+         */
+        fun <T> createObject(
+            messages: List<Message>,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T>
+
+        /**
+         * Generate text from multimodal content with thinking block extraction.
+         *
+         * @param content The multimodal content (text + images) to send to the LLM
+         * @return Response containing both generated text and extracted thinking blocks
+         */
+        fun generateText(content: MultimodalContent): ThinkingResponse<String> =
+            createObject(
+                content = content,
+                outputClass = String::class.java,
+            )
+
+        /**
+         * Create an object from multimodal content with thinking block extraction.
+         *
+         * @param T The type of object to create
+         * @param content The multimodal content (text + images) to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response containing both the converted object and extracted thinking blocks
+         */
+        fun <T> createObject(
+            content: MultimodalContent,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T> = createObject(
+            messages = listOf(com.embabel.chat.UserMessage(content.toContentParts())),
+            outputClass = outputClass,
+        )
+
+        /**
+         * Try to create an object from multimodal content with thinking block extraction.
+         *
+         * @param T The type of object to create
+         * @param content The multimodal content (text + images) to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response with potentially null result but always available thinking blocks
+         */
+        fun <T> createObjectIfPossible(
+            content: MultimodalContent,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T?> = createObjectIfPossible(
+            listOf(com.embabel.chat.UserMessage(content.toContentParts())),
+            outputClass
+        )
+
+        /**
+         * Respond in a conversation with multimodal content and thinking block extraction.
+         *
+         * @param content The multimodal content to respond to
+         * @return Response containing both the assistant message and extracted thinking blocks
+         */
+        fun respond(
+            content: MultimodalContent,
+        ): ThinkingResponse<AssistantMessage> = respond(
+            listOf(com.embabel.chat.UserMessage(content.toContentParts()))
+        )
+
+        /**
+         * Respond in a conversation with thinking block extraction.
+         *
+         * @param messages The conversation messages to respond to
+         * @return Response containing both the assistant message and extracted thinking blocks
+         */
+        fun respond(
+            messages: List<Message>,
+        ): ThinkingResponse<AssistantMessage>
+
+        /**
+         * Evaluate a condition with thinking block extraction.
+         *
+         * Evaluates a boolean condition using the LLM while capturing its reasoning process.
+         *
+         * @param condition The condition to evaluate
+         * @param context The context for evaluation
+         * @param confidenceThreshold The confidence threshold for the evaluation
+         * @return Response containing both the evaluation result and extracted thinking blocks
+         */
+        fun evaluateCondition(
+            condition: String,
+            context: String,
+            confidenceThreshold: ZeroToOne = 0.8,
+        ): ThinkingResponse<Boolean>
+
     }
 }
 

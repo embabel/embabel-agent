@@ -15,8 +15,7 @@
  */
 package com.embabel.agent.api.common.thinking.support
 
-import com.embabel.agent.api.common.nested.TemplateOperations
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
+import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
@@ -53,7 +52,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
     private val messages: List<Message>,
     private val agentProcess: AgentProcess,
     private val action: Action?,
-) : ThinkingPromptRunnerOperations {
+) : PromptRunner.Thinking {
 
     override fun <T> createObjectIfPossible(
         messages: List<Message>,

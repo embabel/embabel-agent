@@ -23,7 +23,7 @@ package com.embabel.agent.api.common.streaming
  * Extends StreamingCapability to enable polymorphic access through the tag interface.
  */
 @Deprecated(
-    message = "Use StreaminPromptRunner.Streaming instead",
+    message = "Use StreamingPromptRunner.Streaming instead",
     replaceWith = ReplaceWith(
         expression = "StreamingPromptRunner.Streaming",
         imports = arrayOf("com.embabel.agent.api.common.StreamingPromptRunner.Streaming"),

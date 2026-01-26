@@ -16,7 +16,6 @@
 package com.embabel.agent.api.common.thinking
 
 import com.embabel.agent.api.common.PlatformServices
-import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.core.ToolGroup
@@ -299,7 +298,7 @@ class ThinkingPromptRunnerOperationsTest {
     fun `method should delegate to OperationContextPromptRunner withThinking`() {
         // Given: OperationContextPromptRunner with mocked withThinking method
         val mockOperationRunner = mockk<OperationContextPromptRunner>()
-        val mockThinkingOps = mockk<ThinkingPromptRunnerOperations>()
+        val mockThinkingOps = mockk<PromptRunner.Thinking>()
 
         every { mockOperationRunner.withThinking() } returns mockThinkingOps
 
