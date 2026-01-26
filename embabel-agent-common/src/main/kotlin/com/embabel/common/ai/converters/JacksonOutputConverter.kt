@@ -16,6 +16,7 @@
 package com.embabel.common.ai.converters
 
 import com.fasterxml.jackson.core.JsonProcessingException
+import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.core.util.DefaultIndenter
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter
 import com.fasterxml.jackson.databind.JsonNode
@@ -50,6 +51,26 @@ open class JacksonOutputConverter<T> protected constructor(
     ) : this(typeReference.type, objectMapper)
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
+
+    /**
+     * Lenient ObjectMapper for parsing LLM output.
+     * Copies all configuration from the provided objectMapper and enables
+     * additional features to handle common JSON formatting issues from LLMs:
+     * - ALLOW_TRAILING_COMMA: `{"a": 1,}` is valid
+     * - ALLOW_SINGLE_QUOTES: `{'a': 'b'}` is valid
+     * - ALLOW_UNQUOTED_FIELD_NAMES: `{a: "b"}` is valid
+     * - ALLOW_JAVA_COMMENTS: `{"a": 1 /* comment */}` is valid
+     */
+    private val lenientMapper: ObjectMapper by lazy {
+        objectMapper.copy().apply {
+            // Enable lenient JSON parsing features for LLM output
+            enable(JsonReadFeature.ALLOW_TRAILING_COMMA.mappedFeature())
+            enable(JsonReadFeature.ALLOW_SINGLE_QUOTES.mappedFeature())
+            enable(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature())
+            enable(JsonReadFeature.ALLOW_JAVA_COMMENTS.mappedFeature())
+            enable(JsonReadFeature.ALLOW_YAML_COMMENTS.mappedFeature())
+        }
+    }
 
     val jsonSchema: String by lazy {
         val jacksonModule = JacksonModule(
@@ -88,7 +109,7 @@ open class JacksonOutputConverter<T> protected constructor(
     override fun convert(text: String): T? {
         val unwrapped = unwrapJson(text)
         try {
-            return this.objectMapper.readValue<Any?>(unwrapped, this.objectMapper.constructType(this.type)) as T?
+            return lenientMapper.readValue<Any?>(unwrapped, lenientMapper.constructType(this.type)) as T?
         } catch (e: JsonProcessingException) {
             logger.error(
                 LoggingMarkers.SENSITIVE_DATA_MARKER,
@@ -101,6 +122,7 @@ open class JacksonOutputConverter<T> protected constructor(
     private fun unwrapJson(text: String): String {
         var result = text.trim()
 
+        // Remove markdown code blocks
         if (result.startsWith("```") && result.endsWith("```")) {
             result = result.removePrefix("```json")
                 .removePrefix("```")
@@ -108,7 +130,30 @@ open class JacksonOutputConverter<T> protected constructor(
                 .trim()
         }
 
+        // Fix malformed escaped quotes - this is the one issue Jackson can't handle
+        // because `"key": \"value\"` is fundamentally broken syntax
+        result = fixMalformedEscapedQuotes(result)
+
         return result
+    }
+
+    /**
+     * Fix malformed JSON where the LLM has incorrectly escaped quote characters
+     * that should be JSON string delimiters.
+     *
+     * This fixes cases like: `"span": \"Glazunov's violin concerto\",`
+     * where the LLM escapes the quotes that delimit the string value itself.
+     *
+     * Note: Jackson's lenient features can't handle this because the backslash
+     * before the opening quote makes it syntactically invalid in a way no parser
+     * can interpret correctly.
+     */
+    private fun fixMalformedEscapedQuotes(json: String): String {
+        return json
+            .replace(Regex(""":\s*\\""""), ": \"")   // Fix `: \"` -> `: "`
+            .replace(Regex("""\\","""), "\",")       // Fix `\",` -> `",`
+            .replace(Regex("""\\"(\s*})"""), "\"$1") // Fix `\" }` -> `" }`
+            .replace(Regex("""\\"(\s*])"""), "\"$1") // Fix `\" ]` -> `" ]`
     }
 
     override fun getFormat(): String =
