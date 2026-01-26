@@ -19,7 +19,6 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
@@ -190,7 +189,7 @@ internal data class DelegatingStreamingPromptRunner(
     override fun supportsStreaming(): Boolean =
         delegate.supportsStreaming()
 
-    override fun streaming(): StreamingPromptRunnerOperations {
+    override fun streaming(): StreamingPromptRunner.Streaming {
         if (!supportsStreaming()) {
             throw UnsupportedOperationException(
                 """
@@ -200,7 +199,7 @@ internal data class DelegatingStreamingPromptRunner(
                 """.trimIndent()
             )
         }
-        return DelegatingStreamingOperations(
+        return DelegatingStreaming(
             delegate = delegate,
         )
     }

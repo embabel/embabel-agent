@@ -27,12 +27,12 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import reactor.core.publisher.Flux
 
-class DelegatingStreamingOperationsTest {
+class DelegatingStreamingTest {
 
     private val mockDelegate = mockk<PromptExecutionDelegate>()
 
-    private fun createStreamingOperations(): DelegatingStreamingOperations {
-        return DelegatingStreamingOperations(
+    private fun createStreamingOperations(): DelegatingStreaming {
+        return DelegatingStreaming(
             delegate = mockDelegate,
         )
     }
@@ -52,7 +52,7 @@ class DelegatingStreamingOperationsTest {
             val result = operations.withPrompt(prompt)
 
             verify { mockDelegate.withMessages(any()) }
-            assert(result is DelegatingStreamingOperations)
+            assert(result is DelegatingStreaming)
 
             val capturedMessages = messagesSlot.captured
             assertEquals(1, capturedMessages.size)
@@ -75,7 +75,7 @@ class DelegatingStreamingOperationsTest {
             val result = operations.withMessages(messages)
 
             verify { mockDelegate.withMessages(messages) }
-            assert(result is DelegatingStreamingOperations)
+            assert(result is DelegatingStreaming)
         }
     }
 

@@ -19,9 +19,8 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
 import com.embabel.agent.api.common.nested.support.PromptRunnerRendering
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
-import com.embabel.agent.api.common.support.streaming.StreamingPromptRunnerOperationsImpl
+import com.embabel.agent.api.common.support.streaming.StreamingImpl
 import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
@@ -318,7 +317,7 @@ internal data class OperationContextPromptRunner(
         return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)
     }
 
-    override fun streaming(): StreamingPromptRunnerOperations {
+    override fun streaming(): StreamingPromptRunner.Streaming {
         if (!supportsStreaming()) {
             throw UnsupportedOperationException(
                 """
@@ -329,7 +328,7 @@ internal data class OperationContextPromptRunner(
             )
         }
 
-        return StreamingPromptRunnerOperationsImpl(
+        return StreamingImpl(
             streamingLlmOperations = StreamingChatClientOperations(
                 context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
             ),

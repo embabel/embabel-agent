@@ -19,7 +19,7 @@ import com.embabel.agent.AgentApiTestApplication
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.autonomy.Autonomy
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
+import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.asStreaming
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.core.AgentPlatform
@@ -198,7 +198,7 @@ class LLMStreamingIntegrationTest(
         assertNotNull(streamingOperations, "stream() should return StreamingOperations")
 
         when (streamingOperations) {
-            is StreamingPromptRunnerOperations -> {
+            is StreamingPromptRunner.Streaming -> {
                 val results = streamingOperations
                     .withPrompt("Test streaming")
                     .createObjectStream(SimpleItem::class.java)
@@ -207,7 +207,7 @@ class LLMStreamingIntegrationTest(
             }
 
             else -> {
-                assertTrue(false, "StreamingOperations should be castable to StreamingPromptRunnerOperations")
+                assertTrue(false, "StreamingOperations should be castable to StreamingPromptRunner.Streaming")
             }
         }
     }
@@ -249,7 +249,7 @@ class LLMStreamingIntegrationTest(
         assertNotNull(streamingOperations, "stream() should work with tools present")
 
         when (streamingOperations) {
-            is StreamingPromptRunnerOperations -> {
+            is StreamingPromptRunner.Streaming -> {
                 val results = streamingOperations
                     .withPrompt("Test streaming")
                     .createObjectStream(SimpleItem::class.java)
@@ -261,7 +261,7 @@ class LLMStreamingIntegrationTest(
             }
 
             else -> {
-                fail("StreamingOperations should be castable to StreamingPromptRunnerOperations")
+                fail("StreamingOperations should be castable to StreamingPromptRunner.Streaming")
             }
         }
 

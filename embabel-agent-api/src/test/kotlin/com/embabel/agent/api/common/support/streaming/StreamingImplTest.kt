@@ -53,14 +53,14 @@ import kotlin.test.assertEquals
  * The component should not modify data or implement streaming logic itself,
  * only delegate appropriately to the SPI layer.
  */
-class StreamingPromptRunnerOperationsImplTest {
+class StreamingImplTest {
 
     private lateinit var mockStreamingLlmOperations: StreamingLlmOperations
     private lateinit var mockInteraction: LlmInteraction
     private lateinit var mockAgentProcess: AgentProcess
     private lateinit var mockAction: Action
     private lateinit var initialMessages: List<Message>
-    private lateinit var streamingOperations: StreamingPromptRunnerOperationsImpl
+    private lateinit var streamingOperations: StreamingImpl
 
     @BeforeEach
     fun setUp() {
@@ -70,7 +70,7 @@ class StreamingPromptRunnerOperationsImplTest {
         mockAction = mockk()
         initialMessages = listOf(UserMessage("Initial message"))
 
-        streamingOperations = StreamingPromptRunnerOperationsImpl(
+        streamingOperations = StreamingImpl(
             streamingLlmOperations = mockStreamingLlmOperations,
             interaction = mockInteraction,
             messages = initialMessages,

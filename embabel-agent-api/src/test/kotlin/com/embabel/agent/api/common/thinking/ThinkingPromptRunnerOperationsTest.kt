@@ -201,7 +201,7 @@ class ThinkingPromptRunnerOperationsTest {
                 return true
             }
 
-            override fun streaming(): com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations {
+            override fun streaming(): com.embabel.agent.api.common.streaming.StreamingPromptRunner.Streaming {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
