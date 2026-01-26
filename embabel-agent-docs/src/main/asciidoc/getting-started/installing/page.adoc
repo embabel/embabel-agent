@@ -523,3 +523,113 @@ embabel:
     default-llm: openai/gpt-oss-20b
     default-embedding-model: text-embedding-nomic-embed-text-v1.5
 ----
+
+===== Ollama
+
+https://ollama.com/[Ollama] is an open source application that lets you easily https://ollama.com/library[discover], download, and run powerful LLMs on your own computer (Windows, Mac, Linux) for free, enabling offline use, local document Q&A, and even hosting an API server for your projects, making advanced AI accessible without relying on cloud services.
+
+The Ollama application allows you to run an LLM API server on localhost. Exposing both its own Ollama API and an Open-AI-compatible API.
+
+Get Ollama running locally by following https://docs.ollama.com/quickstart[these instructions].
+
+To use the Ollama API with your agent, add the `embabel-agent-starter-ollama` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-ollama</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-ollama:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-ollama:${embabel-agent.version}'
+}
+----
+====
+
+Specify the example configuration in `application.yml`. Embabel uses Spring AI configuration to configure the Ollama integration.
+
+[source,yaml]
+----
+spring:
+  ai:
+    ollama:
+      # Not needed when using the default port
+      base-url: http://localhost:11434
+
+embabel:
+  models:
+    defaultLlm: ministral-3:8b
+    default-embedding-model: qwen3-embedding
+----
+
+To instead use the Open-AI-compatible API with your agent, add the `embabel-agent-starter-openai-custom` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-openai-custom</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-openai-custom:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-openai-custom:${embabel-agent.version}'
+}
+----
+====
+
+Specify the example configuration in `application.yml`. Embabel uses Spring AI configuration to configure the Ollama integration.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        openai:
+          custom:
+            api-key: not-set  # Property needed but value not used by Ollama
+            base-url: http://localhost:11434
+            models: ministral-3:8b,qwen3-embedding
+  models:
+    defaultLlm: ministral-3:8b
+    default-embedding-model: qwen3-embedding
+----
