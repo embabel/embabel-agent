@@ -148,7 +148,7 @@ internal class ThinkingPromptRunnerOperationsImpl(
      * Template operations don't support thinking extraction, so this returns
      * standard TemplateOperations without thinking capabilities.
      */
-     fun withTemplate(templateName: String): TemplateOperations {
+    fun withTemplate(templateName: String): PromptRunner.Thinking {
         // TODO: Implement thinking-aware template operations or delegate to base implementation
         throw UnsupportedOperationException("Template operations with thinking extraction not yet implemented")
     }
