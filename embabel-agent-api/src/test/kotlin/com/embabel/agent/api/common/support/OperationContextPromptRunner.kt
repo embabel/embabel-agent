@@ -16,15 +16,11 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.common.nested.ObjectCreator
-import com.embabel.agent.api.common.nested.TemplateOperations
-import com.embabel.agent.api.common.nested.support.PromptRunnerObjectCreator
-import com.embabel.agent.api.common.nested.support.PromptRunnerTemplateOperations
+import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
+import com.embabel.agent.api.common.nested.support.PromptRunnerRendering
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
-import com.embabel.agent.api.common.support.streaming.StreamingPromptRunnerOperationsImpl
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
+import com.embabel.agent.api.common.support.streaming.StreamingImpl
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -216,8 +212,8 @@ internal data class OperationContextPromptRunner(
         return determination.result && determination.confidence >= confidenceThreshold
     }
 
-    override fun withTemplate(templateName: String): TemplateOperations {
-        return PromptRunnerTemplateOperations(
+    override fun rendering(templateName: String): PromptRunner.Rendering {
+        return PromptRunnerRendering(
             templateName = templateName,
             promptRunner = this,
             templateRenderer = context.agentPlatform().platformServices.templateRenderer,
@@ -299,8 +295,8 @@ internal data class OperationContextPromptRunner(
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(validation = validation)
 
-    override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> {
-        return PromptRunnerObjectCreator(
+    override fun <T> creating(outputClass: Class<T>): PromptRunner.Creating<T> {
+        return PromptRunnerCreating(
             promptRunner = this,
             outputClass = outputClass,
             objectMapper = context.agentPlatform().platformServices.objectMapper,
@@ -320,7 +316,7 @@ internal data class OperationContextPromptRunner(
         return StreamingCapabilityDetector.supportsStreaming(llmOperations, this.llm)
     }
 
-    override fun stream(): StreamingPromptRunnerOperations {
+    override fun streaming(): StreamingPromptRunner.Streaming {
         if (!supportsStreaming()) {
             throw UnsupportedOperationException(
                 """
@@ -331,7 +327,7 @@ internal data class OperationContextPromptRunner(
             )
         }
 
-        return StreamingPromptRunnerOperationsImpl(
+        return StreamingImpl(
             streamingLlmOperations = StreamingChatClientOperations(
                 context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
             ),
@@ -364,7 +360,7 @@ internal data class OperationContextPromptRunner(
      */
     override fun supportsThinking(): Boolean = true
 
-    override fun withThinking(): ThinkingPromptRunnerOperations {
+    override fun withThinking(): PromptRunner.Thinking {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
         if (llmOperations !is ChatClientLlmOperations) {

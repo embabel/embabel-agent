@@ -15,10 +15,8 @@
  */
 package com.embabel.agent.api.common.nested
 
-import com.embabel.chat.Message
-import com.embabel.chat.UserMessage
-import java.util.function.Predicate
-import kotlin.reflect.KProperty1
+import com.embabel.agent.api.common.CreationExample
+import com.embabel.agent.api.common.PromptRunner
 
 /**
  * An example of creating an object of the given type.
@@ -27,152 +25,30 @@ import kotlin.reflect.KProperty1
  * @param description description of the example--e.g. "good example, correct amount of detail"
  * @param value the example object
  */
-data class ObjectCreationExample<T>(
-    val description: String,
-    val value: T,
+@Deprecated(
+    message = "Use CreationExample instead",
+    replaceWith = ReplaceWith(
+        expression = "CreationExample(description, value)",
+        imports = arrayOf("com.embabel.agent.api.common.CreationExample"),
+    )
+)
+class ObjectCreationExample<T>(
+    description: String,
+    value: T,
+) : CreationExample<T>(
+    description = description,
+    value = value
 )
 
 /**
  * Interface to create objects of the given type from a prompt or messages.
  * Allows setting strongly typed examples.
  */
-interface ObjectCreator<T> {
-
-    /**
-     * Add an example of the desired output to the prompt.
-     * This will be included in JSON.
-     * It is possible to call this method multiple times.
-     * This will override PromptRunner.withGenerateExamples
-     */
-    fun withExample(
-        description: String,
-        value: T,
-    ): ObjectCreator<T> = withExample(
-        ObjectCreationExample(
-            description = description,
-            value = value,
-        ),
+@Deprecated(
+    message = "Use PromptRunner.Creating instead",
+    replaceWith = ReplaceWith(
+        expression = "PromptRunner.Creating<T>",
+        imports = arrayOf("com.embabel.agent.api.common.PromptRunner.Creating"),
     )
-
-    /**
-     * Convenience method to add multiple examples from a list or other iterable.
-     * Each example will be added as a prompt contributor to improve LLM output quality.
-     */
-    fun withExamples(examples: Iterable<ObjectCreationExample<T>>): ObjectCreator<T> {
-        var result: ObjectCreator<T> = this
-        examples.forEach {
-            result = result.withExample(it)
-        }
-        return result
-    }
-
-    /**
-     * Convenience method to add multiple examples using vararg syntax.
-     * Each example will be added as a prompt contributor to improve LLM output quality.
-     */
-    fun withExamples(vararg examples: ObjectCreationExample<T>): ObjectCreator<T> =
-        withExamples(examples.asIterable())
-
-    /**
-     * Add an example of the desired output to the prompt.
-     * This will be included in JSON.
-     * It is possible to call this method multiple times.
-     * This will override PromptRunner.withGenerateExamples
-     */
-    fun withExample(
-        example: ObjectCreationExample<T>,
-    ): ObjectCreator<T>
-
-    /**
-     * Adds a filter that determines which properties are to be included when creating an object.
-     *
-     * Note that each predicate is applied *in addition to* previously registered predicates, including
-     * [withProperties] and [withoutProperties].
-     * @param filter the property predicate to be added
-     */
-    fun withPropertyFilter(filter: Predicate<String>): ObjectCreator<T>
-
-    /**
-     * Includes the given properties when creating an object.
-     *
-     * Note that each predicate is applied *in addition to* previously registered predicates, including
-     * [withPropertyFilter] and [withoutProperties].
-     * @param properties the properties that are to be included
-     */
-    fun withProperties(vararg properties: String): ObjectCreator<T> = withPropertyFilter { properties.contains(it) }
-
-    /**
-     * Excludes the given properties when creating an object.
-     *
-     * Note that each predicate is applied *in addition to* previously registered predicates, including
-     * [withPropertyFilter] and [withProperties].
-     * @param properties the properties that are to be included
-     */
-    fun withoutProperties(vararg properties: String): ObjectCreator<T> = withPropertyFilter { !properties.contains(it) }
-
-    /**
-     * Set whether to validate created objects.
-     * @param validation `true` to validate created objects; `false` otherwise. Defaults to `true`.
-     */
-    fun withValidation(validation: Boolean = true): ObjectCreator<T>
-
-    /**
-     * Disables validation of created objects.
-     */
-    fun withoutValidation(): ObjectCreator<T> = withValidation(false)
-
-    /**
-     * Create an object of the desired type using the given prompt and LLM options from context
-     * (process context or implementing class).
-     * Prompts are typically created within the scope of an
-     * @Action method that provides access to
-     * domain object instances, offering type safety.
-     */
-    fun fromPrompt(
-        prompt: String,
-    ): T = fromMessages(
-        messages = listOf(UserMessage(prompt)),
-    )
-
-    /**
-     * Create an object of this type from the given template
-     */
-    fun fromTemplate(
-        templateName: String,
-        model: Map<String, Any>,
-    ): T
-
-    /**
-     * Create an object of the desired typed from messages
-     */
-    fun fromMessages(
-        messages: List<Message>,
-    ): T
-
-}
-
-/**
- * Includes the given properties when creating an object.
- *
- * Note that each predicate is applied *in addition to* previously registered predicates, including
- * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
- * and [withoutProperties].
- * @param properties the properties that are to be included
- */
-fun <T> ObjectCreator<T>.withProperties(
-    vararg properties: KProperty1<T, Any>,
-): ObjectCreator<T> =
-    withProperties(*properties.map { it.name }.toTypedArray())
-
-/**
- * Excludes the given properties when creating an object.
- *
- * Note that each predicate is applied *in addition to* previously registered predicates, including
- * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
- * and [withProperties].
- * @param properties the properties that are to be included
- */
-fun <T> ObjectCreator<T>.withoutProperties(
-    vararg properties: KProperty1<T, Any>,
-): ObjectCreator<T> =
-    withoutProperties(*properties.map { it.name }.toTypedArray())
+)
+interface ObjectCreator<T> : PromptRunner.Creating<T>

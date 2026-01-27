@@ -27,12 +27,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-class DelegatingThinkingOperationsTest {
+class DelegatingThinkingTest {
 
     private val mockDelegate = mockk<PromptExecutionDelegate>()
 
-    private fun createThinkingOperations(): DelegatingThinkingOperations {
-        return DelegatingThinkingOperations(
+    private fun createThinkingOperations(): DelegatingThinking {
+        return DelegatingThinking(
             delegate = mockDelegate,
         )
     }

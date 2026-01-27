@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.nested.ObjectCreationExample
-import com.embabel.agent.api.common.nested.ObjectCreator
+import com.embabel.agent.api.common.CreationExample
+import com.embabel.agent.api.common.PromptRunner
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.prompt.PromptContributor
@@ -25,20 +25,20 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.function.Predicate
 
 /**
- * Implementation of [ObjectCreator] that delegates to a [PromptExecutionDelegate].
+ * Implementation of [com.embabel.agent.api.common.PromptRunner.Creating] that delegates to a [PromptExecutionDelegate].
  */
-internal data class DelegatingObjectCreator<T>(
+internal data class DelegatingCreating<T>(
     internal val delegate: PromptExecutionDelegate,
     internal val outputClass: Class<T>,
-) : ObjectCreator<T> {
+) : PromptRunner.Creating<T> {
 
     private val objectMapper: ObjectMapper = delegate.objectMapper
 
     private val templateRenderer: TemplateRenderer = delegate.templateRenderer
 
     override fun withExample(
-        example: ObjectCreationExample<T>,
-    ): ObjectCreator<T> {
+        example: CreationExample<T>,
+    ): PromptRunner.Creating<T> {
         return copy(
             delegate = delegate
                 .withGenerateExamples(false)
@@ -57,13 +57,13 @@ internal data class DelegatingObjectCreator<T>(
 
     override fun withPropertyFilter(
         filter: Predicate<String>
-    ): ObjectCreator<T> = copy(
+    ): PromptRunner.Creating<T> = copy(
         delegate = delegate.withPropertyFilter(filter)
     )
 
     override fun withValidation(
         validation: Boolean
-    ): ObjectCreator<T> = copy(
+    ): PromptRunner.Creating<T> = copy(
         delegate = delegate.withValidation(validation)
     )
 

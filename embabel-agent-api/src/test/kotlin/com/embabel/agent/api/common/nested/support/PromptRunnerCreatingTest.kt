@@ -15,10 +15,10 @@
  */
 package com.embabel.agent.api.common.nested.support
 
-import com.embabel.agent.api.common.nested.ObjectCreator
-import com.embabel.agent.api.common.nested.withProperties
-import com.embabel.agent.api.common.nested.withoutProperties
+import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.api.common.withProperties
+import com.embabel.agent.api.common.withoutProperties
 import com.embabel.agent.test.unit.FakeOperationContext
 import com.embabel.common.ai.model.LlmOptions
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -27,10 +27,10 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-class PromptRunnerObjectCreatorTest {
+class PromptRunnerCreatingTest {
 
-    internal inline fun <reified T> createPromptRunnerObjectCreatorWithDefaults(): ObjectCreator<T> {
-        return PromptRunnerObjectCreator(
+    internal inline fun <reified T> createPromptRunnerCreatingWithDefaults(): PromptRunner.Creating<T> {
+        return PromptRunnerCreating(
             promptRunner = OperationContextPromptRunner(
                 context = FakeOperationContext(),
                 llm = LlmOptions(),
@@ -51,8 +51,8 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test property filter`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<Any>()
-                .withPropertyFilter { it == "name" || it == "age" } as PromptRunnerObjectCreator<Any>
+            val creator = createPromptRunnerCreatingWithDefaults<Any>()
+                .withPropertyFilter { it == "name" || it == "age" } as PromptRunnerCreating<Any>
 
             val promptRunner = creator.promptRunner
 
@@ -63,9 +63,9 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test chain multiple property filters`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<Any>()
+            val creator = createPromptRunnerCreatingWithDefaults<Any>()
                 .withPropertyFilter { it == "name" || it == "age" || it == "email" }
-                .withPropertyFilter { it != "email" } as PromptRunnerObjectCreator<Any>
+                .withPropertyFilter { it != "email" } as PromptRunnerCreating<Any>
 
             val promptRunner = creator.promptRunner
 
@@ -77,7 +77,7 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test default filter`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<Any>() as PromptRunnerObjectCreator<Any>
+            val creator = createPromptRunnerCreatingWithDefaults<Any>() as PromptRunnerCreating<Any>
 
             val promptRunner = creator.promptRunner
 
@@ -94,8 +94,8 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test varargs syntax`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<Any>()
-                .withProperties("name", "age") as PromptRunnerObjectCreator<Any>
+            val creator = createPromptRunnerCreatingWithDefaults<Any>()
+                .withProperties("name", "age") as PromptRunnerCreating<Any>
 
             val promptRunner = creator.promptRunner
 
@@ -107,8 +107,8 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test KProperty syntax`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<User>()
-                .withProperties(User::name) as PromptRunnerObjectCreator<User>
+            val creator = createPromptRunnerCreatingWithDefaults<User>()
+                .withProperties(User::name) as PromptRunnerCreating<User>
 
             val promptRunner = creator.promptRunner
 
@@ -118,9 +118,9 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test chain with withoutProperties`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<Any>()
+            val creator = createPromptRunnerCreatingWithDefaults<Any>()
                 .withProperties("name", "age", "email")
-                .withoutProperties("email") as PromptRunnerObjectCreator<Any>
+                .withoutProperties("email") as PromptRunnerCreating<Any>
 
             val promptRunner = creator.promptRunner
 
@@ -138,8 +138,8 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test varargs syntax`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<Any>()
-                .withoutProperties("email", "address") as PromptRunnerObjectCreator<Any>
+            val creator = createPromptRunnerCreatingWithDefaults<Any>()
+                .withoutProperties("email", "address") as PromptRunnerCreating<Any>
 
             val promptRunner = creator.promptRunner
 
@@ -151,8 +151,8 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test KProperty syntax`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<User>()
-                .withoutProperties(User::name) as PromptRunnerObjectCreator<User>
+            val creator = createPromptRunnerCreatingWithDefaults<User>()
+                .withoutProperties(User::name) as PromptRunnerCreating<User>
 
             val promptRunner = creator.promptRunner
 
@@ -162,9 +162,9 @@ class PromptRunnerObjectCreatorTest {
 
         @Test
         fun `test chain multiple`() {
-            val creator = createPromptRunnerObjectCreatorWithDefaults<Any>()
+            val creator = createPromptRunnerCreatingWithDefaults<Any>()
                 .withoutProperties("email")
-                .withoutProperties("address") as PromptRunnerObjectCreator<Any>
+                .withoutProperties("address") as PromptRunnerCreating<Any>
 
             val promptRunner = creator.promptRunner
 
@@ -176,6 +176,7 @@ class PromptRunnerObjectCreatorTest {
     }
 
 }
+
 
 data class User(
     val name: String,

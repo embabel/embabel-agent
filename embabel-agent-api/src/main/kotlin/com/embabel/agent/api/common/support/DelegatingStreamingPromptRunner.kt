@@ -16,12 +16,9 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -122,6 +119,9 @@ internal data class DelegatingStreamingPromptRunner(
     override fun withValidation(validation: Boolean): PromptRunner =
         copy(delegate = delegate.withValidation(validation))
 
+    override fun withGuardRails(vararg guards: GuardRail): PromptRunner =
+        copy(delegate = delegate.withGuardRails(*guards))
+
     // Execution methods
     override fun <T> createObject(
         messages: List<Message>,
@@ -173,14 +173,14 @@ internal data class DelegatingStreamingPromptRunner(
     }
 
     // Factory methods
-    override fun <T> creating(outputClass: Class<T>): ObjectCreator<T> =
-        DelegatingObjectCreator(
+    override fun <T> creating(outputClass: Class<T>): PromptRunner.Creating<T> =
+        DelegatingCreating(
             delegate = delegate,
             outputClass = outputClass
         )
 
-    override fun withTemplate(templateName: String): TemplateOperations =
-        DelegatingTemplateOperations(
+    override fun rendering(templateName: String): PromptRunner.Rendering =
+        DelegatingRendering(
             delegate = delegate,
             templateName = templateName,
         )
@@ -188,7 +188,7 @@ internal data class DelegatingStreamingPromptRunner(
     override fun supportsStreaming(): Boolean =
         delegate.supportsStreaming()
 
-    override fun stream(): StreamingPromptRunnerOperations {
+    override fun streaming(): StreamingPromptRunner.Streaming {
         if (!supportsStreaming()) {
             throw UnsupportedOperationException(
                 """
@@ -198,7 +198,7 @@ internal data class DelegatingStreamingPromptRunner(
                 """.trimIndent()
             )
         }
-        return DelegatingStreamingOperations(
+        return DelegatingStreaming(
             delegate = delegate,
         )
     }
@@ -206,13 +206,8 @@ internal data class DelegatingStreamingPromptRunner(
     override fun supportsThinking(): Boolean =
         delegate.supportsThinking()
 
-    override fun withThinking(): ThinkingPromptRunnerOperations {
-        return DelegatingThinkingOperations(
+    override fun thinking(): PromptRunner.Thinking =
+        DelegatingThinking(
             delegate = delegate,
         )
-    }
-
-    override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
-        return copy(delegate = delegate.withGuardRails(*guards))
-    }
 }

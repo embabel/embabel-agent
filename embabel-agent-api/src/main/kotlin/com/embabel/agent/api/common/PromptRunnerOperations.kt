@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.api.common
 
-import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
@@ -122,11 +121,6 @@ interface PromptRunnerOperations {
     fun respond(
         messages: List<Message>,
     ): AssistantMessage
-
-    /**
-     * Use operations from a given template
-     */
-    fun withTemplate(templateName: String): TemplateOperations
 
     fun evaluateCondition(
         condition: String,

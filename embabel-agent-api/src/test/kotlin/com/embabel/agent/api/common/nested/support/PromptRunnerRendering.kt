@@ -16,17 +16,16 @@
 package com.embabel.agent.api.common.nested.support
 
 import com.embabel.agent.api.common.PromptRunner
-import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.SystemMessage
 import com.embabel.common.textio.template.TemplateRenderer
 
-internal data class PromptRunnerTemplateOperations(
+internal data class PromptRunnerRendering(
     private val promptRunner: PromptRunner,
     private val templateName: String,
     private val templateRenderer: TemplateRenderer,
-) : TemplateOperations {
+) : PromptRunner.Rendering {
 
     private val compiledTemplate = templateRenderer.compileLoadedTemplate(templateName)
 

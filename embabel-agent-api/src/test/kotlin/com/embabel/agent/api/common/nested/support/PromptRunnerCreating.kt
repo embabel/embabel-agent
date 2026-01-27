@@ -15,23 +15,22 @@
  */
 package com.embabel.agent.api.common.nested.support
 
+import com.embabel.agent.api.common.CreationExample
 import com.embabel.agent.api.common.PromptRunner
-import com.embabel.agent.api.common.nested.ObjectCreationExample
-import com.embabel.agent.api.common.nested.ObjectCreator
 import com.embabel.chat.Message
 import com.embabel.common.ai.prompt.PromptContributor
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.function.Predicate
 
-internal data class PromptRunnerObjectCreator<T>(
+internal data class PromptRunnerCreating<T>(
     internal val promptRunner: PromptRunner,
     internal val outputClass: Class<T>,
     private val objectMapper: ObjectMapper,
-) : ObjectCreator<T> {
+) : PromptRunner.Creating<T> {
 
     override fun withExample(
-        example: ObjectCreationExample<T>,
-    ): ObjectCreator<T> {
+        example: CreationExample<T>,
+    ): PromptRunner.Creating<T> {
         return copy(
             promptRunner = promptRunner
                 .withGenerateExamples(false)
@@ -48,7 +47,7 @@ internal data class PromptRunnerObjectCreator<T>(
 
     override fun withPropertyFilter(
         filter: Predicate<String>
-    ): ObjectCreator<T> {
+    ): PromptRunner.Creating<T> {
         return copy(
             promptRunner = promptRunner
                 .withPropertyFilter(filter)
@@ -57,7 +56,7 @@ internal data class PromptRunnerObjectCreator<T>(
 
     override fun withValidation(
         validation: Boolean
-    ): ObjectCreator<T> {
+    ): PromptRunner.Creating<T> {
         return copy(
             promptRunner = promptRunner.withValidation(validation)
         )

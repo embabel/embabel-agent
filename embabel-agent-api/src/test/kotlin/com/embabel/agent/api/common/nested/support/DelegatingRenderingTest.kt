@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.common.nested.support
 
-import com.embabel.agent.api.common.support.DelegatingTemplateOperations
+import com.embabel.agent.api.common.support.DelegatingRendering
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
@@ -31,7 +31,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-class DelegatingTemplateOperationsTest {
+class DelegatingRenderingTest {
 
     private val mockDelegate = mockk<PromptExecutionDelegate>()
     private val mockTemplateRenderer = mockk<com.embabel.common.textio.template.TemplateRenderer>()
@@ -44,8 +44,8 @@ class DelegatingTemplateOperationsTest {
         every { mockTemplateRenderer.compileLoadedTemplate(templateName) } returns mockCompiledTemplate
     }
 
-    private fun createTemplateOperations(): DelegatingTemplateOperations {
-        return DelegatingTemplateOperations(
+    private fun createTemplateOperations(): DelegatingRendering {
+        return DelegatingRendering(
             delegate = mockDelegate,
             templateName = templateName,
         )

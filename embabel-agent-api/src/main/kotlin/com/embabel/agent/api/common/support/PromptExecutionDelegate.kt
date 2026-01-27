@@ -38,8 +38,8 @@ import java.util.function.Predicate
  * Delegate interface for prompt execution functionality.
  * Contains only primitive operations that cannot be expressed in terms of other methods.
  * Used in [DelegatingStreamingPromptRunner],
- * [DelegatingObjectCreator], and
- * [DelegatingTemplateOperations].
+ * [DelegatingCreating], and
+ * [DelegatingRendering].
  */
 internal interface PromptExecutionDelegate : LlmUse {
 

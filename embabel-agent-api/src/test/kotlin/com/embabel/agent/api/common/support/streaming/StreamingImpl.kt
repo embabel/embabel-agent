@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.api.common.support.streaming
 
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
+import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
@@ -26,18 +26,18 @@ import com.embabel.common.core.streaming.StreamingEvent
 import reactor.core.publisher.Flux
 
 /**
- * Implementation of StreamingPromptRunnerOperations that bridges the API layer to SPI layer.
+ * Implementation of StreamingPromptRunner.Streaming that bridges the API layer to SPI layer.
  *
- * This class delegates streaming operations from the API layer (StreamingPromptRunnerOperations)
+ * This class delegates streaming operations from the API layer (StreamingPromptRunner.Streaming)
  * to the SPI layer (StreamingLlmOperations), handling the conversion between API and SPI concerns.
  */
-internal class StreamingPromptRunnerOperationsImpl(
+internal class StreamingImpl(
     private val streamingLlmOperations: StreamingLlmOperations,
     private val interaction: LlmInteraction,
     private val messages: List<Message>,
     private val agentProcess: AgentProcess,
     private val action: Action?,
-) : StreamingPromptRunnerOperations {
+) : StreamingPromptRunner.Streaming {
 
     /**
      * Create a copy of this instance with selective parameter changes.
@@ -48,15 +48,15 @@ internal class StreamingPromptRunnerOperationsImpl(
         messages: List<Message> = this.messages,
         agentProcess: AgentProcess = this.agentProcess,
         action: Action? = this.action,
-    ): StreamingPromptRunnerOperationsImpl = StreamingPromptRunnerOperationsImpl(
+    ): StreamingImpl = StreamingImpl(
         streamingLlmOperations, interaction, messages, agentProcess, action
     )
 
-    override fun withPrompt(prompt: String): StreamingPromptRunnerOperations {
+    override fun withPrompt(prompt: String): StreamingPromptRunner.Streaming {
         return copy(messages = listOf(UserMessage(prompt)))
     }
 
-    override fun withMessages(messages: List<Message>): StreamingPromptRunnerOperations {
+    override fun withMessages(messages: List<Message>): StreamingPromptRunner.Streaming {
         return copy(messages = messages)
     }
 

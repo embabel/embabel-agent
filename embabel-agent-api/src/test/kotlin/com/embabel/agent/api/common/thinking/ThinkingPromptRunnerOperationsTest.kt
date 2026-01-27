@@ -200,7 +200,7 @@ class ThinkingPromptRunnerOperationsTest {
                 return true
             }
 
-            override fun stream(): com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations {
+            override fun streaming(): com.embabel.agent.api.common.streaming.StreamingPromptRunner.Streaming {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
@@ -248,11 +248,11 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withValidation(validation: Boolean): com.embabel.agent.api.common.PromptRunner =
                 this
 
-            override fun <T> creating(outputClass: Class<T>): com.embabel.agent.api.common.nested.ObjectCreator<T> {
+            override fun <T> creating(outputClass: Class<T>): com.embabel.agent.api.common.PromptRunner.Creating<T> {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
-            override fun withTemplate(templateName: String): com.embabel.agent.api.common.nested.TemplateOperations {
+            override fun rendering(templateName: String): com.embabel.agent.api.common.PromptRunner.Rendering {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
@@ -298,7 +298,7 @@ class ThinkingPromptRunnerOperationsTest {
     fun `method should delegate to OperationContextPromptRunner withThinking`() {
         // Given: OperationContextPromptRunner with mocked withThinking method
         val mockOperationRunner = mockk<OperationContextPromptRunner>()
-        val mockThinkingOps = mockk<ThinkingPromptRunnerOperations>()
+        val mockThinkingOps = mockk<PromptRunner.Thinking>()
 
         every { mockOperationRunner.withThinking() } returns mockThinkingOps
 

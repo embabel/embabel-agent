@@ -16,7 +16,7 @@
 package com.embabel.agent.api.streaming;
 
 import com.embabel.agent.api.common.PromptRunner;
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations;
+import com.embabel.agent.api.common.streaming.StreamingPromptRunner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -32,7 +32,7 @@ class StreamingPromptRunnerBuilderTest {
     private PromptRunner mockRunner;
 
     @Mock
-    private StreamingPromptRunnerOperations mockOperations;
+    private StreamingPromptRunner.Streaming mockOperations;
 
     @Test
     void shouldCreateBuilderWithRunner() {
@@ -44,7 +44,7 @@ class StreamingPromptRunnerBuilderTest {
     @Test
     void shouldReturnStreamingOperationsWhenSupported() {
         when(mockRunner.supportsStreaming()).thenReturn(true);
-        when(mockRunner.stream()).thenReturn(mockOperations);
+        when(mockRunner.streaming()).thenReturn(mockOperations);
 
         var builder = new StreamingPromptRunnerBuilder(mockRunner);
         var result = builder.withStreaming();

@@ -16,9 +16,7 @@
 package com.embabel.agent.api.common
 
 import com.embabel.agent.api.annotation.support.AgenticInfo
-import com.embabel.agent.api.common.nested.ObjectCreator
-import com.embabel.agent.api.common.nested.TemplateOperations
-import com.embabel.agent.api.common.thinking.ThinkingPromptRunnerOperations
+import com.embabel.agent.api.common.PromptRunner.Creating
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.Agent
@@ -27,15 +25,20 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmUse
 import com.embabel.chat.AssistantMessage
+import com.embabel.chat.Conversation
 import com.embabel.chat.Message
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
-import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
 import com.embabel.common.core.streaming.StreamingCapability
+import com.embabel.common.core.thinking.ThinkingCapability
+import com.embabel.common.core.thinking.ThinkingResponse
+import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
 import org.jetbrains.annotations.ApiStatus
 import java.util.function.Predicate
+import kotlin.reflect.KProperty1
 
 /**
  * Define a handoff to a subagent.
@@ -348,7 +351,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     /**
      * Set whether to generate examples of the output in the prompt
      * on a per-PromptRunner basis. This overrides platform defaults.
-     * Note that adding individual examples with [com.embabel.agent.api.common.nested.ObjectCreator.withExample]
+     * Note that adding individual examples with [Creating.withExample]
      * will always override this.
      */
     fun withGenerateExamples(generateExamples: Boolean): PromptRunner
@@ -378,10 +381,38 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
     fun withValidation(validation: Boolean = true): PromptRunner
 
     /**
-     * Create an object creator for the given output class.
-     * Allows setting strongly typed examples.
+     * Add guardrail instances to this PromptRunner (additive).
+     *
+     * @param guards the guardrail instances to add
+     * @return PromptRunner instance with additional guardrails configured
      */
-    fun <T> creating(outputClass: Class<T>): ObjectCreator<T>
+    fun withGuardRails(vararg guards: GuardRail): PromptRunner
+
+    /**
+     * Returns a mode for creating strongly-typed objects.
+     *
+     * @param T the type of object to create
+     * @param outputClass the class of objects to create
+     * @return creating mode supporting examples, property filtering, and validation
+     */
+    fun <T> creating(outputClass: Class<T>): Creating<T>
+
+    /**
+     * Use operations from a given template
+     */
+    @Deprecated(
+        "Use rendering(templateName) instead",
+        ReplaceWith("rendering(templateName)")
+    )
+    fun withTemplate(templateName: String): Rendering = rendering(templateName)
+
+    /**
+     * Returns [Rendering] for rendering the specified template.
+     *
+     * @param templateName the name of the template to render
+     * @return rendering mode for creating objects and generating text from templates
+     */
+    fun rendering(templateName: String): Rendering
 
     /**
      * Check if true reactive streaming is supported by the underlying LLM model.
@@ -401,7 +432,21 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * @return StreamingCapability instance providing access to streaming operations
      * @throws UnsupportedOperationException if streaming is not supported by this implementation
      */
-    fun stream(): StreamingCapability {
+    @Deprecated(
+        "Use streaming() instead",
+        ReplaceWith("streaming()")
+    )
+    fun stream(): StreamingCapability = streaming()
+
+    /**
+     * Return a [StreamingCapability] for reactive streaming operations.
+     * Throws an exception if the underlying LLM does not support streaming.
+     * Use [supportsStreaming] to check availability before calling.
+     *
+     * @return streaming capability for reactive object and text generation
+     * @throws UnsupportedOperationException if streaming is not supported
+     */
+    fun streaming(): StreamingCapability {
         throw UnsupportedOperationException(
             "Streaming not supported by this PromptRunner implementation. " +
                     "Check supportsStreaming() before calling stream()."
@@ -421,7 +466,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      */
     fun supportsThinking(): Boolean = false
 
-
     /**
      * Create a thinking-enhanced version of this prompt runner.
      *
@@ -438,7 +482,21 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * @throws UnsupportedOperationException if thinking is not supported by this implementation
      * @throws IllegalArgumentException if thinking is not enabled in LlmOptions configuration
      */
-    fun withThinking(): ThinkingPromptRunnerOperations {
+    @Deprecated(
+        message = "Use thinking() instead",
+        replaceWith = ReplaceWith("thinking()")
+    )
+    fun withThinking(): Thinking = thinking()
+
+    /**
+     * Return a [PromptRunner.Thinking] for extracting thinking blocks.
+     * Throws an exception if the underlying LLM does not support thinking extraction.
+     * Use [supportsThinking] to check availability before calling.
+     *
+     * @return thinking operations returning results with extracted reasoning
+     * @throws UnsupportedOperationException if thinking is not supported
+     */
+    fun thinking(): Thinking {
         if (!supportsThinking()) {
             throw UnsupportedOperationException(
                 """
@@ -449,7 +507,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         }
 
         val thinking = llm?.thinking
-        require(thinking != null && thinking != Thinking.NONE) {
+        require(thinking != null && thinking != com.embabel.common.ai.model.Thinking.NONE) {
             """
             Thinking capability requires thinking to be enabled in LlmOptions.
             Use withLlm(LlmOptions.withThinking(Thinking.withExtraction()))
@@ -471,15 +529,422 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
             )
         )
 
-    /**
-     * Add guardrail instances to this PromptRunner (additive).
-     *
-     * @param guards the guardrail instances to add
-     * @return PromptRunner instance with additional guardrails configured
-     */
-    fun withGuardRails(vararg guards: GuardRail): PromptRunner
 
+    /**
+     * Fluent interface for creating strongly-typed objects from LLM responses.
+     * Provides configuration options for:
+     *
+     * - Adding examples
+     * - Filtering properties
+     * - Enabling/disabling validation
+     *
+     * Instances are obtained via [PromptRunner.creating].
+     *
+     * @param T the type of object to create
+     */
+    interface Creating<T> {
+
+        /**
+         * Add an example of the desired output to the prompt.
+         * This will be included in JSON.
+         * It is possible to call this method multiple times.
+         * This will override PromptRunner.withGenerateExamples
+         * @param description description of the example
+         * @param value the example object
+         * @return this instance for method chaining
+         */
+        fun withExample(
+            description: String,
+            value: T,
+        ): Creating<T> = withExample(
+            CreationExample(
+                description = description,
+                value = value,
+            ),
+        )
+
+        /**
+         * Add multiple examples from a list or other iterable.
+         * Each example will be added as a prompt contributor to improve LLM output quality.
+         *
+         * @param examples the examples to add
+         * @return this instance for method chaining
+         */
+        fun withExamples(examples: Iterable<CreationExample<T>>): Creating<T> {
+            var result: Creating<T> = this
+            examples.forEach {
+                result = result.withExample(it)
+            }
+            return result
+        }
+
+        /**
+         * Add multiple examples using vararg syntax.
+         * Each example will be added as a prompt contributor to improve LLM output quality.
+         *
+         * @param examples the examples to add
+         * @return this instance for method chaining
+         */
+        fun withExamples(vararg examples: CreationExample<T>): Creating<T> =
+            withExamples(examples.asIterable())
+
+        /**
+         * Add an example of the desired output to the prompt.
+         * This will be included in JSON.
+         * It is possible to call this method multiple times.
+         * This will override PromptRunner.withGenerateExamples
+         *
+         * @param example the example to add
+         * @return this instance for method chaining
+         */
+        fun withExample(
+            example: CreationExample<T>,
+        ): Creating<T>
+
+        /**
+         * Add a filter that determines which properties are to be included when creating an object.
+         *
+         * Note that each predicate is applied *in addition to* previously registered predicates, including
+         * [withProperties] and [withoutProperties].
+         *
+         * @param filter the property predicate to be added
+         * @return this instance for method chaining
+         */
+        fun withPropertyFilter(filter: Predicate<String>): Creating<T>
+
+        /**
+         * Include the given properties when creating an object.
+         *
+         * Note that each predicate is applied *in addition to* previously registered predicates, including
+         * [withPropertyFilter] and [withoutProperties].
+         *
+         * @param properties the properties that are to be included
+         * @return this instance for method chaining
+         */
+        fun withProperties(vararg properties: String): Creating<T> = withPropertyFilter { properties.contains(it) }
+
+        /**
+         * Exclude the given properties when creating an object.
+         *
+         * Note that each predicate is applied *in addition to* previously registered predicates, including
+         * [withPropertyFilter] and [withProperties].
+         *
+         * @param properties the properties to be excluded
+         * @return this instance for method chaining
+         */
+        fun withoutProperties(vararg properties: String): Creating<T> =
+            withPropertyFilter { !properties.contains(it) }
+
+        /**
+         * Set whether to validate created objects.
+         *
+         * @param validation `true` to validate created objects; `false` otherwise. Defaults to `true`.
+         * @return this instance for method chaining
+         */
+        fun withValidation(validation: Boolean = true): Creating<T>
+
+        /**
+         * Disables validation of created objects.
+         *
+         * @return this instance for method chaining
+         */
+        fun withoutValidation(): Creating<T> = withValidation(false)
+
+        /**
+         * Create an object of the desired type using the given prompt and LLM options from context
+         * (process context or implementing class).
+         * Prompts are typically created within the scope of an @Action method that provides access to
+         * domain object instances, offering type safety.
+         *
+         * @param prompt the prompt text to send to the LLM
+         * @return the created object of type T
+         */
+        fun fromPrompt(
+            prompt: String,
+        ): T = fromMessages(
+            messages = listOf(UserMessage(prompt)),
+        )
+
+        /**
+         * Create an object of this type from the given template.
+         *
+         * @param templateName the name of the template to render
+         * @param model the model data to use for template rendering
+         * @return the created object of type T
+         */
+        fun fromTemplate(
+            templateName: String,
+            model: Map<String, Any>,
+        ): T
+
+        /**
+         * Create an object of the desired type from messages.
+         *
+         * @param messages the conversation messages to send to the LLM
+         * @return the created object of type T
+         */
+        fun fromMessages(
+            messages: List<Message>,
+        ): T
+    }
+
+    /**
+     * Fluent interface for rendering templates and generating LLM responses.
+     * Provides operations for:
+     *
+     * - Creating strongly-typed objects from rendered templates
+     * - Generating text from rendered templates
+     * - Responding in conversations with templates as system prompts
+     *
+     * Instances are obtained via [PromptRunner.rendering].
+     */
+    interface Rendering {
+        /**
+         * Create an object of the given type using the given model to render the template
+         * and LLM options from context.
+         *
+         * @param T the type of object to create
+         * @param outputClass the class of objects to create
+         * @param model the model data to use for template rendering
+         * @return the created object of type T
+         */
+        fun <T> createObject(
+            outputClass: Class<T>,
+            model: Map<String, Any>,
+        ): T
+
+        /**
+         * Generate text using the given model to render the template
+         * and LLM options from context.
+         *
+         * @param model the model data to use for template rendering
+         * @return the generated text
+         */
+        fun generateText(
+            model: Map<String, Any>,
+        ): String
+
+        /**
+         * Respond in the conversation using the rendered template as system prompt.
+         *
+         * @param conversation the conversation so far
+         * @param model the model data to render the system prompt template with.
+         *        Defaults to the empty map (which is appropriate for static templates)
+         * @return the assistant message response
+         */
+        fun respondWithSystemPrompt(
+            conversation: Conversation,
+            model: Map<String, Any> = emptyMap(),
+        ): AssistantMessage
+    }
+
+    /**
+     * Fluent interface for operations that extract thinking blocks from LLM responses.
+     * Provides access to:
+     *
+     * - Creating objects or text with thinking extraction
+     * - Processing multimodal content with thinkingg
+     *
+     * Instances are obtained via [PromptRunner.thinking].
+     */
+    interface Thinking : ThinkingCapability {
+
+        /**
+         * Generate text with thinking block extraction.
+         * @param prompt The text prompt to send to the LLM
+         * @return Response containing both generated text and extracted thinking blocks
+         */
+        infix fun generateText(prompt: String): ThinkingResponse<String> =
+            createObject(
+                prompt = prompt,
+                outputClass = String::class.java,
+            )
+
+        /**
+         * Create an object of the given type with thinking block extraction.
+         *
+         * Uses the given prompt and LLM options from context to generate a structured
+         * object while capturing the LLM's reasoning process.
+         * @param T The type of object to create
+         * @param prompt The text prompt to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response containing both the converted object and extracted thinking blocks
+         */
+        fun <T> createObject(
+            prompt: String,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T> = createObject(
+            messages = listOf(com.embabel.chat.UserMessage(prompt)),
+            outputClass = outputClass,
+        )
+
+        /**
+         * Try to create an object of the given type with thinking block extraction.
+         *
+         * Similar to [createObject] but designed for scenarios where the conversion
+         * might fail. Returns thinking blocks even when object creation fails.
+         *
+         * @param T The type of object to create
+         * @param prompt The text prompt to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response with potentially null result but always available thinking blocks
+         */
+        fun <T> createObjectIfPossible(
+            prompt: String,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T?> = createObjectIfPossible(
+            listOf(com.embabel.chat.UserMessage(prompt)),
+            outputClass
+        )
+
+        /**
+         * Try to create an object from messages with thinking block extraction.
+         *
+         * @param T The type of object to create
+         * @param messages The conversation messages to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response with potentially null result but always available thinking blocks
+         */
+        fun <T> createObjectIfPossible(
+            messages: List<Message>,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T?>
+
+        /**
+         * Create an object from messages with thinking block extraction.
+         *
+         * @param T The type of object to create
+         * @param messages The conversation messages to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response containing both the converted object and extracted thinking blocks
+         */
+        fun <T> createObject(
+            messages: List<Message>,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T>
+
+        /**
+         * Generate text from multimodal content with thinking block extraction.
+         *
+         * @param content The multimodal content (text + images) to send to the LLM
+         * @return Response containing both generated text and extracted thinking blocks
+         */
+        fun generateText(content: MultimodalContent): ThinkingResponse<String> =
+            createObject(
+                content = content,
+                outputClass = String::class.java,
+            )
+
+        /**
+         * Create an object from multimodal content with thinking block extraction.
+         *
+         * @param T The type of object to create
+         * @param content The multimodal content (text + images) to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response containing both the converted object and extracted thinking blocks
+         */
+        fun <T> createObject(
+            content: MultimodalContent,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T> = createObject(
+            messages = listOf(com.embabel.chat.UserMessage(content.toContentParts())),
+            outputClass = outputClass,
+        )
+
+        /**
+         * Try to create an object from multimodal content with thinking block extraction.
+         *
+         * @param T The type of object to create
+         * @param content The multimodal content (text + images) to send to the LLM
+         * @param outputClass The class of the object to create
+         * @return Response with potentially null result but always available thinking blocks
+         */
+        fun <T> createObjectIfPossible(
+            content: MultimodalContent,
+            outputClass: Class<T>,
+        ): ThinkingResponse<T?> = createObjectIfPossible(
+            listOf(com.embabel.chat.UserMessage(content.toContentParts())),
+            outputClass
+        )
+
+        /**
+         * Respond in a conversation with multimodal content and thinking block extraction.
+         *
+         * @param content The multimodal content to respond to
+         * @return Response containing both the assistant message and extracted thinking blocks
+         */
+        fun respond(
+            content: MultimodalContent,
+        ): ThinkingResponse<AssistantMessage> = respond(
+            listOf(com.embabel.chat.UserMessage(content.toContentParts()))
+        )
+
+        /**
+         * Respond in a conversation with thinking block extraction.
+         *
+         * @param messages The conversation messages to respond to
+         * @return Response containing both the assistant message and extracted thinking blocks
+         */
+        fun respond(
+            messages: List<Message>,
+        ): ThinkingResponse<AssistantMessage>
+
+        /**
+         * Evaluate a condition with thinking block extraction.
+         *
+         * Evaluates a boolean condition using the LLM while capturing its reasoning process.
+         *
+         * @param condition The condition to evaluate
+         * @param context The context for evaluation
+         * @param confidenceThreshold The confidence threshold for the evaluation
+         * @return Response containing both the evaluation result and extracted thinking blocks
+         */
+        fun evaluateCondition(
+            condition: String,
+            context: String,
+            confidenceThreshold: ZeroToOne = 0.8,
+        ): ThinkingResponse<Boolean>
+
+    }
 }
+
+/**
+ * An example of creating an object of the given type.
+ * Used to provide strongly typed examples to the ObjectCreator.
+ * @param T the type of object to create
+ * @param description description of the example--e.g. "good example, correct amount of detail"
+ * @param value the example object
+ */
+// TODO: open class because of extension by ObjectCreationExample, replace with data class once ObjectCreationExample has been removed
+open class CreationExample<T>(
+    val description: String,
+    val value: T,
+) {
+    open fun copy(
+        description: String = this.description,
+        value: T = this.value,
+    ): CreationExample<T> = CreationExample(description, value)
+
+    override fun toString(): String =
+        "CreationExample(description='$description', value=$value)"
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        return if (other is CreationExample<*>) {
+            description == other.description && value == other.value
+        } else {
+            false
+        }
+    }
+
+    override fun hashCode(): Int {
+        var result = description.hashCode()
+        result = 31 * result + value.hashCode()
+        return result
+    }
+}
+
+
 
 /**
  * Create an object of the given type
@@ -497,7 +962,34 @@ inline infix fun <reified T> PromptRunner.create(prompt: String): T =
 inline fun <reified T> PromptRunner.createObjectIfPossible(prompt: String): T? =
     createObjectIfPossible(prompt, T::class.java)
 
-inline fun <reified T> TemplateOperations.createObject(
+inline fun <reified T> PromptRunner.Rendering.createObject(
     model: Map<String, Any>,
 ): T =
     createObject(outputClass = T::class.java, model = model)
+
+
+/**
+ * Includes the given properties when creating an object.
+ *
+ * Note that each predicate is applied *in addition to* previously registered predicates, including
+ * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
+ * and [withoutProperties].
+ * @param properties the properties that are to be included
+ */
+fun <T, Any> Creating<T>.withProperties(
+    vararg properties: KProperty1<T, Any>,
+): Creating<T> =
+    withProperties(*properties.map { it.name }.toTypedArray())
+
+/**
+ * Excludes the given properties when creating an object.
+ *
+ * Note that each predicate is applied *in addition to* previously registered predicates, including
+ * [ObjectCreator::withPropertyFilter], [ObjectCreator::withProperties], [ObjectCreator::withoutProperties],
+ * and [withProperties].
+ * @param properties the properties that are to be included
+ */
+fun <T, Any> Creating<T>.withoutProperties(
+    vararg properties: KProperty1<T, Any>,
+): Creating<T> =
+    withoutProperties(*properties.map { it.name }.toTypedArray())

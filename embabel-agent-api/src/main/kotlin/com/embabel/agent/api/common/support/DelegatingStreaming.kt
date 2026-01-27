@@ -15,23 +15,23 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.streaming.StreamingPromptRunnerOperations
+import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.streaming.StreamingEvent
 import reactor.core.publisher.Flux
 
 /**
- * Implementation of [StreamingPromptRunnerOperations] that delegates to a [PromptExecutionDelegate].
+ * Implementation of [StreamingPromptRunner.Streaming] that delegates to a [PromptExecutionDelegate].
  */
-internal data class DelegatingStreamingOperations(
+internal data class DelegatingStreaming(
     private val delegate: PromptExecutionDelegate,
-) : StreamingPromptRunnerOperations {
+) : StreamingPromptRunner.Streaming {
 
-    override fun withPrompt(prompt: String): StreamingPromptRunnerOperations =
+    override fun withPrompt(prompt: String): StreamingPromptRunner.Streaming =
         copy(delegate = delegate.withMessages(listOf(UserMessage(prompt))))
 
-    override fun withMessages(messages: List<Message>): StreamingPromptRunnerOperations =
+    override fun withMessages(messages: List<Message>): StreamingPromptRunner.Streaming =
         copy(delegate = delegate.withMessages((messages)))
 
     override fun generateStream(): Flux<String> {
