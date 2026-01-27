@@ -17,7 +17,6 @@ package com.embabel.agent.config
 
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
-import com.embabel.agent.spi.config.spring.migration.DeprecatedPropertyScanningConfig
 import com.embabel.agent.spi.support.DefaultProcessIdGeneratorProperties
 import com.embabel.agent.web.sse.SseProperties
 import org.assertj.core.api.Assertions.assertThat
@@ -182,12 +181,6 @@ import org.springframework.test.context.TestPropertySource
         "embabel.agent.platform.sse.max-process-buffers=2000",
         "embabel.agent.platform.test.mock-mode=false",
 
-        // Migration scanning config (var properties) - known to work with environment variables
-        "embabel.agent.platform.migration.scanning.enabled=true",
-        "embabel.agent.platform.migration.scanning.include-packages[0]=com.embabel.agent",
-        "embabel.agent.platform.migration.scanning.include-packages[1]=com.test.package",
-        "embabel.agent.platform.migration.warnings.enabled=true",
-
         // Legacy properties for val/var investigation (using @TestPropertySource instead of env vars)
         "embabel.autonomy.agent-confidence-cut-off=0.95",
         "embabel.autonomy.goal-confidence-cut-off=0.85",
@@ -211,8 +204,6 @@ class AgentPlatformPropertiesIntegrationTest {
     @Autowired
     private lateinit var legacySseProperties: SseProperties
 
-    @Autowired
-    private lateinit var scanningConfig: DeprecatedPropertyScanningConfig
 
     @Autowired
     private lateinit var environment: Environment
@@ -316,65 +307,6 @@ class AgentPlatformPropertiesIntegrationTest {
         println("Expected: 0.95, Actual: ${legacyAutonomyProperties.agentConfidenceCutOff}")
     }
 
-    @Test
-    fun `INVESTIGATION - EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES with var properties`() {
-        // This is the scenario that required changing val to var in DeprecatedPropertyScanningConfig
-        // Environment variable: EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES_0=com.test
-        // Property class: DeprecatedPropertyScanningConfig now uses 'var includePackages'
-
-        println("\n=== EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES Investigation ===\n")
-
-        // Check environment variable is set
-        val envValue0 = environment.getProperty("EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES_0")
-        val envValue1 = environment.getProperty("EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES_1")
-        println("Environment variable EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES_0: $envValue0")
-        println("Environment variable EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES_1: $envValue1")
-
-        // Check property resolution
-        val resolvedValue = environment.getProperty("embabel.agent.platform.migration.scanning.include-packages[0]")
-        println("Resolved property embabel.agent.platform.migration.scanning.include-packages[0]: $resolvedValue")
-
-        // Check actual binding result
-        println("DeprecatedPropertyScanningConfig.includePackages (var): ${scanningConfig.includePackages}")
-
-        // This should work because we changed from 'val' to 'var'
-        println("Include packages count: ${scanningConfig.includePackages.size}")
-        scanningConfig.includePackages.forEachIndexed { index, pkg ->
-            println("  [$index]: $pkg")
-        }
-    }
-
-    @Test
-    fun `COMPARISON - val vs var property binding behavior analysis`() {
-        println("\n=== VAL vs VAR BINDING ANALYSIS ===\n")
-
-        // Compare the two scenarios side by side
-        println("1. AutonomyProperties (val properties):")
-        println("   - Class: data class AutonomyProperties(val agentConfidenceCutOff: ZeroToOne = 0.6)")
-        println("   - Env var: EMBABEL_AUTONOMY_AGENT_CONFIDENCE_CUT_OFF=0.95")
-        println("   - Result: ${legacyAutonomyProperties.agentConfidenceCutOff}")
-        println("   - Binding works: ${legacyAutonomyProperties.agentConfidenceCutOff != 0.6}")
-
-        println("\n2. DeprecatedPropertyScanningConfig (var properties):")
-        println("   - Class: data class DeprecatedPropertyScanningConfig(var includePackages: List<String> = ...)")
-        println("   - Env var: EMBABEL_AGENT_PLATFORM_MIGRATION_SCANNING_INCLUDE_PACKAGES_0=com.test")
-        println("   - Result: ${scanningConfig.includePackages}")
-        println("   - Binding works: ${scanningConfig.includePackages.isNotEmpty()}")
-
-        // Print Spring Boot version and other context that might matter
-        println("\n3. Context Information:")
-        println("   - Spring Boot version: Check build.gradle/pom.xml")
-        println("   - Property source precedence: Environment variables > TestPropertySource > application.properties")
-
-        // Log all environment variables starting with EMBABEL for debugging
-        println("\n4. All EMBABEL Environment Variables:")
-        System.getenv().entries
-            .filter { it.key.startsWith("EMBABEL") }
-            .sortedBy { it.key }
-            .forEach { (key, value) ->
-                println("   $key=$value")
-            }
-    }
 
     /**
      * ❌ **EXPECTED TO FAIL** - This test validates that migration is working correctly.
@@ -415,7 +347,6 @@ class AgentPlatformPropertiesIntegrationTest {
 
     @EnableConfigurationProperties(
         AgentPlatformProperties::class,
-        DeprecatedPropertyScanningConfig::class
     )
     class TestConfiguration {
 
