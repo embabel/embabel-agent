@@ -80,7 +80,7 @@ internal class DefaultToolLoop(
             )
 
             if (!hasToolCalls(callResult.message)) {
-                logger.info("Tool loop completed after {} iterations", state.iterations)
+                logCompletion(state.iterations)
                 return buildResult(callResult.textContent, outputParser, state)
             }
 
@@ -100,6 +100,15 @@ internal class DefaultToolLoop(
 
     private fun hasToolCalls(message: Message): Boolean =
         message is AssistantMessageWithToolCalls && message.toolCalls.isNotEmpty()
+
+    private fun logCompletion(iterations: Int) {
+        val message = "Tool loop completed after {} iterations"
+        if (iterations == 1) {
+            logger.debug(message, iterations)
+        } else {
+            logger.info(message, iterations)
+        }
+    }
 
     private fun accumulateUsage(usage: Usage?, state: LoopState) {
         usage?.let {
