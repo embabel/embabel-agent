@@ -72,7 +72,7 @@ interface ContextualPromptElement : PromptElement {
             return ContextualPromptElementImpl(
                 role = role,
                 promptContributionLocation = location,
-                contribution = contribution,
+                contributionProvider  = contribution,
             )
         }
 
