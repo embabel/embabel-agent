@@ -157,8 +157,26 @@ data class JvmType @JsonCreator constructor(
             methodProperties.forEach { propertiesByName[it.name] = it }
             fieldProperties.forEach { propertiesByName[it.name] = it }
 
-            return propertiesByName.values.toList()
+            return sortProperties(propertiesByName.values.toList())
         }
+
+    private fun sortProperties(properties: List<PropertyDefinition>): List<PropertyDefinition> {
+        try {
+            val kotlinClass = clazz.kotlin
+            val primaryConstructor = kotlinClass.constructors.firstOrNull { it.parameters.isNotEmpty() }
+            if (primaryConstructor != null) {
+                val parameterOrder = primaryConstructor.parameters.mapIndexed { index, param ->
+                    param.name to index
+                }.toMap()
+                return properties.sortedWith(compareBy({
+                    parameterOrder[it.name] ?: Int.MAX_VALUE
+                }, { it.name }))
+            }
+        } catch (e: Exception) {
+            logger.debug("Could not determine Kotlin constructor order for ${clazz.name}, using alphabetical sort", e)
+        }
+        return properties.sortedBy { it.name }
+    }
 
     private fun propertyFromField(field: java.lang.reflect.Field): PropertyDefinition? {
         val metadata = extractSemantics(field)
