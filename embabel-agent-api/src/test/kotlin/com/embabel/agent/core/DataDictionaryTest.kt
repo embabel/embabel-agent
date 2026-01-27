@@ -288,4 +288,191 @@ class DataDictionaryTest {
         assertTrue(propertyNames.contains("name"))
         assertTrue(propertyNames.contains("relatedAddress"))
     }
+
+    // ========== Filtering tests ==========
+
+    @Test
+    fun `filter should return new dictionary with matching types only`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java, Customer::class.java)
+
+        val filtered = dictionary.filter { it.name.contains("Person") }
+
+        assertEquals(1, filtered.domainTypes.size)
+        assertEquals("test", filtered.name)
+        assertTrue(filtered.domainTypes.any { it.name.contains("Person") })
+    }
+
+    @Test
+    fun `filter should preserve dictionary name`() {
+        val dictionary = DataDictionary.fromClasses("my-dictionary", Person::class.java, Address::class.java)
+
+        val filtered = dictionary.filter { true }
+
+        assertEquals("my-dictionary", filtered.name)
+    }
+
+    @Test
+    fun `filter should return empty dictionary when no types match`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java)
+
+        val filtered = dictionary.filter { false }
+
+        assertEquals(0, filtered.domainTypes.size)
+    }
+
+    @Test
+    fun `filter should return all types when all match`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java)
+
+        val filtered = dictionary.filter { true }
+
+        assertEquals(2, filtered.domainTypes.size)
+    }
+
+    @Test
+    fun `excluding with varargs should remove specified classes`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java, Customer::class.java)
+
+        val filtered = dictionary.excluding(Person::class.java, Address::class.java)
+
+        assertEquals(1, filtered.domainTypes.size)
+        val remaining = filtered.jvmTypes.first()
+        assertEquals(Customer::class.java, remaining.clazz)
+    }
+
+    @Test
+    fun `excluding with single class should remove only that class`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java)
+
+        val filtered = dictionary.excluding(Person::class.java)
+
+        assertEquals(1, filtered.domainTypes.size)
+        val remaining = filtered.jvmTypes.first()
+        assertEquals(Address::class.java, remaining.clazz)
+    }
+
+    @Test
+    fun `excluding with collection should remove specified classes`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java, Customer::class.java)
+        val toExclude = listOf(Person::class.java, Customer::class.java)
+
+        val filtered = dictionary.excluding(toExclude)
+
+        assertEquals(1, filtered.domainTypes.size)
+        val remaining = filtered.jvmTypes.first()
+        assertEquals(Address::class.java, remaining.clazz)
+    }
+
+    @Test
+    fun `excluding should preserve DynamicTypes`() {
+        val dynamicType = DynamicType(
+            name = "DynamicPerson",
+            ownProperties = listOf(ValuePropertyDefinition(name = "name", type = "string")),
+        )
+        val dictionary = DataDictionary.fromDomainTypes(
+            "test",
+            listOf(JvmType(Person::class.java), JvmType(Address::class.java), dynamicType)
+        )
+
+        val filtered = dictionary.excluding(Person::class.java, Address::class.java)
+
+        assertEquals(1, filtered.domainTypes.size)
+        assertTrue(filtered.domainTypes.first() is DynamicType)
+        assertEquals("DynamicPerson", filtered.domainTypes.first().name)
+    }
+
+    @Test
+    fun `excluding non-existent class should return same types`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java)
+
+        val filtered = dictionary.excluding(Customer::class.java)
+
+        assertEquals(2, filtered.domainTypes.size)
+    }
+
+    @Test
+    fun `excluding all classes should return empty dictionary`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java)
+
+        val filtered = dictionary.excluding(Person::class.java, Address::class.java)
+
+        assertEquals(0, filtered.domainTypes.size)
+    }
+
+    @Test
+    fun `minus operator with single class should work like excluding`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java)
+
+        val filtered = dictionary - Person::class.java
+
+        assertEquals(1, filtered.domainTypes.size)
+        val remaining = filtered.jvmTypes.first()
+        assertEquals(Address::class.java, remaining.clazz)
+    }
+
+    @Test
+    fun `minus operator with collection should work like excluding`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java, Customer::class.java)
+
+        val filtered = dictionary - setOf(Person::class.java, Address::class.java)
+
+        assertEquals(1, filtered.domainTypes.size)
+        val remaining = filtered.jvmTypes.first()
+        assertEquals(Customer::class.java, remaining.clazz)
+    }
+
+    @Test
+    fun `minus operator should be chainable`() {
+        val dictionary = DataDictionary.fromClasses("test", Person::class.java, Address::class.java, Customer::class.java)
+
+        val filtered = dictionary - Person::class.java - Address::class.java
+
+        assertEquals(1, filtered.domainTypes.size)
+        val remaining = filtered.jvmTypes.first()
+        assertEquals(Customer::class.java, remaining.clazz)
+    }
+
+    @Test
+    fun `filter should work with DynamicTypes`() {
+        val personType = DynamicType(name = "Person")
+        val addressType = DynamicType(name = "Address")
+        val dictionary = DataDictionary.fromDomainTypes("test", listOf(personType, addressType))
+
+        val filtered = dictionary.filter { it.name == "Person" }
+
+        assertEquals(1, filtered.domainTypes.size)
+        assertEquals("Person", filtered.domainTypes.first().name)
+    }
+
+    @Test
+    fun `filter should work with mixed JvmType and DynamicType`() {
+        val dynamicType = DynamicType(name = "DynamicEntity")
+        val dictionary = DataDictionary.fromDomainTypes(
+            "test",
+            listOf(JvmType(Person::class.java), dynamicType)
+        )
+
+        val filtered = dictionary.filter { it is DynamicType }
+
+        assertEquals(1, filtered.domainTypes.size)
+        assertTrue(filtered.domainTypes.first() is DynamicType)
+    }
+
+    @Test
+    fun `excluding on empty dictionary should return empty dictionary`() {
+        val dictionary = DataDictionary.fromDomainTypes("test", emptyList())
+
+        val filtered = dictionary.excluding(Person::class.java)
+
+        assertEquals(0, filtered.domainTypes.size)
+    }
+
+    @Test
+    fun `filter on empty dictionary should return empty dictionary`() {
+        val dictionary = DataDictionary.fromDomainTypes("test", emptyList())
+
+        val filtered = dictionary.filter { true }
+
+        assertEquals(0, filtered.domainTypes.size)
+    }
 }

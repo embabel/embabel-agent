@@ -45,6 +45,62 @@ interface DataDictionary : Named {
      */
     val domainTypes: Collection<DomainType>
 
+    /**
+     * Returns a new DataDictionary containing only domain types that match the predicate.
+     * @param predicate Filter function applied to each DomainType
+     * @return A new DataDictionary with filtered types
+     */
+    fun filter(predicate: (DomainType) -> Boolean): DataDictionary =
+        fromDomainTypes(name, domainTypes.filter(predicate))
+
+    /**
+     * Returns a new DataDictionary excluding the specified classes.
+     * Only affects JvmType entries; DynamicTypes are preserved.
+     * @param classes Classes to exclude
+     * @return A new DataDictionary without the specified classes
+     */
+    fun excluding(vararg classes: Class<*>): DataDictionary {
+        val classSet = classes.toSet()
+        return filter { domainType ->
+            when (domainType) {
+                is JvmType -> domainType.clazz !in classSet
+                else -> true
+            }
+        }
+    }
+
+    /**
+     * Returns a new DataDictionary excluding the specified classes.
+     * Only affects JvmType entries; DynamicTypes are preserved.
+     * @param classes Collection of classes to exclude
+     * @return A new DataDictionary without the specified classes
+     */
+    fun excluding(classes: Collection<Class<*>>): DataDictionary {
+        val classSet = classes.toSet()
+        return filter { domainType ->
+            when (domainType) {
+                is JvmType -> domainType.clazz !in classSet
+                else -> true
+            }
+        }
+    }
+
+    /**
+     * Kotlin operator for excluding a single class.
+     * Usage: `dictionary - Foo::class.java`
+     * @param clazz Class to exclude
+     * @return A new DataDictionary without the specified class
+     */
+    operator fun minus(clazz: Class<*>): DataDictionary = excluding(clazz)
+
+    /**
+     * Kotlin operator for excluding multiple classes.
+     * Usage: `dictionary - setOf(Foo::class.java, Bar::class.java)`
+     * @param classes Classes to exclude
+     * @return A new DataDictionary without the specified classes
+     */
+    operator fun minus(classes: Collection<Class<*>>): DataDictionary = excluding(classes)
+
     val dynamicTypes: Collection<DynamicType>
         get() =
             domainTypes.filterIsInstance<DynamicType>().toSet()
