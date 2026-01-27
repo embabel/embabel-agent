@@ -567,12 +567,13 @@ class NamedEntityDataRepositoryProxyTest {
         }
 
         @Test
-        fun `findEntityById skips native loading when isNativeType returns false`() {
+        fun `findEntityById always tries native regardless of isNativeType`() {
             var nativeCallCount = 0
 
             val dictRepository = object : InMemoryNamedEntityDataRepository(
                 dataDictionary = DataDictionary.fromClasses("test", Person::class.java, Manager::class.java)
             ) {
+                // Even when isNativeType returns false, we try native (and catch exceptions)
                 override fun isNativeType(type: Class<*>): Boolean = false
 
                 override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
@@ -585,7 +586,7 @@ class NamedEntityDataRepositoryProxyTest {
                 SimpleNamedEntityData(
                     id = "skip-1",
                     name = "Skip",
-                    description = "Should skip native",
+                    description = "Should try native then fall back to proxy",
                     labels = setOf("Person"),
                     properties = mapOf("age" to 25)
                 )
@@ -593,25 +594,21 @@ class NamedEntityDataRepositoryProxyTest {
 
             val result = dictRepository.findEntityById("skip-1")
 
-            // Should NOT have called findNativeById
-            assertEquals(0, nativeCallCount, "Should not call findNativeById when isNativeType returns false")
+            // Native was tried but returned null, so fallback to proxy
+            assertTrue(nativeCallCount > 0, "Should try native loading first")
             // Should still return proxy
             assertNotNull(result)
             assertTrue(result is Person)
         }
 
         @Test
-        fun `findEntityById only calls native for types where isNativeType is true`() {
+        fun `findEntityById tries native for all matching types`() {
             var personNativeCallCount = 0
             var managerNativeCallCount = 0
 
             val dictRepository = object : InMemoryNamedEntityDataRepository(
                 dataDictionary = DataDictionary.fromClasses("test", Person::class.java, Manager::class.java)
             ) {
-                // Only Person is native, Manager is not
-                override fun isNativeType(type: Class<*>): Boolean =
-                    type == Person::class.java
-
                 override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
                     when (type) {
                         Person::class.java -> personNativeCallCount++
@@ -631,11 +628,15 @@ class NamedEntityDataRepositoryProxyTest {
                 )
             )
 
-            dictRepository.findEntityById("selective-1")
+            val result = dictRepository.findEntityById("selective-1")
 
-            // Should have called native for Person only
-            assertEquals(1, personNativeCallCount, "Should call findNativeById for Person")
-            assertEquals(0, managerNativeCallCount, "Should NOT call findNativeById for Manager")
+            // Should have tried native for all matching types until fallback to proxy
+            assertTrue(personNativeCallCount > 0 || managerNativeCallCount > 0,
+                "Should try native loading for matching types")
+            // Should still return working proxy
+            assertNotNull(result)
+            assertTrue(result is Person)
+            assertTrue(result is Manager)
         }
     }
 
@@ -658,6 +659,202 @@ class NamedEntityDataRepositoryProxyTest {
 
             assertTrue(customRepository.isNativeType(Person::class.java))
             assertFalse(customRepository.isNativeType(Manager::class.java))
+        }
+    }
+
+    @Nested
+    inner class NativeFailureFallbackTest {
+
+        @Test
+        fun `findTypedById falls back to generic lookup when findNativeById throws`() {
+            val dictRepository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+                override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
+                    throw RuntimeException("Native loading not supported for ${type.simpleName}")
+                }
+            }
+
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "fallback-1",
+                    name = "Fallback Person",
+                    description = "Should use generic lookup",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 25)
+                )
+            )
+
+            val result = dictRepository.findTypedById("fallback-1", Person::class.java)
+
+            assertNotNull(result)
+            assertEquals("Fallback Person", result!!.name)
+            assertEquals(25, result.age)
+        }
+
+        @Test
+        fun `findAll falls back to generic lookup when findNativeAll throws`() {
+            val dictRepository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+                override fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? {
+                    throw IllegalArgumentException("Type ${type.simpleName} is not annotated with @NodeFragment")
+                }
+            }
+
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "person-1",
+                    name = "Person One",
+                    description = "First person",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 30)
+                )
+            )
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "person-2",
+                    name = "Person Two",
+                    description = "Second person",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 40)
+                )
+            )
+
+            val result = dictRepository.findAll(Person::class.java)
+
+            assertEquals(2, result.size)
+            assertTrue(result.any { it.name == "Person One" && it.age == 30 })
+            assertTrue(result.any { it.name == "Person Two" && it.age == 40 })
+        }
+
+        @Test
+        fun `findEntityById falls back to proxy when findNativeById throws`() {
+            val dictRepository = object : InMemoryNamedEntityDataRepository(
+                dataDictionary = DataDictionary.fromClasses("test", Person::class.java, Manager::class.java)
+            ) {
+                override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
+                    throw UnsupportedOperationException("Cannot load ${type.simpleName} natively")
+                }
+            }
+
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "proxy-fallback-1",
+                    name = "Proxy Fallback",
+                    description = "Should fall back to proxy",
+                    labels = setOf("Person", "Manager"),
+                    properties = mapOf(
+                        "age" to 35,
+                        "directReports" to 3,
+                        "department" to "Engineering"
+                    )
+                )
+            )
+
+            val result = dictRepository.findEntityById("proxy-fallback-1")
+
+            assertNotNull(result)
+            assertTrue(result is Person)
+            assertTrue(result is Manager)
+            assertEquals("Proxy Fallback", result!!.name)
+            assertEquals(35, (result as Person).age)
+            assertEquals(3, (result as Manager).directReports)
+        }
+
+        @Test
+        fun `findAll handles mixed exceptions and nulls from different entity types`() {
+            var personCallCount = 0
+            var managerCallCount = 0
+
+            val dictRepository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? {
+                    return when (type) {
+                        Person::class.java -> {
+                            personCallCount++
+                            throw RuntimeException("Person native loading failed")
+                        }
+                        Manager::class.java -> {
+                            managerCallCount++
+                            null // Return null (no native support)
+                        }
+                        else -> null
+                    }
+                }
+            }
+
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "person-1",
+                    name = "Alice",
+                    description = "A person",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 30)
+                )
+            )
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "manager-1",
+                    name = "Bob",
+                    description = "A manager",
+                    labels = setOf("Manager"),
+                    properties = mapOf("directReports" to 5, "department" to "Sales")
+                )
+            )
+
+            // Both should work despite Person throwing and Manager returning null
+            val persons = dictRepository.findAll(Person::class.java)
+            val managers = dictRepository.findAll(Manager::class.java)
+
+            assertEquals(1, persons.size)
+            assertEquals("Alice", persons[0].name)
+            assertEquals(1, managers.size)
+            assertEquals("Bob", managers[0].name)
+        }
+
+        @Test
+        fun `findTypedById handles checked exceptions from native lookup`() {
+            val dictRepository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+                override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
+                    throw Exception("Checked exception from native lookup")
+                }
+            }
+
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "checked-1",
+                    name = "Checked Exception Person",
+                    description = "Should handle checked exceptions",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 28)
+                )
+            )
+
+            val result = dictRepository.findTypedById("checked-1", Person::class.java)
+
+            assertNotNull(result)
+            assertEquals("Checked Exception Person", result!!.name)
+        }
+
+        @Test
+        fun `findAll handles Error subclasses gracefully`() {
+            val dictRepository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+                override fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? {
+                    throw IllegalStateException("Simulated state error")
+                }
+            }
+
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "error-1",
+                    name = "Error Test Person",
+                    description = "Testing error handling",
+                    labels = setOf("Person"),
+                    properties = mapOf("age" to 45)
+                )
+            )
+
+            val result = dictRepository.findAll(Person::class.java)
+
+            assertEquals(1, result.size)
+            assertEquals("Error Test Person", result[0].name)
         }
     }
 }

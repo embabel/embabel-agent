@@ -165,13 +165,13 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
-        val useNative = isNativeType(namedEntityClass)
         return vectorSearch(request, metadataFilter = null, entityFilter = null).mapNotNull { similarityResult ->
-            val typed: NamedEntity? = if (useNative) {
+            // Try native first, fall back to generic hydration on null or exception
+            val typed: NamedEntity? = try {
                 findNativeById(similarityResult.match.id, namedEntityClass)
-            } else {
-                similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
-            }
+            } catch (_: Exception) {
+                null
+            } ?: similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
             typed?.let { SimilarityResult(it as T, similarityResult.score) }
         }
     }
@@ -196,14 +196,13 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
-        val useNative = isNativeType(namedEntityClass)
         return textSearch(request, metadataFilter = null, entityFilter = null).mapNotNull { similarityResult ->
-            val typed: NamedEntity? = if (useNative) {
-                // Use native store loading for @NodeFragment and similar classes
+            // Try native first, fall back to generic hydration on null or exception
+            val typed: NamedEntity? = try {
                 findNativeById(similarityResult.match.id, namedEntityClass)
-            } else {
-                similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
-            }
+            } catch (_: Exception) {
+                null
+            } ?: similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
             typed?.let { SimilarityResult(it as T, similarityResult.score) }
         }
     }
@@ -232,13 +231,13 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
-        val useNative = isNativeType(namedEntityClass)
         return vectorSearch(request, metadataFilter, entityFilter).mapNotNull { similarityResult ->
-            val typed: NamedEntity? = if (useNative) {
+            // Try native first, fall back to generic hydration on null or exception
+            val typed: NamedEntity? = try {
                 findNativeById(similarityResult.match.id, namedEntityClass)
-            } else {
-                similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
-            }
+            } catch (_: Exception) {
+                null
+            } ?: similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
             typed?.let { SimilarityResult(it as T, similarityResult.score) }
         }
     }
@@ -267,13 +266,13 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return emptyList()
         }
         val namedEntityClass = clazz as Class<out NamedEntity>
-        val useNative = isNativeType(namedEntityClass)
         return textSearch(request, metadataFilter, entityFilter).mapNotNull { similarityResult ->
-            val typed: NamedEntity? = if (useNative) {
+            // Try native first, fall back to generic hydration on null or exception
+            val typed: NamedEntity? = try {
                 findNativeById(similarityResult.match.id, namedEntityClass)
-            } else {
-                similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
-            }
+            } catch (_: Exception) {
+                null
+            } ?: similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
             typed?.let { SimilarityResult(it as T, similarityResult.score) }
         }
     }
@@ -484,9 +483,11 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * @return the hydrated instance, or null if not found or hydration fails
      */
     fun <T : NamedEntity> findTypedById(id: String, type: Class<T>): T? {
-        // Try native store first, but only if this type is natively mapped
-        if (isNativeType(type)) {
+        // Try native store first - accept null or exception as "not supported"
+        try {
             findNativeById(id, type)?.let { return it }
+        } catch (_: Exception) {
+            // Native store doesn't support this type, fall back to generic lookup
         }
 
         // Fall back to generic lookup
@@ -521,8 +522,12 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * @return list of hydrated instances
      */
     fun <T : NamedEntity> findAll(type: Class<T>): List<T> {
-        // Try native store first
-        findNativeAll(type)?.let { return it }
+        // Try native store first - accept null or exception as "not supported"
+        try {
+            findNativeAll(type)?.let { return it }
+        } catch (_: Exception) {
+            // Native store doesn't support this type, fall back to generic lookup
+        }
 
         // Fall back to generic lookup
         val jvmType = JvmType(type)
@@ -618,11 +623,13 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
             return null
         }
 
-        // Try native store first for each matching type that supports native loading
+        // Try native store first for each matching type - accept exception as "not supported"
         for (jvmType in matchingTypes) {
             val clazz = jvmType.clazz as Class<out NamedEntity>
-            if (isNativeType(clazz)) {
+            try {
                 findNativeById(id, clazz)?.let { return it }
+            } catch (_: Exception) {
+                // Native store doesn't support this type, continue to next or fall back
             }
         }
 
