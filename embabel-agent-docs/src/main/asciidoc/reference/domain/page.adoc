@@ -45,7 +45,7 @@ For example:
 
 - **Business Logic**: Expose methods that provide _safely invocable_ business value to the LLM
 - **Calculated Properties**: Methods that compute derived values.
-This can help LLMs with calculations they might otherwise get strong.
+This can help LLMs with calculations they might otherwise get wrong.
 - **Business Rules**: Methods that implement domain-specific rules
 
 IMPORTANT: Always keep internal implementation details hidden, and think carefully before exposing methods that mutate state or have side effects.
