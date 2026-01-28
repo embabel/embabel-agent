@@ -32,7 +32,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         
-        run: mvn -U -P flatten-pom -DskipTests=true clean deploy
+        run: mvn -U -DskipTests=true clean deploy
 
       - name: Trigger examples repo workflow
         uses: peter-evans/repository-dispatch@v3
