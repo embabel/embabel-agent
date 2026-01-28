@@ -15,7 +15,7 @@
     <url>https://github.com/embabel/embabel-agent</url>
 
     <properties>
-        <embabel-common.version>0.1.9</embabel-common.version>
+        <embabel-common.version>0.1.10-SNAPSHOT</embabel-common.version>
         <netty.version>4.1.125.Final</netty.version>
     </properties>
 
