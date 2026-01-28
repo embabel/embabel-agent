@@ -312,61 +312,6 @@ class OneTransformerActionReferencingConditionByName {
 
 }
 
-@EmbabelComponent
-class OneTransformerActionWithCustomToolGroupOnly {
-
-    @Action(cost = 500.0, toolGroups = ["magic"])
-    fun toPerson(userInput: UserInput): PersonWithReverseTool {
-        return PersonWithReverseTool(userInput.content)
-    }
-
-}
-
-@Agent(description = "thing")
-class OneTransformerActionTakingInterfaceWithCustomToolGroupOnly {
-
-    @AchievesGoal(description = "Creating a frog")
-    @Action(cost = 500.0, toolGroups = ["magic"])
-    fun toPerson(person: PersonWithReverseTool): Frog {
-        return Frog(person.name)
-    }
-
-}
-
-@Agent(description = "thing")
-class OneTransformerActionTakingInterfaceWithExpectationCustomToolGroupOnly {
-
-    @AchievesGoal(description = "Creating a frog")
-    @Action(cost = 500.0, toolGroups = ["magic"])
-    fun toPerson(
-        person: PersonWithReverseTool,
-        context: OperationContext,
-    ): Frog {
-        val pr = context.promptRunner()
-        assertEquals(setOf(ToolGroupRequirement("magic")), pr.toolGroups.toSet())
-//        assertFalse(pr.toolCallbacks.isEmpty(), "ToolCallbacks should be expanded")
-        return Frog(person.name)
-    }
-
-}
-
-@Agent(description = "thing")
-class OneTransformerActionTakingInterfaceWithExpectationCustomToolGroupRequirementOnly {
-
-    @AchievesGoal(description = "Creating a frog")
-    @Action(cost = 500.0, toolGroups = ["frogs"], toolGroupRequirements = [ToolGroup("magic")])
-    fun toPerson(
-        person: PersonWithReverseTool,
-        context: OperationContext,
-    ): Frog {
-        val pr = context.promptRunner()
-        assertEquals(setOf(ToolGroupRequirement("magic"), ToolGroupRequirement("frogs")), pr.toolGroups.toSet())
-//        assertFalse(pr.toolCallbacks.isEmpty(), "ToolCallbacks should be expanded")
-        return Frog(person.name)
-    }
-
-}
-
 data class Task(
     val what: String,
 )

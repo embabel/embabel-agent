@@ -96,7 +96,7 @@ public class TestStarNewsFinder {
     }
 
     // toolGroups specifies tools that are required for this action to run
-    @Action(toolGroups = {CoreToolGroups.WEB})
+    @Action
     public RelevantNewsStories findNewsStories(
             StarPerson person, Horoscope horoscope, OperationContext context) {
         var prompt = """
@@ -117,7 +117,7 @@ public class TestStarNewsFinder {
                 find news stories about training courses.""".formatted(
                 person.name(), person.sign(), horoscope.summary(), storyCount);
 
-        return context.ai().withDefaultLlm().createObject(prompt, RelevantNewsStories.class);
+        return context.ai().withDefaultLlm().withToolGroup(CoreToolGroups.WEB).createObject(prompt, RelevantNewsStories.class);
     }
 
     // The @AchievesGoal annotation indicates that completing this action

@@ -169,8 +169,6 @@ annotation class ToolGroup(
  * When specified, overrides the static [cost] field.
  * @param valueMethod Name of a @Cost method to compute dynamic value at planning time.
  * When specified, overrides the static [value] field.
- * @param toolGroups Tool groups that this action requires. These are well known tools from the server.
- * @param toolGroupRequirements Tool groups required, with explicit metadata such as QoS requirements.
  * @Tool methods on the @Agentic class are automatically added.
  * @param trigger The type that must be the last result on the blackboard for this action to fire.
  * This enables reactive behavior where an action only fires when a specific type
@@ -204,10 +202,6 @@ annotation class Action(
     val value: ZeroToOne = 0.0,
     val costMethod: String = "",
     val valueMethod: String = "",
-    @Deprecated("Add tools to individual LLM calls instead")
-    val toolGroups: Array<String> = [],
-    @Deprecated("Add tools to individual LLM calls instead")
-    val toolGroupRequirements: Array<ToolGroup> = [],
     val trigger: KClass<*> = Unit::class,
     val actionRetryPolicy: ActionRetryPolicy = ActionRetryPolicy.DEFAULT,
     val actionRetryPolicyExpression: String = "",

@@ -72,7 +72,7 @@ internal class StateActionMethodManager(
             inputClasses = inputClasses + stateClass,
             outputClass = method.returnType,
             outputVarName = actionAnnotation.outputBinding,
-            toolGroups = computeToolGroups(actionAnnotation),
+            toolGroups = emptySet(),
         ) { context ->
             invokeStateActionMethod(
                 method = method,

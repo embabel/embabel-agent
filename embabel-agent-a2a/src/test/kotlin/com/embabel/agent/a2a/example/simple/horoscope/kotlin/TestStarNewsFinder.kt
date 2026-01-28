@@ -189,13 +189,13 @@ class TestStarNewsFinder(
      * @return A collection of relevant news stories with summaries and URLs
      */
     // toolGroups specifies tools that are required for this action to run
-    @Action(toolGroups = [CoreToolGroups.WEB, CoreToolGroups.BROWSER_AUTOMATION])
+    @Action
     internal fun findNewsStories(
         person: StarPerson,
         horoscope: Horoscope,
         context: OperationContext,
     ): RelevantNewsStories =
-        context.ai().withDefaultLlm() createObject (
+        context.ai().withDefaultLlm().withToolGroups(setOf(CoreToolGroups.WEB, CoreToolGroups.BROWSER_AUTOMATION)) createObject (
                 """
             ${person.name} is an astrology believer with the sign ${person.sign}.
             Their horoscope for today is:
