@@ -248,4 +248,126 @@ class ToolFromInstanceJavaTest {
             assertEquals(1, result.size());
         }
     }
+
+    // Test fixtures for Issue #1326 - Complex type schema generation
+    public static class WrappedType {
+        public int internalId;
+        public String name;
+
+        public WrappedType() {}
+
+        public WrappedType(int internalId, String name) {
+            this.internalId = internalId;
+            this.name = name;
+        }
+    }
+
+    public static class Address {
+        public String street;
+        public String city;
+        public String zipCode;
+
+        public Address() {}
+
+        public Address(String street, String city, String zipCode) {
+            this.street = street;
+            this.city = city;
+            this.zipCode = zipCode;
+        }
+    }
+
+    public static class ComplexParameterTools {
+        @LlmTool(description = "Get information using a wrapped type")
+        public String getInformation(WrappedType someType) {
+            return "ID: " + someType.internalId + ", Name: " + someType.name;
+        }
+
+        @LlmTool(description = "Process an address")
+        public String processAddress(Address address) {
+            return address.street + ", " + address.city + " " + address.zipCode;
+        }
+
+        @LlmTool(description = "Mix of simple and complex params")
+        public String mixedParams(String label, WrappedType wrapped, int count) {
+            return label + ": " + wrapped.name + " x " + count;
+        }
+    }
+
+    /**
+     * Tests for Issue #1326: Input schema details are missing for tools defined with @LlmTool
+     * when using complex types as parameters.
+     */
+    @Nested
+    class ComplexTypeSchemaGeneration {
+
+        @Test
+        void schemaForComplexTypeParameterShouldIncludeNestedProperties() {
+            ComplexParameterTools tools = new ComplexParameterTools();
+            List<Tool> result = Tool.fromInstance(tools);
+
+            Tool tool = result.stream()
+                .filter(t -> t.getDefinition().getName().equals("getInformation"))
+                .findFirst()
+                .orElseThrow();
+
+            String json = tool.getDefinition().getInputSchema().toJsonSchema();
+
+            // The schema should include the properties of WrappedType
+            assertTrue(json.contains("\"internalId\""), "Schema should contain internalId property: " + json);
+            assertTrue(json.contains("\"name\""), "Schema should contain name property: " + json);
+            assertTrue(json.contains("\"integer\""), "internalId should have integer type: " + json);
+        }
+
+        @Test
+        void schemaForAddressParameterShouldIncludeAllAddressProperties() {
+            ComplexParameterTools tools = new ComplexParameterTools();
+            List<Tool> result = Tool.fromInstance(tools);
+
+            Tool tool = result.stream()
+                .filter(t -> t.getDefinition().getName().equals("processAddress"))
+                .findFirst()
+                .orElseThrow();
+
+            String json = tool.getDefinition().getInputSchema().toJsonSchema();
+
+            assertTrue(json.contains("\"street\""), "Schema should contain street property: " + json);
+            assertTrue(json.contains("\"city\""), "Schema should contain city property: " + json);
+            assertTrue(json.contains("\"zipCode\""), "Schema should contain zipCode property: " + json);
+        }
+
+        @Test
+        void schemaWithMixedSimpleAndComplexParamsShouldHandleBothCorrectly() {
+            ComplexParameterTools tools = new ComplexParameterTools();
+            List<Tool> result = Tool.fromInstance(tools);
+
+            Tool tool = result.stream()
+                .filter(t -> t.getDefinition().getName().equals("mixedParams"))
+                .findFirst()
+                .orElseThrow();
+
+            String json = tool.getDefinition().getInputSchema().toJsonSchema();
+
+            // Simple params should be present at top level
+            assertTrue(json.contains("\"label\""), "Schema should contain label param: " + json);
+            assertTrue(json.contains("\"count\""), "Schema should contain count param: " + json);
+            // Complex type's properties should also be present (nested under wrapped)
+            assertTrue(json.contains("\"internalId\""), "Schema should contain wrapped type's internalId: " + json);
+        }
+
+        @Test
+        void executionWithComplexTypeParameterShouldWorkCorrectly() {
+            ComplexParameterTools tools = new ComplexParameterTools();
+            List<Tool> result = Tool.fromInstance(tools);
+
+            Tool tool = result.stream()
+                .filter(t -> t.getDefinition().getName().equals("getInformation"))
+                .findFirst()
+                .orElseThrow();
+
+            Tool.Result toolResult = tool.call("{\"someType\": {\"internalId\": 42, \"name\": \"Test\"}}");
+
+            assertInstanceOf(Tool.Result.Text.class, toolResult);
+            assertEquals("ID: 42, Name: Test", ((Tool.Result.Text) toolResult).getContent());
+        }
+    }
 }

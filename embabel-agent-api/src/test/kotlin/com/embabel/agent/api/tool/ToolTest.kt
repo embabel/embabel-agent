@@ -441,6 +441,135 @@ class ToolTest {
         }
     }
 
+    // Test fixtures for complex type schema generation (Issue #1326)
+    data class WrappedType(
+        val internalId: Int,
+        val name: String,
+    )
+
+    data class Address(
+        val street: String,
+        val city: String,
+        val zipCode: String,
+    )
+
+    data class NestedWrapper(
+        val address: Address,
+        val label: String,
+    )
+
+    class ComplexParameterTools {
+        @LlmTool(description = "Get information using a wrapped type")
+        fun getInformation(
+            @Param(description = "The wrapped type") someType: WrappedType,
+        ): String {
+            return "ID: ${someType.internalId}, Name: ${someType.name}"
+        }
+
+        @LlmTool(description = "Process an address")
+        fun processAddress(
+            @Param(description = "The address to process") address: Address,
+        ): String {
+            return "${address.street}, ${address.city} ${address.zipCode}"
+        }
+
+        @LlmTool(description = "Handle nested complex types")
+        fun handleNested(
+            @Param(description = "Nested wrapper") wrapper: NestedWrapper,
+        ): String {
+            return "${wrapper.label}: ${wrapper.address.city}"
+        }
+
+        @LlmTool(description = "Mix of simple and complex params")
+        fun mixedParams(
+            @Param(description = "Simple string") name: String,
+            @Param(description = "Complex type") wrapped: WrappedType,
+            @Param(description = "Simple int") count: Int,
+        ): String {
+            return "$name: ${wrapped.name} x $count"
+        }
+    }
+
+    @Nested
+    inner class ComplexTypeSchemaGeneration {
+
+        @Test
+        fun `schema for complex type parameter should include nested properties`() {
+            val tools = Tool.fromInstance(ComplexParameterTools())
+            val tool = tools.find { it.definition.name == "getInformation" }!!
+
+            val json = tool.definition.inputSchema.toJsonSchema()
+
+            // The schema should include the properties of WrappedType
+            assertTrue(json.contains("\"internalId\""), "Schema should contain internalId property: $json")
+            assertTrue(json.contains("\"name\""), "Schema should contain name property: $json")
+            assertTrue(json.contains("\"integer\""), "internalId should have integer type: $json")
+        }
+
+        @Test
+        fun `schema for address parameter should include all address properties`() {
+            val tools = Tool.fromInstance(ComplexParameterTools())
+            val tool = tools.find { it.definition.name == "processAddress" }!!
+
+            val json = tool.definition.inputSchema.toJsonSchema()
+
+            assertTrue(json.contains("\"street\""), "Schema should contain street property: $json")
+            assertTrue(json.contains("\"city\""), "Schema should contain city property: $json")
+            assertTrue(json.contains("\"zipCode\""), "Schema should contain zipCode property: $json")
+        }
+
+        @Test
+        fun `schema for nested complex types should include all levels`() {
+            val tools = Tool.fromInstance(ComplexParameterTools())
+            val tool = tools.find { it.definition.name == "handleNested" }!!
+
+            val json = tool.definition.inputSchema.toJsonSchema()
+
+            // Should have the wrapper's direct properties
+            assertTrue(json.contains("\"label\""), "Schema should contain label property: $json")
+            assertTrue(json.contains("\"address\""), "Schema should contain address property: $json")
+            // Should have nested address properties
+            assertTrue(json.contains("\"street\""), "Schema should contain nested street property: $json")
+            assertTrue(json.contains("\"city\""), "Schema should contain nested city property: $json")
+        }
+
+        @Test
+        fun `schema with mixed simple and complex params should handle both correctly`() {
+            val tools = Tool.fromInstance(ComplexParameterTools())
+            val tool = tools.find { it.definition.name == "mixedParams" }!!
+
+            val json = tool.definition.inputSchema.toJsonSchema()
+
+            // Simple params should be present
+            assertTrue(json.contains("\"name\""), "Schema should contain name param: $json")
+            assertTrue(json.contains("\"count\""), "Schema should contain count param: $json")
+            // Complex type's properties should also be present
+            assertTrue(json.contains("\"internalId\""), "Schema should contain wrapped type's internalId: $json")
+        }
+
+        @Test
+        fun `execution with complex type parameter should work correctly`() {
+            val tools = Tool.fromInstance(ComplexParameterTools())
+            val tool = tools.find { it.definition.name == "getInformation" }!!
+
+            val result = tool.call("""{"someType": {"internalId": 42, "name": "Test"}}""")
+
+            assertTrue(result is Tool.Result.Text)
+            assertEquals("ID: 42, Name: Test", (result as Tool.Result.Text).content)
+        }
+
+        @Test
+        fun `execution with nested complex type should work correctly`() {
+            val tools = Tool.fromInstance(ComplexParameterTools())
+            val tool = tools.find { it.definition.name == "handleNested" }!!
+
+            val result = tool.call("""{"wrapper": {"address": {"street": "123 Main", "city": "Boston", "zipCode": "02101"}, "label": "Home"}}""")
+
+            assertTrue(result is Tool.Result.Text)
+            assertEquals("Home: Boston", (result as Tool.Result.Text).content)
+        }
+    }
+
     @Nested
     inner class MethodToolExecution {
 

@@ -26,9 +26,11 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
+import kotlin.reflect.KVisibility
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.hasAnnotation
+import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
 
@@ -134,6 +136,7 @@ interface Tool : ToolInfo {
      * @param description Parameter description. Defaults to name if not provided.
      * @param required Whether the parameter is required. Defaults to true.
      * @param enumValues Optional list of allowed values (for enum parameters)
+     * @param properties Nested properties for OBJECT type parameters
      */
     data class Parameter @JvmOverloads constructor(
         val name: String,
@@ -141,6 +144,7 @@ interface Tool : ToolInfo {
         val description: String = name,
         val required: Boolean = true,
         val enumValues: List<String>? = null,
+        val properties: List<Parameter>? = null,
     ) {
 
         companion object {
@@ -628,27 +632,16 @@ private data class SimpleInputSchema(
     }
 
     override fun toJsonSchema(): String {
+        return objectMapper.writeValueAsString(buildSchemaMap(parameters))
+    }
+
+    private fun buildSchemaMap(params: List<Tool.Parameter>): Map<String, Any> {
         val properties = mutableMapOf<String, Any>()
-        parameters.forEach { param ->
-            val typeStr = when (param.type) {
-                Tool.ParameterType.STRING -> "string"
-                Tool.ParameterType.INTEGER -> "integer"
-                Tool.ParameterType.NUMBER -> "number"
-                Tool.ParameterType.BOOLEAN -> "boolean"
-                Tool.ParameterType.ARRAY -> "array"
-                Tool.ParameterType.OBJECT -> "object"
-            }
-            val propMap = mutableMapOf<String, Any>(
-                "type" to typeStr,
-                "description" to param.description,
-            )
-            param.enumValues?.let { values ->
-                propMap["enum"] = values
-            }
-            properties[param.name] = propMap
+        params.forEach { param ->
+            properties[param.name] = buildParameterSchema(param)
         }
 
-        val required = parameters.filter { it.required }.map { it.name }
+        val required = params.filter { it.required }.map { it.name }
 
         val schema = mutableMapOf<String, Any>(
             "type" to "object",
@@ -657,8 +650,43 @@ private data class SimpleInputSchema(
         if (required.isNotEmpty()) {
             schema["required"] = required
         }
+        return schema
+    }
 
-        return objectMapper.writeValueAsString(schema)
+    private fun buildParameterSchema(param: Tool.Parameter): Map<String, Any> {
+        val typeStr = when (param.type) {
+            Tool.ParameterType.STRING -> "string"
+            Tool.ParameterType.INTEGER -> "integer"
+            Tool.ParameterType.NUMBER -> "number"
+            Tool.ParameterType.BOOLEAN -> "boolean"
+            Tool.ParameterType.ARRAY -> "array"
+            Tool.ParameterType.OBJECT -> "object"
+        }
+
+        val propMap = mutableMapOf<String, Any>(
+            "type" to typeStr,
+            "description" to param.description,
+        )
+
+        param.enumValues?.let { values ->
+            propMap["enum"] = values
+        }
+
+        // For OBJECT types with nested properties, add them recursively
+        if (param.type == Tool.ParameterType.OBJECT && !param.properties.isNullOrEmpty()) {
+            val nestedProperties = mutableMapOf<String, Any>()
+            param.properties.forEach { nested ->
+                nestedProperties[nested.name] = buildParameterSchema(nested)
+            }
+            propMap["properties"] = nestedProperties
+
+            val nestedRequired = param.properties.filter { it.required }.map { it.name }
+            if (nestedRequired.isNotEmpty()) {
+                propMap["required"] = nestedRequired
+            }
+        }
+
+        return propMap
     }
 }
 
@@ -721,9 +749,9 @@ private class MethodTool(
             .filter { it.kind == KParameter.Kind.VALUE }
             .map { param ->
                 val paramAnnotation = param.findAnnotation<Param>()
-                Tool.Parameter(
+                buildParameter(
                     name = param.name ?: "arg${param.index}",
-                    type = mapKotlinTypeToParameterType(param.type),
+                    type = param.type,
                     description = paramAnnotation?.description ?: "",
                     required = paramAnnotation?.required ?: !param.isOptional,
                 )
@@ -734,6 +762,60 @@ private class MethodTool(
             description = annotation.description,
             inputSchema = SimpleInputSchema(parameters),
         )
+    }
+
+    private fun buildParameter(
+        name: String,
+        type: kotlin.reflect.KType,
+        description: String,
+        required: Boolean,
+        visited: MutableSet<kotlin.reflect.KClass<*>> = mutableSetOf(),
+    ): Tool.Parameter {
+        val paramType = mapKotlinTypeToParameterType(type)
+
+        // For OBJECT types, extract nested properties via reflection
+        val properties = if (paramType == Tool.ParameterType.OBJECT) {
+            extractNestedProperties(type, visited)
+        } else {
+            null
+        }
+
+        return Tool.Parameter(
+            name = name,
+            type = paramType,
+            description = description,
+            required = required,
+            properties = properties,
+        )
+    }
+
+    private fun extractNestedProperties(
+        type: kotlin.reflect.KType,
+        visited: MutableSet<kotlin.reflect.KClass<*>>,
+    ): List<Tool.Parameter>? {
+        val classifier = type.classifier as? kotlin.reflect.KClass<*> ?: return null
+
+        // Prevent infinite recursion for self-referential types
+        if (classifier in visited) return null
+        visited.add(classifier)
+
+        return try {
+            classifier.memberProperties
+                .filter { it.visibility == kotlin.reflect.KVisibility.PUBLIC }
+                .map { prop ->
+                    buildParameter(
+                        name = prop.name,
+                        type = prop.returnType,
+                        description = "",
+                        required = !prop.returnType.isMarkedNullable,
+                        visited = visited.toMutableSet(),
+                    )
+                }
+                .ifEmpty { null }
+        } catch (e: Exception) {
+            logger.debug("Could not extract properties from {}: {}", classifier.simpleName, e.message)
+            null
+        }
     }
 
     private fun mapKotlinTypeToParameterType(type: kotlin.reflect.KType): Tool.ParameterType {
