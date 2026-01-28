@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
@@ -94,7 +95,7 @@ data class ToolishRag @JvmOverloads constructor(
     val listener: ResultsListener? = null,
     val metadataFilter: PropertyFilter? = null,
     val entityFilter: EntityFilter? = null,
-) : LlmReference {
+) : LlmReference, Tool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -195,7 +196,24 @@ data class ToolishRag @JvmOverloads constructor(
     fun withEntityFilter(filter: EntityFilter): ToolishRag =
         copy(entityFilter = filter)
 
+    // LlmReference: returns flat list of inner tools (backward compatible)
     override fun tools(): List<Tool> = toolObjects.flatMap { Tool.fromInstance(it) }
+
+    // Tool interface implementation via lazy MatryoshkaTool
+    // When used directly as a Tool, wraps all inner tools in a MatryoshkaTool
+    private val toolFacade: Tool by lazy {
+        MatryoshkaTool.of(
+            name = name,
+            description = description,
+            innerTools = tools(),
+        )
+    }
+
+    override val definition: Tool.Definition
+        get() = toolFacade.definition
+
+    override fun call(input: String): Tool.Result =
+        toolFacade.call(input)
 
     override fun notes() = """
         ${

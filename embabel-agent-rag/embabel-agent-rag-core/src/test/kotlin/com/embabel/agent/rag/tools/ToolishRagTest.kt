@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.rag.tools
 
+import com.embabel.agent.api.tool.MatryoshkaTool
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
 import com.embabel.agent.rag.model.Retrievable
@@ -964,6 +966,125 @@ class ToolishRagTest {
             val result = tools.findById("entity1", "SimpleNamedEntityData")
 
             assertTrue(result.contains("Found SimpleNamedEntityData with id 'entity1'"))
+        }
+    }
+
+    @Nested
+    inner class ToolInterfaceTests {
+
+        @Test
+        fun `ToolishRag implements Tool interface`() {
+            val vectorSearch = mockk<VectorSearch>()
+
+            val toolishRag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG description",
+                searchOperations = vectorSearch
+            )
+
+            // ToolishRag should be usable as a Tool
+            assertTrue(toolishRag is Tool)
+        }
+
+        @Test
+        fun `definition has correct name and description`() {
+            val vectorSearch = mockk<VectorSearch>()
+
+            val toolishRag = ToolishRag(
+                name = "my-rag",
+                description = "Search my knowledge base",
+                searchOperations = vectorSearch
+            )
+
+            assertEquals("my-rag", toolishRag.definition.name)
+            assertEquals("Search my knowledge base", toolishRag.definition.description)
+        }
+
+        @Test
+        fun `tools returns flat list of inner tools for backward compatibility`() {
+            val coreSearch = mockk<CoreSearchOperations>()
+
+            val toolishRag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = coreSearch
+            )
+
+            val tools = toolishRag.tools()
+            val toolNames = tools.map { it.definition.name }
+
+            // tools() returns flat list, not wrapped in MatryoshkaTool
+            assertTrue(toolNames.contains("vectorSearch"))
+            assertTrue(toolNames.contains("textSearch"))
+        }
+
+        @Test
+        fun `Tool interface wraps inner tools in MatryoshkaTool`() {
+            val coreSearch = mockk<CoreSearchOperations>()
+
+            val toolishRag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = coreSearch
+            )
+
+            // When used as Tool directly, definition comes from MatryoshkaTool facade
+            assertEquals("test-rag", toolishRag.definition.name)
+            assertEquals("Test RAG", toolishRag.definition.description)
+        }
+
+        @Test
+        fun `call delegates to MatryoshkaTool`() {
+            val coreSearch = mockk<CoreSearchOperations>()
+            val chunk = Chunk(id = "chunk1", text = "Test content", parentId = "parent", metadata = emptyMap())
+
+            every {
+                coreSearch.vectorSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
+            } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.9))
+
+            val toolishRag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = coreSearch
+            )
+
+            // Call with vectorSearch inner tool
+            val result = toolishRag.call("""{"tool": "vectorSearch", "input": {"query": "test", "topK": 5, "threshold": 0.5}}""")
+
+            assertTrue(result is Tool.Result.Text)
+            val textResult = result as Tool.Result.Text
+            assertTrue(textResult.content.contains("vectorSearch"))
+        }
+
+        @Test
+        fun `Tool facade is cached and reused`() {
+            val vectorSearch = mockk<VectorSearch>()
+
+            val toolishRag = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = vectorSearch
+            )
+
+            // Multiple calls to definition should return the same cached facade
+            val definition1 = toolishRag.definition
+            val definition2 = toolishRag.definition
+
+            assertSame(definition1, definition2)
+        }
+
+        @Test
+        fun `can use ToolishRag directly as Tool`() {
+            val vectorSearch = mockk<VectorSearch>()
+
+            val tool: Tool = ToolishRag(
+                name = "test-rag",
+                description = "Test RAG",
+                searchOperations = vectorSearch
+            )
+
+            assertNotNull(tool.definition)
+            assertEquals("test-rag", tool.definition.name)
         }
     }
 }

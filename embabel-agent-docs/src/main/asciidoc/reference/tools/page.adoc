@@ -1913,3 +1913,38 @@ This provides several advantages:
 The hierarchical nesting capability of MatryoshkaTool means you can organize thousands of tools into a logical tree structure.
 The LLM navigates this tree by making simple invocations, with no search overhead at any level.
 For example, a top-level "admin_operations" facade might reveal 5 category facades, each revealing 20 specific tools—giving access to 100 tools with at most 2 invocations.
+
+[NOTE]
+.MatryoshkaTool vs LlmReference
+====
+Both `MatryoshkaTool` and `LlmReference` expose tools to the LLM, but they serve different purposes:
+
+**Use MatryoshkaTool when:**
+
+* You have a single top-level capability that the LLM can invoke as one tool
+* The prompt contribution is short and can fit in the tool description
+* Example: A "database" tool that reveals query/insert/delete tools on invocation
+
+**Use LlmReference when:**
+
+* The prompt contribution is long or of general significance (appears in system prompt)
+* You have a bunch of related tools, not just one top-level tool
+* You need `notes()` for detailed usage instructions separate from the tool descriptions
+* The reference contributes context beyond just tool availability
+
+**Implementing both:**
+
+Classes like `Memory` and `ToolishRag` implement both `Tool` and `LlmReference`, giving maximum flexibility:
+
+[source,kotlin]
+----
+// Use as LlmReference (adds to system prompt + tools)
+ai.withReference(memory).respond(...)
+
+// Use as Tool directly (just the tool)
+ai.withTool(memory).respond(...)
+----
+
+When used as an `LlmReference`, the `tools()` method exposes the inner tools directly.
+When used as a `Tool`, the implementation wraps them in a `MatryoshkaTool` facade.
+====
