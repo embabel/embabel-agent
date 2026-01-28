@@ -242,6 +242,7 @@ dependencies {
 ----
 ====
 
+[[reference.environment_setup]]
 ==== Environment Setup
 
 Before running your application, you'll need to set up your environment with API keys for the LLM providers you plan to use.
@@ -254,6 +255,8 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
 MISTRAL_API_KEY=your_mistral_api_key_here
 ----
+
+If you added the binaries directly to your projecdt or want to use other LLM providers than Open AI and Anthropic you will also need to add some dependencies specific to those vendors. Just follow the instructions below for your vendor(s) of choice.
 
 ===== OpenAI Compatible (GPT-4, GPT-5, etc.)
 
@@ -279,6 +282,40 @@ embabel:
 
 <1> API key with optional default for local development
 <2> Optional base URL override
+
+If you are not using the Embabel template projects you also need to add the `embabel-agent-starter-openai` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-openai</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-openai:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-openai:${embabel-agent.version}'
+}
+----
+====
 
 ===== OpenAi Custom
 
@@ -314,6 +351,41 @@ embabel:
             base-url: https://api.groq.com/openai/v1
             models: llama-3.3-70b-versatile,mixtral-8x7b-32768
 ----
+
+You also need to add the `embabel-agent-starter-openai-custom` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-openai-custom</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-openai-custom:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-openai-custom:${embabel-agent.version}'
+}
+----
+====
+
 ===== Anthropic (Claude 3.x, etc.)
 
 * Required:
@@ -334,6 +406,40 @@ embabel:
           base-url: ${ANTHROPIC_BASE_URL:}
 ----
 
+If you are not using the Embabel template projects you also need to add the `embabel-agent-starter-anthropic` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-anthropic</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-anthropic:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-anthropic:${embabel-agent.version}'
+}
+----
+====
+
 ===== DeepSeek
 
 * Required:
@@ -353,6 +459,40 @@ embabel:
           api-key: ${DEEPSEEK_API_KEY:sk-dev-key}
           base-url: ${DEEPSEEK_BASE_URL:}
 ----
+
+You also need to add the `embabel-agent-starter-deepseek` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-deepseek</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-deepseek:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-deepseek:${embabel-agent.version}'
+}
+----
+====
 
 ===== Google Gemini (OpenAI Compatible)
 
@@ -376,6 +516,40 @@ embabel:
           base-url: ${GEMINI_BASE_URL:}
 ----
 
+You also need to add the `embabel-agent-starter-gemini` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-gemini</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-gemini:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-gemini:${embabel-agent.version}'
+}
+----
+====
+
 ===== Google GenAI (Native)
 
 Uses the native Google GenAI SDK for direct access to Gemini models with full feature support including thinking mode.
@@ -393,8 +567,13 @@ Vertex AI authentication requires Application Default Credentials (ADC) to be co
 IMPORTANT: Gemini 3 models are only available in the `global` location on Vertex AI.
 To use Gemini 3 with Vertex AI, you must set `GOOGLE_LOCATION=global`.
 
-To add Google GenAI support to your project:
+To add Google GenAI support to your project add the `embabel-agent-starter-google-genai` starter.
 
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
 [source,xml]
 ----
 <dependency>
@@ -403,6 +582,24 @@ To add Google GenAI support to your project:
     <version>${embabel-agent.version}</version>
 </dependency>
 ----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-google-genai:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-google-genai:${embabel-agent.version}'
+}
+----
+====
 
 Available models include:
 
@@ -461,6 +658,40 @@ embabel:
           base-url: ${MISTRAL_BASE_URL:}
 ----
 
+You also need to add the `embabel-agent-starter-mistral-ai` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-mistral-ai</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-mistral-ai:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-mistral-ai:${embabel-agent.version}'
+}
+----
+====
+
 ===== LM Studio
 
 https://lmstudio.ai/[LM Studio] is a desktop application that lets you easily discover, download, and run powerful LLMs on your own computer (Windows, Mac, Linux) for free, enabling offline use, local document Q&A, and even hosting an OpenAI-compatible API server for your projects, making advanced AI accessible without relying on cloud services.
@@ -471,8 +702,11 @@ allows you to run an LLM API server on localhost.
 
 To add LM Studio support, add the `embabel-agent-starter-lmstudio` starter.
 
-Add this with Maven as follows:
-
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
 [source,xml]
 ----
 <dependency>
@@ -481,13 +715,24 @@ Add this with Maven as follows:
     <version>${embabel-agent.version}</version>
 </dependency>
 ----
-
-With the Gradle Kotlin DSL:
-
-[source,gradle]
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
 ----
-implementation "com.embabel.agent:embabel-agent-starter-lmstudio:${embabelVersion}"
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-lmstudio:${embabel-agent.version}")
+}
 ----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-lmstudio:${embabel-agent.version}'
+}
+----
+====
 
 Configure an LLM API on LM Studio by following https://lmstudio.ai/docs/developer/core/server[these instructions].
 
@@ -508,4 +753,114 @@ embabel:
   models:
     default-llm: openai/gpt-oss-20b
     default-embedding-model: text-embedding-nomic-embed-text-v1.5
+----
+
+===== Ollama
+
+https://ollama.com/[Ollama] is an open source application that lets you easily https://ollama.com/library[discover], download, and run powerful LLMs on your own computer (Windows, Mac, Linux) for free, enabling offline use, local document Q&A, and even hosting an API server for your projects, making advanced AI accessible without relying on cloud services.
+
+The Ollama application allows you to run an LLM API server on localhost. Exposing both its own Ollama API and an Open-AI-compatible API.
+
+Get Ollama running locally by following https://docs.ollama.com/quickstart[these instructions].
+
+To use the Ollama API with your agent, add the `embabel-agent-starter-ollama` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-ollama</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-ollama:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-ollama:${embabel-agent.version}'
+}
+----
+====
+
+Specify the example configuration in `application.yml`. Embabel uses Spring AI configuration to configure the Ollama integration.
+
+[source,yaml]
+----
+spring:
+  ai:
+    ollama:
+      # Not needed when using the default port
+      base-url: http://localhost:11434
+
+embabel:
+  models:
+    defaultLlm: ministral-3:8b
+    default-embedding-model: qwen3-embedding
+----
+
+To instead use the Open-AI-compatible API with your agent, add the `embabel-agent-starter-openai-custom` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-openai-custom</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-openai-custom:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-openai-custom:${embabel-agent.version}'
+}
+----
+====
+
+Specify the example configuration in `application.yml`. Embabel uses Spring AI configuration to configure the Ollama integration.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        openai:
+          custom:
+            api-key: not-set  # Property needed but value not used by Ollama
+            base-url: http://localhost:11434
+            models: ministral-3:8b,qwen3-embedding
+  models:
+    defaultLlm: ministral-3:8b
+    default-embedding-model: qwen3-embedding
 ----
