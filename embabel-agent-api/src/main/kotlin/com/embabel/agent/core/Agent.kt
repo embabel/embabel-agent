@@ -48,7 +48,7 @@ data class Agent(
     override val conditions: Set<Condition> = emptySet(),
     override val actions: List<Action>,
     override val goals: Set<Goal>,
-    val stuckHandler: StuckHandler? = null,
+    override val stuckHandler: StuckHandler? = null,
     override val opaque: Boolean = false,
     override val domainTypes: Collection<DomainType> = mergeTypes(
         agentName = name,

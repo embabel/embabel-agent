@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common.scope
 
 import com.embabel.agent.api.annotation.support.AgentMetadataReader
+import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentScope
 
@@ -71,12 +72,21 @@ private class FromInstancesAgentScopeBuilder(
                 ?: throw IllegalArgumentException("$instance does not have agent metadata: @Agent or @EmbabelComponent annotation required")
         }
 
+        // Collect all non-null stuck handlers from scopes
+        val stuckHandlers = scopes.mapNotNull { it.stuckHandler }
+        val combinedStuckHandler = when {
+            stuckHandlers.isEmpty() -> null
+            stuckHandlers.size == 1 -> stuckHandlers.first()
+            else -> StuckHandler(*stuckHandlers.toTypedArray())
+        }
+
         return AgentScope(
             name = "combined-scope",
             description = "Combined scope from ${instances.size} instances",
             actions = scopes.flatMap { it.actions },
             goals = scopes.flatMap { it.goals }.toSet(),
             conditions = scopes.flatMap { it.conditions }.toSet(),
+            stuckHandler = combinedStuckHandler,
         )
     }
 }

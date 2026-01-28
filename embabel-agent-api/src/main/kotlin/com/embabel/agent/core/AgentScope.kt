@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.common.StuckHandler
 import com.embabel.agent.api.common.scope.AgentScopeBuilder
 import com.embabel.common.core.types.Described
 import com.embabel.common.core.types.HasInfoString
@@ -50,6 +51,14 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
      * from the outside world, defaults to false.
      */
     val opaque: Boolean
+
+    /**
+     * Handler to call when an agent created from this scope gets stuck.
+     * Defaults to null.
+     */
+    @get:JsonIgnore
+    val stuckHandler: StuckHandler?
+        get() = null
 
     @get:JsonIgnore
     override val domainTypes: Collection<DomainType>
@@ -89,6 +98,7 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
             actions = actions,
             goals = goals,
             conditions = conditions,
+            stuckHandler = stuckHandler,
             opaque = opaque,
         )
         return newAgent
@@ -108,6 +118,7 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
             goals: Set<Goal> = emptySet(),
             conditions: Set<Condition> = emptySet(),
             opaque: Boolean = false,
+            stuckHandler: StuckHandler? = null,
         ): AgentScope {
             return AgentScopeImpl(
                 name = name,
@@ -116,6 +127,7 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
                 goals = goals,
                 conditions = conditions,
                 opaque = opaque,
+                stuckHandler = stuckHandler,
             )
         }
     }
@@ -130,4 +142,5 @@ private data class AgentScopeImpl(
     override val goals: Set<Goal>,
     override val conditions: Set<Condition>,
     override val opaque: Boolean = false,
+    override val stuckHandler: StuckHandler? = null,
 ) : AgentScope
