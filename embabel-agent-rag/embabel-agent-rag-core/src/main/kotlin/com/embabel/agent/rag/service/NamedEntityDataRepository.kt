@@ -329,8 +329,25 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
     /**
      * Create a relationship between two retrievables (entities, chunks, etc.).
      * For example, linking a Chunk to the NamedEntity it mentions.
+     * Note: This always creates a new relationship. Use [mergeRelationship] to avoid duplicates.
      */
     fun createRelationship(a: RetrievableIdentifier, b: RetrievableIdentifier, relationship: RelationshipData)
+
+    /**
+     * Merge a relationship between two retrievables (entities, chunks, etc.).
+     * If a relationship of the same type already exists between the two entities,
+     * it will be updated with the new properties. Otherwise, a new relationship is created.
+     *
+     * Use this instead of [createRelationship] when you want to avoid duplicate relationships.
+     *
+     * @param a The source entity identifier
+     * @param b The target entity identifier
+     * @param relationship The relationship data (type and properties)
+     */
+    fun mergeRelationship(a: RetrievableIdentifier, b: RetrievableIdentifier, relationship: RelationshipData) {
+        // Default implementation falls back to createRelationship for backwards compatibility
+        createRelationship(a, b, relationship)
+    }
 
     /**
      * Find entities related to the given entity via a named relationship.
