@@ -72,7 +72,7 @@ interface ContextualPromptElement : PromptElement {
             return ContextualPromptElementImpl(
                 role = role,
                 promptContributionLocation = location,
-                contribution = contribution,
+                contributionProvider  = contribution,
             )
         }
 
@@ -80,12 +80,12 @@ interface ContextualPromptElement : PromptElement {
 }
 
 private data class ContextualPromptElementImpl(
-    private val contribution: (OperationContext) -> String,
+    private val contributionProvider: (OperationContext) -> String,
     override val role: String? = null,
     override val promptContributionLocation: PromptContributionLocation = PromptContributionLocation.BEGINNING,
 ) : ContextualPromptElement {
 
     override fun contribution(context: OperationContext): String =
-        contribution(context)
+        contributionProvider(context)
 
 }
