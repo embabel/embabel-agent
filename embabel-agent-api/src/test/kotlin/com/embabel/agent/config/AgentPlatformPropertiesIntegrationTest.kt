@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Bean
 import org.springframework.core.env.Environment
@@ -180,6 +181,12 @@ import org.springframework.test.context.TestPropertySource
         "embabel.agent.platform.sse.max-buffer-size=200",
         "embabel.agent.platform.sse.max-process-buffers=2000",
         "embabel.agent.platform.test.mock-mode=false",
+        "embabel.agent.platform.action-qos.default.max-attempts=6",
+        "embabel.agent.platform.action-qos.default.backoff-max-interval=1",
+        "embabel.agent.platform.action-qos.default.idempotent=true",
+        "embabel.agent.platform.action-qos.default.backoff-multiplier=1",
+        "embabel.agent.platform.action-qos.default.backoff-millis=1",
+        "agent-qos.agent.method.max-attempts=10",
 
         // Legacy properties for val/var investigation (using @TestPropertySource instead of env vars)
         "embabel.autonomy.agent-confidence-cut-off=0.95",
@@ -212,6 +219,14 @@ class AgentPlatformPropertiesIntegrationTest {
     fun `should bind core platform properties correctly`() {
         assertThat(properties.name).isEqualTo("test-platform")
         assertThat(properties.description).isEqualTo("Test Platform Description")
+    }
+
+    @Test
+    fun `agent qos should bind correctly`() {
+        assertThat(properties.actionQos.default.maxAttempts).isEqualTo(6)
+        val bound = Binder.get(environment).bind("agent-qos.agent.method", AgentPlatformProperties.ActionQosProperties.ActionProperties::class.java)
+        assertThat(bound.isBound).isTrue()
+        assertThat(bound.get().maxAttempts).isEqualTo(10)
     }
 
     @Test
