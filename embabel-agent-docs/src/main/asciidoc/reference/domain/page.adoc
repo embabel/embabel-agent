@@ -78,7 +78,7 @@ NOTE: Domain object methods, even if annotated, will not be exposed to LLMs unle
 
 ==== Domain Understanding is Critical
 
-As outlined in Rod Johnson's blog introducing DICE (Domain-Integrated Context Engineering) in https://medium.com/@springrod/context-engineering-needs-domain-understanding-b4387e8e4bf8[Context Engineering Needs Domain Understanding], domain understanding is fundamental to effective context engineering.
+As outlined in https://medium.com/@springrod/context-engineering-needs-domain-understanding-b4387e8e4bf8[Context Engineering Needs Domain Understanding], Rod Johnson's blog introducing DICE (Domain-Integrated Context Engineering), domain understanding is fundamental to effective context engineering.
 Domain objects serve as the bridge between:
 
 - **Business Domain**: Real-world entities and their relationships
