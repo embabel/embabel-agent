@@ -280,4 +280,109 @@ class MessageConversionTest {
             assertThat(embabelMessage).isNotInstanceOf(AssistantMessageWithToolCalls::class.java)
         }
     }
+
+    /**
+     * Tests for provider-specific behavior where tool call responses may have empty/null text content.
+     *
+     * This covers:
+     * - Bedrock: May return empty/null text with tool_use blocks
+     * - DeepSeek: API explicitly documents content as nullable when tool_calls present
+     * - Multiple generations (Bedrock): First generation empty, second has tool calls
+     *
+     * See: https://github.com/embabel/embabel-agent/issues/1350
+     */
+    @Nested
+    inner class BedrockBehaviorTests {
+
+        @Test
+        fun `converts Spring AI AssistantMessage with tool calls and empty text`() {
+            // Bedrock often sends tool_use responses with empty text content
+            val toolCalls = listOf(
+                SpringAiAssistantMessage.ToolCall(
+                    "tooluse_ZoD1qN0iQP6ph6t2DzbhdQ",
+                    "function",
+                    "getThirdPartyKeyData",
+                    """{"thirdPartyId": "1"}"""
+                )
+            )
+            val springMessage = mockk<SpringAiAssistantMessage> {
+                every { text } returns ""  // Empty text - common with Bedrock tool_use
+                every { getToolCalls() } returns toolCalls
+            }
+
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.textContent).isEmpty()
+            assertThat(messageWithCalls.toolCalls).hasSize(1)
+            assertThat(messageWithCalls.toolCalls[0].name).isEqualTo("getThirdPartyKeyData")
+        }
+
+        @Test
+        fun `converts Spring AI AssistantMessage with tool calls and null text`() {
+            // Bedrock and DeepSeek may send null textContent with tool_use
+            // DeepSeek API explicitly documents content as nullable when tool_calls present
+            val toolCalls = listOf(
+                SpringAiAssistantMessage.ToolCall(
+                    "tooluse_abc123",
+                    "function",
+                    "searchDatabase",
+                    """{"query": "test"}"""
+                )
+            )
+            val springMessage = mockk<SpringAiAssistantMessage> {
+                every { text } returns null  // Null text - also seen with Bedrock
+                every { getToolCalls() } returns toolCalls
+            }
+
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.textContent).isEmpty()
+            assertThat(messageWithCalls.toolCalls).hasSize(1)
+        }
+
+        @Test
+        fun `converts Spring AI AssistantMessage with multiple tool calls and empty text`() {
+            // Bedrock can request multiple tool calls in a single response
+            // Example from issue: 3 tool calls with empty textContent
+            val toolCalls = listOf(
+                SpringAiAssistantMessage.ToolCall(
+                    "tooluse_ZoD1qN0iQP6ph6t2DzbhdQ",
+                    "function",
+                    "getThirdPartyKeyData",
+                    """{"thirdPartyId": "1"}"""
+                ),
+                SpringAiAssistantMessage.ToolCall(
+                    "tooluse_Sdeks0-pSxyfyyHRQKkMnA",
+                    "function",
+                    "getThirdPartyScopeInformation",
+                    """{"thirdPartyId": "1"}"""
+                ),
+                SpringAiAssistantMessage.ToolCall(
+                    "tooluse_j8roMCyCQBK7fUcGQWVSVQ",
+                    "function",
+                    "getThirdPartyStatusInformation",
+                    """{"thirdPartyId": "1"}"""
+                )
+            )
+            val springMessage = mockk<SpringAiAssistantMessage> {
+                every { text } returns ""
+                every { getToolCalls() } returns toolCalls
+            }
+
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.toolCalls).hasSize(3)
+            assertThat(messageWithCalls.toolCalls.map { it.name }).containsExactly(
+                "getThirdPartyKeyData",
+                "getThirdPartyScopeInformation",
+                "getThirdPartyStatusInformation"
+            )
+        }
+    }
 }

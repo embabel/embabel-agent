@@ -66,7 +66,11 @@ internal class SpringAiLlmMessageSender(
         logger.debug("Prompt: {}\nResponse: {}", prompt, response)
 
         // Convert response to Embabel message
-        val assistantMessage = response.result.output
+        // Note: Some providers (e.g., Bedrock) may return multiple generations where
+        // the first is empty and the second contains tool calls. We need to find the
+        // generation with tool calls, or fall back to the first one if none have them.
+        // See: https://github.com/embabel/embabel-agent/issues/1350
+        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result.output
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
         // Extract usage information
@@ -77,6 +81,55 @@ internal class SpringAiLlmMessageSender(
             textContent = assistantMessage.text ?: "",
             usage = usage,
         )
+    }
+
+    /**
+     * Find the best generation to use from the response.
+     *
+     * Some providers (e.g., Bedrock) may return multiple generations where
+     * the first is empty and a subsequent one contains tool calls.
+     *
+     * Strategy:
+     * 1. Collect all tool calls from all generations
+     * 2. Collect all text content from all generations
+     * 3. If there are tool calls, create a merged AssistantMessage with all tool calls and combined text
+     * 4. If no tool calls, return null to fall back to first generation
+     *
+     * This ensures we don't lose valuable content (text or tool calls) from any generation.
+     *
+     * @return A merged AssistantMessage with all tool calls and text, or null if no tool calls found
+     */
+    private fun findGenerationWithToolCalls(response: ChatResponse): org.springframework.ai.chat.messages.AssistantMessage? {
+        val allOutputs = response.results.map { it.output }
+
+        // Collect all tool calls from all generations
+        val allToolCalls = allOutputs
+            .flatMap { it.toolCalls ?: emptyList() }
+
+        if (allToolCalls.isEmpty()) {
+            return null // No tool calls found, let caller use first generation
+        }
+
+        // Collect all non-empty text from all generations
+        val allText = allOutputs
+            .mapNotNull { it.text?.takeIf { text -> text.isNotBlank() } }
+            .joinToString("\n")
+
+        // Log if we're merging content from multiple generations
+        val generationsWithToolCalls = allOutputs.count { !it.toolCalls.isNullOrEmpty() }
+        val generationsWithText = allOutputs.count { !it.text.isNullOrBlank() }
+        if (generationsWithToolCalls > 1 || generationsWithText > 1) {
+            logger.debug(
+                "Merging content from multiple generations: {} with tool calls, {} with text",
+                generationsWithToolCalls,
+                generationsWithText
+            )
+        }
+
+        return org.springframework.ai.chat.messages.AssistantMessage.builder()
+            .content(allText)
+            .toolCalls(allToolCalls)
+            .build()
     }
 
     /**
