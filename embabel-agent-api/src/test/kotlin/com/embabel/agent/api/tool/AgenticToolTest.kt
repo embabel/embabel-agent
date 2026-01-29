@@ -474,4 +474,72 @@ class AgenticToolTest {
             assertTrue(agentic.tools.any { it.definition.name == "artifact" })
         }
     }
+
+    @Nested
+    inner class NestedArtifactCapturing {
+
+        @Test
+        fun `captureNestedArtifacts defaults to false`() {
+            val agentic = AgenticTool("test", "Test")
+                .withTools(artifactTool)
+
+            assertFalse(agentic.captureNestedArtifacts)
+        }
+
+        @Test
+        fun `withCaptureNestedArtifacts creates copy with new value`() {
+            val agentic = AgenticTool("test", "Test")
+                .withTools(artifactTool)
+
+            val updated = agentic.withCaptureNestedArtifacts(true)
+
+            assertTrue(updated.captureNestedArtifacts)
+            assertFalse(agentic.captureNestedArtifacts) // Original unchanged
+        }
+
+        @Test
+        fun `ArtifactCapturingTool with captureNestedArtifacts=false skips AgenticTool artifacts`() {
+            // Create a nested AgenticTool that would return an artifact
+            val nestedAgentic = AgenticTool("nested", "Nested agentic")
+                .withTools(artifactTool)
+
+            val artifacts = mutableListOf<Any>()
+            // captureNestedArtifacts=false means we should skip artifacts from AgenticTool delegates
+            val wrapper = ArtifactCapturingTool(
+                delegate = nestedAgentic,
+                artifacts = artifacts,
+                captureNestedArtifacts = false
+            )
+
+            // The wrapper should detect that delegate is AgenticTool and skip capturing
+            assertTrue(wrapper.shouldSkipCapture())
+        }
+
+        @Test
+        fun `ArtifactCapturingTool with captureNestedArtifacts=true captures AgenticTool artifacts`() {
+            val nestedAgentic = AgenticTool("nested", "Nested agentic")
+                .withTools(artifactTool)
+
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(
+                delegate = nestedAgentic,
+                artifacts = artifacts,
+                captureNestedArtifacts = true
+            )
+
+            assertFalse(wrapper.shouldSkipCapture())
+        }
+
+        @Test
+        fun `ArtifactCapturingTool always captures from non-AgenticTool delegates`() {
+            val artifacts = mutableListOf<Any>()
+            val wrapper = ArtifactCapturingTool(
+                delegate = artifactTool,
+                artifacts = artifacts,
+                captureNestedArtifacts = false // Even with false, regular tools are captured
+            )
+
+            assertFalse(wrapper.shouldSkipCapture())
+        }
+    }
 }

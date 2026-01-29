@@ -39,6 +39,9 @@ typealias SystemPromptCreator = (AgentProcess) -> String
  * @param tools Sub-tools available for the LLM to orchestrate
  * @param systemPromptCreator Create prompt for the LLM to use.
  * Specify to customize behavior
+ * @param captureNestedArtifacts Whether to capture artifacts from nested AgenticTools.
+ * Default is false, meaning only artifacts from leaf tools are captured.
+ * Set to true to capture all artifacts including those from nested agentic sub-tools.
  */
 data class AgenticTool(
     override val definition: Tool.Definition,
@@ -46,6 +49,7 @@ data class AgenticTool(
     val llm: LlmOptions = LlmOptions(),
     val tools: List<Tool> = emptyList(),
     val systemPromptCreator: SystemPromptCreator = { defaultSystemPrompt(definition.description) },
+    val captureNestedArtifacts: Boolean = false,
 ) : Tool {
 
     /**
@@ -89,7 +93,11 @@ data class AgenticTool(
         // Wrap tools to capture any artifacts they produce
         val artifacts = mutableListOf<Any>()
         val wrappedTools = tools.map { tool ->
-            ArtifactCapturingTool(tool, artifacts)
+            ArtifactCapturingTool(
+                delegate = tool,
+                artifacts = artifacts,
+                captureNestedArtifacts = captureNestedArtifacts,
+            )
         }
 
         val ai = executingOperationContextFor(agentProcess).ai()
@@ -138,6 +146,15 @@ data class AgenticTool(
     )
 
     /**
+     * Create a copy with different captureNestedArtifacts setting.
+     * When false (default), artifacts from nested AgenticTools are not captured.
+     * When true, all artifacts are captured including those from nested agentic sub-tools.
+     */
+    fun withCaptureNestedArtifacts(capture: Boolean): AgenticTool = copy(
+        captureNestedArtifacts = capture,
+    )
+
+    /**
      * Create a copy with tools extracted from an object with @LlmTool methods.
      * If the object has no @LlmTool methods, returns this unchanged.
      */
@@ -176,18 +193,31 @@ data class AgenticTool(
 /**
  * Tool wrapper that captures artifacts from [Tool.Result.WithArtifact] results.
  * Used internally by [AgenticTool] to collect artifacts produced by sub-tools.
+ *
+ * @param delegate The tool to wrap
+ * @param artifacts Shared list to collect artifacts into
+ * @param captureNestedArtifacts When false, artifacts from nested AgenticTools are skipped
  */
 internal class ArtifactCapturingTool(
     override val delegate: Tool,
     private val artifacts: MutableList<Any>,
+    private val captureNestedArtifacts: Boolean = false,
 ) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
+    /**
+     * Check if artifact capture should be skipped for this delegate.
+     * Returns true if delegate is an AgenticTool and captureNestedArtifacts is false.
+     */
+    fun shouldSkipCapture(): Boolean {
+        return !captureNestedArtifacts && delegate is AgenticTool
+    }
+
     override fun call(input: String): Tool.Result {
         val result = delegate.call(input)
-        if (result is Tool.Result.WithArtifact) {
+        if (result is Tool.Result.WithArtifact && !shouldSkipCapture()) {
             artifacts.add(result.artifact)
             loggerFor<ArtifactCapturingTool>().debug(
                 "Captured artifact of type {} from tool '{}'",

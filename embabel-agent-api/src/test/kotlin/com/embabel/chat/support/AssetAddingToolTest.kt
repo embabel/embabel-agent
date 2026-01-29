@@ -434,6 +434,194 @@ class AssetAddingToolTest {
             // Result should still be returned with artifact
             assertThat(result).isInstanceOf(Tool.Result.WithArtifact::class.java)
         }
+
+        @Test
+        fun `addAnyReturnedAssets with filter applies filter to all tools`() {
+            val tracker = InMemoryAssetTracker()
+            val goodAsset1 = TestAsset("good-1")
+            val badAsset = TestAsset("bad-1")
+            val goodAsset2 = TestAsset("good-2")
+
+            val tool1 = Tool.of("tool1", "First") { _ -> Tool.Result.withArtifact("1", goodAsset1) }
+            val tool2 = Tool.of("tool2", "Second") { _ -> Tool.Result.withArtifact("2", badAsset) }
+            val tool3 = Tool.of("tool3", "Third") { _ -> Tool.Result.withArtifact("3", goodAsset2) }
+
+            val filter = java.util.function.Predicate<Asset> { it.id.startsWith("good") }
+            val wrappedTools = tracker.addAnyReturnedAssets(listOf(tool1, tool2, tool3), filter)
+
+            wrappedTools.forEach { it.call("{}") }
+
+            assertThat(tracker.assets).hasSize(2)
+            assertThat(tracker.assets.map { it.id }).containsExactly("good-1", "good-2")
+        }
+    }
+
+    @Nested
+    inner class ArtifactFiltering {
+
+        @Test
+        fun `artifactFilter defaults to accepting all`() {
+            val tracker = InMemoryAssetTracker()
+            val testAsset = TestAsset("asset-123")
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", testAsset)
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+                // Default filter accepts all
+            )
+
+            assetAddingTool.call("{}")
+
+            assertThat(tracker.assets).hasSize(1)
+        }
+
+        @Test
+        fun `artifactFilter can reject artifacts`() {
+            val tracker = InMemoryAssetTracker()
+            val testAsset = TestAsset("rejected-asset")
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", testAsset)
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+                artifactFilter = { false } // Reject all
+            )
+
+            assetAddingTool.call("{}")
+
+            assertThat(tracker.assets).isEmpty()
+        }
+
+        @Test
+        fun `artifactFilter can filter by asset properties`() {
+            val tracker = InMemoryAssetTracker()
+            val acceptedAsset = TestAsset("accepted-asset")
+            val rejectedAsset = TestAsset("rejected-asset")
+
+            val tool1 = Tool.of("test1", "Test") { _ ->
+                Tool.Result.withArtifact("content", acceptedAsset)
+            }
+            val tool2 = Tool.of("test2", "Test") { _ ->
+                Tool.Result.withArtifact("content", rejectedAsset)
+            }
+
+            val filter: (Asset) -> Boolean = { asset ->
+                asset.id.startsWith("accepted")
+            }
+
+            val wrapped1 = AssetAddingTool(
+                delegate = tool1,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+                artifactFilter = filter
+            )
+            val wrapped2 = AssetAddingTool(
+                delegate = tool2,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+                artifactFilter = filter
+            )
+
+            wrapped1.call("{}")
+            wrapped2.call("{}")
+
+            assertThat(tracker.assets).hasSize(1)
+            assertThat(tracker.assets[0].id).isEqualTo("accepted-asset")
+        }
+
+        @Test
+        fun `artifactFilter applies to each item in iterable`() {
+            val tracker = InMemoryAssetTracker()
+            val asset1 = TestAsset("keep-1")
+            val asset2 = TestAsset("reject-2")
+            val asset3 = TestAsset("keep-3")
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", listOf(asset1, asset2, asset3))
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+                artifactFilter = { asset -> asset.id.startsWith("keep") }
+            )
+
+            assetAddingTool.call("{}")
+
+            assertThat(tracker.assets).hasSize(2)
+            assertThat(tracker.assets.map { it.id }).containsExactly("keep-1", "keep-3")
+        }
+
+        @Test
+        fun `AssetTracker addReturnedAssets with filter works correctly`() {
+            val tracker = InMemoryAssetTracker()
+            val acceptedAsset = TestAsset("good-asset")
+            val rejectedAsset = TestAsset("bad-asset")
+
+            val tool1 = Tool.of("producer1", "Produces good") { _ ->
+                Tool.Result.withArtifact("good", acceptedAsset)
+            }
+            val tool2 = Tool.of("producer2", "Produces bad") { _ ->
+                Tool.Result.withArtifact("bad", rejectedAsset)
+            }
+
+            val filter = java.util.function.Predicate<Asset> { asset -> asset.id.startsWith("good") }
+
+            val wrapped1 = tracker.addReturnedAssets(tool1, filter)
+            val wrapped2 = tracker.addReturnedAssets(tool2, filter)
+
+            wrapped1.call("{}")
+            wrapped2.call("{}")
+
+            assertThat(tracker.assets).hasSize(1)
+            assertThat(tracker.assets[0].id).isEqualTo("good-asset")
+        }
+
+        @Test
+        fun `filter is applied after type check`() {
+            val tracker = InMemoryAssetTracker()
+
+            data class NotAnAsset(val value: String)
+
+            // This should never reach the filter because type check fails first
+            var filterCalled = false
+            val filter: (Asset) -> Boolean = { _ ->
+                filterCalled = true
+                true
+            }
+
+            val delegateTool = Tool.of("test", "Test") { _ ->
+                Tool.Result.withArtifact("content", NotAnAsset("not-an-asset"))
+            }
+
+            val assetAddingTool = AssetAddingTool(
+                delegate = delegateTool,
+                assetTracker = tracker,
+                converter = { it },
+                clazz = Asset::class.java,
+                artifactFilter = filter
+            )
+
+            assetAddingTool.call("{}")
+
+            assertThat(filterCalled).isFalse()
+            assertThat(tracker.assets).isEmpty()
+        }
     }
 }
 

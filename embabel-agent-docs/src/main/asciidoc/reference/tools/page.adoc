@@ -976,6 +976,96 @@ The available modification methods are:
 - `withToolObjects(vararg Any)`: Add tools from multiple annotated objects
 - `withSystemPrompt(String)`: Set a fixed system prompt
 - `withSystemPromptCreator((AgentProcess) -> String)`: Set a dynamic prompt based on runtime context
+- `withCaptureNestedArtifacts(Boolean)`: Control whether artifacts from nested `AgenticTool` calls are captured (default: `false`)
+
+[[reference.tools__agentic-tools-artifact-capture]]
+===== Controlling Artifact Capture in Nested Agentic Tools
+
+When an `AgenticTool` orchestrates other tools, those sub-tools may return artifacts (via `Tool.Result.WithArtifact`).
+By default, artifacts from nested `AgenticTool` calls are *not* captured—only the final result from the outermost agentic tool is returned.
+
+This prevents intermediate artifacts from bubbling up when you only care about the final result.
+For example, if an outer `assembleConcert` tool calls an inner `findPerformances` tool, you typically want only the final `Concert` artifact, not all the intermediate `Performance` artifacts.
+
+Use `withCaptureNestedArtifacts(true)` if you need to capture artifacts from nested agentic tools:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Default: nested artifacts are NOT captured
+AgenticTool concertAssembler = new AgenticTool("assembleConcert", "Assemble a concert program")
+    .withTools(findPerformancesTool, createConcertTool);
+// Only the Concert artifact from createConcert is returned
+
+// Opt-in: capture all nested artifacts
+AgenticTool fullCapture = concertAssembler.withCaptureNestedArtifacts(true);
+// Both Performance artifacts from findPerformances AND Concert from createConcert are captured
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Default: nested artifacts are NOT captured
+val concertAssembler = AgenticTool("assembleConcert", "Assemble a concert program")
+    .withTools(findPerformancesTool, createConcertTool)
+// Only the Concert artifact from createConcert is returned
+
+// Opt-in: capture all nested artifacts
+val fullCapture = concertAssembler.withCaptureNestedArtifacts(true)
+// Both Performance artifacts from findPerformances AND Concert from createConcert are captured
+----
+====
+
+IMPORTANT: This setting only affects artifacts from nested `AgenticTool` calls.
+Artifacts from regular (non-agentic) tools are always captured.
+
+[[reference.tools__artifact-filtering]]
+===== Filtering Artifacts for Asset Tracking
+
+When using tools with an `AssetTracker` (common in chat applications), you can filter which artifacts become tracked assets.
+The `addReturnedAssets` and `addAnyReturnedAssets` methods accept a `Predicate<Asset>` filter that works with both Java and Kotlin:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Track only assets that pass the filter
+Tool wrapped = assetTracker.addReturnedAssets(concertTool, asset -> {
+    // Only track concerts with at least 3 works
+    return asset instanceof Concert concert && concert.getWorks().size() >= 3;
+});
+
+// Apply the same filter to multiple tools
+List<Tool> wrappedTools = assetTracker.addAnyReturnedAssets(
+    List.of(tool1, tool2, tool3),
+    asset -> asset.getId().startsWith("important-")
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Track only assets that pass the filter
+val wrapped = assetTracker.addReturnedAssets(concertTool) { asset ->
+    // Only track concerts with at least 3 works
+    asset is Concert && asset.works.size >= 3
+}
+
+// Apply the same filter to multiple tools
+val wrappedTools = assetTracker.addAnyReturnedAssets(
+    listOf(tool1, tool2, tool3)
+) { asset -> asset.id.startsWith("important-") }
+----
+====
+
+The filter is applied after type matching, so you can use type-specific criteria to decide which artifacts are worth tracking.
 
 [[reference.tools__agentic-tools-migration]]
 ===== Migration from Other Frameworks

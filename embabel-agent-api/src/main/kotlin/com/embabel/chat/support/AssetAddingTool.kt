@@ -30,12 +30,15 @@ import org.slf4j.LoggerFactory
  * @param assetTracker The asset tracker to add assets to
  * @param converter Function to convert from T to Asset
  * @param clazz The class of T
+ * @param artifactFilter Optional filter to decide which artifacts become assets.
+ * Default accepts all artifacts of the matching type.
  */
 class AssetAddingTool<T>(
     override val delegate: Tool,
     val assetTracker: AssetTracker,
     val converter: (T) -> Asset,
     val clazz: Class<T>,
+    val artifactFilter: (T) -> Boolean = { true },
 ) : DelegatingTool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -46,16 +49,19 @@ class AssetAddingTool<T>(
             is Tool.Result.WithArtifact -> {
                 val artifact = result.artifact
                 when {
-                    // Handle Iterable<T> - unwrap and add all items
+                    // Handle Iterable<T> - unwrap and add all items that pass the filter
                     artifact is Iterable<*> -> {
-                        artifact.filterIsInstance(clazz).forEach { item ->
+                        artifact.filterIsInstance(clazz).filter(artifactFilter).forEach { item ->
                             addAsset(item)
                         }
                     }
                     // Handle single item of type T
                     clazz.isInstance(artifact) -> {
                         @Suppress("UNCHECKED_CAST")
-                        addAsset(artifact as T)
+                        val typedArtifact = artifact as T
+                        if (artifactFilter(typedArtifact)) {
+                            addAsset(typedArtifact)
+                        }
                     }
                 }
             }
