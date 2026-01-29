@@ -38,12 +38,29 @@ import kotlin.reflect.full.hasAnnotation
  * - Grouping related tools under a category facade
  * - Progressive disclosure based on LLM intent
  *
+ * ## Context Preservation
+ *
+ * When a MatryoshkaTool is expanded (via [MatryoshkaToolInjectionStrategy][com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy]),
+ * a context tool is created that preserves the parent's description and optional usage notes.
+ * This solves the problem where child tools would lose context about the parent's purpose.
+ *
+ * For example, a "spotify_search" tool with description "Search Spotify for music data"
+ * that contains vector_search, text_search, and regex_search tools. Without context preservation,
+ * the LLM would only see three generic search tools. With the context tool, it also sees
+ * "spotify_search_context" which explains these are Spotify music search tools.
+ *
+ * The [childToolUsageNotes] field provides additional guidance on how to use the child tools,
+ * included only once in the context tool rather than duplicated in each child tool's description.
+ *
  * Example:
  * ```kotlin
- * val databaseTool = MatryoshkaTool.of(
- *     name = "database_operations",
- *     description = "Use this to work with the database. Invoke to see specific operations.",
- *     innerTools = listOf(queryTableTool, insertRecordTool, updateRecordTool)
+ * val spotifyTool = MatryoshkaTool.of(
+ *     name = "spotify_search",
+ *     description = "Search Spotify for music data including artists, albums, and tracks.",
+ *     innerTools = listOf(vectorSearchTool, textSearchTool, regexSearchTool),
+ *     childToolUsageNotes = "Try vector search first for semantic queries like 'upbeat jazz'. " +
+ *         "Use text search for exact artist or album names. " +
+ *         "Use regex search for pattern matching on metadata."
  * )
  * ```
  *
@@ -55,6 +72,11 @@ interface MatryoshkaTool : Tool {
      * The inner tools that will be exposed when this tool is invoked.
      */
     val innerTools: List<Tool>
+
+    /**
+     * Optional usage notes to guide the LLM on when to invoke the child tools.
+     */
+    val childToolUsageNotes: String? get() = null
 
     /**
      * Whether to remove this MatryoshkaTool after invocation.
@@ -85,6 +107,7 @@ interface MatryoshkaTool : Tool {
          * @param description Description explaining when to use this tool category
          * @param innerTools The tools to expose when invoked
          * @param removeOnInvoke Whether to remove this tool after invocation (default true)
+         * @param childToolUsageNotes Optional notes to guide LLM on using the child tools
          */
         @JvmStatic
         @JvmOverloads
@@ -93,6 +116,7 @@ interface MatryoshkaTool : Tool {
             description: String,
             innerTools: List<Tool>,
             removeOnInvoke: Boolean = true,
+            childToolUsageNotes: String? = null,
         ): MatryoshkaTool = SimpleMatryoshkaTool(
             definition = Tool.Definition(
                 name = name,
@@ -101,6 +125,7 @@ interface MatryoshkaTool : Tool {
             ),
             innerTools = innerTools,
             removeOnInvoke = removeOnInvoke,
+            childToolUsageNotes = childToolUsageNotes,
         )
 
         /**
@@ -134,6 +159,7 @@ interface MatryoshkaTool : Tool {
          * @param innerTools All possible inner tools
          * @param inputSchema Schema describing the selection parameters
          * @param removeOnInvoke Whether to remove this tool after invocation
+         * @param childToolUsageNotes Optional notes to guide LLM on using the child tools
          * @param selector Function to select tools based on input
          */
         @JvmStatic
@@ -144,6 +170,7 @@ interface MatryoshkaTool : Tool {
             innerTools: List<Tool>,
             inputSchema: Tool.InputSchema,
             removeOnInvoke: Boolean = true,
+            childToolUsageNotes: String? = null,
             selector: (String) -> List<Tool>,
         ): MatryoshkaTool = SelectableMatryoshkaTool(
             definition = Tool.Definition(
@@ -153,6 +180,7 @@ interface MatryoshkaTool : Tool {
             ),
             innerTools = innerTools,
             removeOnInvoke = removeOnInvoke,
+            childToolUsageNotes = childToolUsageNotes,
             selector = selector,
         )
 
@@ -164,6 +192,7 @@ interface MatryoshkaTool : Tool {
          * @param toolsByCategory Map of category names to their tools
          * @param categoryParameter Name of the category parameter (default "category")
          * @param removeOnInvoke Whether to remove this tool after invocation
+         * @param childToolUsageNotes Optional notes to guide LLM on using the child tools
          */
         @JvmStatic
         @JvmOverloads
@@ -173,6 +202,7 @@ interface MatryoshkaTool : Tool {
             toolsByCategory: Map<String, List<Tool>>,
             categoryParameter: String = "category",
             removeOnInvoke: Boolean = true,
+            childToolUsageNotes: String? = null,
         ): MatryoshkaTool {
             val allTools = toolsByCategory.values.flatten()
             val categoryNames = toolsByCategory.keys.toList()
@@ -192,6 +222,7 @@ interface MatryoshkaTool : Tool {
                 ),
                 innerTools = allTools,
                 removeOnInvoke = removeOnInvoke,
+                childToolUsageNotes = childToolUsageNotes,
                 selector = { input ->
                     val category = extractCategory(input, categoryParameter)
                     toolsByCategory[category] ?: allTools
@@ -283,7 +314,7 @@ interface MatryoshkaTool : Tool {
             if (toolMethods.isEmpty() && nestedMatryoshkaTools.isEmpty()) {
                 throw IllegalArgumentException(
                     "Class ${klass.simpleName} has no methods annotated with @LlmTool " +
-                        "and no inner classes annotated with @MatryoshkaTools"
+                            "and no inner classes annotated with @MatryoshkaTools"
                 )
             }
 
@@ -330,6 +361,7 @@ interface MatryoshkaTool : Tool {
                     toolsByCategory = toolsByCategory,
                     categoryParameter = annotation.categoryParameter,
                     removeOnInvoke = annotation.removeOnInvoke,
+                    childToolUsageNotes = annotation.childToolUsageNotes.takeIf { it.isNotEmpty() },
                 )
             } else {
                 // No categories - create simple MatryoshkaTool
@@ -345,6 +377,7 @@ interface MatryoshkaTool : Tool {
                     description = annotation.description,
                     innerTools = uncategorizedTools,
                     removeOnInvoke = annotation.removeOnInvoke,
+                    childToolUsageNotes = annotation.childToolUsageNotes.takeIf { it.isNotEmpty() },
                 )
             }
         }
@@ -427,6 +460,7 @@ private class SimpleMatryoshkaTool(
     override val definition: Tool.Definition,
     override val innerTools: List<Tool>,
     override val removeOnInvoke: Boolean,
+    override val childToolUsageNotes: String? = null,
 ) : MatryoshkaTool {
 
     override fun call(input: String): Tool.Result {
@@ -444,6 +478,7 @@ private class SelectableMatryoshkaTool(
     override val definition: Tool.Definition,
     override val innerTools: List<Tool>,
     override val removeOnInvoke: Boolean,
+    override val childToolUsageNotes: String? = null,
     private val selector: (String) -> List<Tool>,
 ) : MatryoshkaTool {
 

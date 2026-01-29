@@ -97,6 +97,35 @@ class MatryoshkaToolTest {
             val selected = matryoshka.selectTools("{}")
             assertEquals(2, selected.size)
         }
+
+        @Test
+        fun `of creates tool with childToolUsageNotes`() {
+            val innerTool = MockTool("search", "Search") { Tool.Result.text("results") }
+
+            val matryoshka = MatryoshkaTool.of(
+                name = "data_tools",
+                description = "Tools for data access",
+                innerTools = listOf(innerTool),
+                childToolUsageNotes = "Try semantic search first before falling back to keyword search.",
+            )
+
+            assertEquals("data_tools", matryoshka.definition.name)
+            assertEquals("Try semantic search first before falling back to keyword search.",
+                matryoshka.childToolUsageNotes)
+        }
+
+        @Test
+        fun `childToolUsageNotes defaults to null when not specified`() {
+            val innerTool = MockTool("tool", "Tool") { Tool.Result.text("result") }
+
+            val matryoshka = MatryoshkaTool.of(
+                name = "simple",
+                description = "Simple tool",
+                innerTools = listOf(innerTool),
+            )
+
+            assertNull(matryoshka.childToolUsageNotes)
+        }
     }
 
     @Nested
@@ -503,6 +532,118 @@ class MatryoshkaToolTest {
             // No context tool when no inner tools
             assertTrue(result.toolsToAdd.isEmpty())
         }
+
+        @Test
+        fun `context tool includes childToolUsageNotes in description`() {
+            val vectorSearch = MockTool("vector_search", "Semantic search") { Tool.Result.text("[]") }
+            val textSearch = MockTool("text_search", "Exact match search") { Tool.Result.text("[]") }
+            val matryoshka = MatryoshkaTool.of(
+                name = "spotify_search",
+                description = "Search Spotify for music data",
+                innerTools = listOf(vectorSearch, textSearch),
+                childToolUsageNotes = "Try vector search first for semantic queries. Use text search for exact matches.",
+            )
+
+            val context = ToolInjectionContext(
+                conversationHistory = emptyList(),
+                currentTools = listOf(matryoshka),
+                lastToolCall = ToolCallResult(
+                    toolName = "spotify_search",
+                    toolInput = "{}",
+                    result = "Enabled 2 tools: vector_search, text_search",
+                    resultObject = null,
+                ),
+                iterationCount = 1,
+            )
+
+            val strategy = MatryoshkaToolInjectionStrategy()
+            val result = strategy.evaluate(context)
+
+            val contextTool = result.toolsToAdd.find { it.definition.name == "spotify_search_context" }!!
+            val description = contextTool.definition.description
+
+            // Should contain parent description, tool list, and usage notes
+            assertTrue(description.contains("Search Spotify for music data"),
+                "Context tool description should contain parent description")
+            assertTrue(description.contains("vector_search"), "Description should list vector_search")
+            assertTrue(description.contains("text_search"), "Description should list text_search")
+            assertTrue(description.contains("Try vector search first"),
+                "Description should include childToolUsageNotes")
+        }
+
+        @Test
+        fun `context tool returns usage notes when called`() {
+            val vectorSearch = MockTool("vector_search", "Semantic search using embeddings") { Tool.Result.text("[]") }
+            val textSearch = MockTool("text_search", "Exact match text search") { Tool.Result.text("[]") }
+            val matryoshka = MatryoshkaTool.of(
+                name = "music_search",
+                description = "Search music database",
+                innerTools = listOf(vectorSearch, textSearch),
+                childToolUsageNotes = "Prefer vector search for natural language queries.",
+            )
+
+            val context = ToolInjectionContext(
+                conversationHistory = emptyList(),
+                currentTools = listOf(matryoshka),
+                lastToolCall = ToolCallResult(
+                    toolName = "music_search",
+                    toolInput = "{}",
+                    result = "Enabled 2 tools",
+                    resultObject = null,
+                ),
+                iterationCount = 1,
+            )
+
+            val strategy = MatryoshkaToolInjectionStrategy()
+            val result = strategy.evaluate(context)
+
+            val contextTool = result.toolsToAdd.find { it.definition.name == "music_search_context" }!!
+            val callResult = contextTool.call("{}")
+
+            assertTrue(callResult is Tool.Result.Text)
+            val content = (callResult as Tool.Result.Text).content
+
+            // Should contain tool details and usage notes
+            assertTrue(content.contains("vector_search"), "Should mention vector_search")
+            assertTrue(content.contains("Semantic search using embeddings"), "Should include tool description")
+            assertTrue(content.contains("Prefer vector search"), "Should include usage notes when called")
+        }
+
+        @Test
+        fun `context tool omits usage notes section when childToolUsageNotes is null`() {
+            val tool1 = MockTool("tool1", "First tool") { Tool.Result.text("1") }
+            val matryoshka = MatryoshkaTool.of(
+                name = "no_notes",
+                description = "Tools without usage notes",
+                innerTools = listOf(tool1),
+                // childToolUsageNotes not specified, defaults to null
+            )
+
+            val context = ToolInjectionContext(
+                conversationHistory = emptyList(),
+                currentTools = listOf(matryoshka),
+                lastToolCall = ToolCallResult(
+                    toolName = "no_notes",
+                    toolInput = "{}",
+                    result = "Enabled 1 tool",
+                    resultObject = null,
+                ),
+                iterationCount = 1,
+            )
+
+            val strategy = MatryoshkaToolInjectionStrategy()
+            val result = strategy.evaluate(context)
+
+            val contextTool = result.toolsToAdd.find { it.definition.name == "no_notes_context" }!!
+            val callResult = contextTool.call("{}")
+
+            assertTrue(callResult is Tool.Result.Text)
+            val content = (callResult as Tool.Result.Text).content
+
+            // Should NOT contain "Usage notes:" section
+            assertFalse(content.contains("Usage notes:"),
+                "Should not include usage notes section when childToolUsageNotes is null")
+        }
     }
 
     @Nested
@@ -771,6 +912,55 @@ class MatryoshkaToolTest {
 
             assertEquals("persistent_tools", matryoshka.definition.name)
             assertFalse(matryoshka.removeOnInvoke)
+        }
+
+        @Test
+        fun `fromInstance respects childToolUsageNotes annotation attribute`() {
+            val matryoshka = MatryoshkaTool.fromInstance(MusicSearchTools())
+
+            assertEquals("music_search", matryoshka.definition.name)
+            assertEquals("Search music database for artists, albums, and tracks", matryoshka.definition.description)
+            assertEquals(
+                "Try vector search first for semantic queries. Use text search for exact artist names.",
+                matryoshka.childToolUsageNotes
+            )
+        }
+
+        @Test
+        fun `childToolUsageNotes from annotation appears in injected context tool`() {
+            val matryoshka = MatryoshkaTool.fromInstance(MusicSearchTools())
+
+            val context = ToolInjectionContext(
+                conversationHistory = emptyList(),
+                currentTools = listOf(matryoshka),
+                lastToolCall = ToolCallResult(
+                    toolName = "music_search",
+                    toolInput = "{}",
+                    result = "Enabled 2 tools",
+                    resultObject = null,
+                ),
+                iterationCount = 1,
+            )
+
+            val strategy = MatryoshkaToolInjectionStrategy()
+            val result = strategy.evaluate(context)
+
+            val contextTool = result.toolsToAdd.find { it.definition.name == "music_search_context" }!!
+
+            // Description should include parent description and usage notes
+            val description = contextTool.definition.description
+            assertTrue(description.contains("Search music database"),
+                "Description should include parent description")
+            assertTrue(description.contains("Try vector search first"),
+                "Description should include childToolUsageNotes")
+
+            // When called, should return full details with usage notes
+            val callResult = contextTool.call("{}")
+            val content = (callResult as Tool.Result.Text).content
+            assertTrue(content.contains("Usage notes:"),
+                "Call result should include usage notes section")
+            assertTrue(content.contains("Try vector search first"),
+                "Call result should include the actual usage notes")
         }
 
         @Test
@@ -1535,6 +1725,20 @@ class PersistentTools {
 
     @LlmTool(description = "Do something")
     fun doSomething(): String = "done"
+}
+
+@MatryoshkaTools(
+    name = "music_search",
+    description = "Search music database for artists, albums, and tracks",
+    childToolUsageNotes = "Try vector search first for semantic queries. Use text search for exact artist names."
+)
+class MusicSearchTools {
+
+    @LlmTool(description = "Semantic search using embeddings")
+    fun vectorSearch(query: String): String = "Vector search results for: $query"
+
+    @LlmTool(description = "Exact match text search")
+    fun textSearch(query: String): String = "Text search results for: $query"
 }
 
 @MatryoshkaTools(

@@ -1322,6 +1322,67 @@ val combined = ChainedToolInjectionStrategy.withMatryoshka(customStrategy1, cust
 
 This flow reduces the initial tool set complexity while allowing the LLM to access detailed tools when it needs them.
 
+===== Context Preservation and Usage Notes
+
+When a MatryoshkaTool is expanded, its child tools replace the facade.
+Without context preservation, the LLM would lose important information about _why_ these tools are grouped together.
+
+For example, a "spotify_search" tool containing `vector_search`, `text_search`, and `regex_search` would expand to just three generic search tools - the LLM wouldn't know these are specifically for searching Spotify music data.
+
+Embabel solves this by automatically injecting a **context tool** alongside the child tools.
+This context tool:
+
+* Preserves the parent's description ("Search Spotify for music data")
+* Lists the available child tools
+* Includes optional usage notes (via `childToolUsageNotes`)
+
+The `childToolUsageNotes` parameter provides guidance on when and how to use the child tools.
+This guidance appears **once** in the context tool rather than being duplicated in each child tool's description:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+MatryoshkaTool spotifySearch = MatryoshkaTool.of(
+    "spotify_search",
+    "Search Spotify for music data including artists, albums, and tracks.",
+    List.of(vectorSearchTool, textSearchTool, regexSearchTool),
+    true,  // removeOnInvoke
+    "Try vector search first for semantic queries like 'upbeat jazz'. " +
+    "Use text search for exact artist or album names. " +
+    "Use regex search for pattern matching on metadata."
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val spotifySearch = MatryoshkaTool.of(
+    name = "spotify_search",
+    description = "Search Spotify for music data including artists, albums, and tracks.",
+    innerTools = listOf(vectorSearchTool, textSearchTool, regexSearchTool),
+    childToolUsageNotes = """
+        Try vector search first for semantic queries like 'upbeat jazz'.
+        Use text search for exact artist or album names.
+        Use regex search for pattern matching on metadata.
+    """.trimIndent()
+)
+----
+====
+
+After the LLM invokes `spotify_search`, it will see:
+
+* `vector_search` - the actual search tool
+* `text_search` - the actual search tool
+* `regex_search` - the actual search tool
+* `spotify_search_context` - context tool with description and usage notes
+
+The context tool's description includes the original purpose and available tools.
+When called, it returns full details about each child tool plus the usage notes - providing a single reference point without polluting individual tool descriptions.
+
 ===== Annotation-Based MatryoshkaTool
 
 For a more declarative approach, use the `@MatryoshkaTools` class annotation combined with `@LlmTool` method annotations:
@@ -1392,6 +1453,59 @@ class DatabaseTools {
 
 // Create the MatryoshkaTool from the annotated class
 val tool = MatryoshkaTool.fromInstance(DatabaseTools())
+----
+====
+
+You can also specify `childToolUsageNotes` in the annotation to provide guidance on using the child tools:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@MatryoshkaTools(
+    name = "music_search",
+    description = "Search music database for artists, albums, and tracks",
+    childToolUsageNotes = "Try vector search first for semantic queries. " +
+        "Use text search for exact artist names."
+)
+public class MusicSearchTools {
+
+    @LlmTool(description = "Semantic search using embeddings")
+    public List<Track> vectorSearch(String query) {
+        // implementation
+    }
+
+    @LlmTool(description = "Exact match text search")
+    public List<Track> textSearch(String query) {
+        // implementation
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@MatryoshkaTools(
+    name = "music_search",
+    description = "Search music database for artists, albums, and tracks",
+    childToolUsageNotes = "Try vector search first for semantic queries. " +
+        "Use text search for exact artist names."
+)
+class MusicSearchTools {
+
+    @LlmTool(description = "Semantic search using embeddings")
+    fun vectorSearch(query: String): List<Track> {
+        // implementation
+    }
+
+    @LlmTool(description = "Exact match text search")
+    fun textSearch(query: String): List<Track> {
+        // implementation
+    }
+}
 ----
 ====
 

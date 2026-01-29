@@ -98,4 +98,20 @@ annotation class MatryoshkaTools(
      * Default is "category".
      */
     val categoryParameter: String = "category",
+
+    /**
+     * Optional usage notes to guide the LLM on when and how to use the child tools.
+     * These notes are included in the context tool created when the MatryoshkaTool is invoked.
+     *
+     * Example:
+     * ```java
+     * @MatryoshkaTools(
+     *     name = "music_search",
+     *     description = "Tools for searching music data",
+     *     childToolUsageNotes = "Try vector search first for semantic queries. " +
+     *         "Fall back to text search for exact matches."
+     * )
+     * ```
+     */
+    val childToolUsageNotes: String = "",
 )

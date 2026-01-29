@@ -110,21 +110,42 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
     /**
      * Creates a context tool that preserves the parent MatryoshkaTool's description
      * and provides information about the available child tools.
+     *
+     * This solves the problem where child tools would lose context about the parent's purpose.
+     * For example, a "spotify_search" tool containing vector_search, text_search, etc.
+     * Without the context tool, the LLM only sees generic search tools.
+     * With the context tool, it also sees "spotify_search_context" explaining these are
+     * Spotify music search tools, with optional usage notes on when to use each.
      */
     private fun createContextTool(parent: MatryoshkaTool, childTools: List<Tool>): Tool {
         val parentName = parent.definition.name
         val parentDescription = parent.definition.description
         val toolNames = childTools.map { it.definition.name }
+        val usageNotes = parent.childToolUsageNotes
+
+        // Build description: parent description + tool list + optional usage notes
+        val descriptionBuilder = StringBuilder()
+        descriptionBuilder.append(parentDescription)
+        descriptionBuilder.append(". Available: ${toolNames.joinToString(", ")}")
+        if (!usageNotes.isNullOrBlank()) {
+            descriptionBuilder.append(". $usageNotes")
+        }
 
         return Tool.of(
             name = "${parentName}_context",
-            description = "$parentDescription. Available: ${toolNames.joinToString(", ")}",
+            description = descriptionBuilder.toString(),
         ) {
             // When called, return full details about each child tool
-            val details = childTools.joinToString("\n") { tool ->
-                "- ${tool.definition.name}: ${tool.definition.description}"
+            val details = buildString {
+                append("Tools for $parentDescription:\n")
+                childTools.forEach { tool ->
+                    append("- ${tool.definition.name}: ${tool.definition.description}\n")
+                }
+                if (!usageNotes.isNullOrBlank()) {
+                    append("\nUsage notes: $usageNotes")
+                }
             }
-            Tool.Result.text("Tools for $parentDescription:\n$details")
+            Tool.Result.text(details.trim())
         }
     }
 
