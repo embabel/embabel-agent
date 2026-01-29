@@ -23,6 +23,10 @@ import com.embabel.agent.core.ToolGroupPermission
 import com.embabel.agent.spi.common.Constants
 import com.embabel.common.core.types.Semver
 
+/**
+ * Math-related tools. Can be added as a tool group or as an instance
+ * with PromptRunner.withToolObject
+ */
 class MathTools : SelfToolGroup {
 
     override val description: ToolGroupDescription = MATH_DESCRIPTION
