@@ -229,20 +229,20 @@ fun `should include examples in prompt`() {
 }
 ----
 
-**Using ObjectCreationExample for Reusable Examples:**
+**Using CreationExample for Reusable Examples:**
 
-For cleaner code and reusability, you can use the `ObjectCreationExample` data class to define examples that can be shared across tests or passed as collections:
+For cleaner code and reusability, you can use the `CreationExample` data class to define examples that can be shared across tests or passed as collections:
 
 [source,java]
 ----
 @Test
-void shouldUseObjectCreationExampleDataClass() {
+void shouldUseCreationExampleDataClass() {
     var context = FakeOperationContext.create();
     var expectedPlan = new ChannelEditPlan(1, "Lead Vox");
     context.expectResponse(expectedPlan);
 
-    // Create a reusable example using ObjectCreationExample
-    var example = new ObjectCreationExample<>(
+    // Create a reusable example using CreationExample
+    var example = new CreationExample<>(
         "Rename channel example",
         new ChannelEditPlan(2, "Rhythm")
     );
@@ -250,7 +250,7 @@ void shouldUseObjectCreationExampleDataClass() {
     var result = context.ai()
             .withDefaultLlm()
             .creating(ChannelEditPlan.class)
-            .withExample(example)  // Pass the ObjectCreationExample directly
+            .withExample(example)  // Pass the CreationExample directly
             .fromPrompt("Analyze the edit request");
 
     assertEquals(expectedPlan, result);
@@ -260,13 +260,13 @@ void shouldUseObjectCreationExampleDataClass() {
 [source,kotlin]
 ----
 @Test
-fun `should use ObjectCreationExample data class`() {
+fun `should use CreationExample data class`() {
     val context = FakeOperationContext.create()
     val expectedPlan = ChannelEditPlan(1, "Lead Vox")
     context.expectResponse(expectedPlan)
 
-    // Create a reusable example using ObjectCreationExample
-    val example = ObjectCreationExample(
+    // Create a reusable example using CreationExample
+    val example = CreationExample(
         description = "Rename channel example",
         value = ChannelEditPlan(2, "Rhythm")
     )
@@ -274,7 +274,7 @@ fun `should use ObjectCreationExample data class`() {
     val result = context.ai()
         .withDefaultLlm()
         .creating(ChannelEditPlan::class.java)
-        .withExample(example)  // Pass the ObjectCreationExample directly
+        .withExample(example)  // Pass the CreationExample directly
         .fromPrompt("Analyze the edit request")
 
     assertEquals(expectedPlan, result)
@@ -295,10 +295,10 @@ void shouldAddMultipleExamplesFromList() {
 
     // Create a list of examples (could be loaded from configuration)
     var examples = List.of(
-        new ObjectCreationExample<>("Rename to Bass", new ChannelEditPlan(1, "Bass")),
-        new ObjectCreationExample<>("Rename to Drums", new ChannelEditPlan(2, "Drums")),
-        new ObjectCreationExample<>("Rename to Keys", new ChannelEditPlan(3, "Keys")),
-        new ObjectCreationExample<>("Rename to Vocals", new ChannelEditPlan(4, "Vocals"))
+        new CreationExample<>("Rename to Bass", new ChannelEditPlan(1, "Bass")),
+        new CreationExample<>("Rename to Drums", new ChannelEditPlan(2, "Drums")),
+        new CreationExample<>("Rename to Keys", new ChannelEditPlan(3, "Keys")),
+        new CreationExample<>("Rename to Vocals", new ChannelEditPlan(4, "Vocals"))
     );
 
     var result = context.ai()
@@ -326,10 +326,10 @@ fun `should add multiple examples from list`() {
 
     // Create a list of examples (could be loaded from configuration)
     val examples = listOf(
-        ObjectCreationExample("Rename to Bass", ChannelEditPlan(1, "Bass")),
-        ObjectCreationExample("Rename to Drums", ChannelEditPlan(2, "Drums")),
-        ObjectCreationExample("Rename to Keys", ChannelEditPlan(3, "Keys")),
-        ObjectCreationExample("Rename to Vocals", ChannelEditPlan(4, "Vocals"))
+        CreationExample("Rename to Bass", ChannelEditPlan(1, "Bass")),
+        CreationExample("Rename to Drums", ChannelEditPlan(2, "Drums")),
+        CreationExample("Rename to Keys", ChannelEditPlan(3, "Keys")),
+        CreationExample("Rename to Vocals", ChannelEditPlan(4, "Vocals"))
     )
 
     val result = context.ai()
@@ -354,9 +354,9 @@ val result = context.ai()
     .withDefaultLlm()
     .creating(ChannelEditPlan::class.java)
     .withExamples(
-        ObjectCreationExample("Example 1", ChannelEditPlan(1, "Bass")),
-        ObjectCreationExample("Example 2", ChannelEditPlan(2, "Drums")),
-        ObjectCreationExample("Example 3", ChannelEditPlan(3, "Keys"))
+        CreationExample("Example 1", ChannelEditPlan(1, "Bass")),
+        CreationExample("Example 2", ChannelEditPlan(2, "Drums")),
+        CreationExample("Example 3", ChannelEditPlan(3, "Keys"))
     )
     .fromPrompt("Analyze the request")
 ----

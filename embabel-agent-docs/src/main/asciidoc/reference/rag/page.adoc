@@ -281,7 +281,7 @@ void respond(Conversation conversation, ActionContext context) {
     var assistantMessage = context.ai()
             .withLlm(properties.chatLlm())
             .withReference(toolishRag)
-            .withTemplate("ragbot")
+            .rendering("ragbot")
             .respondWithSystemPrompt(conversation, Map.of(
                     "properties", properties
             ));
@@ -611,7 +611,7 @@ void respond(Conversation conversation, ActionContext context) {
 
     context.ai()
         .withReference(userScopedRag)
-        .withTemplate("assistant")
+        .rendering("assistant")
         .respondWithSystemPrompt(conversation, Map.of());
 }
 ----

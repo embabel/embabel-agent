@@ -85,7 +85,7 @@ TIP: Normally you want to use one of the `createObject` methods to ensure the re
 
 **Returning a Specific Type**
 
-- `creating(Class<T>)`: Go into the `ObjectCreator` fluent API for returning a particular type.
+- `creating(Class<T>)`: Go into the `Creating` fluent API for returning a particular type.
 
 For example:
 
@@ -130,7 +130,7 @@ var answer = context.ai()
 
 **Advanced Features:**
 
-- `withTemplate(String)`: Use <<reference.templates, Jinja>> templates for prompts
+- `rendering(String)`: Use <<reference.templates, Jinja>> templates for prompts (returns `Rendering` interface)
 - `withSubagents(Subagent...)`: Enable handoffs to other agents
 - `evaluateCondition(String, String)`: Evaluate boolean condition
 

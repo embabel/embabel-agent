@@ -21,7 +21,7 @@ An even more important use case arises when the LLM cannot fulfill a request—f
 - `ThinkingTagType` — An enum defining the types of reasoning markers: `TAG` (XML-style tags like `<think>`), `PREFIX` (line prefixes like `//THINKING:`), and `NO_PREFIX` (untagged reasoning text before JSON output).
 - `ThinkingResponse<T>` — A response wrapper that holds both the result object and a list of `ThinkingBlock` instances.
 - `ThinkingException` — An exception that preserves thinking blocks when object instantiation fails, enabling debugging even in error scenarios.
-- `withThinking()` — The core `PromptRunner` API method that enables thinking extraction.
+- `thinking()` — The core `PromptRunner` API method that enables thinking extraction.
 
 
 ==== Example: Handling Objects and Thinking Blocks
@@ -37,9 +37,9 @@ String prompt = """
     Please provide a detailed analysis of your reasoning.
     """;
 
-// Use withThinking() to enable thinking block extraction
+// Use thinking() to enable thinking block extraction
 ThinkingResponse<MonthItem> response = runner
-        .withThinking()
+        .thinking()
         .createObject(prompt, MonthItem.class);
 
 // Access the structured result
@@ -63,7 +63,7 @@ Use `createObjectIfPossible` when the LLM might not be able to produce a valid r
 [source,java]
 ----
 ThinkingResponse<MonthItem> response = runner
-        .withThinking()
+        .thinking()
         .createObjectIfPossible(prompt, MonthItem.class);
 
 MonthItem result = response.getResult();

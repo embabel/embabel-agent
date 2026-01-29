@@ -20,7 +20,7 @@ Guardrails can be implemented as POJOs or Spring beans that implement Embabel's 
 Common use cases for guardrails:
 
 - **Input validation**: Validate user prompts with common, streaming, or thinking prompt runners
-- **Response validation with thinking**: The `withThinking` API (see <<_example__simple_streaming_with_callbacks>>) provides access to LLM thinking blocks, even when the LLM cannot construct an object
+- **Response validation with thinking**: The thinking API (see <<_example__simple_streaming_with_callbacks>>) provides access to LLM thinking blocks, even when the LLM cannot construct an object
 - **Object response validation**: When the LLM constructs an object, you can still validate the output (the content being validated is the object's JSON representation)
 - **Streaming validation**: In streaming mode, `StreamingEvent.Thinking` provides direct access to LLM reasoning content via the `doOnNext` callback (see <<reference.streaming>>)
 
@@ -174,7 +174,7 @@ String prompt = """
 try {
     // Attempt to create an object with thinking
     ThinkingResponse<MonthItem> response = runner
-            .withThinking()
+            .thinking()
             .createObject(prompt, MonthItem.class);
 } catch (GuardRailViolationException ex) {
     // CRITICAL validation errors cause this exception to be thrown,
@@ -231,7 +231,7 @@ String prompt = "Think about the coldest month in Alaska and its temperature. Pr
 
 // Use createObjectIfPossible to handle cases where object creation may fail
 ThinkingResponse<MonthItem> response = runner
-        .withThinking()
+        .thinking()
         .createObjectIfPossible(prompt, MonthItem.class);
 
 // The LLM may not be able to construct an object if the prompt is ambiguous
