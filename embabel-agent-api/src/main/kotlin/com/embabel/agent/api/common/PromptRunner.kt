@@ -196,9 +196,20 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         toolGroups.fold(this) { acc, toolGroup -> acc.withToolGroup(toolGroup) }
 
     /**
+     * Add tool groups to the PromptRunner by name (varargs version).
+     * @param toolGroups the tool group names to add
+     */
+    fun withToolGroups(vararg toolGroups: String): PromptRunner =
+        withToolGroups(toolGroups.toSet())
+
+    /**
      * Add a set of tool groups to the PromptRunner
      * @param toolGroups the set of named tool groups to add
      */
+    @Deprecated(
+        message = "Use withToolGroups() instead for tool group names",
+        replaceWith = ReplaceWith("withToolGroups(*toolGroups)"),
+    )
     fun withTools(vararg toolGroups: String): PromptRunner =
         withToolGroups(toolGroups.toSet())
 
@@ -226,11 +237,26 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         toolObject: ToolObject,
     ): PromptRunner
 
+    @Deprecated(
+        message = "Use withToolObjects() instead",
+        replaceWith = ReplaceWith("withToolObjects(*toolObjects)"),
+    )
     fun withToolObjectInstances(vararg toolObjects: Any?): PromptRunner =
         toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
 
     fun withToolObjects(toolObjects: List<Any>): PromptRunner =
         toolObjects.fold(this) { acc, toolObject -> acc.withToolObject(toolObject) }
+
+    /**
+     * Add multiple tool objects to the prompt runner.
+     * Uses required first parameter to avoid ambiguity.
+     *
+     * @param toolObject the first tool object to add (required)
+     * @param toolObjects additional tool objects to add
+     * @return PromptRunner instance with the added tool objects
+     */
+    fun withToolObjects(toolObject: Any, vararg toolObjects: Any): PromptRunner =
+        withToolObjects(listOf(toolObject) + toolObjects.toList())
 
     /**
      * Add a framework-agnostic [Tool] to the prompt runner.
@@ -255,8 +281,23 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
      * @param tools the tools to add
      * @return PromptRunner instance with the added tools
      */
+    @Deprecated(
+        message = "Use withTools(tool, *tools) instead",
+        replaceWith = ReplaceWith("withTools(tools[0], *tools.drop(1).toTypedArray())"),
+    )
     fun withFunctionTools(vararg tools: Tool): PromptRunner =
         withTools(tools.toList())
+
+    /**
+     * Add multiple framework-agnostic [Tool]s to the prompt runner.
+     * Uses required first parameter to avoid ambiguity with [withTools] for tool group names.
+     *
+     * @param tool the first tool to add (required)
+     * @param tools additional tools to add
+     * @return PromptRunner instance with the added tools
+     */
+    fun withTools(tool: Tool, vararg tools: Tool): PromptRunner =
+        withTools(listOf(tool) + tools.toList())
 
     /**
      * Add a reference which provides tools and prompt contribution.
