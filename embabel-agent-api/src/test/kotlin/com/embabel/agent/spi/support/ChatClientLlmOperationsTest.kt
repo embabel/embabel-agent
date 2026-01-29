@@ -809,6 +809,195 @@ class ChatClientLlmOperationsTest {
         }
     }
 
+    /**
+     * Tests for proper system message ordering.
+     * Validates fix for GitHub issue #1295: System messages should be consolidated
+     * at the beginning of the conversation, not scattered throughout.
+     * This is required for:
+     * - OpenAI best practices (prevents instruction drift)
+     * - DeepSeek compatibility (strict message ordering requirements)
+     * - General cross-model reliability
+     */
+    @Nested
+    inner class SystemMessageOrdering {
+
+        @Test
+        fun `system message appears only at the beginning of prompt`() {
+            val duke = Dog("Duke")
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(duke))
+
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            setup.llmOperations.createObject(
+                messages = listOf(UserMessage("Give me a dog named Duke")),
+                interaction = LlmInteraction(
+                    id = InteractionId("system-ordering-test"),
+                    llm = LlmOptions()
+                ),
+                outputClass = Dog::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            assertEquals(1, fakeChatModel.promptsPassed.size)
+            val prompt = fakeChatModel.promptsPassed[0]
+            val messages = prompt.instructions
+
+            // Count system messages
+            val systemMessages = messages.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
+            assertTrue(
+                systemMessages.size <= 1,
+                "Should have at most one system message, but found ${systemMessages.size}"
+            )
+
+            // If there's a system message, it should be first
+            if (systemMessages.isNotEmpty()) {
+                assertTrue(
+                    messages.first() is org.springframework.ai.chat.messages.SystemMessage,
+                    "System message should be at the beginning of the prompt"
+                )
+            }
+        }
+
+        @Test
+        fun `schema format is included in system message not appended after`() {
+            val duke = Dog("Duke")
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(duke))
+
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            setup.llmOperations.createObject(
+                messages = listOf(UserMessage("Give me a dog")),
+                interaction = LlmInteraction(
+                    id = InteractionId("schema-in-system-test"),
+                    llm = LlmOptions()
+                ),
+                outputClass = Dog::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            val prompt = fakeChatModel.promptsPassed[0]
+            val messages = prompt.instructions
+
+            // The schema format (containing $schema) should be in the first system message
+            val systemMessages = messages.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
+            assertTrue(systemMessages.isNotEmpty(), "Should have a system message")
+
+            val firstSystemMessage = systemMessages.first()
+            assertTrue(
+                firstSystemMessage.text.contains("\$schema") || firstSystemMessage.text.contains("\"type\""),
+                "Schema format should be in the system message"
+            )
+
+            // Verify no system message appears after user messages
+            val userMessageIndex = messages.indexOfFirst { it is org.springframework.ai.chat.messages.UserMessage }
+            if (userMessageIndex >= 0) {
+                val messagesAfterUser = messages.drop(userMessageIndex + 1)
+                val systemMessagesAfterUser = messagesAfterUser.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
+                assertTrue(
+                    systemMessagesAfterUser.isEmpty(),
+                    "No system messages should appear after user messages, but found ${systemMessagesAfterUser.size}"
+                )
+            }
+        }
+
+        @Test
+        fun `createObjectIfPossible consolidates system messages`() {
+            val duke = Dog("Duke")
+            val fakeChatModel = FakeChatModel(
+                jacksonObjectMapper().writeValueAsString(
+                    MaybeReturn(success = duke)
+                )
+            )
+
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            setup.llmOperations.createObjectIfPossible(
+                messages = listOf(UserMessage("Give me a dog if possible")),
+                interaction = LlmInteraction(
+                    id = InteractionId("maybe-return-system-test"),
+                    llm = LlmOptions()
+                ),
+                outputClass = Dog::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            val prompt = fakeChatModel.promptsPassed[0]
+            val messages = prompt.instructions
+
+            // Count system messages - should be exactly one at the start
+            val systemMessages = messages.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
+            assertTrue(
+                systemMessages.size <= 1,
+                "createObjectIfPossible should consolidate to at most one system message, found ${systemMessages.size}"
+            )
+
+            // System message should be first
+            if (systemMessages.isNotEmpty()) {
+                assertTrue(
+                    messages.first() is org.springframework.ai.chat.messages.SystemMessage,
+                    "System message should be at the beginning"
+                )
+            }
+
+            // No system messages after user messages
+            val firstNonSystemIndex = messages.indexOfFirst { it !is org.springframework.ai.chat.messages.SystemMessage }
+            if (firstNonSystemIndex >= 0) {
+                val messagesAfterFirst = messages.drop(firstNonSystemIndex)
+                val lateSystemMessages = messagesAfterFirst.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
+                assertTrue(
+                    lateSystemMessages.isEmpty(),
+                    "No system messages should appear after non-system messages"
+                )
+            }
+        }
+
+        @Test
+        fun `prompt contributions and schema are merged into single system message`() {
+            val duke = Dog("Duke")
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(duke))
+
+            val setup = createChatClientLlmOperations(fakeChatModel)
+            setup.llmOperations.createObject(
+                messages = listOf(
+                    SystemMessage("You are a helpful assistant that creates dogs."),
+                    UserMessage("Give me a dog named Duke"),
+                ),
+                interaction = LlmInteraction(
+                    id = InteractionId("merged-system-test"),
+                    llm = LlmOptions()
+                ),
+                outputClass = Dog::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            val prompt = fakeChatModel.promptsPassed[0]
+            val messages = prompt.instructions
+
+            // Should have exactly one system message
+            val systemMessages = messages.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
+
+            // The single system message should contain the schema
+            if (systemMessages.isNotEmpty()) {
+                val systemContent = systemMessages.first().text
+                assertTrue(
+                    systemContent.contains("\$schema") || systemContent.contains("\"type\""),
+                    "System message should contain schema format"
+                )
+            }
+
+            // Verify proper ordering: system first, then user/assistant
+            var foundNonSystem = false
+            for (message in messages) {
+                if (message !is org.springframework.ai.chat.messages.SystemMessage) {
+                    foundNonSystem = true
+                } else if (foundNonSystem) {
+                    fail<Unit>("System message found after non-system message - violates message ordering")
+                }
+            }
+        }
+    }
+
     @Nested
     inner class ReturnValidation {
 

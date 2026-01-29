@@ -277,20 +277,46 @@ open class ToolLoopLlmOperations(
 
     /**
      * Build initial messages for the tool loop, including system prompt contributions and schema.
+     * All system content is consolidated into a single system message at the beginning
+     * to ensure proper message ordering for cross-model compatibility
+     * (OpenAI best practice, required by DeepSeek, etc.).
+     *
+     * @see <a href="https://github.com/embabel/embabel-agent/issues/1295">GitHub Issue #1295</a>
      */
     protected fun buildInitialMessages(
         promptContributions: String,
         messages: List<Message>,
         schemaFormat: String? = null,
     ): List<Message> {
+        // Extract system messages from input and separate non-system messages
+        val systemContents = mutableListOf<String>()
+        val nonSystemMessages = mutableListOf<Message>()
+
+        // Add prompt contributions first (if any)
+        if (promptContributions.isNotEmpty()) {
+            systemContents.add(promptContributions)
+        }
+
+        // Partition input messages into system content and non-system messages
+        for (message in messages) {
+            if (message is SystemMessage) {
+                systemContents.add(message.content)
+            } else {
+                nonSystemMessages.add(message)
+            }
+        }
+
+        // Add schema format last in system content (if any)
+        if (schemaFormat != null) {
+            systemContents.add(schemaFormat)
+        }
+
+        // Build the final message list with consolidated system message first
         return buildList {
-            if (promptContributions.isNotEmpty()) {
-                add(SystemMessage(promptContributions))
+            if (systemContents.isNotEmpty()) {
+                add(SystemMessage(systemContents.joinToString("\n\n")))
             }
-            addAll(messages)
-            if (schemaFormat != null) {
-                add(SystemMessage(schemaFormat))
-            }
+            addAll(nonSystemMessages)
         }
     }
 

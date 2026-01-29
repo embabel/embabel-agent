@@ -253,11 +253,14 @@ class ToolLoopLlmOperationsTest {
                 schemaFormat = "Return JSON: {\"key\": \"value\"}",
             )
 
-            assertEquals(3, messages.size)
+            // System messages should be consolidated at the beginning (issue #1295)
+            assertEquals(2, messages.size)
             assertTrue(messages[0] is com.embabel.chat.SystemMessage)
             assertTrue(messages[1] is UserMessage)
-            assertTrue(messages[2] is com.embabel.chat.SystemMessage)
-            assertEquals("Return JSON: {\"key\": \"value\"}", (messages[2] as com.embabel.chat.SystemMessage).content)
+            // Schema format should be merged into the single system message
+            val systemContent = (messages[0] as com.embabel.chat.SystemMessage).content
+            assertTrue(systemContent.contains("System prompt"))
+            assertTrue(systemContent.contains("Return JSON: {\"key\": \"value\"}"))
         }
 
         @Test

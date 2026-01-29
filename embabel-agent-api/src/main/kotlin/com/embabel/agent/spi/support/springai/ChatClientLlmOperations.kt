@@ -782,57 +782,78 @@ internal class ChatClientLlmOperations(
     // ====================================
 
     /**
-     * Base prompt builder - system message + user messages.
+     * Base prompt builder - consolidates all system messages at the beginning.
+     * Extracts SystemMessages from the input messages and merges with promptContributions
+     * to ensure proper message ordering for cross-model compatibility.
      */
     private fun buildBasicPrompt(
         promptContributions: String,
         messages: List<Message>,
-    ): Prompt = Prompt(
-        buildList {
-            if (promptContributions.isNotEmpty()) {
-                add(SystemMessage(promptContributions))
+    ): Prompt {
+        val (systemMessages, nonSystemMessages) = partitionMessages(messages)
+        val allSystemContent = buildConsolidatedSystemMessage(promptContributions, *systemMessages.toTypedArray())
+        return Prompt(
+            buildList {
+                if (allSystemContent.isNotEmpty()) {
+                    add(SystemMessage(allSystemContent))
+                }
+                addAll(nonSystemMessages.map { it.toSpringAiMessage() })
             }
-            addAll(messages.map { it.toSpringAiMessage() })
-        }
-    )
+        )
+    }
 
     /**
      * Extends basic prompt with maybeReturn user message.
+     * Consolidates all system messages at the beginning for proper ordering.
      */
     private fun buildPromptWithMaybeReturn(
         promptContributions: String,
         messages: List<Message>,
         maybeReturnPrompt: String,
-    ): Prompt = Prompt(
-        buildList {
-            if (promptContributions.isNotEmpty()) {
-                add(SystemMessage(promptContributions))
+    ): Prompt {
+        val (systemMessages, nonSystemMessages) = partitionMessages(messages)
+        val allSystemContent = buildConsolidatedSystemMessage(promptContributions, *systemMessages.toTypedArray())
+        return Prompt(
+            buildList {
+                if (allSystemContent.isNotEmpty()) {
+                    add(SystemMessage(allSystemContent))
+                }
+                add(UserMessage(maybeReturnPrompt))
+                addAll(nonSystemMessages.map { it.toSpringAiMessage() })
             }
-            add(UserMessage(maybeReturnPrompt))
-            addAll(messages.map { it.toSpringAiMessage() })
-        }
-    )
+        )
+    }
 
     /**
-     * Extends basic prompt with schema format for thinking.
+     * Builds a prompt with schema format consolidated into the system message.
+     * All system content is placed at the beginning to ensure proper message ordering
+     * for cross-model compatibility (OpenAI best practice, required by DeepSeek, etc.).
      */
     private fun buildPromptWithSchema(
         promptContributions: String,
         messages: List<Message>,
         schemaFormat: String,
     ): Prompt {
-        val basicPrompt = buildBasicPrompt(promptContributions, messages)
         logger.debug("Injected schema format for thinking extraction: {}", schemaFormat)
+        val (systemMessages, nonSystemMessages) = partitionMessages(messages)
+        val allSystemContent = buildConsolidatedSystemMessage(
+            promptContributions,
+            *systemMessages.toTypedArray(),
+            schemaFormat
+        )
         return Prompt(
             buildList {
-                addAll(basicPrompt.instructions)
-                add(SystemMessage(schemaFormat))
+                if (allSystemContent.isNotEmpty()) {
+                    add(SystemMessage(allSystemContent))
+                }
+                addAll(nonSystemMessages.map { it.toSpringAiMessage() })
             }
         )
     }
 
     /**
      * Combines maybeReturn user message with schema format.
+     * All system content is consolidated at the beginning for proper message ordering.
      */
     private fun buildPromptWithMaybeReturnAndSchema(
         promptContributions: String,
@@ -840,14 +861,48 @@ internal class ChatClientLlmOperations(
         maybeReturnPrompt: String,
         schemaFormat: String,
     ): Prompt {
-        val promptWithMaybeReturn = buildPromptWithMaybeReturn(promptContributions, messages, maybeReturnPrompt)
+        val (systemMessages, nonSystemMessages) = partitionMessages(messages)
+        val allSystemContent = buildConsolidatedSystemMessage(
+            promptContributions,
+            *systemMessages.toTypedArray(),
+            schemaFormat
+        )
         return Prompt(
             buildList {
-                addAll(promptWithMaybeReturn.instructions)
-                add(SystemMessage(schemaFormat))
+                if (allSystemContent.isNotEmpty()) {
+                    add(SystemMessage(allSystemContent))
+                }
+                add(UserMessage(maybeReturnPrompt))
+                addAll(nonSystemMessages.map { it.toSpringAiMessage() })
             }
         )
     }
+
+    /**
+     * Partitions messages into system messages (content only) and non-system messages.
+     * This enables consolidating all system content at the beginning of the prompt.
+     */
+    private fun partitionMessages(messages: List<Message>): Pair<List<String>, List<Message>> {
+        val systemContent = mutableListOf<String>()
+        val nonSystemMessages = mutableListOf<Message>()
+        for (message in messages) {
+            if (message is com.embabel.chat.SystemMessage) {
+                systemContent.add(message.content)
+            } else {
+                nonSystemMessages.add(message)
+            }
+        }
+        return systemContent to nonSystemMessages
+    }
+
+    /**
+     * Consolidates multiple system content strings into a single system message.
+     * This ensures a single system message at the beginning of the conversation,
+     * following OpenAI best practices and ensuring compatibility with models like DeepSeek
+     * that have strict message ordering requirements.
+     */
+    private fun buildConsolidatedSystemMessage(vararg contents: String): String =
+        contents.filter { it.isNotEmpty() }.joinToString("\n\n")
 
     // ====================================
     // EXCEPTION HANDLING
