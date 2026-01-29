@@ -269,6 +269,10 @@ abstract class AbstractAgentProcess(
         platformServices.eventListener.onProcessEvent(result)
         when (result.code) {
             StuckHandlingResultCode.REPLAN -> {
+                if (finished) {
+                    logger.info("Process {} is {} during stuck handling, will not replan", this.id, status)
+                    return
+                }
                 logger.info("Process {} unstuck and will replan: {}", this.id, result.message)
                 setStatus(AgentProcessStatusCode.RUNNING)
                 run()
