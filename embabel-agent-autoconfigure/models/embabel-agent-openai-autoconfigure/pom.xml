@@ -37,6 +37,14 @@
         </dependency>
 
         <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java</artifactId>
+            <version>4.16.1</version>
+            <scope>test</scope><!-- Use the latest version -->
+        </dependency>
+
+
+        <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>
             <scope>test</scope>

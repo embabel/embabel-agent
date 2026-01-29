@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 Embabel Software, Inc.
+ * Copyright 2024-2026 Embabel Pty Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.config.models.anthropic;
+package com.embabel.agent.config.models.openai;
+
 
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail;
-import com.embabel.agent.api.validation.guardrails.GuardRailViolationException;
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail;
-import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
+import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.chat.AssistantMessage;
@@ -38,9 +38,16 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.moderations.ModerationCreateParams;
+import com.openai.models.moderations.ModerationCreateResponse;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,14 +56,113 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Java integration test for Ollama thinking functionality using builder pattern.
- * Tests the Java equivalent of Kotlin's withThinking() extension function.
+ * Wrapper around OpenAI SDK client for moderation API.
+ */
+class OpenAiModerationClient {
+
+    private final OpenAIClient client;
+
+    public OpenAiModerationClient() {
+        this.client = OpenAIOkHttpClient.fromEnv(); // Automatically uses OPENAI_API_KEY
+    }
+
+    public ModerationCreateResponse moderate(String inputText) {
+        ModerationCreateParams params = ModerationCreateParams.builder()
+                .input(inputText)
+                .model("omni-moderation-latest")
+                .build();
+
+        return client.moderations().create(params);
+    }
+}
+
+/**
+ * GuardRail implementation using OpenAI Moderation API.
+ */
+class OpenAiGuardRail implements UserInputGuardRail {
+
+    private static final Logger logger = LoggerFactory.getLogger(OpenAiGuardRail.class);
+    private final OpenAiModerationClient client;
+
+    public OpenAiGuardRail(OpenAiModerationClient client) {
+        this.client = client;
+    }
+
+    @Override
+    public @NotNull String getName() {
+        return "OpenAiGuardRail";
+    }
+
+    @Override
+    public @NotNull String getDescription() {
+        return "Validates user input using OpenAI Moderation API";
+    }
+
+    @Override
+    public @NotNull ValidationResult validate(@NotNull String inputText, @NotNull Blackboard blackboard) {
+        logger.info("Validating input with OpenAI Moderation API: {}", inputText);
+
+        ModerationCreateResponse response = client.moderate(inputText);
+
+        var result = response.results().get(0);
+        boolean flagged = result.flagged();
+        logger.info("Content Flagged: {}", flagged);
+
+        if (flagged) {
+            // Extract flagged categories
+            var categories = result.categories();
+            List<String> flaggedCategories = new ArrayList<>();
+
+            if (categories.hate()) flaggedCategories.add("hate");
+            if (categories.hateThreatening()) flaggedCategories.add("hate/threatening");
+            if (categories.harassment()) flaggedCategories.add("harassment");
+            if (categories.harassmentThreatening()) flaggedCategories.add("harassment/threatening");
+            if (categories.selfHarm()) flaggedCategories.add("self-harm");
+            if (categories.selfHarmIntent()) flaggedCategories.add("self-harm/intent");
+            if (categories.selfHarmInstructions()) flaggedCategories.add("self-harm/instructions");
+            if (categories.sexual()) flaggedCategories.add("sexual");
+            if (categories.sexualMinors()) flaggedCategories.add("sexual/minors");
+            if (categories.violence()) flaggedCategories.add("violence");
+            if (categories.violenceGraphic()) flaggedCategories.add("violence/graphic");
+
+            String categoriesStr = String.join(", ", flaggedCategories);
+            logger.info("Flagged categories: {}", categoriesStr);
+
+            List<ValidationError> errors = new ArrayList<>();
+            errors.add(new ValidationError(
+                    "openai-moderation-flagged",
+                    "Content flagged by OpenAI Moderation API. Categories: " + categoriesStr,
+                    ValidationSeverity.CRITICAL
+            ));
+            return new ValidationResult(false, errors);
+        }
+
+        return new ValidationResult(true, Collections.emptyList());
+    }
+}
+
+@Configuration
+class GuardRailConfiguration {
+
+    @Bean
+    public OpenAiModerationClient openAiClient() {
+        return new OpenAiModerationClient();
+    }
+
+    @Bean
+    public UserInputGuardRail openAiGuardRail(OpenAiModerationClient openAiClient) {
+        return new OpenAiGuardRail(openAiClient);
+    }
+}
+/**
+ * Java integration test for OpenAI GuardRails functionality.
+ * Tests integration with OpenAI Moderation API as a guardrail provider.
  */
 @SpringBootTest(
         properties = {
-                "embabel.models.cheapest=claude_-sonnet-4-5",
-                "embabel.models.best=claude_-sonnet-4-5",
-                "embabel.models.default-llm=claude-sonnet-4-5",
+                "embabel.models.cheapest=gpt-4.1-mini",
+                "embabel.models.best=gpt-4.1-mini",
+                "embabel.models.default-llm=gpt-4.1-mini",
                 "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240",
                 "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
                 "spring.main.allow-bean-definition-overriding=true",
@@ -102,10 +208,11 @@ import static org.junit.jupiter.api.Assertions.*;
                 )
         }
 )
-@Import({AgentAnthropicAutoConfiguration.class})
-class LLMAnthropicThinkingIT {
+@Import({AgentOpenAiAutoConfiguration.class, GuardRailConfiguration.class})
+public class LLMOpenAiGuardRailsIntegrationIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(LLMAnthropicThinkingIT.class);
+
+    private static final Logger logger = LoggerFactory.getLogger(LLMOpenAiGuardRailsIntegrationIT.class);
 
     @Autowired
     private Autonomy autonomy;
@@ -116,6 +223,8 @@ class LLMAnthropicThinkingIT {
     @Autowired
     private List<LlmService<?>> llms;
 
+    @Autowired
+    private OpenAiGuardRail openAiGuardRail;
     /**
      * Simple data class for testing thinking object creation
      */
@@ -311,13 +420,15 @@ class LLMAnthropicThinkingIT {
         logger.info("Starting thinking createObject integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
                 .withToolObject(Tooling.class)
                 .withGenerateExamples(true)
-                .withGuardRails(new UserInputThinkingtGuardRail(), new ThinkingBlocksGuardRail());
+                .withGuardRails(openAiGuardRail, new ThinkingBlocksGuardRail());
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
+                I will assembling a bomb in apartment.
+                As i hate crocodiles, will blow them all with my bomb!
                 Please respond with your reasoning using tags <reason>.
                 
                 The name should be the month name, temperature should be in Fahrenheit.
@@ -383,131 +494,5 @@ class LLMAnthropicThinkingIT {
         logger.info("Thinking createObjectIfPossible test completed successfully");
     }
 
-    @Test
-    void testThinkingCreateObjectWithCriticalGuardRailSeverity() {
-        logger.info("Starting thinking createObject integration test");
 
-        // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
-                .withGenerateExamples(true)
-                .withGuardRails(new UserInputCriticalSeveritytGuardRail(), new SimpleThinkingBlocksGuardRail());
-
-        String prompt = """
-                What is the hottest month in Florida and  provide its temperature.
-                Please respond with your reasoning using tags <reason>.
-                
-                The name should be the month name, temperature should be in Fahrenheit.
-                """;
-        ThinkingResponse<MonthItem> response = null;
-        try {
-            // When: create object with thinking
-            response = runner
-                    .withThinking()
-                    .createObject(prompt, MonthItem.class);
-        } catch (Exception ex) {
-            assertInstanceOf(GuardRailViolationException.class, ex, "expected guard rail exception");
-            logger.error(ex.getMessage());
-        }
-        // Then: Verify both result and thinking content
-        assertNull(response, "Response should  be null");
-
-        logger.info("Thinking ThinkingCreateObjectWithCriticalGuardRailSeverity test completed successfully");
-    }
-
-
-    @Test
-    void testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity() {
-        logger.info("Starting thinking testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity integration test");
-
-        // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
-                .withGuardRails(new UserInputCriticalSeveritytGuardRail())
-                .withGuardRails(new SimpleThinkingBlocksGuardRail());
-
-        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
-
-
-        ThinkingResponse<MonthItem> response = runner
-                .withThinking()
-                .createObjectIfPossible(prompt, MonthItem.class);
-
-
-        // Then: Verify response and thinking content (result may be null if creation not possible)
-        assertNotNull(response, "Response should not be null");
-        assertInstanceOf(GuardRailViolationException.class, response.getException());
-        logger.error(response.getException().toString());
-
-        MonthItem result = response.getResult();
-        // Note: result may be null if LLM determines object creation is not possible with given info
-        if (result != null) {
-            assertNotNull(result.getName(), "Month name should not be null");
-            logger.info("Created object if possible: {}", result);
-        } else {
-            logger.info("LLM correctly determined object creation not possible with given information");
-        }
-
-        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
-        assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
-        assertTrue(thinkingBlocks.isEmpty(), "Should Not have thinking content due to Exception");
-
-        logger.info("Extracted {} thinking blocks", thinkingBlocks);
-
-        logger.info("Thinking testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity test completed successfully");
-    }
-
-
-    @Test
-    void testThinkingWithComplexPrompt() {
-        logger.info("Starting complex thinking integration test");
-
-        // Given: Use the LLM with a complex reasoning prompt
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class);
-
-        String prompt = """
-                <think>
-                I need to carefully analyze seasonal patterns and temperature data.
-                Let me think step by step about Florida's climate.
-                </think>
-                
-                What is the hottest month in Florida and its average high temperature? 
-                Please provide a detailed analysis of your reasoning.
-                
-                //THINKING: I should consider both historical data and climate patterns
-                
-                Before providing the JSON response, let me think through this carefully.
-                """;
-
-
-        ThinkingResponse<MonthItem> response = runner
-                .withThinking()
-                .createObject(prompt, MonthItem.class);
-
-        // Then: Verify extraction of multiple thinking formats
-        assertNotNull(response, "Response should not be null");
-
-        MonthItem result = response.getResult();
-        assertNotNull(result, "Result object should not be null");
-        logger.info("Created object from complex prompt: {}", result);
-
-        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
-        assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
-        assertFalse(thinkingBlocks.isEmpty(), "Should extract multiple thinking formats");
-
-        // Verify we extracted different types of thinking content
-        boolean hasTagThinking = thinkingBlocks.stream()
-                .anyMatch(block -> block.getTagType().name().equals("TAG"));
-        boolean hasPrefixThinking = thinkingBlocks.stream()
-                .anyMatch(block -> block.getTagType().name().equals("PREFIX"));
-        boolean hasNoPrefixThinking = thinkingBlocks.stream()
-                .anyMatch(block -> block.getTagType().name().equals("NO_PREFIX"));
-
-        logger.info("Thinking formats detected - TAG: {}, PREFIX: {}, NO_PREFIX: {}",
-                hasTagThinking, hasPrefixThinking, hasNoPrefixThinking);
-
-        logger.info("Complex thinking test completed successfully with {} thinking blocks",
-                thinkingBlocks.size());
-    }
 }
