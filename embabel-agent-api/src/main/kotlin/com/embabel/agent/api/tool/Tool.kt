@@ -607,6 +607,45 @@ interface Tool : ToolInfo {
             }
         }
     }
+
+    /**
+     * Create a new tool with a different description.
+     * Useful for providing context-specific descriptions while keeping the same functionality.
+     *
+     * @param newDescription The new description to use
+     * @return A new Tool with the updated description
+     */
+    fun withDescription(newDescription: String): Tool = DescribedTool(this, newDescription)
+
+    /**
+     * Create a new tool with an additional note appended to the description.
+     * Useful for adding context-specific hints to an existing tool.
+     *
+     * @param note The note to append to the description
+     * @return A new Tool with the note appended to its description
+     */
+    fun withNote(note: String): Tool = DescribedTool(this, "${definition.description}. $note")
+}
+
+/**
+ * A tool wrapper that overrides the description while delegating all functionality.
+ * Implements [DelegatingTool] to support unwrapping in injection strategies.
+ */
+private class DescribedTool(
+    override val delegate: Tool,
+    private val customDescription: String,
+) : DelegatingTool {
+
+    override val definition: Tool.Definition = Tool.Definition(
+        name = delegate.definition.name,
+        description = customDescription,
+        inputSchema = delegate.definition.inputSchema,
+    )
+
+    override val metadata: Tool.Metadata
+        get() = delegate.metadata
+
+    override fun call(input: String): Tool.Result = delegate.call(input)
 }
 
 // Private implementations

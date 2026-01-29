@@ -560,6 +560,114 @@ Tool.Result.withArtifact("Generated report", reportBytes)
 Tool.Result.error("Failed to process request", exception)
 ----
 
+===== Modifying Tool Descriptions
+
+Tools provide `withDescription()` and `withNote()` methods to create copies with modified descriptions.
+This is useful when you need to customize a tool's description for a specific context without modifying the original tool.
+
+**withDescription(newDescription)**
+
+Creates a new tool with a completely replaced description:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Replace the entire description
+Tool customTool = originalTool.withDescription("Custom description for this context");
+
+// The original tool is unchanged
+System.out.println(originalTool.getDefinition().getDescription()); // original description
+System.out.println(customTool.getDefinition().getDescription());   // Custom description for this context
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Replace the entire description
+val customTool = originalTool.withDescription("Custom description for this context")
+
+// The original tool is unchanged
+println(originalTool.definition.description) // original description
+println(customTool.definition.description)   // Custom description for this context
+----
+====
+
+**withNote(note)**
+
+Creates a new tool with an appended note to the existing description:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Add a note to the existing description
+Tool annotatedTool = originalTool.withNote("Use this when querying large datasets");
+
+// Result: "Original description. Use this when querying large datasets"
+System.out.println(annotatedTool.getDefinition().getDescription());
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Add a note to the existing description
+val annotatedTool = originalTool.withNote("Use this when querying large datasets")
+
+// Result: "Original description. Use this when querying large datasets"
+println(annotatedTool.definition.description)
+----
+====
+
+Both methods preserve all other tool properties (name, input schema, metadata, functionality):
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+Tool original = Tool.create("calculator", "Performs calculations",
+    Tool.InputSchema.of(Tool.Parameter.integer("x", "Number")),
+    input -> Tool.Result.text("42"));
+
+// Create a customized version
+Tool customized = original
+    .withDescription("Specialized math tool")
+    .withNote("Optimized for financial calculations");
+
+// Name and functionality unchanged
+assert customized.getDefinition().getName().equals("calculator");
+assert customized.call("{}").text().equals("42");
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val original = Tool.of(
+    name = "calculator",
+    description = "Performs calculations",
+    inputSchema = Tool.InputSchema.of(Tool.Parameter.integer("x", "Number"))
+) { Tool.Result.text("42") }
+
+// Create a customized version
+val customized = original
+    .withDescription("Specialized math tool")
+    .withNote("Optimized for financial calculations")
+
+// Name and functionality unchanged
+check(customized.definition.name == "calculator")
+check(customized.call("{}").text == "42")
+----
+====
+
 ===== When to Use Each Approach
 
 |===

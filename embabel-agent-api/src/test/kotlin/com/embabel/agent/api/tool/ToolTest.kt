@@ -658,4 +658,143 @@ class ToolTest {
             assertEquals("Direct result", (result as Tool.Result.Text).content)
         }
     }
+
+    @Nested
+    inner class WithDescriptionTest {
+
+        @Test
+        fun `withDescription creates tool with new description`() {
+            val original = Tool.of(
+                name = "test",
+                description = "Original description",
+            ) { Tool.Result.text("result") }
+
+            val modified = original.withDescription("New description")
+
+            assertEquals("New description", modified.definition.description)
+            assertEquals("test", modified.definition.name)
+        }
+
+        @Test
+        fun `withDescription preserves tool functionality`() {
+            val original = Tool.of(
+                name = "test",
+                description = "Original description",
+            ) { Tool.Result.text("expected result") }
+
+            val modified = original.withDescription("New description")
+            val result = modified.call("{}")
+
+            assertTrue(result is Tool.Result.Text)
+            assertEquals("expected result", (result as Tool.Result.Text).content)
+        }
+
+        @Test
+        fun `withDescription preserves input schema`() {
+            val schema = Tool.InputSchema.of(
+                Tool.Parameter("param1", Tool.ParameterType.STRING, "A parameter"),
+            )
+            val original = Tool.of(
+                name = "test",
+                description = "Original description",
+                inputSchema = schema,
+            ) { Tool.Result.text("result") }
+
+            val modified = original.withDescription("New description")
+
+            assertEquals(1, modified.definition.inputSchema.parameters.size)
+            assertEquals("param1", modified.definition.inputSchema.parameters[0].name)
+        }
+
+        @Test
+        fun `withDescription preserves metadata`() {
+            val original = Tool.of(
+                name = "test",
+                description = "Original description",
+                metadata = Tool.Metadata(returnDirect = true),
+            ) { Tool.Result.text("result") }
+
+            val modified = original.withDescription("New description")
+
+            assertTrue(modified.metadata.returnDirect)
+        }
+
+        @Test
+        fun `withDescription result is DelegatingTool`() {
+            val original = Tool.of(
+                name = "test",
+                description = "Original description",
+            ) { Tool.Result.text("result") }
+
+            val modified = original.withDescription("New description")
+
+            assertTrue(modified is com.embabel.agent.spi.support.DelegatingTool)
+        }
+    }
+
+    @Nested
+    inner class WithNoteTest {
+
+        @Test
+        fun `withNote appends note to description`() {
+            val original = Tool.of(
+                name = "test",
+                description = "Original description",
+            ) { Tool.Result.text("result") }
+
+            val modified = original.withNote("Additional context")
+
+            assertEquals("Original description. Additional context", modified.definition.description)
+        }
+
+        @Test
+        fun `withNote preserves tool name`() {
+            val original = Tool.of(
+                name = "my_tool",
+                description = "Original description",
+            ) { Tool.Result.text("result") }
+
+            val modified = original.withNote("Note here")
+
+            assertEquals("my_tool", modified.definition.name)
+        }
+
+        @Test
+        fun `withNote preserves tool functionality`() {
+            val original = Tool.of(
+                name = "test",
+                description = "Original description",
+            ) { Tool.Result.text("expected result") }
+
+            val modified = original.withNote("Note")
+            val result = modified.call("{}")
+
+            assertTrue(result is Tool.Result.Text)
+            assertEquals("expected result", (result as Tool.Result.Text).content)
+        }
+
+        @Test
+        fun `withNote can be chained`() {
+            val original = Tool.of(
+                name = "test",
+                description = "Base",
+            ) { Tool.Result.text("result") }
+
+            val modified = original.withNote("Note 1").withNote("Note 2")
+
+            assertEquals("Base. Note 1. Note 2", modified.definition.description)
+        }
+
+        @Test
+        fun `withDescription and withNote can be combined`() {
+            val original = Tool.of(
+                name = "test",
+                description = "Original",
+            ) { Tool.Result.text("result") }
+
+            val modified = original.withDescription("New base").withNote("Additional info")
+
+            assertEquals("New base. Additional info", modified.definition.description)
+        }
+    }
 }
