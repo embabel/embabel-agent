@@ -492,6 +492,34 @@ class SimpleAgentProcessTest {
 
         }
 
+        @Test
+        fun `kill during stuck handling prevents replan loop`() {
+            val sua = SelfUnstickingAgent()
+            val agent = AgentMetadataReader().createAgentMetadata(sua) as Agent
+            val killingStuckHandler = StuckHandler { process ->
+                process.kill()
+                StuckHandlerResult(
+                    message = "Killed during stuck handling",
+                    handler = null,
+                    code = StuckHandlingResultCode.REPLAN,
+                    agentProcess = process,
+                )
+            }
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            val agentProcess = SimpleAgentProcess(
+                id = "test",
+                agent = agent.copy(stuckHandler = killingStuckHandler),
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+            val result = agentProcess.run()
+            assertEquals(AgentProcessStatusCode.KILLED, result.status, "Process should remain killed after stuck handling")
+        }
+
     }
 
     @Nested
