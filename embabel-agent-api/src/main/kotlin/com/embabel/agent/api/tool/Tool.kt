@@ -131,6 +131,7 @@ interface Tool : ToolInfo {
      * @param required Whether the parameter is required. Defaults to true.
      * @param enumValues Optional list of allowed values (for enum parameters)
      * @param properties Nested properties for OBJECT type parameters
+     * @param itemType Element type for ARRAY type parameters (e.g., STRING for List<String>)
      */
     data class Parameter @JvmOverloads constructor(
         val name: String,
@@ -139,6 +140,7 @@ interface Tool : ToolInfo {
         val required: Boolean = true,
         val enumValues: List<String>? = null,
         val properties: List<Parameter>? = null,
+        val itemType: ParameterType? = null,
     ) {
 
         companion object {
@@ -703,6 +705,19 @@ private data class SimpleInputSchema(
 
         param.enumValues?.let { values ->
             propMap["enum"] = values
+        }
+
+        // For ARRAY types with itemType, add items property
+        if (param.type == Tool.ParameterType.ARRAY && param.itemType != null) {
+            val itemTypeStr = when (param.itemType) {
+                Tool.ParameterType.STRING -> "string"
+                Tool.ParameterType.INTEGER -> "integer"
+                Tool.ParameterType.NUMBER -> "number"
+                Tool.ParameterType.BOOLEAN -> "boolean"
+                Tool.ParameterType.ARRAY -> "array"
+                Tool.ParameterType.OBJECT -> "object"
+            }
+            propMap["items"] = mapOf("type" to itemTypeStr)
         }
 
         // For OBJECT types with nested properties, add them recursively

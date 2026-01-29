@@ -79,6 +79,31 @@ class ToolTest {
         }
     }
 
+    /**
+     * Tools with List parameters - like MathTools.mean(numbers: List<Double>)
+     */
+    class ListParameterTools {
+        @LlmTool(description = "Find the mean of a list of numbers")
+        fun mean(@Param(description = "List of numbers to average") numbers: List<Double>): Double {
+            return if (numbers.isEmpty()) 0.0 else numbers.sum() / numbers.size
+        }
+
+        @LlmTool(description = "Find the minimum value in a list of numbers")
+        fun min(@Param(description = "List of numbers") numbers: List<Double>): Double {
+            return numbers.minOrNull() ?: Double.NaN
+        }
+
+        @LlmTool(description = "Sum a list of integers")
+        fun sumIntegers(@Param(description = "List of integers") numbers: List<Int>): Int {
+            return numbers.sum()
+        }
+
+        @LlmTool(description = "Concatenate a list of strings")
+        fun concatenate(@Param(description = "List of strings") strings: List<String>): String {
+            return strings.joinToString("")
+        }
+    }
+
     @Nested
     inner class ToolCreation {
 
@@ -249,6 +274,48 @@ class ToolTest {
             assertTrue(json.contains("\"type\":\"integer\""))
             assertTrue(json.contains("\"type\":\"number\""))
             assertTrue(json.contains("\"type\":\"boolean\""))
+        }
+
+        @Test
+        fun `schema for method with List parameter should include items type`() {
+            // This tests that MathTools.mean(numbers: List<Double>) generates correct schema
+            val tools = Tool.fromInstance(ListParameterTools())
+            val meanTool = tools.find { it.definition.name == "mean" }!!
+
+            val json = meanTool.definition.inputSchema.toJsonSchema()
+
+            // Should have array type for the numbers parameter
+            assertTrue(json.contains("\"type\":\"array\""), "Schema should have array type: $json")
+
+            // IMPORTANT: Should have items property specifying element type
+            // Without this, LLMs don't know what type of elements the array should contain
+            assertTrue(json.contains("\"items\""), "Schema should have items property for array: $json")
+            assertTrue(
+                json.contains("\"items\":{\"type\":\"number\"}") ||
+                    json.contains("\"items\": {\"type\": \"number\"}") ||
+                    json.contains("\"items\":{\"type\":\"integer\"}") ||
+                    json.contains("\"items\": {\"type\": \"integer\"}"),
+                "Array items should have numeric type: $json"
+            )
+        }
+
+        @Test
+        fun `schema for method with List of String parameter should include string items type`() {
+            val tools = Tool.fromInstance(ListParameterTools())
+            val concatenateTool = tools.find { it.definition.name == "concatenate" }!!
+
+            val json = concatenateTool.definition.inputSchema.toJsonSchema()
+
+            // Should have array type
+            assertTrue(json.contains("\"type\":\"array\""), "Schema should have array type: $json")
+
+            // Should have items property with string type
+            assertTrue(json.contains("\"items\""), "Schema should have items property for array: $json")
+            assertTrue(
+                json.contains("\"items\":{\"type\":\"string\"}") ||
+                    json.contains("\"items\": {\"type\": \"string\"}"),
+                "Array items should have string type: $json"
+            )
         }
     }
 

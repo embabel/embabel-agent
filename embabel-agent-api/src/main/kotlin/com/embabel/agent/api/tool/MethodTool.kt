@@ -22,9 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
-import kotlin.reflect.KVisibility
 import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
 
@@ -69,13 +67,15 @@ internal class MethodTool(
         annotation: LlmTool,
     ): Tool.Definition {
         val name = annotation.name.ifEmpty { method.name }
-        val parameters = method.parameters
+
+        // Use victools-based schema generation for proper generic type handling
+        val parameterInfos = method.parameters
             .filter { it.kind == KParameter.Kind.VALUE }
             .map { param ->
                 val paramAnnotation = param.findAnnotation<Param>()
-                buildParameter(
+                VictoolsSchemaGenerator.ParameterInfo(
                     name = param.name ?: "arg${param.index}",
-                    type = param.type,
+                    type = param.type.javaType,
                     description = paramAnnotation?.description ?: "",
                     required = paramAnnotation?.required ?: !param.isOptional,
                 )
@@ -84,74 +84,8 @@ internal class MethodTool(
         return Tool.Definition(
             name = name,
             description = annotation.description,
-            inputSchema = Tool.InputSchema.of(*parameters.toTypedArray()),
+            inputSchema = MethodInputSchema(parameterInfos),
         )
-    }
-
-    private fun buildParameter(
-        name: String,
-        type: kotlin.reflect.KType,
-        description: String,
-        required: Boolean,
-        visited: MutableSet<kotlin.reflect.KClass<*>> = mutableSetOf(),
-    ): Tool.Parameter {
-        val paramType = mapKotlinTypeToParameterType(type)
-
-        // For OBJECT types, extract nested properties via reflection
-        val properties = if (paramType == Tool.ParameterType.OBJECT) {
-            extractNestedProperties(type, visited)
-        } else {
-            null
-        }
-
-        return Tool.Parameter(
-            name = name,
-            type = paramType,
-            description = description,
-            required = required,
-            properties = properties,
-        )
-    }
-
-    private fun extractNestedProperties(
-        type: kotlin.reflect.KType,
-        visited: MutableSet<kotlin.reflect.KClass<*>>,
-    ): List<Tool.Parameter>? {
-        val classifier = type.classifier as? kotlin.reflect.KClass<*> ?: return null
-
-        // Prevent infinite recursion for self-referential types
-        if (classifier in visited) return null
-        visited.add(classifier)
-
-        return try {
-            classifier.memberProperties
-                .filter { it.visibility == KVisibility.PUBLIC }
-                .map { prop ->
-                    buildParameter(
-                        name = prop.name,
-                        type = prop.returnType,
-                        description = "",
-                        required = !prop.returnType.isMarkedNullable,
-                        visited = visited.toMutableSet(),
-                    )
-                }
-                .ifEmpty { null }
-        } catch (e: Exception) {
-            logger.debug("Could not extract properties from {}: {}", classifier.simpleName, e.message)
-            null
-        }
-    }
-
-    private fun mapKotlinTypeToParameterType(type: kotlin.reflect.KType): Tool.ParameterType {
-        val classifier = type.classifier
-        return when {
-            classifier == String::class -> Tool.ParameterType.STRING
-            classifier == Int::class || classifier == Long::class -> Tool.ParameterType.INTEGER
-            classifier == Double::class || classifier == Float::class -> Tool.ParameterType.NUMBER
-            classifier == Boolean::class -> Tool.ParameterType.BOOLEAN
-            classifier == List::class || classifier == Array::class -> Tool.ParameterType.ARRAY
-            else -> Tool.ParameterType.OBJECT
-        }
     }
 
     @Suppress("UNCHECKED_CAST")
