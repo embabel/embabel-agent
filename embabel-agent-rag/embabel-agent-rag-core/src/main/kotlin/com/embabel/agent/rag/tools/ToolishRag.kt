@@ -18,6 +18,7 @@ package com.embabel.agent.rag.tools
 import com.embabel.agent.api.common.LlmReference
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
@@ -95,7 +96,7 @@ data class ToolishRag @JvmOverloads constructor(
     val listener: ResultsListener? = null,
     val metadataFilter: PropertyFilter? = null,
     val entityFilter: EntityFilter? = null,
-) : LlmReference, Tool {
+) : LlmReference, DelegatingTool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -201,7 +202,8 @@ data class ToolishRag @JvmOverloads constructor(
 
     // Tool interface implementation via lazy MatryoshkaTool
     // When used directly as a Tool, wraps all inner tools in a MatryoshkaTool
-    private val toolFacade: Tool by lazy {
+    // Implements DelegatingTool so MatryoshkaToolInjectionStrategy can unwrap it
+    override val delegate: Tool by lazy {
         MatryoshkaTool.of(
             name = name,
             description = description,
@@ -210,10 +212,10 @@ data class ToolishRag @JvmOverloads constructor(
     }
 
     override val definition: Tool.Definition
-        get() = toolFacade.definition
+        get() = delegate.definition
 
     override fun call(input: String): Tool.Result =
-        toolFacade.call(input)
+        delegate.call(input)
 
     override fun notes() = """
         ${

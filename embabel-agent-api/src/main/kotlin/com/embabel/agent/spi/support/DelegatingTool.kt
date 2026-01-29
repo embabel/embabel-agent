@@ -20,6 +20,7 @@ import com.embabel.agent.api.tool.Tool
 /**
  * Interface for tool decorators that wrap another tool.
  * Enables unwrapping to find the underlying tool implementation.
+ * Thus, it is important that tool wrappers implement this interface to allow unwrapping.
  */
 interface DelegatingTool : Tool {
     val delegate: Tool

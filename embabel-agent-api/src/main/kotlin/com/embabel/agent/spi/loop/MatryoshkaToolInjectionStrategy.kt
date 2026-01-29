@@ -95,11 +95,36 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
             selectedTools.map { it.definition.name }
         )
 
+        // Create context tool to preserve parent's description for the LLM
+        val contextTool = createContextTool(invokedTool, selectedTools)
+        val toolsToInject = selectedTools + contextTool
+
         // Note: remove the wrappedTool (which may have decorators), not the unwrapped invokedTool
         return if (invokedTool.removeOnInvoke) {
-            ToolInjectionResult.replace(wrappedTool, selectedTools)
+            ToolInjectionResult.replace(wrappedTool, toolsToInject)
         } else {
-            ToolInjectionResult.add(selectedTools)
+            ToolInjectionResult.add(toolsToInject)
+        }
+    }
+
+    /**
+     * Creates a context tool that preserves the parent MatryoshkaTool's description
+     * and provides information about the available child tools.
+     */
+    private fun createContextTool(parent: MatryoshkaTool, childTools: List<Tool>): Tool {
+        val parentName = parent.definition.name
+        val parentDescription = parent.definition.description
+        val toolNames = childTools.map { it.definition.name }
+
+        return Tool.of(
+            name = "${parentName}_context",
+            description = "$parentDescription. Available: ${toolNames.joinToString(", ")}",
+        ) {
+            // When called, return full details about each child tool
+            val details = childTools.joinToString("\n") { tool ->
+                "- ${tool.definition.name}: ${tool.definition.description}"
+            }
+            Tool.Result.text("Tools for $parentDescription:\n$details")
         }
     }
 
