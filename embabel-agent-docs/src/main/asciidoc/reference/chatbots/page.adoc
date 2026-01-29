@@ -132,7 +132,7 @@ public class ChatActions {
         var assistantMessage = context.ai()
                 .withLlm(properties.chatLlm())
                 .withReference(toolishRag)
-                .withTemplate("ragbot")
+                .rendering("ragbot")
                 .respondWithSystemPrompt(conversation, Map.of(
                         "properties", properties
                 ));
@@ -256,7 +256,7 @@ For these cases, Jinja templates are the better choice:
 var assistantMessage = context.ai()
         .withLlm(properties.chatLlm())
         .withReference(toolishRag)
-        .withTemplate("ragbot") // <1>
+        .rendering("ragbot") // <1>
         .respondWithSystemPrompt(conversation, Map.of( // <2>
                 "properties", properties,
                 "persona", properties.persona(),

@@ -3,7 +3,7 @@
 === Templates
 
 Embabel supports Jinja templates for generating prompts.
-You do this via the `PromptRunner.withTemplate(String)` method.
+You do this via the `PromptRunner.rendering(String)` method.
 
 This method takes a Spring resource path to a Jinja template.
 The default location is under `classpath:/prompts/` and the `.jinja` extension is added automatically.
@@ -19,7 +19,7 @@ An example:
 val distinctFactualAssertions = context.ai()
     .withLlm(properties.deduplicationLlm())
     // Jinjava template from classpath at prompts/factchecker/consolidate_assertions.jinja
-    .withTemplate("factchecker/consolidate_assertions")
+    .rendering("factchecker/consolidate_assertions")
     .createObject(
             DistinctFactualAssertions.class,
             Map.of(
