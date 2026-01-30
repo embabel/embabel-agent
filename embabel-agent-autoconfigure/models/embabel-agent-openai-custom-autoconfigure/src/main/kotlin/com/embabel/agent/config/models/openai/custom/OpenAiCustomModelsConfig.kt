@@ -115,7 +115,7 @@ class OpenAiCustomModelsConfig(
     completionsPath = null,
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-    requestFactory,
+    requestFactory = requestFactory,
 ) {
 
     private val customModelList: List<String> = (envCustomModels ?: properties.models)
