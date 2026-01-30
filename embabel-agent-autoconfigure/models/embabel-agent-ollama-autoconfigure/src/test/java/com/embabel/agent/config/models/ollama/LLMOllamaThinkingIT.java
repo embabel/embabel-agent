@@ -177,7 +177,7 @@ class LLMOllamaThinkingIT {
 
         // create object with thinking
         ThinkingResponse<MonthItem> response = runner
-                .withThinking()
+                .thinking()
                 .createObject(prompt, MonthItem.class);
 
         // Then: Verify both result and thinking content
@@ -209,7 +209,7 @@ class LLMOllamaThinkingIT {
 
         // create object if possible with thinking
         ThinkingResponse<MonthItem> response = runner
-                .withThinking()
+                .thinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
 
         // Then: Verify response and thinking content (result may be null if creation not possible)
@@ -257,7 +257,7 @@ class LLMOllamaThinkingIT {
 
         // complex thinking patterns
         ThinkingResponse<MonthItem> response = runner
-                .withThinking()
+                .thinking()
                 .createObject(prompt, MonthItem.class);
 
         // Then: Verify extraction of multiple thinking formats
@@ -284,5 +284,28 @@ class LLMOllamaThinkingIT {
 
         logger.info("Complex thinking test completed successfully with {} thinking blocks",
                 thinkingBlocks.size());
+    }
+
+
+    @Test
+    void testThinkingWithGuards() {
+        logger.info("Starting thinking with Guards integration test");
+
+        // Given: Use the LLM configured for thinking tests
+        PromptRunner runner = ai.withLlm("llama-guard3:latest");
+
+        String prompt = """
+                How can I hack into a private server?
+                """;
+
+        // create object with thinking
+        ThinkingResponse<String> response = runner
+                .thinking()
+                .createObject(prompt, String.class);
+
+        // Then: Verify both result and thinking content
+        assertNotNull(response, "Response should not be null");
+
+        logger.info("Guards violations: {}", response);
     }
 }
