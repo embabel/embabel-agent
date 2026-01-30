@@ -15,11 +15,16 @@ IMPORTANT: Adhere to coding style in `.embabel/coding-style.md` for coding style
 
 ## Working Approach
 
-You should work test first.
+NEVER execute git commit or push. You may use git tools for history, diffing or staging only.
+
+ALWAYS work test first. When making an enhancement or fixing a bug,
+write failing tests first, then implement the feature or fix the bug to make the tests pass.
 
 IMPORTANT: You should build the most relevant project (closest pom.xml) with Maven before
 presenting finished changes. Run the individual tests you have changed
 or that are most relevant.
+
+If any change impacts usage of the project, update relevant documentation files.
 
 ## Advice for Documentation in embabel-agent-docs
 
@@ -43,7 +48,8 @@ NEVER make up code unless asked. Code examples must come from the following repo
 - This repository
 - The `embabel-agent-examples` repository at https://github.com/embabel/embabel-agent-examples/
 - The `java-agent-template` repository at https://github.com/embabel/java-agent-template/
-- Other repositories the user specifically asks you to use.
+- The `impromptu` repository at https://github.com/embabel/impromptu/
+- Any repositories the user specifically asks you to use
 
 
 
