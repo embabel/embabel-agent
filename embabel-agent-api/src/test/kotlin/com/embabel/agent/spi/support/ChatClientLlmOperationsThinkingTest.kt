@@ -18,7 +18,6 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
-import com.embabel.agent.api.validation.guardrails.GuardRailConfiguration
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
@@ -27,7 +26,6 @@ import com.embabel.agent.core.support.InvalidLlmReturnFormatException
 import com.embabel.agent.core.support.LlmCall
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent

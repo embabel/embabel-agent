@@ -16,25 +16,24 @@
 package com.embabel.agent.spi.support.springai.streaming
 
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.LlmRequestEvent
-import com.embabel.agent.api.validation.guardrails.GuardRailConfiguration
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
-import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.LlmInvocationHistory
+import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.spi.support.DefaultToolDecorator
 import com.embabel.agent.spi.support.LlmDataBindingProperties
 import com.embabel.agent.spi.support.RegistryToolGroupResolver
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
-import com.embabel.agent.api.common.ToolsStats
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
@@ -60,8 +59,8 @@ import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.DefaultChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
-import org.springframework.ai.chat.messages.AssistantMessage as SpringAssistantMessage
 import reactor.core.publisher.Flux
+import org.springframework.ai.chat.messages.AssistantMessage as SpringAssistantMessage
 
 /**
  * Fake ChatModel for streaming guardrail testing

@@ -120,7 +120,7 @@ class OutputTransformingTool(
 /**
  * Tool decorator that adds metadata about the tool group.
  */
-class MetadataEnrichedTool(
+class MetadataEnrichingTool(
     override val delegate: Tool,
     val toolGroupMetadata: ToolGroupMetadata?,
 ) : DelegatingTool {
@@ -136,7 +136,7 @@ class MetadataEnrichedTool(
             // to terminate the tool loop and trigger replanning
             throw e
         } catch (t: Throwable) {
-            loggerFor<MetadataEnrichedTool>().warn(
+            loggerFor<MetadataEnrichingTool>().warn(
                 "Tool call failure on ${delegate.definition.name}: input from LLM was <$input>",
                 t,
             )
@@ -167,7 +167,7 @@ class EventPublishingTool(
             action = action,
             llmOptions = llmOptions,
             tool = delegate.definition.name,
-            toolGroupMetadata = (delegate as? MetadataEnrichedTool)?.toolGroupMetadata,
+            toolGroupMetadata = (delegate as? MetadataEnrichingTool)?.toolGroupMetadata,
             toolInput = input,
         )
         val toolCallSchedule =

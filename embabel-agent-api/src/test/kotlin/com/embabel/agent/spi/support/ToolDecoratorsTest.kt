@@ -22,7 +22,8 @@ import com.embabel.agent.core.ToolGroupMetadata
 import com.embabel.common.util.StringTransformer
 import io.mockk.mockk
 import io.mockk.verify
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -205,12 +206,12 @@ class ToolDecoratorsTest {
     }
 
     @Nested
-    inner class MetadataEnrichedToolTest {
+    inner class MetadataEnrichingToolTest {
 
         @Test
         fun `delegates call to underlying tool on success`() {
             val delegateTool = createMockTool("meta-tool") { Tool.Result.text("success") }
-            val enrichedTool = MetadataEnrichedTool(delegateTool, null)
+            val enrichedTool = MetadataEnrichingTool(delegateTool, null)
 
             val result = enrichedTool.call("{}")
 
@@ -222,7 +223,7 @@ class ToolDecoratorsTest {
             val delegateTool = createMockTool("failing-tool") {
                 throw IllegalArgumentException("Bad input")
             }
-            val enrichedTool = MetadataEnrichedTool(delegateTool, null)
+            val enrichedTool = MetadataEnrichingTool(delegateTool, null)
 
             val exception = assertThrows<IllegalArgumentException> {
                 enrichedTool.call("{}")
@@ -240,7 +241,7 @@ class ToolDecoratorsTest {
                 provider = "test-provider",
                 permissions = emptySet(),
             )
-            val enrichedTool = MetadataEnrichedTool(delegateTool, metadata)
+            val enrichedTool = MetadataEnrichingTool(delegateTool, metadata)
 
             assertEquals(metadata, enrichedTool.toolGroupMetadata)
         }
@@ -248,7 +249,7 @@ class ToolDecoratorsTest {
         @Test
         fun `preserves tool definition from delegate`() {
             val delegateTool = createMockTool("preserved-name") { Tool.Result.text("{}") }
-            val enrichedTool = MetadataEnrichedTool(delegateTool, null)
+            val enrichedTool = MetadataEnrichingTool(delegateTool, null)
 
             assertEquals("preserved-name", enrichedTool.definition.name)
         }
@@ -263,7 +264,7 @@ class ToolDecoratorsTest {
                 provider = "test-provider",
                 permissions = emptySet(),
             )
-            val enrichedTool = MetadataEnrichedTool(delegateTool, metadata)
+            val enrichedTool = MetadataEnrichingTool(delegateTool, metadata)
 
             val str = enrichedTool.toString()
 
@@ -279,7 +280,7 @@ class ToolDecoratorsTest {
                     blackboardUpdater = { bb -> bb["key"] = "value" }
                 )
             }
-            val enrichedTool = MetadataEnrichedTool(delegateTool, null)
+            val enrichedTool = MetadataEnrichingTool(delegateTool, null)
 
             // Should throw ReplanRequestedException without logging as failure
             val exception = assertThrows<ReplanRequestedException> {
@@ -303,7 +304,7 @@ class ToolDecoratorsTest {
                     }
                 )
             }
-            val enrichedTool = MetadataEnrichedTool(delegateTool, null)
+            val enrichedTool = MetadataEnrichingTool(delegateTool, null)
 
             val exception = assertThrows<ReplanRequestedException> {
                 enrichedTool.call("{}")

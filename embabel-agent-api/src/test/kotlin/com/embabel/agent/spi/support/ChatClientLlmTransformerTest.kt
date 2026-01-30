@@ -19,10 +19,14 @@ import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.AgenticEventListener
-import com.embabel.agent.core.*
+import com.embabel.agent.core.Agent
+import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.LlmInvocation
+import com.embabel.agent.core.LlmInvocationHistory
+import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.spi.support.springai.MaybeReturn
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.test.common.EventSavingAgenticEventListener

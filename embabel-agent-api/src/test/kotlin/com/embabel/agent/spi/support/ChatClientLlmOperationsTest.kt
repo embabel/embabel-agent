@@ -21,13 +21,12 @@ import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.core.support.InvalidLlmReturnFormatException
 import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
+import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.spi.support.springai.MaybeReturn
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -645,7 +644,7 @@ class ChatClientLlmOperationsTest {
 
             assertTrue(
                 exception.message?.contains("timed out") == true ||
-                exception.cause is java.util.concurrent.TimeoutException,
+                        exception.cause is java.util.concurrent.TimeoutException,
                 "Should have timed out, but got: ${exception.message}"
             )
         }
@@ -679,7 +678,7 @@ class ChatClientLlmOperationsTest {
 
             assertTrue(
                 exception.message?.contains("timed out") == true ||
-                exception.cause is java.util.concurrent.TimeoutException,
+                        exception.cause is java.util.concurrent.TimeoutException,
                 "Should have timed out, but got: ${exception.message}"
             )
         }
@@ -892,7 +891,8 @@ class ChatClientLlmOperationsTest {
             val userMessageIndex = messages.indexOfFirst { it is org.springframework.ai.chat.messages.UserMessage }
             if (userMessageIndex >= 0) {
                 val messagesAfterUser = messages.drop(userMessageIndex + 1)
-                val systemMessagesAfterUser = messagesAfterUser.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
+                val systemMessagesAfterUser =
+                    messagesAfterUser.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
                 assertTrue(
                     systemMessagesAfterUser.isEmpty(),
                     "No system messages should appear after user messages, but found ${systemMessagesAfterUser.size}"
@@ -940,10 +940,12 @@ class ChatClientLlmOperationsTest {
             }
 
             // No system messages after user messages
-            val firstNonSystemIndex = messages.indexOfFirst { it !is org.springframework.ai.chat.messages.SystemMessage }
+            val firstNonSystemIndex =
+                messages.indexOfFirst { it !is org.springframework.ai.chat.messages.SystemMessage }
             if (firstNonSystemIndex >= 0) {
                 val messagesAfterFirst = messages.drop(firstNonSystemIndex)
-                val lateSystemMessages = messagesAfterFirst.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
+                val lateSystemMessages =
+                    messagesAfterFirst.filterIsInstance<org.springframework.ai.chat.messages.SystemMessage>()
                 assertTrue(
                     lateSystemMessages.isEmpty(),
                     "No system messages should appear after non-system messages"

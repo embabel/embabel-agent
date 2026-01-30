@@ -23,7 +23,6 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.support.safelyGetToolsFrom
-import com.embabel.agent.spi.support.springai.DefaultToolDecorator
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentProcessRunning
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.mockk
