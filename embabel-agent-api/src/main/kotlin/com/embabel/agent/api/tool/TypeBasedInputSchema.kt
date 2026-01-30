@@ -17,7 +17,6 @@ package com.embabel.agent.api.tool
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlin.reflect.KClass
-import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.javaType
 
@@ -37,23 +36,6 @@ class TypeBasedInputSchema(
 
         @JvmStatic
         fun of(type: KClass<*>): TypeBasedInputSchema = TypeBasedInputSchema(type.java)
-
-        private fun mapJavaTypeToSchemaType(type: Class<*>): String = when {
-            type == String::class.java || type == java.lang.String::class.java -> "string"
-            type == Int::class.java || type == Integer::class.java ||
-                    type == Long::class.java || type == java.lang.Long::class.java ||
-                    type == Short::class.java || type == java.lang.Short::class.java ||
-                    type == Byte::class.java || type == java.lang.Byte::class.java -> "integer"
-
-            type == Double::class.java || type == java.lang.Double::class.java ||
-                    type == Float::class.java || type == java.lang.Float::class.java -> "number"
-
-            type == Boolean::class.java || type == java.lang.Boolean::class.java -> "boolean"
-            type.isArray || List::class.java.isAssignableFrom(type) ||
-                    Collection::class.java.isAssignableFrom(type) -> "array"
-
-            else -> "object"
-        }
 
         private fun mapPropertyTypeToParameterType(type: Class<*>): Tool.ParameterType = when {
             type == String::class.java || type == java.lang.String::class.java ->
@@ -82,8 +64,7 @@ class TypeBasedInputSchema(
     }
 
     override fun toJsonSchema(): String {
-        val properties = mutableMapOf<String, Any>()
-        val required = mutableListOf<String>()
+        val parameterInfos = mutableListOf<VictoolsSchemaGenerator.ParameterInfo>()
 
         try {
             // Skip Kotlin reflection for Java records - go straight to fallback
@@ -93,41 +74,35 @@ class TypeBasedInputSchema(
 
             val kClass = type.kotlin
             for (prop in kClass.memberProperties) {
-                val propName = prop.name
-                val propType = (prop.returnType.javaType as? Class<*>) ?: Any::class.java
-                val schemaType = mapJavaTypeToSchemaType(propType)
-
-                properties[propName] = mapOf(
-                    "type" to schemaType,
-                    "description" to propName,
+                // Use javaType to get the full generic type (e.g., List<String> not just List)
+                val javaType = prop.returnType.javaType
+                parameterInfos.add(
+                    VictoolsSchemaGenerator.ParameterInfo(
+                        name = prop.name,
+                        type = javaType,
+                        description = prop.name,
+                        required = !prop.returnType.isMarkedNullable,
+                    )
                 )
-
-                if (!prop.returnType.isMarkedNullable) {
-                    required.add(propName)
-                }
             }
         } catch (e: Exception) {
             // Fallback for non-Kotlin classes or reflection failures
+            // For Java classes, try to get generic type info from fields
             for (field in type.declaredFields) {
                 if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
-                val schemaType = mapJavaTypeToSchemaType(field.type)
-                properties[field.name] = mapOf(
-                    "type" to schemaType,
-                    "description" to field.name,
+                parameterInfos.add(
+                    VictoolsSchemaGenerator.ParameterInfo(
+                        name = field.name,
+                        type = field.genericType, // Use genericType for full type info
+                        description = field.name,
+                        required = true,
+                    )
                 )
-                required.add(field.name)
             }
         }
 
-        val schema = mutableMapOf<String, Any>(
-            "type" to "object",
-            "properties" to properties,
-        )
-        if (required.isNotEmpty()) {
-            schema["required"] = required
-        }
-
-        return objectMapper.writeValueAsString(schema)
+        // Use victools to generate schema with proper generic handling
+        return VictoolsSchemaGenerator.generateToolInputSchema(parameterInfos)
     }
 
     @Suppress("UNCHECKED_CAST")

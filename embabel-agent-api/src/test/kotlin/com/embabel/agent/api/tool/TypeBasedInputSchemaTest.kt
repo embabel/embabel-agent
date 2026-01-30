@@ -56,6 +56,30 @@ class TypeBasedInputSchemaTest {
         val nested: SimpleKotlinClass,
     )
 
+    // Test classes for array items schema tests
+    data class ListOfStrings(
+        val tags: List<String>,
+    )
+
+    data class ListOfIntegers(
+        val scores: List<Int>,
+    )
+
+    data class NestedItem(
+        val name: String,
+        val value: Int,
+    )
+
+    data class ListOfNestedObjects(
+        val items: List<NestedItem>,
+    )
+
+    data class ComplexNestedType(
+        val title: String,
+        val entries: List<NestedItem>,
+        val count: Int,
+    )
+
     @Nested
     inner class FactoryMethodsTest {
 
@@ -282,6 +306,94 @@ class TypeBasedInputSchemaTest {
 
             val parsed = objectMapper.readTree(jsonSchema)
             assertEquals("object", parsed.get("type").asText())
+        }
+    }
+
+    /**
+     * Tests for array/list schemas - OpenAI requires `items` property for arrays.
+     * See: https://platform.openai.com/docs/guides/function-calling
+     */
+    @Nested
+    inner class ArrayItemsSchemaTest {
+
+        @Test
+        fun `array of strings has items with type string`() {
+            val schema = TypeBasedInputSchema.of(ListOfStrings::class.java)
+
+            val jsonSchema = schema.toJsonSchema()
+            val parsed = objectMapper.readTree(jsonSchema)
+            val tagsProperty = parsed.get("properties").get("tags")
+
+            assertEquals("array", tagsProperty.get("type").asText())
+
+            // This is the key assertion - arrays MUST have items property
+            val items = tagsProperty.get("items")
+            assertNotNull(items, "Array schema must have 'items' property for OpenAI compatibility")
+            assertEquals("string", items.get("type").asText())
+        }
+
+        @Test
+        fun `array of integers has items with type integer`() {
+            val schema = TypeBasedInputSchema.of(ListOfIntegers::class.java)
+
+            val jsonSchema = schema.toJsonSchema()
+            val parsed = objectMapper.readTree(jsonSchema)
+            val scoresProperty = parsed.get("properties").get("scores")
+
+            assertEquals("array", scoresProperty.get("type").asText())
+
+            val items = scoresProperty.get("items")
+            assertNotNull(items, "Array schema must have 'items' property for OpenAI compatibility")
+            assertEquals("integer", items.get("type").asText())
+        }
+
+        @Test
+        fun `array of nested objects has items with object schema`() {
+            val schema = TypeBasedInputSchema.of(ListOfNestedObjects::class.java)
+
+            val jsonSchema = schema.toJsonSchema()
+            val parsed = objectMapper.readTree(jsonSchema)
+            val itemsProperty = parsed.get("properties").get("items")
+
+            assertEquals("array", itemsProperty.get("type").asText())
+
+            // Array items should have a nested object schema
+            val items = itemsProperty.get("items")
+            assertNotNull(items, "Array schema must have 'items' property for OpenAI compatibility")
+            assertEquals("object", items.get("type").asText())
+
+            // The nested object should have its own properties defined
+            val nestedProperties = items.get("properties")
+            assertNotNull(nestedProperties, "Nested object items should have properties")
+            assertTrue(nestedProperties.has("name"), "Nested object should have 'name' property")
+            assertTrue(nestedProperties.has("value"), "Nested object should have 'value' property")
+        }
+
+        @Test
+        fun `complex type with nested list generates complete schema`() {
+            val schema = TypeBasedInputSchema.of(ComplexNestedType::class.java)
+
+            val jsonSchema = schema.toJsonSchema()
+            val parsed = objectMapper.readTree(jsonSchema)
+
+            // Top-level properties
+            val properties = parsed.get("properties")
+            assertEquals("string", properties.get("title").get("type").asText())
+            assertEquals("integer", properties.get("count").get("type").asText())
+
+            // Entries array
+            val entriesProperty = properties.get("entries")
+            assertEquals("array", entriesProperty.get("type").asText())
+
+            val items = entriesProperty.get("items")
+            assertNotNull(items, "Array schema must have 'items' property")
+            assertEquals("object", items.get("type").asText())
+
+            // Nested properties in the array items
+            val nestedProperties = items.get("properties")
+            assertNotNull(nestedProperties)
+            assertEquals("string", nestedProperties.get("name").get("type").asText())
+            assertEquals("integer", nestedProperties.get("value").get("type").asText())
         }
     }
 }
