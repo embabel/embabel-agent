@@ -19,19 +19,14 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.validation.guardrails.GuardRail
-import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
-import com.embabel.agent.tools.agent.AgentTool
-import com.embabel.agent.tools.agent.Handoffs
-import com.embabel.agent.tools.agent.PromptedTextCommunicator
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
@@ -102,45 +97,6 @@ internal data class OperationContextDelegate(
         copy(toolObjects = this.toolObjects + toolObject)
 
     override fun withTool(tool: Tool): PromptExecutionDelegate = copy(otherTools = this.otherTools + tool)
-
-    override fun withHandoffs(vararg outputTypes: Class<*>): PromptExecutionDelegate {
-        val handoffs = Handoffs(
-            autonomy = context.agentPlatform().platformServices.autonomy(),
-            outputTypes = outputTypes.toList(),
-            applicationName = context.agentPlatform().name,
-        )
-        return copy(
-            otherTools = this.otherTools + handoffs.tools,
-        )
-    }
-
-    override fun withSubagents(vararg subagents: Subagent): PromptExecutionDelegate {
-        val newTools = subagents.map { subagent ->
-            val agent = subagent.resolve(context.agentPlatform())
-            AgentTool(
-                autonomy = context.agentPlatform().platformServices.autonomy(),
-                agent = agent,
-                textCommunicator = PromptedTextCommunicator,
-                objectMapper = context.agentPlatform().platformServices.objectMapper,
-                inputType = subagent.inputClass,
-                processOptionsCreator = { agentProcess ->
-                    val blackboard = agentProcess.processContext.blackboard.spawn()
-                    loggerFor<OperationContextDelegate>().info(
-                        "Creating subagent process for {} with blackboard {}",
-                        agent.name,
-                        blackboard,
-                    )
-                    ProcessOptions(
-                        verbosity = Verbosity(showPrompts = true),
-                        blackboard = blackboard,
-                    )
-                },
-            )
-        }
-        return copy(
-            otherTools = this.otherTools + newTools,
-        )
-    }
 
     override fun withPromptContributors(promptContributors: List<PromptContributor>): PromptExecutionDelegate =
         copy(promptContributors = this.promptContributors + promptContributors)

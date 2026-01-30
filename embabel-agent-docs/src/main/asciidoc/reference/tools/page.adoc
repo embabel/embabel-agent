@@ -686,6 +686,220 @@ check(customized.call("{}").text == "42")
 |You need to organize related tools, use MCP servers, or control tool availability at deployment time
 |===
 
+[[subagent-tool]]
+==== Subagent: Agent Handoffs as Tools
+
+A `Subagent` is a specialized `Tool` that delegates to another Embabel agent.
+When the LLM invokes this tool, it runs the specified agent as a subprocess, sharing the parent process's blackboard context.
+This enables composition of agents and "handoff" patterns where one agent delegates specialized tasks to another.
+
+===== Creating Subagents
+
+Subagent uses a fluent builder pattern. First select how to reference the agent, then specify the input type using `consuming()`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// From an @Agent annotated class (most common)
+Subagent.ofClass(ConcertAssembler.class).consuming(ConcertPlan.class)
+
+// By agent name (resolved at runtime from platform)
+Subagent.byName("ConcertAssembler").consuming(ConcertPlan.class)
+
+// From an already-resolved Agent instance
+Subagent.ofInstance(resolvedAgent).consuming(ConcertPlan.class)
+
+// From an instance of an @Agent annotated class (e.g., a Spring bean)
+Subagent.ofAnnotatedInstance(myAgentBean).consuming(ConcertPlan.class)
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// From an @Agent annotated class with reified types (cleanest)
+Subagent.ofClass<ConcertAssembler>().consuming<ConcertPlan>()
+
+// From a Java class
+Subagent.ofClass(ConcertAssembler::class.java).consuming(ConcertPlan::class.java)
+
+// From a KClass
+Subagent.ofClass(ConcertAssembler::class).consuming(ConcertPlan::class)
+
+// By agent name (resolved at runtime from platform)
+Subagent.byName("ConcertAssembler").consuming<ConcertPlan>()
+
+// From an already-resolved Agent instance
+Subagent.ofInstance(resolvedAgent).consuming<ConcertPlan>()
+
+// From an instance of an @Agent annotated class (e.g., a Spring bean)
+Subagent.ofAnnotatedInstance(myAgentBean).consuming<ConcertPlan>()
+----
+====
+
+The `consuming()` method specifies the input type that the LLM will provide when invoking this tool.
+This type is used to generate the JSON schema that guides the LLM's tool invocation.
+
+===== Using Subagents with PromptRunner
+
+Use `withTool()` to add a Subagent to your prompt:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Action
+public Concert assembleConcert(ConcertPlan plan, OperationContext context) {
+    return context.ai()
+        .withDefaultLlm()
+        .withTool(Subagent.ofClass(PerformanceFinder.class)
+                .consuming(WorksToFind.class))  // <1>
+        .creating(Concert.class)
+        .fromPrompt("Assemble a concert based on: " + plan);
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Action
+fun assembleConcert(plan: ConcertPlan, context: OperationContext): Concert {
+    return context.ai()
+        .withDefaultLlm()
+        .withTool(Subagent.ofClass<PerformanceFinder>()
+                .consuming<WorksToFind>())  // <1>
+        .creating(Concert::class.java)
+        .fromPrompt("Assemble a concert based on: $plan")
+}
+----
+====
+
+<1> The LLM can now invoke `PerformanceFinder` as a tool, providing `WorksToFind` input to delegate the performance search task.
+
+===== Subagent with Asset Tracking
+
+For chat applications that track assets, wrap the Subagent with `AssetAddingTool` to automatically track returned artifacts:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Action
+public Concert assembleConcert(ConcertPlan plan, OperationContext context) {
+    var subagent = Subagent.ofClass(PerformanceFinder.class)
+            .consuming(WorksToFind.class);
+    var trackedSubagent = assetTracker.addReturnedAssets(subagent);  // <1>
+
+    return context.ai()
+        .withDefaultLlm()
+        .withTool(trackedSubagent)
+        .creating(Concert.class)
+        .fromPrompt("Assemble a concert based on: " + plan);
+}
+
+// With filtering - only track certain assets
+var trackedSubagent = assetTracker.addReturnedAssets(subagent, asset ->
+    asset instanceof Performance  // Only track Performance assets
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Action
+fun assembleConcert(plan: ConcertPlan, context: OperationContext): Concert {
+    val subagent = Subagent.ofClass<PerformanceFinder>()
+            .consuming<WorksToFind>()
+    val trackedSubagent = assetTracker.addReturnedAssets(subagent)  // <1>
+
+    return context.ai()
+        .withDefaultLlm()
+        .withTool(trackedSubagent)
+        .creating(Concert::class.java)
+        .fromPrompt("Assemble a concert based on: $plan")
+}
+
+// With filtering - only track certain assets
+val trackedSubagent = assetTracker.addReturnedAssets(subagent) { asset ->
+    asset is Performance  // Only track Performance assets
+}
+----
+====
+
+<1> Wrap with `addReturnedAssets()` to track artifacts returned by the subagent.
+
+===== Input Type and JSON Schema
+
+The input type you specify with `consuming()` determines the JSON schema that the LLM sees when invoking the tool.
+
+For example:
+
+[source,java]
+----
+// The input type
+public record WorksToFind(List<String> composers, String era, int maxResults) {}
+
+// Create the subagent with explicit input type
+Subagent.ofClass(PerformanceFinder.class).consuming(WorksToFind.class)
+----
+
+The Subagent tool will:
+
+* Use "PerformanceFinder" as the tool name (from `@Agent` annotation)
+* Use "Finds performances" as the tool description (from `@Agent` annotation)
+* Generate a JSON schema from `WorksToFind`
+
+**From the LLM's perspective, a Subagent is just another tool.**
+The calling LLM sees the JSON schema for `WorksToFind` and can populate it directly:
+
+[source,json]
+----
+{
+  "composers": ["Mozart", "Beethoven"],
+  "era": "Classical",
+  "maxResults": 5
+}
+----
+
+When the tool is invoked, Subagent deserializes this JSON into a `WorksToFind` object and passes it to the target agent.
+The input type should match the first non-injected parameter of the agent's entry-point action.
+
+===== Blackboard Sharing
+
+When a Subagent runs, it receives a **spawned blackboard** from the parent process.
+This means:
+
+* The subagent can read objects from the parent's blackboard
+* Objects added by the subagent are available to the parent after the subagent completes
+* The subagent operates in its own process context but shares state appropriately
+
+===== When to Use Subagent
+
+|===
+|Scenario |Recommendation
+
+|Complex specialized task that has its own multi-action workflow
+|Use Subagent - the target agent can plan and execute multiple steps
+
+|Simple tool call with deterministic logic
+|Use a regular `@LlmTool` method instead
+
+|LLM-orchestrated mini-workflow with sub-tools
+|Consider <<reference.tools__agentic-tools,AgenticTool>> which operates at the tool level
+
+|Need the full power of GOAP planning for the subtask
+|Subagent is ideal - the target agent uses its own planner
+|===
+
 [[reference.tools__agentic-tools]]
 ==== Agentic Tools
 

@@ -171,14 +171,6 @@ data class FakePromptRunner(
             return this@FakePromptRunner.copy(otherTools = this@FakePromptRunner.otherTools + tool).DelegateAdapter()
         }
 
-        override fun withHandoffs(vararg outputTypes: Class<*>): PromptExecutionDelegate {
-            TODO("Implement handoff support")
-        }
-
-        override fun withSubagents(vararg subagents: Subagent): PromptExecutionDelegate {
-            TODO("Implement subagent handoff support")
-        }
-
         override fun withPromptContributors(promptContributors: List<PromptContributor>): PromptExecutionDelegate {
             return this@FakePromptRunner.copy(
                 promptContributors = this@FakePromptRunner.promptContributors + promptContributors
@@ -396,14 +388,6 @@ data class FakePromptRunner(
             delegate = DelegateAdapter(),
             templateName = templateName,
         )
-    }
-
-    override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner {
-        TODO("Implement handoff support")
-    }
-
-    override fun withSubagents(vararg subagents: Subagent): PromptRunner {
-        TODO("Implement subagent handoff support")
     }
 
     override fun withToolGroup(toolGroup: ToolGroup): PromptRunner =

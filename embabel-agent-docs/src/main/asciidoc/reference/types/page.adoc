@@ -131,7 +131,7 @@ var answer = context.ai()
 **Advanced Features:**
 
 - `rendering(String)`: Use <<reference.templates, Jinja>> templates for prompts (returns `Rendering` interface)
-- `withSubagents(Subagent...)`: Enable handoffs to other agents
+- `withTool(Subagent.ofClass(MyAgent.class).consuming(MyInput.class))`: Enable handoffs to other agents (see <<subagent-tool>>)
 - `evaluateCondition(String, String)`: Evaluate boolean condition
 
 **Validation**

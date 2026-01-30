@@ -94,12 +94,6 @@ internal data class DelegatingStreamingPromptRunner(
     override fun withTool(tool: Tool): PromptRunner =
         copy(delegate = delegate.withTool(tool))
 
-    override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner =
-        copy(delegate = delegate.withHandoffs(*outputTypes))
-
-    override fun withSubagents(vararg subagents: Subagent): PromptRunner =
-        copy(delegate = delegate.withSubagents(*subagents))
-
     override fun withPromptContributors(promptContributors: List<PromptContributor>): PromptRunner =
         copy(delegate = delegate.withPromptContributors(promptContributors))
 

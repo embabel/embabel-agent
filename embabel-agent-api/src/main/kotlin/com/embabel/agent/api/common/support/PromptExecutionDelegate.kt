@@ -73,10 +73,6 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     fun withTool(tool: Tool): PromptExecutionDelegate
 
-    fun withHandoffs(vararg outputTypes: Class<*>): PromptExecutionDelegate
-
-    fun withSubagents(vararg subagents: Subagent): PromptExecutionDelegate
-
     fun withPromptContributors(promptContributors: List<PromptContributor>): PromptExecutionDelegate
 
     fun withContextualPromptContributors(

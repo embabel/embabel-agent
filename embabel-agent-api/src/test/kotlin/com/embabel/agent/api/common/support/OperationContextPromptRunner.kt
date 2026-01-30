@@ -235,47 +235,6 @@ internal data class OperationContextPromptRunner(
     override fun withTool(tool: Tool): PromptRunner =
         copy(otherTools = this.otherTools + tool)
 
-    override fun withHandoffs(vararg outputTypes: Class<*>): PromptRunner {
-        val handoffs = Handoffs(
-            autonomy = context.agentPlatform().platformServices.autonomy(),
-            outputTypes = outputTypes.toList(),
-            applicationName = context.agentPlatform().name,
-        )
-        return copy(
-            otherTools = this.otherTools + handoffs.tools,
-        )
-    }
-
-    override fun withSubagents(
-        vararg subagents: Subagent,
-    ): PromptRunner {
-        val newTools = subagents.map { subagent ->
-            val agent = subagent.resolve(context.agentPlatform())
-            AgentTool(
-                autonomy = context.agentPlatform().platformServices.autonomy(),
-                agent = agent,
-                textCommunicator = PromptedTextCommunicator,
-                objectMapper = context.agentPlatform().platformServices.objectMapper,
-                inputType = subagent.inputClass,
-                processOptionsCreator = { agentProcess ->
-                    val blackboard = agentProcess.processContext.blackboard.spawn()
-                    loggerFor<OperationContextPromptRunner>().info(
-                        "Creating subagent process for {} with blackboard {}",
-                        agent.name,
-                        blackboard,
-                    )
-                    ProcessOptions(
-                        verbosity = Verbosity(showPrompts = true),
-                        blackboard = blackboard,
-                    )
-                },
-            )
-        }
-        return copy(
-            otherTools = this.otherTools + newTools,
-        )
-    }
-
     override fun withPromptContributors(promptContributors: List<PromptContributor>): PromptRunner =
         copy(promptContributors = this.promptContributors + promptContributors)
 

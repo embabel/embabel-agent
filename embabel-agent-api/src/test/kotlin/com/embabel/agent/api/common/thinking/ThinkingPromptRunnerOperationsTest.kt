@@ -229,10 +229,6 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withTool(tool: com.embabel.agent.api.tool.Tool): com.embabel.agent.api.common.PromptRunner =
                 this
 
-            override fun withHandoffs(vararg outputTypes: Class<*>): com.embabel.agent.api.common.PromptRunner = this
-            override fun withSubagents(vararg subagents: com.embabel.agent.api.common.Subagent): com.embabel.agent.api.common.PromptRunner =
-                this
-
             override fun withPromptContributors(promptContributors: List<com.embabel.common.ai.prompt.PromptContributor>): com.embabel.agent.api.common.PromptRunner =
                 this
 
