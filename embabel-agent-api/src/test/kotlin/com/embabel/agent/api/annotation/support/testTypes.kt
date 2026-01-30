@@ -513,41 +513,10 @@ class OnePromptActionWithToolOnly(
 
 }
 
-@EmbabelComponent
-class FromPersonUsesDomainObjectTools {
-
-    @Action
-    fun fromPerson(
-        person: PersonWithReverseTool,
-        context: OperationContext,
-    ): UserInput {
-        return context.ai().withDefaultLlm().createObject("Create a UserInput")
-    }
-}
-
-@EmbabelComponent
-class FromPersonUsesDomainObjectToolsViaActionContext {
-
-    @Action
-    fun fromPerson(
-        person: PersonWithReverseTool,
-        context: ActionContext,
-    ): UserInput {
-        return context.promptRunner().createObject("Create a UserInput")
-    }
-}
-
-@EmbabelComponent
-class FromPersonUsesDomainObjectToolsViaExecutingOperationContext {
-
-    @Action
-    fun fromPerson(
-        person: PersonWithReverseTool,
-        context: ExecutingOperationContext,
-    ): UserInput {
-        return context.promptRunner().createObject("Create a UserInput")
-    }
-}
+// Note: FromPersonUsesDomainObjectTools, FromPersonUsesDomainObjectToolsViaActionContext,
+// and FromPersonUsesDomainObjectToolsViaExecutingOperationContext were removed because
+// they tested undocumented automatic tool exposure from domain object parameters.
+// Domain object tools must be explicitly added via withToolObject().
 
 @EmbabelComponent
 class FromPersonUsesObjectToolsViaUsing {
@@ -587,9 +556,12 @@ class FromPersonUsesObjectToolsViaUsingWithFilter {
         person: PersonWithReverseTool,
         context: OperationContext,
     ): UserInput {
+        // Filter that allows all tools (returns true). Previously this test used { false } which
+        // filtered out all tools, but the test was expecting 1 tool because domain objects were
+        // automatically exposed (which is now removed as undocumented behavior).
         return context.ai().withDefaultLlm()
             .withToolObject(
-                ToolObject(FunnyTool()).withNamingStrategy { "_$it" }.withFilter { false },
+                ToolObject(FunnyTool()).withNamingStrategy { "_$it" }.withFilter { true },
             ).createObject("Create a UserInput")
     }
 }

@@ -167,24 +167,17 @@ interface ActionContext : ExecutingOperationContext {
     ): PromptRunner {
         val promptContributorsToUse = (promptContributors + CurrentDate()).distinctBy { it.promptContribution().role }
 
-        val doi = domainObjectInstances()
         return DelegatingStreamingPromptRunner(
             delegate = OperationContextDelegate(
                 context = this,
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                toolObjects = (toolObjects + doi.map { ToolObject(it) }).distinct(),
+                toolObjects = toolObjects,
                 promptContributors = promptContributorsToUse,
                 contextualPromptContributors = contextualPromptContributors,
                 generateExamples = generateExamples,
             ),
         )
     }
-
-    /**
-     * Return the domain object instances that are relevant for this action context.
-     * They may expose tools.
-     */
-    fun domainObjectInstances(): List<Any>
 
 }

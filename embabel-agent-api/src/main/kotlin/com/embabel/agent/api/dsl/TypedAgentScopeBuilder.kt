@@ -342,9 +342,6 @@ data class BiInputActionContext<A1, A2>(
 ) : InputsActionContext, ActionContext by actionContext {
 
     override val inputs: List<Any> get() = listOfNotNull(input1, input2)
-
-    override fun domainObjectInstances(): List<Any> =
-        listOfNotNull(input1, input2)
 }
 
 inline fun <reified A1, reified A2, reified B : Any, reified C> biAggregate(

@@ -176,13 +176,6 @@ inline fun <reified O : Any> ActionContext.asSubProcess(
  */
 interface InputsActionContext : ActionContext {
     val inputs: List<Any>
-
-    override fun domainObjectInstances(): List<Any> = inputs.flatMap { input ->
-        when (input) {
-            is List<*> -> input.filterNotNull()
-            else -> listOf(input)
-        }.distinct()
-    }
 }
 
 /**
@@ -222,9 +215,6 @@ class SupplierActionContext<O>(
     override val operation = action
 
     val inputs: List<Any> get() = emptyList()
-
-    override fun domainObjectInstances(): List<Any> = listOf(outputClass)
-
 }
 
 internal class OperationContextAi(
