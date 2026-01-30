@@ -28,6 +28,7 @@
         <module>embabel-agent-domain</module>
         <module>embabel-agent-dependencies</module>
         <module>embabel-agent-mcpserver</module>
+        <module>embabel-agent-observability</module>
         <module>embabel-agent-rag</module>
         <module>embabel-agent-shell</module>
         <module>embabel-agent-starters</module>
