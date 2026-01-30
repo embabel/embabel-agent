@@ -24,7 +24,6 @@ import com.embabel.agent.api.validation.guardrails.UserInputGuardRail;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.spi.LlmService;
-import com.embabel.chat.AssistantMessage;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.core.validation.ValidationError;
@@ -270,10 +269,6 @@ class LLMAnthropicThinkingIT {
             return new ValidationResult(true, Collections.emptyList());
         }
 
-        @Override
-        public @NotNull ValidationResult validate(@NotNull AssistantMessage message, @NotNull Blackboard blackboard) {
-            return AssistantMessageGuardRail.super.validate(message, blackboard);
-        }
     }
 
     /**

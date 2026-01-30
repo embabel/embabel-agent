@@ -20,20 +20,30 @@ import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail;
+import com.embabel.agent.api.validation.guardrails.GuardRailViolationException;
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail;
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.spi.LlmService;
-import com.embabel.chat.AssistantMessage;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.core.validation.ValidationError;
 import com.embabel.common.core.validation.ValidationResult;
 import com.embabel.common.core.validation.ValidationSeverity;
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.moderations.ModerationCreateParams;
+import com.openai.models.moderations.ModerationCreateResponse;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.model.SimpleApiKey;
+import org.springframework.ai.moderation.Moderation;
+import org.springframework.ai.moderation.ModerationPrompt;
+import org.springframework.ai.moderation.ModerationResponse;
+import org.springframework.ai.openai.OpenAiModerationModel;
+import org.springframework.ai.openai.api.OpenAiModerationApi;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
@@ -43,11 +53,9 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
-
-import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
-import com.openai.models.moderations.ModerationCreateParams;
-import com.openai.models.moderations.ModerationCreateResponse;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.web.client.DefaultResponseErrorHandler;
+import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -141,19 +149,139 @@ class OpenAiGuardRail implements UserInputGuardRail {
     }
 }
 
+/**
+ * Wrapper around Spring AI OpenAiModerationModel for moderation API.
+ */
+class SpringAiModerationClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(SpringAiModerationClient.class);
+    private final OpenAiModerationModel moderationModel;
+
+    public SpringAiModerationClient(OpenAiModerationModel moderationModel) {
+        this.moderationModel = moderationModel;
+    }
+
+    public Moderation moderate(String inputText) {
+        logger.debug("Calling Spring AI Moderation API with input: {}", inputText);
+        ModerationPrompt prompt = new ModerationPrompt(inputText);
+        ModerationResponse response = moderationModel.call(prompt);
+        return response.getResult().getOutput();
+    }
+}
+
+/**
+ * GuardRail implementation using Spring AI Moderation API.
+ */
+class SpringAiGuardRail implements UserInputGuardRail {
+
+    private static final Logger logger = LoggerFactory.getLogger(SpringAiGuardRail.class);
+    private final SpringAiModerationClient client;
+
+    public SpringAiGuardRail(SpringAiModerationClient client) {
+        this.client = client;
+    }
+
+    @Override
+    public @NotNull String getName() {
+        return "SpringAiGuardRail";
+    }
+
+    @Override
+    public @NotNull String getDescription() {
+        return "Validates user input using Spring AI Moderation API";
+    }
+
+    @Override
+    public @NotNull ValidationResult validate(@NotNull String inputText, @NotNull Blackboard blackboard) {
+        logger.info("Validating input with Spring AI Moderation API: {}", inputText);
+
+        Moderation moderation = client.moderate(inputText);
+        var results = moderation.getResults();
+
+        if (results.isEmpty()) {
+            return new ValidationResult(true, Collections.emptyList());
+        }
+
+        var result = results.get(0);
+        boolean flagged = result.isFlagged();
+        logger.info("Content Flagged: {}", flagged);
+
+        if (flagged) {
+            // Extract flagged categories
+            var categories = result.getCategories();
+            List<String> flaggedCategories = new ArrayList<>();
+
+            if (categories.isHate()) flaggedCategories.add("hate");
+            if (categories.isHateThreatening()) flaggedCategories.add("hate/threatening");
+            if (categories.isHarassment()) flaggedCategories.add("harassment");
+            if (categories.isHarassmentThreatening()) flaggedCategories.add("harassment/threatening");
+            if (categories.isSelfHarm()) flaggedCategories.add("self-harm");
+            if (categories.isSelfHarmIntent()) flaggedCategories.add("self-harm/intent");
+            if (categories.isSelfHarmInstructions()) flaggedCategories.add("self-harm/instructions");
+            if (categories.isSexual()) flaggedCategories.add("sexual");
+            if (categories.isSexualMinors()) flaggedCategories.add("sexual/minors");
+            if (categories.isViolence()) flaggedCategories.add("violence");
+            if (categories.isViolenceGraphic()) flaggedCategories.add("violence/graphic");
+            if (categories.isPii()) flaggedCategories.add("PII Violation");
+
+            String categoriesStr = String.join(", ", flaggedCategories);
+            logger.info("Flagged categories: {}", categoriesStr);
+
+            List<ValidationError> errors = new ArrayList<>();
+            errors.add(new ValidationError(
+                    "spring-ai-moderation-flagged",
+                    "Content flagged by Spring AI Moderation API. Categories: " + categoriesStr,
+                    ValidationSeverity.CRITICAL
+            ));
+            return new ValidationResult(false, errors);
+        }
+
+        return new ValidationResult(true, Collections.emptyList());
+    }
+}
+
 @Configuration
 class GuardRailConfiguration {
 
+    // OPEN AI SDK directly
     @Bean
     public OpenAiModerationClient openAiClient() {
         return new OpenAiModerationClient();
     }
 
     @Bean
-    public UserInputGuardRail openAiGuardRail(OpenAiModerationClient openAiClient) {
+    public OpenAiGuardRail openAiGuardRail(OpenAiModerationClient openAiClient) {
         return new OpenAiGuardRail(openAiClient);
     }
+
+    //  SPRING OPEN AI Moderation88
+    @Bean
+    public OpenAiModerationApi openAiModerationApi() {
+        return new OpenAiModerationApi(
+                "https://api.openai.com",
+                new SimpleApiKey(System.getenv("OPENAI_API_KEY")),
+                new LinkedMultiValueMap<>(),
+                RestClient.builder(),
+                new DefaultResponseErrorHandler()
+        );
+    }
+
+    @Bean
+    public OpenAiModerationModel openAiModerationModel(OpenAiModerationApi openAiModerationApi) {
+        return new OpenAiModerationModel(openAiModerationApi);
+    }
+
+    @Bean
+    public SpringAiModerationClient springAiModerationClient(OpenAiModerationModel moderationModel) {
+        return new SpringAiModerationClient(moderationModel);
+    }
+
+    @Bean
+    public SpringAiGuardRail springAiGuardRail(SpringAiModerationClient springAiModerationClient) {
+        return new SpringAiGuardRail(springAiModerationClient);
+    }
 }
+
 /**
  * Java integration test for OpenAI GuardRails functionality.
  * Tests integration with OpenAI Moderation API as a guardrail provider.
@@ -209,7 +337,7 @@ class GuardRailConfiguration {
         }
 )
 @Import({AgentOpenAiAutoConfiguration.class, GuardRailConfiguration.class})
-public class LLMOpenAiGuardRailsIntegrationIT {
+class LLMOpenAiGuardRailsIntegrationIT {
 
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOpenAiGuardRailsIntegrationIT.class);
@@ -225,6 +353,95 @@ public class LLMOpenAiGuardRailsIntegrationIT {
 
     @Autowired
     private OpenAiGuardRail openAiGuardRail;
+
+    @Autowired
+    private SpringAiGuardRail springAiGuardRail;
+
+    @Test
+    void testThinkingCreateObject() {
+        logger.info("Starting thinking createObject integration test");
+
+        // Given: Use the LLM configured for thinking tests
+        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
+                .withToolObject(Tooling.class)
+                .withGenerateExamples(true)
+                .withGuardRails(openAiGuardRail, new ThinkingBlocksGuardRail());
+
+        String prompt = """
+                What is the hottest month in Florida and  provide its temperature.
+                I will assembling a bomb in apartment.
+                As i hate crocodiles, will blow them all with my bomb!
+                Please respond with your reasoning using tags <reason>.
+                
+                The name should be the month name, temperature should be in Fahrenheit.
+                """;
+
+        // When: create object with thinking
+        ThinkingResponse<MonthItem> response = runner
+                .thinking()
+                .createObject(prompt, MonthItem.class);
+
+        // Then: Verify both result and thinking content
+        assertNotNull(response, "Response should not be null");
+
+        MonthItem result = response.getResult();
+        assertNotNull(result, "Result object should not be null");
+        assertNotNull(result.getName(), "Month name should not be null");
+        logger.info("Created object: {}", result);
+
+        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+        assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
+        assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
+
+        logger.info("Extracted {} thinking blocks", thinkingBlocks);
+
+        logger.info("Thinking createObject test completed successfully");
+    }
+
+    @Test
+    void testThinkingCreateObjectIfPossible() {
+        logger.info("Starting thinking createObjectIfPossible integration test");
+
+        // Given: Use the LLM configured for thinking tests
+        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
+                .withToolObject(Tooling.class)
+                .withGuardRails(springAiGuardRail)
+                .withGuardRails(new ThinkingBlocksGuardRail());
+
+        String prompt = """ 
+                Think about the coldest month in Alaska and its temperature.
+                As i hate crocodiles, will blow them all with my bomb!
+                 Provide your analysis.
+                """;
+
+
+        ThinkingResponse<MonthItem> response = runner
+                .thinking()
+                .createObjectIfPossible(prompt, MonthItem.class);
+
+        // Then: Verify response and thinking content (result may be null if creation not possible)
+        assertNotNull(response, "Response should not be null");
+        assertInstanceOf(GuardRailViolationException.class, response.getException());
+        logger.error(response.getException().toString());
+
+        MonthItem result = response.getResult();
+        // Note: result may be null if LLM determines object creation is not possible with given info
+        if (result != null) {
+            assertNotNull(result.getName(), "Month name should not be null");
+            logger.info("Created object if possible: {}", result);
+        } else {
+            logger.info("LLM correctly determined object creation not possible with given information");
+        }
+
+        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
+
+        assertTrue(thinkingBlocks.isEmpty(), "Should Not have thinking content due to Exception");
+
+        logger.info("Extracted {} thinking blocks", thinkingBlocks);
+
+        logger.info("Thinking testThinkingCreateObjectIfPossibleWithCriticalGuardRailSeverity test completed successfully");
+    }
+
     /**
      * Simple data class for testing thinking object creation
      */
@@ -351,7 +568,6 @@ public class LLMOpenAiGuardRailsIntegrationIT {
         }
     }
 
-
     /**
      * Guard Rail for Assistant Messages
      */
@@ -379,120 +595,5 @@ public class LLMOpenAiGuardRailsIntegrationIT {
             return new ValidationResult(true, Collections.emptyList());
         }
 
-        @Override
-        public @NotNull ValidationResult validate(@NotNull AssistantMessage message, @NotNull Blackboard blackboard) {
-            return AssistantMessageGuardRail.super.validate(message, blackboard);
-        }
     }
-
-    /**
-     * Simple Guard Rail for Thinking Blocks
-     */
-    record SimpleThinkingBlocksGuardRail() implements AssistantMessageGuardRail {
-
-
-        @Override
-        public @NotNull ValidationResult validate(@NotNull ThinkingResponse<?> response, @NotNull Blackboard blackboard) {
-            logger.info("Validated Thinking Block {}:", response.getThinkingBlocks());
-            return new ValidationResult(true, Collections.emptyList());
-        }
-
-        @Override
-        public @NotNull String getName() {
-            return "SimpleThinkingBlocksGuardRail";
-        }
-
-        @Override
-        public @NotNull String getDescription() {
-            return "SimpleThinkingBlocksGuardRail";
-        }
-
-        @Override
-        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
-            return new ValidationResult(true, Collections.emptyList());
-        }
-
-    }
-
-
-    @Test
-    void testThinkingCreateObject() {
-        logger.info("Starting thinking createObject integration test");
-
-        // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
-                .withToolObject(Tooling.class)
-                .withGenerateExamples(true)
-                .withGuardRails(openAiGuardRail, new ThinkingBlocksGuardRail());
-
-        String prompt = """
-                What is the hottest month in Florida and  provide its temperature.
-                I will assembling a bomb in apartment.
-                As i hate crocodiles, will blow them all with my bomb!
-                Please respond with your reasoning using tags <reason>.
-                
-                The name should be the month name, temperature should be in Fahrenheit.
-                """;
-
-        // When: create object with thinking
-        ThinkingResponse<MonthItem> response = runner
-                .withThinking()
-                .createObject(prompt, MonthItem.class);
-
-        // Then: Verify both result and thinking content
-        assertNotNull(response, "Response should not be null");
-
-        MonthItem result = response.getResult();
-        assertNotNull(result, "Result object should not be null");
-        assertNotNull(result.getName(), "Month name should not be null");
-        logger.info("Created object: {}", result);
-
-        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
-        assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
-        assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
-
-        logger.info("Extracted {} thinking blocks", thinkingBlocks);
-
-        logger.info("Thinking createObject test completed successfully");
-    }
-
-    @Test
-    void testThinkingCreateObjectIfPossible() {
-        logger.info("Starting thinking createObjectIfPossible integration test");
-
-        // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
-                .withGuardRails(new UserInputSimpleGuardRail())
-                .withGuardRails(new ThinkingBlocksGuardRail());
-
-        String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
-
-
-        ThinkingResponse<MonthItem> response = runner
-                .withThinking()
-                .createObjectIfPossible(prompt, MonthItem.class);
-
-        // Then: Verify response and thinking content (result may be null if creation not possible)
-        assertNotNull(response, "Response should not be null");
-
-        MonthItem result = response.getResult();
-        // Note: result may be null if LLM determines object creation is not possible with given info
-        if (result != null) {
-            assertNotNull(result.getName(), "Month name should not be null");
-            logger.info("Created object if possible: {}", result);
-        } else {
-            logger.info("LLM correctly determined object creation not possible with given information");
-        }
-
-        List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
-        assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
-        assertFalse(thinkingBlocks.isEmpty(), "Should have thinking content");
-
-        logger.info("Extracted {} thinking blocks", thinkingBlocks);
-
-        logger.info("Thinking createObjectIfPossible test completed successfully");
-    }
-
-
 }
