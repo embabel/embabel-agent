@@ -121,13 +121,14 @@ open class AssistantMessage @JvmOverloads constructor(
     content: String,
     name: String? = null,
     val awaitable: Awaitable<*, *>? = null,
+    override val assets: List<Asset> = emptyList(),
     override val timestamp: Instant = Instant.now(),
 ) : Message(
     role = Role.ASSISTANT,
     parts = listOf(TextPart(content)),
     name = name,
     timestamp = timestamp
-), AssistantContent {
+), AssistantContent, AssetView {
 
     override fun toString(): String {
         return "AssistantMessage(from='${sender}', content='${trim(content, 80, 10)}')"

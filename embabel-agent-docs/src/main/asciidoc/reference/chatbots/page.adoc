@@ -83,12 +83,14 @@ interface ChatSession {
 
 ===== Conversation
 
-The `Conversation` interface holds the message history:
+The `Conversation` interface holds the message history and tracks assets:
 
 [source,kotlin]
 ----
-interface Conversation : StableIdentified {
+interface Conversation : StableIdentified, AssetView {
     val messages: List<Message>
+    val assetTracker: AssetTracker
+    val assets: List<Asset>  // Combined view of all assets
     fun addMessage(message: Message): Message
     fun lastMessageIfBeFromUser(): UserMessage?
 }
@@ -97,8 +99,113 @@ interface Conversation : StableIdentified {
 Message types include:
 
 - `UserMessage` - messages from the user (supports multimodal content)
-- `AssistantMessage` - responses from the chatbot
+- `AssistantMessage` - responses from the chatbot (can include assets)
 - `SystemMessage` - system-level instructions
+
+==== Asset Tracking
+
+Chatbots can track **assets**—structured outputs like generated documents, search results, or user-created content—at two levels:
+
+===== Conversation-Level Assets
+
+The `Conversation` has an `AssetTracker` for explicitly tracking assets throughout the session:
+
+[source,java]
+----
+// Add an asset to the conversation tracker
+conversation.getAssetTracker().addAsset(myAsset);
+
+// Get all tracked assets
+List<Asset> trackedAssets = conversation.getAssetTracker().getAssets();
+----
+
+Use conversation-level tracking when:
+
+- Assets are created by tools or external processes
+- Assets should persist across multiple messages
+- You want explicit control over what's tracked
+
+===== Message-Level Assets
+
+`AssistantMessage` implements `AssetView` and can include assets directly:
+
+[source,java]
+----
+AssistantMessage message = new AssistantMessage(
+    "Here's the report you requested",
+    null,  // name
+    null,  // awaitable
+    List.of(reportAsset, summaryAsset)  // assets
+);
+conversation.addMessage(message);
+----
+
+Use message-level assets when:
+
+- Assets are directly tied to a specific response
+- You want assets to appear alongside the message in the UI
+- The asset represents output from that specific interaction
+
+===== Combined Asset View
+
+The `Conversation.assets` property provides a **merged view** of all assets:
+
+[source,java]
+----
+// Gets assets from BOTH the tracker AND all messages
+List<Asset> allAssets = conversation.getAssets();
+----
+
+The merge follows these rules:
+
+1. **Tracker assets appear first** (explicit tracking takes priority)
+2. **Message assets follow** in chronological order
+3. **Duplicates are removed** by ID (tracker version wins)
+
+This allows flexible asset management:
+
+[source,java]
+----
+@Action(canRerun = true, trigger = UserMessage.class)
+void respond(Conversation conversation, ActionContext context) {
+    // Create an asset from the response
+    Asset resultAsset = createResultAsset(result);
+
+    // Option 1: Add to message (appears with this response)
+    var message = new AssistantMessage(
+        "Here's your analysis",
+        null, null,
+        List.of(resultAsset)
+    );
+    conversation.addMessage(message);
+
+    // Option 2: Add to tracker (explicitly tracked)
+    conversation.getAssetTracker().addAsset(resultAsset);
+
+    // Either way, it's visible via conversation.getAssets()
+}
+----
+
+===== Using Assets as Tools
+
+Assets can be exposed to the LLM as tools via their `LlmReference`:
+
+[source,java]
+----
+// Get references from recent assets
+List<LlmReference> refs = conversation.mostRecent(5).references();
+
+// Use in a prompt
+var response = context.ai()
+    .withReferences(refs)  // Assets become available as tools
+    .respond(conversation.getMessages());
+----
+
+This enables scenarios like:
+
+- Editing previously generated content
+- Combining multiple assets
+- Querying structured data from earlier in the conversation
 
 ==== Building a Chatbot
 

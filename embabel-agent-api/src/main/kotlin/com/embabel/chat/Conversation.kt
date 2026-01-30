@@ -21,9 +21,10 @@ import com.embabel.common.core.types.HasInfoString
 
 /**
  * Conversation shim for agent system.
- * Mutable.
+ * Mutable. Conversation AssetView shows assets both from our AssetTracker
+ * and messages.
  */
-interface Conversation : StableIdentified, HasInfoString {
+interface Conversation : StableIdentified, HasInfoString, AssetView {
 
     /**
      * Messages in the conversation in chronological order.
@@ -35,6 +36,23 @@ interface Conversation : StableIdentified, HasInfoString {
      * Assets tracked in the conversation.
      */
     val assetTracker: AssetTracker
+
+    /**
+     * All assets visible in this conversation.
+     *
+     * Combines assets from:
+     * 1. The conversation's assetTracker (first, explicit tracking)
+     * 2. Assets from all messages (e.g., AssistantMessage assets)
+     *
+     * Assets are deduplicated by ID - tracker assets take priority.
+     */
+    override val assets: List<Asset>
+        get() {
+            val messageAssets = messages
+                .filterIsInstance<AssetView>()
+                .flatMap { it.assets }
+            return MergedAssetView(assetTracker, AssetView.of(messageAssets)).assets
+        }
 
     /**
      * Non-null if the conversation has messages and the last message is from the user.

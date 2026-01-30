@@ -17,6 +17,7 @@ package com.embabel.chat
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.support.AssetAddingTool
+import com.embabel.chat.support.InMemoryAssetTracker
 import java.util.function.Predicate
 
 /**
@@ -73,5 +74,15 @@ interface AssetTracker : AssetView {
      */
     fun addAnyReturnedAssets(tools: List<Tool>, filter: Predicate<Asset>): List<Tool> {
         return tools.map { addReturnedAssets(it, filter) }
+    }
+
+    companion object {
+
+        /**
+         * Create an in-memory asset tracker that conveniently chains
+         * with the withAsset fluent API
+         */
+        @JvmStatic
+        fun inMemory(): InMemoryAssetTracker = InMemoryAssetTracker()
     }
 }

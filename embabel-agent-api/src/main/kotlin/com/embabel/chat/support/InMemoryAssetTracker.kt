@@ -36,4 +36,12 @@ class InMemoryAssetTracker(
 
     override val assets: List<Asset>
         get() = _assets.toList()
+
+    /**
+     * Convenience method to add an asset and return this tracker for chaining.
+     */
+    fun withAsset(asset: Asset): InMemoryAssetTracker {
+        addAsset(asset)
+        return this
+    }
 }
