@@ -21,6 +21,7 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.*
+import com.embabel.common.util.ObjectProviders
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
@@ -31,12 +32,14 @@ import org.springframework.ai.ollama.api.OllamaApi
 import org.springframework.ai.ollama.api.OllamaChatOptions
 import org.springframework.ai.ollama.api.OllamaEmbeddingOptions
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
+import org.springframework.http.client.ClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
 import org.springframework.web.reactive.function.client.WebClient
@@ -55,6 +58,8 @@ class OllamaModelsConfig(
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val properties: ConfigurableModelProviderProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
+    @Qualifier("aiModelHttpRequestFactory")
+    private val requestFactory: ObjectProvider<ClientHttpRequestFactory> = ObjectProviders.empty(),
 ) {
     private val logger = LoggerFactory.getLogger(OllamaModelsConfig::class.java)
 
@@ -147,6 +152,7 @@ class OllamaModelsConfig(
                     .baseUrl(baseUrl)
                     .restClientBuilder(
                         RestClient.builder()
+                            .also { b -> requestFactory.ifAvailable { b.requestFactory(it) } }
                             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     )
                     .webClientBuilder(
@@ -194,6 +200,7 @@ class OllamaModelsConfig(
                     .baseUrl(baseUrl)
                     .restClientBuilder(
                         RestClient.builder()
+                            .also { b -> requestFactory.ifAvailable { b.requestFactory(it) } }
                             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
                     )
                     .webClientBuilder(

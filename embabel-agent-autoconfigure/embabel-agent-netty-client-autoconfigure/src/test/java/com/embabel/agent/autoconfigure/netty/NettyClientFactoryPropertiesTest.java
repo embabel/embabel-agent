@@ -35,7 +35,7 @@ class NettyClientFactoryPropertiesTest {
     @Test
     void readTimeout() {
         var defaults = new NettyClientFactoryProperties(null, null);
-        assertEquals(Duration.ofMinutes(1), defaults.readTimeout());
+        assertEquals(Duration.ofMinutes(5), defaults.readTimeout());
 
         var custom = new NettyClientFactoryProperties(null, Duration.ofSeconds(10));
         assertEquals(Duration.ofSeconds(10), custom.readTimeout());

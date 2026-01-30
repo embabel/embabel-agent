@@ -36,7 +36,7 @@ record NettyClientFactoryProperties(
 ) {
     public NettyClientFactoryProperties {
         connectTimeout = connectTimeout != null ? connectTimeout : Duration.ofSeconds(25);
-        readTimeout = readTimeout != null ? readTimeout : Duration.ofMinutes(1);
+        readTimeout = readTimeout != null ? readTimeout : Duration.ofMinutes(5);
     }
 }
 
