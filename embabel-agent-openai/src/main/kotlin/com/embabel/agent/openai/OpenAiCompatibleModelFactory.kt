@@ -54,6 +54,7 @@ open class OpenAiCompatibleModelFactory(
     private val apiKey: String?,
     private val completionsPath: String?,
     private val embeddingsPath: String?,
+    private val httpHeaders: Map<String,String> = emptyMap(),
     private val observationRegistry: ObservationRegistry,
     private val requestFactory: ObjectProvider<ClientHttpRequestFactory> = ObjectProviders.empty()
 ) {
@@ -158,6 +159,7 @@ open class OpenAiCompatibleModelFactory(
             .defaultOptions(
                 OpenAiChatOptions.builder()
                     .model(model)
+                    .httpHeaders(httpHeaders)
                     .build()
             )
             .toolCallingManager(

@@ -26,6 +26,7 @@ import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.LlmOptionsProperties
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
@@ -93,7 +94,7 @@ class OpenAiProperties : RetryProperties {
  * similar to the Anthropic and Bedrock configuration patterns.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(OpenAiProperties::class)
+@EnableConfigurationProperties(OpenAiProperties::class, LlmOptionsProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "OpenAi configuration can't be unit tested")
 class OpenAiModelsConfig(
     @param:Value("\${OPENAI_BASE_URL:#{null}}")
@@ -107,6 +108,7 @@ class OpenAiModelsConfig(
     observationRegistry: ObjectProvider<ObservationRegistry>,
     @Qualifier("aiModelHttpRequestFactory") requestFactory: ObjectProvider<ClientHttpRequestFactory>,
     private val properties: OpenAiProperties,
+    private val llmOptionsProperties: LlmOptionsProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
 ) : OpenAiCompatibleModelFactory(
@@ -115,8 +117,9 @@ class OpenAiModelsConfig(
     ?: error("OpenAI API key required: set OPENAI_API_KEY env var or embabel.agent.platform.models.openai.api-key"),
     completionsPath = envCompletionsPath ?: properties.completions,
     embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
+    httpHeaders = llmOptionsProperties.httpHeaders,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-    requestFactory,
+    requestFactory = requestFactory,
 ) {
 
     init {
