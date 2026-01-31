@@ -606,6 +606,101 @@ interface Tool : ToolInfo {
                 }
             }
         }
+
+        /**
+         * Wrap a tool to sink artifacts of the specified type to the given sink.
+         * Handles both single artifacts and Iterables.
+         *
+         * @param tool The tool to wrap
+         * @param clazz The class of artifacts to capture
+         * @param sink Where to send captured artifacts
+         */
+        @JvmStatic
+        fun <T : Any> sinkArtifacts(
+            tool: Tool,
+            clazz: Class<T>,
+            sink: ArtifactSink,
+        ): Tool = ArtifactSinkingTool(
+            delegate = tool,
+            clazz = clazz,
+            sink = sink,
+        )
+
+        /**
+         * Wrap a tool to sink artifacts of the specified type to the given sink,
+         * with optional filtering and transformation.
+         *
+         * @param tool The tool to wrap
+         * @param clazz The class of artifacts to capture
+         * @param sink Where to send captured artifacts
+         * @param filter Predicate to filter which artifacts to capture
+         * @param transform Function to transform artifacts before sinking
+         */
+        @JvmStatic
+        fun <T : Any> sinkArtifacts(
+            tool: Tool,
+            clazz: Class<T>,
+            sink: ArtifactSink,
+            filter: (T) -> Boolean,
+            transform: (T) -> Any,
+        ): Tool = ArtifactSinkingTool(
+            delegate = tool,
+            clazz = clazz,
+            sink = sink,
+            filter = filter,
+            transform = transform,
+        )
+
+        /**
+         * Wrap a tool to publish all artifacts to the blackboard.
+         *
+         * @param tool The tool to wrap
+         */
+        @JvmStatic
+        fun publishToBlackboard(tool: Tool): Tool = ArtifactSinkingTool(
+            delegate = tool,
+            clazz = Any::class.java,
+            sink = BlackboardSink,
+        )
+
+        /**
+         * Wrap a tool to publish artifacts of the specified type to the blackboard.
+         *
+         * @param tool The tool to wrap
+         * @param clazz The class of artifacts to publish
+         */
+        @JvmStatic
+        fun <T : Any> publishToBlackboard(
+            tool: Tool,
+            clazz: Class<T>,
+        ): Tool = ArtifactSinkingTool(
+            delegate = tool,
+            clazz = clazz,
+            sink = BlackboardSink,
+        )
+
+        /**
+         * Wrap a tool to publish artifacts of the specified type to the blackboard,
+         * with optional filtering and transformation.
+         *
+         * @param tool The tool to wrap
+         * @param clazz The class of artifacts to publish
+         * @param filter Predicate to filter which artifacts to publish
+         * @param transform Function to transform artifacts before publishing
+         */
+        @JvmStatic
+        fun <T : Any> publishToBlackboard(
+            tool: Tool,
+            clazz: Class<T>,
+            filter: (T) -> Boolean,
+            transform: (T) -> Any,
+        ): Tool = ArtifactSinkingTool(
+            delegate = tool,
+            clazz = clazz,
+            sink = BlackboardSink,
+            filter = filter,
+            transform = transform,
+        )
     }
 
     /**

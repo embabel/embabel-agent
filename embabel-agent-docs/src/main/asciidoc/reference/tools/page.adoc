@@ -686,6 +686,164 @@ check(customized.call("{}").text == "42")
 |You need to organize related tools, use MCP servers, or control tool availability at deployment time
 |===
 
+[[reference.tools__tool-decoration]]
+==== Tool Decoration: Extending Tool Behavior
+
+Embabel uses a powerful decoration pattern to extend tool behavior without modifying the underlying tool or complicating the `PromptRunner`.
+A decorated tool wraps another tool, intercepting calls to add functionality like artifact capture, event publishing, or blackboard integration.
+
+This pattern is fundamental to Embabel's architecture:
+
+* **Subagents** use decoration to wrap agent execution as a tool
+* **Asset tracking** uses decoration to capture tool outputs for chatbot interfaces
+* **Blackboard publishing** uses decoration to make tool results available to other actions
+* **Event streaming** uses decoration to publish tool calls to external systems
+* Internal platform features like observability and exception handling also use decoration
+
+===== The DelegatingTool Interface
+
+All tool decorators implement `DelegatingTool`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public interface DelegatingTool extends Tool {
+    Tool getDelegate();
+}
+----
+Kotlin::
++
+[source,kotlin]
+----
+interface DelegatingTool : Tool {
+    val delegate: Tool
+}
+----
+====
+
+This allows decorators to be unwrapped when needed, and enables chaining multiple decorators.
+
+===== ArtifactSinkingTool: Capturing Tool Outputs
+
+`ArtifactSinkingTool` captures artifacts from `Tool.Result.WithArtifact` results and sends them to a sink.
+This is the foundation for making structured tool outputs available elsewhere.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Capture all artifacts and publish to blackboard
+Tool wrapped = Tool.publishToBlackboard(myTool);
+
+// Capture specific types
+Tool wrapped = Tool.publishToBlackboard(myTool, SearchResult.class);
+
+// With filtering and transformation
+Tool wrapped = Tool.publishToBlackboard(
+    myTool,
+    SearchResult.class,
+    result -> result.getScore() > 0.5,  // filter
+    result -> result.getDocument()       // transform
+);
+
+// Capture to a custom sink
+Tool wrapped = Tool.sinkArtifacts(myTool, SearchResult.class, mySink);
+----
+Kotlin::
++
+[source,kotlin]
+----
+// Capture all artifacts and publish to blackboard
+val wrapped = Tool.publishToBlackboard(myTool)
+
+// Capture specific types
+val wrapped = Tool.publishToBlackboard(myTool, SearchResult::class.java)
+
+// With filtering and transformation
+val wrapped = Tool.publishToBlackboard(
+    myTool,
+    SearchResult::class.java,
+    { it.score > 0.5 },    // filter
+    { it.document }         // transform
+)
+
+// Capture to a custom sink
+val wrapped = Tool.sinkArtifacts(myTool, SearchResult::class.java, mySink)
+----
+====
+
+===== Built-in Sinks
+
+Embabel provides several `ArtifactSink` implementations:
+
+|===
+|Sink |Purpose
+
+|`BlackboardSink`
+|Publishes to the current `AgentProcess` blackboard, making artifacts available to other actions
+
+|`ListSink`
+|Collects artifacts into a list, useful for aggregating results
+
+|`CompositeSink`
+|Delegates to multiple sinks, enabling multi-destination publishing
+|===
+
+===== Creating Custom Sinks
+
+Implement `ArtifactSink` to create custom destinations:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Publish to an event stream
+ArtifactSink eventSink = artifact -> {
+    eventPublisher.publish(new ToolArtifactEvent(artifact));
+};
+
+// Use with any tool
+Tool wrapped = Tool.sinkArtifacts(myTool, MyType.class, eventSink);
+----
+Kotlin::
++
+[source,kotlin]
+----
+// Publish to an event stream
+val eventSink = ArtifactSink { artifact ->
+    eventPublisher.publish(ToolArtifactEvent(artifact))
+}
+
+// Use with any tool
+val wrapped = Tool.sinkArtifacts(myTool, MyType::class.java, eventSink)
+----
+====
+
+===== How Decoration Enables Extension
+
+The decoration pattern lets Embabel add sophisticated behavior while keeping `PromptRunner` simple.
+When you use `Subagent.ofClass(MyAgent.class)` (Java) or `Subagent.ofClass(MyAgent::class.java)` (Kotlin), Embabel creates a tool that:
+
+1. Wraps agent execution in a `Tool.call()` method
+2. Shares the parent blackboard with the child process
+3. Captures the agent's result as a tool artifact
+
+Similarly, when you configure asset tracking in a chatbot, Embabel wraps tools with `AssetAddingTool` to capture outputs as viewable assets.
+
+This approach has key advantages:
+
+* **Composable**: Multiple decorators can be chained
+* **Transparent**: The underlying tool doesn't know it's wrapped
+* **Extensible**: New behaviors can be added without framework changes
+* **Type-safe**: Generic decorators like `ArtifactSinkingTool<T>` preserve type information
+
 [[subagent-tool]]
 ==== Subagent: Agent Handoffs as Tools
 

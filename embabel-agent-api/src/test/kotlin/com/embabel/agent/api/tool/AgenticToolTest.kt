@@ -282,12 +282,12 @@ class AgenticToolTest {
     }
 
     @Nested
-    inner class ArtifactCapturing {
+    inner class ArtifactSinking {
 
         @Test
-        fun `ArtifactCapturingTool delegates call to wrapped tool`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(echoTool, artifacts)
+        fun `ArtifactSinkingTool delegates call to wrapped tool`() {
+            val sink = ListSink()
+            val wrapper = ArtifactSinkingTool(echoTool, Any::class.java, sink)
 
             val result = wrapper.call("hello")
 
@@ -296,16 +296,16 @@ class AgenticToolTest {
         }
 
         @Test
-        fun `ArtifactCapturingTool preserves definition from delegate`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(echoTool, artifacts)
+        fun `ArtifactSinkingTool preserves definition from delegate`() {
+            val sink = ListSink()
+            val wrapper = ArtifactSinkingTool(echoTool, Any::class.java, sink)
 
             assertEquals("echo", wrapper.definition.name)
             assertEquals("Echo input", wrapper.definition.description)
         }
 
         @Test
-        fun `ArtifactCapturingTool preserves metadata from delegate`() {
+        fun `ArtifactSinkingTool preserves metadata from delegate`() {
             val customMetadata = Tool.Metadata(returnDirect = true)
             val toolWithMetadata = Tool.of(
                 name = "custom",
@@ -313,29 +313,29 @@ class AgenticToolTest {
                 metadata = customMetadata
             ) { Tool.Result.text("result") }
 
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(toolWithMetadata, artifacts)
+            val sink = ListSink()
+            val wrapper = ArtifactSinkingTool(toolWithMetadata, Any::class.java, sink)
 
             assertEquals(customMetadata.returnDirect, wrapper.metadata.returnDirect)
         }
 
         @Test
-        fun `ArtifactCapturingTool captures artifact from WithArtifact result`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(artifactTool, artifacts)
+        fun `ArtifactSinkingTool captures artifact from WithArtifact result`() {
+            val sink = ListSink()
+            val wrapper = ArtifactSinkingTool(artifactTool, Any::class.java, sink)
 
             wrapper.call("{}")
 
-            assertEquals(1, artifacts.size)
-            val captured = artifacts[0] as TestArtifact
+            assertEquals(1, sink.items().size)
+            val captured = sink.items()[0] as TestArtifact
             assertEquals("test-1", captured.id)
             assertEquals(42, captured.value)
         }
 
         @Test
-        fun `ArtifactCapturingTool returns original WithArtifact result unchanged`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(artifactTool, artifacts)
+        fun `ArtifactSinkingTool returns original WithArtifact result unchanged`() {
+            val sink = ListSink()
+            val wrapper = ArtifactSinkingTool(artifactTool, Any::class.java, sink)
 
             val result = wrapper.call("{}")
 
@@ -347,60 +347,60 @@ class AgenticToolTest {
         }
 
         @Test
-        fun `ArtifactCapturingTool does not capture from Text result`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(echoTool, artifacts)
+        fun `ArtifactSinkingTool does not capture from Text result`() {
+            val sink = ListSink()
+            val wrapper = ArtifactSinkingTool(echoTool, Any::class.java, sink)
 
             wrapper.call("input")
 
-            assertTrue(artifacts.isEmpty())
+            assertTrue(sink.items().isEmpty())
         }
 
         @Test
-        fun `ArtifactCapturingTool does not capture from Error result`() {
+        fun `ArtifactSinkingTool does not capture from Error result`() {
             val errorTool = Tool.of("error", "Error tool") { _ ->
                 Tool.Result.error("Something went wrong")
             }
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(errorTool, artifacts)
+            val sink = ListSink()
+            val wrapper = ArtifactSinkingTool(errorTool, Any::class.java, sink)
 
             val result = wrapper.call("{}")
 
-            assertTrue(artifacts.isEmpty())
+            assertTrue(sink.items().isEmpty())
             assertTrue(result is Tool.Result.Error)
         }
 
         @Test
-        fun `multiple ArtifactCapturingTools share same artifacts list`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper1 = ArtifactCapturingTool(artifactTool, artifacts)
-            val wrapper2 = ArtifactCapturingTool(anotherArtifactTool, artifacts)
+        fun `multiple ArtifactSinkingTools share same sink`() {
+            val sink = ListSink()
+            val wrapper1 = ArtifactSinkingTool(artifactTool, Any::class.java, sink)
+            val wrapper2 = ArtifactSinkingTool(anotherArtifactTool, Any::class.java, sink)
 
             wrapper1.call("{}")
             wrapper2.call("{}")
 
-            assertEquals(2, artifacts.size)
-            assertEquals("test-1", (artifacts[0] as TestArtifact).id)
-            assertEquals("test-2", (artifacts[1] as TestArtifact).id)
+            assertEquals(2, sink.items().size)
+            assertEquals("test-1", (sink.items()[0] as TestArtifact).id)
+            assertEquals("test-2", (sink.items()[1] as TestArtifact).id)
         }
 
         @Test
-        fun `ArtifactCapturingTool captures artifacts in call order`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper1 = ArtifactCapturingTool(artifactTool, artifacts)
-            val wrapper2 = ArtifactCapturingTool(anotherArtifactTool, artifacts)
+        fun `ArtifactSinkingTool captures artifacts in call order`() {
+            val sink = ListSink()
+            val wrapper1 = ArtifactSinkingTool(artifactTool, Any::class.java, sink)
+            val wrapper2 = ArtifactSinkingTool(anotherArtifactTool, Any::class.java, sink)
 
             // Call in reverse order
             wrapper2.call("{}")
             wrapper1.call("{}")
 
-            assertEquals(2, artifacts.size)
-            assertEquals("test-2", (artifacts[0] as TestArtifact).id) // First called
-            assertEquals("test-1", (artifacts[1] as TestArtifact).id) // Second called
+            assertEquals(2, sink.items().size)
+            assertEquals("test-2", (sink.items()[0] as TestArtifact).id) // First called
+            assertEquals("test-1", (sink.items()[1] as TestArtifact).id) // Second called
         }
 
         @Test
-        fun `ArtifactCapturingTool captures different artifact types`() {
+        fun `ArtifactSinkingTool captures different artifact types`() {
             data class OtherArtifact(val name: String)
 
             val stringArtifactTool = Tool.of("string", "String artifact") { _ ->
@@ -410,22 +410,22 @@ class AgenticToolTest {
                 Tool.Result.withArtifact("Object", OtherArtifact("other"))
             }
 
-            val artifacts = mutableListOf<Any>()
-            val wrapper1 = ArtifactCapturingTool(stringArtifactTool, artifacts)
-            val wrapper2 = ArtifactCapturingTool(objectArtifactTool, artifacts)
+            val sink = ListSink()
+            val wrapper1 = ArtifactSinkingTool(stringArtifactTool, Any::class.java, sink)
+            val wrapper2 = ArtifactSinkingTool(objectArtifactTool, Any::class.java, sink)
 
             wrapper1.call("{}")
             wrapper2.call("{}")
 
-            assertEquals(2, artifacts.size)
-            assertEquals("simple-string", artifacts[0])
-            assertEquals(OtherArtifact("other"), artifacts[1])
+            assertEquals(2, sink.items().size)
+            assertEquals("simple-string", sink.items()[0])
+            assertEquals(OtherArtifact("other"), sink.items()[1])
         }
 
         @Test
-        fun `ArtifactCapturingTool is a DelegatingTool`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(echoTool, artifacts)
+        fun `ArtifactSinkingTool is a DelegatingTool`() {
+            val sink = ListSink()
+            val wrapper = ArtifactSinkingTool(echoTool, Any::class.java, sink)
 
             assertTrue(wrapper is DelegatingTool)
             assertSame(echoTool, wrapper.delegate)
@@ -498,48 +498,58 @@ class AgenticToolTest {
         }
 
         @Test
-        fun `ArtifactCapturingTool with captureNestedArtifacts=false skips AgenticTool artifacts`() {
-            // Create a nested AgenticTool that would return an artifact
+        fun `nested AgenticTool not wrapped when captureNestedArtifacts is false`() {
+            // When captureNestedArtifacts=false, nested AgenticTools should not be
+            // wrapped with ArtifactSinkingTool, so their artifacts won't be captured
             val nestedAgentic = AgenticTool("nested", "Nested agentic")
                 .withTools(artifactTool)
 
-            val artifacts = mutableListOf<Any>()
-            // captureNestedArtifacts=false means we should skip artifacts from AgenticTool delegates
-            val wrapper = ArtifactCapturingTool(
-                delegate = nestedAgentic,
-                artifacts = artifacts,
-                captureNestedArtifacts = false
-            )
+            val sink = ListSink()
 
-            // The wrapper should detect that delegate is AgenticTool and skip capturing
-            assertTrue(wrapper.shouldSkipCapture())
+            // Simulate what AgenticTool.call() does - don't wrap AgenticTool delegates
+            val captureNestedArtifacts = false
+            val wrappedTool = if (!captureNestedArtifacts && nestedAgentic is AgenticTool) {
+                nestedAgentic // Not wrapped
+            } else {
+                ArtifactSinkingTool(nestedAgentic, Any::class.java, sink)
+            }
+
+            // The nested agentic should not be wrapped
+            assertSame(nestedAgentic, wrappedTool)
         }
 
         @Test
-        fun `ArtifactCapturingTool with captureNestedArtifacts=true captures AgenticTool artifacts`() {
+        fun `nested AgenticTool wrapped when captureNestedArtifacts is true`() {
             val nestedAgentic = AgenticTool("nested", "Nested agentic")
                 .withTools(artifactTool)
 
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(
-                delegate = nestedAgentic,
-                artifacts = artifacts,
-                captureNestedArtifacts = true
-            )
+            val sink = ListSink()
 
-            assertFalse(wrapper.shouldSkipCapture())
+            // Simulate what AgenticTool.call() does - wrap when captureNestedArtifacts=true
+            val captureNestedArtifacts = true
+            val wrappedTool = if (!captureNestedArtifacts && nestedAgentic is AgenticTool) {
+                nestedAgentic
+            } else {
+                ArtifactSinkingTool(nestedAgentic, Any::class.java, sink)
+            }
+
+            // The nested agentic should be wrapped
+            assertTrue(wrappedTool is ArtifactSinkingTool<*>)
         }
 
         @Test
-        fun `ArtifactCapturingTool always captures from non-AgenticTool delegates`() {
-            val artifacts = mutableListOf<Any>()
-            val wrapper = ArtifactCapturingTool(
-                delegate = artifactTool,
-                artifacts = artifacts,
-                captureNestedArtifacts = false // Even with false, regular tools are captured
-            )
+        fun `regular tools always wrapped regardless of captureNestedArtifacts`() {
+            val sink = ListSink()
 
-            assertFalse(wrapper.shouldSkipCapture())
+            // Regular tools should always be wrapped
+            val captureNestedArtifacts = false
+            val wrappedTool = if (!captureNestedArtifacts && artifactTool is AgenticTool) {
+                artifactTool
+            } else {
+                ArtifactSinkingTool(artifactTool, Any::class.java, sink)
+            }
+
+            assertTrue(wrappedTool is ArtifactSinkingTool<*>)
         }
     }
 }

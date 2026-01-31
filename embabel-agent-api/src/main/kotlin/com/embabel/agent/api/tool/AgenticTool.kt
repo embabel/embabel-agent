@@ -91,12 +91,14 @@ data class AgenticTool(
 
         // Wrap tools to capture any artifacts they produce
         val artifacts = mutableListOf<Any>()
+        val sink = ListSink(artifacts)
         val wrappedTools = tools.map { tool ->
-            ArtifactCapturingTool(
-                delegate = tool,
-                artifacts = artifacts,
-                captureNestedArtifacts = captureNestedArtifacts,
-            )
+            // Skip wrapping nested AgenticTools if captureNestedArtifacts is false
+            if (!captureNestedArtifacts && tool is AgenticTool) {
+                tool
+            } else {
+                ArtifactSinkingTool(tool, Any::class.java, sink)
+            }
         }
 
         val ai = executingOperationContextFor(agentProcess).ai()
@@ -186,44 +188,5 @@ data class AgenticTool(
             Use the provided tools to perform the following task:
             $description
             """.trimIndent()
-    }
-}
-
-/**
- * Tool wrapper that captures artifacts from [Tool.Result.WithArtifact] results.
- * Used internally by [AgenticTool] to collect artifacts produced by sub-tools.
- *
- * @param delegate The tool to wrap
- * @param artifacts Shared list to collect artifacts into
- * @param captureNestedArtifacts When false, artifacts from nested AgenticTools are skipped
- */
-internal class ArtifactCapturingTool(
-    override val delegate: Tool,
-    private val artifacts: MutableList<Any>,
-    private val captureNestedArtifacts: Boolean = false,
-) : DelegatingTool {
-
-    override val definition: Tool.Definition = delegate.definition
-    override val metadata: Tool.Metadata = delegate.metadata
-
-    /**
-     * Check if artifact capture should be skipped for this delegate.
-     * Returns true if delegate is an AgenticTool and captureNestedArtifacts is false.
-     */
-    fun shouldSkipCapture(): Boolean {
-        return !captureNestedArtifacts && delegate is AgenticTool
-    }
-
-    override fun call(input: String): Tool.Result {
-        val result = delegate.call(input)
-        if (result is Tool.Result.WithArtifact && !shouldSkipCapture()) {
-            artifacts.add(result.artifact)
-            loggerFor<ArtifactCapturingTool>().debug(
-                "Captured artifact of type {} from tool '{}'",
-                result.artifact::class.simpleName,
-                definition.name,
-            )
-        }
-        return result
     }
 }

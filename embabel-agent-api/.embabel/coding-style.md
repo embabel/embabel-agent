@@ -50,6 +50,8 @@ Use @ApiStatus.Internal on internal classes that must be public for technical re
 - Ensure that use from Java is idiomatic. For example, use @JvmOverloads
   to generate overloads for functions with default parameters if appropriate.
   Use @JvmStatic on companion object functions if appropriate
+- Do not rely on extension functions. They will be unavailable from Java. Use static methods in companion objects with
+  @JvmStatic.
 - Use mockk for tests
 
 ## Java
