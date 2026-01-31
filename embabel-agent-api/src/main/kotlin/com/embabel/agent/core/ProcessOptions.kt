@@ -31,6 +31,10 @@ interface LlmVerbosity {
 
 /**
  * Controls log output.
+ * @param showPrompts whether to show prompts sent to the LLM
+ * @param showLlmResponses whether to show responses received from the LLM
+ * @param debug whether to enable debug logging. will also show planning details.
+ * @param showPlanning whether to show planning details
  */
 data class Verbosity @JvmOverloads constructor(
     override val showPrompts: Boolean = false,
@@ -38,7 +42,7 @@ data class Verbosity @JvmOverloads constructor(
     val debug: Boolean = false,
     val showPlanning: Boolean = false,
 ) : LlmVerbosity {
-    val showLongPlans: Boolean get() = showPlanning || debug || showLlmResponses || showPrompts
+    val showLongPlans: Boolean get() = showPlanning || debug
 
     fun withShowPrompts(showPrompts: Boolean): Verbosity =
         this.copy(showPrompts = showPrompts)
