@@ -19,17 +19,8 @@ class MyAgentApplication {
 
 This is a normal Spring Boot application class.
 You can add other Spring Boot annotations as needed.
-Add the following dependency to your `pom.xml` to include the Ollama model provider starter:
 
-[source,xml]
-----
-<dependency>
-    <groupId>com.embabel.agent</groupId>
-    <artifactId>embabel-agent-starter-ollama</artifactId>
-</dependency>
-----
-
-Other providers such as OpenAI, Anthropic, AWS Bedrock, Docker Models, etc. can be added similarly by including their respective starter dependencies.
+You also need to add the <<reference.environment_setup,dependency and configuration for your LLM provider(s) of choice>>.
 
 ==== Configuration Properties
 

@@ -14,6 +14,15 @@ It will also be registered with the agent framework, so it can be used in agent 
 You must provide the `description` parameter, which is a human-readable description of the agent.
 This is particularly important as it may be used by the LLM in agent selection.
 
+==== The `@EmbabelComponent` annotation
+
+This annotation is used on a class to indicate that this class exposes actions, goals and conditions that may be used by agents, but is not an agent in itself.
+It is a Spring stereotype annotation, so it triggers Spring component scanning.
+Your Embabel component class will automatically be registered as a Spring bean.
+It will also be registered with the agent framework, so its actions, goals and conditions can be used in agent processes.
+
+Embabel Components are most useful in combination with the <<reference.planners__utility,Utility AI planner>> that selects the most valuable next action among all available actions.
+
 ==== The `@Action` annotation
 
 The `@Action` annotation is used to mark methods that perform actions within an agent.

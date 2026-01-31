@@ -63,7 +63,7 @@ FactChecks runAndConsolidateFactChecks(
 <5> Specify a function to consolidate the results.
 In this case it will take a list of `FactCheck` and return a `FactCheck` and return a `FactChecks` object.
 <6> Build and run the agent as a subprocess of the current process.
-This is an alternative to `asAgent` shown in the `SimpleAgentBuilder` example.
+This is an alternative to `buildAgent` shown in the `SimpleAgentBuilder` example.
 The API is consistent.
 
 NOTE: If you wish to experiment, the https://github.com/embabel/embabel-agent-examples[embabel-agent-examples] repository includes the https://github.com/embabel/embabel-agent-examples/blob/main/examples-java/src/main/java/com/embabel/example/factchecker/FactChecker.java[fact checker] shown above.
