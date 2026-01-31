@@ -17,7 +17,6 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
-import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
 

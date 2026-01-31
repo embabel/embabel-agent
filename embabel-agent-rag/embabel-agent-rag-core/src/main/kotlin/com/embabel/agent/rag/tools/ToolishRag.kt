@@ -16,9 +16,9 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk

@@ -19,7 +19,6 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
-import com.embabel.agent.spi.support.DelegatingTool
 
 /**
  * Callback to update the blackboard with tool result content.
@@ -56,7 +55,11 @@ fun interface ReplanningToolBlackboardUpdater {
 class ReplanningTool @JvmOverloads constructor(
     override val delegate: Tool,
     private val reason: String,
-    private val blackboardUpdater: ReplanningToolBlackboardUpdater = ReplanningToolBlackboardUpdater { bb, content -> bb.addObject(content) },
+    private val blackboardUpdater: ReplanningToolBlackboardUpdater = ReplanningToolBlackboardUpdater { bb, content ->
+        bb.addObject(
+            content
+        )
+    },
 ) : DelegatingTool {
 
     override val definition: Tool.Definition = delegate.definition

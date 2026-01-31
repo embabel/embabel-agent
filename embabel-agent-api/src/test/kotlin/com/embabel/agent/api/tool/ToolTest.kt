@@ -292,9 +292,9 @@ class ToolTest {
             assertTrue(json.contains("\"items\""), "Schema should have items property for array: $json")
             assertTrue(
                 json.contains("\"items\":{\"type\":\"number\"}") ||
-                    json.contains("\"items\": {\"type\": \"number\"}") ||
-                    json.contains("\"items\":{\"type\":\"integer\"}") ||
-                    json.contains("\"items\": {\"type\": \"integer\"}"),
+                        json.contains("\"items\": {\"type\": \"number\"}") ||
+                        json.contains("\"items\":{\"type\":\"integer\"}") ||
+                        json.contains("\"items\": {\"type\": \"integer\"}"),
                 "Array items should have numeric type: $json"
             )
         }
@@ -313,7 +313,7 @@ class ToolTest {
             assertTrue(json.contains("\"items\""), "Schema should have items property for array: $json")
             assertTrue(
                 json.contains("\"items\":{\"type\":\"string\"}") ||
-                    json.contains("\"items\": {\"type\": \"string\"}"),
+                        json.contains("\"items\": {\"type\": \"string\"}"),
                 "Array items should have string type: $json"
             )
         }
@@ -630,7 +630,8 @@ class ToolTest {
             val tools = Tool.fromInstance(ComplexParameterTools())
             val tool = tools.find { it.definition.name == "handleNested" }!!
 
-            val result = tool.call("""{"wrapper": {"address": {"street": "123 Main", "city": "Boston", "zipCode": "02101"}, "label": "Home"}}""")
+            val result =
+                tool.call("""{"wrapper": {"address": {"street": "123 Main", "city": "Boston", "zipCode": "02101"}, "label": "Home"}}""")
 
             assertTrue(result is Tool.Result.Text)
             assertEquals("Home: Boston", (result as Tool.Result.Text).content)
@@ -795,7 +796,7 @@ class ToolTest {
 
             val modified = original.withDescription("New description")
 
-            assertTrue(modified is com.embabel.agent.spi.support.DelegatingTool)
+            assertTrue(modified is DelegatingTool)
         }
     }
 

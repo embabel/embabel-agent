@@ -15,8 +15,8 @@
  */
 package com.embabel.chat.support
 
+import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.chat.Asset
 import com.embabel.chat.AssetTracker
 import org.slf4j.LoggerFactory

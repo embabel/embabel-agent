@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.event.ToolCallRequestEvent
+import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
@@ -29,6 +30,22 @@ import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import java.time.Duration
+
+
+/**
+ * Unwrap a tool to find a specific type, or return null if not found.
+ */
+inline fun <reified T : Tool> Tool.unwrapAs(): T? {
+    var current = this
+    while (true) {
+        if (current is T) return current
+        if (current is DelegatingTool) {
+            current = current.delegate
+        } else {
+            return null
+        }
+    }
+}
 
 /**
  * Extension to get the content string from any Tool.Result variant.

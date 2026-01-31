@@ -16,8 +16,8 @@
 package com.embabel.chat.support
 
 import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.chat.Asset
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
@@ -323,10 +323,12 @@ class AssetAddingToolTest {
             data class CustomData(val value: String)
 
             val delegateTool = Tool.of("test", "Test") { _ ->
-                Tool.Result.withArtifact("content", listOf(
-                    CustomData("item-1"),
-                    CustomData("item-2"),
-                ))
+                Tool.Result.withArtifact(
+                    "content", listOf(
+                        CustomData("item-1"),
+                        CustomData("item-2"),
+                    )
+                )
             }
 
             val assetAddingTool = AssetAddingTool(

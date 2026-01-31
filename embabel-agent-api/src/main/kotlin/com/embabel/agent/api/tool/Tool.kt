@@ -18,8 +18,6 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.tool.Tool.Definition
-import com.embabel.agent.core.ReplanRequestedException
-import com.embabel.agent.spi.support.DelegatingTool
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory

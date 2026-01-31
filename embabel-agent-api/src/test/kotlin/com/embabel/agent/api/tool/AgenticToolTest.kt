@@ -427,7 +427,7 @@ class AgenticToolTest {
             val artifacts = mutableListOf<Any>()
             val wrapper = ArtifactCapturingTool(echoTool, artifacts)
 
-            assertTrue(wrapper is com.embabel.agent.spi.support.DelegatingTool)
+            assertTrue(wrapper is DelegatingTool)
             assertSame(echoTool, wrapper.delegate)
         }
     }

@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.spi.loop
 
+import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.spi.support.DelegatingTool
 import com.embabel.agent.spi.support.unwrapAs
 import org.slf4j.LoggerFactory
 
@@ -51,20 +51,25 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
             it.definition.name == context.lastToolCall.toolName
         }
         if (wrappedTool == null) {
-            logger.debug("Tool '{}' not found in current tools: {}",
+            logger.debug(
+                "Tool '{}' not found in current tools: {}",
                 context.lastToolCall.toolName,
                 context.currentTools.map { it.definition.name })
             return ToolInjectionResult.noChange()
         }
 
-        logger.debug("Found tool '{}' of type {}, attempting unwrap",
-            wrappedTool.definition.name, wrappedTool::class.simpleName)
+        logger.debug(
+            "Found tool '{}' of type {}, attempting unwrap",
+            wrappedTool.definition.name, wrappedTool::class.simpleName
+        )
 
         // Unwrap to find underlying MatryoshkaTool (handles decorator wrappers)
         val invokedTool = wrappedTool.unwrapAs<MatryoshkaTool>()
         if (invokedTool == null) {
-            logger.debug("Tool '{}' is not a MatryoshkaTool after unwrap. Chain: {}",
-                wrappedTool.definition.name, getUnwrapChain(wrappedTool))
+            logger.debug(
+                "Tool '{}' is not a MatryoshkaTool after unwrap. Chain: {}",
+                wrappedTool.definition.name, getUnwrapChain(wrappedTool)
+            )
             return ToolInjectionResult.noChange()
         }
 

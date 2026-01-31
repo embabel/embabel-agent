@@ -13,9 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.support
-
-import com.embabel.agent.api.tool.Tool
+package com.embabel.agent.api.tool
 
 /**
  * Interface for tool decorators that wrap another tool.
@@ -23,32 +21,9 @@ import com.embabel.agent.api.tool.Tool
  * Thus, it is important that tool wrappers implement this interface to allow unwrapping.
  */
 interface DelegatingTool : Tool {
+
+    /**
+     * The underlying tool being delegated to.
+     */
     val delegate: Tool
-}
-
-/**
- * Unwrap a tool to find the innermost implementation.
- * Recursively unwraps [DelegatingTool] wrappers.
- */
-fun Tool.unwrap(): Tool {
-    var current = this
-    while (current is DelegatingTool) {
-        current = current.delegate
-    }
-    return current
-}
-
-/**
- * Unwrap a tool to find a specific type, or return null if not found.
- */
-inline fun <reified T : Tool> Tool.unwrapAs(): T? {
-    var current = this
-    while (true) {
-        if (current is T) return current
-        if (current is DelegatingTool) {
-            current = current.delegate
-        } else {
-            return null
-        }
-    }
 }
