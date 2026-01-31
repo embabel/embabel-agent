@@ -1,18 +1,7 @@
 [[getting-started.first-agent]]
 === Writing Your First Agent
 
-The easiest way to create your first agent is to use the Java or Kotlin template repositories.
-
-==== Using the Template
-
-Create a new project from the https://github.com/embabel/java-agent-template[Java template] or https://github.com/embabel/kotlin-agent-template[Kotlin template] by clicking "Use this template" on GitHub.
-
-Or use the project creator:
-
-[source,bash]
-----
-uvx --from git+https://github.com/embabel/project-creator.git project-creator
-----
+The easiest way to create your first agent is to use the <<getting-started.quickstart,Java or Kotlin template repositories>>.
 
 ==== Example: WriteAndReviewAgent
 
