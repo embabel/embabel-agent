@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:Suppress("DEPRECATION")
-
-package com.embabel.agent.api.tool.state
+package com.embabel.agent.api.tool.agentic.state
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.agentic.AgenticTool
+import com.embabel.agent.api.tool.agentic.AgenticToolSupport
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
@@ -28,13 +28,6 @@ import org.jetbrains.annotations.ApiStatus
  * Operations for starting a state machine in a particular state.
  */
 @ApiStatus.Experimental
-@Deprecated(
-    message = "Moved to com.embabel.agent.api.tool.agentic.state package",
-    replaceWith = ReplaceWith(
-        "StateMachineToolOperations",
-        "com.embabel.agent.api.tool.agentic.state.StateMachineToolOperations"
-    )
-)
 interface StateMachineToolOperations<S : Enum<S>> {
     /**
      * Create a version of this tool that starts in the specified state.
@@ -88,13 +81,6 @@ interface StateMachineToolOperations<S : Enum<S>> {
  * @param maxIterations Maximum iterations before stopping
  */
 @ApiStatus.Experimental
-@Deprecated(
-    message = "Moved to com.embabel.agent.api.tool.agentic.state package",
-    replaceWith = ReplaceWith(
-        "StateMachineTool",
-        "com.embabel.agent.api.tool.agentic.state.StateMachineTool"
-    )
-)
 data class StateMachineTool<S : Enum<S>> internal constructor(
     override val definition: Tool.Definition,
     override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT,
@@ -102,12 +88,12 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
     val initialState: S?,
     internal val stateTools: Map<S, List<StateToolEntry<S>>> = emptyMap(),
     internal val globalTools: List<Tool> = emptyList(),
-    val llm: LlmOptions = LlmOptions(),
+    override val llm: LlmOptions = LlmOptions(),
     val systemPromptCreator: (AgentProcess, S) -> String = { _, state ->
         defaultSystemPrompt(definition.description, state)
     },
-    val maxIterations: Int = 20,
-) : Tool, StateMachineToolOperations<S> {
+    override val maxIterations: Int = AgenticTool.DEFAULT_MAX_ITERATIONS,
+) : AgenticTool, StateMachineToolOperations<S> {
 
     /**
      * Entry for a tool registered in a state.
@@ -247,31 +233,35 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
         globalTools = globalTools + tools.toList(),
     )
 
-    /**
-     * Set LLM options.
-     */
-    fun withLlm(llm: LlmOptions): StateMachineTool<S> = copy(llm = llm)
+    override fun withLlm(llm: LlmOptions): StateMachineTool<S> = copy(llm = llm)
 
-    /**
-     * Set max iterations.
-     */
-    fun withMaxIterations(maxIterations: Int): StateMachineTool<S> = copy(
+    override fun withMaxIterations(maxIterations: Int): StateMachineTool<S> = copy(
         maxIterations = maxIterations,
     )
 
+    override fun withSystemPrompt(prompt: String): StateMachineTool<S> = copy(
+        systemPromptCreator = { _, _ -> prompt },
+    )
+
     /**
-     * Set a custom system prompt creator.
+     * Set a custom system prompt creator that receives both AgentProcess and current state.
      */
     fun withSystemPromptCreator(creator: (AgentProcess, S) -> String): StateMachineTool<S> = copy(
         systemPromptCreator = creator,
     )
 
-    /**
-     * Add a parameter to the tool definition.
-     */
-    fun withParameter(parameter: Tool.Parameter): StateMachineTool<S> = copy(
+    override fun withParameter(parameter: Tool.Parameter): StateMachineTool<S> = copy(
         definition = definition.withParameter(parameter),
     )
+
+    override fun withToolObject(toolObject: Any): StateMachineTool<S> {
+        val additionalTools = Tool.safelyFromInstance(toolObject)
+        return if (additionalTools.isEmpty()) {
+            this
+        } else {
+            copy(globalTools = globalTools + additionalTools)
+        }
+    }
 
     internal fun addStateTool(state: S, tool: Tool, transitionsTo: S?): StateMachineTool<S> {
         val currentEntries = stateTools[state] ?: emptyList()

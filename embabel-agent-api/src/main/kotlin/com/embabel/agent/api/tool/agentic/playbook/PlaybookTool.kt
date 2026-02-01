@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:Suppress("DEPRECATION")
-
-package com.embabel.agent.api.tool.playbook
+package com.embabel.agent.api.tool.agentic.playbook
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator
+import com.embabel.agent.api.tool.agentic.AgenticTool
+import com.embabel.agent.api.tool.agentic.AgenticToolSupport
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
@@ -25,24 +26,14 @@ import com.embabel.common.util.loggerFor
 import org.jetbrains.annotations.ApiStatus
 
 /**
- * Create a system prompt given the current [AgentProcess] as context.
- */
-@Deprecated(
-    message = "Use AgenticSystemPromptCreator from com.embabel.agent.api.tool.agentic package",
-    replaceWith = ReplaceWith(
-        "AgenticSystemPromptCreator",
-        "com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator"
-    )
-)
-typealias PlaybookSystemPromptCreator = (AgentProcess) -> String
-
-/**
  * A tool with conditional tool unlocking that uses an LLM to orchestrate sub-tools.
  *
- * Unlike [com.embabel.agent.api.tool.AgenticTool] which makes all tools available immediately,
- * a PlaybookTool allows tools to be progressively unlocked based on conditions such as:
+ * Unlike [com.embabel.agent.api.tool.agentic.simple.SimpleAgenticTool] which makes all tools
+ * available immediately, a PlaybookTool allows tools to be progressively unlocked based on
+ * conditions such as:
  * - Prerequisites: unlock after other tools have been called
  * - Artifacts: unlock when certain artifact types are produced
+ * - Blackboard: unlock based on process state
  * - Custom predicates: unlock based on arbitrary conditions
  *
  * This provides more predictable LLM behavior by guiding it through a structured
@@ -70,25 +61,18 @@ typealias PlaybookSystemPromptCreator = (AgentProcess) -> String
  * @param unlockedTools Tools that are always available
  * @param lockedTools Tools with unlock conditions
  * @param systemPromptCreator Create prompt for the LLM to use
- * @param maxIterations Maximum number of tool loop iterations (default 20)
+ * @param maxIterations Maximum number of tool loop iterations
  */
 @ApiStatus.Experimental
-@Deprecated(
-    message = "Moved to com.embabel.agent.api.tool.agentic.playbook package",
-    replaceWith = ReplaceWith(
-        "PlaybookTool",
-        "com.embabel.agent.api.tool.agentic.playbook.PlaybookTool"
-    )
-)
 data class PlaybookTool internal constructor(
     override val definition: Tool.Definition,
     override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT,
-    val llm: LlmOptions = LlmOptions(),
+    override val llm: LlmOptions = LlmOptions(),
     internal val unlockedTools: List<Tool> = emptyList(),
     internal val lockedTools: List<LockedTool> = emptyList(),
-    val systemPromptCreator: PlaybookSystemPromptCreator = { defaultSystemPrompt(definition.description) },
-    val maxIterations: Int = 20,
-) : Tool {
+    val systemPromptCreator: AgenticSystemPromptCreator = { defaultSystemPrompt(definition.description) },
+    override val maxIterations: Int = AgenticTool.DEFAULT_MAX_ITERATIONS,
+) : AgenticTool {
 
     /**
      * A tool with its unlock condition.
@@ -132,16 +116,13 @@ data class PlaybookTool internal constructor(
             return Tool.Result.error("No tools available for PlaybookTool")
         }
 
-        val agentProcess = AgentProcess.get()
-            ?: run {
-                loggerFor<PlaybookTool>().error(
-                    "No AgentProcess context available for PlaybookTool '{}'",
-                    definition.name,
-                )
-                return Tool.Result.error("No AgentProcess context available for PlaybookTool")
-            }
+        val (agentProcess, errorResult) = AgenticToolSupport.getAgentProcessOrError(
+            definition.name,
+            loggerFor<PlaybookTool>(),
+        )
+        if (errorResult != null) return errorResult
 
-        val systemPrompt = systemPromptCreator(agentProcess)
+        val systemPrompt = systemPromptCreator(agentProcess!!)
         loggerFor<PlaybookTool>().info(
             "Executing PlaybookTool '{}' with {} unlocked tools and {} locked tools",
             definition.name,
@@ -172,13 +153,7 @@ data class PlaybookTool internal constructor(
             .withSystemPrompt(systemPrompt)
             .generateText(input)
 
-        // Return with artifact(s) if any were captured
-        val artifacts = state.artifacts
-        return when (artifacts.size) {
-            0 -> Tool.Result.text(output)
-            1 -> Tool.Result.withArtifact(output, artifacts.single())
-            else -> Tool.Result.withArtifact(output, artifacts.toList())
-        }
+        return AgenticToolSupport.createResult(output, state.artifacts)
     }
 
     /**
@@ -209,44 +184,28 @@ data class PlaybookTool internal constructor(
         lockedTools = lockedTools + LockedTool(tool, condition),
     )
 
-    /**
-     * Create a copy with a different LLM.
-     */
-    fun withLlm(llm: LlmOptions): PlaybookTool = copy(llm = llm)
+    override fun withLlm(llm: LlmOptions): PlaybookTool = copy(llm = llm)
 
-    /**
-     * Create a copy with a fixed system prompt.
-     */
-    fun withSystemPrompt(prompt: String): PlaybookTool = copy(
+    override fun withSystemPrompt(prompt: String): PlaybookTool = copy(
         systemPromptCreator = { prompt },
     )
 
     /**
      * Create a copy with a custom system prompt creator.
      */
-    fun withSystemPromptCreator(promptCreator: PlaybookSystemPromptCreator): PlaybookTool = copy(
+    fun withSystemPromptCreator(promptCreator: AgenticSystemPromptCreator): PlaybookTool = copy(
         systemPromptCreator = promptCreator,
     )
 
-    /**
-     * Create a copy with a different max iterations limit.
-     */
-    fun withMaxIterations(maxIterations: Int): PlaybookTool = copy(
+    override fun withMaxIterations(maxIterations: Int): PlaybookTool = copy(
         maxIterations = maxIterations,
     )
 
-    /**
-     * Create a copy with a parameter added to the definition.
-     */
-    fun withParameter(parameter: Tool.Parameter): PlaybookTool = copy(
+    override fun withParameter(parameter: Tool.Parameter): PlaybookTool = copy(
         definition = definition.withParameter(parameter),
     )
 
-    /**
-     * Create a copy with tools extracted from an object with @LlmTool methods.
-     * These tools are added as always-unlocked.
-     */
-    fun withToolObject(toolObject: Any): PlaybookTool {
+    override fun withToolObject(toolObject: Any): PlaybookTool {
         val additionalTools = Tool.safelyFromInstance(toolObject)
         return if (additionalTools.isEmpty()) {
             this

@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.api.tool.agentic.simple.SimpleAgenticTool
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
@@ -24,6 +25,13 @@ import com.embabel.common.util.loggerFor
  * Create a system prompt given the current [AgentProcess]
  * as context.
  */
+@Deprecated(
+    message = "Use AgenticSystemPromptCreator from com.embabel.agent.api.tool.agentic package",
+    replaceWith = ReplaceWith(
+        "AgenticSystemPromptCreator",
+        "com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator"
+    )
+)
 typealias SystemPromptCreator = (AgentProcess) -> String
 
 /**
@@ -42,6 +50,13 @@ typealias SystemPromptCreator = (AgentProcess) -> String
  * Default is false, meaning only artifacts from leaf tools are captured.
  * Set to true to capture all artifacts including those from nested agentic sub-tools.
  */
+@Deprecated(
+    message = "Use SimpleAgenticTool for flat tool orchestration, or PlaybookTool/StateMachineTool for controlled disclosure",
+    replaceWith = ReplaceWith(
+        "SimpleAgenticTool",
+        "com.embabel.agent.api.tool.agentic.simple.SimpleAgenticTool"
+    )
+)
 data class AgenticTool(
     override val definition: Tool.Definition,
     override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT,
