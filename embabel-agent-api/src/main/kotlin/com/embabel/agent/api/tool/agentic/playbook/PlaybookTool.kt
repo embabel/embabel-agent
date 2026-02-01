@@ -19,11 +19,13 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator
 import com.embabel.agent.api.tool.agentic.AgenticTool
 import com.embabel.agent.api.tool.agentic.AgenticToolSupport
+import com.embabel.agent.api.tool.agentic.DomainToolFactory
+import com.embabel.agent.api.tool.agentic.DomainToolSource
+import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * A tool with conditional tool unlocking that uses an LLM to orchestrate sub-tools.
@@ -63,13 +65,13 @@ import org.jetbrains.annotations.ApiStatus
  * @param systemPromptCreator Create prompt for the LLM to use
  * @param maxIterations Maximum number of tool loop iterations
  */
-@ApiStatus.Experimental
 data class PlaybookTool internal constructor(
     override val definition: Tool.Definition,
     override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT,
     override val llm: LlmOptions = LlmOptions(),
     internal val unlockedTools: List<Tool> = emptyList(),
     internal val lockedTools: List<LockedTool> = emptyList(),
+    internal val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     val systemPromptCreator: AgenticSystemPromptCreator = { defaultSystemPrompt(definition.description) },
     override val maxIterations: Int = AgenticTool.DEFAULT_MAX_ITERATIONS,
 ) : AgenticTool {
@@ -107,8 +109,8 @@ data class PlaybookTool internal constructor(
     )
 
     override fun call(input: String): Tool.Result {
-        val allTools = unlockedTools + lockedTools.map { it.tool }
-        if (allTools.isEmpty()) {
+        val allStaticTools = unlockedTools + lockedTools.map { it.tool }
+        if (allStaticTools.isEmpty() && domainToolSources.isEmpty()) {
             loggerFor<PlaybookTool>().warn(
                 "No tools available for PlaybookTool '{}'",
                 definition.name,
@@ -124,14 +126,22 @@ data class PlaybookTool internal constructor(
 
         val systemPrompt = systemPromptCreator(agentProcess!!)
         loggerFor<PlaybookTool>().info(
-            "Executing PlaybookTool '{}' with {} unlocked tools and {} locked tools",
+            "Executing PlaybookTool '{}' with {} unlocked tools, {} locked tools, and {} domain sources",
             definition.name,
             unlockedTools.size,
             lockedTools.size,
+            domainToolSources.size,
         )
 
+        // Create domain tool tracker if we have domain sources
+        val domainToolTracker = if (domainToolSources.isNotEmpty()) {
+            DomainToolTracker(domainToolSources)
+        } else {
+            null
+        }
+
         // Create shared state for tracking tool calls and artifacts
-        val state = PlaybookState(agentProcess)
+        val state = PlaybookState(agentProcess, domainToolTracker)
 
         // Wrap unlocked tools to track state
         val wrappedUnlockedTools = unlockedTools.map { tool ->
@@ -143,7 +153,14 @@ data class PlaybookTool internal constructor(
             ConditionalTool(lockedTool.tool, lockedTool.condition, state)
         }
 
-        val allWrappedTools = wrappedUnlockedTools + wrappedLockedTools
+        // Create placeholder tools for domain tool sources
+        val domainPlaceholderTools = domainToolTracker?.let { tracker ->
+            domainToolSources.flatMap { source ->
+                DomainToolFactory.createPlaceholderTools(source, tracker)
+            }
+        } ?: emptyList()
+
+        val allWrappedTools = wrappedUnlockedTools + wrappedLockedTools + domainPlaceholderTools
 
         val ai = executingOperationContextFor(agentProcess).ai()
         val output = ai
@@ -213,6 +230,39 @@ data class PlaybookTool internal constructor(
             copy(unlockedTools = unlockedTools + additionalTools)
         }
     }
+
+    /**
+     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     *
+     * When a single artifact of the specified type is returned by any tool, any @LlmTool annotated
+     * methods on that instance become available as tools.
+     *
+     * Example:
+     * ```kotlin
+     * PlaybookTool("userManager", "Manage users")
+     *     .withTools(searchUserTool, getUserTool)
+     *     .withDomainToolsFrom(User::class.java)  // User methods become available when a single User is retrieved
+     * ```
+     *
+     * @param type The domain class that may contribute tools
+     */
+    fun <T : Any> withDomainToolsFrom(type: Class<T>): PlaybookTool = copy(
+        domainToolSources = domainToolSources + DomainToolSource(type),
+    )
+
+    /**
+     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     * Kotlin-friendly version using reified type parameter.
+     *
+     * Example:
+     * ```kotlin
+     * PlaybookTool("userManager", "Manage users")
+     *     .withTools(searchUserTool, getUserTool)
+     *     .withDomainToolsFrom<User>()  // User methods become available when a single User is retrieved
+     * ```
+     */
+    inline fun <reified T : Any> withDomainToolsFrom(): PlaybookTool =
+        withDomainToolsFrom(T::class.java)
 
     companion object {
 

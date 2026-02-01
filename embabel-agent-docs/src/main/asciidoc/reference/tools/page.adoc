@@ -1066,16 +1066,279 @@ Unlike a regular tool which executes deterministic logic, an agentic tool delega
 
 This pattern is useful for encapsulating a mini-orchestration as a single tool that can be used in larger workflows.
 
-===== When to Use Agentic Tools
+Embabel provides three agentic tool implementations, each offering different levels of control over tool availability:
 
-Agentic tools are appropriate when:
+===== Choosing an Agentic Tool
 
-* You have a set of related tools that work together
-* The orchestration logic is simple enough that an LLM can handle it with a prompt
-* You want to expose a high-level capability as a single tool
+[cols="1,2,2,2"]
+|===
+|Tool Type |Tool Availability |Best For |Example Use Case
+
+|`SimpleAgenticTool`
+|All tools available immediately
+|Simple orchestration, exploration tasks
+|Math calculator with add/multiply/divide tools
+
+|`PlaybookTool`
+|Progressive unlock via conditions (prerequisites, artifacts, blackboard)
+|Structured workflows, guided processes
+|Research workflow: search → analyze → summarize
+
+|`StateMachineTool`
+|State-based availability using enum states
+|Formal state machines, multi-phase processes
+|Order processing: DRAFT → CONFIRMED → SHIPPED → DELIVERED
+|===
+
+All three implement the `AgenticTool` interface and share a common fluent API with `with*` methods.
 
 IMPORTANT: For complex workflows with defined outputs, branching logic, loops, or state management, use Embabel's <<reference.planners,GOAP planner>>, <<reference.planners__utility,Utility AI>>, or <<reference.states,@State workflows>> instead.
 These provide deterministic, typesafe planning that is far more powerful and predictable than LLM-driven orchestration.
+
+[[reference.tools__simple-agentic-tool]]
+===== SimpleAgenticTool: Flat Tool Orchestration
+
+`SimpleAgenticTool` makes all sub-tools available immediately.
+The LLM decides freely which tools to use based on the prompt.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.tool.agentic.simple.SimpleAgenticTool;
+
+// Create the agentic tool
+SimpleAgenticTool mathOrchestrator = new SimpleAgenticTool("math-orchestrator", "Orchestrates math operations")
+    .withTools(addTool, multiplyTool, divideTool)
+    .withParameter(Tool.Parameter.string("expression", "Math expression to evaluate"))
+    .withLlm(LlmOptions.withModel("gpt-4"));
+
+// Use it like any other tool
+context.ai()
+    .withDefaultLlm()
+    .withTool(mathOrchestrator)
+    .generateText("What is 5 + 3 * 2?");
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.tool.agentic.simple.SimpleAgenticTool
+
+val mathOrchestrator = SimpleAgenticTool("math-orchestrator", "Orchestrates math operations")
+    .withTools(addTool, multiplyTool, divideTool)
+    .withParameter(Tool.Parameter.string("expression", "Math expression to evaluate"))
+    .withLlm(LlmOptions(model = "gpt-4"))
+
+context.ai()
+    .withDefaultLlm()
+    .withTool(mathOrchestrator)
+    .generateText("What is 5 + 3 * 2?")
+----
+====
+
+[[reference.tools__playbook-tool]]
+===== PlaybookTool: Conditional Tool Unlocking
+
+`PlaybookTool` allows tools to be progressively unlocked based on conditions:
+
+* **Prerequisites**: unlock after other tools have been called
+* **Artifacts**: unlock when certain artifact types are produced
+* **Blackboard**: unlock based on process state
+* **Custom predicates**: unlock based on arbitrary conditions
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.tool.agentic.playbook.PlaybookTool;
+
+// Tools unlock progressively
+PlaybookTool researcher = new PlaybookTool("researcher", "Research and analyze topics")
+    .withTools(searchTool, fetchTool)                    // Always available
+    .withTool(analyzeTool).unlockedBy(searchTool)        // Unlocks after search
+    .withTool(summarizeTool).unlockedBy(analyzeTool)     // Unlocks after analyze
+    .withParameter(Tool.Parameter.string("topic", "Research topic"));
+
+// Multiple prerequisites (AND)
+.withTool(reportTool).unlockedByAll(searchTool, analyzeTool)
+
+// Any prerequisite (OR)
+.withTool(processTool).unlockedByAny(searchTool, fetchTool)
+
+// Unlock when artifact type produced
+.withTool(formatTool).unlockedByArtifact(Document.class)
+
+// Unlock based on blackboard state
+.withTool(actionTool).unlockedByBlackboard(UserProfile.class)
+
+// Custom predicate
+.withTool(finalizeTool).unlockedWhen(ctx -> ctx.getIterationCount() >= 3)
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.tool.agentic.playbook.PlaybookTool
+
+// Kotlin supports curried syntax
+val researcher = PlaybookTool("researcher", "Research and analyze topics")
+    .withTools(searchTool, fetchTool)           // Always available
+    .withTool(analyzeTool)(searchTool)          // Curried: unlocks after search
+    .withTool(summarizeTool)(analyzeTool)       // Curried: unlocks after analyze
+    .withParameter(Tool.Parameter.string("topic", "Research topic"))
+
+// Or use fluent syntax (same as Java)
+    .withTool(reportTool).unlockedByAll(searchTool, analyzeTool)
+    .withTool(formatTool).unlockedByArtifact(Document::class)
+    .withTool(actionTool).unlockedByBlackboard(UserProfile::class)
+    .withTool(finalizeTool).unlockedWhen { ctx -> ctx.iterationCount >= 3 }
+----
+====
+
+When a locked tool is called before its conditions are met, the LLM receives an informative message guiding it to use prerequisite tools first.
+
+[[reference.tools__state-machine-tool]]
+===== StateMachineTool: State-Based Availability
+
+`StateMachineTool` uses explicit states defined by an enum.
+Tools are registered with specific states where they're available, and can trigger transitions to other states.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.tool.agentic.state.StateMachineTool;
+
+enum OrderState { DRAFT, CONFIRMED, SHIPPED, DELIVERED }
+
+StateMachineTool<OrderState> orderProcessor = new StateMachineTool<>("orderProcessor", "Process orders", OrderState.class)
+    .withInitialState(OrderState.DRAFT)
+    .inState(OrderState.DRAFT)
+        .withTool(addItemTool)
+        .withTool(confirmTool).transitionsTo(OrderState.CONFIRMED)
+    .inState(OrderState.CONFIRMED)
+        .withTool(shipTool).transitionsTo(OrderState.SHIPPED)
+    .inState(OrderState.SHIPPED)
+        .withTool(deliverTool).transitionsTo(OrderState.DELIVERED)
+    .inState(OrderState.DELIVERED)
+        .withTool(reviewTool).build()
+    .withGlobalTools(statusTool, helpTool)  // Available in all states
+    .withParameter(Tool.Parameter.string("orderId", "Order to process"));
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.tool.agentic.state.StateMachineTool
+
+enum class OrderState { DRAFT, CONFIRMED, SHIPPED, DELIVERED }
+
+val orderProcessor = StateMachineTool("orderProcessor", "Process orders", OrderState::class.java)
+    .withInitialState(OrderState.DRAFT)
+    .inState(OrderState.DRAFT)
+        .withTool(addItemTool)
+        .withTool(confirmTool).transitionsTo(OrderState.CONFIRMED)
+    .inState(OrderState.CONFIRMED)
+        .withTool(shipTool).transitionsTo(OrderState.SHIPPED)
+    .inState(OrderState.SHIPPED)
+        .withTool(deliverTool).transitionsTo(OrderState.DELIVERED)
+    .inState(OrderState.DELIVERED)
+        .withTool(reviewTool).build()
+    .withGlobalTools(statusTool, helpTool)  // Available in all states
+    .withParameter(Tool.Parameter.string("orderId", "Order to process"))
+----
+====
+
+The `startingIn(state)` method allows starting in a different state at runtime:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Resume an order that's already confirmed
+Tool resumedProcessor = orderProcessor.startingIn(OrderState.CONFIRMED);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Resume an order that's already confirmed
+val resumedProcessor = orderProcessor.startingIn(OrderState.CONFIRMED)
+----
+====
+
+===== Domain Tools: Tools from Retrieved Objects
+
+All three agentic tools support *domain tools* - `@LlmTool` methods on domain objects that become available when a single instance is retrieved.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Domain class with @LlmTool methods
+public class User {
+    private final String id;
+    private final String name;
+
+    public User(String id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    @LlmTool(description = "Get user's profile information")
+    public String getProfile() {
+        return "Profile for " + name;
+    }
+
+    @LlmTool(description = "Update user's settings")
+    public String updateSettings(String settings) {
+        return "Settings updated for " + name;
+    }
+}
+
+// Register domain tools - they become available when a single User is retrieved
+PlaybookTool userManager = new PlaybookTool("userManager", "Manage users")
+    .withTools(searchUserTool, getUserTool)
+    .withDomainToolsFrom(User.class);  // User methods available after getUserTool returns a single User
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Domain class with @LlmTool methods
+class User(val id: String, val name: String) {
+    @LlmTool(description = "Get user's profile information")
+    fun getProfile(): String = "Profile for $name"
+
+    @LlmTool(description = "Update user's settings")
+    fun updateSettings(settings: String): String = "Settings updated for $name"
+}
+
+// Register domain tools - they become available when a single User is retrieved
+val userManager = PlaybookTool("userManager", "Manage users")
+    .withTools(searchUserTool, getUserTool)
+    .withDomainToolsFrom<User>()  // User methods available after getUserTool returns a single User
+----
+====
+
+Domain tools are "declared" to the LLM immediately but return an error until an instance is bound.
+When a tool returns a *single* artifact (not a collection) of a registered type, that instance is bound and its `@LlmTool` methods become executable.
 
 ===== Creating Agentic Tools
 
@@ -1098,7 +1361,7 @@ Tool multiplyTool = Tool.create("multiply", "Multiplies two numbers", input -> {
 });
 
 // Create the agentic tool
-AgenticTool mathOrchestrator = new AgenticTool("math-orchestrator", "Orchestrates math operations")
+SimpleAgenticTool mathOrchestrator = new SimpleAgenticTool("math-orchestrator", "Orchestrates math operations")
     .withTools(addTool, multiplyTool)
     .withLlm(LlmOptions.withModel("gpt-4"))
     .withSystemPrompt("Use the available tools to solve the given math problem");
@@ -1125,7 +1388,7 @@ val multiplyTool = Tool.of("multiply", "Multiplies two numbers") { input ->
 }
 
 // Create the agentic tool
-val mathOrchestrator = AgenticTool("math-orchestrator", "Orchestrates math operations")
+val mathOrchestrator = SimpleAgenticTool("math-orchestrator", "Orchestrates math operations")
     .withTools(addTool, multiplyTool)
     .withLlm(LlmOptions(model = "gpt-4"))
     .withSystemPrompt("Use the available tools to solve the given math problem")
@@ -1139,13 +1402,13 @@ context.ai()
 ====
 
 TIP: The `withSystemPrompt` call is optional.
-By default, `AgenticTool` generates a system prompt from the tool's description: _"You are an intelligent agent that can use tools to help you complete tasks.
+By default, agentic tools generate a system prompt from the tool's description: _"You are an intelligent agent that can use tools to help you complete tasks.
 Use the provided tools to perform the following task: {description}"_.
 Only call `withSystemPrompt` if you need custom orchestration instructions.
 
 ===== Defining Input Parameters
 
-IMPORTANT: You must define input parameters for your `AgenticTool` so the LLM knows what arguments to pass when calling it.
+IMPORTANT: You must define input parameters for your agentic tool so the LLM knows what arguments to pass when calling it.
 Without parameters, the LLM won't know what input format to use.
 
 Use the `withParameter` method with `Tool.Parameter` factory methods for concise parameter definitions:
@@ -1157,12 +1420,12 @@ Java::
 [source,java]
 ----
 // Research tool that requires a topic parameter
-AgenticTool researcher = new AgenticTool("researcher", "Research a topic thoroughly")
+SimpleAgenticTool researcher = new SimpleAgenticTool("researcher", "Research a topic thoroughly")
     .withParameter(Tool.Parameter.string("topic", "The topic to research"))
     .withToolObjects(new SearchTools(), new SummarizerTools());
 
 // Calculator with multiple parameters
-AgenticTool calculator = new AgenticTool("smart-calculator", "Perform complex calculations")
+SimpleAgenticTool calculator = new SimpleAgenticTool("smart-calculator", "Perform complex calculations")
     .withParameter(Tool.Parameter.string("expression", "Mathematical expression to evaluate"))
     .withParameter(Tool.Parameter.integer("precision", "Decimal places for result", false))  // optional
     .withToolObject(new MathTools());
@@ -1173,12 +1436,12 @@ Kotlin::
 [source,kotlin]
 ----
 // Research tool that requires a topic parameter
-val researcher = AgenticTool("researcher", "Research a topic thoroughly")
+val researcher = SimpleAgenticTool("researcher", "Research a topic thoroughly")
     .withParameter(Tool.Parameter.string("topic", "The topic to research"))
     .withToolObjects(SearchTools(), SummarizerTools())
 
 // Calculator with multiple parameters
-val calculator = AgenticTool("smart-calculator", "Perform complex calculations")
+val calculator = SimpleAgenticTool("smart-calculator", "Perform complex calculations")
     .withParameter(Tool.Parameter.string("expression", "Mathematical expression to evaluate"))
     .withParameter(Tool.Parameter.integer("precision", "Decimal places for result", required = false))  // optional
     .withToolObject(MathTools())
@@ -1220,11 +1483,11 @@ public class CalculatorTools {
 
 // Create agentic tool with tools from multiple objects
 // Uses default system prompt based on description
-AgenticTool assistant = new AgenticTool("assistant", "Multi-capability assistant")
+SimpleAgenticTool assistant = new SimpleAgenticTool("assistant", "Multi-capability assistant")
     .withToolObjects(new SearchTools(), new CalculatorTools());
 
 // With LLM options and custom system prompt
-AgenticTool smartAssistant = new AgenticTool("smart-assistant", "Smart assistant")
+SimpleAgenticTool smartAssistant = new SimpleAgenticTool("smart-assistant", "Smart assistant")
     .withToolObjects(new SearchTools(), new CalculatorTools())
     .withLlm(LlmOptions.withModel("gpt-4"))
     .withSystemPrompt("Use tools intelligently");
@@ -1250,11 +1513,11 @@ class CalculatorTools {
 
 // Create agentic tool with tools from multiple objects
 // Uses default system prompt based on description
-val assistant = AgenticTool("assistant", "Multi-capability assistant")
+val assistant = SimpleAgenticTool("assistant", "Multi-capability assistant")
     .withToolObjects(SearchTools(), CalculatorTools())
 
 // With LLM options and custom system prompt
-val smartAssistant = AgenticTool("smart-assistant", "Smart assistant")
+val smartAssistant = SimpleAgenticTool("smart-assistant", "Smart assistant")
     .withToolObjects(SearchTools(), CalculatorTools())
     .withLlm(LlmOptions(model = "gpt-4"))
     .withSystemPrompt("Use tools intelligently")
@@ -1267,6 +1530,50 @@ Objects without `@LlmTool` methods are silently ignored, allowing you to mix obj
 
 Agentic tools can encapsulate stateful services via dependency injection:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Component
+public class ResearchOrchestrator {
+
+    private final WebSearchService webSearchService;
+    private final SummarizerService summarizerService;
+
+    public ResearchOrchestrator(WebSearchService webSearchService, SummarizerService summarizerService) {
+        this.webSearchService = webSearchService;
+        this.summarizerService = summarizerService;
+    }
+
+    @LlmTool(description = "Search the web for information")
+    public List<SearchResult> search(String query) {
+        return webSearchService.search(query);
+    }
+
+    @LlmTool(description = "Summarize text content")
+    public String summarize(String content) {
+        return summarizerService.summarize(content);
+    }
+}
+
+// In your configuration
+@Configuration
+public class ToolConfiguration {
+
+    @Bean
+    public SimpleAgenticTool researchTool(ResearchOrchestrator orchestrator) {
+        return new SimpleAgenticTool("research-assistant", "Research topics using web search and summarization")
+            .withToolObject(orchestrator)
+            .withLlm(new LlmOptions().withRole("smart"));
+            // Uses default system prompt based on description
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Component
@@ -1288,13 +1595,14 @@ class ResearchOrchestrator(
 class ToolConfiguration {
 
     @Bean
-    fun researchTool(orchestrator: ResearchOrchestrator): AgenticTool =
-        AgenticTool("research-assistant", "Research topics using web search and summarization")
+    fun researchTool(orchestrator: ResearchOrchestrator): SimpleAgenticTool =
+        SimpleAgenticTool("research-assistant", "Research topics using web search and summarization")
             .withToolObject(orchestrator)
             .withLlm(LlmOptions(role = "smart"))
             // Uses default system prompt based on description
 }
 ----
+====
 
 ===== How Agentic Tools Execute
 
@@ -1312,9 +1620,42 @@ This means agentic tools create a nested LLM interaction: the outer LLM decides 
 
 Use the `with*` methods to create modified copies:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+SimpleAgenticTool base = new SimpleAgenticTool("base", "Base orchestrator")
+    .withTools(tool1)
+    .withSystemPrompt("Original prompt");
+
+// Create copies with modifications
+SimpleAgenticTool withNewLlm = base.withLlm(new LlmOptions().withModel("gpt-4"));
+SimpleAgenticTool withMoreTools = base.withTools(tool2, tool3);
+SimpleAgenticTool withNewPrompt = base.withSystemPrompt("Updated prompt");
+
+// Add input parameters
+SimpleAgenticTool withParams = base.withParameter(Tool.Parameter.string("query", "Search query"));
+
+// Add tools from an object with @LlmTool methods
+SimpleAgenticTool withAnnotatedTools = base.withToolObject(calculatorService);
+
+// Add tools from multiple objects
+SimpleAgenticTool withMultipleObjects = base.withToolObjects(searchService, calculatorService);
+
+// Dynamic system prompt based on AgentProcess context
+SimpleAgenticTool withDynamicPrompt = base.withSystemPromptCreator(agentProcess -> {
+    String userId = agentProcess.getBlackboard().get("userId", String.class);
+    return "Process requests for user " + userId + " using the available tools";
+});
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
-val base = AgenticTool("base", "Base orchestrator")
+val base = SimpleAgenticTool("base", "Base orchestrator")
     .withTools(tool1)
     .withSystemPrompt("Original prompt")
 
@@ -1338,6 +1679,7 @@ val withDynamicPrompt = base.withSystemPromptCreator { agentProcess ->
     "Process requests for user $userId using the available tools"
 }
 ----
+====
 
 The available modification methods are:
 
@@ -1348,13 +1690,13 @@ The available modification methods are:
 - `withToolObjects(vararg Any)`: Add tools from multiple annotated objects
 - `withSystemPrompt(String)`: Set a fixed system prompt
 - `withSystemPromptCreator((AgentProcess) -> String)`: Set a dynamic prompt based on runtime context
-- `withCaptureNestedArtifacts(Boolean)`: Control whether artifacts from nested `AgenticTool` calls are captured (default: `false`)
+- `withCaptureNestedArtifacts(Boolean)`: Control whether artifacts from nested agentic tool calls are captured (default: `false`)
 
 [[reference.tools__agentic-tools-artifact-capture]]
 ===== Controlling Artifact Capture in Nested Agentic Tools
 
-When an `AgenticTool` orchestrates other tools, those sub-tools may return artifacts (via `Tool.Result.WithArtifact`).
-By default, artifacts from nested `AgenticTool` calls are *not* captured—only the final result from the outermost agentic tool is returned.
+When an agentic tool orchestrates other tools, those sub-tools may return artifacts (via `Tool.Result.WithArtifact`).
+By default, artifacts from nested agentic tool calls are *not* captured—only the final result from the outermost agentic tool is returned.
 
 This prevents intermediate artifacts from bubbling up when you only care about the final result.
 For example, if an outer `assembleConcert` tool calls an inner `findPerformances` tool, you typically want only the final `Concert` artifact, not all the intermediate `Performance` artifacts.
@@ -1368,12 +1710,12 @@ Java::
 [source,java]
 ----
 // Default: nested artifacts are NOT captured
-AgenticTool concertAssembler = new AgenticTool("assembleConcert", "Assemble a concert program")
+SimpleAgenticTool concertAssembler = new SimpleAgenticTool("assembleConcert", "Assemble a concert program")
     .withTools(findPerformancesTool, createConcertTool);
 // Only the Concert artifact from createConcert is returned
 
 // Opt-in: capture all nested artifacts
-AgenticTool fullCapture = concertAssembler.withCaptureNestedArtifacts(true);
+SimpleAgenticTool fullCapture = concertAssembler.withCaptureNestedArtifacts(true);
 // Both Performance artifacts from findPerformances AND Concert from createConcert are captured
 ----
 
@@ -1382,7 +1724,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Default: nested artifacts are NOT captured
-val concertAssembler = AgenticTool("assembleConcert", "Assemble a concert program")
+val concertAssembler = SimpleAgenticTool("assembleConcert", "Assemble a concert program")
     .withTools(findPerformancesTool, createConcertTool)
 // Only the Concert artifact from createConcert is returned
 
@@ -1392,7 +1734,7 @@ val fullCapture = concertAssembler.withCaptureNestedArtifacts(true)
 ----
 ====
 
-IMPORTANT: This setting only affects artifacts from nested `AgenticTool` calls.
+IMPORTANT: This setting only affects artifacts from nested agentic tool calls.
 Artifacts from regular (non-agentic) tools are always captured.
 
 [[reference.tools__artifact-filtering]]
@@ -1442,18 +1784,18 @@ The filter is applied after type matching, so you can use type-specific criteria
 [[reference.tools__agentic-tools-migration]]
 ===== Migration from Other Frameworks
 
-If you're coming from frameworks like LangChain or Google ADK, `AgenticTool` provides a familiar pattern similar to their "supervisor" architectures:
+If you're coming from frameworks like LangChain or Google ADK, Embabel's agentic tools provide a familiar pattern similar to their "supervisor" architectures:
 
 |===
 |Framework |Pattern |Embabel Equivalent
 
 |LangChain/LangGraph
 |Supervisor agent with worker agents
-|`AgenticTool` with sub-tools
+|`SimpleAgenticTool` with sub-tools
 
 |Google ADK
 |Coordinator with `sub_agents` / `AgentTool`
-|`AgenticTool` with sub-tools
+|`SimpleAgenticTool` with sub-tools
 |===
 
 The key differences:
@@ -1479,10 +1821,11 @@ However, for anything beyond simple orchestration, Embabel offers far more power
 |===
 
 These provide *deterministic, typesafe planning* that is far more predictable and powerful than supervisor-style LLM orchestration.
-Use `AgenticTool` for simple cases or as a migration stepping stone; graduate to GOAP, Utility, or @State for production workflows where predictability matters.
+Use `SimpleAgenticTool` for simple cases, `PlaybookTool` for structured workflows, or `StateMachineTool` for formal state machines.
+Graduate to GOAP, Utility, or @State for production workflows where predictability matters.
 
 TIP: For supervisor-style orchestration with typed outputs and full blackboard state management, see <<reference.planners__supervisor-invocation,SupervisorInvocation>>.
-It operates at a higher level than `AgenticTool`, orchestrating `@Action` methods rather than `Tool` instances, and produces typed goal objects with currying support.
+It operates at a higher level than agentic tools, orchestrating `@Action` methods rather than `Tool` instances, and produces typed goal objects with currying support.
 
 [[reference.tools__matryoshka]]
 ==== MatryoshkaTool: Progressive Tool Disclosure

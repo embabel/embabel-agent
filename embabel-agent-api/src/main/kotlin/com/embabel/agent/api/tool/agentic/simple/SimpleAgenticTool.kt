@@ -21,10 +21,26 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator
 import com.embabel.agent.api.tool.agentic.AgenticTool
 import com.embabel.agent.api.tool.agentic.AgenticToolSupport
+import com.embabel.agent.api.tool.agentic.DomainToolFactory
+import com.embabel.agent.api.tool.agentic.DomainToolSource
+import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
+
+/**
+ * Artifact sink that also notifies a domain tool tracker when artifacts are captured.
+ */
+internal class DomainAwareSink(
+    private val artifacts: MutableList<Any>,
+    private val domainToolTracker: DomainToolTracker?,
+) : (Any) -> Unit {
+    override fun invoke(artifact: Any) {
+        artifacts.add(artifact)
+        domainToolTracker?.tryBindArtifact(artifact)
+    }
+}
 
 /**
  * A simple agentic tool where all sub-tools are available immediately.
@@ -49,6 +65,7 @@ data class SimpleAgenticTool(
     override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT,
     override val llm: LlmOptions = LlmOptions(),
     val tools: List<Tool> = emptyList(),
+    internal val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     val systemPromptCreator: AgenticSystemPromptCreator = { AgenticTool.defaultSystemPrompt(definition.description) },
     override val maxIterations: Int = AgenticTool.DEFAULT_MAX_ITERATIONS,
     val captureNestedArtifacts: Boolean = false,
@@ -69,7 +86,7 @@ data class SimpleAgenticTool(
     )
 
     override fun call(input: String): Tool.Result {
-        if (tools.isEmpty()) {
+        if (tools.isEmpty() && domainToolSources.isEmpty()) {
             loggerFor<SimpleAgenticTool>().warn(
                 "No tools available for SimpleAgenticTool '{}'",
                 definition.name,
@@ -85,14 +102,22 @@ data class SimpleAgenticTool(
 
         val systemPrompt = systemPromptCreator(agentProcess!!)
         loggerFor<SimpleAgenticTool>().info(
-            "Executing SimpleAgenticTool '{}' with {} tools",
+            "Executing SimpleAgenticTool '{}' with {} tools and {} domain sources",
             definition.name,
             tools.size,
+            domainToolSources.size,
         )
+
+        // Create domain tool tracker if we have domain sources
+        val domainToolTracker = if (domainToolSources.isNotEmpty()) {
+            DomainToolTracker(domainToolSources)
+        } else {
+            null
+        }
 
         // Wrap tools to capture any artifacts they produce
         val artifacts = mutableListOf<Any>()
-        val sink = ListSink(artifacts)
+        val sink = DomainAwareSink(artifacts, domainToolTracker)
         val wrappedTools = tools.map { tool ->
             // Skip wrapping nested AgenticTools if captureNestedArtifacts is false
             if (!captureNestedArtifacts && tool is AgenticTool) {
@@ -102,11 +127,20 @@ data class SimpleAgenticTool(
             }
         }
 
+        // Create placeholder tools for domain tool sources
+        val domainPlaceholderTools = domainToolTracker?.let { tracker ->
+            domainToolSources.flatMap { source ->
+                DomainToolFactory.createPlaceholderTools(source, tracker)
+            }
+        } ?: emptyList()
+
+        val allTools = wrappedTools + domainPlaceholderTools
+
         val ai = executingOperationContextFor(agentProcess).ai()
         val output = ai
             .withLlm(llm)
             .withId("simple-agentic-tool-${definition.name}")
-            .withTools(wrappedTools)
+            .withTools(allTools)
             .withSystemPrompt(systemPrompt)
             .generateText(input)
 
@@ -168,4 +202,37 @@ data class SimpleAgenticTool(
     fun withCaptureNestedArtifacts(capture: Boolean): SimpleAgenticTool = copy(
         captureNestedArtifacts = capture,
     )
+
+    /**
+     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     *
+     * When a single artifact of the specified type is returned by any tool, any @LlmTool annotated
+     * methods on that instance become available as tools.
+     *
+     * Example:
+     * ```kotlin
+     * SimpleAgenticTool("userManager", "Manage users")
+     *     .withTools(searchUserTool, getUserTool)
+     *     .withDomainToolsFrom(User::class.java)  // User methods become available when a single User is retrieved
+     * ```
+     *
+     * @param type The domain class that may contribute tools
+     */
+    fun <T : Any> withDomainToolsFrom(type: Class<T>): SimpleAgenticTool = copy(
+        domainToolSources = domainToolSources + DomainToolSource(type),
+    )
+
+    /**
+     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     * Kotlin-friendly version using reified type parameter.
+     *
+     * Example:
+     * ```kotlin
+     * SimpleAgenticTool("userManager", "Manage users")
+     *     .withTools(searchUserTool, getUserTool)
+     *     .withDomainToolsFrom<User>()  // User methods become available when a single User is retrieved
+     * ```
+     */
+    inline fun <reified T : Any> withDomainToolsFrom(): SimpleAgenticTool =
+        withDomainToolsFrom(T::class.java)
 }

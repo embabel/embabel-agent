@@ -17,12 +17,10 @@ package com.embabel.agent.api.tool.agentic.playbook
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Blackboard
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Represents a condition that must be met for a tool to be unlocked.
  */
-@ApiStatus.Experimental
 sealed interface UnlockCondition {
 
     /**
@@ -120,7 +118,6 @@ sealed interface UnlockCondition {
 /**
  * Context available for evaluating unlock conditions.
  */
-@ApiStatus.Experimental
 data class PlaybookContext(
     /**
      * Names of tools that have been called so far.

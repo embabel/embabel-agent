@@ -16,7 +16,6 @@
 package com.embabel.agent.api.tool.agentic.playbook
 
 import com.embabel.agent.api.tool.Tool
-import org.jetbrains.annotations.ApiStatus
 import kotlin.reflect.KClass
 
 /**
@@ -32,7 +31,6 @@ import kotlin.reflect.KClass
  * .withTool(analyzeTool).unlockedBy(searchTool)
  * ```
  */
-@ApiStatus.Experimental
 class ToolRegistration internal constructor(
     private val tool: Tool,
     private val playbook: PlaybookTool,

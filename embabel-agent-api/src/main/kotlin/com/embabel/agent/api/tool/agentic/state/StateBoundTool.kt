@@ -16,14 +16,13 @@
 package com.embabel.agent.api.tool.agentic.state
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.common.util.loggerFor
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Holds the current state of a state machine execution.
  * Mutable to allow state transitions during tool execution.
  */
-@ApiStatus.Experimental
 class StateHolder<S : Enum<S>>(
     initialState: S,
 ) {
@@ -46,12 +45,12 @@ class StateHolder<S : Enum<S>>(
  * If called in wrong state, returns an informative error message.
  * On successful execution, optionally transitions to a new state.
  */
-@ApiStatus.Experimental
 internal class StateBoundTool<S : Enum<S>>(
     private val delegate: Tool,
     private val availableInState: S,
     private val transitionsTo: S?,
     private val stateHolder: StateHolder<S>,
+    private val domainToolTracker: DomainToolTracker? = null,
 ) : Tool {
 
     override val definition: Tool.Definition = object : Tool.Definition {
@@ -92,6 +91,15 @@ internal class StateBoundTool<S : Enum<S>>(
 
         val result = delegate.call(input)
 
+        // Try to bind domain tools from any artifacts
+        if (result is Tool.Result.WithArtifact) {
+            val artifact = result.artifact
+            when (artifact) {
+                is Iterable<*> -> {} // Don't bind collections
+                else -> domainToolTracker?.tryBindArtifact(artifact)
+            }
+        }
+
         // Transition state on successful execution if configured
         if (transitionsTo != null && result !is Tool.Result.Error) {
             stateHolder.transitionTo(transitionsTo)
@@ -108,10 +116,10 @@ internal class StateBoundTool<S : Enum<S>>(
  * Tool wrapper for global tools that are available in all states.
  * Logs the current state when called but doesn't restrict access.
  */
-@ApiStatus.Experimental
 internal class GlobalStateTool<S : Enum<S>>(
     private val delegate: Tool,
     private val stateHolder: StateHolder<S>,
+    private val domainToolTracker: DomainToolTracker? = null,
 ) : Tool {
 
     override val definition: Tool.Definition = object : Tool.Definition {
@@ -128,7 +136,19 @@ internal class GlobalStateTool<S : Enum<S>>(
             delegate.definition.name,
             stateHolder.currentState,
         )
-        return delegate.call(input)
+
+        val result = delegate.call(input)
+
+        // Try to bind domain tools from any artifacts
+        if (result is Tool.Result.WithArtifact) {
+            val artifact = result.artifact
+            when (artifact) {
+                is Iterable<*> -> {} // Don't bind collections
+                else -> domainToolTracker?.tryBindArtifact(artifact)
+            }
+        }
+
+        return result
     }
 
     override fun toString(): String = "GlobalStateTool(${delegate.definition.name})"

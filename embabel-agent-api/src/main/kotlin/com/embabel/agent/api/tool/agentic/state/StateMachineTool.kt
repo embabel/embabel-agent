@@ -18,16 +18,17 @@ package com.embabel.agent.api.tool.agentic.state
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.agentic.AgenticTool
 import com.embabel.agent.api.tool.agentic.AgenticToolSupport
+import com.embabel.agent.api.tool.agentic.DomainToolFactory
+import com.embabel.agent.api.tool.agentic.DomainToolSource
+import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Operations for starting a state machine in a particular state.
  */
-@ApiStatus.Experimental
 interface StateMachineToolOperations<S : Enum<S>> {
     /**
      * Create a version of this tool that starts in the specified state.
@@ -80,7 +81,6 @@ interface StateMachineToolOperations<S : Enum<S>> {
  * @param llm LLM options for orchestration
  * @param maxIterations Maximum iterations before stopping
  */
-@ApiStatus.Experimental
 data class StateMachineTool<S : Enum<S>> internal constructor(
     override val definition: Tool.Definition,
     override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT,
@@ -88,6 +88,7 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
     val initialState: S?,
     internal val stateTools: Map<S, List<StateToolEntry<S>>> = emptyMap(),
     internal val globalTools: List<Tool> = emptyList(),
+    internal val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     override val llm: LlmOptions = LlmOptions(),
     val systemPromptCreator: (AgentProcess, S) -> String = { _, state ->
         defaultSystemPrompt(definition.description, state)
@@ -152,18 +153,26 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
             }
 
         loggerFor<StateMachineTool<*>>().info(
-            "Executing StateMachineTool '{}' starting in state {}",
+            "Executing StateMachineTool '{}' starting in state {} with {} domain sources",
             definition.name,
             currentInitialState,
+            domainToolSources.size,
         )
+
+        // Create domain tool tracker if we have domain sources
+        val domainToolTracker = if (domainToolSources.isNotEmpty()) {
+            DomainToolTracker(domainToolSources)
+        } else {
+            null
+        }
 
         // Create mutable state tracker
         val stateHolder = StateHolder(currentInitialState)
 
         // Create wrapped tools for each state
-        val allWrappedTools = createWrappedTools(stateHolder)
+        val allWrappedTools = createWrappedTools(stateHolder, domainToolTracker)
 
-        if (allWrappedTools.isEmpty()) {
+        if (allWrappedTools.isEmpty() && domainToolSources.isEmpty()) {
             loggerFor<StateMachineTool<*>>().warn(
                 "No tools registered for StateMachineTool '{}'",
                 definition.name,
@@ -184,7 +193,10 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
         return Tool.Result.text(output)
     }
 
-    private fun createWrappedTools(stateHolder: StateHolder<S>): List<Tool> {
+    private fun createWrappedTools(
+        stateHolder: StateHolder<S>,
+        domainToolTracker: DomainToolTracker?,
+    ): List<Tool> {
         val wrappedStateTools = stateTools.flatMap { (state, entries) ->
             entries.map { entry ->
                 StateBoundTool(
@@ -192,15 +204,23 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
                     availableInState = state,
                     transitionsTo = entry.transitionsTo,
                     stateHolder = stateHolder,
+                    domainToolTracker = domainToolTracker,
                 )
             }
         }
 
         val wrappedGlobalTools = globalTools.map { tool ->
-            GlobalStateTool(tool, stateHolder)
+            GlobalStateTool(tool, stateHolder, domainToolTracker)
         }
 
-        return wrappedStateTools + wrappedGlobalTools
+        // Create placeholder tools for domain tool sources (available globally)
+        val domainPlaceholderTools = domainToolTracker?.let { tracker ->
+            domainToolSources.flatMap { source ->
+                DomainToolFactory.createPlaceholderTools(source, tracker)
+            }
+        } ?: emptyList()
+
+        return wrappedStateTools + wrappedGlobalTools + domainPlaceholderTools
     }
 
     /**
@@ -271,6 +291,43 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
         )
     }
 
+    /**
+     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     *
+     * When a single artifact of the specified type is returned by any tool, any @LlmTool annotated
+     * methods on that instance become available as tools (globally, not state-bound).
+     *
+     * Example:
+     * ```kotlin
+     * StateMachineTool("orderProcessor", "Process orders", OrderState::class.java)
+     *     .withDomainToolsFrom(Order::class.java)  // Order methods become available when a single Order is retrieved
+     *     .withInitialState(OrderState.DRAFT)
+     *     .inState(OrderState.DRAFT)
+     *         .withTool(findOrderTool)
+     *     ...
+     * ```
+     *
+     * @param type The domain class that may contribute tools
+     */
+    fun <T : Any> withDomainToolsFrom(type: Class<T>): StateMachineTool<S> = copy(
+        domainToolSources = domainToolSources + DomainToolSource(type),
+    )
+
+    /**
+     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     * Kotlin-friendly version using reified type parameter.
+     *
+     * Example:
+     * ```kotlin
+     * StateMachineTool("orderProcessor", "Process orders", OrderState::class.java)
+     *     .withDomainToolsFrom<Order>()  // Order methods become available when a single Order is retrieved
+     *     .withInitialState(OrderState.DRAFT)
+     *     ...
+     * ```
+     */
+    inline fun <reified T : Any> withDomainToolsFrom(): StateMachineTool<S> =
+        withDomainToolsFrom(T::class.java)
+
     companion object {
         fun <S : Enum<S>> defaultSystemPrompt(description: String, currentState: S) = """
             You are an intelligent agent that can use tools to complete tasks.
@@ -289,7 +346,6 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
 /**
  * Builder for configuring tools in a specific state.
  */
-@ApiStatus.Experimental
 class StateBuilder<S : Enum<S>> internal constructor(
     private val state: S,
     internal val stateMachine: StateMachineTool<S>,
@@ -320,7 +376,6 @@ class StateBuilder<S : Enum<S>> internal constructor(
 /**
  * Registration for a tool in a specific state.
  */
-@ApiStatus.Experimental
 class StateToolRegistration<S : Enum<S>> internal constructor(
     private val tool: Tool,
     private val state: S,

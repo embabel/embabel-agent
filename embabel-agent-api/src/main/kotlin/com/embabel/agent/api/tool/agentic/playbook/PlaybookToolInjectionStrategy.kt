@@ -16,8 +16,8 @@
 package com.embabel.agent.api.tool.agentic.playbook
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.core.Blackboard
-import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 
 /**
@@ -25,17 +25,23 @@ import org.slf4j.LoggerFactory
  * Used by tool wrappers to record calls and artifacts,
  * and by [ConditionalTool] to evaluate unlock conditions.
  */
-@ApiStatus.Experimental
 class PlaybookState(
     val blackboard: Blackboard,
+    val domainToolTracker: DomainToolTracker? = null,
 ) {
     private val _calledToolNames = mutableSetOf<String>()
     private val _artifacts = mutableListOf<Any>()
+    private val _dynamicTools = mutableListOf<Tool>()
     private var _iterationCount = 0
 
     val calledToolNames: Set<String> get() = _calledToolNames.toSet()
     val artifacts: List<Any> get() = _artifacts.toList()
     val iterationCount: Int get() = _iterationCount
+
+    /**
+     * Tools dynamically added from domain objects.
+     */
+    val dynamicTools: List<Tool> get() = _dynamicTools.toList()
 
     fun recordToolCall(toolName: String) {
         _calledToolNames.add(toolName)
@@ -44,6 +50,12 @@ class PlaybookState(
 
     fun recordArtifact(artifact: Any) {
         _artifacts.add(artifact)
+
+        // Try to bind domain tools from this artifact
+        domainToolTracker?.let { tracker ->
+            val newTools = tracker.tryBindArtifact(artifact)
+            _dynamicTools.addAll(newTools)
+        }
     }
 
     fun toContext(): PlaybookContext = PlaybookContext(
@@ -57,7 +69,6 @@ class PlaybookState(
 /**
  * Tool wrapper that tracks calls and artifacts to shared [PlaybookState].
  */
-@ApiStatus.Experimental
 internal class StateTrackingTool(
     private val delegate: Tool,
     private val state: PlaybookState,
@@ -91,7 +102,6 @@ internal class StateTrackingTool(
  * Tool wrapper that checks unlock conditions before allowing execution.
  * If not unlocked, returns an informative error message guiding the LLM.
  */
-@ApiStatus.Experimental
 internal class ConditionalTool(
     private val delegate: Tool,
     private val condition: UnlockCondition,

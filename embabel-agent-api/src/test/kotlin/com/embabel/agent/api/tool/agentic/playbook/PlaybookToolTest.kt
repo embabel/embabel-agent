@@ -599,4 +599,59 @@ class PlaybookToolTest {
             assertThat((result as Tool.Result.Error).message).contains("No AgentProcess")
         }
     }
+
+    @Nested
+    inner class DomainToolTests {
+
+        @Test
+        fun `should add domain tool source with class`() {
+            val playbook = PlaybookTool("test", "Test")
+                .withDomainToolsFrom(TestDomainObject::class.java)
+
+            assertThat(playbook.domainToolSources).hasSize(1)
+            assertThat(playbook.domainToolSources.first().type).isEqualTo(TestDomainObject::class.java)
+        }
+
+        @Test
+        fun `should add domain tool source with reified type`() {
+            val playbook = PlaybookTool("test", "Test")
+                .withDomainToolsFrom<TestDomainObject>()
+
+            assertThat(playbook.domainToolSources).hasSize(1)
+            assertThat(playbook.domainToolSources.first().type).isEqualTo(TestDomainObject::class.java)
+        }
+
+        @Test
+        fun `should support multiple domain tool sources`() {
+            val playbook = PlaybookTool("test", "Test")
+                .withDomainToolsFrom<TestDomainObject>()
+                .withDomainToolsFrom<AnotherDomainObject>()
+
+            assertThat(playbook.domainToolSources).hasSize(2)
+        }
+
+        @Test
+        fun `should not require static tools when domain sources configured`() {
+            val playbook = PlaybookTool("test", "Test")
+                .withDomainToolsFrom<TestDomainObject>()
+
+            // No static tools, but domain tools configured - should not fail immediately
+            // (will fail due to no AgentProcess context, but not "No tools available")
+            val result = playbook.call("input")
+
+            assertThat(result).isInstanceOf(Tool.Result.Error::class.java)
+            assertThat((result as Tool.Result.Error).message).contains("AgentProcess")
+            assertThat(result.message).doesNotContain("No tools available")
+        }
+    }
 }
+
+/**
+ * Test domain class with @LlmTool methods.
+ */
+class TestDomainObject(val id: String) {
+    @com.embabel.agent.api.annotation.LlmTool(description = "Get object info")
+    fun getInfo(): String = "Info for $id"
+}
+
+class AnotherDomainObject(val value: Int)
