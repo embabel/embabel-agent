@@ -2975,3 +2975,323 @@ ai.withTool(memory).respond(...)
 When used as an `LlmReference`, the `tools()` method exposes the inner tools directly.
 When used as a `Tool`, the implementation wraps them in a `MatryoshkaTool` facade.
 ====
+
+[[reference.tools__mcp-tool-factory]]
+==== McpToolFactory: MCP Tool Integration
+
+`McpToolFactory` provides a convenient way to integrate https://modelcontextprotocol.io/[Model Context Protocol (MCP)] tools into your application.
+It creates Embabel `Tool` instances from MCP servers, with support for filtering tools and wrapping them in `MatryoshkaTool` facades.
+
+===== Creating McpToolFactory
+
+`McpToolFactory` requires a list of `McpSyncClient` instances, which are typically provided by Spring's MCP auto-configuration:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.tools.mcp.McpToolFactory;
+import io.modelcontextprotocol.client.McpSyncClient;
+
+@Configuration
+public class ToolConfiguration {
+
+    @Bean
+    public McpToolFactory mcpToolFactory(List<McpSyncClient> clients) {
+        return new McpToolFactory(clients);
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.tools.mcp.McpToolFactory
+import io.modelcontextprotocol.client.McpSyncClient
+
+@Configuration
+class ToolConfiguration {
+
+    @Bean
+    fun mcpToolFactory(clients: List<McpSyncClient>): McpToolFactory =
+        McpToolFactory(clients)
+}
+----
+====
+
+TIP: MCP clients are configured in `application.yml`. See <<reference.integrations__mcp,MCP Integration>> for configuration details.
+
+===== Getting Individual MCP Tools
+
+Use `toolByName` to retrieve a single MCP tool by its exact name:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Returns null if not found
+Tool braveSearch = mcpToolFactory.toolByName("brave_web_search");
+if (braveSearch != null) {
+    ai.withTool(braveSearch).generateText("Search for recent news about AI");
+}
+
+// Throws IllegalArgumentException if not found (with helpful error message)
+Tool requiredTool = mcpToolFactory.requiredToolByName("brave_web_search");
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Returns null if not found
+val braveSearch = mcpToolFactory.toolByName("brave_web_search")
+braveSearch?.let { tool ->
+    ai.withTool(tool).generateText("Search for recent news about AI")
+}
+
+// Throws IllegalArgumentException if not found (with helpful error message)
+val requiredTool = mcpToolFactory.requiredToolByName("brave_web_search")
+----
+====
+
+===== Creating MatryoshkaTool Facades from MCP
+
+`McpToolFactory` can wrap groups of MCP tools in a `MatryoshkaTool` facade for progressive disclosure.
+This is useful when you have many MCP tools but want to present them as logical categories.
+
+**By Exact Tool Names:**
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Create a MatryoshkaTool with specific tool names
+MatryoshkaTool wikipediaTool = mcpToolFactory.matryoshkaByName(
+    "wikipedia",
+    "Search and find content from Wikipedia",
+    Set.of("search_wikipedia", "get_article", "get_related_topics", "get_summary")
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Create a MatryoshkaTool with specific tool names
+val wikipediaTool = mcpToolFactory.matryoshkaByName(
+    name = "wikipedia",
+    description = "Search and find content from Wikipedia",
+    toolNames = setOf("search_wikipedia", "get_article", "get_related_topics", "get_summary")
+)
+----
+====
+
+**By Regex Patterns:**
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import java.util.regex.Pattern;
+
+// Match tools by regex patterns
+MatryoshkaTool dbTool = mcpToolFactory.matryoshkaMatching(
+    "database_operations",
+    "Database operations. Invoke to access database tools.",
+    List.of(Pattern.compile("^db_.*"), Pattern.compile(".*query.*"))
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Match tools by regex patterns
+val dbTool = mcpToolFactory.matryoshkaMatching(
+    name = "database_operations",
+    description = "Database operations. Invoke to access database tools.",
+    patterns = listOf("^db_".toRegex(), "query.*".toRegex())
+)
+----
+====
+
+**With Custom Filter:**
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Custom filter predicate
+MatryoshkaTool webTool = mcpToolFactory.matryoshka(
+    "web_operations",
+    "Web operations. Invoke to access web tools.",
+    callback -> callback.getToolDefinition().name().startsWith("web_")
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Custom filter predicate
+val webTool = mcpToolFactory.matryoshka(
+    name = "web_operations",
+    description = "Web operations. Invoke to access web tools.",
+    filter = { it.toolDefinition.name().startsWith("web_") }
+)
+----
+====
+
+===== Controlling Facade Removal
+
+By default, `MatryoshkaTool` facades created by `McpToolFactory` are removed after invocation (replaced by inner tools).
+Use `removeOnInvoke = false` to keep the facade:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Keep facade even after invocation
+MatryoshkaTool persistentTool = mcpToolFactory.matryoshkaByName(
+    "wikipedia",
+    "Search Wikipedia",
+    Set.of("search_wikipedia", "get_article"),
+    false  // removeOnInvoke = false
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Keep facade even after invocation
+val persistentTool = mcpToolFactory.matryoshkaByName(
+    name = "wikipedia",
+    description = "Search Wikipedia",
+    toolNames = setOf("search_wikipedia", "get_article"),
+    removeOnInvoke = false
+)
+----
+====
+
+===== Real-World Example: Chatbot with MCP Tools
+
+Here's a real-world example from a production chatbot that uses `McpToolFactory` to integrate MCP tools with graceful degradation:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Configuration
+public class ChatConfiguration {
+
+    @Bean
+    public McpToolFactory mcpToolFactory(List<McpSyncClient> clients) {
+        return new McpToolFactory(clients);
+    }
+
+    @Bean
+    public CommonTools commonTools(McpToolFactory mcpToolFactory) {
+        var deferMessage = "Use this tool only after trying local sources";
+        var tools = new LinkedList<>();
+
+        // Single MCP tool - gracefully handle missing tools
+        var braveSearch = mcpToolFactory.toolByName("brave_web_search");
+        if (braveSearch != null) {
+            tools.add(braveSearch.withNote(deferMessage));
+        }
+
+        // MatryoshkaTool grouping related Wikipedia MCP tools
+        var wikipediaTool = mcpToolFactory.matryoshkaByName(
+            "wikipedia",
+            "Search and find content from Wikipedia: " + deferMessage,
+            Set.of("search_wikipedia", "get_article", "get_related_topics", "get_summary")
+        );
+        if (!wikipediaTool.getInnerTools().isEmpty()) {
+            tools.add(wikipediaTool);
+        }
+
+        return new CommonTools(tools);
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class ChatConfiguration {
+
+    @Bean
+    fun mcpToolFactory(clients: List<McpSyncClient>): McpToolFactory =
+        McpToolFactory(clients)
+
+    @Bean
+    fun commonTools(mcpToolFactory: McpToolFactory): CommonTools {
+        val deferMessage = "Use this tool only after trying local sources"
+        val tools = mutableListOf<Any>()
+
+        // Single MCP tool - gracefully handle missing tools
+        mcpToolFactory.toolByName("brave_web_search")?.let { braveSearch ->
+            tools.add(braveSearch.withNote(deferMessage))
+        }
+
+        // MatryoshkaTool grouping related Wikipedia MCP tools
+        val wikipediaTool = mcpToolFactory.matryoshkaByName(
+            name = "wikipedia",
+            description = "Search and find content from Wikipedia: $deferMessage",
+            toolNames = setOf("search_wikipedia", "get_article", "get_related_topics", "get_summary")
+        )
+        if (wikipediaTool.innerTools.isNotEmpty()) {
+            tools.add(wikipediaTool)
+        }
+
+        return CommonTools(tools)
+    }
+}
+----
+====
+
+This pattern:
+
+* **Gracefully degrades** when MCP tools aren't available (e.g., in test environments)
+* **Groups related tools** behind a descriptive facade using `MatryoshkaTool`
+* **Adds usage hints** with `withNote()` to guide the LLM on when to use external tools
+* **Checks for empty results** before adding tools to avoid empty facades
+
+===== McpToolFactory Method Summary
+
+|===
+|Method |Description
+
+|`toolByName(String)`
+|Get a single MCP tool by exact name. Returns `null` if not found.
+
+|`requiredToolByName(String)`
+|Get a single MCP tool by exact name. Throws `IllegalArgumentException` if not found, with a helpful error message listing available tools.
+
+|`matryoshkaByName(name, description, toolNames, removeOnInvoke?)`
+|Create a `MatryoshkaTool` containing tools with exact matching names.
+
+|`matryoshkaMatching(name, description, patterns, removeOnInvoke?)`
+|Create a `MatryoshkaTool` containing tools matching any of the regex patterns.
+
+|`matryoshka(name, description, filter, removeOnInvoke?)`
+|Create a `MatryoshkaTool` with a custom filter predicate.
+|===
