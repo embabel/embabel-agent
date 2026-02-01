@@ -16,6 +16,7 @@
 package com.embabel.agent.api.tool.playbook
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Blackboard
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 
@@ -25,7 +26,9 @@ import org.slf4j.LoggerFactory
  * and by [ConditionalTool] to evaluate unlock conditions.
  */
 @ApiStatus.Experimental
-class PlaybookState {
+class PlaybookState(
+    val blackboard: Blackboard,
+) {
     private val _calledToolNames = mutableSetOf<String>()
     private val _artifacts = mutableListOf<Any>()
     private var _iterationCount = 0
@@ -47,6 +50,7 @@ class PlaybookState {
         calledToolNames = calledToolNames,
         artifacts = artifacts,
         iterationCount = iterationCount,
+        blackboard = blackboard,
     )
 }
 

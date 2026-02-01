@@ -16,6 +16,7 @@
 package com.embabel.agent.api.tool.playbook
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Blackboard
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.every
 import io.mockk.mockk
@@ -29,6 +30,10 @@ import org.junit.jupiter.api.Test
 data class TestDocument(val content: String)
 
 class PlaybookToolTest {
+
+    private fun mockBlackboard(objects: List<Any> = emptyList()): Blackboard = mockk(relaxed = true) {
+        every { this@mockk.objects } returns objects
+    }
 
     private fun createTestTool(name: String, result: String = "result"): Tool {
         return mockk<Tool> {
@@ -158,6 +163,7 @@ class PlaybookToolTest {
                 calledToolNames = setOf("search", "fetch"),
                 artifacts = emptyList(),
                 iterationCount = 2,
+                blackboard = mockBlackboard(),
             )
 
             assertThat(condition.isSatisfied(context)).isTrue()
@@ -170,6 +176,7 @@ class PlaybookToolTest {
                 calledToolNames = setOf("search"),
                 artifacts = emptyList(),
                 iterationCount = 1,
+                blackboard = mockBlackboard(),
             )
 
             assertThat(condition.isSatisfied(context)).isFalse()
@@ -182,6 +189,7 @@ class PlaybookToolTest {
                 calledToolNames = emptySet(),
                 artifacts = listOf(TestDocument("content")),
                 iterationCount = 1,
+                blackboard = mockBlackboard(),
             )
 
             assertThat(condition.isSatisfied(context)).isTrue()
@@ -194,6 +202,7 @@ class PlaybookToolTest {
                 calledToolNames = emptySet(),
                 artifacts = listOf("some string"),
                 iterationCount = 1,
+                blackboard = mockBlackboard(),
             )
 
             assertThat(condition.isSatisfied(context)).isFalse()
@@ -210,6 +219,7 @@ class PlaybookToolTest {
                 calledToolNames = setOf("search"),
                 artifacts = listOf(TestDocument("content")),
                 iterationCount = 1,
+                blackboard = mockBlackboard(),
             )
             assertThat(condition.isSatisfied(satisfiedContext)).isTrue()
 
@@ -217,6 +227,7 @@ class PlaybookToolTest {
                 calledToolNames = setOf("search"),
                 artifacts = emptyList(),
                 iterationCount = 1,
+                blackboard = mockBlackboard(),
             )
             assertThat(condition.isSatisfied(partialContext)).isFalse()
         }
@@ -232,6 +243,7 @@ class PlaybookToolTest {
                 calledToolNames = setOf("search"),
                 artifacts = emptyList(),
                 iterationCount = 1,
+                blackboard = mockBlackboard(),
             )
             assertThat(condition.isSatisfied(contextWithSearch)).isTrue()
 
@@ -239,6 +251,7 @@ class PlaybookToolTest {
                 calledToolNames = setOf("fetch"),
                 artifacts = emptyList(),
                 iterationCount = 1,
+                blackboard = mockBlackboard(),
             )
             assertThat(condition.isSatisfied(contextWithFetch)).isTrue()
 
@@ -246,6 +259,7 @@ class PlaybookToolTest {
                 calledToolNames = setOf("other"),
                 artifacts = emptyList(),
                 iterationCount = 1,
+                blackboard = mockBlackboard(),
             )
             assertThat(condition.isSatisfied(contextWithNeither)).isFalse()
         }
@@ -260,6 +274,7 @@ class PlaybookToolTest {
                 calledToolNames = emptySet(),
                 artifacts = emptyList(),
                 iterationCount = 2,
+                blackboard = mockBlackboard(),
             )
             assertThat(condition.isSatisfied(earlyContext)).isFalse()
 
@@ -267,8 +282,32 @@ class PlaybookToolTest {
                 calledToolNames = emptySet(),
                 artifacts = emptyList(),
                 iterationCount = 3,
+                blackboard = mockBlackboard(),
             )
             assertThat(condition.isSatisfied(lateContext)).isTrue()
+        }
+
+        @Test
+        fun `blackboard predicate condition should be satisfied when blackboard matches`() {
+            val condition = UnlockCondition.WhenPredicate { ctx ->
+                ctx.blackboard.objects.any { it is TestDocument }
+            }
+
+            val contextWithDoc = PlaybookContext(
+                calledToolNames = emptySet(),
+                artifacts = emptyList(),
+                iterationCount = 0,
+                blackboard = mockBlackboard(listOf(TestDocument("content"))),
+            )
+            assertThat(condition.isSatisfied(contextWithDoc)).isTrue()
+
+            val contextWithoutDoc = PlaybookContext(
+                calledToolNames = emptySet(),
+                artifacts = emptyList(),
+                iterationCount = 0,
+                blackboard = mockBlackboard(),
+            )
+            assertThat(condition.isSatisfied(contextWithoutDoc)).isFalse()
         }
     }
 
@@ -277,7 +316,7 @@ class PlaybookToolTest {
 
         @Test
         fun `should track tool calls`() {
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
 
             state.recordToolCall("search")
             state.recordToolCall("fetch")
@@ -287,7 +326,7 @@ class PlaybookToolTest {
 
         @Test
         fun `should track artifacts`() {
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             val doc = TestDocument("content")
 
             state.recordArtifact(doc)
@@ -297,7 +336,7 @@ class PlaybookToolTest {
 
         @Test
         fun `should increment iteration count on tool calls`() {
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
 
             assertThat(state.iterationCount).isEqualTo(0)
             state.recordToolCall("search")
@@ -308,7 +347,7 @@ class PlaybookToolTest {
 
         @Test
         fun `should convert to PlaybookContext`() {
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             state.recordToolCall("search")
             state.recordArtifact(TestDocument("content"))
 
@@ -326,7 +365,7 @@ class PlaybookToolTest {
         @Test
         fun `should delegate to wrapped tool`() {
             val delegate = createTestTool("search", "search result")
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             val trackingTool = StateTrackingTool(delegate, state)
 
             val result = trackingTool.call("query")
@@ -337,7 +376,7 @@ class PlaybookToolTest {
         @Test
         fun `should record tool call in state`() {
             val delegate = createTestTool("search")
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             val trackingTool = StateTrackingTool(delegate, state)
 
             trackingTool.call("query")
@@ -349,7 +388,7 @@ class PlaybookToolTest {
         fun `should record artifacts in state`() {
             val doc = TestDocument("content")
             val delegate = createArtifactTool("search", doc)
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             val trackingTool = StateTrackingTool(delegate, state)
 
             trackingTool.call("query")
@@ -361,7 +400,7 @@ class PlaybookToolTest {
         fun `should record iterable artifacts individually`() {
             val docs = listOf(TestDocument("doc1"), TestDocument("doc2"))
             val delegate = createArtifactTool("search", docs)
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             val trackingTool = StateTrackingTool(delegate, state)
 
             trackingTool.call("query")
@@ -376,7 +415,7 @@ class PlaybookToolTest {
         @Test
         fun `should execute when condition satisfied`() {
             val delegate = createTestTool("analyze", "analysis result")
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             state.recordToolCall("search")
 
             val condition = UnlockCondition.AfterTools("search")
@@ -390,7 +429,7 @@ class PlaybookToolTest {
         @Test
         fun `should return locked message when condition not satisfied`() {
             val delegate = createTestTool("analyze")
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
 
             val condition = UnlockCondition.AfterTools("search")
             val conditionalTool = ConditionalTool(delegate, condition, state)
@@ -405,7 +444,7 @@ class PlaybookToolTest {
         @Test
         fun `should add prerequisite note to description`() {
             val delegate = createTestTool("analyze")
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             val condition = UnlockCondition.AfterTools("search")
             val conditionalTool = ConditionalTool(delegate, condition, state)
 
@@ -416,7 +455,7 @@ class PlaybookToolTest {
         @Test
         fun `should record call when executed`() {
             val delegate = createTestTool("analyze")
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
             state.recordToolCall("search")
 
             val condition = UnlockCondition.AfterTools("search")
@@ -430,7 +469,7 @@ class PlaybookToolTest {
         @Test
         fun `should not record call when locked`() {
             val delegate = createTestTool("analyze")
-            val state = PlaybookState()
+            val state = PlaybookState(mockBlackboard())
 
             val condition = UnlockCondition.AfterTools("search")
             val conditionalTool = ConditionalTool(delegate, condition, state)

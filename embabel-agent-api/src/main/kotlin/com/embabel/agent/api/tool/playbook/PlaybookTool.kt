@@ -134,7 +134,7 @@ data class PlaybookTool internal constructor(
         )
 
         // Create shared state for tracking tool calls and artifacts
-        val state = PlaybookState()
+        val state = PlaybookState(agentProcess)
 
         // Wrap unlocked tools to track state
         val wrappedUnlockedTools = unlockedTools.map { tool ->

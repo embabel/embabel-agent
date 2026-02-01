@@ -158,4 +158,34 @@ class ToolRegistration internal constructor(
      */
     fun unlockedWhen(predicate: (PlaybookContext) -> Boolean): PlaybookTool =
         playbook.addLockedTool(tool, UnlockCondition.WhenPredicate(predicate))
+
+    /**
+     * Unlock when an object of the specified type exists on the blackboard.
+     *
+     * Example:
+     * ```java
+     * .withTool(processTool).unlockedByBlackboard(Document.class)
+     * ```
+     */
+    fun unlockedByBlackboard(type: Class<*>): PlaybookTool {
+        val condition = UnlockCondition.WhenPredicate { ctx ->
+            ctx.blackboard.objects.any { type.isInstance(it) }
+        }
+        return playbook.addLockedTool(tool, condition)
+    }
+
+    /**
+     * Unlock when the blackboard matches a predicate.
+     *
+     * Example:
+     * ```java
+     * .withTool(actionTool).unlockedByBlackboardMatching(bb -> bb.get("ready") != null)
+     * ```
+     */
+    fun unlockedByBlackboardMatching(predicate: java.util.function.Predicate<com.embabel.agent.core.Blackboard>): PlaybookTool {
+        val condition = UnlockCondition.WhenPredicate { ctx ->
+            predicate.test(ctx.blackboard)
+        }
+        return playbook.addLockedTool(tool, condition)
+    }
 }

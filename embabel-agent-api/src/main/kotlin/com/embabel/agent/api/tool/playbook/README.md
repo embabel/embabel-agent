@@ -11,6 +11,7 @@ unlocked based on conditions:
 
 - **Prerequisites**: unlock after other tools have been called
 - **Artifacts**: unlock when certain artifact types are produced
+- **Blackboard**: unlock based on process state (objects on the blackboard)
 - **Custom predicates**: unlock based on arbitrary conditions
 
 This provides more predictable LLM behavior by guiding it through a structured sequence of available tools.
@@ -64,6 +65,18 @@ var playbook = new PlaybookTool("researcher", "Research and analyze topics")
 // Unlock when any artifact matches a predicate
 .withTool(processTool)
     .unlockedByArtifactMatching(a -> a instanceof Document && ((Document) a).isValid())
+```
+
+#### Based on Blackboard State
+
+```java
+// Unlock when a specific type exists on the blackboard
+.withTool(summarizeTool)
+    .unlockedByBlackboard(UserProfile.class)
+
+// Unlock when blackboard matches a predicate
+.withTool(actionTool)
+    .unlockedByBlackboardMatching(bb -> bb.get("ready") != null)
 ```
 
 #### Custom Predicate
@@ -155,6 +168,7 @@ PlaybookTool("researcher", "Research and analyze topics")
 3. The LLM receives feedback guiding it to use prerequisite tools first
 4. As conditions are satisfied, locked tools become functional
 5. Artifacts produced by any tool are tracked and can trigger artifact-based unlocks
+6. The process blackboard is accessible to conditions, enabling unlocks based on broader process state
 
 ## Comparison with AgenticTool
 

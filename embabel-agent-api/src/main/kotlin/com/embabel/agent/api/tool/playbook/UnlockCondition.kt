@@ -16,6 +16,7 @@
 package com.embabel.agent.api.tool.playbook
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.Blackboard
 import org.jetbrains.annotations.ApiStatus
 
 /**
@@ -135,4 +136,9 @@ data class PlaybookContext(
      * Number of iterations completed.
      */
     val iterationCount: Int,
+
+    /**
+     * The process blackboard, for conditions that depend on process state.
+     */
+    val blackboard: Blackboard,
 )
