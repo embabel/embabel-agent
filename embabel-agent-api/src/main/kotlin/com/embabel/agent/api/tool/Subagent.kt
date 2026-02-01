@@ -238,6 +238,7 @@ class Subagent private constructor(
 
     private fun createProcessOptions(parentAgentProcess: AgentProcess): ProcessOptions {
         val blackboard = parentAgentProcess.processContext.blackboard.spawn()
+        val parentOutputChannel = parentAgentProcess.processContext.outputChannel
         logger.info(
             "Creating subagent process with spawned blackboard from parent {}",
             parentAgentProcess.id
@@ -245,6 +246,7 @@ class Subagent private constructor(
         return ProcessOptions(
             verbosity = Verbosity(showPrompts = true),
             blackboard = blackboard,
+            outputChannel = parentOutputChannel,
         )
     }
 
