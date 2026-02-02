@@ -60,10 +60,31 @@ interface Conversation : StableIdentified, HasInfoString, AssetView {
     fun lastMessageIfBeFromUser(): UserMessage? = messages.lastOrNull() as? UserMessage
 
     /**
-     * Modify the state of this conversation
-     * Return the newly added message for convenience
+     * Modify the state of this conversation.
+     * Return the newly added message for convenience.
      */
     fun addMessage(message: Message): Message
+
+    /**
+     * Add a message with explicit author attribution.
+     * Useful for group chats or when the author differs per message.
+     *
+     * @param message the message to add
+     * @param author the author of this message (null for system/assistant messages)
+     * @return the newly added message
+     */
+    fun addMessageFrom(message: Message, author: MessageAuthor?): Message = addMessage(message)
+
+    /**
+     * Add a message with explicit author and recipient.
+     * Use this for multi-party chats where both sender and receiver need to be specified.
+     *
+     * @param message the message to add
+     * @param from the author of this message (who sent it)
+     * @param to the recipient of this message (who should receive it)
+     * @return the newly added message
+     */
+    fun addMessageFromTo(message: Message, from: MessageAuthor?, to: MessageAuthor?): Message = addMessage(message)
 
     /**
      * Prompt contributor that represents the conversation so far.
