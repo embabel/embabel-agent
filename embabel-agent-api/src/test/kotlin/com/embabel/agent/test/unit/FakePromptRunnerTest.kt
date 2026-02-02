@@ -383,6 +383,44 @@ class FakePromptRunnerTest {
 
             assertEquals(expectedIntent, result)
         }
+
+        @Test
+        fun `createObjectIfPossible with messages returns expected object`() {
+            val context = FakeOperationContext.create()
+            val expectedIntent = TestUserIntent("query", "User question")
+            context.expectResponse(expectedIntent)
+
+            val messages = listOf(
+                com.embabel.chat.UserMessage("What is the weather?"),
+                com.embabel.chat.UserMessage("I need to know for tomorrow")
+            )
+
+            val result = context.ai().withDefaultLlm().createObjectIfPossible(messages, TestUserIntent::class.java)
+
+            assertEquals(expectedIntent, result)
+            assertEquals(1, context.llmInvocations.size)
+            assertEquals(Method.CREATE_OBJECT_IF_POSSIBLE, context.llmInvocations[0].method)
+            assertEquals(messages, context.llmInvocations[0].messages)
+        }
+
+        @Test
+        fun `createObjectIfPossible with messages returns null when expected`() {
+            val context = FakeOperationContext.create()
+            context.expectResponse(null)
+
+            val messages = listOf(
+                com.embabel.chat.UserMessage("Unclear request"),
+                com.embabel.chat.UserMessage("Very ambiguous")
+            )
+
+            val result = context.ai().withDefaultLlm().createObjectIfPossible(messages, TestUserIntent::class.java)
+
+            assertNull(result)
+            assertEquals(1, context.llmInvocations.size)
+            assertEquals(Method.CREATE_OBJECT_IF_POSSIBLE, context.llmInvocations[0].method)
+            assertEquals(messages, context.llmInvocations[0].messages)
+        }
+
     }
 
     @Nested
