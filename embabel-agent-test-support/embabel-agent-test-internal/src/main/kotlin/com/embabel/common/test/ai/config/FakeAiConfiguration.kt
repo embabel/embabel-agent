@@ -23,7 +23,9 @@ import com.embabel.common.ai.model.SpringAiEmbeddingService
 import com.embabel.common.test.ai.FakeEmbeddingModel
 import com.embabel.common.util.loggerFor
 import io.mockk.mockk
+import org.mockito.Mockito.mock
 import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 
@@ -58,6 +60,23 @@ class FakeAiConfiguration {
         )
     }
 
+    /**
+     * Mock bean to satisfy the dependency requirement for bedrockModels
+     */
+    @Bean(name = ["bedrockModels"])
+    fun bedrockModels(): Any = Any()
+
+    /**
+     * Test LLM bean that matches the default-llm configuration
+     */
+    @Bean(name = ["test-llm"])
+    fun testLlm(): LlmService<*> = SpringAiLlmService(
+        name = "test-llm",
+        chatModel = mock(ChatModel::class.java),
+        provider = "test",
+        optionsConverter = DefaultOptionsConverter
+    )
+
     @Bean
     fun embedding(): EmbeddingService {
         return SpringAiEmbeddingService(
@@ -66,5 +85,15 @@ class FakeAiConfiguration {
             provider = "OpenAI",
         )
     }
+
+    /**
+     * Additional test embedding model for the 'best' role
+     */
+    @Bean(name = ["test"])
+    fun test(): EmbeddingService = SpringAiEmbeddingService(
+        name = "test",
+        model = mock(EmbeddingModel::class.java),
+        provider = "test"
+    )
 
 }
