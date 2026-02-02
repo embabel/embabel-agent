@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Typed backed by a JVM object
@@ -102,6 +103,20 @@ data class JvmType @JsonCreator constructor(
         }
 
     override fun children(additionalBasePackages: Collection<String>): Collection<JvmType> {
+        val shouldCache = shouldCacheChildren(className)
+        val cacheKey = "$className:${additionalBasePackages.sorted().joinToString(",")}"
+
+        if (shouldCache) {
+            val cached = childrenCache[cacheKey]
+            if (cached != null) {
+                logger.trace("children() cache HIT for key: {}", cacheKey)
+                return cached
+            }
+            logger.trace("children() cache MISS for key: {}", cacheKey)
+        } else {
+            logger.trace("children() cache SKIP (framework type): {}", className)
+        }
+
         val basePackagesToUse = additionalBasePackages.ifEmpty {
             listOf(clazz.packageName)
         }
@@ -137,7 +152,9 @@ data class JvmType @JsonCreator constructor(
             }
         }
 
-        return result.toSet()
+        val resultSet = result.toSet()
+        if (shouldCache) childrenCache[cacheKey] = resultSet
+        return resultSet
     }
 
     @get:JsonIgnore
@@ -388,6 +405,32 @@ data class JvmType @JsonCreator constructor(
     companion object {
 
         private val logger = LoggerFactory.getLogger(JvmType::class.java)
+
+        // Thread-safe cache for children() results - cleared on context shutdown
+        private val childrenCache = ConcurrentHashMap<String, Collection<JvmType>>()
+
+        // Framework package prefix derived from JvmType's own package (e.g., "com.embabel")
+        private val frameworkPackagePrefix: String = JvmType::class.java.packageName
+            .substringBeforeLast(".").substringBeforeLast(".")
+
+        /**
+         * Check if children() results for this class should be cached.
+         * Caches: application packages + framework examples + test classes. Excludes: other framework packages.
+         */
+        private fun shouldCacheChildren(className: String): Boolean {
+            if (!className.startsWith("$frameworkPackagePrefix.")) return true
+            if (className.startsWith("$frameworkPackagePrefix.example.")) return true
+            if (className.contains("Test\$")) return true // test inner classes
+            return false
+        }
+
+        /**
+         * Clear the children cache. Called on context shutdown for hot-reload support.
+         */
+        fun clearChildrenCache() {
+            logger.info("Clearing JvmType children cache ({} entries)", childrenCache.size)
+            childrenCache.clear()
+        }
 
         /**
          * May need to break up with SomeOf

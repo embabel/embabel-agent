@@ -17,6 +17,7 @@ package com.embabel.agent.core
 
 import com.fasterxml.jackson.annotation.JsonClassDescription
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class JvmTypeTest {
@@ -795,5 +796,83 @@ class JvmTypeTest {
         assertEquals("TestWork", rel.to.ownLabel)
         assertEquals("works", rel.name)
         assertEquals(Cardinality.LIST, rel.cardinality)
+    }
+
+    @Nested
+    inner class ChildrenCachingTests {
+
+        @Test
+        fun `children cache should return same result on repeated calls`() {
+            JvmType.clearChildrenCache()
+
+            val vehicleType = JvmType(TestVehicle::class.java)
+            val packages = listOf("com.embabel.agent.core")
+
+            val firstCall = vehicleType.children(packages)
+            val secondCall = vehicleType.children(packages)
+
+            assertSame(firstCall, secondCall, "Repeated calls should return cached result")
+        }
+
+        @Test
+        fun `children cache should differentiate by package list`() {
+            JvmType.clearChildrenCache()
+
+            val vehicleType = JvmType(TestVehicle::class.java)
+
+            val result1 = vehicleType.children(listOf("com.embabel.agent.core"))
+            val result2 = vehicleType.children(listOf("com.embabel"))
+
+            assertNotSame(result1, result2, "Different packages should not share cache")
+        }
+
+        @Test
+        fun `clearChildrenCache should invalidate cached results`() {
+            val vehicleType = JvmType(TestVehicle::class.java)
+            val packages = listOf("com.embabel.agent.core")
+
+            val beforeClear = vehicleType.children(packages)
+            JvmType.clearChildrenCache()
+            val afterClear = vehicleType.children(packages)
+
+            assertNotSame(beforeClear, afterClear, "After clear, should compute fresh result")
+            assertEquals(
+                beforeClear.map { it.name }.toSet(),
+                afterClear.map { it.name }.toSet(),
+                "Contents should be equal"
+            )
+        }
+
+        @Test
+        fun `cache key should be consistent regardless of package order`() {
+            JvmType.clearChildrenCache()
+
+            val vehicleType = JvmType(TestVehicle::class.java)
+
+            val result1 = vehicleType.children(listOf("com.embabel", "com.embabel.agent.core"))
+            val result2 = vehicleType.children(listOf("com.embabel.agent.core", "com.embabel"))
+
+            assertSame(result1, result2, "Package order should not affect cache key")
+        }
+
+        @Test
+        fun `framework types should not be cached`() {
+            JvmType.clearChildrenCache()
+
+            // DomainType is a framework type (com.embabel.agent.core) - should skip caching
+            val frameworkType = JvmType(DomainType::class.java)
+            val packages = listOf("com.embabel.agent.core")
+
+            val firstCall = frameworkType.children(packages)
+            val secondCall = frameworkType.children(packages)
+
+            // Not same reference = not cached (computed fresh each time)
+            assertNotSame(firstCall, secondCall, "Framework types should not be cached")
+            assertEquals(
+                firstCall.map { it.name }.toSet(),
+                secondCall.map { it.name }.toSet(),
+                "Contents should be equal"
+            )
+        }
     }
 }
