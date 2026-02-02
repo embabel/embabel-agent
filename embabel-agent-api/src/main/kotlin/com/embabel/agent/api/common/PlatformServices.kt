@@ -23,6 +23,7 @@ import com.embabel.agent.spi.AgentProcessRepository
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.expression.LogicalExpressionParser
+import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -70,6 +71,14 @@ interface PlatformServices {
     fun autonomy(): Autonomy
 
     fun modelProvider(): ModelProvider
+
+    /**
+     * Get the conversation factory provider for resolving conversation factories by type.
+     *
+     * Requires `embabel-chat-store` on the classpath. Without it,
+     * this method throws [org.springframework.beans.factory.NoSuchBeanDefinitionException].
+     */
+    fun conversationFactoryProvider(): ConversationFactoryProvider
 
     fun withEventListener(agenticEventListener: AgenticEventListener): PlatformServices
 }
