@@ -15,12 +15,13 @@
  */
 package com.embabel.agent.web.rest
 
-import com.embabel.agent.api.dsl.evenMoreEvilWizard
+import com.embabel.agent.test.dsl.evenMoreEvilWizard
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.AgentProcessStatusReport
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.io.UserInput
+import com.embabel.common.test.ai.config.FakeAiConfiguration
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
@@ -29,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
@@ -41,6 +43,7 @@ import kotlin.test.assertTrue
 @SpringBootTest
 @ActiveProfiles("test")
 @AutoConfigureMockMvc(addFilters = false)
+@Import(FakeAiConfiguration::class)
 @EnableAutoConfiguration
 class AgentProcessControllerIntegrationTest(
     @param:Autowired

@@ -18,7 +18,6 @@ package com.embabel.agent.config
 import com.embabel.agent.api.common.autonomy.AutonomyProperties
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.support.DefaultProcessIdGeneratorProperties
-import com.embabel.agent.web.sse.SseProperties
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
@@ -209,10 +208,6 @@ class AgentPlatformPropertiesIntegrationTest {
     private lateinit var legacyProcessIdProperties: DefaultProcessIdGeneratorProperties
 
     @Autowired
-    private lateinit var legacySseProperties: SseProperties
-
-
-    @Autowired
     private lateinit var environment: Environment
 
     @Test
@@ -224,7 +219,8 @@ class AgentPlatformPropertiesIntegrationTest {
     @Test
     fun `agent qos should bind correctly`() {
         assertThat(properties.actionQos.default.maxAttempts).isEqualTo(6)
-        val bound = Binder.get(environment).bind("agent-qos.agent.method", AgentPlatformProperties.ActionQosProperties.ActionProperties::class.java)
+        val bound = Binder.get(environment)
+            .bind("agent-qos.agent.method", AgentPlatformProperties.ActionQosProperties.ActionProperties::class.java)
         assertThat(bound.isBound).isTrue()
         assertThat(bound.get().maxAttempts).isEqualTo(10)
     }
@@ -353,11 +349,6 @@ class AgentPlatformPropertiesIntegrationTest {
         println("DefaultProcessIdGeneratorProperties:")
         println("  includeVersion (val): ${legacyProcessIdProperties.includeVersion}")
         println("  includeAgentName (val): ${legacyProcessIdProperties.includeAgentName}")
-
-        // 3. SseProperties (var properties)
-        println("SseProperties:")
-        println("  maxBufferSize (var): ${legacySseProperties.maxBufferSize}")
-        println("  maxProcessBuffers (var): ${legacySseProperties.maxProcessBuffers}")
     }
 
     @EnableConfigurationProperties(
@@ -375,9 +366,5 @@ class AgentPlatformPropertiesIntegrationTest {
             return DefaultProcessIdGeneratorProperties(platformProperties)
         }
 
-        @Bean
-        fun sseProperties(platformProperties: AgentPlatformProperties): SseProperties {
-            return SseProperties(platformProperties)
-        }
     }
 }
