@@ -44,7 +44,13 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-common</artifactId>
+                <artifactId>embabel-agent-ai</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-webmvc</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
