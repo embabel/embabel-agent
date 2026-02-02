@@ -287,4 +287,183 @@ class TripPlanningController(
 - **Resource Cleanup**: Removes completed jobs from memory
 - **Process Options**: Configures verbosity and debugging for production use
 
+===== Alternative: Direct AgentProcess Creation
+
+For simpler use cases, you can create and start an `AgentProcess` directly without `AgentInvocation`.
+This approach is used in the http://github.com/embabel/tripper[Tripper] application and works well with webhooks or form submissions where you want to:
+
+- Start a long-running agent process
+- Return immediately with a process ID
+- Poll for status using the platform's built-in controllers
+
+[source,java]
+----
+@Controller
+@RequestMapping("/journey")
+public class JourneyController {
+
+    private final AgentPlatform agentPlatform;
+
+    public JourneyController(AgentPlatform agentPlatform) {
+        this.agentPlatform = agentPlatform;
+    }
+
+    @PostMapping("/plan")
+    public String planJourney(@ModelAttribute JourneyPlanForm form, Model model) {
+        // Convert form to domain objects
+        TravelBrief travelBrief = new TravelBrief(
+            form.getFrom(),
+            form.getTo(),
+            form.getDepartureDate(),
+            form.getReturnDate(),
+            form.getBrief()
+        );
+
+        // Find the appropriate agent
+        Agent agent = agentPlatform.agents().stream()
+            .filter(a -> a.getName().toLowerCase().contains("travel"))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("No travel agent found"));
+
+        // Create the agent process with input bindings
+        AgentProcess agentProcess = agentPlatform.createAgentProcessFrom(
+            agent,
+            new ProcessOptions(
+                new Verbosity().withShowPrompts(true),
+                Budget.DEFAULT  // or custom budget
+            ),
+            travelBrief  // Vararg inputs bound to blackboard
+        );
+
+        // Start the process asynchronously
+        agentPlatform.start(agentProcess);
+
+        // Add process ID to model for status polling
+        model.addAttribute("processId", agentProcess.getId());
+        model.addAttribute("travelBrief", travelBrief);
+
+        // Return a view that polls /api/v1/process/{processId} for status
+        return "processing";
+    }
+}
+----
+
+The platform provides built-in REST endpoints for status checking:
+
+- `GET /api/v1/process/{processId}` - Returns process status, result, and URLs
+- `DELETE /api/v1/process/{processId}` - Terminates a running process
+- `GET /events/process/{processId}` - SSE stream of process events
+
+A simple status polling controller can check completion and redirect to results:
+
+[source,java]
+----
+@Controller
+public class ProcessStatusController {
+
+    private final AgentPlatform agentPlatform;
+
+    public ProcessStatusController(AgentPlatform agentPlatform) {
+        this.agentPlatform = agentPlatform;
+    }
+
+    @GetMapping("/status/{processId}")
+    public String checkStatus(
+            @PathVariable String processId,
+            @RequestParam String successView,
+            @RequestParam String resultModelKey,
+            Model model) {
+
+        AgentProcess process = agentPlatform.getAgentProcess(processId);
+        if (process == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Process not found");
+        }
+
+        switch (process.getStatus()) {
+            case COMPLETED:
+                model.addAttribute(resultModelKey, process.lastResult());
+                return successView;
+
+            case FAILED:
+                model.addAttribute("error", "Process failed: " + process.getFailureInfo());
+                return "error";
+
+            case TERMINATED:
+                model.addAttribute("error", "Process was terminated");
+                return "error";
+
+            default:
+                // Still running - return polling view
+                model.addAttribute("processId", processId);
+                return "processing";
+        }
+    }
+}
+----
+
+**When to Use Each Approach:**
+
+|===
+|Approach |Best For
+
+|`AgentInvocation.invokeAsync()`
+|When you need a `CompletableFuture` for programmatic handling, chaining, or integration with reactive frameworks
+
+|Direct `AgentProcess` creation
+|Webhooks, form submissions, or UI flows where you poll for status via REST/SSE
+|===
+
+===== Webhook Integration Example
+
+For webhook-triggered workflows (e.g., JIRA, GitHub), the direct approach works well:
+
+[source,java]
+----
+@RestController
+@RequestMapping("/webhook")
+public class WebhookController {
+
+    private final AgentPlatform agentPlatform;
+
+    public WebhookController(AgentPlatform agentPlatform) {
+        this.agentPlatform = agentPlatform;
+    }
+
+    @PostMapping("/jira/issue-created")
+    public ResponseEntity<Map<String, String>> onJiraIssueCreated(
+            @RequestBody JiraWebhookPayload payload) {
+
+        // Find agent that handles JIRA issues
+        Agent agent = agentPlatform.agents().stream()
+            .filter(a -> a.getName().contains("JiraIssue"))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("No JIRA agent configured"));
+
+        // Create domain object from webhook payload
+        JiraIssue issue = new JiraIssue(
+            payload.getIssue().getKey(),
+            payload.getIssue().getFields().getSummary(),
+            payload.getIssue().getFields().getDescription()
+        );
+
+        // Create and start the agent process
+        AgentProcess process = agentPlatform.createAgentProcessFrom(
+            agent,
+            ProcessOptions.DEFAULT,
+            issue
+        );
+        agentPlatform.start(process);
+
+        // Return process ID for status tracking
+        return ResponseEntity.accepted().body(Map.of(
+            "processId", process.getId(),
+            "statusUrl", "/api/v1/process/" + process.getId(),
+            "sseUrl", "/events/process/" + process.getId()
+        ));
+    }
+}
+----
+
+The webhook caller can then poll `/api/v1/process/{processId}` or subscribe to SSE events at `/events/process/{processId}` to track progress.
+
 IMPORTANT: Agents can also be exposed as <<reference.integrations__mcp, MCP>> servers and consumed from tools like Claude Desktop.
