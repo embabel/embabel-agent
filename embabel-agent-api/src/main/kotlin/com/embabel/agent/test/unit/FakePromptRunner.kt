@@ -16,13 +16,11 @@
 package com.embabel.agent.test.unit
 
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.validation.guardrails.GuardRail
-import com.embabel.agent.api.common.nested.ObjectCreator
-import com.embabel.agent.api.common.nested.TemplateOperations
 import com.embabel.agent.api.common.support.DelegatingCreating
 import com.embabel.agent.api.common.support.DelegatingRendering
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmInteraction
@@ -325,7 +323,12 @@ data class FakePromptRunner(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T {
-        return createObject(prompt = messages.joinToString(), outputClass = outputClass)
+        _llmInvocations += LlmInvocation(
+            interaction = createLlmInteraction(),
+            messages = messages,
+            method = Method.CREATE_OBJECT,
+        )
+        return getResponse(outputClass)!!
     }
 
     override fun evaluateCondition(
