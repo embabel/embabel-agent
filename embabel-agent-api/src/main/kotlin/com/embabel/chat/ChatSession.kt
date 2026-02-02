@@ -65,16 +65,15 @@ interface ChatSession {
 
     /**
      * Convenience method to add a message to the conversation
+     * and send it to the output channel.
+     * Preserves all message properties including awaitable and assets.
      */
     fun saveAndSend(message: AssistantMessage) {
         conversation.addMessage(message)
         outputChannel.send(
             MessageOutputChannelEvent(
                 processId = processId ?: "anonymous",
-                AssistantMessage(
-                    content = message.content,
-                    name = null,
-                ),
+                message = message,
             )
         )
     }
