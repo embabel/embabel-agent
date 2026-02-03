@@ -164,7 +164,7 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "vectorSearch" })
+            assertTrue(toolNames.any { it == "test_rag_vectorSearch" })
         }
 
         @Test
@@ -180,7 +180,7 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "textSearch" })
+            assertTrue(toolNames.any { it == "test_rag_textSearch" })
         }
 
         @Test
@@ -196,8 +196,8 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "vectorSearch" })
-            assertTrue(toolNames.any { it == "textSearch" })
+            assertTrue(toolNames.any { it == "test_rag_vectorSearch" })
+            assertTrue(toolNames.any { it == "test_rag_textSearch" })
         }
 
         @Test
@@ -213,7 +213,58 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            assertTrue(toolNames.any { it == "findById" })
+            assertTrue(toolNames.any { it == "test_rag_findById" })
+        }
+
+        @Test
+        fun `multiple ToolishRag instances should have unique namespaced tools`() {
+            val coreSearch1 = mockk<CoreSearchOperations>()
+            val coreSearch2 = mockk<CoreSearchOperations>()
+
+            val rag1 = ToolishRag(
+                name = "books",
+                description = "Book search",
+                searchOperations = coreSearch1
+            )
+
+            val rag2 = ToolishRag(
+                name = "movies",
+                description = "Movie search",
+                searchOperations = coreSearch2
+            )
+
+            val tools1 = rag1.tools()
+            val tools2 = rag2.tools()
+
+            val toolNames1 = tools1.map { it.definition.name }
+            val toolNames2 = tools2.map { it.definition.name }
+
+            // Each RAG should have its own namespaced tools
+            assertTrue(toolNames1.contains("books_vectorSearch"))
+            assertTrue(toolNames1.contains("books_textSearch"))
+            assertTrue(toolNames2.contains("movies_vectorSearch"))
+            assertTrue(toolNames2.contains("movies_textSearch"))
+
+            // Tools should not overlap
+            assertFalse(toolNames1.any { it in toolNames2 })
+        }
+
+        @Test
+        fun `tool prefix should handle special characters in name`() {
+            val vectorSearch = mockk<VectorSearch>()
+
+            val toolishRag = ToolishRag(
+                name = "My Special RAG!",
+                description = "Test RAG",
+                searchOperations = vectorSearch
+            )
+
+            val tools = toolishRag.tools()
+            val toolNames = tools.map { it.definition.name }
+
+            // Special characters (!) should be replaced with underscores and lowercased
+            // Note: spaces are preserved by toolPrefix()
+            assertTrue(toolNames.any { it == "my special rag__vectorSearch" })
         }
     }
 
@@ -568,16 +619,16 @@ class ToolishRagTest {
 
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
-            assertTrue(toolNames.contains("vectorSearch"))
-            assertTrue(toolNames.contains("textSearch"))
+            assertTrue(toolNames.contains("integration_test_vectorSearch"))
+            assertTrue(toolNames.contains("integration_test_textSearch"))
 
             // Get and use vectorSearch tool
-            val vectorTool = tools.first { it.definition.name == "vectorSearch" }
+            val vectorTool = tools.first { it.definition.name == "integration_test_vectorSearch" }
             val vectorResult = vectorTool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
             assertTrue((vectorResult as com.embabel.agent.api.tool.Tool.Result.Text).content.contains("Integration test content"))
 
             // Get and use textSearch tool
-            val textTool = tools.first { it.definition.name == "textSearch" }
+            val textTool = tools.first { it.definition.name == "integration_test_textSearch" }
             val textResult = textTool.call("""{"query": "test", "topK": 5, "threshold": 0.5}""")
             assertTrue((textResult as com.embabel.agent.api.tool.Tool.Result.Text).content.contains("Integration test content"))
 
@@ -1001,7 +1052,7 @@ class ToolishRagTest {
         }
 
         @Test
-        fun `tools returns flat list of inner tools for backward compatibility`() {
+        fun `tools returns flat list of namespaced inner tools`() {
             val coreSearch = mockk<CoreSearchOperations>()
 
             val toolishRag = ToolishRag(
@@ -1013,9 +1064,9 @@ class ToolishRagTest {
             val tools = toolishRag.tools()
             val toolNames = tools.map { it.definition.name }
 
-            // tools() returns flat list, not wrapped in MatryoshkaTool
-            assertTrue(toolNames.contains("vectorSearch"))
-            assertTrue(toolNames.contains("textSearch"))
+            // tools() returns flat list with naming strategy applied
+            assertTrue(toolNames.contains("test_rag_vectorSearch"))
+            assertTrue(toolNames.contains("test_rag_textSearch"))
         }
 
         @Test

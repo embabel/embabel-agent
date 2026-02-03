@@ -739,6 +739,15 @@ interface Tool : ToolInfo {
     }
 
     /**
+     * Create a new tool with a different name.
+     * Useful for namespacing tools when combining multiple tool sources.
+     *
+     * @param newName The new name to use
+     * @return A new Tool with the updated name
+     */
+    fun withName(newName: String): Tool = RenamedTool(this, newName)
+
+    /**
      * Create a new tool with a different description.
      * Useful for providing context-specific descriptions while keeping the same functionality.
      *
@@ -755,6 +764,27 @@ interface Tool : ToolInfo {
      * @return A new Tool with the note appended to its description
      */
     fun withNote(note: String): Tool = DescribedTool(this, "${definition.description}. $note")
+}
+
+/**
+ * A tool wrapper that overrides the name while delegating all functionality.
+ * Implements [DelegatingTool] to support unwrapping in injection strategies.
+ */
+private class RenamedTool(
+    override val delegate: Tool,
+    private val customName: String,
+) : DelegatingTool {
+
+    override val definition: Tool.Definition = Tool.Definition(
+        name = customName,
+        description = delegate.definition.description,
+        inputSchema = delegate.definition.inputSchema,
+    )
+
+    override val metadata: Tool.Metadata
+        get() = delegate.metadata
+
+    override fun call(input: String): Tool.Result = delegate.call(input)
 }
 
 /**

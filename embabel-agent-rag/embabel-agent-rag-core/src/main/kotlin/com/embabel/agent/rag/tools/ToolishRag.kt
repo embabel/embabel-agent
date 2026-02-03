@@ -197,8 +197,10 @@ data class ToolishRag @JvmOverloads constructor(
     fun withEntityFilter(filter: EntityFilter): ToolishRag =
         copy(entityFilter = filter)
 
-    // LlmReference: returns flat list of inner tools (backward compatible)
-    override fun tools(): List<Tool> = toolObjects.flatMap { Tool.fromInstance(it) }
+    // LlmReference: returns flat list of inner tools with naming strategy applied
+    override fun tools(): List<Tool> = toolObjects
+        .flatMap { Tool.fromInstance(it) }
+        .map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) }
 
     // Tool interface implementation via lazy MatryoshkaTool
     // When used directly as a Tool, wraps all inner tools in a MatryoshkaTool
