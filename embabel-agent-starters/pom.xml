@@ -37,6 +37,7 @@
         <module>embabel-agent-starter-google-genai</module>
         <module>embabel-agent-starter-mistral-ai</module>
         <module>embabel-agent-starter-a2a</module>
+        <module>embabel-agent-starter-webmvc</module>
     </modules>
 
 </project>
