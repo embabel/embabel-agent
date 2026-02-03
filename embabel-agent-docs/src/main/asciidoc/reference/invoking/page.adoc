@@ -467,3 +467,207 @@ public class WebhookController {
 The webhook caller can then poll `/api/v1/process/{processId}` or subscribe to SSE events at `/events/process/{processId}` to track progress.
 
 IMPORTANT: Agents can also be exposed as <<reference.integrations__mcp, MCP>> servers and consumed from tools like Claude Desktop.
+
+[[reference.invoking__autonomy]]
+==== Dynamic Agent and Goal Selection with Autonomy
+
+The `Autonomy` class provides LLM-powered dynamic selection of agents and goals based on user intent.
+Rather than programmatically choosing which agent to run, `Autonomy` uses an LLM to rank available agents or goals against the user's input and select the best match.
+
+This is how the Embabel Shell processes natural language commands.
+
+===== Execution Modes
+
+`Autonomy` supports two execution modes:
+
+**Closed Mode** (`chooseAndRunAgent`): The LLM selects the most appropriate agent based on the user's intent. The selected agent runs in isolation using only its own actions and goals.
+
+**Open Mode** (`chooseAndAccomplishGoal`): The LLM selects the most appropriate goal from all available goals across all agents. Embabel then assembles a dynamic agent that can use any action from any agent to achieve that goal.
+
+===== Closed Mode Example
+
+Use closed mode when you want strict agent boundaries:
+
+[source,java]
+----
+@Service
+public class IntentHandler {
+
+    private final Autonomy autonomy;
+
+    public IntentHandler(Autonomy autonomy) {
+        this.autonomy = autonomy;
+    }
+
+    public AgentProcessExecution handleUserIntent(String userIntent) {
+        // LLM ranks all agents and selects the best match
+        return autonomy.chooseAndRunAgent(
+            userIntent,
+            ProcessOptions.DEFAULT
+        );
+    }
+}
+----
+
+===== Open Mode Example
+
+Use open mode when you want maximum flexibility in achieving goals:
+
+[source,java]
+----
+@Service
+public class GoalHandler {
+
+    private final Autonomy autonomy;
+    private final AgentPlatform agentPlatform;
+
+    public GoalHandler(Autonomy autonomy, AgentPlatform agentPlatform) {
+        this.autonomy = autonomy;
+        this.agentPlatform = agentPlatform;
+    }
+
+    public AgentProcessExecution handleUserIntent(String userIntent) {
+        // LLM ranks all goals and selects the best match
+        // Then assembles an agent from available actions to achieve it
+        return autonomy.chooseAndAccomplishGoal(
+            ProcessOptions.DEFAULT,
+            GoalChoiceApprover.APPROVE_ALL,
+            agentPlatform,  // AgentScope containing goals and actions
+            Map.of("userInput", new UserInput(userIntent)),
+            new GoalSelectionOptions()
+        );
+    }
+}
+----
+
+===== Using Arbitrary Bindings
+
+`chooseAndAccomplishGoal` accepts any bindings, not just `UserInput`.
+A `BindingsFormatter` extracts intent text from the bindings for goal ranking:
+
+[source,java]
+----
+public AgentProcessExecution processTask(Task task, Person person) {
+    // Bindings can be any objects
+    Map<String, Object> bindings = Map.of(
+        "task", task,
+        "person", person
+    );
+
+    return autonomy.chooseAndAccomplishGoal(
+        ProcessOptions.DEFAULT,
+        GoalChoiceApprover.APPROVE_ALL,
+        agentPlatform,
+        bindings,
+        new GoalSelectionOptions(),
+        BindingsFormatter.DEFAULT  // Extracts intent from bindings
+    );
+}
+----
+
+The default `BindingsFormatter` extracts text using this priority:
+
+1. `PromptContributor.contribution()` if the object implements `PromptContributor`
+2. `HasInfoString.infoString()` if the object implements `HasInfoString`
+3. `toString()` otherwise
+
+You can provide a custom formatter:
+
+[source,java]
+----
+BindingsFormatter customFormatter = bindings -> {
+    Task task = (Task) bindings.get("task");
+    Person person = (Person) bindings.get("person");
+    return String.format("Process task '%s' for %s", task.getDescription(), person.getName());
+};
+
+return autonomy.chooseAndAccomplishGoal(
+    ProcessOptions.DEFAULT,
+    GoalChoiceApprover.APPROVE_ALL,
+    agentPlatform,
+    bindings,
+    new GoalSelectionOptions(),
+    customFormatter
+);
+----
+
+===== Goal Choice Approval
+
+You can require approval before executing a selected goal:
+
+[source,java]
+----
+// Approve only high-confidence matches
+GoalChoiceApprover approver = GoalChoiceApprover.approveWithScoreOver(0.8);
+
+// Or implement custom approval logic
+GoalChoiceApprover customApprover = request -> {
+    if (request.getGoal().getName().contains("dangerous")) {
+        return new GoalChoiceNotApproved("Dangerous goals require manual approval");
+    }
+    return GoalChoiceApproved.INSTANCE;
+};
+----
+
+===== Confidence Thresholds
+
+`Autonomy` uses configurable confidence thresholds to filter matches.
+If no agent or goal exceeds the threshold, a `NoAgentFound` or `NoGoalFound` exception is thrown.
+
+Configure thresholds in `application.properties`:
+
+[source,properties]
+----
+# Minimum confidence for agent selection (0.0 to 1.0)
+embabel.agent.platform.autonomy.agent-confidence-cut-off=0.6
+
+# Minimum confidence for goal selection (0.0 to 1.0)
+embabel.agent.platform.autonomy.goal-confidence-cut-off=0.6
+----
+
+Or override per-request using `GoalSelectionOptions`:
+
+[source,java]
+----
+GoalSelectionOptions options = new GoalSelectionOptions(
+    0.5,    // goalConfidenceCutOff - override platform default
+    null,   // agentConfidenceCutOff - use platform default
+    false   // multiGoal - whether to select multiple goals
+);
+----
+
+===== Shell Usage
+
+The Embabel Shell uses `Autonomy` for the `execute` (or `x`) command:
+
+[source,bash]
+----
+# Closed mode (default) - select best agent
+x "Find a horoscope for Alice who is a Scorpio"
+
+# Open mode - select best goal, use any actions
+x "Find a horoscope for Alice who is a Scorpio" -o
+
+# Show goal rankings without executing
+choose-goal "Find a horoscope for Alice"
+----
+
+===== Handling Selection Failures
+
+[source,java]
+----
+try {
+    return autonomy.chooseAndRunAgent(userIntent, ProcessOptions.DEFAULT);
+} catch (NoAgentFound e) {
+    // No agent matched with sufficient confidence
+    logger.info("No matching agent. Rankings: {}", e.getAgentRankings());
+    return fallbackResponse();
+} catch (NoGoalFound e) {
+    // No goal matched with sufficient confidence (open mode)
+    logger.info("No matching goal. Rankings: {}", e.getGoalRankings());
+    return fallbackResponse();
+} catch (GoalNotApproved e) {
+    // Goal was rejected by the approver
+    logger.info("Goal not approved: {}", e.getReason());
+    return requiresApprovalResponse();
+}

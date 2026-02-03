@@ -87,10 +87,14 @@ class Autonomy(
      * @param processOptions process options
      * @param goalChoiceApprover goal choice approver allowing goal choice to be rejected
      * @param agentScope scope to look for the agent
-     * @param bindings any additional bindings to pass to the agent process
+     * @param bindings any bindings to pass to the agent process. These are formatted using
+     * the [bindingsFormatter] to extract an intent string for goal ranking.
      * @param goalSelectionOptions options for goal selection, such as confidence cut-off and multi-goal selection,
      * if we want customization.
+     * @param bindingsFormatter formatter to extract intent string from bindings for goal ranking.
+     * Defaults to [BindingsFormatter.DEFAULT] which handles PromptContributor, HasInfoString, and toString.
      */
+    @JvmOverloads
     @Throws(ProcessExecutionException::class)
     fun chooseAndAccomplishGoal(
         processOptions: ProcessOptions = ProcessOptions(),
@@ -98,6 +102,7 @@ class Autonomy(
         agentScope: AgentScope,
         bindings: Map<String, Any>,
         goalSelectionOptions: GoalSelectionOptions = GoalSelectionOptions(),
+        bindingsFormatter: BindingsFormatter = BindingsFormatter.DEFAULT,
     ): AgentProcessExecution {
         val goalSeeker = createGoalSeeker(
             processOptions = processOptions,
@@ -106,6 +111,7 @@ class Autonomy(
             agentScope = agentScope,
             emitEvents = true,
             goalSelectionOptions = goalSelectionOptions,
+            bindingsFormatter = bindingsFormatter,
         )
         val agentProcess = agentPlatform.createAgentProcess(
             processOptions = processOptions,
@@ -230,12 +236,14 @@ class Autonomy(
         emitEvents = false,
         agentScope = agentScope,
         goalSelectionOptions = goalSelectionOptions,
+        bindingsFormatter = BindingsFormatter.DEFAULT,
     )
 
     /**
      * Choose a goal, showing workings and create an agent.
      * @param emitEvents whether to emit events. If we're just
      * doing a dry run, we don't want to emit events
+     * @param bindingsFormatter formatter to extract intent string from bindings
      */
     private fun createGoalSeeker(
         bindings: Map<String, Any>,
@@ -244,21 +252,23 @@ class Autonomy(
         emitEvents: Boolean,
         agentScope: AgentScope,
         goalSelectionOptions: GoalSelectionOptions,
+        bindingsFormatter: BindingsFormatter,
     ): GoalSeeker {
-        val userInput = bindings.values.firstOrNull { it is UserInput } as? UserInput
-            ?: throw IllegalArgumentException("No UserInput found in bindings: $bindings")
+        val intent = bindingsFormatter.format(bindings)
+        // Use first binding value as basis for events, or the bindings map itself
+        val basis: Any = bindings.values.firstOrNull() ?: bindings
 
         val goalChoiceEvent = RankingChoiceRequestEvent(
             agentPlatform = agentPlatform,
             type = Goal::class.java,
-            basis = userInput,
+            basis = basis,
             choices = agentScope.goals,
         )
         if (emitEvents) eventListener.onPlatformEvent(goalChoiceEvent)
         val goalRankings = ranker
             .rank(
                 description = "goal",
-                userInput = userInput.content,
+                userInput = intent,
                 rankables = agentScope.goals
             )
         val credibleGoals = goalRankings
@@ -290,14 +300,14 @@ class Autonomy(
                     confidenceCutoff = properties.goalConfidenceCutOff,
                 )
             )
-            throw NoGoalFound(goalRankings = goalRankings, basis = userInput)
+            throw NoGoalFound(goalRankings = goalRankings, basis = basis)
         }
 
         logger.debug(
             "Goal choice {} with confidence {} for user intent {}: Choices were {}",
             goalChoice.match.name,
             goalChoice.score,
-            userInput.content,
+            intent,
             agentScope.goals.joinToString("\n") { it.name },
         )
         if (emitEvents) eventListener.onPlatformEvent(
@@ -312,13 +322,13 @@ class Autonomy(
             goalChoiceApprover.approve(
                 GoalChoiceApprovalRequest(
                     goal = goalChoice.match,
-                    intent = userInput.content,
+                    intent = intent,
                     rankings = goalRankings,
                 )
             )
         if (approval is GoalChoiceNotApproved) {
             val goalNotApproved = GoalNotApproved(
-                basis = userInput,
+                basis = basis,
                 goalRankings = goalRankings,
                 reason = approval.reason,
                 agentPlatform = agentPlatform,
@@ -328,7 +338,7 @@ class Autonomy(
         }
 
         val goalAgent = createGoalAgent(
-            inputObject = userInput,
+            inputObject = basis,
             agentScope = agentScope,
             goal = goalChoice.match,
             prune = processOptions.prune,
@@ -337,7 +347,7 @@ class Autonomy(
             DynamicAgentCreationEvent(
                 agent = goalAgent,
                 agentPlatform = agentPlatform,
-                basis = userInput,
+                basis = basis,
             )
         )
         return GoalSeeker(agent = goalAgent, rankings = goalRankings)
