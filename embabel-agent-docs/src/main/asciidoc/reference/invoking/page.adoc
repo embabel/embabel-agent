@@ -671,3 +671,4 @@ try {
     logger.info("Goal not approved: {}", e.getReason());
     return requiresApprovalResponse();
 }
+----
