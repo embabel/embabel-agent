@@ -17,9 +17,13 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.LlmTool.Param
+import com.embabel.agent.api.tool.VictoolsSchemaGenerator.ParameterInfo
 import com.embabel.agent.core.ReplanRequestedException
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.util.ReflectionUtils
+import java.lang.reflect.Method
+import java.lang.reflect.Type
 import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.findAnnotation
@@ -29,16 +33,13 @@ import kotlin.reflect.jvm.javaType
 /**
  * Tool implementation that wraps a method annotated with [@LlmTool].
  */
-internal class MethodTool(
-    private val instance: Any,
-    private val method: KFunction<*>,
+internal sealed class MethodTool(
+    protected val instance: Any,
     annotation: LlmTool,
     private val objectMapper: ObjectMapper,
 ) : Tool {
 
     private val logger = LoggerFactory.getLogger(MethodTool::class.java)
-
-    override val definition: Tool.Definition = createDefinition(method, annotation)
 
     override val metadata: Tool.Metadata = Tool.Metadata(returnDirect = annotation.returnDirect)
 
@@ -62,32 +63,6 @@ internal class MethodTool(
         }
     }
 
-    private fun createDefinition(
-        method: KFunction<*>,
-        annotation: LlmTool,
-    ): Tool.Definition {
-        val name = annotation.name.ifEmpty { method.name }
-
-        // Use victools-based schema generation for proper generic type handling
-        val parameterInfos = method.parameters
-            .filter { it.kind == KParameter.Kind.VALUE }
-            .map { param ->
-                val paramAnnotation = param.findAnnotation<Param>()
-                VictoolsSchemaGenerator.ParameterInfo(
-                    name = param.name ?: "arg${param.index}",
-                    type = param.type.javaType,
-                    description = paramAnnotation?.description ?: "",
-                    required = paramAnnotation?.required ?: !param.isOptional,
-                )
-            }
-
-        return Tool.Definition(
-            name = name,
-            description = annotation.description,
-            inputSchema = MethodInputSchema(parameterInfos),
-        )
-    }
-
     @Suppress("UNCHECKED_CAST")
     private fun parseArguments(input: String): Map<String, Any?> {
         if (input.isBlank()) return emptyMap()
@@ -99,22 +74,105 @@ internal class MethodTool(
         }
     }
 
-    private fun invokeMethod(args: Map<String, Any?>): Any? {
+    protected abstract fun invokeMethod(args: Map<String, Any?>): Any?
+
+    private fun convertResult(result: Any?): Tool.Result {
+        return when (result) {
+            null -> Tool.Result.text("")
+            is String -> Tool.Result.text(result)
+            is Tool.Result -> result
+            else -> {
+                // Convert to JSON string
+                try {
+                    Tool.Result.text(objectMapper.writeValueAsString(result))
+                } catch (_: Exception) {
+                    Tool.Result.text(result.toString())
+                }
+            }
+        }
+    }
+
+    protected fun convertToExpectedType(
+        value: Any,
+        targetType: Type,
+    ): Any {
+        // If already correct type, return as-is
+        if (targetType is Class<*> && targetType.isInstance(value)) {
+            return value
+        }
+
+        // Handle numeric conversions from JSON (Jackson often returns Int/Double)
+        return when (targetType) {
+            Int::class.java, Integer::class.java -> (value as? Number)?.toInt() ?: value
+            Long::class.java, java.lang.Long::class.java -> (value as? Number)?.toLong() ?: value
+            Double::class.java, java.lang.Double::class.java -> (value as? Number)?.toDouble() ?: value
+            Float::class.java, java.lang.Float::class.java -> (value as? Number)?.toFloat() ?: value
+            Boolean::class.java, java.lang.Boolean::class.java -> value as? Boolean ?: value.toString().toBoolean()
+            String::class.java -> value.toString()
+            else -> {
+                // For complex types, try to convert via ObjectMapper
+                try {
+                    objectMapper.convertValue(value, objectMapper.constructType(targetType))
+                } catch (e: Exception) {
+                    logger.warn("Failed to convert {} to {}: {}", value, targetType, e.message)
+                    value
+                }
+            }
+        }
+    }
+}
+
+
+internal class KotlinMethodTool(
+    instance: Any,
+    private val method: KFunction<*>,
+    annotation: LlmTool,
+    objectMapper: ObjectMapper,
+) : MethodTool(
+    instance = instance,
+    annotation = annotation,
+    objectMapper = objectMapper
+) {
+
+    override val definition: Tool.Definition by lazy {
+        val name = annotation.name.ifEmpty { method.name }
+        // Use victools-based schema generation for proper generic type handling
+        val parameterInfos = method.parameters
+            .filter { it.kind == KParameter.Kind.VALUE }
+            .map { param ->
+                val paramAnnotation = param.findAnnotation<Param>()
+                ParameterInfo(
+                    name = param.name ?: "arg${param.index}",
+                    type = param.type.javaType,
+                    description = paramAnnotation?.description ?: "",
+                    required = paramAnnotation?.required ?: !param.isOptional,
+                )
+            }
+        Tool.Definition(
+            name = name,
+            description = annotation.description,
+            inputSchema = MethodInputSchema(parameterInfos),
+        )
+    }
+
+    override fun invokeMethod(args: Map<String, Any?>): Any? {
         val params = method.parameters
         val callArgs = mutableMapOf<KParameter, Any?>()
+
 
         for (param in params) {
             when (param.kind) {
                 KParameter.Kind.INSTANCE -> callArgs[param] = instance
                 KParameter.Kind.VALUE -> {
+                    val paramAnnotation = param.findAnnotation<Param>()
                     val paramName = param.name ?: continue
                     val value = args[paramName]
 
                     if (value != null) {
                         // Convert value to expected type if needed
-                        val convertedValue = convertToExpectedType(value, param)
+                        val convertedValue = convertToExpectedType(value, param.type.javaType)
                         callArgs[param] = convertedValue
-                    } else if (!param.isOptional) {
+                    } else if (paramAnnotation?.required ?: !param.isOptional) {
                         // Required parameter is missing - use null or throw
                         if (param.type.isMarkedNullable) {
                             callArgs[param] = null
@@ -132,63 +190,55 @@ internal class MethodTool(
         method.javaMethod?.isAccessible = true
         return method.callBy(callArgs)
     }
+}
 
-    private fun convertToExpectedType(
-        value: Any,
-        param: KParameter,
-    ): Any? {
-        val targetType = param.type.javaType
+internal class JavaMethodTool(
+    instance: Any,
+    private val method: Method,
+    annotation: LlmTool,
+    objectMapper: ObjectMapper,
+) : MethodTool(
+    instance = instance,
+    annotation = annotation,
+    objectMapper = objectMapper
+) {
 
-        // If already correct type, return as-is
-        if (targetType is Class<*> && targetType.isInstance(value)) {
-            return value
-        }
-
-        // Handle numeric conversions from JSON (Jackson often returns Int/Double)
-        return when {
-            targetType == Int::class.java || targetType == Integer::class.java ->
-                (value as? Number)?.toInt() ?: value
-
-            targetType == Long::class.java || targetType == java.lang.Long::class.java ->
-                (value as? Number)?.toLong() ?: value
-
-            targetType == Double::class.java || targetType == java.lang.Double::class.java ->
-                (value as? Number)?.toDouble() ?: value
-
-            targetType == Float::class.java || targetType == java.lang.Float::class.java ->
-                (value as? Number)?.toFloat() ?: value
-
-            targetType == Boolean::class.java || targetType == java.lang.Boolean::class.java ->
-                value as? Boolean ?: value.toString().toBoolean()
-
-            targetType == String::class.java ->
-                value.toString()
-
-            else -> {
-                // For complex types, try to convert via ObjectMapper
-                try {
-                    objectMapper.convertValue(value, objectMapper.constructType(targetType))
-                } catch (e: Exception) {
-                    logger.warn("Failed to convert {} to {}: {}", value, targetType, e.message)
-                    value
-                }
+    override val definition: Tool.Definition by lazy {
+        val name = annotation.name.ifEmpty { method.name }
+        // Use victools-based schema generation for proper generic type handling
+        val parameterInfos = method.parameters
+            .map { param ->
+                val paramAnnotation = param.getAnnotation(Param::class.java)
+                ParameterInfo(
+                    name = param.name,
+                    type = param.type,
+                    description = paramAnnotation?.description ?: "",
+                    required = paramAnnotation?.required ?: true,
+                )
             }
-        }
+        Tool.Definition(
+            name = name,
+            description = annotation.description,
+            inputSchema = MethodInputSchema(parameterInfos),
+        )
     }
 
-    private fun convertResult(result: Any?): Tool.Result {
-        return when (result) {
-            null -> Tool.Result.text("")
-            is String -> Tool.Result.text(result)
-            is Tool.Result -> result
-            else -> {
-                // Convert to JSON string
-                try {
-                    Tool.Result.text(objectMapper.writeValueAsString(result))
-                } catch (e: Exception) {
-                    Tool.Result.text(result.toString())
-                }
+    override fun invokeMethod(args: Map<String, Any?>): Any? {
+        val params = method.parameters
+        val callArgs = arrayOfNulls<Any?>(method.parameters.size)
+
+        for ((index, param) in params.withIndex()) {
+            val value = args[param.name]
+            if (value != null) {
+                // Convert value to expected type if needed
+                val convertedValue = convertToExpectedType(value, param.type)
+                callArgs[index] = convertedValue
             }
         }
+
+        // Make method accessible for non-public classes/methods (e.g., package-protected Java classes)
+        method.trySetAccessible()
+        return ReflectionUtils.invokeMethod(method, instance, *callArgs)
     }
+
 }

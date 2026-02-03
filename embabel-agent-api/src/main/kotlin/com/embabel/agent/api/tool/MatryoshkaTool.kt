@@ -20,7 +20,8 @@ import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
-import kotlin.reflect.KClass
+import org.springframework.beans.BeanUtils
+import org.springframework.core.KotlinDetector
 import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
@@ -298,6 +299,15 @@ interface MatryoshkaTool : Tool {
         fun fromInstance(
             instance: Any,
             objectMapper: ObjectMapper = jacksonObjectMapper(),
+        ): MatryoshkaTool =
+            if (KotlinDetector.isKotlinReflectPresent())
+                fromInstanceKotlin(instance, objectMapper)
+            else
+                fromInstanceJava(instance, objectMapper)
+
+        private fun fromInstanceKotlin(
+            instance: Any,
+            objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): MatryoshkaTool {
             val klass = instance::class
             val annotation = klass.findAnnotation<MatryoshkaTools>()
@@ -309,7 +319,29 @@ interface MatryoshkaTool : Tool {
             val toolMethods = klass.functions.filter { it.hasAnnotation<LlmTool>() }
 
             // Find nested inner classes with @MatryoshkaTools annotation
-            val nestedMatryoshkaTools = findNestedMatryoshkaTools(klass, objectMapper)
+            val nestedMatryoshkaTools = mutableListOf<MatryoshkaTool>()
+            // Get all nested classes
+            for (nestedClass in klass.nestedClasses) {
+                if (nestedClass.hasAnnotation<MatryoshkaTools>()) {
+                    try {
+                        // Create an instance of the nested class
+                        val nestedInstance = nestedClass.createInstance()
+                        val nestedMatryoshka = fromInstance(nestedInstance, objectMapper)
+                        nestedMatryoshkaTools.add(nestedMatryoshka)
+                        logger.debug(
+                            "Found nested MatryoshkaTool '{}' in class {}",
+                            nestedMatryoshka.definition.name,
+                            klass.simpleName
+                        )
+                    } catch (e: Exception) {
+                        logger.warn(
+                            "Failed to create nested MatryoshkaTool from {}: {}",
+                            nestedClass.simpleName,
+                            e.message
+                        )
+                    }
+                }
+            }
 
             if (toolMethods.isEmpty() && nestedMatryoshkaTools.isEmpty()) {
                 throw IllegalArgumentException(
@@ -382,27 +414,33 @@ interface MatryoshkaTool : Tool {
             }
         }
 
-        /**
-         * Find nested inner classes annotated with @MatryoshkaTools and create MatryoshkaTool instances.
-         */
-        private fun findNestedMatryoshkaTools(
-            klass: KClass<*>,
-            objectMapper: ObjectMapper,
-        ): List<MatryoshkaTool> {
-            val nestedTools = mutableListOf<MatryoshkaTool>()
+        private fun fromInstanceJava(
+            instance: Any,
+            objectMapper: ObjectMapper = jacksonObjectMapper(),
+        ): MatryoshkaTool {
+            val clazz = instance::class.java
+            val annotation = clazz.getAnnotation(MatryoshkaTools::class.java)
+                ?: throw IllegalArgumentException(
+                    "Class ${clazz.simpleName} is not annotated with @MatryoshkaTools"
+                )
 
+            // Find all @LlmTool methods and create Tool instances
+            val toolMethods = clazz.methods.filter { it.isAnnotationPresent(LlmTool::class.java) }
+
+            // Find nested inner classes with @MatryoshkaTools annotation
+            val nestedMatryoshkaTools = mutableListOf<MatryoshkaTool>()
             // Get all nested classes
-            for (nestedClass in klass.nestedClasses) {
-                if (nestedClass.findAnnotation<MatryoshkaTools>() != null) {
+            for (nestedClass in clazz.declaredClasses) {
+                if (nestedClass.isAnnotationPresent(MatryoshkaTools::class.java)) {
                     try {
                         // Create an instance of the nested class
-                        val nestedInstance = nestedClass.createInstance()
+                        val nestedInstance = BeanUtils.instantiateClass(nestedClass)
                         val nestedMatryoshka = fromInstance(nestedInstance, objectMapper)
-                        nestedTools.add(nestedMatryoshka)
+                        nestedMatryoshkaTools.add(nestedMatryoshka)
                         logger.debug(
                             "Found nested MatryoshkaTool '{}' in class {}",
                             nestedMatryoshka.definition.name,
-                            klass.simpleName
+                            clazz.simpleName
                         )
                     } catch (e: Exception) {
                         logger.warn(
@@ -414,7 +452,75 @@ interface MatryoshkaTool : Tool {
                 }
             }
 
-            return nestedTools
+            if (toolMethods.isEmpty() && nestedMatryoshkaTools.isEmpty()) {
+                throw IllegalArgumentException(
+                    "Class ${clazz.simpleName} has no methods annotated with @LlmTool " +
+                            "and no inner classes annotated with @MatryoshkaTools"
+                )
+            }
+
+            // Group tools by category
+            val toolsByCategory = mutableMapOf<String, MutableList<Tool>>()
+            val uncategorizedTools = mutableListOf<Tool>()
+
+            for (method in toolMethods) {
+                val tool = Tool.fromMethod(instance, method, objectMapper)
+                val llmToolAnnotation = method.getAnnotation(LlmTool::class.java)!!
+                val category = llmToolAnnotation.category
+
+                if (category.isNotEmpty()) {
+                    toolsByCategory.getOrPut(category) { mutableListOf() }.add(tool)
+                } else {
+                    uncategorizedTools.add(tool)
+                }
+            }
+
+            // Add nested MatryoshkaTools to uncategorized tools
+            uncategorizedTools.addAll(nestedMatryoshkaTools)
+
+            // If we have categories, create a category-based MatryoshkaTool
+            return if (toolsByCategory.isNotEmpty()) {
+                // Add uncategorized tools to all categories
+                if (uncategorizedTools.isNotEmpty()) {
+                    toolsByCategory.forEach { (_, tools) ->
+                        tools.addAll(uncategorizedTools)
+                    }
+                    // Also add a special "all" category if there are uncategorized tools
+                    val allTools = toolsByCategory.values.flatten().toSet() + uncategorizedTools
+                    toolsByCategory["all"] = allTools.toMutableList()
+                }
+
+                logger.debug(
+                    "Creating category-based MatryoshkaTool '{}' with categories: {}",
+                    annotation.name,
+                    toolsByCategory.keys
+                )
+
+                byCategory(
+                    name = annotation.name,
+                    description = annotation.description,
+                    toolsByCategory = toolsByCategory,
+                    categoryParameter = annotation.categoryParameter,
+                    removeOnInvoke = annotation.removeOnInvoke,
+                    childToolUsageNotes = annotation.childToolUsageNotes.takeIf { it.isNotEmpty() },
+                )
+            } else {
+                // No categories - create simple MatryoshkaTool
+                logger.debug(
+                    "Creating simple MatryoshkaTool '{}' with {} tools ({} nested)",
+                    annotation.name,
+                    uncategorizedTools.size,
+                    nestedMatryoshkaTools.size
+                )
+
+                of(
+                    name = annotation.name,
+                    description = annotation.description,
+                    innerTools = uncategorizedTools,
+                    removeOnInvoke = annotation.removeOnInvoke,
+                    childToolUsageNotes = annotation.childToolUsageNotes.takeIf { it.isNotEmpty() },
+                )
+            }
         }
 
         /**
