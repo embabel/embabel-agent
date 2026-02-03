@@ -480,9 +480,11 @@ This is how the Embabel Shell processes natural language commands.
 
 `Autonomy` supports two execution modes:
 
-**Closed Mode** (`chooseAndRunAgent`): The LLM selects the most appropriate agent based on the user's intent. The selected agent runs in isolation using only its own actions and goals.
+**Closed Mode** (`chooseAndRunAgent`): The LLM selects the most appropriate agent based on the user's intent.
+The selected agent runs in isolation using only its own actions and goals.
 
-**Open Mode** (`chooseAndAccomplishGoal`): The LLM selects the most appropriate goal from all available goals across all agents. Embabel then assembles a dynamic agent that can use any action from any agent to achieve that goal.
+**Open Mode** (`chooseAndAccomplishGoal`): The LLM selects the most appropriate goal from all available goals across all agents.
+Embabel then assembles a dynamic agent that can use any action from any agent to achieve that goal.
 
 ===== Closed Mode Example
 
@@ -671,3 +673,5 @@ try {
     logger.info("Goal not approved: {}", e.getReason());
     return requiresApprovalResponse();
 }
+
+----
