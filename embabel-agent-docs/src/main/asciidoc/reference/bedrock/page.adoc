@@ -1,0 +1,225 @@
+[[reference.bedrock]]
+=== AWS Bedrock Integration
+
+==== Add the Dependency
+
+To use AWS Bedrock models, add the Bedrock autoconfiguration starter to your project:
+
+[tabs]
+====
+Maven::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-bedrock-autoconfigure</artifactId>
+</dependency>
+----
+
+Gradle (Kotlin)::
++
+[source,kotlin]
+----
+implementation("com.embabel.agent:embabel-agent-bedrock-autoconfigure")
+----
+
+Gradle (Groovy)::
++
+[source,groovy]
+----
+implementation 'com.embabel.agent:embabel-agent-bedrock-autoconfigure'
+----
+====
+
+==== AWS Configuration
+
+Configure AWS credentials and region using standard Spring AI Bedrock properties.
+See the https://docs.spring.io/spring-ai/reference/api/bedrock.html[Spring AI Bedrock documentation] for credential configuration options.
+
+==== Available Models
+
+===== Chat Models (Claude)
+
+[cols="2,3,1,1",options="header"]
+|===
+|Model Name |Model ID |Region |Knowledge Cutoff
+
+|`us_claude_3_5_sonnet`
+|`us.anthropic.claude-3-5-sonnet-20240620-v1:0`
+|US
+|2024-04-01
+
+|`us_claude_3_5_sonnet_v2`
+|`us.anthropic.claude-3-5-sonnet-20241022-v2:0`
+|US
+|2024-07-01
+
+|`us_claude_3_5_haiku`
+|`us.anthropic.claude-3-5-haiku-20241022-v1:0`
+|US
+|2024-07-01
+
+|`us_claude_3_7_sonnet`
+|`us.anthropic.claude-3-7-sonnet-20250219-v1:0`
+|US
+|2024-10-31
+
+|`us_claude_sonnet_4`
+|`us.anthropic.claude-sonnet-4-20250514-v1:0`
+|US
+|2025-03-01
+
+|`us_claude_opus_4`
+|`us.anthropic.claude-opus-4-20250514-v1:0`
+|US
+|2025-03-01
+
+|`eu_claude_3_5_sonnet`
+|`eu.anthropic.claude-3-5-sonnet-20240620-v1:0`
+|EU
+|2024-04-01
+
+|`eu_claude_3_5_sonnet_v2`
+|`eu.anthropic.claude-3-5-sonnet-20241022-v2:0`
+|EU
+|2024-07-01
+
+|`eu_claude_3_5_haiku`
+|`eu.anthropic.claude-3-5-haiku-20241022-v1:0`
+|EU
+|2024-07-01
+
+|`eu_claude_3_7_sonnet`
+|`eu.anthropic.claude-3-7-sonnet-20250219-v1:0`
+|EU
+|2024-10-31
+
+|`eu_claude_sonnet_4`
+|`eu.anthropic.claude-sonnet-4-20250514-v1:0`
+|EU
+|2025-03-01
+
+|`eu_claude_opus_4`
+|`eu.anthropic.claude-opus-4-20250514-v1:0`
+|EU
+|2025-03-01
+
+|`apac_claude_3_5_sonnet`
+|`apac.anthropic.claude-3-5-sonnet-20240620-v1:0`
+|APAC
+|2024-04-01
+
+|`apac_claude_3_5_sonnet_v2`
+|`apac.anthropic.claude-3-5-sonnet-20241022-v2:0`
+|APAC
+|2024-07-01
+
+|`apac_claude_3_5_haiku`
+|`apac.anthropic.claude-3-5-haiku-20241022-v1:0`
+|APAC
+|2024-07-01
+
+|`apac_claude_3_7_sonnet`
+|`apac.anthropic.claude-3-7-sonnet-20250219-v1:0`
+|APAC
+|2024-10-31
+
+|`apac_claude_sonnet_4`
+|`apac.anthropic.claude-sonnet-4-20250514-v1:0`
+|APAC
+|2025-03-01
+
+|`apac_claude_opus_4`
+|`apac.anthropic.claude-opus-4-20250514-v1:0`
+|APAC
+|2025-03-01
+
+|===
+
+===== Embedding Models
+
+[cols="2,3,1",options="header"]
+|===
+|Model Name |Model ID |Type
+
+|`titan_embed_image_v1`
+|`amazon.titan-embed-image-v1`
+|Titan
+
+|`titan_embed_text_v1`
+|`amazon.titan-embed-text-v1`
+|Titan
+
+|`titan_embed_text_v2`
+|`amazon.titan-embed-text-v2:0`
+|Titan
+
+|`cohere_embed_multilingual_v3`
+|`cohere.embed-multilingual-v3`
+|Cohere
+
+|`cohere_embed_english_v3`
+|`cohere.embed-english-v3`
+|Cohere
+
+|===
+
+==== Configuration
+
+===== Retry Configuration
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        bedrock:
+          max-attempts: 10              # Default: 10
+          backoff-millis: 5000          # Default: 5000
+          backoff-multiplier: 5.0       # Default: 5.0
+          backoff-max-interval: 180000  # Default: 180000
+----
+
+==== Adding New Models
+
+To add new Bedrock models, edit the configuration file:
+
+----
+embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/
+  src/main/resources/models/bedrock-models.yml
+----
+
+===== Adding a Chat Model
+
+[source,yaml]
+----
+models:
+  - name: "us_claude_opus_5"
+    model_id: "us.anthropic.claude-opus-5-20260101-v1:0"
+    display_name: "Claude Opus 5 (US)"
+    region: "us"
+    knowledge_cutoff_date: "2025-10-01"
+    pricing_model:
+      usd_per1m_input_tokens: 20.0
+      usd_per1m_output_tokens: 100.0
+----
+
+===== Adding an Embedding Model
+
+[source,yaml]
+----
+embedding_models:
+  - name: "titan_embed_v3"
+    model_id: "amazon.titan-embed-v3"
+    display_name: "Titan Embed V3"
+    model_type: "titan"
+----
+
+Model type must be either `titan` or `cohere`.
+
+==== See Also
+
+* <<reference.configuration,Configuration Reference>>
+* https://docs.spring.io/spring-ai/reference/api/bedrock.html[Spring AI Bedrock Integration]
