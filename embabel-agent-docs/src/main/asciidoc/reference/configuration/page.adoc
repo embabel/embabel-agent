@@ -390,6 +390,25 @@ From `NettyClientFactoryProperties` - configuration for the HTTP client used by 
 Embabel uses Reactor Netty as the HTTP client for improved performance and non-blocking I/O.
 This is particularly important for LLM API calls which can have long response times.
 
+====== Dependency Requirement
+
+To use the Netty client, you must manually add the following autoconfiguration dependency to your project:
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-netty-client-autoconfigure</artifactId>
+</dependency>
+----
+
+For Gradle:
+
+[source,gradle]
+----
+implementation 'com.embabel.agent:embabel-agent-netty-client-autoconfigure'
+----
+
 [cols="3,2,1,4",options="header"]
 |===
 |Property |Type |Default |Description
