@@ -31,6 +31,8 @@ include::spring/page.adoc[]
 
 include::llms/page.adoc[]
 
+include::bedrock/page.adoc[]
+
 include::streaming/page.adoc[]
 
 include::thinking/page.adoc[]
