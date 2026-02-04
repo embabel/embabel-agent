@@ -166,8 +166,8 @@ class LLMAnthropicStreamingBuilderIT {
         reactor.util.Loggers.useVerboseConsoleLoggers();
 
         // Given: Use the existing streaming test LLM (configured as "best")
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5");
-               // .withToolObject(Tooling.class);
+        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+                             .withToolObject(Tooling.class);
         assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");
 
         // When: Subscribe with real reactive callbacks using builder pattern

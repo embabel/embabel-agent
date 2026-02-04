@@ -91,7 +91,7 @@ internal class StreamingChatClientOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Flux<String> {
-        return doTransformStream(messages, interaction, null)
+        return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
     override fun <O> createObjectStream(
@@ -101,7 +101,7 @@ internal class StreamingChatClientOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Flux<O> {
-        return doTransformObjectStream(messages, interaction, outputClass, null)
+        return doTransformObjectStream(messages, interaction, outputClass, null, agentProcess, action)
     }
 
     override fun <O> createObjectStreamWithThinking(
@@ -111,7 +111,7 @@ internal class StreamingChatClientOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Flux<StreamingEvent<O>> {
-        return doTransformObjectStreamWithThinking(messages, interaction, outputClass, null)
+        return doTransformObjectStreamWithThinking(messages, interaction, outputClass, null, agentProcess, action)
     }
 
     override fun <O> createObjectStreamIfPossible(
@@ -140,6 +140,8 @@ internal class StreamingChatClientOperations(
         messages: List<Message>,
         interaction: LlmInteraction,
         llmRequestEvent: LlmRequestEvent<String>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
     ): Flux<String> {
         // Use ChatClientLlmOperations to get LLM and create ChatClient
         val llm = chatClientLlmOperations.getLlm(interaction)
@@ -155,9 +157,12 @@ internal class StreamingChatClientOperations(
 
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
 
+        // Resolve tool groups and decorate tools
+        val tools = chatClientLlmOperations.resolveAndDecorateTools(interaction, agentProcess, action)
+
         return chatClient
             .prompt(springAiPrompt)
-            .toolCallbacks(interaction.tools.toSpringToolCallbacks())
+            .toolCallbacks(tools.toSpringToolCallbacks())
             .options(chatOptions)
             .stream()
             .content()
@@ -202,12 +207,16 @@ internal class StreamingChatClientOperations(
         interaction: LlmInteraction,
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
     ): Flux<O> {
         return doTransformObjectStreamInternal(
             messages = messages,
             interaction = interaction,
             outputClass = outputClass,
-            llmRequestEvent = llmRequestEvent
+            llmRequestEvent = llmRequestEvent,
+            agentProcess = agentProcess,
+            action = action,
         )
             .filter { it.isObject() }
             .map { (it as StreamingEvent.Object).item }
@@ -259,12 +268,16 @@ internal class StreamingChatClientOperations(
         interaction: LlmInteraction,
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
     ): Flux<StreamingEvent<O>> {
         return doTransformObjectStreamInternal(
             messages = messages,
             interaction = interaction,
             outputClass = outputClass,
-            llmRequestEvent = llmRequestEvent
+            llmRequestEvent = llmRequestEvent,
+            agentProcess = agentProcess,
+            action = action,
         )
     }
 
@@ -303,6 +316,8 @@ internal class StreamingChatClientOperations(
         outputClass: Class<O>,
         @Suppress("UNUSED_PARAMETER")
         llmRequestEvent: LlmRequestEvent<O>?,
+        agentProcess: AgentProcess?,
+        action: Action?,
     ): Flux<StreamingEvent<O>> {
         // Common setup - delegate to ChatClientLlmOperations for LLM setup
         val llm = chatClientLlmOperations.getLlm(interaction)
@@ -332,10 +347,13 @@ internal class StreamingChatClientOperations(
         val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
+        // Resolve tool groups and decorate tools
+        val tools = chatClientLlmOperations.resolveAndDecorateTools(interaction, agentProcess, action)
+
         // Step 1: Original raw chunk stream from LLM
         val rawChunkFlux: Flux<String> = chatClient
             .prompt(springAiPrompt)
-            .toolCallbacks(interaction.tools.toSpringToolCallbacks())
+            .toolCallbacks(tools.toSpringToolCallbacks())
             .options(chatOptions)
             .stream()
             .content()
