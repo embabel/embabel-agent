@@ -144,28 +144,36 @@ interface StreamingLlmOperations {
     ): Flux<StreamingEvent<O>>
 
     /**
-     * Low level streaming transform, not necessarily aware of platform.
-     * Streams text chunks as they arrive from the LLM without platform mediation.
+     * Low level streaming transform with optional platform context.
+     * Streams text chunks as they arrive from the LLM.
+     * When agentProcess is provided, tools are resolved from ToolGroups and decorated.
      *
      * @param messages messages in the conversation so far
      * @param interaction The LLM call options
      * @param llmRequestEvent Event already published for this request if one has been
+     * @param agentProcess Optional agent process for tool resolution and decoration
+     * @param action Optional action context for tool decoration
      * @return Flux of text chunks as they arrive from the LLM
      */
     fun doTransformStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         llmRequestEvent: LlmRequestEvent<String>?,
+        agentProcess: AgentProcess? = null,
+        action: Action? = null,
     ): Flux<String>
 
     /**
-     * Low level object streaming transform, not necessarily aware of platform.
+     * Low level object streaming transform with optional platform context.
      * Streams typed objects as they are parsed from JSONL response.
+     * When agentProcess is provided, tools are resolved from ToolGroups and decorated.
      *
      * @param messages messages in the conversation so far
      * @param interaction The LLM call options
      * @param outputClass Class of the output objects
      * @param llmRequestEvent Event already published for this request if one has been
+     * @param agentProcess Optional agent process for tool resolution and decoration
+     * @param action Optional action context for tool decoration
      * @return Flux of typed objects as they are parsed from the response
      */
     fun <O> doTransformObjectStream(
@@ -173,16 +181,21 @@ interface StreamingLlmOperations {
         interaction: LlmInteraction,
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
+        agentProcess: AgentProcess? = null,
+        action: Action? = null,
     ): Flux<O>
 
     /**
-     * Low level mixed content streaming transform, not necessarily aware of platform.
+     * Low level mixed content streaming transform with optional platform context.
      * Streams both typed objects and thinking content from mixed JSONL response.
+     * When agentProcess is provided, tools are resolved from ToolGroups and decorated.
      *
      * @param messages messages in the conversation so far
      * @param interaction The LLM call options
      * @param outputClass Class of the output objects
      * @param llmRequestEvent Event already published for this request if one has been
+     * @param agentProcess Optional agent process for tool resolution and decoration
+     * @param action Optional action context for tool decoration
      * @return Flux of StreamingEvent objects containing either objects or thinking content
      */
     fun <O> doTransformObjectStreamWithThinking(
@@ -190,5 +203,7 @@ interface StreamingLlmOperations {
         interaction: LlmInteraction,
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
+        agentProcess: AgentProcess? = null,
+        action: Action? = null,
     ): Flux<StreamingEvent<O>>
 }
