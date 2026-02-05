@@ -288,7 +288,9 @@ internal data class OperationContextDelegate(
             messages = combinedMessages,
             interaction = thinkingInteraction(),
             outputClass = outputClass,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = context.agentProcess,
+            action = action,
         )
     }
 
@@ -302,7 +304,9 @@ internal data class OperationContextDelegate(
             messages = combinedMessages,
             interaction = thinkingInteraction(),
             outputClass = outputClass,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = context.agentProcess,
+            action = action,
         )
 
         return when {

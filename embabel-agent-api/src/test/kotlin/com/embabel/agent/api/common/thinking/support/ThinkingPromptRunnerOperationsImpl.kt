@@ -63,7 +63,9 @@ internal class ThinkingPromptRunnerOperationsImpl(
             messages = combinedMessages,
             interaction = interaction,
             outputClass = outputClass,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
 
         return when {
@@ -100,7 +102,9 @@ internal class ThinkingPromptRunnerOperationsImpl(
             messages = combinedMessages,
             interaction = interaction,
             outputClass = outputClass,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
     }
 
