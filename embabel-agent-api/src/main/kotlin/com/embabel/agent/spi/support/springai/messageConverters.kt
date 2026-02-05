@@ -93,6 +93,33 @@ fun Message.toSpringAiMessage(): SpringAiMessage {
 }
 
 /**
+ * Merge consecutive [ToolResponseMessage] entries into a single message
+ * containing all [ToolResponseMessage.ToolResponse] entries.
+ * Required by Gemini, which expects all function responses for a single
+ * tool-calling turn to be in one Content/message.
+ */
+internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringAiMessage> {
+    if (isEmpty()) return emptyList()
+    val result = mutableListOf<SpringAiMessage>()
+    var pendingResponses = mutableListOf<ToolResponseMessage.ToolResponse>()
+    for (message in this) {
+        if (message is ToolResponseMessage) {
+            pendingResponses.addAll(message.responses)
+        } else {
+            if (pendingResponses.isNotEmpty()) {
+                result.add(ToolResponseMessage.builder().responses(pendingResponses).build())
+                pendingResponses = mutableListOf()
+            }
+            result.add(message)
+        }
+    }
+    if (pendingResponses.isNotEmpty()) {
+        result.add(ToolResponseMessage.builder().responses(pendingResponses).build())
+    }
+    return result
+}
+
+/**
  * Convert a Spring AI AssistantMessage to an Embabel message.
  * Handles both regular messages and messages with tool calls.
  */

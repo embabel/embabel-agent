@@ -49,7 +49,7 @@ internal class SpringAiLlmMessageSender(
         tools: List<Tool>,
     ): LlmMessageResponse {
         // Convert Embabel messages to Spring AI messages
-        val springAiMessages = messages.map { it.toSpringAiMessage() }
+        val springAiMessages = messages.map { it.toSpringAiMessage() }.mergeConsecutiveToolResponses()
 
         // Convert Embabel tools to Spring AI tool callbacks using existing adapter
         val toolCallbacks = tools.toSpringToolCallbacks()
