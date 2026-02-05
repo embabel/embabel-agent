@@ -47,7 +47,7 @@ import org.springframework.stereotype.Service
 class PerGoalMcpExportToolCallbackPublisher(
     autonomy: Autonomy,
     private val mcpSyncServer: McpSyncServer,
-    @Value("\${spring.application.name:agent-api}") applicationName: String,
+    @Value("\${embabel.agent.application.name:agent-api}") applicationName: String,
 ) : McpExportToolCallbackPublisher {
 
     private val perGoalToolFactory = PerGoalToolFactory(
