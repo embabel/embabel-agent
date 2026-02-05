@@ -189,9 +189,9 @@ open class LoggingAgenticEventListener(
 
     protected open fun getAgentProcessPlanFormulatedEventMessage(e: AgentProcessPlanFormulatedEvent): String =
         """|[${e.processId}] formulated plan:
-           |${e.plan.infoString(e.agentProcess.processContext.processOptions.verbosity.showLongPlans, 1)}
+           |${e.plan.infoString(e.agentProcess.processOptions.verbosity.showLongPlans, 1)}
            |from:
-           |${e.worldState.infoString(verbose = true, indent = 1)}
+           |${e.worldState.infoString(verbose = e.agentProcess.processOptions.verbosity.showLongPlans, indent = 1)}
            |"""
             .trimMargin()
             .indentLines(level = 1, skipIndentFirstLine = true)
