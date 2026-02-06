@@ -16,19 +16,26 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.annotation.support.Wumpus
-import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.OperationContext
-import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.common.*
+import com.embabel.agent.core.Action
+import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
+import com.embabel.common.core.thinking.ThinkingResponse
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class OperationContextDelegateTest {
+
+    private data class TestResult(val value: String)
 
     private fun createDelegateWithDefaults(context: OperationContext): OperationContextDelegate {
         return OperationContextDelegate(
@@ -217,6 +224,84 @@ class OperationContextDelegateTest {
             val delegate = createDelegateWithDefaults(mockk<OperationContext>())
                 .withValidation(false)
             assertEquals(false, delegate.validation)
+        }
+    }
+
+    @Nested
+    inner class ThinkingMethodsTest {
+
+        private fun createMockedContext(): Triple<ActionContext, ChatClientLlmOperations, AgentProcess> {
+            val mockAgentProcess = mockk<AgentProcess>(relaxed = true)
+            val mockAction = mockk<Action>(relaxed = true)
+            val mockChatClientOps = mockk<ChatClientLlmOperations>(relaxed = true)
+            val mockPlatformServices = mockk<PlatformServices>(relaxed = true)
+            val mockAgentPlatform = mockk<AgentPlatform>(relaxed = true)
+
+            every { mockPlatformServices.llmOperations } returns mockChatClientOps
+            every { mockAgentPlatform.platformServices } returns mockPlatformServices
+
+            val mockContext = mockk<ActionContext>(relaxed = true)
+            every { mockContext.agentProcess } returns mockAgentProcess
+            every { mockContext.agentPlatform() } returns mockAgentPlatform
+            every { mockContext.action } returns mockAction
+
+            return Triple(mockContext, mockChatClientOps, mockAgentProcess)
+        }
+
+        @Test
+        fun `createObjectWithThinking should call underlying method`() {
+            val (mockContext, mockChatClientOps, _) = createMockedContext()
+
+            every {
+                mockChatClientOps.doTransformWithThinking<TestResult>(
+                    any(), any(), any(), any(), any(), any()
+                )
+            } returns ThinkingResponse(result = TestResult("test"), thinkingBlocks = emptyList())
+
+            val delegate = OperationContextDelegate(
+                context = mockContext,
+                llm = LlmOptions(),
+                toolGroups = emptySet(),
+                toolObjects = emptyList(),
+                promptContributors = emptyList(),
+            )
+
+            val result = delegate.createObjectWithThinking(listOf(UserMessage("test")), TestResult::class.java)
+
+            verify {
+                mockChatClientOps.doTransformWithThinking<TestResult>(
+                    any(), any(), any(), any(), any(), any()
+                )
+            }
+            assertEquals("test", result.result?.value)
+        }
+
+        @Test
+        fun `createObjectIfPossibleWithThinking should call underlying method`() {
+            val (mockContext, mockChatClientOps, _) = createMockedContext()
+
+            every {
+                mockChatClientOps.doTransformWithThinkingIfPossible<TestResult>(
+                    any(), any(), any(), any(), any(), any()
+                )
+            } returns Result.success(ThinkingResponse(result = TestResult("test"), thinkingBlocks = emptyList()))
+
+            val delegate = OperationContextDelegate(
+                context = mockContext,
+                llm = LlmOptions(),
+                toolGroups = emptySet(),
+                toolObjects = emptyList(),
+                promptContributors = emptyList(),
+            )
+
+            val result = delegate.createObjectIfPossibleWithThinking(listOf(UserMessage("test")), TestResult::class.java)
+
+            verify {
+                mockChatClientOps.doTransformWithThinkingIfPossible<TestResult>(
+                    any(), any(), any(), any(), any(), any()
+                )
+            }
+            assertEquals("test", result.result?.value)
         }
     }
 }
