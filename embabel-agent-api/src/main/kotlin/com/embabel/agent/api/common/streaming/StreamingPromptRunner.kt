@@ -17,7 +17,6 @@ package com.embabel.agent.api.common.streaming
 
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.chat.Message
-import com.embabel.common.core.streaming.StreamingCapability
 import com.embabel.common.core.streaming.StreamingEvent
 import reactor.core.publisher.Flux
 
@@ -60,7 +59,7 @@ interface StreamingPromptRunner : PromptRunner {
      *
      * Instances are obtained via [StreamingPromptRunner.streaming].
      */
-    interface Streaming : StreamingCapability {
+    interface Streaming : PromptRunner.StreamingCapability {
         /**
          * Configure the streaming operation with a single prompt message.
          * @param prompt The prompt text to send to the LLM

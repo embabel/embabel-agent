@@ -40,7 +40,7 @@ class LlmHyDEQueryGenerator(
     ): String {
         val hydeQuery = ai
             .withLlm(llm)
-            .withTemplate(promptPath)
+            .rendering(promptPath)
             .generateText(
                 mapOf(
                     "ragRequest" to ragRequest,

@@ -75,6 +75,6 @@ internal data class PromptRunnerCreating<T>(
         templateName: String,
         model: Map<String, Any>,
     ): T = promptRunner
-        .withTemplate(templateName)
+        .rendering(templateName)
         .createObject(outputClass = outputClass, model = model)
 }

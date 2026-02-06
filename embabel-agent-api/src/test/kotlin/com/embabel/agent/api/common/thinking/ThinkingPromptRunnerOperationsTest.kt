@@ -18,9 +18,10 @@ package com.embabel.agent.api.common.thinking
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.api.validation.guardrails.GuardRail
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.common.core.thinking.ThinkingBlock
@@ -33,7 +34,6 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import com.embabel.agent.core.support.LlmInteraction
 
 /**
  * Test for the thinking prompt runner operations.
@@ -131,7 +131,7 @@ class ThinkingPromptRunnerOperationsTest {
         )
 
         // When: Create thinking operations and use them
-        val thinkingOps = runner.withThinking()
+        val thinkingOps = runner.thinking()
         val result = thinkingOps.createObject(
             prompt = "Test data processing",
             outputClass = ProcessedData::class.java
@@ -264,7 +264,7 @@ class ThinkingPromptRunnerOperationsTest {
         // testStreamingRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
 
         assertThrows<UnsupportedOperationException> {
-            testStreamingRunner.withThinking()
+            testStreamingRunner.thinking()
         }
     }
 
@@ -287,7 +287,7 @@ class ThinkingPromptRunnerOperationsTest {
         // fakeRunner.withThinking().createObject("test prompt", String::class.java) // does not compile - ThinkingCapability has no createObject method
 
         assertThrows<UnsupportedOperationException> {
-            fakeRunner.withThinking()
+            fakeRunner.thinking()
         }
     }
 
@@ -298,14 +298,14 @@ class ThinkingPromptRunnerOperationsTest {
         val mockOperationRunner = mockk<OperationContextPromptRunner>()
         val mockThinkingOps = mockk<PromptRunner.Thinking>()
 
-        every { mockOperationRunner.withThinking() } returns mockThinkingOps
+        every { mockOperationRunner.thinking() } returns mockThinkingOps
 
 
-        val result = mockOperationRunner.withThinking()
+        val result = mockOperationRunner.thinking()
 
         // Then: Should delegate to OperationContextPromptRunner's withThinking method
         assertEquals(mockThinkingOps, result)
-        verify { mockOperationRunner.withThinking() }
+        verify { mockOperationRunner.thinking() }
     }
 
     /**
@@ -354,7 +354,7 @@ class ThinkingPromptRunnerOperationsTest {
         val runner = createTestRunner(mockContext)
 
         // When: Use createObjectIfPossible through ThinkingPromptRunnerOperationsImpl
-        val thinkingOps = runner.withThinking()
+        val thinkingOps = runner.thinking()
         val result = thinkingOps.createObjectIfPossible(
             prompt = "Test createObjectIfPossible",
             outputClass = SimpleTestData::class.java
@@ -392,7 +392,7 @@ class ThinkingPromptRunnerOperationsTest {
         val runner = createTestRunner(mockContext)
 
         // When: Use createObjectIfPossible that fails
-        val thinkingOps = runner.withThinking()
+        val thinkingOps = runner.thinking()
         val result = thinkingOps.createObjectIfPossible(
             prompt = "Test failure scenario",
             outputClass = SimpleTestData::class.java
@@ -440,7 +440,7 @@ class ThinkingPromptRunnerOperationsTest {
         )
 
         val runner = createTestRunner(mockContext)
-        val thinkingOps = runner.withThinking()
+        val thinkingOps = runner.thinking()
 
         // When: Use default implementations
         val textResult = thinkingOps generateText "generate text test"
@@ -505,7 +505,7 @@ class ThinkingPromptRunnerOperationsTest {
         )
 
         val runner = createTestRunner(mockContext)
-        val thinkingOps = runner.withThinking()
+        val thinkingOps = runner.thinking()
 
         // When: Use multimodal content methods
         val textResult = thinkingOps.generateText(multimodalContent)
@@ -551,7 +551,7 @@ class ThinkingPromptRunnerOperationsTest {
         val runner = createTestRunner(mockContext)
 
         // When: Use evaluateCondition with threshold below confidence
-        val thinkingOps = runner.withThinking()
+        val thinkingOps = runner.thinking()
         val result = thinkingOps.evaluateCondition(
             condition = "Test condition",
             context = "Test context",

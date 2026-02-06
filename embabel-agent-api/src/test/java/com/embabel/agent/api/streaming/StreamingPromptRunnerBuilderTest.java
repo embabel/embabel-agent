@@ -47,7 +47,7 @@ class StreamingPromptRunnerBuilderTest {
         when(mockRunner.streaming()).thenReturn(mockOperations);
 
         var builder = new StreamingPromptRunnerBuilder(mockRunner);
-        var result = builder.withStreaming();
+        var result = builder.streaming();
 
         assertNotNull(result);
         assertEquals(mockOperations, result);
@@ -60,7 +60,7 @@ class StreamingPromptRunnerBuilderTest {
         var builder = new StreamingPromptRunnerBuilder(mockRunner);
 
         // Just test that some exception is thrown - don't worry about exact type
-        assertThrows(Exception.class, builder::withStreaming);
+        assertThrows(Exception.class, builder::streaming);
 
     }
 }

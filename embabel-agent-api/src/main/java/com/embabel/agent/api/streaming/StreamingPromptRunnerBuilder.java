@@ -17,7 +17,6 @@ package com.embabel.agent.api.streaming;
 
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner;
-import com.embabel.common.core.streaming.StreamingCapability;
 
 import java.util.Objects;
 
@@ -30,15 +29,21 @@ public record StreamingPromptRunnerBuilder(PromptRunner runner) {
     /**
      * Java equivalent of Kotlin's withStreaming() extension function.
      * Provides type-safe access to streaming operations.
+     * @deprecated in favor of {@link #streaming()}
      */
+    @Deprecated(forRemoval = true)
     public StreamingPromptRunner.Streaming withStreaming() {
+        return streaming();
+    }
+
+    public StreamingPromptRunner.Streaming streaming() {
         if (!runner.supportsStreaming()) {
             throw new UnsupportedOperationException(
                     "This LLM does not support streaming: " + Objects.requireNonNull(runner.getLlm()).getCriteria()
             );
         }
 
-        StreamingCapability capability = runner.streaming();
+        PromptRunner.StreamingCapability capability = runner.streaming();
         if (capability instanceof StreamingPromptRunner.Streaming
                 streamingPromptRunnerOperations) {
             return streamingPromptRunnerOperations;
