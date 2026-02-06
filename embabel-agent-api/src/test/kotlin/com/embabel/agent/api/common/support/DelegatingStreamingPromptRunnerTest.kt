@@ -291,7 +291,7 @@ class DelegatingStreamingPromptRunnerTest {
         }
 
         @Test
-        fun `withTemplate should not return null`() {
+        fun `rendering should not return null`() {
             val templateName = "test-template"
             val mockTemplateRenderer = mockk<TemplateRenderer>()
             val mockCompiledTemplate = mockk<com.embabel.common.textio.template.CompiledTemplate>()
@@ -300,14 +300,14 @@ class DelegatingStreamingPromptRunnerTest {
             every { mockTemplateRenderer.compileLoadedTemplate(templateName) } returns mockCompiledTemplate
 
             val runner = createPromptRunner()
-            val result = runner.withTemplate(templateName)
+            val result = runner.rendering(templateName)
 
 
             assertNotNull(result)
         }
 
         @Test
-        fun `stream should return not return null when streaming is supported`() {
+        fun `streaming should return not return null when streaming is supported`() {
             every { mockDelegate.supportsStreaming() } returns true
 
             val runner = createPromptRunner()
@@ -318,7 +318,7 @@ class DelegatingStreamingPromptRunnerTest {
         }
 
         @Test
-        fun `stream should throw exception when streaming is not supported`() {
+        fun `streaming should throw exception when streaming is not supported`() {
             every { mockDelegate.supportsStreaming() } returns false
             every { mockDelegate.llmOperations } returns mockk()
 
@@ -334,9 +334,9 @@ class DelegatingStreamingPromptRunnerTest {
         }
 
         @Test
-        fun `withThinking should not return null`() {
+        fun `thinking should not return null`() {
             val runner = createPromptRunner()
-            val result = runner.withThinking()
+            val result = runner.thinking()
 
             assertNotNull(result)
         }

@@ -15,19 +15,20 @@
  */
 package com.embabel.agent.api.common.thinking
 
-import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SuppressThinkingConverter
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.ThinkingTagType
-import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
 import com.embabel.common.core.thinking.spi.InternalThinkingApi
-import org.springframework.ai.converter.BeanOutputConverter
+import com.embabel.common.core.thinking.spi.extractAllThinkingBlocks
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.jupiter.api.Test
-import io.mockk.*
+import org.springframework.ai.converter.BeanOutputConverter
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -477,7 +478,7 @@ class ThinkingPromptRunnerOperationsExtractionTest {
 
         val runner = createRunner(mockContext)
 
-        return runner.withThinking().createObject(
+        return runner.thinking().createObject(
             prompt = "Test prompt for $operationName",
             outputClass = outputClass
         )

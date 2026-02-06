@@ -24,18 +24,13 @@ import com.embabel.agent.api.common.support.streaming.StreamingImpl
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.validation.guardrails.GuardRail
-import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.core.Verbosity
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
-import com.embabel.agent.tools.agent.AgentTool
-import com.embabel.agent.tools.agent.Handoffs
-import com.embabel.agent.tools.agent.PromptedTextCommunicator
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
@@ -319,7 +314,7 @@ internal data class OperationContextPromptRunner(
      */
     override fun supportsThinking(): Boolean = true
 
-    override fun withThinking(): PromptRunner.Thinking {
+    override fun thinking(): PromptRunner.Thinking {
         val llmOperations = context.agentPlatform().platformServices.llmOperations
 
         if (llmOperations !is ChatClientLlmOperations) {

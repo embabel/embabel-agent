@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 Embabel Software, Inc.
+ * Copyright 2024-2026 Embabel Pty Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -320,7 +320,7 @@ class LLMAnthropicThinkingIT {
 
         // When: create object with thinking
         ThinkingResponse<MonthItem> response = runner
-                .withThinking()
+                .thinking()
                 .createObject(prompt, MonthItem.class);
 
         // Then: Verify both result and thinking content
@@ -354,7 +354,7 @@ class LLMAnthropicThinkingIT {
 
 
         ThinkingResponse<MonthItem> response = runner
-                .withThinking()
+                .thinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
 
         // Then: Verify response and thinking content (result may be null if creation not possible)
@@ -398,7 +398,7 @@ class LLMAnthropicThinkingIT {
         try {
             // When: create object with thinking
             response = runner
-                    .withThinking()
+                    .thinking()
                     .createObject(prompt, MonthItem.class);
         } catch (Exception ex) {
             assertInstanceOf(GuardRailViolationException.class, ex, "expected guard rail exception");
@@ -425,7 +425,7 @@ class LLMAnthropicThinkingIT {
 
 
         ThinkingResponse<MonthItem> response = runner
-                .withThinking()
+                .thinking()
                 .createObjectIfPossible(prompt, MonthItem.class);
 
 
@@ -477,7 +477,7 @@ class LLMAnthropicThinkingIT {
 
 
         ThinkingResponse<MonthItem> response = runner
-                .withThinking()
+                .thinking()
                 .createObject(prompt, MonthItem.class);
 
         // Then: Verify extraction of multiple thinking formats

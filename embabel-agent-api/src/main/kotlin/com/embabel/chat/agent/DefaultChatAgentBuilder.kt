@@ -78,7 +78,7 @@ class DefaultChatAgentBuilder(
                 .withLlm(llm)
                 .withPromptElements(persona)
                 .withToolGroup(achievableGoalsToolGroup)
-                .withTemplate(promptTemplate)
+                .rendering(promptTemplate)
                 .respondWithSystemPrompt(
                     conversation = conversation,
                     model = mapOf(
