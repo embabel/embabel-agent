@@ -15,6 +15,7 @@
  */
 package com.embabel.chat
 
+import com.embabel.agent.api.identity.User
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.StableIdentified
 import com.embabel.common.core.types.HasInfoString
@@ -73,7 +74,7 @@ interface Conversation : StableIdentified, HasInfoString, AssetView {
      * @param author the author of this message (null for system/assistant messages)
      * @return the newly added message
      */
-    fun addMessageFrom(message: Message, author: MessageAuthor?): Message = addMessage(message)
+    fun addMessageFrom(message: Message, author: User?): Message = addMessage(message)
 
     /**
      * Add a message with explicit author and recipient.
@@ -84,7 +85,7 @@ interface Conversation : StableIdentified, HasInfoString, AssetView {
      * @param to the recipient of this message (who should receive it)
      * @return the newly added message
      */
-    fun addMessageFromTo(message: Message, from: MessageAuthor?, to: MessageAuthor?): Message = addMessage(message)
+    fun addMessageFromTo(message: Message, from: User?, to: User?): Message = addMessage(message)
 
     /**
      * Prompt contributor that represents the conversation so far.

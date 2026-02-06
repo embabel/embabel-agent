@@ -22,7 +22,6 @@
     <modules>
         <module>embabel-agent-platform-autoconfigure</module>
         <module>embabel-agent-a2a-autoconfigure</module>
-        <module>embabel-agent-chatstore-autoconfigure</module>
         <module>embabel-agent-shell-autoconfigure</module>
         <module>embabel-agent-observability-autoconfigure</module>
         <module>embabel-agent-mcpserver-autoconfigure</module>

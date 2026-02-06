@@ -15,6 +15,8 @@
  */
 package com.embabel.chat
 
+import com.embabel.agent.api.identity.User
+
 /**
  * Type of conversation storage.
  */
@@ -52,4 +54,22 @@ interface ConversationFactory {
      * @return a new Conversation instance
      */
     fun create(id: String): Conversation
+
+    /**
+     * Create a conversation for a 1-1 chat between a user and an agent.
+     *
+     * Messages can be automatically attributed based on role when participants are set.
+     *
+     * @param id the conversation/session ID
+     * @param user the human user participant
+     * @param agent the AI/system user participant (optional)
+     * @param title the session title (optional)
+     * @return a new Conversation instance
+     */
+    fun createForParticipants(
+        id: String,
+        user: User,
+        agent: User? = null,
+        title: String? = null
+    ): Conversation = create(id)
 }
