@@ -17,7 +17,6 @@ package com.embabel.agent.api.streaming;
 
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner;
-import com.embabel.common.core.streaming.StreamingCapability;
 
 import java.util.Objects;
 
@@ -44,7 +43,7 @@ public record StreamingPromptRunnerBuilder(PromptRunner runner) {
             );
         }
 
-        StreamingCapability capability = runner.streaming();
+        PromptRunner.StreamingCapability capability = runner.streaming();
         if (capability instanceof StreamingPromptRunner.Streaming
                 streamingPromptRunnerOperations) {
             return streamingPromptRunnerOperations;

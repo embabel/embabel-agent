@@ -28,12 +28,10 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
-import com.embabel.common.core.streaming.StreamingCapability
 import com.embabel.common.core.thinking.ThinkingCapability
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
-import org.jetbrains.annotations.ApiStatus
 import java.util.function.Predicate
 import kotlin.reflect.KProperty1
 
@@ -685,6 +683,39 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
             conversation: Conversation,
             model: Map<String, Any> = emptyMap(),
         ): AssistantMessage
+    }
+
+    /**
+     * Tag interface that marks streaming capability support.
+     *
+     * This interface serves as a marker for objects that provide streaming operations,
+     * enabling polymorphic access to streaming functionality without creating circular
+     * dependencies between API packages.
+     *
+     * Implementations of this interface provide reactive streaming capabilities that
+     * allow for real-time processing of LLM responses as they arrive, supporting:
+     * - Progressive text generation
+     * - Streaming object creation from JSONL responses
+     * - Mixed content streams with both objects and LLM reasoning (thinking)
+     *
+     * Usage:
+     * ```kotlin
+     * val runner: PromptRunner = context.ai().autoLlm()
+     * if (runner.supportsStreaming()) {
+     *     val capability: StreamingCapability = runner.stream()
+     *     val operations = capability as StreamingPromptRunnerOperations (or use asStreaming extension function)
+     *     // Use streaming operations...
+     * }
+     * ```
+     *
+     * This interface follows the explicit failure policy - streaming operations
+     * will throw exceptions if called on non-streaming implementations rather
+     * than providing fallback behavior.
+     *
+     */
+    interface StreamingCapability {
+        // Tag interface - no methods required
+        // Concrete implementations provide the actual streaming functionality
     }
 
     /**

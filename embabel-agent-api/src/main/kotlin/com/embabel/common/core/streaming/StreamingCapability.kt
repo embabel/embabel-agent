@@ -15,6 +15,8 @@
  */
 package com.embabel.common.core.streaming
 
+import com.embabel.agent.api.common.PromptRunner
+
 /**
  * Tag interface that marks streaming capability support.
  *
@@ -43,7 +45,14 @@ package com.embabel.common.core.streaming
  * than providing fallback behavior.
  *
  */
-interface StreamingCapability {
+@Deprecated(
+    message = "Use PromptRunner.StreamingCapability instead",
+    replaceWith = ReplaceWith(
+        expression = "PromptRunner.StreamingCapability",
+        imports = arrayOf("com.embabel.agent.api.common.PromptRunner.StreamingCapability"),
+    )
+)
+interface StreamingCapability : PromptRunner.StreamingCapability {
     // Tag interface - no methods required
     // Concrete implementations provide the actual streaming functionality
 }
