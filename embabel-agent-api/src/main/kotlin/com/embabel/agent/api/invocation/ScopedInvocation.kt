@@ -18,13 +18,20 @@ package com.embabel.agent.api.invocation
 import com.embabel.agent.api.common.scope.AgentScopeBuilder
 
 /**
- * Invocation with a defined scope of actions and goals
+ * Invocation with a defined scope of actions and goals.
+ * Scoped invocations create agents from the provided scope.
  */
 interface ScopedInvocation<THIS : ScopedInvocation<THIS>> : BaseInvocation<THIS> {
 
     /**
-     * Set the scope of actions and goals
+     * Set the scope of actions and goals.
      */
     fun withScope(agentScopeBuilder: AgentScopeBuilder): THIS
+
+    /**
+     * Set a custom name for the created agent.
+     * If not set, a default name based on the platform will be used.
+     */
+    fun withAgentName(name: String): THIS
 
 }

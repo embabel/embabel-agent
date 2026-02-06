@@ -35,6 +35,7 @@ data class UtilityInvocation @JvmOverloads constructor(
     private val agentPlatform: AgentPlatform,
     private val processOptions: ProcessOptions = ProcessOptions(),
     private val agentScopeBuilder: AgentScopeBuilder = agentPlatform,
+    private val agentName: String? = null,
 ) : BaseInvocation<UtilityInvocation>, ScopedInvocation<UtilityInvocation> {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -52,6 +53,9 @@ data class UtilityInvocation @JvmOverloads constructor(
 
     override fun withScope(agentScopeBuilder: AgentScopeBuilder): UtilityInvocation =
         copy(agentScopeBuilder = agentScopeBuilder)
+
+    override fun withAgentName(name: String): UtilityInvocation =
+        copy(agentName = name)
 
     override fun runAsync(
         obj: Any,
@@ -82,7 +86,7 @@ data class UtilityInvocation @JvmOverloads constructor(
         val agent = agentScopeBuilder
             .createAgentScope()
             .createAgent(
-                name = agentPlatform.name,
+                name = agentName ?: agentPlatform.name,
                 provider = EMBABEL_PROVIDER,
                 description = "Platform utility agent",
             )

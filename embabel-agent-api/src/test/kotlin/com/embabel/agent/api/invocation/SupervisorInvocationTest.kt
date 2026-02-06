@@ -25,6 +25,7 @@ import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyAgentPlatform
 import com.embabel.agent.test.integration.ScriptedLlmOperations
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
@@ -209,5 +210,66 @@ class SupervisorInvocationTest {
 
         val agent = invocation.createSupervisorAgent()
         assertTrue(agent.goals.first().outputType?.name?.contains("MarketData") == true)
+    }
+
+    @Nested
+    inner class AgentNaming {
+
+        @Test
+        fun `createSupervisorAgent uses platform name with supervisor suffix by default`() {
+            val scriptedLlm = ScriptedLlmOperations().respond("Done")
+            val ap = dummyAgentPlatform(llmOperations = scriptedLlm)
+
+            val invocation = SupervisorInvocation.on(ap, MarketData::class.java)
+                .withScope(AgentScopeBuilder.fromInstances(MarketDataActions()))
+
+            val agent = invocation.createSupervisorAgent()
+
+            assertTrue(agent.name.endsWith(".supervisor"))
+        }
+
+        @Test
+        fun `withAgentName overrides default name`() {
+            val scriptedLlm = ScriptedLlmOperations().respond("Done")
+            val ap = dummyAgentPlatform(llmOperations = scriptedLlm)
+
+            val invocation = SupervisorInvocation.on(ap, MarketData::class.java)
+                .withScope(AgentScopeBuilder.fromInstances(MarketDataActions()))
+                .withAgentName("custom-supervisor")
+
+            val agent = invocation.createSupervisorAgent()
+
+            assertEquals("custom-supervisor", agent.name)
+        }
+
+        @Test
+        fun `withAgentName is preserved through returning`() {
+            val scriptedLlm = ScriptedLlmOperations().respond("Done")
+            val ap = dummyAgentPlatform(llmOperations = scriptedLlm)
+
+            val invocation = SupervisorInvocation.on(ap, MarketData::class.java)
+                .withScope(AgentScopeBuilder.fromInstances(MarketDataActions(), TrendAndReportActions()))
+                .withAgentName("my-agent")
+                .returning(TrendForecast::class.java)
+
+            val agent = invocation.createSupervisorAgent()
+
+            assertEquals("my-agent", agent.name)
+        }
+
+        @Test
+        fun `withAgentName is immutable and returns new instance`() {
+            val scriptedLlm = ScriptedLlmOperations().respond("Done")
+            val ap = dummyAgentPlatform(llmOperations = scriptedLlm)
+
+            val original = SupervisorInvocation.on(ap, MarketData::class.java)
+                .withScope(AgentScopeBuilder.fromInstances(MarketDataActions()))
+
+            val modified = original.withAgentName("custom-name")
+
+            assertNotSame(original, modified)
+            assertTrue(original.createSupervisorAgent().name.endsWith(".supervisor"))
+            assertEquals("custom-name", modified.createSupervisorAgent().name)
+        }
     }
 }

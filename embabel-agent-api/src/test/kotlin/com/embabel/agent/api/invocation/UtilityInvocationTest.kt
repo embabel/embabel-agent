@@ -68,6 +68,62 @@ class UtilityInvocationTest {
     }
 
     @Nested
+    inner class AgentNaming {
+
+        @Test
+        fun `createPlatformAgent uses platform name by default`() {
+            val agent = TestAgentWithoutStuckHandler()
+            val scopeBuilder = AgentScopeBuilder.fromInstance(agent)
+
+            every { agentPlatform.name } returns "my-platform"
+
+            val invocation = UtilityInvocation(
+                agentPlatform = agentPlatform,
+                agentScopeBuilder = scopeBuilder,
+            )
+
+            val platformAgent = invocation.createPlatformAgent()
+
+            kotlin.test.assertEquals("my-platform", platformAgent.name)
+        }
+
+        @Test
+        fun `withAgentName overrides default platform name`() {
+            val agent = TestAgentWithoutStuckHandler()
+            val scopeBuilder = AgentScopeBuilder.fromInstance(agent)
+
+            every { agentPlatform.name } returns "my-platform"
+
+            val invocation = UtilityInvocation(
+                agentPlatform = agentPlatform,
+                agentScopeBuilder = scopeBuilder,
+            ).withAgentName("custom-agent-name")
+
+            val platformAgent = invocation.createPlatformAgent()
+
+            kotlin.test.assertEquals("custom-agent-name", platformAgent.name)
+        }
+
+        @Test
+        fun `withAgentName is immutable and returns new instance`() {
+            val agent = TestAgentWithoutStuckHandler()
+            val scopeBuilder = AgentScopeBuilder.fromInstance(agent)
+
+            every { agentPlatform.name } returns "my-platform"
+
+            val original = UtilityInvocation(
+                agentPlatform = agentPlatform,
+                agentScopeBuilder = scopeBuilder,
+            )
+            val modified = original.withAgentName("custom-name")
+
+            kotlin.test.assertNotSame(original, modified)
+            kotlin.test.assertEquals("my-platform", original.createPlatformAgent().name)
+            kotlin.test.assertEquals("custom-name", modified.createPlatformAgent().name)
+        }
+    }
+
+    @Nested
     inner class StuckHandlerPreservation {
 
         @Test

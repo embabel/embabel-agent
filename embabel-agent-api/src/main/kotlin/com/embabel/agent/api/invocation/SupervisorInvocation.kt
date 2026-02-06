@@ -48,6 +48,7 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
     private val goalDescription: String = "Produce ${goalType.simpleName}",
     private val processOptions: ProcessOptions = ProcessOptions(),
     private val agentScopeBuilder: AgentScopeBuilder = agentPlatform,
+    private val agentName: String? = null,
 ) : TypedInvocation<T, SupervisorInvocation<T>>, ScopedInvocation<SupervisorInvocation<T>> {
 
     override val resultType: Class<T> get() = goalType
@@ -64,6 +65,7 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
             goalDescription = "Produce ${resultType.simpleName}",
             processOptions = this.processOptions,
             agentScopeBuilder = this.agentScopeBuilder,
+            agentName = this.agentName,
         )
 
     fun withGoalDescription(description: String): SupervisorInvocation<T> =
@@ -71,6 +73,9 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
 
     override fun withScope(agentScopeBuilder: AgentScopeBuilder): SupervisorInvocation<T> =
         copy(agentScopeBuilder = agentScopeBuilder)
+
+    override fun withAgentName(name: String): SupervisorInvocation<T> =
+        copy(agentName = name)
 
     override fun runAsync(
         obj: Any,
@@ -142,7 +147,7 @@ data class SupervisorInvocation<T : Any> @JvmOverloads constructor(
         )
 
         return Agent(
-            name = "${agentPlatform.name}.supervisor",
+            name = agentName ?: "${agentPlatform.name}.supervisor",
             provider = EMBABEL_PROVIDER,
             description = "Platform supervisor agent targeting ${goalType.simpleName}",
             version = Semver("0.1.0"),

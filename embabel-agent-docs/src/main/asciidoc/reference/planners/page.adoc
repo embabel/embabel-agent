@@ -244,6 +244,50 @@ This pattern works well when:
 * Each category has distinct handling requirements
 * The final output type is the same across all categories
 
+[[reference.planners__utility-invocation]]
+===== UtilityInvocation: Lightweight Utility Pattern
+
+For simple utility workflows, you don't need to create an `@Agent` class.
+`UtilityInvocation` provides a fluent API to run utility-based workflows directly from `@EmbabelComponent` actions.
+
+.Invoking with UtilityInvocation
+[source,java]
+----
+UtilityInvocation.on(agentPlatform)
+    .withScope(AgentScopeBuilder.fromInstances(issueActions, labelActions))
+    .run(new GHIssue(issueData));
+----
+
+====== Configuration Options
+
+`UtilityInvocation` supports several configuration methods:
+
+[cols="1,3",options="header"]
+|===
+|Method |Description
+
+|`.withScope(AgentScopeBuilder)`
+|Defines which actions are available
+
+|`.withAgentName(String)`
+|Sets a custom name for the created agent (defaults to platform name)
+
+|`.withProcessOptions(ProcessOptions)`
+|Configures process-level options
+
+|`.terminateWhenStuck()`
+|Adds early termination policy when no actions are available
+|===
+
+.Setting a custom agent name
+[source,java]
+----
+UtilityInvocation.on(agentPlatform)
+    .withScope(AgentScopeBuilder.fromInstance(myActions))
+    .withAgentName("issue-triage-agent")
+    .run(input);
+----
+
 [[reference.planners__supervisor]]
 ==== Supervisor
 
@@ -593,6 +637,40 @@ Meal meal = SupervisorInvocation.on(agentPlatform)
     .returning(Stages.Meal.class)
     .withScope(AgentScopeBuilder.fromInstance(stages))
     .invoke(new UserInput(request));
+----
+
+====== Configuration Options
+
+`SupervisorInvocation` supports several configuration methods:
+
+[cols="1,3",options="header"]
+|===
+|Method |Description
+
+|`.returning(Class)`
+|Specifies the goal type to produce
+
+|`.withScope(AgentScopeBuilder)`
+|Defines which actions are available
+
+|`.withAgentName(String)`
+|Sets a custom name for the created agent (defaults to `{platformName}.supervisor`)
+
+|`.withGoalDescription(String)`
+|Provides a custom description for the goal
+
+|`.withProcessOptions(ProcessOptions)`
+|Configures process-level options
+|===
+
+.Setting a custom agent name
+[source,java]
+----
+SupervisorInvocation.on(agentPlatform)
+    .returning(Report.class)
+    .withScope(AgentScopeBuilder.fromInstance(actions))
+    .withAgentName("market-research-supervisor")
+    .invoke(request);
 ----
 
 The supervisor LLM sees:
