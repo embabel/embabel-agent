@@ -108,7 +108,9 @@ class ThinkingPromptRunnerOperationsTest {
                 any<List<com.embabel.chat.Message>>(),
                 any<LlmInteraction>(),
                 any<Class<ProcessedData>>(),
-                isNull()
+                isNull(),
+                isNull(),
+                isNull(),
             )
         } returns ThinkingResponse(
             result = ProcessedData(result = "processed data", status = "success"),
@@ -340,7 +342,7 @@ class ThinkingPromptRunnerOperationsTest {
 
         every {
             mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
-                any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any()
             )
         } returns Result.success(
             ThinkingResponse(
@@ -383,7 +385,7 @@ class ThinkingPromptRunnerOperationsTest {
 
         every {
             mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
-                any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any()
             )
         } returns Result.failure(exception)
 
@@ -416,19 +418,19 @@ class ThinkingPromptRunnerOperationsTest {
         // Mock responses for different method calls
         every {
             mockChatClientOps.doTransformWithThinking<String>(
-                any(), any(), eq(String::class.java), any()
+                any(), any(), eq(String::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(result = "generated text", thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinking<SimpleTestData>(
-                any(), any(), eq(SimpleTestData::class.java), any()
+                any(), any(), eq(SimpleTestData::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(result = SimpleTestData("created", 123), thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
-                any(), any(), eq(SimpleTestData::class.java), any()
+                any(), any(), eq(SimpleTestData::class.java), any(), any(), any()
             )
         } returns Result.success(
             ThinkingResponse(
@@ -469,13 +471,13 @@ class ThinkingPromptRunnerOperationsTest {
         // Mock responses for multimodal methods
         every {
             mockChatClientOps.doTransformWithThinking<String>(
-                any(), any(), eq(String::class.java), any()
+                any(), any(), eq(String::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(result = "multimodal text response", thinkingBlocks = emptyList())
 
         every {
             mockChatClientOps.doTransformWithThinking<SimpleTestData>(
-                any(), any(), eq(SimpleTestData::class.java), any()
+                any(), any(), eq(SimpleTestData::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(
             result = SimpleTestData("multimodal object", 789),
@@ -484,7 +486,7 @@ class ThinkingPromptRunnerOperationsTest {
 
         every {
             mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
-                any(), any(), eq(SimpleTestData::class.java), any()
+                any(), any(), eq(SimpleTestData::class.java), any(), any(), any()
             )
         } returns Result.success(
             ThinkingResponse(
@@ -495,7 +497,7 @@ class ThinkingPromptRunnerOperationsTest {
 
         every {
             mockChatClientOps.doTransformWithThinking<com.embabel.chat.AssistantMessage>(
-                any(), any(), eq(com.embabel.chat.AssistantMessage::class.java), any()
+                any(), any(), eq(com.embabel.chat.AssistantMessage::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(
             result = AssistantMessage("multimodal response"),
@@ -539,7 +541,7 @@ class ThinkingPromptRunnerOperationsTest {
 
         every {
             mockChatClientOps.doTransformWithThinking<com.embabel.agent.experimental.primitive.Determination>(
-                any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any()
             )
         } returns ThinkingResponse(
             result = determination,

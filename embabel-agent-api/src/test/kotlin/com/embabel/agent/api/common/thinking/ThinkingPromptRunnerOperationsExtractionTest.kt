@@ -459,7 +459,9 @@ class ThinkingPromptRunnerOperationsExtractionTest {
                 any<List<com.embabel.chat.Message>>(),
                 any<LlmInteraction>(),
                 any<Class<T>>(),
-                isNull()
+                isNull(),
+                isNull(),
+                isNull(),
             )
         } answers {
             // Use Spring AI BeanOutputConverter for proper structured conversion

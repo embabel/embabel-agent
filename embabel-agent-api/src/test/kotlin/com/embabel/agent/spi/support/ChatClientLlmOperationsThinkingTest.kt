@@ -288,7 +288,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Process request")),
             interaction = LlmInteraction(InteractionId("test-thinking")),
             outputClass = SimpleResult::class.java,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
 
         // Then: Should extract both object and thinking blocks
@@ -515,7 +517,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Test thinking success")),
             interaction = LlmInteraction(InteractionId("thinking-success")),
             outputClass = SimpleResult::class.java,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
 
         // Then: Should return successful Result with thinking response
@@ -561,7 +565,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Test malformed thinking")),
             interaction = LlmInteraction(InteractionId("malformed-thinking")),
             outputClass = SimpleResult::class.java,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
 
         // Then: Should handle malformed thinking blocks gracefully
@@ -660,7 +666,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Perform complex analysis")),
             interaction = LlmInteraction(InteractionId("complex-thinking")),
             outputClass = SimpleResult::class.java,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
 
         // Then: Should extract thinking blocks and parse JSON correctly
@@ -787,7 +795,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Generate string with thinking")),
             interaction = LlmInteraction(InteractionId("string-thinking")),
             outputClass = String::class.java,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
 
         // Then: Should extract thinking blocks and return string
@@ -963,7 +973,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Test thinking input with guardrails")),
             interaction = interaction,
             outputClass = String::class.java,
-            llmRequestEvent = llmRequestEvent
+            llmRequestEvent = llmRequestEvent,
+            agentProcess = null,
+            action = null,
         )
 
         assertNotNull(result)
@@ -1041,7 +1053,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Test thinking if possible input with guardrails")),
             interaction = interaction,
             outputClass = SimpleResult::class.java,
-            llmRequestEvent = llmRequestEvent
+            llmRequestEvent = llmRequestEvent,
+            agentProcess = null,
+            action = null,
         )
 
         assertTrue(result.isSuccess, "Should return successful result")
@@ -1080,7 +1094,9 @@ class ChatClientLlmOperationsThinkingTest {
                 messages = listOf(UserMessage("Generate malformed response")),
                 interaction = LlmInteraction(InteractionId("thinking-exception-test")),
                 outputClass = SimpleResult::class.java,
-                llmRequestEvent = null
+                llmRequestEvent = null,
+                agentProcess = null,
+                action = null,
             )
             assertTrue(false, "Expected ThinkingException")
         } catch (e: ThinkingException) {
@@ -1114,7 +1130,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Process insufficient data")),
             interaction = LlmInteraction(InteractionId("thinking-ifpossible-failure")),
             outputClass = SimpleResult::class.java,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
 
         // Verify MaybeReturn failure path
@@ -1140,7 +1158,9 @@ class ChatClientLlmOperationsThinkingTest {
             messages = listOf(UserMessage("Generate malformed JSON")),
             interaction = LlmInteraction(InteractionId("thinking-ifpossible-exception")),
             outputClass = SimpleResult::class.java,
-            llmRequestEvent = null
+            llmRequestEvent = null,
+            agentProcess = null,
+            action = null,
         )
 
         // Verify conversion exception path
