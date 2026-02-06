@@ -73,24 +73,21 @@ data class SpringContextPlatformServices(
 
     // We get this from the context because of circular dependencies
     override fun autonomy(): Autonomy {
-        if (applicationContext == null) {
-            throw IllegalStateException("Application context is not available, cannot retrieve Autonomy bean.")
-        }
-        return applicationContext.getBean<Autonomy>()
+        return requireNotNull(applicationContext) {
+            "Application context is not available, cannot retrieve Autonomy bean."
+        }.getBean<Autonomy>()
     }
 
     override fun modelProvider(): ModelProvider {
-        if (applicationContext == null) {
-            throw IllegalStateException("Application context is not available, cannot retrieve ModelProvider bean.")
-        }
-        return applicationContext.getBean<ModelProvider>()
+        return requireNotNull(applicationContext) {
+            "Application context is not available, cannot retrieve ModelProvider bean."
+        }.getBean<ModelProvider>()
     }
 
     override fun conversationFactoryProvider(): ConversationFactoryProvider {
-        if (applicationContext == null) {
-            throw IllegalStateException("Application context is not available, cannot retrieve ConversationFactoryProvider bean.")
-        }
-        return applicationContext.getBean<ConversationFactoryProvider>()
+        return requireNotNull(applicationContext) {
+            "Application context is not available, cannot retrieve ConversationFactoryProvider bean."
+        }.getBean<ConversationFactoryProvider>()
     }
 
 }
