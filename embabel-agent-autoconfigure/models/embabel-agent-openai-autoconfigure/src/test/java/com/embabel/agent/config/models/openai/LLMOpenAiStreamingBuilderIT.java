@@ -149,7 +149,7 @@ class LLMOpenAiStreamingBuilderIT {
 
         // Use StreamingPromptBuilder instead of Kotlin extension function
         Flux<StreamingEvent<MonthItem>> results = new StreamingPromptRunnerBuilder(runner)
-                .withStreaming()
+                .streaming()
                 .withPrompt(prompt)
                 .createObjectStreamWithThinking(MonthItem.class);
 

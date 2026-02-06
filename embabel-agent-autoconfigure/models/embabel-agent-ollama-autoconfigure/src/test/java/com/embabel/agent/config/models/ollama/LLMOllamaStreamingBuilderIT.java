@@ -180,7 +180,7 @@ class LLMOllamaStreamingBuilderIT {
 
         // Use StreamingPromptBuilder instead of Kotlin extension function
         Flux<StreamingEvent<MonthItem>> results = new StreamingPromptRunnerBuilder(runner)
-                .withStreaming()
+                .streaming()
                 .withPrompt(prompt)
                 .createObjectStreamWithThinking(MonthItem.class);
 
@@ -236,7 +236,7 @@ class LLMOllamaStreamingBuilderIT {
 
         // Use StreamingPromptBuilder instead of Kotlin extension function
         Flux<String> results = new StreamingPromptRunnerBuilder(runner)
-                .withStreaming()
+                .streaming()
                 .withPrompt(prompt)
                 .generateStream();
 
