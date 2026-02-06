@@ -22,19 +22,14 @@ import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.domain.io.AssistantContent
 import com.embabel.agent.domain.io.UserContent
 import com.embabel.agent.domain.library.HasContent
-import com.embabel.common.core.types.Timestamped
 import com.embabel.common.util.trim
 import java.time.Instant
 
 /**
  * Role of the message sender.
- * For visible messages, not user messages.
+ * Typealias for backwards compatibility.
  */
-enum class Role {
-    USER,
-    ASSISTANT,
-    SYSTEM,
-}
+typealias Role = MessageRole
 
 /**
  * Message class for agent system - now supports multimodal content
@@ -44,11 +39,11 @@ enum class Role {
  * @param timestamp when the message was created
  */
 sealed class Message(
-    val role: Role,
+    override val role: Role,
     val parts: List<ContentPart>,
     val name: String? = null,
     override val timestamp: Instant = Instant.now(),
-) : HasContent, Timestamped {
+) : HasContent, StoredMessage {
 
     // Note: Empty parts are allowed for special cases like AssistantMessageWithToolCalls
     // where the "content" is the tool calls, not text parts.
