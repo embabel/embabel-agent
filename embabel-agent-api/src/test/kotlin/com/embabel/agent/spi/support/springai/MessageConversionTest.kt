@@ -281,6 +281,131 @@ class MessageConversionTest {
         }
     }
 
+    @Nested
+    inner class MergeConsecutiveToolResponsesTests {
+
+        @Test
+        fun `single ToolResponseMessage is unchanged`() {
+            val toolResponse = ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("call-1", "get_weather", """{"temp": 72}""")))
+                .build()
+            val messages: List<org.springframework.ai.chat.messages.Message> = listOf(toolResponse)
+
+            val result = messages.mergeConsecutiveToolResponses()
+
+            assertThat(result).hasSize(1)
+            assertThat(result[0]).isInstanceOf(ToolResponseMessage::class.java)
+            val merged = result[0] as ToolResponseMessage
+            assertThat(merged.responses).hasSize(1)
+            assertThat(merged.responses[0].id()).isEqualTo("call-1")
+        }
+
+        @Test
+        fun `consecutive ToolResponseMessages are merged into one`() {
+            val tr1 = ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("call-1", "get_weather", """{"temp": 72}""")))
+                .build()
+            val tr2 = ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("call-2", "get_time", """{"time": "12:00"}""")))
+                .build()
+            val tr3 = ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("call-3", "get_news", """{"headline": "Hi"}""")))
+                .build()
+            val messages: List<org.springframework.ai.chat.messages.Message> = listOf(tr1, tr2, tr3)
+
+            val result = messages.mergeConsecutiveToolResponses()
+
+            assertThat(result).hasSize(1)
+            val merged = result[0] as ToolResponseMessage
+            assertThat(merged.responses).hasSize(3)
+            assertThat(merged.responses.map { it.id() }).containsExactly("call-1", "call-2", "call-3")
+            assertThat(merged.responses.map { it.name() }).containsExactly("get_weather", "get_time", "get_news")
+        }
+
+        @Test
+        fun `non-ToolResponseMessages are not affected`() {
+            val user = SpringAiUserMessage.builder().text("Hello").build()
+            val assistant = SpringAiAssistantMessage("Hi there")
+            val system = SpringAiSystemMessage.builder().text("You are helpful").build()
+            val messages: List<org.springframework.ai.chat.messages.Message> = listOf(user, assistant, system)
+
+            val result = messages.mergeConsecutiveToolResponses()
+
+            assertThat(result).hasSize(3)
+            assertThat(result[0]).isInstanceOf(SpringAiUserMessage::class.java)
+            assertThat(result[1]).isInstanceOf(SpringAiAssistantMessage::class.java)
+            assertThat(result[2]).isInstanceOf(SpringAiSystemMessage::class.java)
+        }
+
+        @Test
+        fun `mixed messages preserve order and merge only consecutive tool responses`() {
+            val system = SpringAiSystemMessage.builder().text("You are helpful").build()
+            val user = SpringAiUserMessage.builder().text("Do stuff").build()
+            val assistant = SpringAiAssistantMessage.builder()
+                .content("")
+                .toolCalls(
+                    listOf(
+                        SpringAiAssistantMessage.ToolCall("call-1", "function", "get_weather", """{"loc": "NYC"}"""),
+                        SpringAiAssistantMessage.ToolCall("call-2", "function", "get_time", """{"tz": "EST"}"""),
+                    )
+                )
+                .build()
+            val tr1 = ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("call-1", "get_weather", """{"temp": 72}""")))
+                .build()
+            val tr2 = ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("call-2", "get_time", """{"time": "12:00"}""")))
+                .build()
+            val user2 = SpringAiUserMessage.builder().text("Thanks").build()
+            val messages: List<org.springframework.ai.chat.messages.Message> = listOf(
+                system, user, assistant, tr1, tr2, user2
+            )
+
+            val result = messages.mergeConsecutiveToolResponses()
+
+            assertThat(result).hasSize(5)
+            assertThat(result[0]).isInstanceOf(SpringAiSystemMessage::class.java)
+            assertThat(result[1]).isInstanceOf(SpringAiUserMessage::class.java)
+            assertThat(result[2]).isInstanceOf(SpringAiAssistantMessage::class.java)
+            assertThat(result[3]).isInstanceOf(ToolResponseMessage::class.java)
+            val merged = result[3] as ToolResponseMessage
+            assertThat(merged.responses).hasSize(2)
+            assertThat(merged.responses[0].id()).isEqualTo("call-1")
+            assertThat(merged.responses[1].id()).isEqualTo("call-2")
+            assertThat(result[4]).isInstanceOf(SpringAiUserMessage::class.java)
+        }
+
+        @Test
+        fun `empty list returns empty list`() {
+            val messages: List<org.springframework.ai.chat.messages.Message> = emptyList()
+
+            val result = messages.mergeConsecutiveToolResponses()
+
+            assertThat(result).isEmpty()
+        }
+
+        @Test
+        fun `non-consecutive tool responses are not merged`() {
+            val tr1 = ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("call-1", "get_weather", """{"temp": 72}""")))
+                .build()
+            val user = SpringAiUserMessage.builder().text("OK").build()
+            val tr2 = ToolResponseMessage.builder()
+                .responses(listOf(ToolResponseMessage.ToolResponse("call-2", "get_time", """{"time": "12:00"}""")))
+                .build()
+            val messages: List<org.springframework.ai.chat.messages.Message> = listOf(tr1, user, tr2)
+
+            val result = messages.mergeConsecutiveToolResponses()
+
+            assertThat(result).hasSize(3)
+            assertThat(result[0]).isInstanceOf(ToolResponseMessage::class.java)
+            assertThat((result[0] as ToolResponseMessage).responses).hasSize(1)
+            assertThat(result[1]).isInstanceOf(SpringAiUserMessage::class.java)
+            assertThat(result[2]).isInstanceOf(ToolResponseMessage::class.java)
+            assertThat((result[2] as ToolResponseMessage).responses).hasSize(1)
+        }
+    }
+
     /**
      * Tests for provider-specific behavior where tool call responses may have empty/null text content.
      *
