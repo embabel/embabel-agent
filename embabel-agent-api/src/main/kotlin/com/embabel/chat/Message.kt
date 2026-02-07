@@ -22,8 +22,18 @@ import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.domain.io.AssistantContent
 import com.embabel.agent.domain.io.UserContent
 import com.embabel.agent.domain.library.HasContent
+import com.embabel.common.core.types.Timestamped
 import com.embabel.common.util.trim
 import java.time.Instant
+
+/**
+ * Role of the message sender.
+ */
+enum class MessageRole {
+    USER,
+    ASSISTANT,
+    SYSTEM
+}
 
 /**
  * Role of the message sender.
@@ -32,18 +42,36 @@ import java.time.Instant
 typealias Role = MessageRole
 
 /**
- * Message class for agent system - now supports multimodal content
+ * Core message interface for the agent system.
+ * This is the minimal contract that all messages must implement,
+ * suitable for both in-memory usage and persistence.
+ */
+interface Message : Timestamped {
+
+    /**
+     * Role of the message sender.
+     */
+    val role: MessageRole
+
+    /**
+     * Text content of the message.
+     */
+    val content: String
+}
+
+/**
+ * Base message implementation supporting multimodal content.
  * @param role Role of the message sender
  * @param parts List of content parts (text, images, etc.)
  * @param name of the sender, if available
  * @param timestamp when the message was created
  */
-sealed class Message(
+sealed class BaseMessage(
     override val role: Role,
     val parts: List<ContentPart>,
     val name: String? = null,
     override val timestamp: Instant = Instant.now(),
-) : HasContent, StoredMessage {
+) : Message, HasContent {
 
     // Note: Empty parts are allowed for special cases like AssistantMessageWithToolCalls
     // where the "content" is the tool calls, not text parts.
@@ -79,7 +107,7 @@ sealed class Message(
 /**
  * Message sent by the user - supports multimodal content
  */
-class UserMessage : Message, UserContent {
+class UserMessage : BaseMessage, UserContent {
 
     /**
      * Primary constructor for multimodal messages
@@ -118,7 +146,7 @@ open class AssistantMessage @JvmOverloads constructor(
     val awaitable: Awaitable<*, *>? = null,
     override val assets: List<Asset> = emptyList(),
     override val timestamp: Instant = Instant.now(),
-) : Message(
+) : BaseMessage(
     role = Role.ASSISTANT,
     parts = listOf(TextPart(content)),
     name = name,
@@ -150,19 +178,6 @@ open class AssistantMessage @JvmOverloads constructor(
                 awaitable = confirmationRequest,
             )
         }
-
-//        @JvmStatic
-//        @JvmOverloads
-//        fun ofFormSubmission(
-//            form: FormBindingRequest<*>,
-//            name: String? = null,
-//        ): AssistantMessage {
-//            return AssistantMessage(
-//                content = form.payload.title,
-//                name = name,
-//                awaitable = form,
-//            )
-//        }
     }
 }
 
@@ -172,10 +187,9 @@ open class AssistantMessage @JvmOverloads constructor(
 class SystemMessage @JvmOverloads constructor(
     content: String,
     override val timestamp: Instant = Instant.now(),
-) : Message(role = Role.SYSTEM, parts = listOf(TextPart(content)), name = null, timestamp = timestamp) {
+) : BaseMessage(role = Role.SYSTEM, parts = listOf(TextPart(content)), name = null, timestamp = timestamp) {
 
     override fun toString(): String {
         return "SystemMessage(content='${trim(content, 80, 10)}')"
     }
-
 }

@@ -18,8 +18,18 @@ package com.embabel.chat.support.console
 import com.embabel.agent.api.channel.*
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette
+import com.embabel.chat.BaseMessage
+import com.embabel.chat.Message
 import com.embabel.common.util.color
 import org.apache.commons.text.WordUtils
+
+/**
+ * Extension to get a display name for any Message.
+ * Uses BaseMessage.sender if available, otherwise falls back to role name.
+ */
+private val Message.displaySender: String
+    get() = (this as? BaseMessage)?.sender
+        ?: role.name.lowercase().replaceFirstChar { it.uppercase() }
 
 class ConsoleOutputChannel(
     private val colorPalette: ColorPalette = DefaultColorPalette(),
@@ -29,7 +39,7 @@ class ConsoleOutputChannel(
         when (event) {
             is MessageOutputChannelEvent -> {
                 val formattedResponse = WordUtils.wrap(
-                    "${event.message.sender}: ${event.message.content.color(colorPalette.color2)}",
+                    "${event.message.displaySender}: ${event.message.content.color(colorPalette.color2)}",
                     140,
                 )
                 println(formattedResponse)
