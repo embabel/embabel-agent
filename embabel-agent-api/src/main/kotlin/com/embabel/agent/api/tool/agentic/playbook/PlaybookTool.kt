@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.tool.agentic.playbook
 
+import com.embabel.agent.api.common.ExecutingOperationContext
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator
 import com.embabel.agent.api.tool.agentic.AgenticTool
@@ -61,7 +62,7 @@ import com.embabel.common.util.loggerFor
  * @param llm LLM to use for orchestration. It is good practice to provide
  * @param unlockedTools Tools that are always available
  * @param lockedTools Tools with unlock conditions
- * @param systemPromptCreator Create prompt for the LLM to use
+ * @param systemPromptCreator Create prompt for the LLM to use, given context and input
  * @param maxIterations Maximum number of tool loop iterations
  */
 data class PlaybookTool internal constructor(
@@ -71,9 +72,11 @@ data class PlaybookTool internal constructor(
     internal val unlockedTools: List<Tool> = emptyList(),
     internal val lockedTools: List<LockedTool> = emptyList(),
     internal val domainToolSources: List<DomainToolSource<*>> = emptyList(),
-    val systemPromptCreator: AgenticSystemPromptCreator = { defaultSystemPrompt(definition.description) },
+    val systemPromptCreator: AgenticSystemPromptCreator = AgenticSystemPromptCreator { _, _ ->
+        defaultSystemPrompt(definition.description)
+    },
     override val maxIterations: Int = AgenticTool.DEFAULT_MAX_ITERATIONS,
-) : AgenticTool {
+) : AgenticTool<PlaybookTool> {
 
     /**
      * A tool with its unlock condition.
@@ -123,7 +126,8 @@ data class PlaybookTool internal constructor(
         )
         if (errorResult != null) return errorResult
 
-        val systemPrompt = systemPromptCreator(agentProcess!!)
+        val executingContext = executingOperationContextFor(agentProcess!!)
+        val systemPrompt = systemPromptCreator.apply(executingContext, input)
         loggerFor<PlaybookTool>().info(
             "Executing PlaybookTool '{}' with {} unlocked tools, {} locked tools, and {} domain sources",
             definition.name,
@@ -161,7 +165,7 @@ data class PlaybookTool internal constructor(
 
         val allWrappedTools = wrappedUnlockedTools + wrappedLockedTools + domainPlaceholderTools
 
-        val ai = executingOperationContextFor(agentProcess).ai()
+        val ai = executingContext.ai()
         val output = ai
             .withLlm(llm)
             .withId("playbook-tool-${definition.name}")
@@ -202,15 +206,8 @@ data class PlaybookTool internal constructor(
 
     override fun withLlm(llm: LlmOptions): PlaybookTool = copy(llm = llm)
 
-    override fun withSystemPrompt(prompt: String): PlaybookTool = copy(
-        systemPromptCreator = { prompt },
-    )
-
-    /**
-     * Create a copy with a custom system prompt creator.
-     */
-    fun withSystemPromptCreator(promptCreator: AgenticSystemPromptCreator): PlaybookTool = copy(
-        systemPromptCreator = promptCreator,
+    override fun withSystemPrompt(creator: AgenticSystemPromptCreator): PlaybookTool = copy(
+        systemPromptCreator = creator,
     )
 
     override fun withMaxIterations(maxIterations: Int): PlaybookTool = copy(
