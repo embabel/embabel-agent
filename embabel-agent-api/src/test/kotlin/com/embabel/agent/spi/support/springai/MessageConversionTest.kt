@@ -209,6 +209,62 @@ class MessageConversionTest {
             assertThat(response.name()).isEqualTo("get_weather")
             assertThat(response.responseData()).isEqualTo("""{"temperature": 72}""")
         }
+
+        @Test
+        fun `tool result with plain text content is wrapped as JSON`() {
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "search",
+                content = "2 results: HBNB Services - Technical Blockchain Advisor"
+            )
+
+            val springAiMessage = message.toSpringAiMessage() as ToolResponseMessage
+            val responseData = springAiMessage.responses[0].responseData()
+
+            assertThat(responseData).startsWith("{")
+            assertThat(responseData).contains("\"result\"")
+            assertThat(responseData).contains("2 results: HBNB Services - Technical Blockchain Advisor")
+        }
+
+        @Test
+        fun `tool result with valid JSON object content is preserved`() {
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "get_count",
+                content = """{"count": 5}"""
+            )
+
+            val springAiMessage = message.toSpringAiMessage() as ToolResponseMessage
+
+            assertThat(springAiMessage.responses[0].responseData()).isEqualTo("""{"count": 5}""")
+        }
+
+        @Test
+        fun `tool result with valid JSON array content is preserved`() {
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "get_items",
+                content = """[1, 2, 3]"""
+            )
+
+            val springAiMessage = message.toSpringAiMessage() as ToolResponseMessage
+
+            assertThat(springAiMessage.responses[0].responseData()).isEqualTo("""[1, 2, 3]""")
+        }
+
+        @Test
+        fun `tool result with whitespace-only content is wrapped as JSON`() {
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "no_result",
+                content = " "
+            )
+
+            val springAiMessage = message.toSpringAiMessage() as ToolResponseMessage
+            val responseData = springAiMessage.responses[0].responseData()
+
+            assertThat(responseData).isEqualTo("""{"result":" "}""")
+        }
     }
 
     @Nested

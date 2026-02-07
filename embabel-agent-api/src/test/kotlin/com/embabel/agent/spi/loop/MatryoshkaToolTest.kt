@@ -64,7 +64,7 @@ class MatryoshkaToolTest {
         }
 
         @Test
-        fun `call returns message listing enabled tools`() {
+        fun `call returns JSON message listing enabled tools`() {
             val innerTool1 = MockTool("tool_a", "Tool A") { Tool.Result.text("a") }
             val innerTool2 = MockTool("tool_b", "Tool B") { Tool.Result.text("b") }
 
@@ -78,9 +78,10 @@ class MatryoshkaToolTest {
 
             assertTrue(result is Tool.Result.Text)
             val text = (result as Tool.Result.Text).content
-            assertTrue(text.contains("2 tools"))
-            assertTrue(text.contains("tool_a"))
-            assertTrue(text.contains("tool_b"))
+            val json = objectMapper.readTree(text)
+            assertEquals(2, json["enabled_tools_count"].intValue())
+            val toolNames = json["enabled_tools"].map { it.textValue() }
+            assertEquals(listOf("tool_a", "tool_b"), toolNames)
         }
 
         @Test
@@ -282,7 +283,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "outer",
                     toolInput = "{}",
-                    result = "Enabled 1 tools: inner",
+                    result = """{"enabled_tools_count": 1, "enabled_tools": ["inner"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -316,7 +317,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "persistent",
                     toolInput = "{}",
-                    result = "Enabled 1 tools: inner",
+                    result = """{"enabled_tools_count": 1, "enabled_tools": ["inner"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -353,7 +354,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "selector",
                     toolInput = """{"pick": "one"}""",
-                    result = "Enabled 1 tools: tool1",
+                    result = """{"enabled_tools_count": 1, "enabled_tools": ["tool1"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -383,7 +384,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "empty",
                     toolInput = "{}",
-                    result = "Enabled 0 tools:",
+                    result = """{"enabled_tools_count": 0, "enabled_tools": []}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -413,7 +414,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "composer_stats",
                     toolInput = "{}",
-                    result = "Enabled 2 tools: count, getValues",
+                    result = """{"enabled_tools_count": 2, "enabled_tools": ["count", "getValues"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -445,7 +446,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "composer_stats",
                     toolInput = "{}",
-                    result = "Enabled 2 tools: count, getValues",
+                    result = """{"enabled_tools_count": 2, "enabled_tools": ["count", "getValues"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -481,7 +482,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "composer_stats",
                     toolInput = "{}",
-                    result = "Enabled 2 tools: count, getValues",
+                    result = """{"enabled_tools_count": 2, "enabled_tools": ["count", "getValues"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -520,7 +521,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "empty",
                     toolInput = "{}",
-                    result = "Enabled 0 tools:",
+                    result = """{"enabled_tools_count": 0, "enabled_tools": []}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -550,7 +551,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "spotify_search",
                     toolInput = "{}",
-                    result = "Enabled 2 tools: vector_search, text_search",
+                    result = """{"enabled_tools_count": 2, "enabled_tools": ["vector_search", "text_search"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -588,7 +589,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "music_search",
                     toolInput = "{}",
-                    result = "Enabled 2 tools",
+                    result = """{"enabled_tools_count": 2, "enabled_tools": ["vector_search", "text_search"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -625,7 +626,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "no_notes",
                     toolInput = "{}",
-                    result = "Enabled 1 tool",
+                    result = """{"enabled_tools_count": 1, "enabled_tools": ["tool1"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -695,7 +696,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "outer",
                     toolInput = "{}",
-                    result = "Enabled 1 tools: inner",
+                    result = """{"enabled_tools_count": 1, "enabled_tools": ["inner"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
@@ -936,7 +937,7 @@ class MatryoshkaToolTest {
                 lastToolCall = ToolCallResult(
                     toolName = "music_search",
                     toolInput = "{}",
-                    result = "Enabled 2 tools",
+                    result = """{"enabled_tools_count": 2, "enabled_tools": ["vectorSearch", "textSearch"]}""",
                     resultObject = null,
                 ),
                 iterationCount = 1,
