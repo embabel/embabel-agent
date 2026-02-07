@@ -360,7 +360,21 @@ Uses the native Google GenAI SDK (`spring-ai-google-genai`) for direct access to
 
 |===
 
-Google GenAI models are configured via the `embabel-agent-starter-google-genai` starter dependency.
+Google GenAI models (both LLM and embedding) are configured via the `embabel-agent-starter-google-genai` starter dependency.
+
+The following embedding models are available:
+
+[cols="2,3,1,1",options="header"]
+|===
+|Model Name |Model ID |Dimensions |Price (per 1M tokens)
+
+|`gemini_embedding_001`
+|`gemini-embedding-001`
+|3072
+|$0.15
+
+|===
+
 The following environment variables control authentication:
 
 [cols="2,4",options="header"]
@@ -382,6 +396,24 @@ NOTE: Either `GOOGLE_API_KEY` or both `GOOGLE_PROJECT_ID` and `GOOGLE_LOCATION` 
 
 IMPORTANT: Gemini 3 models are only available in the `global` location on Vertex AI.
 To use Gemini 3 with Vertex AI, you must set `GOOGLE_LOCATION=global`.
+
+To add new Google GenAI embedding models, edit the configuration file:
+
+----
+embabel-agent-autoconfigure/models/embabel-agent-google-genai-autoconfigure/
+  src/main/resources/models/google-genai-models.yml
+----
+
+[source,yaml]
+----
+embedding_models:
+  - name: "gemini_embedding_001"
+    model_id: "gemini-embedding-001"
+    display_name: "Gemini Embedding 001"
+    dimensions: 3072
+    pricing_model:
+      usd_per1m_tokens: 0.15
+----
 
 ===== HTTP Client Configuration
 
