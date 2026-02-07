@@ -30,7 +30,9 @@ fun interface MessageFormatter {
 }
 
 object SimpleMessageFormatter : MessageFormatter {
-    override fun format(message: Message): String =
-        if (message.name != null) "${message.name} (${message.role}): ${message.content}"
+    override fun format(message: Message): String {
+        val name = (message as? BaseMessage)?.name
+        return if (name != null) "$name (${message.role}): ${message.content}"
         else "${message.role}: ${message.content}"
+    }
 }

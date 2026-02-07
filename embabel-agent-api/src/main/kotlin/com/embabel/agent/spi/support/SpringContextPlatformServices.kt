@@ -26,6 +26,7 @@ import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
 import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
+import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -72,17 +73,21 @@ data class SpringContextPlatformServices(
 
     // We get this from the context because of circular dependencies
     override fun autonomy(): Autonomy {
-        if (applicationContext == null) {
-            throw IllegalStateException("Application context is not available, cannot retrieve Autonomy bean.")
-        }
-        return applicationContext.getBean<Autonomy>()
+        return requireNotNull(applicationContext) {
+            "Application context is not available, cannot retrieve Autonomy bean."
+        }.getBean<Autonomy>()
     }
 
     override fun modelProvider(): ModelProvider {
-        if (applicationContext == null) {
-            throw IllegalStateException("Application context is not available, cannot retrieve ModelProvider bean.")
-        }
-        return applicationContext.getBean<ModelProvider>()
+        return requireNotNull(applicationContext) {
+            "Application context is not available, cannot retrieve ModelProvider bean."
+        }.getBean<ModelProvider>()
+    }
+
+    override fun conversationFactoryProvider(): ConversationFactoryProvider {
+        return requireNotNull(applicationContext) {
+            "Application context is not available, cannot retrieve ConversationFactoryProvider bean."
+        }.getBean<ConversationFactoryProvider>()
     }
 
 }
