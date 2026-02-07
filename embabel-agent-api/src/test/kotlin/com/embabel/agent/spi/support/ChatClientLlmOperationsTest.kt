@@ -163,6 +163,8 @@ class ChatClientLlmOperationsTest {
         val birthDate: LocalDate,
     )
 
+    data class PersonWithName(val name: String)
+
     @Nested
     inner class CreateObject {
 
@@ -1253,6 +1255,70 @@ class ChatClientLlmOperationsTest {
                 agentProcess = setup.mockAgentProcess,
             )
             assertEquals(invalidHusky, createdDog, "Invalid response should have been corrected")
+        }
+    }
+
+    @Nested
+    inner class CreateObjectIfPossibleWithInsufficientInput {
+
+        @Test
+        fun `should handle MaybeReturn with success field containing partial object with missing required fields`() {
+            // Simulate what some LLMs return when they have insufficient information:
+            // They return a success structure but with missing required fields (like name: null or missing name key)
+            val malformedResponse = """
+                {
+                    "success": {}
+                }
+            """.trimIndent()
+
+            val fakeChatModel = FakeChatModel(malformedResponse)
+            val setup = createChatClientLlmOperations(fakeChatModel)
+
+            // This should not throw a deserialization exception
+            // Instead, it should recognize the response as invalid and return a failure Result
+            val result = setup.llmOperations.createObjectIfPossible(
+                messages = listOf(UserMessage("Give Robert some horoscope news")),
+                interaction = LlmInteraction(
+                    id = InteractionId("insufficient-input-test"),
+                    llm = LlmOptions()
+                ),
+                outputClass = PersonWithName::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            // The result should be a failure, not throw an exception
+            assertTrue(result.isFailure, "Result should be a failure when required fields are missing")
+        }
+
+        @Test
+        fun `should handle MaybeReturn with success field containing null value for non-nullable required field`() {
+            // Simulate another variant: LLM returns success with explicit null for required field
+            val malformedResponse = """
+                {
+                    "success": {
+                        "name": null
+                    }
+                }
+            """.trimIndent()
+
+            val fakeChatModel = FakeChatModel(malformedResponse)
+            val setup = createChatClientLlmOperations(fakeChatModel)
+
+            // This should not throw a deserialization exception
+            val result = setup.llmOperations.createObjectIfPossible(
+                messages = listOf(UserMessage("Give Robert some horoscope news")),
+                interaction = LlmInteraction(
+                    id = InteractionId("null-field-test"),
+                    llm = LlmOptions()
+                ),
+                outputClass = PersonWithName::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            // The result should be a failure, not throw an exception
+            assertTrue(result.isFailure, "Result should be a failure when required field is null")
         }
     }
 
