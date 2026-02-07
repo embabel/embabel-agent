@@ -17,9 +17,6 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.core.LlmVerbosity
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.chat.ConversationFactory
-import com.embabel.chat.ConversationFactoryProvider
-import com.embabel.chat.ConversationStoreType
 import com.embabel.common.ai.model.*
 
 typealias Embedding = FloatArray
@@ -90,26 +87,6 @@ interface Ai {
     fun withFirstAvailableLlmOf(vararg llms: String): PromptRunner {
         return withLlm(LlmOptions(criteria = FallbackByNameModelSelectionCriteria(llms.toList())))
     }
-
-    /**
-     * Get a conversation factory for the given store type.
-     *
-     * Requires `embabel-chat-store` on the classpath. Without it,
-     * this method throws [org.springframework.beans.factory.NoSuchBeanDefinitionException].
-     *
-     * @param type the conversation store type
-     * @return the factory for that type
-     * @throws IllegalArgumentException if no factory is registered for the type
-     */
-    fun conversationFactory(type: ConversationStoreType): ConversationFactory
-
-    /**
-     * Get a conversation factory provider for resolving factories by type.
-     *
-     * Requires `embabel-chat-store` on the classpath. Without it,
-     * this method throws [org.springframework.beans.factory.NoSuchBeanDefinitionException].
-     */
-    fun conversationFactoryProvider(): ConversationFactoryProvider
 }
 
 /**

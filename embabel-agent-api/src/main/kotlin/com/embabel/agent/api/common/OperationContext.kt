@@ -22,9 +22,6 @@ import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.identity.User
 import com.embabel.agent.api.invocation.AgentInvocation
 import com.embabel.agent.core.*
-import com.embabel.chat.ConversationFactory
-import com.embabel.chat.ConversationFactoryProvider
-import com.embabel.chat.ConversationStoreType
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
@@ -232,13 +229,5 @@ internal class OperationContextAi(
 
     override fun withLlm(llm: LlmOptions): PromptRunner {
         return context.promptRunner().withLlm(llm)
-    }
-
-    override fun conversationFactory(type: ConversationStoreType): ConversationFactory {
-        return conversationFactoryProvider().getFactory(type)
-    }
-
-    override fun conversationFactoryProvider(): ConversationFactoryProvider {
-        return context.processContext.platformServices.conversationFactoryProvider()
     }
 }
