@@ -21,9 +21,9 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 
 /**
- * Tests for [StoredMessage] and [MessageRole].
+ * Tests for [Message] interface and [MessageRole].
  */
-class StoredMessageTest {
+class MessageInterfaceTest {
 
     @Nested
     inner class MessageRoleTests {
@@ -65,21 +65,21 @@ class StoredMessageTest {
     }
 
     @Nested
-    inner class StoredMessageInterfaceTests {
+    inner class MessageInterfaceImplementationTests {
 
         @Test
-        fun `Message classes implement StoredMessage`() {
+        fun `Message classes implement Message interface`() {
             val userMessage = UserMessage("Hello")
             val assistantMessage = AssistantMessage("Hi there")
             val systemMessage = SystemMessage("System prompt")
 
-            assertThat(userMessage).isInstanceOf(StoredMessage::class.java)
-            assertThat(assistantMessage).isInstanceOf(StoredMessage::class.java)
-            assertThat(systemMessage).isInstanceOf(StoredMessage::class.java)
+            assertThat(userMessage).isInstanceOf(Message::class.java)
+            assertThat(assistantMessage).isInstanceOf(Message::class.java)
+            assertThat(systemMessage).isInstanceOf(Message::class.java)
         }
 
         @Test
-        fun `UserMessage provides correct StoredMessage properties`() {
+        fun `UserMessage provides correct Message properties`() {
             val timestamp = Instant.now()
             val message = UserMessage("Hello world", timestamp = timestamp)
 
@@ -89,7 +89,7 @@ class StoredMessageTest {
         }
 
         @Test
-        fun `AssistantMessage provides correct StoredMessage properties`() {
+        fun `AssistantMessage provides correct Message properties`() {
             val timestamp = Instant.now()
             val message = AssistantMessage("Hello user", timestamp = timestamp)
 
@@ -99,7 +99,7 @@ class StoredMessageTest {
         }
 
         @Test
-        fun `SystemMessage provides correct StoredMessage properties`() {
+        fun `SystemMessage provides correct Message properties`() {
             val timestamp = Instant.now()
             val message = SystemMessage("Be helpful", timestamp = timestamp)
 
@@ -117,6 +117,22 @@ class StoredMessageTest {
             assertThat(Role.USER).isEqualTo(MessageRole.USER)
             assertThat(Role.ASSISTANT).isEqualTo(MessageRole.ASSISTANT)
             assertThat(Role.SYSTEM).isEqualTo(MessageRole.SYSTEM)
+        }
+    }
+
+    @Nested
+    inner class BaseMessageTests {
+
+        @Test
+        fun `BaseMessage subclasses are sealed`() {
+            // Verify that UserMessage, AssistantMessage, SystemMessage extend BaseMessage
+            val userMessage = UserMessage("test")
+            val assistantMessage = AssistantMessage("test")
+            val systemMessage = SystemMessage("test")
+
+            assertThat(userMessage).isInstanceOf(BaseMessage::class.java)
+            assertThat(assistantMessage).isInstanceOf(BaseMessage::class.java)
+            assertThat(systemMessage).isInstanceOf(BaseMessage::class.java)
         }
     }
 }

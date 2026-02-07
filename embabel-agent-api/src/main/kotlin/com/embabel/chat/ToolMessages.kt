@@ -38,7 +38,7 @@ class AssistantMessageWithToolCalls @JvmOverloads constructor(
     val toolCalls: List<ToolCall>,
     name: String? = null,
     timestamp: Instant = Instant.now(),
-) : Message(
+) : BaseMessage(
     role = Role.ASSISTANT,
     // Only include TextPart if content is non-empty
     parts = if (content.isNotEmpty()) listOf(TextPart(content)) else emptyList(),
@@ -66,7 +66,7 @@ class ToolResultMessage @JvmOverloads constructor(
     val toolName: String,
     content: String,
     override val timestamp: Instant = Instant.now(),
-) : Message(
+) : BaseMessage(
     role = Role.ASSISTANT,
     parts = listOf(TextPart(content)),
     name = null,

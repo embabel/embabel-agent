@@ -221,7 +221,7 @@ class MessageConversionTest {
             val embabelMessage = springMessage.toEmbabelMessage()
 
             assertThat(embabelMessage).isInstanceOf(AssistantMessage::class.java)
-            assertThat(embabelMessage.textContent).isEqualTo("Hello from assistant")
+            assertThat(embabelMessage.content).isEqualTo("Hello from assistant")
         }
 
         @Test
