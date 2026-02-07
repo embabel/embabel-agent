@@ -33,7 +33,8 @@ class GoogleGenAiModelLoaderTest {
 
         // Assert
         assertNotNull(result)
-        assertTrue(result.models.isNotEmpty(), "Should load at least one model")
+        assertTrue(result.models.isNotEmpty(), "Should load at least one LLM model")
+        assertTrue(result.embeddingModels.isNotEmpty(), "Should load at least one embedding model")
 
         // Verify first model has required fields
         val firstModel = result.models.first()
@@ -41,6 +42,11 @@ class GoogleGenAiModelLoaderTest {
         assertNotNull(firstModel.modelId)
         assertTrue(firstModel.name.isNotBlank(), "Model name should not be blank")
         assertTrue(firstModel.modelId.isNotBlank(), "Model ID should not be blank")
+
+        // Verify first embedding model has required fields
+        val firstEmbedding = result.embeddingModels.first()
+        assertTrue(firstEmbedding.name.isNotBlank(), "Embedding name should not be blank")
+        assertTrue(firstEmbedding.modelId.isNotBlank(), "Embedding model ID should not be blank")
     }
 
     @Test
@@ -105,7 +111,8 @@ class GoogleGenAiModelLoaderTest {
 
         // Assert
         assertNotNull(result)
-        assertTrue(result.models.isEmpty(), "Should return empty list when file not found")
+        assertTrue(result.models.isEmpty(), "Should return empty LLM list when file not found")
+        assertTrue(result.embeddingModels.isEmpty(), "Should return empty embedding list when file not found")
     }
 
     @Test
@@ -126,6 +133,7 @@ class GoogleGenAiModelLoaderTest {
         // Assert
         assertNotNull(result)
         assertTrue(result.models.isEmpty(), "Should return empty list on parse error")
+        assertTrue(result.embeddingModels.isEmpty(), "Should return empty embedding list on parse error")
     }
 
     @Test
@@ -413,6 +421,334 @@ class GoogleGenAiModelLoaderTest {
         val gemini25Flash = result.models.find { it.modelId == "gemini-2.5-flash" }
         assertNotNull(gemini25Flash, "Gemini 2.5 Flash should be loaded")
         assertEquals("gemini_25_flash", gemini25Flash?.name)
+    }
+
+    // ========================================
+    // Embedding model tests
+    // ========================================
+
+    @Test
+    fun `should verify embedding models are loaded`() {
+        // Arrange
+        val loader = GoogleGenAiModelLoader()
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertTrue(result.embeddingModels.isNotEmpty(), "Should load at least one embedding model")
+
+        result.embeddingModels.forEach { embedding ->
+            assertNotNull(embedding.name)
+            assertNotNull(embedding.modelId)
+            assertTrue(embedding.name.isNotBlank(), "Embedding name should not be blank")
+            assertTrue(embedding.modelId.isNotBlank(), "Embedding model ID should not be blank")
+        }
+    }
+
+    @Test
+    fun `should validate embedding model dimensions and pricing`() {
+        // Arrange
+        val loader = GoogleGenAiModelLoader()
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        result.embeddingModels.forEach { embedding ->
+            embedding.dimensions?.let { dims ->
+                assertTrue(dims > 0, "Dimensions should be positive for ${embedding.name}")
+            }
+
+            embedding.pricingModel?.let { pricing ->
+                assertTrue(
+                    pricing.usdPer1mTokens >= 0.0,
+                    "Pricing should be non-negative for ${embedding.name}"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `should load Gemini Embedding 001 model`() {
+        // Arrange
+        val loader = GoogleGenAiModelLoader()
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        val geminiEmbedding = result.embeddingModels.find { it.modelId == "gemini-embedding-001" }
+        assertNotNull(geminiEmbedding, "Gemini Embedding 001 should be loaded")
+        assertEquals("gemini_embedding_001", geminiEmbedding?.name)
+        assertEquals(3072, geminiEmbedding?.dimensions)
+        assertNotNull(geminiEmbedding?.pricingModel)
+        assertEquals(0.15, geminiEmbedding?.pricingModel?.usdPer1mTokens)
+    }
+
+    @Test
+    fun `should validate embedding model with invalid dimensions`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            embedding_models:
+              - name: test-embedding
+                model_id: gemini-embedding-test
+                dimensions: -100
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act & Assert
+        val result = loader.loadAutoConfigMetadata()
+        assertTrue(result.embeddingModels.isEmpty(), "Should fail validation for negative dimensions")
+    }
+
+    @Test
+    fun `should validate embedding model with blank name`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            embedding_models:
+              - name: ""
+                model_id: gemini-embedding-test
+                dimensions: 3072
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act & Assert
+        val result = loader.loadAutoConfigMetadata()
+        assertTrue(result.embeddingModels.isEmpty(), "Should fail validation for blank name")
+    }
+
+    @Test
+    fun `should validate embedding model with blank model_id`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            embedding_models:
+              - name: test-embedding
+                model_id: ""
+                dimensions: 3072
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act & Assert
+        val result = loader.loadAutoConfigMetadata()
+        assertTrue(result.embeddingModels.isEmpty(), "Should fail validation for blank model_id")
+    }
+
+    @Test
+    fun `should validate embedding model with invalid pricing`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            embedding_models:
+              - name: test-embedding
+                model_id: gemini-embedding-test
+                dimensions: 3072
+                pricing_model:
+                  usd_per1m_tokens: -0.5
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act & Assert
+        val result = loader.loadAutoConfigMetadata()
+        assertTrue(result.embeddingModels.isEmpty(), "Should fail validation for negative pricing")
+    }
+
+    @Test
+    fun `should load valid embedding model with all fields`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            embedding_models:
+              - name: test-embedding
+                model_id: gemini-embedding-test
+                display_name: Test Embedding
+                dimensions: 3072
+                pricing_model:
+                  usd_per1m_tokens: 0.15
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(1, result.embeddingModels.size)
+        val embedding = result.embeddingModels.first()
+        assertEquals("test-embedding", embedding.name)
+        assertEquals("gemini-embedding-test", embedding.modelId)
+        assertEquals("Test Embedding", embedding.displayName)
+        assertEquals(3072, embedding.dimensions)
+        assertNotNull(embedding.pricingModel)
+        assertEquals(0.15, embedding.pricingModel?.usdPer1mTokens)
+    }
+
+    @Test
+    fun `should load embedding model with minimal fields`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            embedding_models:
+              - name: minimal-embedding
+                model_id: gemini-embedding-minimal
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(1, result.embeddingModels.size)
+        val embedding = result.embeddingModels.first()
+        assertEquals("minimal-embedding", embedding.name)
+        assertEquals("gemini-embedding-minimal", embedding.modelId)
+        assertNull(embedding.displayName)
+        assertNull(embedding.dimensions)
+        assertNull(embedding.pricingModel)
+    }
+
+    @Test
+    fun `should load multiple embedding models correctly`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            embedding_models:
+              - name: embedding-1
+                model_id: gemini-embedding-1
+                dimensions: 768
+              - name: embedding-2
+                model_id: gemini-embedding-2
+                dimensions: 3072
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(2, result.embeddingModels.size)
+        assertEquals("embedding-1", result.embeddingModels[0].name)
+        assertEquals("embedding-2", result.embeddingModels[1].name)
+        assertEquals(768, result.embeddingModels[0].dimensions)
+        assertEquals(3072, result.embeddingModels[1].dimensions)
+    }
+
+    @Test
+    fun `should load both LLM and embedding models from same file`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            models:
+              - name: llm-1
+                model_id: gemini-test-1
+                max_output_tokens: 4096
+              - name: llm-2
+                model_id: gemini-test-2
+                max_output_tokens: 8192
+            embedding_models:
+              - name: embedding-1
+                model_id: gemini-embedding-1
+                dimensions: 3072
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(2, result.models.size, "Should load 2 LLM models")
+        assertEquals(1, result.embeddingModels.size, "Should load 1 embedding model")
+    }
+
+    @Test
+    fun `should handle YAML with only LLM models`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            models:
+              - name: llm-only
+                model_id: gemini-test
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(1, result.models.size)
+        assertEquals(0, result.embeddingModels.size)
+    }
+
+    @Test
+    fun `should handle YAML with only embedding models`() {
+        // Arrange
+        val tempFile = createTempYamlFile(
+            """
+            embedding_models:
+              - name: embedding-only
+                model_id: gemini-embedding-test
+                dimensions: 3072
+        """.trimIndent()
+        )
+
+        val loader = GoogleGenAiModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(0, result.models.size)
+        assertEquals(1, result.embeddingModels.size)
     }
 
     private fun createTempYamlFile(content: String): File {

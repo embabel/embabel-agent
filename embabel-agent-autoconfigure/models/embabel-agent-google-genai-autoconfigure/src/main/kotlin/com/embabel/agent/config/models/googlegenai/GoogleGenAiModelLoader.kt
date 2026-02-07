@@ -32,7 +32,8 @@ import java.time.LocalDate
  * @property models list of Google GenAI model definitions
  */
 data class GoogleGenAiModelDefinitions(
-    override val models: List<GoogleGenAiModelDefinition> = emptyList()
+    override val models: List<GoogleGenAiModelDefinition> = emptyList(),
+    val embeddingModels: List<GoogleGenAiEmbeddingModelDefinition> = emptyList()
 ) : LlmAutoConfigProvider<GoogleGenAiModelDefinition>
 
 /**
@@ -64,6 +65,32 @@ data class GoogleGenAiModelDefinition(
     val topK: Int? = null,
     val thinkingBudget: Int? = null,
 ) : LlmAutoConfigMetadata
+
+/**
+ * Google GenAI embedding model definition.
+ *
+ * @property name the unique name of the model
+ * @property modelId the model identifier
+ * @property displayName optional human-readable name
+ * @property dimensions embedding vector dimensions
+ * @property pricingModel optional pricing for embeddings
+ */
+data class GoogleGenAiEmbeddingModelDefinition(
+    val name: String,
+    val modelId: String,
+    val displayName: String? = null,
+    val dimensions: Int? = null,
+    val pricingModel: EmbeddingPricingModel? = null
+)
+
+/**
+ * Pricing model for embedding models.
+ *
+ * @property usdPer1mTokens cost per 1 million tokens (USD)
+ */
+data class EmbeddingPricingModel(
+    val usdPer1mTokens: Double
+)
 
 /**
  * Loader for Google GenAI model definitions from YAML configuration.
@@ -100,6 +127,20 @@ class GoogleGenAiModelLoader(
             }
             model.thinkingBudget?.let {
                 require(it > 0) { "Thinking budget must be positive for model ${model.name}" }
+            }
+        }
+
+        // Validate embedding models
+        provider.embeddingModels.forEach { model ->
+            require(model.name.isNotBlank()) { "Embedding model name cannot be blank" }
+            require(model.modelId.isNotBlank()) { "Embedding model ID cannot be blank" }
+            model.dimensions?.let {
+                require(it > 0) { "Dimensions must be positive for embedding model ${model.name}" }
+            }
+            model.pricingModel?.let {
+                require(it.usdPer1mTokens >= 0) {
+                    "Pricing must be non-negative for embedding model ${model.name}"
+                }
             }
         }
     }

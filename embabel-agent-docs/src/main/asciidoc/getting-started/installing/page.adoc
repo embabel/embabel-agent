@@ -601,7 +601,7 @@ dependencies {
 ----
 ====
 
-Available models include:
+Available LLM models include:
 
 * `gemini-3-pro-preview` - Latest Gemini 3 Pro preview with advanced reasoning
 * `gemini-2.5-pro` - High-performance model with thinking support
@@ -610,6 +610,10 @@ Available models include:
 * `gemini-2.0-flash` - Fast and efficient
 * `gemini-2.0-flash-lite` - Lightweight version
 
+Available embedding models include:
+
+* `gemini-embedding-001` - Recommended embedding model (3072 dimensions)
+
 Example configuration in `application.yml`:
 
 [source,yaml]
@@ -617,16 +621,19 @@ Example configuration in `application.yml`:
 embabel:
   models:
     default-llm: gemini-2.5-flash  # <1>
+    default-embedding-model: gemini-embedding-001  # <2>
     llms:
       fast: gemini-2.5-flash
       best: gemini-2.5-pro
       reasoning: gemini-3-pro-preview
+    embedding-services:
+      default: gemini-embedding-001
 
   agent:
     platform:
       models:
-        googlegenai:  # <2>
-          api-key: ${GOOGLE_API_KEY}  # <3>
+        googlegenai:  # <3>
+          api-key: ${GOOGLE_API_KEY}  # <4>
           # Or use Vertex AI authentication:
           # project-id: ${GOOGLE_PROJECT_ID}
           # location: ${GOOGLE_LOCATION}
@@ -635,8 +642,9 @@ embabel:
 ----
 
 <1> Set a Google GenAI model as the default LLM
-<2> Google GenAI specific configuration
-<3> API key can be set here or via environment variable `GOOGLE_API_KEY`
+<2> Set a Google GenAI embedding model as the default embedding model
+<3> Google GenAI specific configuration
+<4> API key can be set here or via environment variable `GOOGLE_API_KEY`
 
 ===== Mistral AI
 

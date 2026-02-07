@@ -22,15 +22,20 @@ import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
+import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
+import com.embabel.common.ai.model.SpringAiEmbeddingService
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.google.genai.Client
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.ai.google.genai.GoogleGenAiChatModel
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
+import org.springframework.ai.google.genai.GoogleGenAiEmbeddingConnectionDetails
+import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingModel
+import org.springframework.ai.google.genai.text.GoogleGenAiTextEmbeddingOptions
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
@@ -124,34 +129,56 @@ class GoogleGenAiModelsConfig(
 
     @Bean
     fun googleGenAiModelsInitializer(): ProviderInitialization {
+        val definitions = modelLoader.loadAutoConfigMetadata()
+
         val registeredLlms = buildList {
-            modelLoader
-                .loadAutoConfigMetadata().models.forEach { modelDef ->
-                    try {
-                        val llm = createGoogleGenAiLlm(modelDef)
+            definitions.models.forEach { modelDef ->
+                try {
+                    val llm = createGoogleGenAiLlm(modelDef)
 
-                        // Register as singleton bean with the configured bean name
-                        configurableBeanFactory.registerSingleton(modelDef.name, llm)
-                        add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
+                    // Register as singleton bean with the configured bean name
+                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                    add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
 
-                        logger.info(
-                            "Registered Google GenAI model bean: {} -> {}",
-                            modelDef.name, modelDef.modelId
-                        )
+                    logger.info(
+                        "Registered Google GenAI model bean: {} -> {}",
+                        modelDef.name, modelDef.modelId
+                    )
 
-                    } catch (e: Exception) {
-                        logger.error(
-                            "Failed to create model: {} ({})",
-                            modelDef.name, modelDef.modelId, e
-                        )
-                        throw e
-                    }
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create model: {} ({})",
+                        modelDef.name, modelDef.modelId, e
+                    )
+                    throw e
                 }
+            }
+        }
+
+        val registeredEmbeddings = buildList {
+            definitions.embeddingModels.forEach { embeddingDef ->
+                try {
+                    val embeddingService = createGoogleGenAiEmbedding(embeddingDef)
+                    configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
+                    add(RegisteredModel(beanName = embeddingDef.name, modelId = embeddingDef.modelId))
+                    logger.info(
+                        "Registered Google GenAI embedding model bean: {} -> {}",
+                        embeddingDef.name, embeddingDef.modelId
+                    )
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create embedding model: {} ({})",
+                        embeddingDef.name, embeddingDef.modelId, e
+                    )
+                    throw e
+                }
+            }
         }
 
         return ProviderInitialization(
             provider = GoogleGenAiModels.PROVIDER,
             registeredLlms = registeredLlms,
+            registeredEmbeddings = registeredEmbeddings,
         ).also { logger.info(it.summary()) }
     }
 
@@ -241,6 +268,54 @@ class GoogleGenAiModelsConfig(
         }
 
         return builder.build()
+    }
+
+    /**
+     * Creates a [GoogleGenAiEmbeddingConnectionDetails] with the same authentication
+     * logic as [createGoogleGenAiClient].
+     */
+    private fun createGoogleGenAiEmbeddingConnectionDetails(): GoogleGenAiEmbeddingConnectionDetails {
+        val builder = GoogleGenAiEmbeddingConnectionDetails.builder()
+
+        // Resolve credentials: YAML properties take precedence over environment variables
+        val resolvedApiKey = properties.apiKey?.takeIf { it.isNotBlank() } ?: apiKey
+        val resolvedProjectId = properties.projectId?.takeIf { it.isNotBlank() } ?: projectId
+        val resolvedLocation = properties.location?.takeIf { it.isNotBlank() } ?: location
+
+        // Vertex AI takes precedence if both project and location are configured
+        if (resolvedProjectId.isNotBlank() && resolvedLocation.isNotBlank()) {
+            builder.projectId(resolvedProjectId)
+            builder.location(resolvedLocation)
+        } else if (resolvedApiKey.isNotBlank()) {
+            builder.apiKey(resolvedApiKey)
+        } else {
+            throw IllegalStateException(
+                "Google GenAI requires either api-key or both project-id and location to be set. " +
+                        "Configure via YAML (embabel.agent.platform.models.googlegenai.*) " +
+                        "or environment variables (GOOGLE_API_KEY, GOOGLE_PROJECT_ID, GOOGLE_LOCATION)"
+            )
+        }
+
+        return builder.build()
+    }
+
+    /**
+     * Creates an embedding service from configuration.
+     */
+    private fun createGoogleGenAiEmbedding(embeddingDef: GoogleGenAiEmbeddingModelDefinition): EmbeddingService {
+        val options = GoogleGenAiTextEmbeddingOptions.builder()
+            .model(embeddingDef.modelId)
+            .apply { embeddingDef.dimensions?.let { dimensions(it) } }
+            .build()
+        val embeddingModel = GoogleGenAiTextEmbeddingModel(
+            createGoogleGenAiEmbeddingConnectionDetails(),
+            options,
+        )
+        return SpringAiEmbeddingService(
+            name = embeddingDef.modelId,
+            model = embeddingModel,
+            provider = GoogleGenAiModels.PROVIDER,
+        )
     }
 }
 
