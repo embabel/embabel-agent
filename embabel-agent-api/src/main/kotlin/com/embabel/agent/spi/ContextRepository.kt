@@ -23,9 +23,15 @@ import com.embabel.agent.core.Context
 interface ContextRepository {
 
     /**
-     * Create an empty context.
+     * Create an empty context with a generated ID.
      */
     fun create(): Context
+
+    /**
+     * Create an empty context with the specified ID.
+     * Use this when you want deterministic context IDs (e.g., "userId-contextName").
+     */
+    fun createWithId(id: String): Context
 
     fun save(context: Context): Context
 
