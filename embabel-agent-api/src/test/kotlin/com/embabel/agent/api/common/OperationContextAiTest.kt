@@ -18,9 +18,6 @@ package com.embabel.agent.api.common
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.Operation
 import com.embabel.agent.core.ProcessContext
-import com.embabel.chat.ConversationFactory
-import com.embabel.chat.ConversationFactoryProvider
-import com.embabel.chat.ConversationStoreType
 import com.embabel.common.ai.model.*
 import io.mockk.every
 import io.mockk.mockk
@@ -287,56 +284,6 @@ class OperationContextAiTest {
             verify {
                 mockPromptRunner.withLlm(any<LlmOptions>())
             }
-        }
-    }
-
-    @Nested
-    inner class ConversationFactoryTests {
-
-        @Test
-        fun `test conversationFactoryProvider returns provider from platform services`() {
-            val mockContext = createMockOperationContext()
-            val mockConversationFactoryProvider = mockk<ConversationFactoryProvider>()
-
-            every { mockContext.processContext.platformServices.conversationFactoryProvider() } returns mockConversationFactoryProvider
-
-            val ai = createOperationContextAi(mockContext)
-            val result = ai.conversationFactoryProvider()
-
-            assertEquals(mockConversationFactoryProvider, result)
-            verify { mockContext.processContext.platformServices.conversationFactoryProvider() }
-        }
-
-        @Test
-        fun `test conversationFactory returns factory for given type`() {
-            val mockContext = createMockOperationContext()
-            val mockConversationFactoryProvider = mockk<ConversationFactoryProvider>()
-            val mockConversationFactory = mockk<ConversationFactory>()
-
-            every { mockContext.processContext.platformServices.conversationFactoryProvider() } returns mockConversationFactoryProvider
-            every { mockConversationFactoryProvider.getFactory(ConversationStoreType.IN_MEMORY) } returns mockConversationFactory
-
-            val ai = createOperationContextAi(mockContext)
-            val result = ai.conversationFactory(ConversationStoreType.IN_MEMORY)
-
-            assertEquals(mockConversationFactory, result)
-            verify { mockConversationFactoryProvider.getFactory(ConversationStoreType.IN_MEMORY) }
-        }
-
-        @Test
-        fun `test conversationFactory for STORED type`() {
-            val mockContext = createMockOperationContext()
-            val mockConversationFactoryProvider = mockk<ConversationFactoryProvider>()
-            val mockConversationFactory = mockk<ConversationFactory>()
-
-            every { mockContext.processContext.platformServices.conversationFactoryProvider() } returns mockConversationFactoryProvider
-            every { mockConversationFactoryProvider.getFactory(ConversationStoreType.STORED) } returns mockConversationFactory
-
-            val ai = createOperationContextAi(mockContext)
-            val result = ai.conversationFactory(ConversationStoreType.STORED)
-
-            assertEquals(mockConversationFactory, result)
-            verify { mockConversationFactoryProvider.getFactory(ConversationStoreType.STORED) }
         }
     }
 

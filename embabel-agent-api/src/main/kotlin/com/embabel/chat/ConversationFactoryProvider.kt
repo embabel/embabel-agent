@@ -21,12 +21,12 @@ package com.embabel.chat
  * Implementations resolve factories based on [ConversationStoreType],
  * typically backed by Spring beans registered via autoconfiguration.
  *
- * To use conversation factories, either:
+ * To use conversation factories:
  * - Inject [ConversationFactoryProvider] directly via Spring DI
- * - Use the fluent API: `context.ai().conversationFactory(ConversationStoreType.STORED)`
+ * - Pass the appropriate [ConversationFactory] when creating a chatbot
  *
- * Note: The fluent API requires `embabel-chat-store` on the classpath.
- * Without it, calling those methods will throw [org.springframework.beans.factory.NoSuchBeanDefinitionException].
+ * The storage type should be configured once at chatbot creation time,
+ * not per-call by developers.
  */
 interface ConversationFactoryProvider {
 
