@@ -18,6 +18,7 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.tool.Tool.Definition
+import com.embabel.agent.core.DomainType
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
@@ -117,6 +118,14 @@ interface Tool : ToolInfo {
             @JvmStatic
             fun of(vararg parameters: Parameter): InputSchema =
                 SimpleInputSchema(parameters.toList())
+
+            @JvmStatic
+            fun of(type: Class<*>): InputSchema =
+                TypeBasedInputSchema(type)
+
+            @JvmStatic
+            fun of(domainType: DomainType): InputSchema =
+                DomainTypeInputSchema(domainType)
 
             @JvmStatic
             fun empty(): InputSchema = SimpleInputSchema(emptyList())

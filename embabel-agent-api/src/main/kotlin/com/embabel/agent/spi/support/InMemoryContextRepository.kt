@@ -41,6 +41,10 @@ class InMemoryContextRepository(
         return save(InMemoryContext(id = UUID.randomUUID().toString()))
     }
 
+    override fun createWithId(id: String): Context {
+        return save(InMemoryContext(id = id))
+    }
+
     override fun findById(id: String): Context? = lock.read {
         map[id]
     }

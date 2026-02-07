@@ -20,7 +20,6 @@ import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.Condition
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.satisfiesType
-import com.embabel.agent.core.support.Rerun.HAS_RUN_CONDITION_PREFIX
 import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.plan.common.condition.ConditionDetermination
 import com.embabel.plan.common.condition.ConditionWorldState
@@ -164,7 +163,8 @@ class BlackboardWorldStateDeterminer(
             }
         }
         if (conditionDetermination == ConditionDetermination.UNKNOWN) {
-            logger.info(
+            // These occur often so don't log at info level, but at debug level for troubleshooting
+            logger.debug(
                 "Determined condition {} to be unknown: knownConditions={}, bindings={}",
                 condition,
                 knownConditions.sorted(),
