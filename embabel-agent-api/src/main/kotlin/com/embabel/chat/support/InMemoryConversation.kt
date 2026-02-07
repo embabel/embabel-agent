@@ -60,4 +60,8 @@ class InMemoryConversation private constructor(
             _messages = this._messages.takeLast(n).toMutableList(),
             assetTracker = this.assetTracker,
         )
+
+    override fun toString(): String {
+        return "InMemoryConversation(id='$id', messages=${messages.size}, persistent=$persistent)"
+    }
 }
