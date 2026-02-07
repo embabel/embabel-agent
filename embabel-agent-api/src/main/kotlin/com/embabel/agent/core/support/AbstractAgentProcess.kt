@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.StuckHandlingResultCode
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.*
 import com.embabel.agent.core.*
+import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import com.embabel.agent.spi.DelayedActionExecutionSchedule
 import com.embabel.agent.spi.ProntoActionExecutionSchedule
 import com.embabel.agent.spi.ScheduledActionExecutionSchedule
@@ -373,10 +374,12 @@ abstract class AbstractAgentProcess(
         val blackboardObjectsBefore = blackboard.objects.toList()
 
         val timestamp = Instant.now()
-        val actionStatus = action.qos.retryTemplate("Action-${action.name}").execute<ActionStatus, Throwable> {
-            action.execute(
-                processContext = processContext,
-            )
+        val actionStatus = withCurrent {
+            action.qos.retryTemplate("Action-${action.name}").execute<ActionStatus, Throwable> {
+                action.execute(
+                    processContext = processContext,
+                )
+            }
         }
         val runningTime = Duration.between(timestamp, Instant.now())
         _history += ActionInvocation(

@@ -22,7 +22,6 @@ import com.embabel.agent.api.tool.agentic.AgenticToolSupport
 import com.embabel.agent.api.tool.agentic.DomainToolFactory
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
-import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
@@ -59,7 +58,7 @@ import com.embabel.common.util.loggerFor
  *
  * @param definition Tool definition (name, description, input schema)
  * @param metadata Optional tool metadata
- * @param llm LLM to use for orchestration
+ * @param llm LLM to use for orchestration. It is good practice to provide
  * @param unlockedTools Tools that are always available
  * @param lockedTools Tools with unlock conditions
  * @param systemPromptCreator Create prompt for the LLM to use
