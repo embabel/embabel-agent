@@ -199,35 +199,13 @@ data class SimpleAgenticTool(
         captureNestedArtifacts = capture,
     )
 
-    /**
-     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
-     *
-     * When a single artifact of the specified type is returned by any tool, any @LlmTool annotated
-     * methods on that instance become available as tools.
-     *
-     * Example:
-     * ```kotlin
-     * SimpleAgenticTool("userManager", "Manage users")
-     *     .withTools(searchUserTool, getUserTool)
-     *     .withDomainToolsFrom(User::class.java)  // User methods become available when a single User is retrieved
-     * ```
-     *
-     * @param type The domain class that may contribute tools
-     */
-    fun <T : Any> withDomainToolsFrom(type: Class<T>): SimpleAgenticTool = copy(
+    override fun <T : Any> withDomainToolsFrom(type: Class<T>): SimpleAgenticTool = copy(
         domainToolSources = domainToolSources + DomainToolSource(type),
     )
 
     /**
      * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
      * Kotlin-friendly version using reified type parameter.
-     *
-     * Example:
-     * ```kotlin
-     * SimpleAgenticTool("userManager", "Manage users")
-     *     .withTools(searchUserTool, getUserTool)
-     *     .withDomainToolsFrom<User>()  // User methods become available when a single User is retrieved
-     * ```
      */
     inline fun <reified T : Any> withDomainToolsFrom(): SimpleAgenticTool =
         withDomainToolsFrom(T::class.java)

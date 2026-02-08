@@ -108,6 +108,33 @@ interface AgenticTool<THIS : AgenticTool<THIS>> : Tool {
      */
     fun withToolObject(toolObject: Any): THIS
 
+    /**
+     * Register a domain class whose @LlmTool methods become available as tools
+     * when a single instance of that type is returned as an artifact.
+     *
+     * This enables dynamic tool injection based on runtime artifacts. Initially,
+     * placeholder tools are created for each @LlmTool method on the class.
+     * When a tool returns an artifact matching the registered type, the placeholder
+     * tools become active and delegate to the bound instance.
+     *
+     * Example:
+     * ```kotlin
+     * class User {
+     *     @LlmTool("Update the user's email")
+     *     fun updateEmail(newEmail: String): String { ... }
+     * }
+     *
+     * // The LLM first calls getUserTool to get a User
+     * // Then updateEmail() becomes available as a tool
+     * SimpleAgenticTool("userManager", "Manage users")
+     *     .withTools(searchUserTool, getUserTool)
+     *     .withDomainToolsFrom(User::class.java)
+     * ```
+     *
+     * @param type The domain class that may contribute @LlmTool methods
+     */
+    fun <T : Any> withDomainToolsFrom(type: Class<T>): THIS
+
     companion object {
         /**
          * Default max iterations for agentic tools.

@@ -242,7 +242,7 @@ data class PlaybookTool internal constructor(
      *
      * @param type The domain class that may contribute tools
      */
-    fun <T : Any> withDomainToolsFrom(type: Class<T>): PlaybookTool = copy(
+    override fun <T : Any> withDomainToolsFrom(type: Class<T>): PlaybookTool = copy(
         domainToolSources = domainToolSources + DomainToolSource(type),
     )
 

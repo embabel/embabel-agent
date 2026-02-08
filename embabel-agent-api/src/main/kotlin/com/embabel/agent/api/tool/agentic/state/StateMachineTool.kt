@@ -314,7 +314,7 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
      *
      * @param type The domain class that may contribute tools
      */
-    fun <T : Any> withDomainToolsFrom(type: Class<T>): StateMachineTool<S> = copy(
+    override fun <T : Any> withDomainToolsFrom(type: Class<T>): StateMachineTool<S> = copy(
         domainToolSources = domainToolSources + DomainToolSource(type),
     )
 

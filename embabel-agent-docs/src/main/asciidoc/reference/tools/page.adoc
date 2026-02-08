@@ -1718,6 +1718,7 @@ The available modification methods are:
 - `withSystemPrompt(String)`: Set a fixed system prompt
 - `withSystemPrompt((ExecutingOperationContext, String) -> String)`: Set a dynamic prompt based on execution context and input
 - `withCaptureNestedArtifacts(Boolean)`: Control whether artifacts from nested agentic tool calls are captured (default: `false`)
+- `withDomainToolsFrom(Class<T>)`: Register a domain class whose `@LlmTool` methods become available when an artifact of that type is returned
 
 [[reference.tools__agentic-tools-artifact-capture]]
 ===== Controlling Artifact Capture in Nested Agentic Tools
@@ -1763,6 +1764,84 @@ val fullCapture = concertAssembler.withCaptureNestedArtifacts(true)
 
 IMPORTANT: This setting only affects artifacts from nested agentic tool calls.
 Artifacts from regular (non-agentic) tools are always captured.
+
+[[reference.tools__domain-tool-injection]]
+===== Dynamic Domain Tool Injection
+
+When working with domain objects, you often want to expose `@LlmTool` methods on those objects as tools—but only after the object has been retrieved.
+The `withDomainToolsFrom()` method enables this pattern.
+
+When you register a domain class, placeholder tools are created for each `@LlmTool` method on that class.
+Initially, these tools return "not available yet" messages.
+When a tool returns an artifact matching the registered type, the placeholder tools become active and delegate to the bound instance.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Domain class with tool methods
+public class User {
+    private final String id;
+    private String email;
+
+    @LlmTool("Update the user's email address")
+    public String updateEmail(String newEmail) {
+        this.email = newEmail;
+        return "Email updated to " + newEmail;
+    }
+}
+
+// Create agentic tool with domain tool injection
+SimpleAgenticTool userManager = new SimpleAgenticTool("userManager", "Manage user accounts")
+    .withTools(searchUserTool, getUserTool)           // Tools to find/retrieve users
+    .withDomainToolsFrom(User.class);                 // User methods become tools when retrieved
+
+// Flow:
+// 1. LLM calls searchUserTool to find users
+// 2. LLM calls getUserTool which returns a User artifact
+// 3. updateEmail() becomes available as a tool bound to that User
+// 4. LLM calls updateEmail("new@example.com")
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Domain class with tool methods
+class User(val id: String, var email: String) {
+    @LlmTool("Update the user's email address")
+    fun updateEmail(newEmail: String): String {
+        this.email = newEmail
+        return "Email updated to $newEmail"
+    }
+}
+
+// Create agentic tool with domain tool injection
+val userManager = SimpleAgenticTool("userManager", "Manage user accounts")
+    .withTools(searchUserTool, getUserTool)     // Tools to find/retrieve users
+    .withDomainToolsFrom<User>()                // User methods become tools when retrieved
+
+// Flow:
+// 1. LLM calls searchUserTool to find users
+// 2. LLM calls getUserTool which returns a User artifact
+// 3. updateEmail() becomes available as a tool bound to that User
+// 4. LLM calls updateEmail("new@example.com")
+----
+====
+
+This pattern is useful when:
+
+- **Domain objects have operations**: The object itself knows how to perform actions (e.g., `user.updateEmail()`, `order.cancel()`)
+- **Context-dependent tools**: Operations only make sense after retrieving a specific instance
+- **Clean API design**: Tools are defined on the domain class rather than as separate tool classes
+
+All agentic tool types support domain tool injection:
+
+- `SimpleAgenticTool`: Domain tools are available as soon as an artifact is returned
+- `PlaybookTool`: Domain tools are available immediately (not subject to unlock conditions)
+- `StateMachineTool`: Domain tools are available globally (not state-bound)
 
 [[reference.tools__artifact-filtering]]
 ===== Filtering Artifacts for Asset Tracking
