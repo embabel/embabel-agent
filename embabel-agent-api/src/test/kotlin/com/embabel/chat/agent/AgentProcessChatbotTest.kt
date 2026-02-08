@@ -16,9 +16,9 @@
 package com.embabel.chat.agent
 
 import com.embabel.agent.api.channel.DevNullOutputChannel
+import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.core.support.EmptyAgentBuilder.emptyAgent
 import com.embabel.chat.Conversation
 import com.embabel.chat.ConversationFactory
 import com.embabel.chat.ConversationStoreType
@@ -46,7 +46,7 @@ class AgentProcessChatbotTest {
 
         val chatbot = AgentProcessChatbot(
             agentPlatform = agentPlatform,
-            agentSource = { emptyAgent() },
+            agentSource = { mockk<Agent>(relaxed = true) },
             conversationFactory = factory,
         )
 
@@ -80,7 +80,7 @@ class AgentProcessChatbotTest {
 
         val chatbot = AgentProcessChatbot(
             agentPlatform = agentPlatform,
-            agentSource = { emptyAgent() },
+            agentSource = { mockk<Agent>(relaxed = true) },
             conversationFactory = factory,
         )
 
@@ -114,7 +114,7 @@ class AgentProcessChatbotTest {
 
         val chatbot = AgentProcessChatbot(
             agentPlatform = agentPlatform,
-            agentSource = { emptyAgent() },
+            agentSource = { mockk<Agent>(relaxed = true) },
             conversationFactory = factory,
         )
 
@@ -160,7 +160,7 @@ class AgentProcessChatbotTest {
 
         val chatbot = AgentProcessChatbot(
             agentPlatform = agentPlatform,
-            agentSource = { emptyAgent() },
+            agentSource = { mockk<Agent>(relaxed = true) },
         )
 
         val session = chatbot.findSession("unknown-id")
@@ -180,7 +180,7 @@ class AgentProcessChatbotTest {
 
         val chatbot = AgentProcessChatbot(
             agentPlatform = agentPlatform,
-            agentSource = { emptyAgent() },
+            agentSource = { mockk<Agent>(relaxed = true) },
         )
 
         val session = chatbot.findSession("conv-123")
