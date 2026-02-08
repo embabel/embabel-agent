@@ -305,17 +305,30 @@ class ChatConfiguration {
 
     @Bean
     Chatbot chatbot(AgentPlatform agentPlatform) {
-        return AgentProcessChatbot.utilityFromPlatform( // <1>
-                agentPlatform, // <2>
-                new Verbosity().showPrompts() // <3>
-        );
+        return AgentProcessChatbot.utilityFromPlatform(agentPlatform); // <1> <2>
     }
 }
 ----
 
 <1> Creates a chatbot using Utility AI planning to select the best action
 <2> Discovers all `@Action` methods from `@EmbabelComponent` classes on the platform
-<3> Optional `Verbosity` configuration for debugging prompts
+
+For debugging, you can pass a custom `Verbosity` configuration:
+
+[source,java]
+----
+@Bean
+Chatbot chatbot(AgentPlatform agentPlatform) {
+    return AgentProcessChatbot.utilityFromPlatform(
+            agentPlatform,
+            new InMemoryConversationFactory(), // <1>
+            new Verbosity().showPrompts()      // <2>
+    );
+}
+----
+
+<1> Conversation factory (required when specifying verbosity)
+<2> `Verbosity` configuration for debugging prompts
 
 IMPORTANT: Be sure that the `AgentPlatform` has loaded all its actions before creating a new session on your `AgentProcessChatbot`.
 Otherwise the actions needed to respond to chat may not be available in the session.
