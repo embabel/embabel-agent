@@ -46,10 +46,12 @@ class ConversationFactoryTest {
 
         val result = factory.createForParticipants(
             id = "test-id",
-            user = object : com.embabel.agent.api.identity.User {
-                override val id = "user-1"
-                override val name = "Test User"
-            }
+            user = com.embabel.agent.api.identity.SimpleUser(
+                id = "user-1",
+                displayName = "Test User",
+                username = "testuser",
+                email = null,
+            )
         )
 
         assertTrue(createCalled)
