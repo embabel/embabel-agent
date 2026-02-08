@@ -853,7 +853,8 @@ This enables composition of agents and "handoff" patterns where one agent delega
 
 ===== Creating Subagents
 
-Subagent uses a fluent builder pattern. First select how to reference the agent, then specify the input type using `consuming()`:
+Subagent uses a fluent builder pattern.
+First select how to reference the agent, then specify the input type using `consuming()`:
 
 [tabs]
 ====
@@ -3066,13 +3067,19 @@ val cartTool = MatryoshkaTool.selectable(
 
 Other agent frameworks address large tool collections with different approaches, each with trade-offs:
 
-* **Anthropic's Tool Search Tool**: Uses a `defer_loading: true` flag to prevent tools from being loaded upfront. Tools are discovered via a separate "Tool Search Tool" that searches tool metadata. This requires maintaining searchable tool descriptions and adds latency for each discovery step.
+* **Anthropic's Tool Search Tool**: Uses a `defer_loading: true` flag to prevent tools from being loaded upfront.
+Tools are discovered via a separate "Tool Search Tool" that searches tool metadata.
+This requires maintaining searchable tool descriptions and adds latency for each discovery step.
 
-* **LangGraph Dynamic Tool Calling**: Uses vector stores and semantic search to select relevant tools based on the user's query. This requires embedding infrastructure, vector database setup, and careful tuning of similarity thresholds.
+* **LangGraph Dynamic Tool Calling**: Uses vector stores and semantic search to select relevant tools based on the user's query.
+This requires embedding infrastructure, vector database setup, and careful tuning of similarity thresholds.
 
-* **Google ADK AgentTool**: Uses sub-agents that recursively delegate to other agents, each potentially having their own tool sets. Tool discovery is implicit through the agent hierarchy.
+* **Google ADK AgentTool**: Uses sub-agents that recursively delegate to other agents, each potentially having their own tool sets.
+Tool discovery is implicit through the agent hierarchy.
 
-* **LangChain4j ToolProvider**: Provides a `ToolProvider` interface for dynamic tool selection, but it works _before_ the LLM call by analyzing the incoming user message. For example, "if the message contains 'booking', include booking tools." This is pre-filtering based on message content, not progressive disclosure through tool invocation. LangChain4j's documentation also suggests embedding-based classification, RAG over tool descriptions, or two-pass LLM selection—all requiring additional infrastructure or extra LLM calls.
+* **LangChain4j ToolProvider**: Provides a `ToolProvider` interface for dynamic tool selection, but it works _before_ the LLM call by analyzing the incoming user message.
+For example, "if the message contains 'booking', include booking tools." This is pre-filtering based on message content, not progressive disclosure through tool invocation.
+LangChain4j's documentation also suggests embedding-based classification, RAG over tool descriptions, or two-pass LLM selection—all requiring additional infrastructure or extra LLM calls.
 
 MatryoshkaTool takes a fundamentally different approach: *invoke to reveal*.
 Instead of searching through tool metadata, the LLM simply invokes a facade tool to unlock the tools it contains.
@@ -3164,6 +3171,208 @@ When used as an `LlmReference`, the `tools()` method exposes the inner tools dir
 When used as a `Tool`, the implementation wraps them in a `MatryoshkaTool` facade.
 ====
 
+[[reference.tools__process-introspection]]
+==== Process Introspection Tools
+
+Embabel provides built-in `MatryoshkaTool` implementations for introspecting the current agent process and its blackboard.
+These tools enable agentic workflows where the LLM can monitor its own progress, check resource usage, and access data from previous steps.
+
+===== AgentProcessTools: Runtime Awareness
+
+`AgentProcessTools` provides tools for the LLM to understand its current execution context.
+This is useful when you want an agent to be aware of its own operational status - for example, to check how much budget remains before undertaking an expensive operation, or to review what actions have been taken so far.
+
+When to use `AgentProcessTools`:
+
+* **Budget-aware agents**: Check remaining cost or token budget before expensive operations
+* **Long-running workflows**: Monitor elapsed time and action history
+* **Debugging and logging**: Understand what models and tools have been used
+* **Self-reflection**: Agents that need to reason about their own behavior
+
+**Sub-tools exposed:**
+
+|===
+|Tool Name |Purpose
+
+|`process_status`
+|Current process ID, status, running time, and goal information
+
+|`process_budget`
+|Budget limits (cost, tokens, actions) and remaining capacity
+
+|`process_cost`
+|Total cost, LLM invocation count, and detailed token usage
+
+|`process_history`
+|List of actions taken so far with execution times
+
+|`process_tools_stats`
+|Tool usage statistics (call counts per tool)
+
+|`process_models`
+|LLM models that have been invoked
+|===
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.tools.process.AgentProcessTools;
+import com.embabel.agent.api.tool.MatryoshkaTool;
+
+// Create the tool - typically added to an agentic tool
+var processTools = new AgentProcessTools().create();
+
+// Add to SimpleAgenticTool
+var assistant = new SimpleAgenticTool("assistant", "...")
+    .withTools(processTools);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.tools.process.AgentProcessTools
+import com.embabel.agent.api.tool.MatryoshkaTool
+
+// Create the tool - typically added to an agentic tool
+val processTools = AgentProcessTools().create()
+
+// Add to SimpleAgenticTool
+val assistant = SimpleAgenticTool("assistant", "...")
+    .withTools(processTools)
+----
+====
+
+NOTE: These tools require an active `AgentProcess` context.
+If called outside of an agent execution, they return an error message indicating no process is available.
+
+===== BlackboardTools: Accessing Workflow Data
+
+`BlackboardTools` provides tools for the LLM to access objects in the current process's blackboard.
+The blackboard is Embabel's shared context mechanism - it holds artifacts from previous actions, tool outputs (when using `ArtifactSink`), and any other objects bound to the process.
+
+When to use `BlackboardTools`:
+
+* **Multi-step workflows**: Access results from earlier actions without re-execution
+* **Tool output access**: When tools use `ArtifactSink` to publish structured data, BlackboardTools lets the LLM retrieve it
+* **Context awareness**: Let the LLM explore what data is available in the current context
+* **Debugging**: Inspect blackboard contents during development
+
+**Sub-tools exposed:**
+
+|===
+|Tool Name |Purpose
+
+|`blackboard_list`
+|List all objects in the blackboard with their types and indices
+
+|`blackboard_get`
+|Get an object by its binding name (e.g., "user", "searchResults")
+
+|`blackboard_last`
+|Get the most recent object of a given type (matches simple name or FQN)
+
+|`blackboard_describe`
+|Get a detailed description/formatting of an object by binding name
+
+|`blackboard_count`
+|Count the number of objects of a given type in the blackboard
+|===
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.tools.blackboard.BlackboardTools;
+import com.embabel.agent.api.tool.MatryoshkaTool;
+
+// Create with default formatting
+var blackboardTools = new BlackboardTools().create();
+
+// Or with custom formatting for blackboard entries
+var blackboardTools = new BlackboardTools().create(myCustomFormatter);
+
+// Add to SimpleAgenticTool
+var assistant = new SimpleAgenticTool("assistant", "...")
+    .withTools(blackboardTools);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.tools.blackboard.BlackboardTools
+import com.embabel.agent.api.tool.MatryoshkaTool
+
+// Create with default formatting
+val blackboardTools: MatryoshkaTool = BlackboardTools().create()
+
+// Or with custom formatting for blackboard entries
+val blackboardTools = BlackboardTools().create(myCustomFormatter)
+
+// Add to SimpleAgenticTool
+val assistant = SimpleAgenticTool("assistant", "...")
+    .withTools(blackboardTools)
+----
+====
+
+**Formatting blackboard entries:**
+
+By default, `BlackboardTools` uses `DefaultBlackboardEntryFormatter` which:
+
+* Uses `infoString()` for objects implementing `HasInfoString`
+* Uses `content` property for objects implementing `HasContent`
+* Falls back to `toString()` for other objects
+
+You can provide a custom `BlackboardEntryFormatter` to control how objects are presented to the LLM.
+
+**Type matching:**
+
+The `blackboard_last` and `blackboard_count` tools match types by:
+
+* **Simple name**: `"Person"` matches any class named `Person`
+* **Fully qualified name**: `"com.example.Person"` matches that specific class
+
+This flexibility lets the LLM query by whatever name is most convenient.
+
+===== Combining Process Introspection Tools
+
+For agents that need full situational awareness, combine both tools:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+SimpleAgenticTool awarenessAgent = new SimpleAgenticTool(
+        "aware_assistant",
+        "An assistant that can check its own status and access previous results")
+    .withTools(
+        new AgentProcessTools().create(),
+        new BlackboardTools().create()
+    );
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val awarenessAgent = SimpleAgenticTool(
+    name = "aware_assistant",
+    systemPrompt = "An assistant that can check its own status and access previous results"
+).withTools(
+    AgentProcessTools().create(),
+    BlackboardTools().create()
+)
+----
+====
+
 [[reference.tools__mcp-tool-factory]]
 ==== McpToolFactory: MCP Tool Integration
 
@@ -3210,7 +3419,8 @@ class ToolConfiguration {
 ----
 ====
 
-TIP: MCP clients are configured in `application.yml`. See <<reference.integrations__mcp,MCP Integration>> for configuration details.
+TIP: MCP clients are configured in `application.yml`.
+See <<reference.integrations__mcp,MCP Integration>> for configuration details.
 
 ===== Getting Individual MCP Tools
 
