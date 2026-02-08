@@ -106,8 +106,8 @@ For example:
 var story = context.ai()
     .withDefaultLlm()
     .withToolGroup(CoreToolGroups.WEB)
-    .withExample("A children's story", new Story("Once upon a time...")) // <1>
     .creating(Story.class)
+    .withExample("A children's story", new Story("Once upon a time...")) // <1>
     .fromPrompt("Create a story about: " + input.getContent());
 ----
 

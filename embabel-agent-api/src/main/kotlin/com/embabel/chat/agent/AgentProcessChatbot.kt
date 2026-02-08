@@ -67,14 +67,13 @@ class AgentProcessChatbot(
     override fun createSession(
         user: User?,
         outputChannel: OutputChannel,
-        contextId: ContextId?,
-        systemMessage: String?,
+        contextId: String?,
     ): ChatSession {
         val listeners = listenerProvider.listenersFor(user, outputChannel)
         val agentProcess = agentPlatform.createAgentProcess(
             agent = agentSource.resolveAgent(user),
             processOptions = ProcessOptions(
-                contextId = contextId,
+                contextId = contextId?.let { ContextId(it) },
                 outputChannel = outputChannel,
                 listeners = listeners,
                 identities = Identities(

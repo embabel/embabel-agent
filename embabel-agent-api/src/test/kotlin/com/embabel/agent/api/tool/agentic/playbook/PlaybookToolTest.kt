@@ -148,7 +148,7 @@ class PlaybookToolTest {
                 .withSystemPrompt("Custom prompt")
 
             // Verify by checking the prompt creator returns our custom prompt
-            val prompt = playbook.systemPromptCreator(mockk())
+            val prompt = playbook.systemPromptCreator.apply(mockk(), "test input")
             assertThat(prompt).isEqualTo("Custom prompt")
         }
     }

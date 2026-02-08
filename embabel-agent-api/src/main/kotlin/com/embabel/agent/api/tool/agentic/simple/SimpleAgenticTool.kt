@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.tool.agentic.simple
 
+import com.embabel.agent.api.common.ExecutingOperationContext
 import com.embabel.agent.api.tool.ArtifactSinkingTool
 import com.embabel.agent.api.tool.ListSink
 import com.embabel.agent.api.tool.Tool
@@ -24,7 +25,6 @@ import com.embabel.agent.api.tool.agentic.AgenticToolSupport
 import com.embabel.agent.api.tool.agentic.DomainToolFactory
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
-import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
@@ -56,7 +56,7 @@ internal class DomainAwareSink(
  * @param metadata Optional tool metadata
  * @param llm LLM to use for orchestration
  * @param tools Sub-tools available for the LLM to orchestrate
- * @param systemPromptCreator Create prompt for the LLM to use
+ * @param systemPromptCreator Create prompt for the LLM to use, given context and input
  * @param maxIterations Maximum number of tool loop iterations
  * @param captureNestedArtifacts Whether to capture artifacts from nested AgenticTools
  */
@@ -66,10 +66,12 @@ data class SimpleAgenticTool(
     override val llm: LlmOptions = LlmOptions(),
     val tools: List<Tool> = emptyList(),
     internal val domainToolSources: List<DomainToolSource<*>> = emptyList(),
-    val systemPromptCreator: AgenticSystemPromptCreator = { AgenticTool.defaultSystemPrompt(definition.description) },
+    val systemPromptCreator: AgenticSystemPromptCreator = AgenticSystemPromptCreator { _, _ ->
+        AgenticTool.defaultSystemPrompt(definition.description)
+    },
     override val maxIterations: Int = AgenticTool.DEFAULT_MAX_ITERATIONS,
     val captureNestedArtifacts: Boolean = false,
-) : AgenticTool {
+) : AgenticTool<SimpleAgenticTool> {
 
     /**
      * Create a simple agentic tool with name and description.
@@ -100,7 +102,8 @@ data class SimpleAgenticTool(
         )
         if (errorResult != null) return errorResult
 
-        val systemPrompt = systemPromptCreator(agentProcess!!)
+        val executingContext = executingOperationContextFor(agentProcess!!)
+        val systemPrompt = systemPromptCreator.apply(executingContext, input)
         loggerFor<SimpleAgenticTool>().info(
             "Executing SimpleAgenticTool '{}' with {} tools and {} domain sources",
             definition.name,
@@ -120,7 +123,7 @@ data class SimpleAgenticTool(
         val sink = DomainAwareSink(artifacts, domainToolTracker)
         val wrappedTools = tools.map { tool ->
             // Skip wrapping nested AgenticTools if captureNestedArtifacts is false
-            if (!captureNestedArtifacts && tool is AgenticTool) {
+            if (!captureNestedArtifacts && tool is AgenticTool<*>) {
                 tool
             } else {
                 ArtifactSinkingTool(tool, Any::class.java, sink)
@@ -136,7 +139,7 @@ data class SimpleAgenticTool(
 
         val allTools = wrappedTools + domainPlaceholderTools
 
-        val ai = executingOperationContextFor(agentProcess).ai()
+        val ai = executingContext.ai()
         val output = ai
             .withLlm(llm)
             .withId("simple-agentic-tool-${definition.name}")
@@ -149,8 +152,8 @@ data class SimpleAgenticTool(
 
     override fun withLlm(llm: LlmOptions): SimpleAgenticTool = copy(llm = llm)
 
-    override fun withSystemPrompt(prompt: String): SimpleAgenticTool = copy(
-        systemPromptCreator = { prompt },
+    override fun withSystemPrompt(creator: AgenticSystemPromptCreator): SimpleAgenticTool = copy(
+        systemPromptCreator = creator,
     )
 
     override fun withMaxIterations(maxIterations: Int): SimpleAgenticTool = copy(
@@ -169,13 +172,6 @@ data class SimpleAgenticTool(
             copy(tools = tools + additionalTools)
         }
     }
-
-    /**
-     * Create a copy with a custom system prompt creator.
-     */
-    fun withSystemPromptCreator(promptCreator: AgenticSystemPromptCreator): SimpleAgenticTool = copy(
-        systemPromptCreator = promptCreator,
-    )
 
     /**
      * Create a copy with additional tools.

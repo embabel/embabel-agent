@@ -200,7 +200,51 @@ val BlacklistTestAgent = agent("BlacklistTester", description = "Agent that test
     goal(name = "frog_goal", description = "Turn input into frog", satisfiedBy = Frog::class)
 }
 
+/**
+ * Agent that verifies AgentProcess.get() returns the current process during action execution.
+ */
+val AgentProcessContextTestAgent = agent("ContextTester", description = "Tests AgentProcess.get() availability") {
+    transformation<UserInput, LocalPerson>(name = "check_context") {
+        val currentProcess = AgentProcess.get()
+        requireNotNull(currentProcess) { "AgentProcess.get() should not return null during action execution" }
+        LocalPerson(name = "Context OK: ${it.input.content}")
+    }
+
+    transformation<LocalPerson, Frog>(name = "to_frog") {
+        Frog(it.input.name)
+    }
+
+    goal(name = "frog_goal", description = "Turn input into frog", satisfiedBy = Frog::class)
+}
+
 class SimpleAgentProcessTest {
+
+    @Nested
+    inner class AgentProcessContext {
+
+        @Test
+        fun `AgentProcess get() returns current process during action execution`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("TestContext")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-context",
+                agent = AgentProcessContextTestAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            val result = agentProcess.run()
+
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.status)
+            val frog = blackboard.lastResult() as Frog
+            assertTrue(frog.name.contains("Context OK"))
+        }
+    }
 
     @Nested
     inner class Serialization {

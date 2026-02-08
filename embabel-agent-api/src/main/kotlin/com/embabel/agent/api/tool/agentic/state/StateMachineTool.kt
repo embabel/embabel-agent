@@ -15,7 +15,9 @@
  */
 package com.embabel.agent.api.tool.agentic.state
 
+import com.embabel.agent.api.common.ExecutingOperationContext
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator
 import com.embabel.agent.api.tool.agentic.AgenticTool
 import com.embabel.agent.api.tool.agentic.AgenticToolSupport
 import com.embabel.agent.api.tool.agentic.DomainToolFactory
@@ -79,6 +81,7 @@ interface StateMachineToolOperations<S : Enum<S>> {
  * @param initialState The starting state
  * @param stateTools Map of state to tools available in that state
  * @param llm LLM options for orchestration
+ * @param systemPromptCreator Create prompt for the LLM, given context, input, and current state
  * @param maxIterations Maximum iterations before stopping
  */
 data class StateMachineTool<S : Enum<S>> internal constructor(
@@ -90,11 +93,11 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
     internal val globalTools: List<Tool> = emptyList(),
     internal val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     override val llm: LlmOptions = LlmOptions(),
-    val systemPromptCreator: (AgentProcess, S) -> String = { _, state ->
+    val systemPromptCreator: (ExecutingOperationContext, String, S) -> String = { _, _, state ->
         defaultSystemPrompt(definition.description, state)
     },
     override val maxIterations: Int = AgenticTool.DEFAULT_MAX_ITERATIONS,
-) : AgenticTool, StateMachineToolOperations<S> {
+) : AgenticTool<StateMachineTool<S>>, StateMachineToolOperations<S> {
 
     /**
      * Entry for a tool registered in a state.
@@ -143,14 +146,13 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
                 return Tool.Result.error("No initial state configured for StateMachineTool")
             }
 
-        val agentProcess = AgentProcess.get()
-            ?: run {
-                loggerFor<StateMachineTool<*>>().error(
-                    "No AgentProcess context available for StateMachineTool '{}'",
-                    definition.name,
-                )
-                return Tool.Result.error("No AgentProcess context available for StateMachineTool")
-            }
+        val (agentProcess, errorResult) = AgenticToolSupport.getAgentProcessOrError(
+            definition.name,
+            loggerFor<StateMachineTool<*>>(),
+        )
+        if (errorResult != null) return errorResult
+
+        val executingContext = executingOperationContextFor(agentProcess!!)
 
         loggerFor<StateMachineTool<*>>().info(
             "Executing StateMachineTool '{}' starting in state {} with {} domain sources",
@@ -180,9 +182,9 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
             return Tool.Result.error("No tools registered for StateMachineTool")
         }
 
-        val systemPrompt = systemPromptCreator(agentProcess, stateHolder.currentState)
+        val systemPrompt = systemPromptCreator(executingContext, input, stateHolder.currentState)
 
-        val ai = executingOperationContextFor(agentProcess).ai()
+        val ai = executingContext.ai()
         val output = ai
             .withLlm(llm)
             .withId("state-machine-tool-${definition.name}")
@@ -259,14 +261,17 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
         maxIterations = maxIterations,
     )
 
-    override fun withSystemPrompt(prompt: String): StateMachineTool<S> = copy(
-        systemPromptCreator = { _, _ -> prompt },
+    override fun withSystemPrompt(creator: AgenticSystemPromptCreator): StateMachineTool<S> = copy(
+        systemPromptCreator = { ctx, input, _ -> creator.apply(ctx, input) },
     )
 
     /**
-     * Set a custom system prompt creator that receives both AgentProcess and current state.
+     * Set a custom system prompt creator that also receives the current state.
+     * This is useful for state machines where the prompt needs to reflect the current state.
      */
-    fun withSystemPromptCreator(creator: (AgentProcess, S) -> String): StateMachineTool<S> = copy(
+    fun withStateAwareSystemPrompt(
+        creator: (ExecutingOperationContext, String, S) -> String,
+    ): StateMachineTool<S> = copy(
         systemPromptCreator = creator,
     )
 

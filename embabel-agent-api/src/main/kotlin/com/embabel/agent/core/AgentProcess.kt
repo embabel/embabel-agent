@@ -197,21 +197,40 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
     companion object {
         private val threadLocalAgentProcess = ThreadLocal<AgentProcess>()
 
+        @PublishedApi
         internal fun set(agentProcess: AgentProcess) {
             threadLocalAgentProcess.set(agentProcess)
         }
 
+        @PublishedApi
         internal fun remove() {
             threadLocalAgentProcess.remove()
         }
 
         /**
          * Get the current agent process for this thread, if any.
-         * This can only be relied on during tool calls.
          */
         @JvmStatic
         fun get(): AgentProcess? {
             return threadLocalAgentProcess.get()?.let { return it }
+        }
+
+        /**
+         * Execute a block with this AgentProcess as the current process for the thread.
+         * Properly saves and restores any previous value, ensuring cleanup even on exception.
+         */
+        inline fun <T> AgentProcess.withCurrent(block: () -> T): T {
+            val previous = get()
+            return try {
+                set(this)
+                block()
+            } finally {
+                if (previous != null) {
+                    set(previous)
+                } else {
+                    remove()
+                }
+            }
         }
 
     }

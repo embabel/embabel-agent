@@ -17,7 +17,6 @@ package com.embabel.chat
 
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.identity.User
-import com.embabel.agent.core.ContextId
 
 /**
  * A chatbot can conduct multiple chat sessions,
@@ -30,33 +29,15 @@ interface Chatbot {
      * If user is provided, the session will be associated with that user.
      * If contextId is provided, the session will load objects from that context
      * into the blackboard (e.g., user preferences, prior state).
-     * Optionally, a system message can be provided to set the context for the session.
      * @param user the user to associate the session with, or null for anonymous
      * @param outputChannel the output channel to send messages to
      * @param contextId optional context ID to load prior state from
-     * @param systemMessage optional system message to set the context for the session
      */
     fun createSession(
         user: User?,
         outputChannel: OutputChannel,
-        contextId: ContextId? = null,
-        systemMessage: String? = null,
+        contextId: String? = null,
     ): ChatSession
-
-    /**
-     * Java-friendly overload that accepts contextId as a String.
-     */
-    fun createSession(
-        user: User?,
-        outputChannel: OutputChannel,
-        contextId: String?,
-        systemMessage: String? = null,
-    ): ChatSession = createSession(
-        user = user,
-        outputChannel = outputChannel,
-        contextId = contextId?.let { ContextId(it) },
-        systemMessage = systemMessage,
-    )
 
     /**
      * Get a chat session by conversation id.
