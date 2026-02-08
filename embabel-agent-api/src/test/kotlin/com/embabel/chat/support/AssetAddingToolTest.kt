@@ -15,7 +15,7 @@
  */
 package com.embabel.chat.support
 
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.Asset

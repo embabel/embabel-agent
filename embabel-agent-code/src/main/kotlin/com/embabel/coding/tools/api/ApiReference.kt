@@ -16,7 +16,7 @@
 package com.embabel.coding.tools.api
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
 
 /**

@@ -15,11 +15,11 @@
  */
 package com.embabel.coding.tools.api
 
-import com.embabel.agent.api.common.LlmReference
-import com.embabel.agent.api.common.reference.LlmReferenceProvider
+import com.embabel.agent.api.reference.LlmReference
+import com.embabel.agent.api.reference.LlmReferenceProvider
 import com.embabel.coding.tools.jvm.ClassGraphApiReferenceExtractor
 
-data class ApiReferenceProvider constructor(
+data class ApiReferenceProvider(
     val name: String,
     val description: String,
     val acceptedPackages: List<String>,

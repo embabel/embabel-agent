@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common;
 
+import com.embabel.agent.api.reference.LlmReference;
 import com.embabel.agent.api.tool.Tool;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -273,10 +274,10 @@ public class PromptRunnerJavaTest {
         @Test
         void withToolsArrayOfToolsCompiles() {
             // Verify we can pass an array of Tools
-            Tool[] tools = new Tool[] {
-                createMockTool("tool1"),
-                createMockTool("tool2"),
-                createMockTool("tool3")
+            Tool[] tools = new Tool[]{
+                    createMockTool("tool1"),
+                    createMockTool("tool2"),
+                    createMockTool("tool3")
             };
 
             assertEquals(3, tools.length);
@@ -285,7 +286,7 @@ public class PromptRunnerJavaTest {
         @Test
         void withToolGroupsVarargsCompiles() {
             // Verify withToolGroups varargs is accessible from Java
-            String[] groups = new String[] { "group1", "group2" };
+            String[] groups = new String[]{"group1", "group2"};
             assertEquals(2, groups.length);
         }
     }

@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.mcpserver
 
-import com.embabel.agent.api.common.LlmReference
-import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.test.type.FunnyTool
 import com.embabel.agent.test.type.PersonWithReverseTool
 import com.embabel.common.util.StringTransformer

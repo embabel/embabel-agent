@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.tools
 
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.rag.service.PromptRunnerRagResponseSummarizer

@@ -15,7 +15,7 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.api.common.reference.LlmReferenceProvider
+import com.embabel.agent.api.reference.LlmReferenceProvider
 import com.embabel.common.core.StableIdentified
 import com.embabel.common.core.types.Timestamped
 import java.time.Instant

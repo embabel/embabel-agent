@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.common
 
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.common.util.StringTransformer
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test

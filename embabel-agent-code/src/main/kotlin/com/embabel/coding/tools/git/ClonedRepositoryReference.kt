@@ -15,7 +15,7 @@
  */
 package com.embabel.coding.tools.git
 
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.domain.library.code.SymbolSearch
 import com.embabel.agent.tools.file.DefaultFileReadLog
 import com.embabel.agent.tools.file.FileReadLog

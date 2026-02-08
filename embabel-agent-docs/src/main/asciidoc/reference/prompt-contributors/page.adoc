@@ -66,9 +66,9 @@ The `fqn` property specifies the fully qualified class name of the `LlmReference
 This enables you to define your own `LlmReferenceProvider` implementations.
 Out of the box, Embabel provides:
 
-- `com.embabel.agent.api.common.reference.LiteralText`: Text in `notes`
-- `com.embabel.agent.api.common.reference.SpringResource`: Contents of the given Spring resource path
-- `com.embabel.agent.api.common.reference.WebPage`: Content of the given web page, if it can be fetched
+- `com.embabel.agent.api.reference.LiteralText`: Text in `notes`
+- `com.embabel.agent.api.reference.SpringResource`: Contents of the given Spring resource path
+- `com.embabel.agent.api.reference.WebPage`: Content of the given web page, if it can be fetched
 - `com.embabel.coding.tools.git.GitHubRepository`: GitHub repositories (`embabel-agent-code` module)
 - `com.embabel.coding.tools.api.ApiReferenceProvider`: API from classpath (`embabel-agent-code` module)
 

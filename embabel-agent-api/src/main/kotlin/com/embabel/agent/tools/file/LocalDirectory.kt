@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.tools.file
 
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.common.util.StringTransformer
 
 /**

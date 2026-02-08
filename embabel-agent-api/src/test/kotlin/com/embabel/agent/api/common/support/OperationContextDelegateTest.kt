@@ -16,7 +16,11 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.annotation.support.Wumpus
-import com.embabel.agent.api.common.*
+import com.embabel.agent.api.common.ActionContext
+import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.PlatformServices
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
@@ -294,7 +298,8 @@ class OperationContextDelegateTest {
                 promptContributors = emptyList(),
             )
 
-            val result = delegate.createObjectIfPossibleWithThinking(listOf(UserMessage("test")), TestResult::class.java)
+            val result =
+                delegate.createObjectIfPossibleWithThinking(listOf(UserMessage("test")), TestResult::class.java)
 
             verify {
                 mockChatClientOps.doTransformWithThinkingIfPossible<TestResult>(

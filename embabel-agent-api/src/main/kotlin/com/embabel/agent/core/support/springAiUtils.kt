@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.core.support
 
-import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.support.springai.toEmbabelTool
 import com.embabel.agent.spi.support.springai.toSpringToolCallback

@@ -18,7 +18,7 @@ package com.embabel.chat
 import com.embabel.agent.api.channel.MessageOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.channel.OutputChannelEvent
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.identity.User
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.chat.support.InMemoryConversation

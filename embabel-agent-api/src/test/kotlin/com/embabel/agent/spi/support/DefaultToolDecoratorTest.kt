@@ -16,9 +16,9 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ReplanRequestedException

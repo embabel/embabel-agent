@@ -16,6 +16,7 @@
 package com.embabel.agent.api.common
 
 import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import org.assertj.core.api.Assertions.assertThat

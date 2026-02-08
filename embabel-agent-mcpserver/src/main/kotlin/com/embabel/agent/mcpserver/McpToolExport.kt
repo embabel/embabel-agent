@@ -15,9 +15,10 @@
  */
 package com.embabel.agent.mcpserver
 
-import com.embabel.agent.api.common.LlmReference
-import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.reference.LlmReference
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.support.safelyGetTools
+import com.embabel.agent.mcpserver.McpToolExport.Companion.fromLlmReference
 import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import com.embabel.common.util.StringTransformer
 import com.embabel.common.util.loggerFor

@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.service.support
 
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.chat.Asset
 import com.embabel.chat.AssetTracker
 import com.embabel.common.ai.model.EmbeddingService

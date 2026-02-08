@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.common
+package com.embabel.agent.api.tool
 
 import com.embabel.common.util.StringTransformer
 
@@ -26,7 +26,7 @@ import com.embabel.common.util.StringTransformer
  */
 data class ToolObject(
     val objects: List<Any>,
-    val namingStrategy: StringTransformer = StringTransformer.IDENTITY,
+    val namingStrategy: StringTransformer = StringTransformer.Companion.IDENTITY,
     val filter: (String) -> Boolean = { true },
 ) {
 
@@ -38,7 +38,7 @@ data class ToolObject(
 
     constructor (
         obj: Any,
-        namingStrategy: StringTransformer = StringTransformer.IDENTITY,
+        namingStrategy: StringTransformer = StringTransformer.Companion.IDENTITY,
         filter: (String) -> Boolean = { true },
     ) : this(listOf(obj), namingStrategy, filter)
 
@@ -46,7 +46,7 @@ data class ToolObject(
         obj: Any,
     ) : this(
         objects = listOf(obj),
-        namingStrategy = StringTransformer.IDENTITY,
+        namingStrategy = StringTransformer.Companion.IDENTITY,
         filter = { true },
     )
 
@@ -77,7 +77,7 @@ data class ToolObject(
         fun from(o: Any): ToolObject = o as? ToolObject
             ?: ToolObject(
                 obj = o,
-                namingStrategy = StringTransformer.IDENTITY,
+                namingStrategy = StringTransformer.Companion.IDENTITY,
                 filter = { true },
             )
 

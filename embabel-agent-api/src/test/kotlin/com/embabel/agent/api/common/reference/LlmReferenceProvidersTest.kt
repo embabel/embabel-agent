@@ -15,6 +15,9 @@
  */
 package com.embabel.agent.api.common.reference
 
+import com.embabel.agent.api.reference.LiteralText
+import com.embabel.agent.api.reference.LlmReferenceProviders
+import com.embabel.agent.api.reference.WebPage
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 

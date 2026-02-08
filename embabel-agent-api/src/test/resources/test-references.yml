@@ -1,14 +1,14 @@
-- fqn: com.embabel.agent.api.common.reference.LiteralText
+- fqn: com.embabel.agent.api.reference.LiteralText
   name: API Guide
   description: Quick reference for the payment API
   notes: Use this when you need to understand payment processing endpoints
 
-- fqn: com.embabel.agent.api.common.reference.WebPage
+- fqn: com.embabel.agent.api.reference.WebPage
   url: https://example.com/api-docs
   name: Payment API Docs
   description: Full API documentation for payment processing
 
-- fqn: com.embabel.agent.api.common.reference.LiteralText
+- fqn: com.embabel.agent.api.reference.LiteralText
   name: Security Policy
   description: Security guidelines for API usage
   notes: Always check these guidelines before making API calls

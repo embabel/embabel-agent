@@ -18,6 +18,7 @@ package com.embabel.agent.api.common.thinking
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -172,7 +173,7 @@ class ThinkingPromptRunnerOperationsTest {
             override val messages: List<com.embabel.chat.Message> = emptyList()
             override val images: List<com.embabel.agent.api.common.AgentImage> = emptyList()
             override val toolGroups: Set<ToolGroupRequirement> = emptySet()
-            override val toolObjects: List<com.embabel.agent.api.common.ToolObject> = emptyList()
+            override val toolObjects: List<ToolObject> = emptyList()
             override val promptContributors: List<com.embabel.common.ai.prompt.PromptContributor> = emptyList()
             override val generateExamples: Boolean? = null
             override val propertyFilter: java.util.function.Predicate<String> = java.util.function.Predicate { true }
@@ -225,7 +226,7 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withToolGroup(toolGroup: ToolGroup): com.embabel.agent.api.common.PromptRunner =
                 this
 
-            override fun withToolObject(toolObject: com.embabel.agent.api.common.ToolObject): com.embabel.agent.api.common.PromptRunner =
+            override fun withToolObject(toolObject: ToolObject): com.embabel.agent.api.common.PromptRunner =
                 this
 
             override fun withTool(tool: com.embabel.agent.api.tool.Tool): com.embabel.agent.api.common.PromptRunner =

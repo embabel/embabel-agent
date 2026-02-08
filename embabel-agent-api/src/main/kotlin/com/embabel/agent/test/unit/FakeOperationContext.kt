@@ -18,8 +18,12 @@ package com.embabel.agent.test.unit
 import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PromptRunner
-import com.embabel.agent.api.common.ToolObject
-import com.embabel.agent.core.*
+import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.core.Agent
+import com.embabel.agent.core.Blackboard
+import com.embabel.agent.core.Operation
+import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.spi.common.Constants.EMBABEL_PROVIDER
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyProcessContext
 import com.embabel.common.ai.model.LlmOptions

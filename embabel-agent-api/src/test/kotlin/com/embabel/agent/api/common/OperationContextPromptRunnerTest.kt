@@ -20,6 +20,7 @@ import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.annotation.support.Wumpus
 import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Operation
 import com.embabel.agent.experimental.primitive.Determination
@@ -97,7 +98,7 @@ class OperationContextPromptRunnerTest {
             val namingStrategy = StringTransformer { it.replace("_", " ") }
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withLlm(llm)
-                .withToolObject(ToolObject(wumpus).withNamingStrategy(namingStrategy))
+                .withToolObject(com.embabel.agent.api.tool.ToolObject(wumpus).withNamingStrategy(namingStrategy))
             assertEquals(1, ocpr.toolObjects.size, "Must have one tool object")
             assertEquals(wumpus, ocpr.toolObjects[0].objects[0], "Tool object instance not set correctly")
             assertEquals(
@@ -350,7 +351,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "testapi"
             every { mockReference.notes() } returns "Test API documentation"
             every { mockReference.contribution() } returns "Reference: TestAPI\nDescription: Test API\nTool prefix: testapi\nNotes: Test API documentation"
-            every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
             every { mockReference.tools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -377,7 +378,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "test-api_v2_"
             every { mockReference.notes() } returns "Test API v2 documentation"
             every { mockReference.contribution() } returns "Reference: Test-API@v2!\nDescription: Test API v2\nTool prefix: test-api_v2_\nNotes: Test API v2 documentation"
-            every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
             every { mockReference.tools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -401,7 +402,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.toolPrefix() } returns "api1"
             every { mockReference1.notes() } returns "API 1 documentation"
             every { mockReference1.contribution() } returns "Reference: API1\nDescription: API 1\nTool prefix: api1\nNotes: API 1 documentation"
-            every { mockReference1.toolObject() } returns ToolObject(mockReference1)
+            every { mockReference1.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference1)
             every { mockReference1.tools() } returns emptyList()
 
             val mockReference2 = mockk<LlmReference>()
@@ -410,7 +411,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.toolPrefix() } returns "api2"
             every { mockReference2.notes() } returns "API 2 documentation"
             every { mockReference2.contribution() } returns "Reference: API2\nDescription: API 2\nTool prefix: api2\nNotes: API 2 documentation"
-            every { mockReference2.toolObject() } returns ToolObject(mockReference2)
+            every { mockReference2.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference2)
             every { mockReference2.tools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -445,7 +446,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.toolPrefix() } returns "api1"
             every { mockReference1.notes() } returns "API 1 documentation"
             every { mockReference1.contribution() } returns "Reference: API1\nDescription: API 1\nTool prefix: api1\nNotes: API 1 documentation"
-            every { mockReference1.toolObject() } returns ToolObject(mockReference1)
+            every { mockReference1.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference1)
             every { mockReference1.tools() } returns emptyList()
 
             val mockReference2 = mockk<LlmReference>()
@@ -454,7 +455,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.toolPrefix() } returns "api2"
             every { mockReference2.notes() } returns "API 2 documentation"
             every { mockReference2.contribution() } returns "Reference: API2\nDescription: API 2\nTool prefix: api2\nNotes: API 2 documentation"
-            every { mockReference2.toolObject() } returns ToolObject(mockReference2)
+            every { mockReference2.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference2)
             every { mockReference2.tools() } returns emptyList()
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -472,7 +473,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "testapi"
             every { mockReference.notes() } returns "Test API documentation"
             every { mockReference.contribution() } returns "Reference: TestAPI\nDescription: Test API\nTool prefix: testapi\nNotes: Test API documentation"
-            every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
             every { mockReference.tools() } returns emptyList()
 
             val systemPrompt = "You are a helpful assistant."
@@ -512,7 +513,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "toolsapi"
             every { mockReference.notes() } returns "API documentation"
             every { mockReference.contribution() } returns "Reference: ToolsAPI"
-            every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
             every { mockReference.tools() } returns listOf(referenceTool)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -544,7 +545,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference.toolPrefix() } returns "multitoolapi"
             every { mockReference.notes() } returns "API documentation"
             every { mockReference.contribution() } returns "Reference: MultiToolAPI"
-            every { mockReference.toolObject() } returns ToolObject(mockReference)
+            every { mockReference.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference)
             every { mockReference.tools() } returns listOf(tool1, tool2)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -572,7 +573,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference1.toolPrefix() } returns "api1"
             every { mockReference1.notes() } returns "API 1 docs"
             every { mockReference1.contribution() } returns "Reference: API1"
-            every { mockReference1.toolObject() } returns ToolObject(mockReference1)
+            every { mockReference1.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference1)
             every { mockReference1.tools() } returns listOf(tool1)
 
             val mockReference2 = mockk<LlmReference>()
@@ -581,7 +582,7 @@ class OperationContextPromptRunnerTest {
             every { mockReference2.toolPrefix() } returns "api2"
             every { mockReference2.notes() } returns "API 2 docs"
             every { mockReference2.contribution() } returns "Reference: API2"
-            every { mockReference2.toolObject() } returns ToolObject(mockReference2)
+            every { mockReference2.toolObject() } returns com.embabel.agent.api.tool.ToolObject(mockReference2)
             every { mockReference2.tools() } returns listOf(tool2)
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
@@ -742,7 +743,7 @@ class OperationContextPromptRunnerTest {
             }
 
             val myTools = MyTools()
-            val toolObject = ToolObject(myTools).withPrefix("custom_")
+            val toolObject = com.embabel.agent.api.tool.ToolObject(myTools).withPrefix("custom_")
 
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withToolObject(toolObject) as OperationContextPromptRunner

@@ -18,7 +18,7 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.support.FunnyTool
 import com.embabel.agent.api.annotation.support.PersonWithReverseTool
-import com.embabel.agent.api.common.ToolObject
+import com.embabel.agent.api.tool.ToolObject
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertTrue

@@ -15,7 +15,7 @@
  */
 package com.embabel.chat.support
 
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.chat.Asset
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test

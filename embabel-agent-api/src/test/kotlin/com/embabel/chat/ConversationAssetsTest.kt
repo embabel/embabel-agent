@@ -15,7 +15,7 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.api.common.LlmReference
+import com.embabel.agent.api.reference.LlmReference
 import com.embabel.chat.support.InMemoryAssetTracker
 import com.embabel.chat.support.InMemoryConversation
 import org.assertj.core.api.Assertions.assertThat

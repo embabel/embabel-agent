@@ -16,9 +16,9 @@
 package com.embabel.agent.tools.math
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.common.ToolObject
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.CoreToolGroups.MATH_DESCRIPTION
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupDescription

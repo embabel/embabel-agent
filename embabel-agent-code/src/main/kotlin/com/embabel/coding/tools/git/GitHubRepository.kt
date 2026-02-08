@@ -15,8 +15,8 @@
  */
 package com.embabel.coding.tools.git
 
-import com.embabel.agent.api.common.LlmReference
-import com.embabel.agent.api.common.reference.LlmReferenceProvider
+import com.embabel.agent.api.reference.LlmReference
+import com.embabel.agent.api.reference.LlmReferenceProvider
 
 data class GitHubRepository(
     val url: String,

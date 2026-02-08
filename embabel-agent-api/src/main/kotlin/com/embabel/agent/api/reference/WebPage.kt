@@ -13,21 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.common.reference
-
-import com.embabel.agent.api.common.LlmReference
+package com.embabel.agent.api.reference
 
 /**
- * Reference for literal text, in notes field.
- * Held in memory.
+ * Reference for the contents of a web page.
+ * Works only if fetch tool is available.
+ * See CoreToolGroups.WEB
  */
-data class LiteralText(
-    override val name: String,
-    override val description: String,
-    val notes: String,
+data class WebPage(
+    val url: String,
+    override val name: String = url,
+    override val description: String = "Web page at $url",
 ) : LlmReferenceProvider, LlmReference {
 
-    override fun notes(): String = notes
-
     override fun reference(): LlmReference = this
+
+    override fun notes(): String = "Refer to this web page: use the fetch tool"
 }

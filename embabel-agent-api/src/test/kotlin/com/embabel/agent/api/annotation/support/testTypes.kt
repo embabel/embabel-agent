@@ -15,19 +15,34 @@
  */
 package com.embabel.agent.api.annotation.support
 
-import com.embabel.agent.api.annotation.*
-import com.embabel.agent.api.common.*
-import com.embabel.agent.api.dsl.*
+import com.embabel.agent.api.annotation.AchievesGoal
+import com.embabel.agent.api.annotation.Action
+import com.embabel.agent.api.annotation.Agent
+import com.embabel.agent.api.annotation.Condition
+import com.embabel.agent.api.annotation.EmbabelComponent
+import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.annotation.RequireNameMatch
+import com.embabel.agent.api.annotation.waitFor
+import com.embabel.agent.api.common.ActionContext
+import com.embabel.agent.api.common.Ai
+import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.common.SomeOf
+import com.embabel.agent.api.common.TransformationActionContext
+import com.embabel.agent.api.common.createObject
+import com.embabel.agent.api.dsl.Frog
+import com.embabel.agent.api.dsl.SnakeMeal
+import com.embabel.agent.api.dsl.chain
+import com.embabel.agent.api.dsl.evenMoreEvilWizard
+import com.embabel.agent.api.dsl.runAgent
+import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessContext
-import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.core.last
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.support.Dog
 import com.embabel.common.ai.model.LlmOptions
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import org.junit.jupiter.api.Assertions.assertEquals
 
 data class PersonWithReverseTool(val name: String) {
 
