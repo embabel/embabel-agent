@@ -63,7 +63,7 @@ data class LlmInvocation(
      * The default toString() of Message objects truncates content for readability.
      */
     val prompt: String
-        get() = messages.joinToString("\n") { it.textContent }
+        get() = messages.joinToString("\n") { it.content }
 
     override fun toString(): String {
         return "LlmInvocation(id=${interaction.id}, method=$method, messageCount=${messages.size})"

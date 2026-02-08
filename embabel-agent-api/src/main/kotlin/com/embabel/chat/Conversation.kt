@@ -15,6 +15,7 @@
  */
 package com.embabel.chat
 
+import com.embabel.agent.api.identity.User
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.StableIdentified
 import com.embabel.common.core.types.HasInfoString
@@ -60,10 +61,31 @@ interface Conversation : StableIdentified, HasInfoString, AssetView {
     fun lastMessageIfBeFromUser(): UserMessage? = messages.lastOrNull() as? UserMessage
 
     /**
-     * Modify the state of this conversation
-     * Return the newly added message for convenience
+     * Modify the state of this conversation.
+     * Return the newly added message for convenience.
      */
     fun addMessage(message: Message): Message
+
+    /**
+     * Add a message with explicit author attribution.
+     * Useful for group chats or when the author differs per message.
+     *
+     * @param message the message to add
+     * @param author the author of this message (null for system/assistant messages)
+     * @return the newly added message
+     */
+    fun addMessageFrom(message: Message, author: User?): Message = addMessage(message)
+
+    /**
+     * Add a message with explicit author and recipient.
+     * Use this for multi-party chats where both sender and receiver need to be specified.
+     *
+     * @param message the message to add
+     * @param from the author of this message (who sent it)
+     * @param to the recipient of this message (who should receive it)
+     * @return the newly added message
+     */
+    fun addMessageFromTo(message: Message, from: User?, to: User?): Message = addMessage(message)
 
     /**
      * Prompt contributor that represents the conversation so far.

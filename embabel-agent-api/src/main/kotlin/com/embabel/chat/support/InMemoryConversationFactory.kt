@@ -13,26 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.chat
+package com.embabel.chat.support
+
+import com.embabel.chat.Conversation
+import com.embabel.chat.ConversationFactory
+import com.embabel.chat.ConversationStoreType
 
 /**
- * Format a conversation into a String for inclusion in a prompt.
- * Note that we often prefer to use messages.
+ * Factory for creating [InMemoryConversation] instances.
+ *
+ * Messages are stored in memory only and not persisted.
+ * Suitable for testing and ephemeral sessions.
  */
-fun interface ConversationFormatter {
+class InMemoryConversationFactory : ConversationFactory {
 
-    fun format(conversation: Conversation): String
-}
+    override val storeType: ConversationStoreType = ConversationStoreType.IN_MEMORY
 
-fun interface MessageFormatter {
-
-    fun format(message: Message): String
-}
-
-object SimpleMessageFormatter : MessageFormatter {
-    override fun format(message: Message): String {
-        val name = (message as? BaseMessage)?.name
-        return if (name != null) "$name (${message.role}): ${message.content}"
-        else "${message.role}: ${message.content}"
-    }
+    override fun create(id: String): Conversation = InMemoryConversation(id = id)
 }

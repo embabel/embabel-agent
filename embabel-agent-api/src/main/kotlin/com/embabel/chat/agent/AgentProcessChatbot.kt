@@ -26,8 +26,9 @@ import com.embabel.agent.core.*
 import com.embabel.chat.ChatSession
 import com.embabel.chat.Chatbot
 import com.embabel.chat.Conversation
+import com.embabel.chat.ConversationFactory
 import com.embabel.chat.UserMessage
-import com.embabel.chat.support.InMemoryConversation
+import com.embabel.chat.support.InMemoryConversationFactory
 import com.embabel.common.util.loggerFor
 
 fun interface AgentSource {
@@ -55,10 +56,13 @@ fun interface ListenerProvider {
  * @param agentPlatform the agent platform to create and manage agent processes
  * @param agentSource factory for agents. The factory is called for each new session.
  * This allows lazy loading and more flexible usage patterns
+ * @param conversationFactory factory for creating conversations. Defaults to in-memory.
+ * For persistent storage, inject a StoredConversationFactory from embabel-chat-store.
  */
 class AgentProcessChatbot(
     private val agentPlatform: AgentPlatform,
     private val agentSource: AgentSource,
+    private val conversationFactory: ConversationFactory = InMemoryConversationFactory(),
     private val listenerProvider: ListenerProvider = ListenerProvider { _, _ -> emptyList() },
     private val plannerType: PlannerType = PlannerType.GOAP,
     private val verbosity: Verbosity = Verbosity(),
@@ -68,7 +72,11 @@ class AgentProcessChatbot(
         user: User?,
         outputChannel: OutputChannel,
         contextId: String?,
+        conversationId: String?,
     ): ChatSession {
+        // Try to load existing conversation if ID provided
+        val existingConversation = conversationId?.let { conversationFactory.load(it) }
+
         val listeners = listenerProvider.listenersFor(user, outputChannel)
         val agentProcess = agentPlatform.createAgentProcess(
             agent = agentSource.resolveAgent(user),
@@ -84,17 +92,26 @@ class AgentProcessChatbot(
             ),
             bindings = emptyMap(),
         )
+
+        // Bind existing conversation to process, or let session create new one
+        if (existingConversation != null) {
+            agentProcess.bindProtected(AgentProcessChatSession.CONVERSATION_KEY, existingConversation)
+        }
+
         // We start the AgentProcess. It's likely to do nothing until
         // we receive a UserMessage, but that's fine as we may want to do some
         // work in the meantime
-        return AgentProcessChatSession(agentProcess).apply {
+        return AgentProcessChatSession(
+            agentProcess = agentProcess,
+            conversationFactory = conversationFactory,
+        ).apply {
             agentProcess.run()
         }
     }
 
     override fun findSession(conversationId: String): ChatSession? {
         return agentPlatform.getAgentProcess(conversationId)?.let { agentProcess ->
-            AgentProcessChatSession(agentProcess)
+            AgentProcessChatSession(agentProcess, conversationFactory)
         }
     }
 
@@ -103,11 +120,17 @@ class AgentProcessChatbot(
         /**
          * Create a chatbot that will use all actions available on the platform,
          * with utility-based planning.
+         *
+         * @param agentPlatform the agent platform
+         * @param conversationFactory factory for creating conversations. Defaults to in-memory.
+         * @param verbosity verbosity settings for debugging
+         * @param listenerProvider provider for event listeners
          */
         @JvmStatic
         @JvmOverloads
         fun utilityFromPlatform(
             agentPlatform: AgentPlatform,
+            conversationFactory: ConversationFactory = InMemoryConversationFactory(),
             verbosity: Verbosity = Verbosity(),
             listenerProvider: ListenerProvider = ListenerProvider { _, outputChannel ->
                 listOf(OutputChannelHighlightingEventListener(outputChannel))
@@ -117,6 +140,7 @@ class AgentProcessChatbot(
             agentSource = {
                 UtilityInvocation.on(agentPlatform).createPlatformAgent()
             },
+            conversationFactory = conversationFactory,
             listenerProvider = listenerProvider,
             verbosity = verbosity,
             plannerType = PlannerType.UTILITY,
@@ -129,8 +153,9 @@ class AgentProcessChatbot(
  * Many instances for one AgentProcess.
  * Stores conversation in AgentProcess blackboard.
  */
-private class AgentProcessChatSession(
+internal class AgentProcessChatSession(
     private val agentProcess: AgentProcess,
+    private val conversationFactory: ConversationFactory,
 ) : ChatSession {
 
     override val processId: String = agentProcess.id
@@ -140,20 +165,21 @@ private class AgentProcessChatSession(
     override val outputChannel: OutputChannel
         get() = agentProcess.processContext.outputChannel
 
-    override val conversation = run {
-        agentProcess[KEY] as? Conversation
+    override val conversation: Conversation = run {
+        // Check if conversation was pre-loaded (restored from storage)
+        agentProcess[CONVERSATION_KEY] as? Conversation
             ?: run {
-                val conversation = InMemoryConversation(id = agentProcess.id)
-                agentProcess.bindProtected(KEY, conversation)
-                conversation.also {
-                    agentProcess.processContext.outputChannel.send(
-                        LoggingOutputChannelEvent(
-                            processId = agentProcess.id,
-                            message = "Started chat session `${conversation.id}`",
-                            level = LoggingOutputChannelEvent.Level.DEBUG,
-                        )
+                // Create new conversation
+                val conversation = conversationFactory.create(agentProcess.id)
+                agentProcess.bindProtected(CONVERSATION_KEY, conversation)
+                agentProcess.processContext.outputChannel.send(
+                    LoggingOutputChannelEvent(
+                        processId = agentProcess.id,
+                        message = "Started chat session `${conversation.id}`",
+                        level = LoggingOutputChannelEvent.Level.DEBUG,
                     )
-                }
+                )
+                conversation
             }
     }
 
@@ -174,6 +200,6 @@ private class AgentProcessChatSession(
     }
 
     companion object {
-        const val KEY = "conversation"
+        const val CONVERSATION_KEY = "conversation"
     }
 }

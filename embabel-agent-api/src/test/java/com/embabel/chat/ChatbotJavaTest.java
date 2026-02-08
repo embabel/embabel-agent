@@ -38,6 +38,7 @@ class ChatbotJavaTest {
         ChatSession session = chatbot.createSession(
             null,
             DevNullOutputChannel.INSTANCE,
+            null,
             null
         );
 
@@ -52,7 +53,22 @@ class ChatbotJavaTest {
         ChatSession session = chatbot.createSession(
             null,
             DevNullOutputChannel.INSTANCE,
-            "test-context-id"
+            "test-context-id",
+            null
+        );
+
+        assertNotNull(session);
+    }
+
+    @Test
+    void canImplementChatbotWithConversationId() {
+        Chatbot chatbot = new SimpleChatbot();
+
+        ChatSession session = chatbot.createSession(
+            null,
+            DevNullOutputChannel.INSTANCE,
+            null,
+            "saved-conversation-id"
         );
 
         assertNotNull(session);
@@ -65,6 +81,7 @@ class ChatbotJavaTest {
         ChatSession session = chatbot.createSession(
             null,
             DevNullOutputChannel.INSTANCE,
+            null,
             null
         );
 
@@ -85,7 +102,8 @@ class ChatbotJavaTest {
         public ChatSession createSession(
             @Nullable User user,
             @NotNull OutputChannel outputChannel,
-            @Nullable String contextId
+            @Nullable String contextId,
+            @Nullable String conversationId
         ) {
             lastSession = new SimpleChatSession(user, outputChannel);
             return lastSession;
