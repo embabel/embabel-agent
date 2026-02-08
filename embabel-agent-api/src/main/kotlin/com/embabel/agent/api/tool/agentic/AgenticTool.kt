@@ -109,13 +109,43 @@ interface AgenticTool<THIS : AgenticTool<THIS>> : Tool {
     fun withToolObject(toolObject: Any): THIS
 
     /**
+     * Register a domain class with a predicate to control when its @LlmTool methods
+     * become available as tools.
+     *
+     * This enables conditional, dynamic tool injection based on runtime artifacts.
+     * The predicate receives the artifact instance and the current AgentProcess,
+     * allowing filtering based on object state or process context.
+     *
+     * When multiple artifacts of the same type are returned, "last wins" - only the
+     * most recent artifact that passes the predicate will have its tools exposed.
+     *
+     * Example:
+     * ```kotlin
+     * // Only expose tools for admin users
+     * SimpleAgenticTool("userManager", "Manage users")
+     *     .withTools(searchUserTool, getUserTool)
+     *     .withDomainToolsFrom(User::class.java) { user, _ ->
+     *         user.role == "admin"
+     *     }
+     * ```
+     *
+     * @param type The domain class that may contribute @LlmTool methods
+     * @param predicate Predicate to filter which instances contribute tools
+     */
+    fun <T : Any> withDomainToolsFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): THIS
+
+    /**
      * Register a domain class whose @LlmTool methods become available as tools
      * when a single instance of that type is returned as an artifact.
      *
-     * This enables dynamic tool injection based on runtime artifacts. Initially,
-     * placeholder tools are created for each @LlmTool method on the class.
-     * When a tool returns an artifact matching the registered type, the placeholder
-     * tools become active and delegate to the bound instance.
+     * This is a convenience method that accepts all instances (no filtering).
+     * For conditional registration, use [withDomainToolsFrom] with a predicate.
+     *
+     * When multiple artifacts of the same type are returned, "last wins" - only the
+     * most recent artifact will have its tools exposed.
      *
      * Example:
      * ```kotlin
@@ -133,7 +163,28 @@ interface AgenticTool<THIS : AgenticTool<THIS>> : Tool {
      *
      * @param type The domain class that may contribute @LlmTool methods
      */
-    fun <T : Any> withDomainToolsFrom(type: Class<T>): THIS
+    fun <T : Any> withDomainToolsFrom(type: Class<T>): THIS =
+        withDomainToolsFrom(type, DomainToolPredicate.always())
+
+    /**
+     * Enable auto-discovery of domain tools from any returned artifact.
+     *
+     * When enabled, any artifact with @LlmTool methods will automatically
+     * have its tools exposed. Unlike registered domain sources, auto-discovery
+     * replaces ALL previous bindings when a new artifact is discovered,
+     * ensuring only one "current" domain object's tools are active at a time.
+     *
+     * This is useful when you want the LLM to naturally work with whatever
+     * object is "current" without pre-registering specific types.
+     *
+     * Example:
+     * ```kotlin
+     * SimpleAgenticTool("explorer", "Explore and manipulate objects")
+     *     .withTools(searchTool, getTool)
+     *     .withAnyDomainTools()  // Tools from any returned object are exposed
+     * ```
+     */
+    fun withAnyDomainTools(): THIS
 
     companion object {
         /**

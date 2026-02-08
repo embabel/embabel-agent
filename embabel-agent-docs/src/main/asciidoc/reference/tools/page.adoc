@@ -1719,6 +1719,8 @@ The available modification methods are:
 - `withSystemPrompt((ExecutingOperationContext, String) -> String)`: Set a dynamic prompt based on execution context and input
 - `withCaptureNestedArtifacts(Boolean)`: Control whether artifacts from nested agentic tool calls are captured (default: `false`)
 - `withDomainToolsFrom(Class<T>)`: Register a domain class whose `@LlmTool` methods become available when an artifact of that type is returned
+- `withDomainToolsFrom(Class<T>, DomainToolPredicate<T>)`: Register with a predicate to filter which instances contribute tools
+- `withAnyDomainTools()`: Auto-discover tools from any returned artifact with `@LlmTool` methods
 
 [[reference.tools__agentic-tools-artifact-capture]]
 ===== Controlling Artifact Capture in Nested Agentic Tools
@@ -1774,6 +1776,9 @@ The `withDomainToolsFrom()` method enables this pattern.
 When you register a domain class, placeholder tools are created for each `@LlmTool` method on that class.
 Initially, these tools return "not available yet" messages.
 When a tool returns an artifact matching the registered type, the placeholder tools become active and delegate to the bound instance.
+
+**Last Wins Semantics**: When multiple artifacts of the same type are returned, only the most recent one's tools are active.
+This ensures the LLM always works with the "current" instance.
 
 [tabs]
 ====
@@ -1831,11 +1836,88 @@ val userManager = SimpleAgenticTool("userManager", "Manage user accounts")
 ----
 ====
 
+====== Predicate-Based Filtering
+
+You can control which instances contribute tools using a predicate.
+The predicate receives the artifact and the current `AgentProcess`, allowing filtering based on object state or process context.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Only expose tools for admin users
+SimpleAgenticTool adminManager = new SimpleAgenticTool("adminManager", "Manage admin users")
+    .withTools(searchUserTool, getUserTool)
+    .withDomainToolsFrom(User.class, (user, agentProcess) ->
+        user.getRole().equals("admin")
+    );
+
+// Regular users won't have their tools exposed
+// Only when an admin User is retrieved will updateEmail() become available
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Only expose tools for admin users
+val adminManager = SimpleAgenticTool("adminManager", "Manage admin users")
+    .withTools(searchUserTool, getUserTool)
+    .withDomainToolsFrom<User> { user, _ ->
+        user.role == "admin"
+    }
+
+// Regular users won't have their tools exposed
+// Only when an admin User is retrieved will updateEmail() become available
+----
+====
+
+====== Auto-Discovery Mode
+
+For maximum flexibility, use `withAnyDomainTools()` to automatically discover and expose tools from any returned artifact that has `@LlmTool` methods.
+Unlike registered domain sources, auto-discovery replaces ALL previous bindings when a new artifact is discovered—ensuring only one "current" object's tools are active at a time.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Auto-discover tools from any returned object
+SimpleAgenticTool explorer = new SimpleAgenticTool("explorer", "Explore and manipulate objects")
+    .withTools(searchTool, getTool)
+    .withAnyDomainTools();  // Tools from any returned object are exposed
+
+// Flow:
+// 1. LLM calls getTool which returns a User -> User tools are available
+// 2. LLM calls another getTool which returns an Order -> Order tools replace User tools
+// 3. Only the most recent object's tools are active
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Auto-discover tools from any returned object
+val explorer = SimpleAgenticTool("explorer", "Explore and manipulate objects")
+    .withTools(searchTool, getTool)
+    .withAnyDomainTools()  // Tools from any returned object are exposed
+
+// Flow:
+// 1. LLM calls getTool which returns a User -> User tools are available
+// 2. LLM calls another getTool which returns an Order -> Order tools replace User tools
+// 3. Only the most recent object's tools are active
+----
+====
+
 This pattern is useful when:
 
 - **Domain objects have operations**: The object itself knows how to perform actions (e.g., `user.updateEmail()`, `order.cancel()`)
 - **Context-dependent tools**: Operations only make sense after retrieving a specific instance
 - **Clean API design**: Tools are defined on the domain class rather than as separate tool classes
+- **Exploratory workflows**: The LLM dynamically works with whatever object is "current"
 
 All agentic tool types support domain tool injection:
 

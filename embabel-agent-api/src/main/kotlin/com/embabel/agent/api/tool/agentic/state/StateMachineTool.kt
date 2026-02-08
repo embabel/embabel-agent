@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator
 import com.embabel.agent.api.tool.agentic.AgenticTool
 import com.embabel.agent.api.tool.agentic.AgenticToolSupport
 import com.embabel.agent.api.tool.agentic.DomainToolFactory
+import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.core.AgentProcess
@@ -92,6 +93,7 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
     internal val stateTools: Map<S, List<StateToolEntry<S>>> = emptyMap(),
     internal val globalTools: List<Tool> = emptyList(),
     internal val domainToolSources: List<DomainToolSource<*>> = emptyList(),
+    internal val autoDiscovery: Boolean = false,
     override val llm: LlmOptions = LlmOptions(),
     val systemPromptCreator: (ExecutingOperationContext, String, S) -> String = { _, _, state ->
         defaultSystemPrompt(definition.description, state)
@@ -155,15 +157,20 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
         val executingContext = executingOperationContextFor(agentProcess!!)
 
         loggerFor<StateMachineTool<*>>().info(
-            "Executing StateMachineTool '{}' starting in state {} with {} domain sources",
+            "Executing StateMachineTool '{}' starting in state {} with {} domain sources, autoDiscovery={}",
             definition.name,
             currentInitialState,
             domainToolSources.size,
+            autoDiscovery,
         )
 
-        // Create domain tool tracker if we have domain sources
-        val domainToolTracker = if (domainToolSources.isNotEmpty()) {
-            DomainToolTracker(domainToolSources)
+        // Create domain tool tracker if we have domain sources or auto-discovery is enabled
+        val domainToolTracker = if (domainToolSources.isNotEmpty() || autoDiscovery) {
+            DomainToolTracker(
+                sources = domainToolSources,
+                autoDiscovery = autoDiscovery,
+                agentProcess = agentProcess,
+            )
         } else {
             null
         }
@@ -297,26 +304,28 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
     }
 
     /**
-     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     * Register a domain class with a predicate to control when its @LlmTool methods are exposed.
      *
-     * When a single artifact of the specified type is returned by any tool, any @LlmTool annotated
-     * methods on that instance become available as tools (globally, not state-bound).
-     *
-     * Example:
-     * ```kotlin
-     * StateMachineTool("orderProcessor", "Process orders", OrderState::class.java)
-     *     .withDomainToolsFrom(Order::class.java)  // Order methods become available when a single Order is retrieved
-     *     .withInitialState(OrderState.DRAFT)
-     *     .inState(OrderState.DRAFT)
-     *         .withTool(findOrderTool)
-     *     ...
-     * ```
+     * When a single artifact of the specified type is returned by any tool and passes the predicate,
+     * any @LlmTool annotated methods on that instance become available as tools (globally, not state-bound).
      *
      * @param type The domain class that may contribute tools
+     * @param predicate Predicate to filter which instances contribute tools
      */
-    override fun <T : Any> withDomainToolsFrom(type: Class<T>): StateMachineTool<S> = copy(
-        domainToolSources = domainToolSources + DomainToolSource(type),
+    override fun <T : Any> withDomainToolsFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): StateMachineTool<S> = copy(
+        domainToolSources = domainToolSources + DomainToolSource(type, predicate),
     )
+
+    /**
+     * Register a domain class with a predicate.
+     * Kotlin-friendly version using reified type parameter.
+     */
+    inline fun <reified T : Any> withDomainToolsFrom(
+        noinline predicate: (T, AgentProcess?) -> Boolean,
+    ): StateMachineTool<S> = withDomainToolsFrom(T::class.java, DomainToolPredicate(predicate))
 
     /**
      * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
@@ -332,6 +341,8 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
      */
     inline fun <reified T : Any> withDomainToolsFrom(): StateMachineTool<S> =
         withDomainToolsFrom(T::class.java)
+
+    override fun withAnyDomainTools(): StateMachineTool<S> = copy(autoDiscovery = true)
 
     companion object {
         fun <S : Enum<S>> defaultSystemPrompt(description: String, currentState: S) = """

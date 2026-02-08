@@ -37,6 +37,14 @@ class TestUser(val id: String, val name: String) {
  */
 class PlainObject(val value: String)
 
+/**
+ * Another domain class with @LlmTool methods for testing auto-discovery.
+ */
+class TestOrder(val orderId: String) {
+    @LlmTool(description = "Get order status")
+    fun getStatus(): String = "Order $orderId status: pending"
+}
+
 class DomainToolSourceTest {
 
     @Nested
@@ -94,7 +102,7 @@ class DomainToolSourceTest {
         }
 
         @Test
-        fun `should not rebind if instance already bound`() {
+        fun `should rebind and replace previous instance (last wins)`() {
             val tracker = DomainToolTracker(listOf(DomainToolSource(TestUser::class.java)))
             val user1 = TestUser("1", "Alice")
             val user2 = TestUser("2", "Bob")
@@ -102,8 +110,8 @@ class DomainToolSourceTest {
             tracker.tryBindArtifact(user1)
             val secondBindTools = tracker.tryBindArtifact(user2)
 
-            assertThat(secondBindTools).isEmpty() // Already bound, returns empty
-            assertThat(tracker.getBoundInstance(TestUser::class.java)).isSameAs(user1) // Still first user
+            assertThat(secondBindTools).hasSize(2) // Tools returned for new binding
+            assertThat(tracker.getBoundInstance(TestUser::class.java)).isSameAs(user2) // Now second user
         }
 
         @Test
@@ -116,6 +124,56 @@ class DomainToolSourceTest {
             assertThat(tools).hasSize(2)
             val toolNames = tools.map { it.definition.name }
             assertThat(toolNames).containsExactlyInAnyOrder("getProfile", "updateName")
+        }
+
+        @Test
+        fun `should not bind when predicate returns false`() {
+            // Only bind users with id starting with "admin"
+            val source = DomainToolSource(TestUser::class.java) { user, _ ->
+                user.id.startsWith("admin")
+            }
+            val tracker = DomainToolTracker(listOf(source))
+
+            val regularUser = TestUser("user-1", "Alice")
+            val tools = tracker.tryBindArtifact(regularUser)
+
+            assertThat(tools).isEmpty()
+            assertThat(tracker.hasBoundInstance(TestUser::class.java)).isFalse()
+        }
+
+        @Test
+        fun `should bind when predicate returns true`() {
+            // Only bind users with id starting with "admin"
+            val source = DomainToolSource(TestUser::class.java) { user, _ ->
+                user.id.startsWith("admin")
+            }
+            val tracker = DomainToolTracker(listOf(source))
+
+            val adminUser = TestUser("admin-1", "Admin Alice")
+            val tools = tracker.tryBindArtifact(adminUser)
+
+            assertThat(tools).hasSize(2)
+            assertThat(tracker.hasBoundInstance(TestUser::class.java)).isTrue()
+            assertThat(tracker.getBoundInstance(TestUser::class.java)).isSameAs(adminUser)
+        }
+
+        @Test
+        fun `should replace binding when new artifact passes predicate`() {
+            val source = DomainToolSource(TestUser::class.java) { user, _ ->
+                user.id.startsWith("admin")
+            }
+            val tracker = DomainToolTracker(listOf(source))
+
+            val admin1 = TestUser("admin-1", "Admin Alice")
+            val regularUser = TestUser("user-1", "Bob")
+            val admin2 = TestUser("admin-2", "Admin Charlie")
+
+            tracker.tryBindArtifact(admin1)
+            tracker.tryBindArtifact(regularUser) // Should not replace
+            assertThat(tracker.getBoundInstance(TestUser::class.java)).isSameAs(admin1)
+
+            tracker.tryBindArtifact(admin2) // Should replace
+            assertThat(tracker.getBoundInstance(TestUser::class.java)).isSameAs(admin2)
         }
     }
 
@@ -197,6 +255,66 @@ class DomainToolSourceTest {
             )
 
             assertThat(tools).isEmpty()
+        }
+    }
+
+    @Nested
+    inner class AutoDiscoveryTests {
+
+        @Test
+        fun `should auto-discover tools from any object with LlmTool methods`() {
+            val tracker = DomainToolTracker.withAutoDiscovery()
+
+            val user = TestUser("1", "Alice")
+            val tools = tracker.tryBindArtifact(user)
+
+            assertThat(tools).hasSize(2)
+            val toolNames = tools.map { it.definition.name }
+            assertThat(toolNames).containsExactlyInAnyOrder("getProfile", "updateName")
+        }
+
+        @Test
+        fun `should replace tools when new object is discovered`() {
+            val tracker = DomainToolTracker.withAutoDiscovery()
+
+            val user = TestUser("1", "Alice")
+            tracker.tryBindArtifact(user)
+
+            val order = TestOrder("order-123")
+            val orderTools = tracker.tryBindArtifact(order)
+
+            assertThat(orderTools).hasSize(1)
+            assertThat(orderTools[0].definition.name).isEqualTo("getStatus")
+
+            // User tools should no longer be bound
+            assertThat(tracker.hasBoundInstance(TestUser::class.java)).isFalse()
+            // Order should be bound
+            assertThat(tracker.hasBoundInstance(TestOrder::class.java)).isTrue()
+        }
+
+        @Test
+        fun `should not discover tools from objects without LlmTool methods`() {
+            val tracker = DomainToolTracker.withAutoDiscovery()
+
+            val plain = PlainObject("test")
+            val tools = tracker.tryBindArtifact(plain)
+
+            assertThat(tools).isEmpty()
+        }
+
+        @Test
+        fun `should replace with same type (last wins)`() {
+            val tracker = DomainToolTracker.withAutoDiscovery()
+
+            val user1 = TestUser("1", "Alice")
+            val user2 = TestUser("2", "Bob")
+
+            tracker.tryBindArtifact(user1)
+            tracker.tryBindArtifact(user2)
+
+            // Should have second user bound
+            val boundUser = tracker.getBoundInstance(TestUser::class.java)
+            assertThat(boundUser).isSameAs(user2)
         }
     }
 }

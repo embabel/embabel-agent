@@ -16,7 +16,29 @@
 package com.embabel.agent.api.tool.agentic
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.AgentProcess
 import org.slf4j.LoggerFactory
+import java.util.function.BiPredicate
+
+/**
+ * Predicate for filtering domain tool candidates.
+ *
+ * This functional interface allows you to control whether a domain object
+ * should contribute its @LlmTool methods based on the object and current agent process.
+ *
+ * @param T The domain class type
+ */
+@FunctionalInterface
+fun interface DomainToolPredicate<T> : BiPredicate<T, AgentProcess?> {
+    override fun test(artifact: T, agentProcess: AgentProcess?): Boolean
+
+    companion object {
+        /**
+         * A predicate that always returns true.
+         */
+        fun <T> always(): DomainToolPredicate<T> = DomainToolPredicate { _, _ -> true }
+    }
+}
 
 /**
  * Configuration for a class that can contribute @LlmTool methods when a single instance is retrieved.
@@ -24,17 +46,29 @@ import org.slf4j.LoggerFactory
  * When a single artifact of the specified [type] is retrieved during agentic tool execution,
  * any @LlmTool annotated methods on that instance become available as tools.
  *
+ * The optional [predicate] allows filtering which instances should contribute tools.
+ * By default, all instances are accepted.
+ *
  * @param T The domain class type
  * @param type The class object
+ * @param predicate Predicate to filter which instances contribute tools
  */
 data class DomainToolSource<T : Any>(
     val type: Class<T>,
+    val predicate: DomainToolPredicate<T> = DomainToolPredicate.always(),
 ) {
     companion object {
         /**
          * Create a domain tool source for the given class.
          */
         inline fun <reified T : Any> of(): DomainToolSource<T> = DomainToolSource(T::class.java)
+
+        /**
+         * Create a domain tool source with a predicate.
+         */
+        inline fun <reified T : Any> of(
+            noinline predicate: (T, AgentProcess?) -> Boolean,
+        ): DomainToolSource<T> = DomainToolSource(T::class.java, DomainToolPredicate(predicate))
     }
 }
 
@@ -43,9 +77,21 @@ data class DomainToolSource<T : Any>(
  *
  * When a single instance of a registered domain class is retrieved,
  * this tracker binds @LlmTool methods from that instance.
+ *
+ * Supports two modes:
+ * - **Registered sources mode**: Only binds instances of explicitly registered types
+ * - **Auto-discovery mode**: Binds any object with @LlmTool methods, replacing previous bindings
+ *
+ * In both modes, "last wins" - when a new matching artifact arrives, it replaces any previously bound instance.
+ *
+ * @param sources List of registered domain tool sources (empty for auto-discovery mode)
+ * @param autoDiscovery When true, discovers tools from any object with @LlmTool methods
+ * @param agentProcess Optional agent process for predicate evaluation
  */
 class DomainToolTracker(
-    private val sources: List<DomainToolSource<*>>,
+    private val sources: List<DomainToolSource<*>> = emptyList(),
+    private val autoDiscovery: Boolean = false,
+    private val agentProcess: AgentProcess? = null,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -53,11 +99,16 @@ class DomainToolTracker(
     private val boundInstances = mutableMapOf<Class<*>, Any>()
 
     /**
-     * Check if the given artifact is a single instance of a registered domain class.
+     * Check if the given artifact is a single instance of a registered domain class
+     * (or any class with @LlmTool methods in auto-discovery mode).
      * If so, bind it and return any tools extracted from it.
+     *
+     * In "last wins" semantics: if an instance of this type is already bound,
+     * it is replaced with the new artifact.
      *
      * @return Tools extracted from the instance, or empty list if not applicable
      */
+    @Suppress("UNCHECKED_CAST")
     fun tryBindArtifact(artifact: Any): List<Tool> {
         // Don't bind collections - only single instances
         if (artifact is Iterable<*> || artifact is Array<*>) {
@@ -66,20 +117,25 @@ class DomainToolTracker(
 
         val artifactClass = artifact::class.java
 
+        if (autoDiscovery) {
+            return tryBindAutoDiscovered(artifact, artifactClass)
+        }
+
         // Check if this artifact type is registered as a domain tool source
         val source = sources.find { it.type.isAssignableFrom(artifactClass) }
             ?: return emptyList()
 
-        // Check if we already have an instance of this type bound
-        if (boundInstances.containsKey(source.type)) {
+        // Check predicate
+        val typedPredicate = source.predicate as DomainToolPredicate<Any>
+        if (!typedPredicate.test(artifact, agentProcess)) {
             logger.debug(
-                "Already have a bound instance of {}, not rebinding",
+                "Predicate rejected {} instance, not binding",
                 source.type.simpleName,
             )
             return emptyList()
         }
 
-        // Bind the instance
+        // Bind the instance (replaces any previous binding - "last wins")
         boundInstances[source.type] = artifact
 
         // Extract tools from the instance
@@ -96,6 +152,32 @@ class DomainToolTracker(
     }
 
     /**
+     * Auto-discovery mode: bind any object with @LlmTool methods.
+     * Clears all previous bindings when a new object is bound.
+     */
+    private fun tryBindAutoDiscovered(artifact: Any, artifactClass: Class<*>): List<Tool> {
+        // Check if this object has any @LlmTool methods
+        val tools = Tool.safelyFromInstance(artifact)
+        if (tools.isEmpty()) {
+            return emptyList()
+        }
+
+        // Clear all previous bindings (auto-discovery keeps only the last)
+        boundInstances.clear()
+
+        // Bind this instance
+        boundInstances[artifactClass] = artifact
+
+        logger.info(
+            "Auto-discovered {} instance, exposing {} tools: {}",
+            artifactClass.simpleName,
+            tools.size,
+            tools.map { it.definition.name },
+        )
+        return tools
+    }
+
+    /**
      * Get the currently bound instance for a domain class, if any.
      */
     @Suppress("UNCHECKED_CAST")
@@ -105,6 +187,20 @@ class DomainToolTracker(
      * Check if an instance is bound for the given type.
      */
     fun hasBoundInstance(type: Class<*>): Boolean = boundInstances.containsKey(type)
+
+    companion object {
+        /**
+         * Create a tracker in auto-discovery mode.
+         * This will expose tools from any object with @LlmTool methods,
+         * replacing previous bindings when new objects are discovered.
+         */
+        fun withAutoDiscovery(agentProcess: AgentProcess? = null): DomainToolTracker =
+            DomainToolTracker(
+                sources = emptyList(),
+                autoDiscovery = true,
+                agentProcess = agentProcess,
+            )
+    }
 }
 
 /**

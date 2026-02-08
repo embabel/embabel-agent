@@ -23,6 +23,7 @@ import com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator
 import com.embabel.agent.api.tool.agentic.AgenticTool
 import com.embabel.agent.api.tool.agentic.AgenticToolSupport
 import com.embabel.agent.api.tool.agentic.DomainToolFactory
+import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
@@ -66,6 +67,7 @@ data class SimpleAgenticTool(
     override val llm: LlmOptions = LlmOptions(),
     val tools: List<Tool> = emptyList(),
     internal val domainToolSources: List<DomainToolSource<*>> = emptyList(),
+    internal val autoDiscovery: Boolean = false,
     val systemPromptCreator: AgenticSystemPromptCreator = AgenticSystemPromptCreator { _, _ ->
         AgenticTool.defaultSystemPrompt(definition.description)
     },
@@ -88,7 +90,7 @@ data class SimpleAgenticTool(
     )
 
     override fun call(input: String): Tool.Result {
-        if (tools.isEmpty() && domainToolSources.isEmpty()) {
+        if (tools.isEmpty() && domainToolSources.isEmpty() && !autoDiscovery) {
             loggerFor<SimpleAgenticTool>().warn(
                 "No tools available for SimpleAgenticTool '{}'",
                 definition.name,
@@ -105,15 +107,20 @@ data class SimpleAgenticTool(
         val executingContext = executingOperationContextFor(agentProcess!!)
         val systemPrompt = systemPromptCreator.apply(executingContext, input)
         loggerFor<SimpleAgenticTool>().info(
-            "Executing SimpleAgenticTool '{}' with {} tools and {} domain sources",
+            "Executing SimpleAgenticTool '{}' with {} tools, {} domain sources, autoDiscovery={}",
             definition.name,
             tools.size,
             domainToolSources.size,
+            autoDiscovery,
         )
 
-        // Create domain tool tracker if we have domain sources
-        val domainToolTracker = if (domainToolSources.isNotEmpty()) {
-            DomainToolTracker(domainToolSources)
+        // Create domain tool tracker if we have domain sources or auto-discovery is enabled
+        val domainToolTracker = if (domainToolSources.isNotEmpty() || autoDiscovery) {
+            DomainToolTracker(
+                sources = domainToolSources,
+                autoDiscovery = autoDiscovery,
+                agentProcess = agentProcess,
+            )
         } else {
             null
         }
@@ -199,9 +206,20 @@ data class SimpleAgenticTool(
         captureNestedArtifacts = capture,
     )
 
-    override fun <T : Any> withDomainToolsFrom(type: Class<T>): SimpleAgenticTool = copy(
-        domainToolSources = domainToolSources + DomainToolSource(type),
+    override fun <T : Any> withDomainToolsFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): SimpleAgenticTool = copy(
+        domainToolSources = domainToolSources + DomainToolSource(type, predicate),
     )
+
+    /**
+     * Register a domain class with a predicate.
+     * Kotlin-friendly version using reified type parameter.
+     */
+    inline fun <reified T : Any> withDomainToolsFrom(
+        noinline predicate: (T, com.embabel.agent.core.AgentProcess?) -> Boolean,
+    ): SimpleAgenticTool = withDomainToolsFrom(T::class.java, DomainToolPredicate(predicate))
 
     /**
      * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
@@ -209,4 +227,6 @@ data class SimpleAgenticTool(
      */
     inline fun <reified T : Any> withDomainToolsFrom(): SimpleAgenticTool =
         withDomainToolsFrom(T::class.java)
+
+    override fun withAnyDomainTools(): SimpleAgenticTool = copy(autoDiscovery = true)
 }
