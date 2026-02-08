@@ -57,12 +57,52 @@ interface Chatbot {
     fun createSession(
         user: User?,
         outputChannel: OutputChannel,
-        systemMessage: String? = null,
+        contextId: String? = null,
     ): ChatSession
 
     fun findSession(conversationId: String): ChatSession?
 }
 ----
+
+===== Context IDs and Session State
+
+The `contextId` parameter allows you to **pre-populate the session's blackboard** with objects from a named context.
+This is useful when:
+
+* **Users have multiple contexts** - A user might have different projects, accounts, or workspaces.
+Each context can maintain its own state that persists across sessions.
+
+* **Resuming prior state** - When a user returns, you can restore their previous session state
+(e.g., user preferences, in-progress work, conversation history from a previous session).
+
+* **Pre-loading domain objects** - You can populate the blackboard with objects that should always be present,
+such as the current user's profile, active subscription, or relevant configuration.
+
+[source,java]
+----
+// Create a session with a specific context
+ChatSession session = chatbot.createSession(
+    user,
+    outputChannel,
+    "project-alpha"  // Context ID - loads saved state for this project
+);
+
+// Or create an anonymous session without context
+ChatSession anonymousSession = chatbot.createSession(
+    null,
+    outputChannel,
+    null
+);
+----
+
+The context mechanism works with `AgentPlatform`'s context storage:
+
+1. When `createSession` is called with a `contextId`, the platform looks up any saved objects for that context
+2. Those objects are added to the new session's blackboard
+3. As the session runs, changes to the blackboard can be persisted back to the context
+4. The next time a session is created with that `contextId`, the updated state is restored
+
+This enables **stateful conversations across sessions** without requiring the chatbot to manually track and restore state.
 
 ===== ChatSession
 
@@ -285,15 +325,20 @@ Interact with the chatbot through its session interface:
 
 [source,java]
 ----
+// Create a session without context (fresh state)
 ChatSession session = chatbot.createSession(user, outputChannel, null); // <1>
 
-session.onUserMessage(new UserMessage("What does this document say about taxes?")); // <2>
-// Response is automatically sent to the outputChannel // <3>
+// Or create a session with a context to restore prior state
+ChatSession resumedSession = chatbot.createSession(user, outputChannel, "user-workspace-123"); // <2>
+
+session.onUserMessage(new UserMessage("What does this document say about taxes?")); // <3>
+// Response is automatically sent to the outputChannel // <4>
 ----
 
-<1> Create a new session for a user with an output channel
-<2> Send a user message - triggers the agent to select and run an action
-<3> Responses from actions are sent to the `outputChannel`
+<1> Create a new session for a user with an output channel (no context - fresh blackboard)
+<2> Create a session that restores state from the "user-workspace-123" context
+<3> Send a user message - triggers the agent to select and run an action
+<4> Responses from actions are sent to the `outputChannel`
 
 ==== How Message Triggering Works
 

@@ -1092,6 +1092,33 @@ Embabel provides three agentic tool implementations, each offering different lev
 
 All three implement the `AgenticTool` interface and share a common fluent API with `with*` methods.
 
+The `AgenticTool` interface defines:
+
+[source,kotlin]
+----
+interface AgenticTool<THIS : AgenticTool<THIS>> : Tool {
+    val llm: LlmOptions                              // LLM configuration
+    val maxIterations: Int                           // Max tool loop iterations (default: 20)
+
+    fun withLlm(llm: LlmOptions): THIS
+    fun withSystemPrompt(prompt: String): THIS
+    fun withSystemPrompt(creator: AgenticSystemPromptCreator): THIS  // Dynamic prompt
+    fun withMaxIterations(maxIterations: Int): THIS
+    fun withParameter(parameter: Tool.Parameter): THIS
+    fun withToolObject(toolObject: Any): THIS
+}
+----
+
+The `AgenticSystemPromptCreator` functional interface receives both the `ExecutingOperationContext` (for access to blackboard, process options, etc.) and the input string passed to the tool:
+
+[source,java]
+----
+tool.withSystemPrompt((ctx, input) ->
+    "Context: " + ctx.getProcessContext().getProcessOptions().getContextId() +
+    ". Task: " + input
+);
+----
+
 IMPORTANT: For complex workflows with defined outputs, branching logic, loops, or state management, use Embabel's <<reference.planners,GOAP planner>>, <<reference.planners__utility,Utility AI>>, or <<reference.states,@State workflows>> instead.
 These provide deterministic, typesafe planning that is far more powerful and predictable than LLM-driven orchestration.
 
@@ -1644,10 +1671,10 @@ SimpleAgenticTool withAnnotatedTools = base.withToolObject(calculatorService);
 // Add tools from multiple objects
 SimpleAgenticTool withMultipleObjects = base.withToolObjects(searchService, calculatorService);
 
-// Dynamic system prompt based on AgentProcess context
-SimpleAgenticTool withDynamicPrompt = base.withSystemPromptCreator(agentProcess -> {
-    String userId = agentProcess.getBlackboard().get("userId", String.class);
-    return "Process requests for user " + userId + " using the available tools";
+// Dynamic system prompt based on execution context and input
+SimpleAgenticTool withDynamicPrompt = base.withSystemPrompt((ctx, input) -> {
+    String contextId = ctx.getProcessContext().getProcessOptions().getContextId().getId();
+    return "Process requests for context " + contextId + ". Task: " + input;
 });
 ----
 
@@ -1673,10 +1700,10 @@ val withAnnotatedTools = base.withToolObject(calculatorService)
 // Add tools from multiple objects
 val withMultipleObjects = base.withToolObjects(searchService, calculatorService)
 
-// Dynamic system prompt based on AgentProcess context
-val withDynamicPrompt = base.withSystemPromptCreator { agentProcess ->
-    val userId = agentProcess.blackboard.get("userId", String::class.java)
-    "Process requests for user $userId using the available tools"
+// Dynamic system prompt based on execution context and input
+val withDynamicPrompt = base.withSystemPrompt { ctx, input ->
+    val contextId = ctx.processContext.processOptions.contextId?.id
+    "Process requests for context $contextId. Task: $input"
 }
 ----
 ====
@@ -1689,7 +1716,7 @@ The available modification methods are:
 - `withToolObject(Any)`: Add tools from an object with `@LlmTool` methods
 - `withToolObjects(vararg Any)`: Add tools from multiple annotated objects
 - `withSystemPrompt(String)`: Set a fixed system prompt
-- `withSystemPromptCreator((AgentProcess) -> String)`: Set a dynamic prompt based on runtime context
+- `withSystemPrompt((ExecutingOperationContext, String) -> String)`: Set a dynamic prompt based on execution context and input
 - `withCaptureNestedArtifacts(Boolean)`: Control whether artifacts from nested agentic tool calls are captured (default: `false`)
 
 [[reference.tools__agentic-tools-artifact-capture]]
