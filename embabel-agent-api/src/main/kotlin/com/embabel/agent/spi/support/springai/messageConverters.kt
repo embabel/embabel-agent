@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.chat.*
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.ai.content.Media
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
@@ -50,7 +51,7 @@ fun Message.toSpringAiMessage(): SpringAiMessage {
             val toolResponse = ToolResponseMessage.ToolResponse(
                 this.toolCallId,
                 this.toolName,
-                this.textContent
+                this.textContent.ensureJson()
             )
             ToolResponseMessage.builder().responses(listOf(toolResponse)).metadata(metadata).build()
         }
@@ -123,6 +124,19 @@ internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringA
  * Convert a Spring AI AssistantMessage to an Embabel message.
  * Handles both regular messages and messages with tool calls.
  */
+/**
+ * Ensures the string is valid JSON for Gemini compatibility.
+ * The Google GenAI adapter parses tool response data as JSON.
+ * Plain text responses must be wrapped in a JSON object.
+ */
+private fun String.ensureJson(): String {
+    val trimmed = trimStart()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        return this
+    }
+    return ObjectMapper().writeValueAsString(mapOf("result" to this))
+}
+
 fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
     val toolCalls = this.toolCalls
     return if (toolCalls.isNullOrEmpty()) {
