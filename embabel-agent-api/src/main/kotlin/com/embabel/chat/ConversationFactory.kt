@@ -35,7 +35,7 @@ enum class ConversationStoreType {
 }
 
 /**
- * Factory for creating [Conversation] instances.
+ * Factory for creating and loading [Conversation] instances.
  *
  * Implementations provide different storage strategies (in-memory, persistent, etc.).
  * Use [ConversationFactoryProvider] to obtain factories by type.
@@ -54,6 +54,18 @@ interface ConversationFactory {
      * @return a new Conversation instance
      */
     fun create(id: String): Conversation
+
+    /**
+     * Load an existing conversation from storage.
+     *
+     * For persistent implementations, this restores a conversation with its
+     * message history from the backing store. For in-memory implementations,
+     * this returns null (nothing to restore).
+     *
+     * @param id the conversation ID to load
+     * @return the conversation if found, null otherwise
+     */
+    fun load(id: String): Conversation? = null
 
     /**
      * Create a conversation for a 1-1 chat between a user and an agent.
