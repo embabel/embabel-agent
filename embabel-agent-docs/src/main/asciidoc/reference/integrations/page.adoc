@@ -423,3 +423,317 @@ embabel:
 
 [[reference.integrations__a2a]]
 ==== A2A
+
+[[reference.integrations__observability]]
+==== Observability
+
+Embabel Agent provides a unified observability module that automatically traces agent lifecycle, actions, LLM calls, tool invocations, and more — with zero code changes.
+It integrates with any OpenTelemetry-compatible backend (Zipkin, Langfuse, Jaeger, Prometheus, etc.).
+
+===== Setup
+
+Add the observability starter to your `pom.xml`:
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-observability</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+
+Then add an exporter dependency. For example, Zipkin:
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.opentelemetry</groupId>
+    <artifactId>opentelemetry-exporter-zipkin</artifactId>
+</dependency>
+----
+
+Or Langfuse for LLM-focused observability:
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.quantpulsar</groupId>
+    <artifactId>opentelemetry-exporter-langfuse</artifactId>
+    <version>0.4.0</version>
+</dependency>
+----
+
+TIP: You can use multiple exporters simultaneously (e.g., Langfuse for traces + Prometheus for metrics).
+
+===== Configuration
+
+Enable observability and configure your exporter in `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  observability:
+    enabled: true
+    service-name: my-agent-app
+
+management:
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+
+  # Zipkin
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
+----
+
+For Langfuse:
+
+[source,yaml]
+----
+management:
+  langfuse:
+    enabled: true
+    endpoint: https://cloud.langfuse.com/api/public/otel  # or self-hosted URL
+    public-key: pk-lf-...
+    secret-key: sk-lf-...
+----
+
+===== What Gets Traced
+
+All tracing is automatic once the module is on the classpath.
+The following events are captured as OpenTelemetry spans, organized in a parent-child hierarchy:
+
+[source]
+----
+Agent: CustomerServiceAgent (trace root)
+├── planning:formulated [iteration=1, actions=3]
+├── Action: AnalyzeRequest
+│   └── ChatModel: gpt-4 (Spring AI)
+│       └── tool:searchKnowledgeBase
+├── Action: GenerateResponse
+│   └── ChatModel: gpt-4 (Spring AI)
+├── goal:achieved [RequestProcessed]
+└── status: completed [duration=2340ms]
+----
+
+===== Tracing Configuration Properties
+
+All tracing options are enabled by default and can be toggled individually:
+
+[cols="2,1,3"]
+|===
+|Property |Default |Description
+
+|`embabel.observability.enabled`
+|`true`
+|Master switch for observability
+
+|`embabel.observability.service-name`
+|`embabel-agent`
+|Service name in traces
+
+|`embabel.observability.trace-agent-events`
+|`true`
+|Agent lifecycle (creation, execution, completion, failures)
+
+|`embabel.observability.trace-tool-calls`
+|`true`
+|Tool invocations with input/output
+
+|`embabel.observability.trace-tool-loop`
+|`true`
+|Tool loop execution
+
+|`embabel.observability.trace-llm-calls`
+|`true`
+|LLM calls with token usage
+
+|`embabel.observability.trace-planning`
+|`true`
+|Planning and replanning iterations
+
+|`embabel.observability.trace-state-transitions`
+|`true`
+|Workflow state changes
+
+|`embabel.observability.trace-lifecycle-states`
+|`true`
+|WAITING, PAUSED, STUCK states
+
+|`embabel.observability.trace-rag`
+|`true`
+|RAG events (request, response, pipeline)
+
+|`embabel.observability.trace-ranking`
+|`true`
+|Ranking/selection events (agent routing)
+
+|`embabel.observability.trace-dynamic-agent-creation`
+|`true`
+|Dynamic agent creation events
+
+|`embabel.observability.trace-http-details`
+|`false`
+|HTTP request/response details (bodies, headers)
+
+|`embabel.observability.trace-tracked-operations`
+|`true`
+|`@Tracked` annotation aspect
+
+|`embabel.observability.mdc-propagation`
+|`true`
+|Propagate agent context into SLF4J MDC
+
+|`embabel.observability.metrics-enabled`
+|`true`
+|Micrometer business metrics (counters, gauges)
+
+|`embabel.observability.max-attribute-length`
+|`4000`
+|Max span attribute length before truncation
+|===
+
+===== Custom Operation Tracking with `@Tracked`
+
+The `@Tracked` annotation lets you add observability spans to your own methods.
+Inputs, outputs, duration, and errors are captured automatically.
+
+[source,java]
+----
+@Tracked("enrichCustomer")
+public Customer enrich(Customer input) {
+    // Automatically creates a span with method arguments and return value
+}
+----
+
+You can specify a type and description for richer traces:
+
+[source,java]
+----
+@Tracked(
+    value = "callPaymentApi",
+    type = TrackType.EXTERNAL_CALL,
+    description = "Payment gateway call"
+)
+public PaymentResult processPayment(Order order) {
+    // ...
+}
+----
+
+Available track types:
+
+[cols="1,3"]
+|===
+|Type |Description
+
+|`CUSTOM`
+|General-purpose (default)
+
+|`PROCESSING`
+|Data processing operation
+
+|`VALIDATION`
+|Validation or verification step
+
+|`TRANSFORMATION`
+|Data transformation
+
+|`EXTERNAL_CALL`
+|External service/API call
+
+|`COMPUTATION`
+|Computation or calculation
+|===
+
+When called within an agent execution, `@Tracked` spans are automatically nested under the current action:
+
+[source]
+----
+Agent: CustomerServiceAgent
+├── Action: ProcessOrder
+│   ├── @Tracked: enrichCustomer (PROCESSING)
+│   ├── ChatModel: gpt-4
+│   └── @Tracked: callPaymentApi (EXTERNAL_CALL)
+└── status: completed
+----
+
+IMPORTANT: `@Tracked` uses Spring AOP proxies.
+Internal method calls within the same class are *not* intercepted.
+Extract tracked methods into a separate `@Component` bean for the annotation to work.
+
+===== MDC Log Correlation
+
+Agent context is automatically propagated into SLF4J MDC, enabling log filtering by agent run or action.
+
+MDC keys set automatically:
+
+[cols="2,3,2,2"]
+|===
+|MDC Key |Description |Set on |Removed on
+
+|`embabel.agent.run_id`
+|Agent process ID
+|Agent creation
+|Agent completed/failed/killed
+
+|`embabel.agent.name`
+|Agent name
+|Agent creation
+|Agent completed/failed/killed
+
+|`embabel.action.name`
+|Current action name
+|Action start
+|Action result
+|===
+
+Example Logback pattern:
+
+[source,xml]
+----
+<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} [runId=%X{embabel.agent.run_id} agent=%X{embabel.agent.name} action=%X{embabel.action.name}] - %msg%n</pattern>
+----
+
+This produces logs like:
+
+[source]
+----
+14:23:45.123 [main] INFO  c.e.MyService [runId=abc-123 agent=CustomerServiceAgent action=AnalyzeRequest] - Processing request
+----
+
+To disable MDC propagation:
+
+[source,yaml]
+----
+embabel:
+  observability:
+    mdc-propagation: false
+----
+
+===== Supported Backends
+
+[cols="1,1,2"]
+|===
+|Backend |Type |Module
+
+|Langfuse
+|Traces
+|`opentelemetry-exporter-langfuse`
+
+|Zipkin
+|Traces
+|`opentelemetry-exporter-zipkin`
+
+|OTLP (Jaeger, Tempo)
+|Traces
+|`opentelemetry-exporter-otlp`
+
+|Prometheus
+|Metrics
+|`micrometer-registry-prometheus`
+|===
+
+For full details, see the https://github.com/embabel/embabel-agent/tree/main/embabel-agent-observability[Observability Module Documentation].

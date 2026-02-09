@@ -130,6 +130,45 @@ class ActionExecutionResultEvent internal constructor(
     override val runningTime: Duration,
 ) : AbstractAgentProcessEvent(agentProcess), Timed
 
+class ToolLoopStartEvent(
+    agentProcess: AgentProcess,
+    val action: Action?,
+    val toolNames: List<String>,
+    val maxIterations: Int,
+    val interactionId: String,
+    val outputClass: Class<*>,
+) : AbstractAgentProcessEvent(agentProcess) {
+
+    fun completedEvent(
+        totalIterations: Int,
+        replanRequested: Boolean,
+    ): ToolLoopCompletedEvent {
+        return ToolLoopCompletedEvent(
+            agentProcess = agentProcess,
+            action = action,
+            toolNames = toolNames,
+            maxIterations = maxIterations,
+            interactionId = interactionId,
+            outputClass = outputClass,
+            totalIterations = totalIterations,
+            replanRequested = replanRequested,
+            runningTime = Duration.between(timestamp, Instant.now()),
+        )
+    }
+}
+
+class ToolLoopCompletedEvent internal constructor(
+    agentProcess: AgentProcess,
+    val action: Action?,
+    val toolNames: List<String>,
+    val maxIterations: Int,
+    val interactionId: String,
+    val outputClass: Class<*>,
+    val totalIterations: Int,
+    val replanRequested: Boolean,
+    override val runningTime: Duration,
+) : AbstractAgentProcessEvent(agentProcess), Timed
+
 /**
  * Call to a function from an LLM
  * @param correlationId correlation ID for this tool call, useful for UI

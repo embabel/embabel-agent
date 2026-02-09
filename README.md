@@ -1196,6 +1196,140 @@ implementation("com.embabel.agent:embabel-agent-starter:0.3.0")
 implementation 'com.embabel.agent:embabel-agent-starter:0.3.0'
 ```
 
+## Getting Started with Observability
+
+Add full tracing and metrics to your Embabel agents with zero code changes.
+
+### 1. Add the dependency
+
+```xml
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-observability</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+```
+
+### 2. Add an exporter
+
+Pick **one** (or combine multiple):
+
+**Zipkin** (simplest — no account needed):
+```xml
+<dependency>
+    <groupId>io.opentelemetry</groupId>
+    <artifactId>opentelemetry-exporter-zipkin</artifactId>
+</dependency>
+```
+
+**Langfuse** (LLM-focused observability):
+```xml
+<dependency>
+    <groupId>com.quantpulsar</groupId>
+    <artifactId>opentelemetry-exporter-langfuse</artifactId>
+    <version>0.4.0</version>
+</dependency>
+```
+
+### 3. Configure
+
+```yaml
+# Enable observability
+embabel:
+  observability:
+    enabled: true
+    service-name: my-agent-app
+
+# Enable Spring Boot tracing
+management:
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+
+  # Zipkin exporter
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
+```
+
+To use Langfuse instead of (or alongside) Zipkin:
+```yaml
+management:
+  langfuse:
+    enabled: true
+    endpoint: https://cloud.langfuse.com/api/public/otel  # or your self-hosted URL
+    public-key: pk-lf-...
+    secret-key: sk-lf-...
+```
+
+### 4. Start Zipkin and run
+
+```bash
+docker run -d -p 9411:9411 openzipkin/zipkin
+./mvnw spring-boot:run
+```
+
+Open [http://localhost:9411](http://localhost:9411) — run an agent and you will see traces like:
+
+```
+Agent: CustomerServiceAgent
+├── Action: AnalyzeRequest
+│   └── ChatModel: gpt-4 (Spring AI)
+│       └── tool:searchKnowledgeBase
+├── Action: GenerateResponse
+│   └── ChatModel: gpt-4 (Spring AI)
+└── status: completed [duration=2340ms]
+```
+
+With Langfuse, you get a rich LLM-focused view of your agent traces:
+
+<img src="embabel-agent-observability/docs/langfuse.png" alt="Langfuse Tracing" width="800"/>
+
+### What gets traced automatically
+
+- Agent lifecycle (creation, execution, completion, failures)
+- Every action as a child span
+- LLM calls with token usage (via Spring AI)
+- Tool invocations with input/output
+- Planning and replanning iterations
+- State transitions and lifecycle states
+
+### Track custom operations with `@Tracked`
+
+Use the `@Tracked` annotation to add observability spans to your own methods — inputs, outputs, duration, and errors are captured automatically:
+
+```java
+@Tracked("enrichCustomer")
+public Customer enrich(Customer input) {
+    // Your logic here
+}
+```
+
+You can specify a type and description for richer traces:
+
+```java
+@Tracked(value = "callPaymentApi", type = TrackType.EXTERNAL_CALL, description = "Payment gateway call")
+public PaymentResult processPayment(Order order) {
+    // ...
+}
+```
+
+When called within an agent execution, `@Tracked` spans are automatically nested under the current action:
+
+```
+Agent: CustomerServiceAgent
+├── Action: ProcessOrder
+│   ├── @Tracked: enrichCustomer (PROCESSING)
+│   ├── ChatModel: gpt-4
+│   └── @Tracked: callPaymentApi (EXTERNAL_CALL)
+└── status: completed
+```
+
+For the full configuration reference, MDC log correlation, and advanced options, see the [Observability Module Documentation](embabel-agent-observability/README.md).
+
+---
+
 ## Contributing
 
 We welcome contributions to the Embabel Agent Framework.

@@ -27,7 +27,49 @@
 
         <dependency>
             <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-rag-pipeline</artifactId>
+        </dependency>
+
+        <!-- Micrometer Tracing API (Tracer, Span, TracingObservationHandler) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing</artifactId>
+        </dependency>
+
+        <!-- AspectJ for @Tracked aspect (ProceedingJoinPoint, @Aspect, @Around) -->
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- OpenTelemetry API (Tracer, Span, Context, Scope) -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-context</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-internal</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- OpenTelemetry SDK for tests (OpenTelemetrySdk, SimpleSpanProcessor, SpanData) -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
