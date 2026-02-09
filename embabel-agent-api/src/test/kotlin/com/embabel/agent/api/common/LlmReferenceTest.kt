@@ -17,7 +17,7 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.reference.LlmReference
-import com.embabel.agent.api.tool.MatryoshkaTool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.api.tool.Tool
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
@@ -277,7 +277,7 @@ class LlmReferenceTest {
     }
 
     @Nested
-    inner class AsMatryoshkaTests {
+    inner class WithUnfoldingTests {
 
         @Test
         fun `does not rewrap`() {
@@ -289,14 +289,14 @@ class LlmReferenceTest {
                 tools = listOf(tool)
             )
 
-            val matryoshka1 = reference.asMatryoshka()
+            val unfolding1 = reference.withUnfolding()
 
-            assertThat(matryoshka1.asMatryoshka()).isSameAs(matryoshka1)
-            assertThat(matryoshka1.asMatryoshka().asMatryoshka()).isSameAs(matryoshka1)
+            assertThat(unfolding1.withUnfolding()).isSameAs(unfolding1)
+            assertThat(unfolding1.withUnfolding().withUnfolding()).isSameAs(unfolding1)
         }
 
         @Test
-        fun `asMatryoshka returns reference with single MatryoshkaTool containing all original tools`() {
+        fun `withUnfolding returns reference with single UnfoldingTool containing all original tools`() {
             val tool1 = Tool.of("tool_one", "First tool") { Tool.Result.text("one") }
             val tool2 = Tool.of("tool_two", "Second tool") { Tool.Result.text("two") }
 
@@ -307,19 +307,19 @@ class LlmReferenceTest {
                 notes = "Use this for testing"
             )
 
-            val matryoshka = reference.asMatryoshka()
+            val unfolding = reference.withUnfolding()
 
-            assertThat(matryoshka.tools()).hasSize(1)
-            val outerTool = matryoshka.tools()[0]
-            assertThat(outerTool).isInstanceOf(MatryoshkaTool::class.java)
-            val matryoshkaTool = outerTool as MatryoshkaTool
-            assertThat(matryoshkaTool.innerTools).hasSize(2)
-            assertThat(matryoshkaTool.innerTools.map { it.definition.name })
+            assertThat(unfolding.tools()).hasSize(1)
+            val outerTool = unfolding.tools()[0]
+            assertThat(outerTool).isInstanceOf(UnfoldingTool::class.java)
+            val unfoldingTool = outerTool as UnfoldingTool
+            assertThat(unfoldingTool.innerTools).hasSize(2)
+            assertThat(unfoldingTool.innerTools.map { it.definition.name })
                 .containsExactlyInAnyOrder("tool_one", "tool_two")
         }
 
         @Test
-        fun `asMatryoshka preserves contribution from original reference`() {
+        fun `withUnfolding preserves contribution from original reference`() {
             val tool = Tool.of("test_tool", "Test") { Tool.Result.text("ok") }
 
             val reference = LlmReference.of(
@@ -329,66 +329,66 @@ class LlmReferenceTest {
                 notes = "Important notes"
             )
 
-            val matryoshka = reference.asMatryoshka()
+            val unfolding = reference.withUnfolding()
 
-            assertThat(matryoshka.contribution()).isEqualTo(reference.contribution())
-            assertThat(matryoshka.contribution()).contains("My API")
-            assertThat(matryoshka.contribution()).contains("API description")
-            assertThat(matryoshka.contribution()).contains("Important notes")
+            assertThat(unfolding.contribution()).isEqualTo(reference.contribution())
+            assertThat(unfolding.contribution()).contains("My API")
+            assertThat(unfolding.contribution()).contains("API description")
+            assertThat(unfolding.contribution()).contains("Important notes")
         }
 
         @Test
-        fun `asMatryoshka preserves name and description`() {
+        fun `withUnfolding preserves name and description`() {
             val reference = LlmReference.of(
                 name = "Test Ref",
                 description = "Reference description",
                 tools = listOf(Tool.of("t", "t") { Tool.Result.text("ok") })
             )
 
-            val matryoshka = reference.asMatryoshka()
+            val unfolding = reference.withUnfolding()
 
-            assertThat(matryoshka.name).isEqualTo("Test Ref")
-            assertThat(matryoshka.description).isEqualTo("Reference description")
+            assertThat(unfolding.name).isEqualTo("Test Ref")
+            assertThat(unfolding.description).isEqualTo("Reference description")
         }
 
         @Test
-        fun `asMatryoshka uses tool prefix as MatryoshkaTool name`() {
+        fun `withUnfolding uses tool prefix as UnfoldingTool name`() {
             val reference = LlmReference.of(
                 name = "Weather API",
                 description = "Weather tools",
                 tools = listOf(Tool.of("get_weather", "Get weather") { Tool.Result.text("sunny") })
             )
 
-            val matryoshka = reference.asMatryoshka()
+            val unfolding = reference.withUnfolding()
 
-            val matryoshkaTool = matryoshka.tools()[0] as MatryoshkaTool
-            assertThat(matryoshkaTool.definition.name).isEqualTo(reference.toolPrefix())
+            val unfoldingTool = unfolding.tools()[0] as UnfoldingTool
+            assertThat(unfoldingTool.definition.name).isEqualTo(reference.toolPrefix())
         }
 
         @Test
-        fun `asMatryoshka returns empty tools when original has no tools`() {
+        fun `withUnfolding returns empty tools when original has no tools`() {
             val reference = LlmReference.of(
                 name = "Empty Ref",
                 description = "No tools",
                 tools = emptyList()
             )
 
-            val matryoshka = reference.asMatryoshka()
+            val unfolding = reference.withUnfolding()
 
-            assertThat(matryoshka.tools()).isEmpty()
+            assertThat(unfolding.tools()).isEmpty()
         }
 
         @Test
-        fun `asMatryoshka returns empty toolInstances`() {
+        fun `withUnfolding returns empty toolInstances`() {
             val reference = LlmReference.of(
                 name = "Test",
                 description = "Test",
                 tools = listOf(Tool.of("t", "t") { Tool.Result.text("ok") })
             )
 
-            val matryoshka = reference.asMatryoshka()
+            val unfolding = reference.withUnfolding()
 
-            assertThat(matryoshka.toolInstances()).isEmpty()
+            assertThat(unfolding.toolInstances()).isEmpty()
         }
     }
 }

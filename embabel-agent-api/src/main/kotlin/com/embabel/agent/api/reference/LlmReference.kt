@@ -15,9 +15,9 @@
  */
 package com.embabel.agent.api.reference
 
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.NamedAndDescribed
 import com.embabel.common.util.StringTransformer
@@ -119,9 +119,26 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * Do not rewrap a MatryoshkaReference. Thus
      * repeated calls to this method are safe.
      */
+    @Deprecated(
+        replaceWith = ReplaceWith(
+            expression = "withUnfoldingTool()",
+        ),
+        message = "Use withUnfoldingTool()",
+        level = DeprecationLevel.WARNING,
+    )
     fun asMatryoshka(): LlmReference = when (this) {
-        is MatryoshkaReference -> this
-        else -> MatryoshkaReference(this)
+        is UnfoldingReference -> this
+        else -> UnfoldingReference(this)
+    }
+
+    /**
+     * Convert this reference to a reference exposing a single unfolding tool.
+     * Does not rewrap an unfolding reference. Thus
+     * repeated calls to this method are safe.
+     */
+    fun withUnfolding(): LlmReference = when (this) {
+        is UnfoldingReference -> this
+        else -> UnfoldingReference(this)
     }
 
     companion object {
@@ -220,7 +237,7 @@ private data class SimpleLlmReference(
 }
 
 
-internal class MatryoshkaReference(
+private class UnfoldingReference(
     private val delegate: LlmReference,
 ) : LlmReference {
 
@@ -244,7 +261,7 @@ internal class MatryoshkaReference(
             return emptyList()
         }
         return listOf(
-            MatryoshkaTool.of(
+            UnfoldingTool.of(
                 name = delegate.toolPrefix(),
                 description = delegate.description,
                 innerTools = innerTools,
