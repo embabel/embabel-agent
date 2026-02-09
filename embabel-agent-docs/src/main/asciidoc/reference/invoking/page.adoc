@@ -10,6 +10,29 @@ It is also the most deterministic approach as code, rather than LLM assessment o
 
 You can create and execute agent processes directly using the `AgentPlatform`:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Create an agent process with bindings
+AgentProcess agentProcess = agentPlatform.createAgentProcess(
+    myAgent,
+    new ProcessOptions(),
+    Map.of("input", userRequest)
+);
+
+// Start the process and wait for completion
+Object result = agentPlatform.start(agentProcess).get();
+
+// Or run synchronously
+AgentProcess completedProcess = agentProcess.run();
+MyResultType result = completedProcess.last(MyResultType.class);
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // Create an agent process with bindings
@@ -26,9 +49,27 @@ val result = agentPlatform.start(agentProcess).get()
 val completedProcess = agentProcess.run()
 val result = completedProcess.last<MyResultType>()
 ----
+====
 
 You can create processes and populate their input map from varargs objects:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Create process from objects (like in web controllers)
+AgentProcess agentProcess = agentPlatform.createAgentProcessFrom(
+    travelAgent,
+    new ProcessOptions(),
+    travelRequest,
+    userPreferences
+);
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // Create process from objects (like in web controllers)
@@ -39,6 +80,7 @@ val agentProcess = agentPlatform.createAgentProcessFrom(
     userPreferences
 )
 ----
+====
 
 ==== Using AgentInvocation
 
@@ -74,6 +116,10 @@ val plan = invocation.invoke(travelRequest)
 
 ===== Invocation with Named Inputs
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Invoke with a map of named inputs
@@ -84,6 +130,20 @@ Map<String, Object> inputs = Map.of(
 
 TravelPlan plan = invocation.invoke(inputs);
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Invoke with a map of named inputs
+val inputs = mapOf(
+    "request" to travelRequest,
+    "preferences" to userPreferences
+)
+
+val plan = invocation.invoke(inputs)
+----
+====
 
 ===== Custom Process Options
 
@@ -134,6 +194,10 @@ val plan = invocation.invoke(travelRequest)
 
 For long-running operations, use async invocation:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 CompletableFuture<TravelPlan> future = invocation.invokeAsync(travelRequest);
@@ -146,6 +210,22 @@ future.thenAccept(plan -> {
 // Or wait for completion
 TravelPlan plan = future.get();
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+val future: CompletableFuture<TravelPlan> = invocation.invokeAsync(travelRequest)
+
+// Handle result when complete
+future.thenAccept { plan ->
+    logger.info("Travel plan generated: {}", plan)
+}
+
+// Or wait for completion
+val plan = future.get()
+----
+====
 
 ===== Agent Selection
 
@@ -160,6 +240,130 @@ TravelPlan plan = future.get();
 
 Here's how `AgentInvocation` is used in the http://github.com/embabel/tripper[Tripper travel planning application] with htmx for asynchronous UI updates:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Controller
+public class TripPlanningController {
+
+    private final AgentPlatform agentPlatform;
+    private final ConcurrentHashMap<String, CompletableFuture<TripPlan>> activeJobs =
+        new ConcurrentHashMap<>();
+    private static final Logger logger =
+        LoggerFactory.getLogger(TripPlanningController.class);
+    private static final ConcurrentHashMap<String, TripPlan> tripResultCache =
+        new ConcurrentHashMap<>();
+
+    public TripPlanningController(AgentPlatform agentPlatform) {
+        this.agentPlatform = agentPlatform;
+    }
+
+    @PostMapping("/plan-trip")
+    public String planTrip(
+            @ModelAttribute TripRequest tripRequest,
+            Model model) {
+        // Generate unique job ID for tracking
+        String jobId = UUID.randomUUID().toString();
+
+        // Create agent invocation with custom options
+        var processOptions = new ProcessOptions()
+            .withVerbosity(new Verbosity().withShowPrompts(true));
+        var invocation = AgentInvocation.builder(agentPlatform)
+            .options(processOptions)
+            .build(TripPlan.class);
+
+        // Start async agent execution
+        CompletableFuture<TripPlan> future = invocation.invokeAsync(tripRequest);
+        activeJobs.put(jobId, future);
+
+        // Set up completion handler
+        future.whenComplete((result, throwable) -> {
+            if (throwable != null) {
+                logger.error("Trip planning failed for job {}", jobId, throwable);
+            } else {
+                logger.info("Trip planning completed for job {}", jobId);
+            }
+        });
+
+        model.addAttribute("jobId", jobId);
+        model.addAttribute("tripRequest", tripRequest);
+
+        // Return htmx template that will poll for results
+        return "trip-planning-progress";
+    }
+
+    @GetMapping("/trip-status/{jobId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getTripStatus(@PathVariable String jobId) {
+        CompletableFuture<TripPlan> future = activeJobs.get(jobId);
+        if (future == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (future.isDone()) {
+            try {
+                TripPlan tripPlan = future.get();
+                activeJobs.remove(jobId);
+
+                return ResponseEntity.ok(Map.of(
+                    "status", "completed",
+                    "result", tripPlan,
+                    "redirect", "/trip-result/" + jobId
+                ));
+            } catch (Exception e) {
+                activeJobs.remove(jobId);
+                return ResponseEntity.ok(Map.of(
+                    "status", "failed",
+                    "error", e.getMessage()
+                ));
+            }
+        } else if (future.isCancelled()) {
+            activeJobs.remove(jobId);
+            return ResponseEntity.ok(Map.of("status", "cancelled"));
+        } else {
+            return ResponseEntity.ok(Map.of(
+                "status", "in_progress",
+                "message", "Planning your amazing trip..."
+            ));
+        }
+    }
+
+    @GetMapping("/trip-result/{jobId}")
+    public String showTripResult(
+            @PathVariable String jobId,
+            Model model) {
+        // Retrieve completed result from cache or database
+        TripPlan tripPlan = tripResultCache.get(jobId);
+        if (tripPlan == null) {
+            return "redirect:/error";
+        }
+
+        model.addAttribute("tripPlan", tripPlan);
+        return "trip-result";
+    }
+
+    @DeleteMapping("/cancel-trip/{jobId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, String>> cancelTrip(@PathVariable String jobId) {
+        CompletableFuture<TripPlan> future = activeJobs.get(jobId);
+
+        if (future != null && !future.isDone()) {
+            future.cancel(true);
+            activeJobs.remove(jobId);
+            return ResponseEntity.ok(Map.of("status", "cancelled"));
+        } else {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Job not found or already completed"));
+        }
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Controller
@@ -277,6 +481,7 @@ class TripPlanningController(
     }
 }
 ----
+====
 
 **Key Patterns:**
 
@@ -296,6 +501,10 @@ This approach is used in the http://github.com/embabel/tripper[Tripper] applicat
 - Return immediately with a process ID
 - Poll for status using the platform's built-in controllers
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Controller
@@ -348,6 +557,57 @@ public class JourneyController {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Controller
+@RequestMapping("/journey")
+class JourneyController(
+    private val agentPlatform: AgentPlatform
+) {
+
+    @PostMapping("/plan")
+    fun planJourney(@ModelAttribute form: JourneyPlanForm, model: Model): String {
+        // Convert form to domain objects
+        val travelBrief = TravelBrief(
+            form.from,
+            form.to,
+            form.departureDate,
+            form.returnDate,
+            form.brief
+        )
+
+        // Find the appropriate agent
+        val agent = agentPlatform.agents()
+            .filter { it.name.lowercase().contains("travel") }
+            .firstOrNull()
+            ?: throw IllegalStateException("No travel agent found")
+
+        // Create the agent process with input bindings
+        val agentProcess = agentPlatform.createAgentProcessFrom(
+            agent,
+            ProcessOptions(
+                verbosity = Verbosity(showPrompts = true),
+                budget = Budget.DEFAULT  // or custom budget
+            ),
+            travelBrief  // Vararg inputs bound to blackboard
+        )
+
+        // Start the process asynchronously
+        agentPlatform.start(agentProcess)
+
+        // Add process ID to model for status polling
+        model.addAttribute("processId", agentProcess.id)
+        model.addAttribute("travelBrief", travelBrief)
+
+        // Return a view that polls /api/v1/process/{processId} for status
+        return "processing"
+    }
+}
+----
+====
+
 The platform provides built-in REST endpoints for status checking:
 
 - `GET /api/v1/process/{processId}` - Returns process status, result, and URLs
@@ -356,6 +616,10 @@ The platform provides built-in REST endpoints for status checking:
 
 A simple status polling controller can check completion and redirect to results:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Controller
@@ -401,6 +665,52 @@ public class ProcessStatusController {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Controller
+class ProcessStatusController(
+    private val agentPlatform: AgentPlatform
+) {
+
+    @GetMapping("/status/{processId}")
+    fun checkStatus(
+        @PathVariable processId: String,
+        @RequestParam successView: String,
+        @RequestParam resultModelKey: String,
+        model: Model
+    ): String {
+        val process = agentPlatform.getAgentProcess(processId)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Process not found")
+
+        return when (process.status) {
+            ProcessStatus.COMPLETED -> {
+                model.addAttribute(resultModelKey, process.lastResult())
+                successView
+            }
+
+            ProcessStatus.FAILED -> {
+                model.addAttribute("error", "Process failed: ${process.failureInfo}")
+                "error"
+            }
+
+            ProcessStatus.TERMINATED -> {
+                model.addAttribute("error", "Process was terminated")
+                "error"
+            }
+
+            else -> {
+                // Still running - return polling view
+                model.addAttribute("processId", processId)
+                "processing"
+            }
+        }
+    }
+}
+----
+====
+
 **When to Use Each Approach:**
 
 |===
@@ -417,6 +727,10 @@ public class ProcessStatusController {
 
 For webhook-triggered workflows (e.g., JIRA, GitHub), the direct approach works well:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @RestController
@@ -464,6 +778,52 @@ public class WebhookController {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@RestController
+@RequestMapping("/webhook")
+class WebhookController(
+    private val agentPlatform: AgentPlatform
+) {
+
+    @PostMapping("/jira/issue-created")
+    fun onJiraIssueCreated(
+        @RequestBody payload: JiraWebhookPayload
+    ): ResponseEntity<Map<String, String>> {
+        // Find agent that handles JIRA issues
+        val agent = agentPlatform.agents()
+            .filter { it.name.contains("JiraIssue") }
+            .firstOrNull()
+            ?: throw IllegalStateException("No JIRA agent configured")
+
+        // Create domain object from webhook payload
+        val issue = JiraIssue(
+            payload.issue.key,
+            payload.issue.fields.summary,
+            payload.issue.fields.description
+        )
+
+        // Create and start the agent process
+        val process = agentPlatform.createAgentProcessFrom(
+            agent,
+            ProcessOptions.DEFAULT,
+            issue
+        )
+        agentPlatform.start(process)
+
+        // Return process ID for status tracking
+        return ResponseEntity.accepted().body(mapOf(
+            "processId" to process.id,
+            "statusUrl" to "/api/v1/process/${process.id}",
+            "sseUrl" to "/events/process/${process.id}"
+        ))
+    }
+}
+----
+====
+
 The webhook caller can then poll `/api/v1/process/{processId}` or subscribe to SSE events at `/events/process/{processId}` to track progress.
 
 IMPORTANT: Agents can also be exposed as <<reference.integrations__mcp, MCP>> servers and consumed from tools like Claude Desktop.
@@ -490,6 +850,10 @@ Embabel then assembles a dynamic agent that can use any action from any agent to
 
 Use closed mode when you want strict agent boundaries:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Service
@@ -511,10 +875,34 @@ public class IntentHandler {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Service
+class IntentHandler(
+    private val autonomy: Autonomy
+) {
+
+    fun handleUserIntent(userIntent: String): AgentProcessExecution {
+        // LLM ranks all agents and selects the best match
+        return autonomy.chooseAndRunAgent(
+            userIntent,
+            ProcessOptions.DEFAULT
+        )
+    }
+}
+----
+====
+
 ===== Open Mode Example
 
 Use open mode when you want maximum flexibility in achieving goals:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Service
@@ -542,11 +930,40 @@ public class GoalHandler {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Service
+class GoalHandler(
+    private val autonomy: Autonomy,
+    private val agentPlatform: AgentPlatform
+) {
+
+    fun handleUserIntent(userIntent: String): AgentProcessExecution {
+        // LLM ranks all goals and selects the best match
+        // Then assembles an agent from available actions to achieve it
+        return autonomy.chooseAndAccomplishGoal(
+            ProcessOptions.DEFAULT,
+            GoalChoiceApprover.APPROVE_ALL,
+            agentPlatform,  // AgentScope containing goals and actions
+            mapOf("userInput" to UserInput(userIntent)),
+            GoalSelectionOptions()
+        )
+    }
+}
+----
+====
+
 ===== Using Arbitrary Bindings
 
 `chooseAndAccomplishGoal` accepts any bindings, not just `UserInput`.
 A `BindingsFormatter` extracts intent text from the bindings for goal ranking:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 public AgentProcessExecution processTask(Task task, Person person) {
@@ -567,6 +984,29 @@ public AgentProcessExecution processTask(Task task, Person person) {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+fun processTask(task: Task, person: Person): AgentProcessExecution {
+    // Bindings can be any objects
+    val bindings = mapOf(
+        "task" to task,
+        "person" to person
+    )
+
+    return autonomy.chooseAndAccomplishGoal(
+        ProcessOptions.DEFAULT,
+        GoalChoiceApprover.APPROVE_ALL,
+        agentPlatform,
+        bindings,
+        GoalSelectionOptions(),
+        BindingsFormatter.DEFAULT  // Extracts intent from bindings
+    )
+}
+----
+====
+
 The default `BindingsFormatter` extracts text using this priority:
 
 1. `PromptContributor.contribution()` if the object implements `PromptContributor`
@@ -575,6 +1015,10 @@ The default `BindingsFormatter` extracts text using this priority:
 
 You can provide a custom formatter:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 BindingsFormatter customFormatter = bindings -> {
@@ -593,10 +1037,35 @@ return autonomy.chooseAndAccomplishGoal(
 );
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+val customFormatter = BindingsFormatter { bindings ->
+    val task = bindings["task"] as Task
+    val person = bindings["person"] as Person
+    "Process task '${task.description}' for ${person.name}"
+}
+
+return autonomy.chooseAndAccomplishGoal(
+    ProcessOptions.DEFAULT,
+    GoalChoiceApprover.APPROVE_ALL,
+    agentPlatform,
+    bindings,
+    GoalSelectionOptions(),
+    customFormatter
+)
+----
+====
+
 ===== Goal Choice Approval
 
 You can require approval before executing a selected goal:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Approve only high-confidence matches
@@ -610,6 +1079,24 @@ GoalChoiceApprover customApprover = request -> {
     return GoalChoiceApproved.INSTANCE;
 };
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Approve only high-confidence matches
+val approver = GoalChoiceApprover.approveWithScoreOver(0.8)
+
+// Or implement custom approval logic
+val customApprover = GoalChoiceApprover { request ->
+    if (request.goal.name.contains("dangerous")) {
+        GoalChoiceNotApproved("Dangerous goals require manual approval")
+    } else {
+        GoalChoiceApproved
+    }
+}
+----
+====
 
 ===== Confidence Thresholds
 
@@ -629,6 +1116,10 @@ embabel.agent.platform.autonomy.goal-confidence-cut-off=0.6
 
 Or override per-request using `GoalSelectionOptions`:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 GoalSelectionOptions options = new GoalSelectionOptions(
@@ -637,6 +1128,18 @@ GoalSelectionOptions options = new GoalSelectionOptions(
     false   // multiGoal - whether to select multiple goals
 );
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+val options = GoalSelectionOptions(
+    goalConfidenceCutOff = 0.5,    // override platform default
+    agentConfidenceCutOff = null,  // use platform default
+    multiGoal = false              // whether to select multiple goals
+)
+----
+====
 
 ===== Shell Usage
 
@@ -656,6 +1159,10 @@ choose-goal "Find a horoscope for Alice"
 
 ===== Handling Selection Failures
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 try {
@@ -673,5 +1180,26 @@ try {
     logger.info("Goal not approved: {}", e.getReason());
     return requiresApprovalResponse();
 }
-
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+try {
+    return autonomy.chooseAndRunAgent(userIntent, ProcessOptions.DEFAULT)
+} catch (e: NoAgentFound) {
+    // No agent matched with sufficient confidence
+    logger.info("No matching agent. Rankings: {}", e.agentRankings)
+    return fallbackResponse()
+} catch (e: NoGoalFound) {
+    // No goal matched with sufficient confidence (open mode)
+    logger.info("No matching goal. Rankings: {}", e.goalRankings)
+    return fallbackResponse()
+} catch (e: GoalNotApproved) {
+    // Goal was rejected by the approver
+    logger.info("Goal not approved: {}", e.reason)
+    return requiresApprovalResponse()
+}
+----
+====

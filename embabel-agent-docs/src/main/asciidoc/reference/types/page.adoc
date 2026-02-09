@@ -6,6 +6,10 @@
 The `LlmOptions` class specifies which LLM to use and its hyperparameters.
 It's defined in the https://github.com/embabel/embabel-common[embabel-common] project and provides a fluent API for LLM configuration:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Create LlmOptions with model and temperature
@@ -19,6 +23,23 @@ var analyticalOptions = LlmOptions
     .withTemperature(0.2)
     .withTopP(0.9);
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Create LlmOptions with model and temperature
+val options = LlmOptions
+    .withModel(OpenAiModels.GPT_4O_MINI)
+    .withTemperature(0.8)
+
+// Use different hyperparameters for different tasks
+val analyticalOptions = LlmOptions
+    .withModel(OpenAiModels.GPT_4O_MINI)
+    .withTemperature(0.2)
+    .withTopP(0.9)
+----
+====
 
 **Important Methods:**
 
@@ -42,6 +63,10 @@ Once created, a `PromptRunner` can run multiple prompts with the same LLM, hyper
 
 You obtain a `PromptRunner` from an `OperationContext` using the fluent API:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Action
@@ -58,6 +83,26 @@ public Story createStory(UserInput input, OperationContext context) {
     return customRunner.createObject("Write a story about: " + input.getContent(), Story.class);
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Action
+fun createStory(input: UserInput, context: OperationContext): Story {
+    // Get PromptRunner with default LLM
+    val runner = context.ai().withDefaultLlm()
+
+    // Get PromptRunner with specific LLM options
+    val customRunner = context.ai().withLlm(
+        LlmOptions.withModel(OpenAiModels.GPT_4O_MINI)
+            .withTemperature(0.8)
+    )
+
+    return customRunner.createObject("Write a story about: ${input.content}", Story::class.java)
+}
+----
+====
 
 ===== PromptRunner Methods
 
@@ -89,6 +134,10 @@ TIP: Normally you want to use one of the `createObject` methods to ensure the re
 
 For example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var story = context.ai()
@@ -98,9 +147,25 @@ var story = context.ai()
     .fromPrompt("Create a story about: " + input.getContent());
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+val story = context.ai()
+    .withDefaultLlm()
+    .withToolGroup(CoreToolGroups.WEB)
+    .creating(Story::class.java)
+    .fromPrompt("Create a story about: ${input.content}")
+----
+====
+
 The main reason to do this is to add strongly typed examples for https://www.promptingguide.ai/techniques/fewshot[few-shot prompting].
 For example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var story = context.ai()
@@ -111,10 +176,27 @@ var story = context.ai()
     .fromPrompt("Create a story about: " + input.getContent());
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+val story = context.ai()
+    .withDefaultLlm()
+    .withToolGroup(CoreToolGroups.WEB)
+    .creating(Story::class.java)
+    .withExample("A children's story", Story("Once upon a time...")) // <1>
+    .fromPrompt("Create a story about: ${input.content}")
+----
+====
+
 <1> **Example**: The example will be included in the prompt in JSON format to guide the LLM.
 
 **Working with Images:**
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var image = AgentImage.fromFile(imageFile);
@@ -124,6 +206,19 @@ var answer = context.ai()
     .withImage(image)  // <2>
     .generateText("What is in this image?");
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+val image = AgentImage.fromFile(imageFile)
+
+val answer = context.ai()
+    .withLlm(AnthropicModels.CLAUDE_35_HAIKU)  // <1>
+    .withImage(image)  // <2>
+    .generateText("What is in this image?")
+----
+====
 
 <1> **Vision-capable model required**: Use Claude 3.x, GPT-4 Vision, or other multimodal LLMs
 <2> **Add image**: Images are sent with the text prompt to the LLM. Can be used multiple times for multiple images.
@@ -148,6 +243,10 @@ and take appropriate action in your own code.
 
 Simple example of annotation use:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 public class User {
@@ -173,8 +272,36 @@ public class User {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+data class User(
+    @field:NotNull(message = "Name cannot be null")
+    val name: String?,
+
+    @field:AssertTrue(message = "Working must be true")
+    val working: Boolean,
+
+    @field:Size(min = 10, max = 200, message = "About Me must be between 10 and 200 characters")
+    val aboutMe: String?,
+
+    @field:Min(value = 18, message = "Age should not be less than 18")
+    @field:Max(value = 150, message = "Age should not be greater than 150")
+    val age: Int,
+
+    @field:Email(message = "Email should be valid")
+    val email: String?
+)
+----
+====
+
 You can also use custom annotations with validators that will be injected by Spring. For example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Target({ElementType.FIELD, ElementType.PARAMETER}) // <1>
@@ -217,6 +344,39 @@ public class PalindromeValidator implements ConstraintValidator<MustBePalindrome
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Target(AnnotationTarget.FIELD, AnnotationTarget.VALUE_PARAMETER) // <1>
+@Retention(AnnotationRetention.RUNTIME)
+@Constraint(validatedBy = [PalindromeValidator::class])
+annotation class MustBePalindrome(
+    val message: String = "Must be a palindrome",
+    val groups: Array<KClass<*>> = [],
+    val payload: Array<KClass<out Payload>> = []
+)
+
+data class Palindromic(
+    @field:MustBePalindrome // <2>
+    val eats: String
+)
+
+@Component // <3>
+class PalindromeValidator(
+    private val ai: Ai // <4>
+) : ConstraintValidator<MustBePalindrome, String> {
+
+    override fun isValid(field: String?, context: ConstraintValidatorContext): Boolean {
+        if (field == null) {
+            return false
+        }
+        return field == field.reversed()
+    }
+}
+----
+====
 
 <1> Define the custom annotation
 <2> Apply the annotation to a field

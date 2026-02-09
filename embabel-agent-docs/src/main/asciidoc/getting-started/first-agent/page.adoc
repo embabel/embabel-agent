@@ -5,8 +5,12 @@ The easiest way to create your first agent is to use the <<getting-started.quick
 
 ==== Example: WriteAndReviewAgent
 
-The Java template includes a `WriteAndReviewAgent` that demonstrates key concepts:
+The template includes a `WriteAndReviewAgent` that demonstrates key concepts:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Agent that writes and reviews stories")
@@ -24,7 +28,7 @@ public class WriteAndReviewAgent {
     }
 
     @AchievesGoal(description = "Review a story")
-    @Action  
+    @Action
     public ReviewedStory reviewStory(Story story, OperationContext context) {
         return context.ai()
             .withLlmByRole("reviewer")
@@ -37,6 +41,40 @@ public class WriteAndReviewAgent {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Agent that writes and reviews stories")
+class WriteAndReviewAgent {
+
+    @Action
+    fun writeStory(userInput: UserInput, context: OperationContext): Story {
+        return context.ai()
+            .withAutoLlm()
+            .createObject("""
+                You are a creative writer who aims to delight and surprise.
+                Write a story about ${userInput.content}
+                """,
+                Story::class.java)
+    }
+
+    @AchievesGoal(description = "Review a story")
+    @Action
+    fun reviewStory(story: Story, context: OperationContext): ReviewedStory {
+        return context.ai()
+            .withLlmByRole("reviewer")
+            .createObject("""
+                You are a meticulous editor.
+                Carefully review this story:
+                ${story.text}
+            """,
+            ReviewedStory::class.java)
+    }
+}
+----
+====
 
 ==== Key Concepts Demonstrated
 

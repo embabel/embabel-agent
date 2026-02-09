@@ -48,6 +48,21 @@ The `combineMessages` method controls how this combination happens. Different gu
 
 The default implementation joins messages with newlines:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+default String combineMessages(List<UserMessage> userMessages) {
+    return userMessages.stream()
+            .map(UserMessage::getContent)
+            .collect(Collectors.joining("\n"));
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 fun combineMessages(userMessages: List<UserMessage>): String {
@@ -56,6 +71,7 @@ fun combineMessages(userMessages: List<UserMessage>): String {
     }
 }
 ----
+====
 
 For example, three messages `["Hello", "How are you?", "Tell me about X"]` become:
 
@@ -67,6 +83,49 @@ Tell me about X
 
 To customize this behavior, override `combineMessages` in your guardrail:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+class AuditGuardRail implements UserInputGuardRail {
+
+    @Override
+    public @NotNull String getName() {
+        return "AuditGuard";
+    }
+
+    @Override
+    public @NotNull String getDescription() {
+        return "Logs conversation with message markers for audit trail";
+    }
+
+    @Override
+    public @NotNull String combineMessages(@NotNull List<UserMessage> userMessages) {
+        // Tag each message with its position for audit logging
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < userMessages.size(); i++) {
+            if (i > 0) {
+                result.append("\n");
+            }
+            result.append("[Turn ").append(i + 1).append("]: ")
+                  .append(userMessages.get(i).getContent());
+        }
+        return result.toString();
+    }
+
+    @Override
+    public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+        // input now contains: "[Turn 1]: Hello\n[Turn 2]: How are you?\n[Turn 3]: Tell me about X"
+        logger.info("Audit trail: {}", input);
+        return ValidationResult.VALID;
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 class AuditGuardRail : UserInputGuardRail {
@@ -87,6 +146,7 @@ class AuditGuardRail : UserInputGuardRail {
     }
 }
 ----
+====
 
 
 ==== Example: Blocking LLM Execution with CRITICAL Validation Errors
@@ -97,6 +157,10 @@ This example demonstrates how a guardrail with `CRITICAL` severity prevents LLM 
 
 First, define a user input guardrail that returns a `CRITICAL` validation error:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 /**
@@ -124,8 +188,35 @@ class CriticalUserInputGuardRail implements UserInputGuardRail {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+/**
+ * A guardrail that blocks execution by returning a CRITICAL validation error.
+ */
+class CriticalUserInputGuardRail : UserInputGuardRail {
+
+    override val name = "CriticalUserInputGuardRail"
+
+    override val description = "Blocks execution when critical policy violations are detected"
+
+    override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+        // Return a CRITICAL error to block LLM execution
+        return ValidationResult(true, listOf(
+            ValidationError("policy-violation", "Content violates safety policy", ValidationSeverity.CRITICAL)
+        ))
+    }
+}
+----
+====
+
 Next, define an assistant message guardrail to validate LLM responses:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 /**
@@ -156,8 +247,37 @@ class ThinkingBlocksGuardRail implements AssistantMessageGuardRail {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+/**
+ * A guardrail that validates LLM thinking blocks.
+ */
+class ThinkingBlocksGuardRail : AssistantMessageGuardRail {
+
+    override val name = "ThinkingBlocksGuardRail"
+
+    override val description = "Validates LLM thinking blocks for compliance"
+
+    override fun validate(response: ThinkingResponse<*>, blackboard: Blackboard): ValidationResult {
+        logger.info("Validating thinking blocks: {}", response.thinkingBlocks)
+        return ValidationResult(true, emptyList())
+    }
+
+    override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+        return ValidationResult(true, emptyList())
+    }
+}
+----
+====
+
 **Step 2: Use the guardrails with a PromptRunner**
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Configure the PromptRunner with guardrails
@@ -183,12 +303,44 @@ try {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+// Configure the PromptRunner with guardrails
+val runner = ai.withLlm("claude-sonnet-4-5")
+        .withToolObject(Tooling::class.java)
+        .withGenerateExamples(true)
+        .withGuardRails(CriticalUserInputGuardRail(), ThinkingBlocksGuardRail())
+
+val prompt = """
+        What is the hottest month in Florida and provide its temperature.
+        The name should be the month name, temperature should be in Fahrenheit.
+        """.trimIndent()
+
+try {
+    // Attempt to create an object with thinking
+    val response = runner
+            .thinking()
+            .createObject(prompt, MonthItem::class.java)
+} catch (ex: GuardRailViolationException) {
+    // CRITICAL validation errors cause this exception to be thrown,
+    // preventing the LLM operation from executing
+    logger.error("Guardrail blocked execution: {}", ex.message)
+}
+----
+====
+
 ==== Example: Using Guardrails for Response Analysis
 
 When the LLM cannot construct an object (for example, when the prompt is ambiguous), guardrails can still analyze the LLM's thinking process. This is useful for understanding why object creation failed or for extracting insights from the reasoning.
 
 **Step 1: Define a simple user input guardrail**
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 /**
@@ -217,8 +369,36 @@ class LoggingUserInputGuardRail implements UserInputGuardRail {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+/**
+ * A guardrail that logs user input with INFO-level validation messages.
+ */
+class LoggingUserInputGuardRail : UserInputGuardRail {
+
+    override val name = "LoggingUserInputGuardRail"
+
+    override val description = "Logs user input for auditing purposes"
+
+    override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+        logger.info("Processing user input: {}", input)
+        // Return an INFO-level message (does not block execution)
+        return ValidationResult(true, listOf(
+            ValidationError("audit", "Input logged", ValidationSeverity.INFO)
+        ))
+    }
+}
+----
+====
+
 **Step 2: Use guardrails with createObjectIfPossible**
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Configure the PromptRunner with chained guardrails
@@ -240,6 +420,31 @@ if (response.getResult() == null) {
     logger.info("Object creation not possible. Thinking blocks: {}", response.getThinkingBlocks());
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Configure the PromptRunner with chained guardrails
+val runner = ai.withLlm("claude-sonnet-4-5")
+        .withToolObject(Tooling::class.java)
+        .withGuardRails(LoggingUserInputGuardRail())
+        .withGuardRails(ThinkingBlocksGuardRail())
+
+val prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis."
+
+// Use createObjectIfPossible to handle cases where object creation may fail
+val response = runner
+        .thinking()
+        .createObjectIfPossible(prompt, MonthItem::class.java)
+
+// The LLM may not be able to construct an object if the prompt is ambiguous
+if (response.result == null) {
+    // Analyze the thinking blocks to understand the LLM's reasoning
+    logger.info("Object creation not possible. Thinking blocks: {}", response.thinkingBlocks)
+}
+----
+====
 
 When the LLM cannot provide a definitive answer, you might see reasoning like:
 

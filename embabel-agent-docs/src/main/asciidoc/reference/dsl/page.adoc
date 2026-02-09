@@ -21,6 +21,10 @@ Specialization of `ScatterGather`.
 
 Creating a simple agent:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var agent = SimpleAgentBuilder
@@ -31,6 +35,19 @@ var agent = SimpleAgentBuilder
     .buildAgent("joker", "This is guaranteed to return a dreadful joke"); // <3>
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+val agent = SimpleAgentBuilder
+    .returning(Joke::class.java) // <1>
+    .running { tac -> tac.ai() // <2>
+        .withDefaultLlm()
+        .createObject("Tell me a joke", Joke::class.java) }
+    .buildAgent("joker", "This is guaranteed to return a dreadful joke") // <3>
+----
+====
+
 <1> Specify the return type.
 <2> specify the action to run.
 Takes a `SupplierActionContext<RESULT>` `OperationContext` parameter allowing access to the current `AgentProcess`.
@@ -38,6 +55,10 @@ Takes a `SupplierActionContext<RESULT>` `OperationContext` parameter allowing ac
 
 A more complex example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Action
@@ -56,6 +77,27 @@ FactChecks runAndConsolidateFactChecks(
     }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Action
+fun runAndConsolidateFactChecks(
+    distinctFactualAssertions: DistinctFactualAssertions,
+    context: ActionContext
+): FactChecks {
+    val llmFactChecks = properties.models
+        .flatMap { model -> factCheckWithSingleLlm(model, distinctFactualAssertions, context) }
+    return ScatterGatherBuilder // <1>
+        .returning(FactChecks::class.java) // <2>
+        .fromElements(FactCheck::class.java) // <3>
+        .generatedBy(llmFactChecks) // <4>
+        .consolidatedBy(this::reconcileFactChecks) // <5>
+        .asSubProcess(context) // <6>
+}
+----
+====
+
 <1> Start building a scatter gather agent.
 <2> Specify the return type of the overall agent.
 <3> Specify the type of elements to be gathered.
@@ -73,6 +115,30 @@ NOTE: If you wish to experiment, the https://github.com/embabel/embabel-agent-ex
 
 Whereas the `@Agent` annotation causes a class to be picked up immediately by Spring, with the DSL you'll need an extra step to register an agent with Spring. As shown in the example below, any `@Bean` of `Agent` type results auto registration, just like declaring a class annotated with `@Agent` does.
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Configuration
+public class FactCheckerAgentConfiguration {
+
+    @Bean
+    public Agent factChecker(FactCheckerProperties factCheckerProperties) {
+        return factCheckerAgent(
+            List.of(
+                LlmOptions.create(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(0.3),
+                LlmOptions.create(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(0.0)
+            ),
+            factCheckerProperties
+        );
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Configuration
@@ -90,3 +156,4 @@ class FactCheckerAgentConfiguration {
     }
 }
 ----
+====

@@ -91,6 +91,30 @@ For example, action inputs come from the blackboard, and action outputs are auto
 
 **Core Operations:**
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Add objects to blackboard <1>
+blackboard.add(person);
+blackboard.set("result", analysis);
+
+// Retrieve objects by type
+Person person = blackboard.last(Person.class);
+List<Person> allPersons = blackboard.all(Person.class);
+
+// Check conditions
+blackboard.setCondition("userVerified", true);
+boolean verified = blackboard.getCondition("userVerified"); // <2>
+
+// Hide an object
+blackboard.hide(somethingWeDontWantToPlanOnLater); // <3>
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // Add objects to blackboard <1>
@@ -108,9 +132,10 @@ val verified = blackboard.getCondition("userVerified") // <2>
 // Hide an object
 blackboard.hide(somethingWeDontWantToPlanOnLater) // <3>
 ----
+====
 
 <1> **Adding Objects**: Objects are added to the blackboard automatically when returned from action methods, so you don't typically need to call this API.
-They can also be added manually using the `+=` operator (Kotlin only) or `set` method with an optional key.
+They can also be added manually using the `+=` operator (Kotlin only) or `add`/`set` method with an optional key.
 <2> **Conditions**: Conditions are normally calculated in `@Condition` methods, so you don't usually need to check or set them via the API.
 <3> **Hiding Objects**: Prevents an object from being considered in future planning cycles.
 For example, the object might be a command that we have handled.
@@ -140,6 +165,10 @@ It is also possible to assign a specific name to blackboard items.
 
 An example of explicit binding in an action method:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Action
@@ -157,11 +186,36 @@ public Person extractPerson(UserInput userInput, OperationContext context) {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Action
+fun extractPerson(userInput: UserInput, context: OperationContext): Person? {
+    val maybeAPerson = context.promptRunner().withLlm(LlmOptions.fromModel(OpenAiModels.GPT_41)).createObjectIfPossible(
+        """
+        Create a person from this user input, extracting their name:
+        ${userInput.content}
+        """.trimIndent(),
+        PersonImpl::class.java
+    )
+    if (maybeAPerson != null) {
+        context.bind("user", maybeAPerson) // <1>
+    }
+    return maybeAPerson
+}
+----
+====
+
 <1> Explicit binding to the blackboard.
 Not usually necessary as action method return values are automatically bound.
 
 The following example requires a `Thing` named `thingOne` to be present in the blackboard:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Action
@@ -169,16 +223,39 @@ public Whatever doWithThing(
         @RequireNameMatch Thing thingOne) { // <1>
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Action
+fun doWithThing(
+        @RequireNameMatch thingOne: Thing): Whatever { // <1>
+----
+====
+
 <1> The `@RequireNameMatch` annotation on the parameter specifies that the parameter should be matched by both type and name.
 Multiple parameters can be so annotated.
 
 The following example uses `@Action.outputBinding` to cause a `thingOne` to be bound in the blackboard, satisfying the previous example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
-@Action(outputBinding="thingOne")
+@Action(outputBinding = "thingOne")
 public Thing bindThing1() { ...
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Action(outputBinding = "thingOne")
+fun bindThing1(): Thing { ...
+----
+====
 
 TIP: When routing flows by type, the name is not important, but for reference the default name is 'it'.
 

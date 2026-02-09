@@ -24,6 +24,10 @@ NOTE: Application developers don't usually have to deal with conditions and plan
 Let's look at a complete example that demonstrates how Embabel infers conditions from input/output types and manages data flow between actions.
 This example comes from the https://github.com/embabel/embabel-agent-examples[Embabel Agent Examples] repository:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Find news based on a person's star sign")  // <1>
@@ -93,6 +97,73 @@ public class StarNewsFinder {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Find news based on a person's star sign")  // <1>
+class StarNewsFinder(
+    private val horoscopeService: HoroscopeService,  // <2> <3>
+    @Value("\${star-news-finder.story.count:5}") private val storyCount: Int
+) {
+
+    @Action  // <4>
+    fun extractStarPerson(userInput: UserInput, context: OperationContext): StarPerson {  // <5>
+        return context.ai()
+            .withLlm(OpenAiModels.GPT_41)
+            .createObject("""
+                Create a person from this user input, extracting their name and star sign:
+                ${userInput.content}""", StarPerson::class)  // <6>
+    }
+
+    @Action  // <7>
+    fun retrieveHoroscope(starPerson: StarPerson): Horoscope {  // <8>
+        // Uses regular injected Spring service - not LLM
+        return Horoscope(horoscopeService.dailyHoroscope(starPerson.sign))  // <9>
+    }
+
+    @Action  // <10>
+    fun findNewsStories(
+        person: StarPerson, horoscope: Horoscope, context: OperationContext
+    ): RelevantNewsStories {  // <11>
+        val prompt = """
+            ${person.name} is an astrology believer with the sign ${person.sign}.
+            Their horoscope for today is: ${horoscope.summary}
+            Given this, use web tools to find $storyCount relevant news stories.
+            """
+
+        return context.ai().withDefaultLlm()
+            .withToolGroup(CoreToolGroups.WEB)  // <12>
+            .createObject(prompt, RelevantNewsStories::class)
+    }
+
+    @AchievesGoal(description = "Write an amusing writeup based on horoscope and news")  // <13>
+    @Action
+    fun writeup(
+        person: StarPerson, stories: RelevantNewsStories, horoscope: Horoscope,
+        context: OperationContext
+    ): Writeup {  // <14>
+        val llm = LlmOptions.fromCriteria(ModelSelectionCriteria.auto)
+            .withTemperature(0.9)  // <15>
+
+        val storiesFormatted = stories.items
+            .joinToString("\n") { "- ${it.url}: ${it.summary}" }
+
+        val prompt = """
+            Write something amusing for ${person.name} based on their horoscope and news stories.
+            Format as Markdown with links.
+            <horoscope>${horoscope.summary}</horoscope>
+            <news_stories>
+            $storiesFormatted
+            </news_stories>
+            """  // <16>
+
+        return context.ai().withLlm(llm).createObject(prompt, Writeup::class)  // <17>
+    }
+}
+----
+====
 
 <1> **Agent Declaration**: The `@Agent` annotation defines this as an agent capable of a multi-step flow.
 

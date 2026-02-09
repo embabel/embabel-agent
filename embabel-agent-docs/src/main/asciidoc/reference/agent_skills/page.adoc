@@ -21,6 +21,10 @@ Skills use a *lazy loading* pattern: only minimal metadata is included in the sy
 
 The `Skills` class implements `LlmReference`, allowing it to be passed to a `PromptRunner`:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var skills = new Skills("financial-skills", "Financial analysis skills")
@@ -33,6 +37,21 @@ var response = context.ai()
     .respond(conversation.getMessages());
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+val skills = Skills("financial-skills", "Financial analysis skills")
+    .withGitHubUrl("https://github.com/wshobson/agents/tree/main/plugins/business-analytics/skills")
+
+val response = context.ai()
+    .withLlm(llm)
+    .withReference(skills)
+    .withSystemPrompt("You are a helpful financial analyst.")
+    .respond(conversation.messages)
+----
+====
+
 When skills are added as a reference, the agent can:
 
 * See available skills in the system prompt
@@ -43,11 +62,24 @@ When skills are added as a reference, the agent can:
 
 The simplest way to load skills is from a GitHub URL:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var skills = new Skills("my-skills", "Skills for my agent")
+    .withGitHubUrl("https://github.com/anthropics/skills/tree/main/skills");
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 val skills = Skills("my-skills", "Skills for my agent")
     .withGitHubUrl("https://github.com/anthropics/skills/tree/main/skills")
 ----
+====
 
 Supported URL formats:
 
@@ -57,6 +89,18 @@ Supported URL formats:
 
 For more control, use explicit parameters:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var skills = new Skills("my-skills", "Skills for my agent")
+    .withGitHubSkills("anthropics", "skills", "skills", "main");
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 val skills = Skills("my-skills", "Skills for my agent")
@@ -67,24 +111,51 @@ val skills = Skills("my-skills", "Skills for my agent")
         branch = "main"
     )
 ----
+====
 
 ==== Loading Skills from Local Directories
 
 Load a single skill from a directory containing `SKILL.md`:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var skills = new Skills("my-skills", "Local skills")
+    .withLocalSkill("/path/to/my-skill");
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 val skills = Skills("my-skills", "Local skills")
     .withLocalSkill("/path/to/my-skill")
 ----
+====
 
 Load multiple skills from a parent directory:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var skills = new Skills("my-skills", "Local skills")
+    .withLocalSkills("/path/to/skills-directory");
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 val skills = Skills("my-skills", "Local skills")
     .withLocalSkills("/path/to/skills-directory")
 ----
+====
 
 NOTE: `withLocalSkills` scans immediate subdirectories only (depth 1).
 It does not recurse into nested directories.
@@ -133,6 +204,10 @@ The `Skills` class exposes three LLM tools:
 
 Skills can be combined with other `LlmReference` implementations:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var response = context.ai()
@@ -149,6 +224,25 @@ var response = context.ai()
     .respond(conversation.getMessages());
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+val response = context.ai()
+    .withLlm(properties.chatLlm())
+    .withReference(
+        LocalDirectory("./data/financial", "Financial data files")
+            .withUsageNotes("Search to find files matching user requests.")
+    )
+    .withReference(
+        Skills("analytics", "Business analytics skills")
+            .withGitHubUrl("https://github.com/example/skills/tree/main/analytics")
+    )
+    .withSystemPrompt("You are a financial analyst assistant.")
+    .respond(conversation.messages)
+----
+====
+
 ==== Validation
 
 Skills are validated when loaded:
@@ -159,10 +253,22 @@ Skills are validated when loaded:
 
 To disable file reference validation:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var loader = new DefaultDirectorySkillDefinitionLoader(false);
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 val loader = DefaultDirectorySkillDefinitionLoader(validateFileReferences = false)
 ----
+====
 
 ==== Current Limitations
 

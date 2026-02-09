@@ -7,15 +7,32 @@ Annotate your Spring Boot application class to get agentic behavior.
 
 Example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @SpringBootApplication
-class MyAgentApplication {
+public class MyAgentApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyAgentApplication.class, args);
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@SpringBootApplication
+class MyAgentApplication
+
+fun main(args: Array<String>) {
+    runApplication<MyAgentApplication>(*args)
+}
+----
+====
 
 This is a normal Spring Boot application class.
 You can add other Spring Boot annotations as needed.
