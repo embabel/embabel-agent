@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.tools.math
 
-import com.embabel.agent.api.tool.MatryoshkaTool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.core.ToolGroup
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -35,10 +35,10 @@ class MathToolsTest {
         }
 
         @Test
-        fun `tool group should expose single MatryoshkaTool`() {
+        fun `tool group should expose single UnfoldingTool`() {
             val tools = mathTools.tools
             assertThat(tools).hasSize(1)
-            assertThat(tools[0]).isInstanceOf(MatryoshkaTool::class.java)
+            assertThat(tools[0]).isInstanceOf(UnfoldingTool::class.java)
         }
 
         @Test
@@ -51,7 +51,7 @@ class MathToolsTest {
         }
 
         @Test
-        fun `MatryoshkaTool should be named math`() {
+        fun `UnfoldingTool should be named math`() {
             val tool = mathTools.tools[0]
             assertThat(tool.definition.name).isEqualTo("math")
         }
@@ -62,23 +62,23 @@ class MathToolsTest {
         }
 
         @Test
-        fun `tool group exposes 1 tool but matryoshka contains 10 inner tools`() {
-            // Tool group level: 1 tool (the MatryoshkaTool facade)
+        fun `tool group exposes 1 tool but unfoldingTool contains 10 inner tools`() {
+            // Tool group level: 1 tool (the UnfoldingTool facade)
             assertThat(mathTools.tools).hasSize(1)
 
             // Inner level: 10 tools (the actual math operations)
-            val matryoshka = mathTools.tools[0] as MatryoshkaTool
-            assertThat(matryoshka.innerTools).hasSize(10)
+            val unfolding = mathTools.tools[0] as UnfoldingTool
+            assertThat(unfolding.innerTools).hasSize(10)
         }
     }
 
     @Nested
-    inner class MatryoshkaToolBehavior {
+    inner class UnfoldingToolBehavior {
 
         @Test
-        fun `matryoshkaTool should contain inner tools`() {
-            val matryoshka = mathTools.matryoshkaTool
-            assertThat(matryoshka.innerTools).isNotEmpty()
+        fun `unfoldingTool should contain inner tools`() {
+            val unfolding = mathTools.unfoldingTool
+            assertThat(unfolding.innerTools).isNotEmpty()
         }
 
         @Test
@@ -99,16 +99,16 @@ class MathToolsTest {
         }
 
         @Test
-        fun `matryoshkaTool and innerTools should be consistent`() {
-            val matryoshka = mathTools.matryoshkaTool
-            assertThat(matryoshka.innerTools).isEqualTo(mathTools.innerTools)
+        fun `unfoldingTool and innerTools should be consistent`() {
+            val unfolding = mathTools.unfoldingTool
+            assertThat(unfolding.innerTools).isEqualTo(mathTools.innerTools)
         }
 
         @Test
-        fun `matryoshkaTool should have descriptive description`() {
-            val matryoshka = mathTools.matryoshkaTool
-            assertThat(matryoshka.definition.description).contains("Mathematical")
-            assertThat(matryoshka.definition.description).contains("operations")
+        fun `unfoldingTool should have descriptive description`() {
+            val unfolding = mathTools.unfoldingTool
+            assertThat(unfolding.definition.description).contains("Mathematical")
+            assertThat(unfolding.definition.description).contains("operations")
         }
     }
 

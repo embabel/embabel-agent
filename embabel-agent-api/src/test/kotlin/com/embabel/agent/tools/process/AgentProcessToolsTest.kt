@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.tools.process
 
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.support.InMemoryBlackboard
@@ -41,16 +41,16 @@ class AgentProcessToolsTest {
     )
 
     @Nested
-    inner class MatryoshkaStructure {
+    inner class UnfoldingStructure {
 
         @Test
-        fun `should create MatryoshkaTool with inner tools`() {
+        fun `should create UnfoldingTool with inner tools`() {
             val tool = AgentProcessTools().create()
 
-            assertThat(tool).isInstanceOf(MatryoshkaTool::class.java)
+            assertThat(tool).isInstanceOf(UnfoldingTool::class.java)
             assertThat(tool.definition.name).isEqualTo("agent_process")
 
-            val matryoshka = tool as MatryoshkaTool
+            val matryoshka = tool as UnfoldingTool
             assertThat(matryoshka.innerTools).isNotEmpty()
 
             val toolNames = matryoshka.innerTools.map { it.definition.name }
@@ -71,7 +71,7 @@ class AgentProcessToolsTest {
             val agentProcess = createAgentProcess()
 
             agentProcess.withCurrent {
-                val tools = AgentProcessTools().create() as MatryoshkaTool
+                val tools = AgentProcessTools().create() as UnfoldingTool
                 val statusTool = tools.innerTools.find { it.definition.name == "process_status" }!!
 
                 val result = statusTool.call("{}")
@@ -93,7 +93,7 @@ class AgentProcessToolsTest {
             val agentProcess = createAgentProcess()
 
             agentProcess.withCurrent {
-                val tools = AgentProcessTools().create() as MatryoshkaTool
+                val tools = AgentProcessTools().create() as UnfoldingTool
                 val budgetTool = tools.innerTools.find { it.definition.name == "process_budget" }!!
 
                 val result = budgetTool.call("{}")
@@ -115,7 +115,7 @@ class AgentProcessToolsTest {
             val agentProcess = createAgentProcess()
 
             agentProcess.withCurrent {
-                val tools = AgentProcessTools().create() as MatryoshkaTool
+                val tools = AgentProcessTools().create() as UnfoldingTool
                 val costTool = tools.innerTools.find { it.definition.name == "process_cost" }!!
 
                 val result = costTool.call("{}")
@@ -137,7 +137,7 @@ class AgentProcessToolsTest {
             val agentProcess = createAgentProcess()
 
             agentProcess.withCurrent {
-                val tools = AgentProcessTools().create() as MatryoshkaTool
+                val tools = AgentProcessTools().create() as UnfoldingTool
                 val historyTool = tools.innerTools.find { it.definition.name == "process_history" }!!
 
                 val result = historyTool.call("{}")
@@ -155,7 +155,7 @@ class AgentProcessToolsTest {
 
         @Test
         fun `should return error when no AgentProcess available`() {
-            val tools = AgentProcessTools().create() as MatryoshkaTool
+            val tools = AgentProcessTools().create() as UnfoldingTool
             val statusTool = tools.innerTools.find { it.definition.name == "process_status" }!!
 
             val result = statusTool.call("{}")

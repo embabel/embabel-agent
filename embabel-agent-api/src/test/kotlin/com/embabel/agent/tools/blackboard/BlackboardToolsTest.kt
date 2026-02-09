@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.tools.blackboard
 
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.support.InMemoryBlackboard
@@ -50,19 +50,19 @@ class BlackboardToolsTest {
     )
 
     @Nested
-    inner class MatryoshkaStructure {
+    inner class UnfoldingStructure {
 
         @Test
-        fun `should create MatryoshkaTool with inner tools`() {
+        fun `should create UnfoldingTool with inner tools`() {
             val tool = BlackboardTools().create()
 
-            assertThat(tool).isInstanceOf(MatryoshkaTool::class.java)
+            assertThat(tool).isInstanceOf(UnfoldingTool::class.java)
             assertThat(tool.definition.name).isEqualTo("blackboard")
 
-            val matryoshka = tool as MatryoshkaTool
-            assertThat(matryoshka.innerTools).isNotEmpty()
+            val unfolding = tool as UnfoldingTool
+            assertThat(unfolding.innerTools).isNotEmpty()
 
-            val toolNames = matryoshka.innerTools.map { it.definition.name }
+            val toolNames = unfolding.innerTools.map { it.definition.name }
             assertThat(toolNames).contains("blackboard_list", "blackboard_get", "blackboard_last", "blackboard_describe")
         }
     }
@@ -79,7 +79,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val listTool = tools.innerTools.find { it.definition.name == "blackboard_list" }!!
 
                 val result = listTool.call("{}")
@@ -97,7 +97,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val listTool = tools.innerTools.find { it.definition.name == "blackboard_list" }!!
 
                 val result = listTool.call("{}")
@@ -121,7 +121,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val getTool = tools.innerTools.find { it.definition.name == "blackboard_get" }!!
 
                 val result = getTool.call("""{"name": "user"}""")
@@ -138,7 +138,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val getTool = tools.innerTools.find { it.definition.name == "blackboard_get" }!!
 
                 val result = getTool.call("""{"name": "nonexistent"}""")
@@ -163,7 +163,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val lastTool = tools.innerTools.find { it.definition.name == "blackboard_last" }!!
 
                 val result = lastTool.call("""{"typeName": "TestPerson"}""")
@@ -183,7 +183,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val lastTool = tools.innerTools.find { it.definition.name == "blackboard_last" }!!
 
                 val result = lastTool.call("""{"typeName": "com.embabel.agent.tools.blackboard.TestPerson"}""")
@@ -202,7 +202,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val lastTool = tools.innerTools.find { it.definition.name == "blackboard_last" }!!
 
                 val result = lastTool.call("""{"typeName": "TestPerson"}""")
@@ -226,7 +226,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val describeTool = tools.innerTools.find { it.definition.name == "blackboard_describe" }!!
 
                 val result = describeTool.call("""{"name": "person"}""")
@@ -246,7 +246,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val describeTool = tools.innerTools.find { it.definition.name == "blackboard_describe" }!!
 
                 val result = describeTool.call("""{"name": "order"}""")
@@ -273,7 +273,7 @@ class BlackboardToolsTest {
             val agentProcess = createAgentProcess(blackboard)
 
             agentProcess.withCurrent {
-                val tools = BlackboardTools().create() as MatryoshkaTool
+                val tools = BlackboardTools().create() as UnfoldingTool
                 val countTool = tools.innerTools.find { it.definition.name == "blackboard_count" }!!
 
                 val result = countTool.call("""{"typeName": "TestPerson"}""")
@@ -291,7 +291,7 @@ class BlackboardToolsTest {
         @Test
         fun `should return error when no AgentProcess available`() {
             // Ensure no AgentProcess is set
-            val tools = BlackboardTools().create() as MatryoshkaTool
+            val tools = BlackboardTools().create() as UnfoldingTool
             val listTool = tools.innerTools.find { it.definition.name == "blackboard_list" }!!
 
             val result = listTool.call("{}")

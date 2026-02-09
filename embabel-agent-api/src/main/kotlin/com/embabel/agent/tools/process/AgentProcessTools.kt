@@ -15,15 +15,15 @@
  */
 package com.embabel.agent.tools.process
 
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.core.AgentProcess
 import java.time.Duration
 
 /**
  * Tools for accessing information about the current agent process.
  *
- * This is a [MatryoshkaTool] that exposes sub-tools for:
+ * This is an [UnfoldingTool] that exposes sub-tools for:
  * - Status: current state, running time, process ID
  * - Budget: limits and remaining capacity
  * - Cost: current spend, token usage, models used
@@ -43,9 +43,9 @@ import java.time.Duration
 class AgentProcessTools {
 
     /**
-     * Create a MatryoshkaTool for agent process information.
+     * Create an UnfoldingTool for agent process information.
      */
-    fun create(): MatryoshkaTool = MatryoshkaTool.of(
+    fun create(): UnfoldingTool = UnfoldingTool.of(
         name = "agent_process",
         description = "Access information about the current agent process including status, budget, cost, and history. " +
             "Invoke to see available operations.",

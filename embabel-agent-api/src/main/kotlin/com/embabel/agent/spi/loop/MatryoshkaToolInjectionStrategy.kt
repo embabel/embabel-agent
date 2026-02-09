@@ -16,8 +16,8 @@
 package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.DelegatingTool
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.spi.support.unwrapAs
 import org.slf4j.LoggerFactory
 
@@ -63,24 +63,24 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
             wrappedTool.definition.name, wrappedTool::class.simpleName
         )
 
-        // Unwrap to find underlying MatryoshkaTool (handles decorator wrappers)
-        val invokedTool = wrappedTool.unwrapAs<MatryoshkaTool>()
+        // Unwrap to find underlying UnfoldingTool (handles decorator wrappers)
+        val invokedTool = wrappedTool.unwrapAs<UnfoldingTool>()
         if (invokedTool == null) {
             logger.debug(
-                "Tool '{}' is not a MatryoshkaTool after unwrap. Chain: {}",
+                "Tool '{}' is not an UnfoldingTool after unwrap. Chain: {}",
                 wrappedTool.definition.name, getUnwrapChain(wrappedTool)
             )
             return ToolInjectionResult.noChange()
         }
 
-        logger.debug("Successfully unwrapped '{}' to MatryoshkaTool", invokedTool.definition.name)
+        logger.debug("Successfully unwrapped '{}' to UnfoldingTool", invokedTool.definition.name)
 
         // Select tools based on input
         val selectedTools = invokedTool.selectTools(context.lastToolCall.toolInput)
 
         if (selectedTools.isEmpty()) {
             logger.warn(
-                "MatryoshkaTool '{}' selected no inner tools for input: {}",
+                "UnfoldingTool '{}' selected no inner tools for input: {}",
                 invokedTool.definition.name,
                 context.lastToolCall.toolInput
             )
@@ -94,7 +94,7 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
         }
 
         logger.debug(
-            "MatryoshkaTool '{}' exposing {} tools: {}",
+            "UnfoldingTool '{}' exposing {} tools: {}",
             invokedTool.definition.name,
             selectedTools.size,
             selectedTools.map { it.definition.name }
@@ -113,7 +113,7 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
     }
 
     /**
-     * Creates a context tool that preserves the parent MatryoshkaTool's description
+     * Creates a context tool that preserves the parent UnfoldingTool's description
      * and provides information about the available child tools.
      *
      * This solves the problem where child tools would lose context about the parent's purpose.
@@ -122,7 +122,7 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
      * With the context tool, it also sees "spotify_search_context" explaining these are
      * Spotify music search tools, with optional usage notes on when to use each.
      */
-    private fun createContextTool(parent: MatryoshkaTool, childTools: List<Tool>): Tool {
+    private fun createContextTool(parent: UnfoldingTool, childTools: List<Tool>): Tool {
         val parentName = parent.definition.name
         val parentDescription = parent.definition.description
         val toolNames = childTools.map { it.definition.name }

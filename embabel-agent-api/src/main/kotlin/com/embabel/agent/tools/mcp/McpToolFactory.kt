@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.tools.mcp
 
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.spi.support.springai.toEmbabelTool
 import com.embabel.common.util.loggerFor
 import io.modelcontextprotocol.client.McpSyncClient
@@ -24,11 +24,11 @@ import org.springframework.ai.mcp.SyncMcpToolCallbackProvider
 import org.springframework.ai.tool.ToolCallback
 
 /**
- * Factory for creating Tools and MatryoshkaTools backed by MCP.
+ * Factory for creating Tools and UnfoldingTools backed by MCP.
  *
  * Provides methods to:
  * - Get a single MCP tool by name ([toolByName], [requiredToolByName])
- * - Create MatryoshkaTools that act as facades for groups of MCP tools
+ * - Create UnfoldingTools that act as facades for groups of MCP tools
  *
  * Example usage:
  * ```kotlin
@@ -40,21 +40,21 @@ import org.springframework.ai.tool.ToolCallback
  * // Single tool by name (throws if not found)
  * val requiredTool = factory.requiredToolByName("brave_search")
  *
- * // MatryoshkaTool with exact tool name whitelist
+ * // UnfoldingTool with exact tool name whitelist
  * val githubTool = factory.matryoshkaByName(
  *     name = "github_operations",
  *     description = "GitHub operations. Invoke to access GitHub tools.",
  *     toolNames = setOf("create_issue", "list_issues", "get_pull_request")
  * )
  *
- * // MatryoshkaTool with regex pattern matching
+ * // UnfoldingTool with regex pattern matching
  * val dbTool = factory.matryoshkaMatching(
  *     name = "database_operations",
  *     description = "Database operations. Invoke to access database tools.",
  *     patterns = listOf("^db_".toRegex(), "query.*".toRegex())
  * )
  *
- * // MatryoshkaTool with custom filter predicate
+ * // UnfoldingTool with custom filter predicate
  * val webTool = factory.matryoshka(
  *     name = "web_operations",
  *     description = "Web operations. Invoke to access web tools.",
@@ -69,9 +69,9 @@ class McpToolFactory(
     private val logger = loggerFor<McpToolFactory>()
 
     /**
-     * Create a MatryoshkaTool from MCP clients with a filter predicate.
+     * Create a UnfoldingTool from MCP clients with a filter predicate.
      *
-     * @param name Name of the MatryoshkaTool facade
+     * @param name Name of the UnfoldingTool facade
      * @param description Description explaining when to use this tool category
      * @param filter Predicate that returns true to include a tool
      * @param removeOnInvoke Whether to remove the facade after invocation (default true)
@@ -82,15 +82,15 @@ class McpToolFactory(
         description: String,
         filter: (ToolCallback) -> Boolean,
         removeOnInvoke: Boolean = true,
-    ): MatryoshkaTool {
+    ): UnfoldingTool {
         val innerTools = loadTools(clients, filter)
         logger.debug(
-            "Created McpMatryoshkaTool '{}' with {} inner tools: {}",
+            "Created McpUnfoldingTool '{}' with {} inner tools: {}",
             name,
             innerTools.size,
             innerTools.map { it.definition.name }
         )
-        return MatryoshkaTool.of(
+        return UnfoldingTool.of(
             name = name,
             description = description,
             innerTools = innerTools,
@@ -99,9 +99,9 @@ class McpToolFactory(
     }
 
     /**
-     * Create a MatryoshkaTool from MCP clients filtering by tool name regex patterns.
+     * Create a UnfoldingTool from MCP clients filtering by tool name regex patterns.
      *
-     * @param name Name of the MatryoshkaTool facade
+     * @param name Name of the UnfoldingTool facade
      * @param description Description explaining when to use this tool category
      * @param patterns Regex patterns to match against tool names
      * @param removeOnInvoke Whether to remove the facade after invocation (default true)
@@ -112,7 +112,7 @@ class McpToolFactory(
         description: String,
         patterns: List<Regex>,
         removeOnInvoke: Boolean = true,
-    ): MatryoshkaTool = matryoshka(
+    ): UnfoldingTool = matryoshka(
         name = name,
         description = description,
         filter = { callback ->
@@ -123,9 +123,9 @@ class McpToolFactory(
     )
 
     /**
-     * Create a MatryoshkaTool from MCP clients with an exact tool name whitelist.
+     * Create a UnfoldingTool from MCP clients with an exact tool name whitelist.
      *
-     * @param name Name of the MatryoshkaTool facade
+     * @param name Name of the UnfoldingTool facade
      * @param description Description explaining when to use this tool category
      * @param toolNames Exact tool names to include
      * @param removeOnInvoke Whether to remove the facade after invocation (default true)
@@ -136,7 +136,7 @@ class McpToolFactory(
         description: String,
         toolNames: Set<String>,
         removeOnInvoke: Boolean = true,
-    ): MatryoshkaTool = matryoshka(
+    ): UnfoldingTool = matryoshka(
         name = name,
         description = description,
         filter = { callback -> callback.toolDefinition.name() in toolNames },

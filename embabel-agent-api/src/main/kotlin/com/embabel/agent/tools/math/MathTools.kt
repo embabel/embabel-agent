@@ -16,8 +16,8 @@
 package com.embabel.agent.tools.math
 
 import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.CoreToolGroups.MATH_DESCRIPTION
 import com.embabel.agent.core.ToolGroup
@@ -30,35 +30,35 @@ import com.embabel.common.core.types.AssetCoordinates
 import com.embabel.common.core.types.Semver
 
 /**
- * Math-related tools exposed as a MatryoshkaTool.
+ * Math-related tools exposed as an UnfoldingTool.
  *
- * When used as a tool group, exposes a single "math" MatryoshkaTool.
+ * When used as a tool group, exposes a single "math" UnfoldingTool.
  * When the LLM invokes this tool, it reveals the individual math operations
  * (add, subtract, multiply, divide, mean, min, max, floor, ceiling, round).
  *
  * Can be used in two ways:
  * 1. As a tool group - register with the platform for automatic resolution
- * 2. Directly - use [matryoshkaTool] or [innerTools] with PromptRunner
+ * 2. Directly - use [unfoldingTool] or [innerTools] with PromptRunner
  *
  * Example usage:
  * ```kotlin
- * // As a tool group (exposes single MatryoshkaTool)
+ * // As a tool group (exposes single UnfoldingTool)
  * val toolGroup: ToolGroup = MathTools()
  *
- * // Direct use of the MatryoshkaTool
- * ai.withTool(MathTools().matryoshkaTool)
+ * // Direct use of the UnfoldingTool
+ * ai.withTool(MathTools().unfoldingTool)
  *
- * // Direct use of inner tools (bypasses MatryoshkaTool)
+ * // Direct use of inner tools (bypasses UnfoldingTool)
  * ai.withTools(MathTools().innerTools)
  * ```
  */
 class MathTools : ToolGroup, AssetCoordinates {
 
     /**
-     * Create the MatryoshkaTool for math operations.
+     * Create the UnfoldingTool for math operations.
      * Convenience method for Java interop.
      */
-    fun create(): MatryoshkaTool = matryoshkaTool
+    fun create(): UnfoldingTool = unfoldingTool
 
     val groupDescription: ToolGroupDescription = MATH_DESCRIPTION
 
@@ -79,17 +79,17 @@ class MathTools : ToolGroup, AssetCoordinates {
 
     /**
      * The inner tools - individual math operations.
-     * These are the tools that get revealed when the MatryoshkaTool is invoked.
+     * These are the tools that get revealed when the UnfoldingTool is invoked.
      */
     val innerTools: List<Tool> by lazy {
         safelyGetToolsFrom(ToolObject(MathOperations()))
     }
 
     /**
-     * The MatryoshkaTool facade that wraps all math operations.
+     * The UnfoldingTool facade that wraps all math operations.
      */
-    val matryoshkaTool: MatryoshkaTool by lazy {
-        MatryoshkaTool.of(
+    val unfoldingTool: UnfoldingTool by lazy {
+        UnfoldingTool.of(
             name = "math",
             description = "Mathematical operations. Invoke to see available operations " +
                     "including arithmetic, statistics, and rounding functions.",
@@ -101,11 +101,11 @@ class MathTools : ToolGroup, AssetCoordinates {
     }
 
     /**
-     * As a tool group, exposes only the MatryoshkaTool.
+     * As a tool group, exposes only the UnfoldingTool.
      * The LLM sees a single "math" tool; when invoked, the inner tools are revealed.
      */
     override val tools: List<Tool>
-        get() = listOf(matryoshkaTool)
+        get() = listOf(unfoldingTool)
 
     /**
      * Inner class containing the actual math operations.

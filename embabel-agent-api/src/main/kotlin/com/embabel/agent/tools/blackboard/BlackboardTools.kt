@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.tools.blackboard
 
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.satisfiesType
@@ -28,7 +28,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 /**
  * Tools for accessing objects in the current process blackboard.
  *
- * This is a [MatryoshkaTool] that exposes sub-tools for:
+ * This is an [UnfoldingTool] that exposes sub-tools for:
  * - Listing all objects
  * - Getting objects by binding name
  * - Getting the last object of a type
@@ -50,14 +50,14 @@ class BlackboardTools {
     private val objectMapper = jacksonObjectMapper()
 
     /**
-     * Create a MatryoshkaTool for blackboard access.
+     * Create an UnfoldingTool for blackboard access.
      *
      * @param entryFormatter Formatter for individual blackboard entries
      */
     @JvmOverloads
     fun create(
         entryFormatter: BlackboardEntryFormatter = DefaultBlackboardEntryFormatter,
-    ): MatryoshkaTool = MatryoshkaTool.of(
+    ): UnfoldingTool = UnfoldingTool.of(
         name = "blackboard",
         description = "Access objects in the current process context. " +
             "Invoke to see available operations for listing, getting, and describing objects.",

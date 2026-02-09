@@ -18,6 +18,7 @@ package com.embabel.agent.api.tool
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.tool.Tool.Definition
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.core.DomainType
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -453,12 +454,12 @@ interface Tool : ToolInfo {
          * Create Tools from all methods annotated with [LlmTool] on an instance.
          *
          * If the instance's class is annotated with [@MatryoshkaTools][MatryoshkaTools],
-         * returns a single [MatryoshkaTool] containing all the inner tools.
+         * returns a single [UnfoldingTool] containing all the inner tools.
          * Otherwise, returns individual tools for each annotated method.
          *
          * @param instance The object instance to scan for annotated methods
          * @param objectMapper ObjectMapper for JSON parsing (optional)
-         * @return List of Tools, one for each annotated method (or single MatryoshkaTool if @MatryoshkaTools present)
+         * @return List of Tools, one for each annotated method (or single UnfoldingTool if @MatryoshkaTools present)
          * @throws IllegalArgumentException if no methods are annotated with @LlmTool
          */
         @JvmStatic
@@ -469,7 +470,7 @@ interface Tool : ToolInfo {
         ): List<Tool> {
             // Check for @MatryoshkaTools annotation first
             if (instance::class.hasAnnotation<MatryoshkaTools>()) {
-                return listOf(MatryoshkaTool.fromInstance(instance, objectMapper))
+                return listOf(UnfoldingTool.fromInstance(instance, objectMapper))
             }
 
             val tools = if (KotlinDetector.isKotlinReflectPresent()) {
@@ -617,7 +618,7 @@ interface Tool : ToolInfo {
 
         /**
          * Format a list of tools as an ASCII tree structure.
-         * MatryoshkaTools are expanded recursively to show their inner tools.
+         * UnfoldingTools are expanded recursively to show their inner tools.
          *
          * @param name The name to display at the root of the tree
          * @param tools The list of tools to format
@@ -641,7 +642,7 @@ interface Tool : ToolInfo {
                 val prefix = if (isLast) "└── " else "├── "
                 val childIndent = indent + if (isLast) "    " else "│   "
 
-                if (tool is MatryoshkaTool) {
+                if (tool is UnfoldingTool) {
                     sb.append(indent).append(prefix).append(tool.definition.name)
                         .append(" (").append(tool.innerTools.size).append(" inner tools)\n")
                     formatToolsRecursive(sb, tool.innerTools, childIndent)
