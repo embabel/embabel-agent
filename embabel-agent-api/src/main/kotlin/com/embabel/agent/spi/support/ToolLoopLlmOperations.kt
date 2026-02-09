@@ -159,7 +159,7 @@ open class ToolLoopLlmOperations(
         val tools = interaction.tools
 
         val observation = Observation.createNotStarted("embabel.tool-loop", observationRegistry)
-            .contextualName("Tool Loop Execution")
+            .contextualName("embabel_agent")
 
         observation.start()
         val result = try {
