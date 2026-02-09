@@ -17,6 +17,7 @@ package com.embabel.agent.api.tool
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.MatryoshkaTools
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
@@ -66,38 +67,9 @@ import kotlin.reflect.full.hasAnnotation
  * ```
  *
  * @see com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy
+ * @see UnfoldingTool
  */
-interface MatryoshkaTool : Tool {
-
-    /**
-     * The inner tools that will be exposed when this tool is invoked.
-     */
-    val innerTools: List<Tool>
-
-    /**
-     * Optional usage notes to guide the LLM on when to invoke the child tools.
-     */
-    val childToolUsageNotes: String? get() = null
-
-    /**
-     * Whether to remove this MatryoshkaTool after invocation.
-     *
-     * When `true` (default), the facade is replaced by its contents.
-     * When `false`, the facade remains available for re-invocation
-     * (useful for category-based selection with different arguments).
-     */
-    val removeOnInvoke: Boolean get() = true
-
-    /**
-     * Select which inner tools to expose based on invocation input.
-     *
-     * Override this method to implement category-based or argument-driven
-     * tool selection. Default implementation returns all inner tools.
-     *
-     * @param input The JSON input string provided to this tool
-     * @return The tools to expose (subset of [innerTools] or all)
-     */
-    fun selectTools(input: String): List<Tool> = innerTools
+interface MatryoshkaTool : UnfoldingTool {
 
     companion object {
 
