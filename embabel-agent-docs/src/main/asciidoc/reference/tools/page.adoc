@@ -2353,6 +2353,55 @@ val databaseTool = UnfoldingTool.of(
 ----
 ====
 
+===== Fluent Builder API
+
+UnfoldingTool supports a fluent builder pattern for combining tools from multiple sources.
+Use `withTools()` to add individual tools or `withToolObject()` to add tools from `@LlmTool` annotated objects:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import com.embabel.agent.api.tool.progressive.UnfoldingTool;
+
+// Start with base tools and add more
+var combinedTools = UnfoldingTool.of(
+        "workspace",
+        "Workspace operations. Invoke to see available tools.",
+        List.of(baseTool))
+    .withTools(searchTool, filterTool)           // Add individual tools
+    .withToolObject(new DatabaseOperations())    // Add from @LlmTool class
+    .withToolObject(new FileOperations());       // Chain multiple sources
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
+
+// Start with base tools and add more
+val combinedTools = UnfoldingTool.of(
+    name = "workspace",
+    description = "Workspace operations. Invoke to see available tools.",
+    innerTools = listOf(baseTool)
+)
+    .withTools(searchTool, filterTool)           // Add individual tools
+    .withToolObject(DatabaseOperations())        // Add from @LlmTool class
+    .withToolObject(FileOperations())            // Chain multiple sources
+----
+====
+
+This is useful when:
+
+* **Combining existing tools**: Merge tools from different sources into one progressive facade
+* **Adding ad-hoc tools**: Start with annotated tool classes and add programmatic tools
+* **Context-specific grouping**: Build different tool combinations for different invocation contexts
+
+The builder preserves all properties (`removeOnInvoke`, `childToolUsageNotes`) from the original UnfoldingTool.
+
 ===== Category-Based Tool Selection
 
 Use `byCategory` to expose different tools based on the category the LLM selects:

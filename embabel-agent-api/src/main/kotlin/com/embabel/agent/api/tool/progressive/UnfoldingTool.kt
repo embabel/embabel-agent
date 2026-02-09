@@ -103,6 +103,52 @@ interface UnfoldingTool : ProgressiveTool {
     fun selectTools(input: String): List<Tool> = innerTools
 
     /**
+     * Create a new UnfoldingTool with additional tools added.
+     *
+     * This enables fluent building of tool groups:
+     * ```kotlin
+     * val combined = UnfoldingTool.of("tools", "My tools", listOf(baseTool))
+     *     .withTools(searchTool, filterTool)
+     *     .withToolObject(HelperTools())
+     * ```
+     *
+     * @param tools The tools to add
+     * @return A new UnfoldingTool with the combined tools
+     */
+    fun withTools(vararg tools: Tool): UnfoldingTool = of(
+        name = definition.name,
+        description = definition.description,
+        innerTools = innerTools + tools.toList(),
+        removeOnInvoke = removeOnInvoke,
+        childToolUsageNotes = childToolUsageNotes,
+    )
+
+    /**
+     * Create a new UnfoldingTool with tools added from an annotated object.
+     *
+     * The object should have methods annotated with `@LlmTool`.
+     * This enables fluent building of tool groups:
+     * ```kotlin
+     * val combined = UnfoldingTool.of("tools", "My tools", listOf(baseTool))
+     *     .withToolObject(DatabaseTools())
+     *     .withToolObject(FileTools())
+     * ```
+     *
+     * @param toolObject An object with `@LlmTool` annotated methods
+     * @return A new UnfoldingTool with the combined tools
+     */
+    fun withToolObject(toolObject: Any): UnfoldingTool {
+        val additionalTools = Tool.fromInstance(toolObject)
+        return of(
+            name = definition.name,
+            description = definition.description,
+            innerTools = innerTools + additionalTools,
+            removeOnInvoke = removeOnInvoke,
+            childToolUsageNotes = childToolUsageNotes,
+        )
+    }
+
+    /**
      * Factory methods for creating UnfoldingTool instances.
      * This is an open class so that subinterface companions can extend it.
      */
