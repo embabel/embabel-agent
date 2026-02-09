@@ -19,10 +19,10 @@ import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.AgentPlatform
+import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.spi.AgentProcessRepository
 import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
-import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.expression
+package com.embabel.agent.core.expression
 
 import com.embabel.agent.core.Blackboard
 import com.embabel.plan.common.condition.ConditionDetermination

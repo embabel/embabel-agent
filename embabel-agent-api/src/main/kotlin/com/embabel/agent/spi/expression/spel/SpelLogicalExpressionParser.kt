@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.spi.expression.spel
 
-import com.embabel.agent.spi.expression.LogicalExpression
-import com.embabel.agent.spi.expression.LogicalExpressionParser
+import com.embabel.agent.core.expression.LogicalExpression
+import com.embabel.agent.core.expression.LogicalExpressionParser
 
 /**
  * Logical expression parser for Spring Expression Language (SpEL).
