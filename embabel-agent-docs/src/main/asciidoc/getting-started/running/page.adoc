@@ -80,6 +80,10 @@ Simply write a Spring Shell component and Spring will inject it and register it 
 
 For example, you can inject the `AgentPlatform` and use it to invoke agents directly, as in this code from the examples repository:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @ShellComponent
@@ -103,4 +107,31 @@ public record SupportAgentShellCommands(
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@ShellComponent
+class SupportAgentShellCommands(
+    private val agentPlatform: AgentPlatform
+) {
+
+    @ShellMethod("Get bank support for a customer query")
+    fun bankSupport(
+        @ShellOption(value = ["id"], help = "customer id", defaultValue = "123") id: Long,
+        @ShellOption(value = ["query"], help = "customer query", defaultValue = "What's my balance, including pending amounts?") query: String
+    ): String {
+        val supportInput = SupportInput(id, query)
+        println("Support input: $supportInput")
+        val invocation = AgentInvocation
+            .builder(agentPlatform)
+            .options(ProcessOptions.builder().verbosity { it.showPrompts(true) }.build())
+            .build(SupportOutput::class.java)
+        val result = invocation.invoke(supportInput)
+        return result.toString()
+    }
+}
+----
+====
 

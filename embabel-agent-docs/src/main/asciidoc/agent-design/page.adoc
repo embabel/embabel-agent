@@ -22,6 +22,21 @@ IMPORTANT: When designing your domain objects, consider which methods should be 
 
 Expose methods that LLMs should be able to call using the `@Tool` annotation:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Tool(description = "Build the project using the given command in the root") // <1>
+public String build(String command) {
+    BuildResult br = ci.buildAndParse(new BuildOptions(command, true));
+    return br.relevantOutput();
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Tool(description = "Build the project using the given command in the root") // <1>
@@ -30,6 +45,7 @@ fun build(command: String): String {
     return br.relevantOutput()
 }
 ----
+====
 
 <1> The Spring AI `@Tool` annotation indicates that this method is callable by LLMs.
 

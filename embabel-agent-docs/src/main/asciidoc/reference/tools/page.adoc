@@ -20,6 +20,25 @@ Each annotated method represents a distinct tool that will be exposed to the LLM
 
 A simple example of a tool method:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class MathTools {
+
+    @LlmTool(description = "add two numbers")
+    public double add(double a, double b) {
+        return a + b;
+    }
+
+    // Other tools
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 class MathTools {
@@ -28,7 +47,9 @@ class MathTools {
     fun add(a: Double, b: Double) = a + b
 
     // Other tools
+}
 ----
+====
 
 Classes implementing tools can be stateful.
 They are often domain objects.
@@ -58,14 +79,41 @@ You can obtain the current `AgentProcess` in a Tool method implementation via `A
 This enables tools to bind to the `AgentProcess`, making objects available to other actions.
 For example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
-
-@LlmTool(description="My Tool") String bindCustomer(Long id) {
-var customer = customerRepository.findById(id); var agentProcess = AgentProcess.get(); if (agentProcess != null) {
-agentProcess.addObject(customer); return "Customer bound to blackboard"; } return "No agent process: Unable to bind customer"; }
-
+@LlmTool(description = "My Tool")
+public String bindCustomer(Long id) {
+    var customer = customerRepository.findById(id);
+    var agentProcess = AgentProcess.get();
+    if (agentProcess != null) {
+        agentProcess.addObject(customer);
+        return "Customer bound to blackboard";
+    }
+    return "No agent process: Unable to bind customer";
+}
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@LlmTool(description = "My Tool")
+fun bindCustomer(id: Long): String {
+    val customer = customerRepository.findById(id)
+    val agentProcess = AgentProcess.get()
+    return if (agentProcess != null) {
+        agentProcess.addObject(customer)
+        "Customer bound to blackboard"
+    } else {
+        "No agent process: Unable to bind customer"
+    }
+}
+----
+====
 
 [[reference.tools__tool-groups]]
 ==== Tool Groups
@@ -107,11 +155,53 @@ embabel:
 You can also use Spring's `@Configuration` and `@Bean` annotations to expose ToolGroups to the agent platform with greater control.
 The framework provides a default `ToolGroupsConfiguration` that demonstrates how to inject MCP servers and selectively expose MCP tools:
 
-[source,kotlin]
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Configuration
+public class ToolGroupsConfiguration {
+
+    private final List<McpSyncClient> mcpSyncClients;
+
+    public ToolGroupsConfiguration(List<McpSyncClient> mcpSyncClients) {
+        this.mcpSyncClients = mcpSyncClients;
+    }
+
+    @Bean
+    public MathTools mathToolGroup() {
+        return new MathTools();
+    }
+
+    @Bean
+    public ToolGroup mcpWebToolsGroup() { // <1>
+        return new McpToolGroup(
+            CoreToolGroups.WEB_DESCRIPTION,
+            "docker-web",
+            "Docker",
+            Set.of(ToolGroupPermission.INTERNET_ACCESS),
+            mcpSyncClients,
+            callback -> {
+                // Only expose specific web tools, exclude rate-limited ones
+                String name = callback.getToolDefinition().name();
+                return (name.contains("brave") || name.contains("fetch")) &&
+                       !name.contains("brave_local_search");
+            }
+        );
+    }
+}
 ----
 
-@Configuration class ToolGroupsConfiguration(
-    private val mcpSyncClients: List<McpSyncClient>) {
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class ToolGroupsConfiguration(
+    private val mcpSyncClients: List<McpSyncClient>
+) {
 
     @Bean
     fun mathToolGroup() = MathTools()
@@ -134,6 +224,7 @@ The framework provides a default `ToolGroupsConfiguration` that demonstrates how
     }
 }
 ----
+====
 
 <1> This method creates a Spring bean of type `ToolGroup`.
 This will automatically be picked up by the agent platform, allowing the tool group to be requested by name (role).
@@ -156,6 +247,10 @@ The `permissions` property declares what access the tool group requires (e.g., `
 
 Applications can implement their own `@Configuration` classes to expose custom tool groups, which can be backed by any service or resource, not just MCP.
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Configuration
@@ -172,6 +267,24 @@ public class MyToolGroupsConfiguration {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class MyToolGroupsConfiguration {
+
+    @Bean
+    fun databaseToolsGroup(dataSource: DataSource): ToolGroup =
+        DatabaseToolGroup(dataSource)
+
+    @Bean
+    fun emailToolsGroup(emailService: EmailService): ToolGroup =
+        EmailToolGroup(emailService)
+}
+----
+====
 
 This approach leverages Spring's dependency injection to provide tool groups with the services and resources they need, while maintaining clean separation of concerns between tool configuration and agent logic.
 
@@ -252,6 +365,28 @@ For example, "use web tools and generate search queries" clearly directs the LLM
 
 ===== Additional PromptRunner Examples
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Add tool groups to a specific prompt
+context.ai().withAutoLlm().withToolGroup(CoreToolGroups.WEB).create(
+    "Given the topic, generate a detailed report using web research.\n\n" +
+    "# Topic\n" +
+    reportRequest.getTopic()
+);
+
+// Add multiple tool groups
+context.ai().withDefaultLlm()
+    .withToolGroup(CoreToolGroups.WEB)
+    .withToolGroup(CoreToolGroups.MATH)
+    .createObject("Calculate stock performance with web data", StockReport.class);
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // Add tool groups to a specific prompt
@@ -270,11 +405,16 @@ context.ai().withDefaultLlm()
     .withToolGroup(CoreToolGroups.MATH)
     .createObject("Calculate stock performance with web data", StockReport::class)
 ----
+====
 
 **Adding Tool Objects with @LlmTool Methods:**
 
 You can also provide domain objects with `@LlmTool` methods directly to specific prompts:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 context.ai()
@@ -286,11 +426,31 @@ context.ai()
 context.ai()
     .withDefaultLlm()
     .withToolObject(
+        new ToolObject(calculatorService)
+            .withNamingStrategy(name -> "calc_" + name)
+            .withFilter(methodName -> methodName.startsWith("compute"))
+    ).createObject("Perform calculations", Result.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+context.ai()
+    .withDefaultLlm()
+    .withToolObject(jokerTool)
+    .createObject("Create a UserInput object for fun", UserInput::class.java)
+
+// Add tool object with filtering and custom naming strategy
+context.ai()
+    .withDefaultLlm()
+    .withToolObject(
         ToolObject(calculatorService)
             .withNamingStrategy { "calc_$it" }
             .withFilter { methodName -> methodName.startsWith("compute") }
-    ).createObject("Perform calculations", Result.class);
+    ).createObject("Perform calculations", Result::class.java)
 ----
+====
 
 **Available PromptRunner Tool Methods:**
 
@@ -548,6 +708,24 @@ context.ai()
 
 Tools return `Tool.Result` which can be one of three types:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Text result (most common)
+Tool.Result.text("The answer is 42");
+
+// Result with an artifact (e.g., generated file, image)
+Tool.Result.withArtifact("Generated report", reportBytes);
+
+// Error result
+Tool.Result.error("Failed to process request", exception);
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // Text result (most common)
@@ -559,6 +737,7 @@ Tool.Result.withArtifact("Generated report", reportBytes)
 // Error result
 Tool.Result.error("Failed to process request", exception)
 ----
+====
 
 ===== Modifying Tool Descriptions
 
@@ -1002,6 +1181,10 @@ The input type you specify with `consuming()` determines the JSON schema that th
 
 For example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // The input type
@@ -1010,6 +1193,18 @@ public record WorksToFind(List<String> composers, String era, int maxResults) {}
 // Create the subagent with explicit input type
 Subagent.ofClass(PerformanceFinder.class).consuming(WorksToFind.class)
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// The input type
+data class WorksToFind(val composers: List<String>, val era: String, val maxResults: Int)
+
+// Create the subagent with explicit input type
+Subagent.ofClass<PerformanceFinder>().consuming<WorksToFind>()
+----
+====
 
 The Subagent tool will:
 
@@ -1095,6 +1290,27 @@ All three implement the `AgenticTool` interface and share a common fluent API wi
 
 The `AgenticTool` interface defines:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public interface AgenticTool<THIS extends AgenticTool<THIS>> extends Tool {
+    LlmOptions getLlm();                              // LLM configuration
+    int getMaxIterations();                           // Max tool loop iterations (default: 20)
+
+    THIS withLlm(LlmOptions llm);
+    THIS withSystemPrompt(String prompt);
+    THIS withSystemPrompt(AgenticSystemPromptCreator creator);  // Dynamic prompt
+    THIS withMaxIterations(int maxIterations);
+    THIS withParameter(Tool.Parameter parameter);
+    THIS withToolObject(Object toolObject);
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 interface AgenticTool<THIS : AgenticTool<THIS>> : Tool {
@@ -1109,9 +1325,14 @@ interface AgenticTool<THIS : AgenticTool<THIS>> : Tool {
     fun withToolObject(toolObject: Any): THIS
 }
 ----
+====
 
 The `AgenticSystemPromptCreator` functional interface receives both the `ExecutingOperationContext` (for access to blackboard, process options, etc.) and the input string passed to the tool:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 tool.withSystemPrompt((ctx, input) ->
@@ -1119,6 +1340,17 @@ tool.withSystemPrompt((ctx, input) ->
     ". Task: " + input
 );
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+tool.withSystemPrompt { ctx, input ->
+    "Context: ${ctx.processContext.processOptions.contextId}" +
+    ". Task: $input"
+}
+----
+====
 
 IMPORTANT: For complex workflows with defined outputs, branching logic, loops, or state management, use Embabel's <<reference.planners,GOAP planner>>, <<reference.planners__utility,Utility AI>>, or <<reference.states,@State workflows>> instead.
 These provide deterministic, typesafe planning that is far more powerful and predictable than LLM-driven orchestration.
@@ -2628,6 +2860,10 @@ The `category` attribute on `@LlmTool` is used when the containing class has `@U
 
 Here's a real-world example from the Impromptu chatbot that uses `@UnfoldingTools` to progressively disclose Spotify functionality:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @UnfoldingTools(
@@ -2657,6 +2893,38 @@ public record SpotifyTools(ImpromptuUser user, SpotifyService spotifyService) {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@MatryoshkaTools(
+    name = "spotify",
+    description = "Access Spotify music features. Invoke this tool to enable Spotify " +
+            "operations like playing music, searching tracks, managing playlists, " +
+            "and controlling playback."
+)
+data class SpotifyTools(val user: ImpromptuUser, val spotifyService: SpotifyService) {
+
+    @LlmTool(description = "Check if user has linked their Spotify account")
+    fun checkSpotifyStatus(): String { /* ... */ }
+
+    @LlmTool(description = "Get the user's Spotify playlists")
+    fun getPlaylists(): String { /* ... */ }
+
+    @LlmTool(description = "Search for tracks on Spotify by song name, artist, or both")
+    fun searchTracks(query: String): String { /* ... */ }
+
+    @LlmTool(description = "Play a track on Spotify by searching for it")
+    fun playTrack(query: String): String { /* ... */ }
+
+    @LlmTool(description = "Pause the current Spotify playback")
+    fun pausePlayback(): String { /* ... */ }
+
+    // ... more tools
+}
+----
+====
+
 With this setup:
 
 1. The LLM initially sees a single `spotify` tool
@@ -2668,6 +2936,10 @@ With this setup:
 
 When you use `Tool.fromInstance()` on a class annotated with `@UnfoldingTools`, it automatically creates an `UnfoldingTool`:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Auto-detects @UnfoldingTools and creates an UnfoldingTool
@@ -2675,8 +2947,22 @@ List<Tool> tools = Tool.fromInstance(new SpotifyTools(user, service));
 // Returns a single UnfoldingTool, not individual tools
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+// Auto-detects @MatryoshkaTools and creates a MatryoshkaTool
+val tools = Tool.fromInstance(SpotifyTools(user, service))
+// Returns a single MatryoshkaTool, not individual tools
+----
+====
+
 This works seamlessly with `withToolObject()` on PromptRunner:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 context.ai()
@@ -2684,6 +2970,17 @@ context.ai()
     .respond("Play some classical music");
 // The SpotifyTools are automatically exposed as a single UnfoldingTool facade
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+context.ai()
+    .withToolObject(SpotifyTools(user, spotifyService))
+    .respond("Play some classical music")
+// The SpotifyTools are automatically exposed as a single UnfoldingTool facade
+----
+====
 
 ===== Nested UnfoldingTools
 
@@ -3168,6 +3465,21 @@ Both `UnfoldingTool` and `LlmReference` expose tools to the LLM, but they serve 
 
 Classes like `Memory` and `ToolishRag` implement both `Tool` and `LlmReference`, giving maximum flexibility:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Use as LlmReference (adds to system prompt + tools)
+ai.withReference(memory).respond(...);
+
+// Use as Tool directly (just the tool)
+ai.withTool(memory).respond(...);
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // Use as LlmReference (adds to system prompt + tools)
@@ -3176,6 +3488,7 @@ ai.withReference(memory).respond(...)
 // Use as Tool directly (just the tool)
 ai.withTool(memory).respond(...)
 ----
+====
 
 When used as an `LlmReference`, the `tools()` method exposes the inner tools directly.
 When used as a `Tool`, the implementation wraps them in an `UnfoldingTool` facade.

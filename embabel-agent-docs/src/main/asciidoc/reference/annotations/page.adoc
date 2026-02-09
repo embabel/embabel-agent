@@ -56,6 +56,10 @@ This prevents accumulated intermediate data from affecting subsequent processing
 
 The most common use case for `clearBlackboard` is enabling loops in state-based workflows:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @State
@@ -70,6 +74,24 @@ record ProcessingState(String data, int iteration) {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@State
+data class ProcessingState(val data: String, val iteration: Int) {
+    @Action(clearBlackboard = true)  // <1>
+    fun process(): LoopOutcome {
+        return if (iteration >= 3) {
+            DoneState(data)
+        } else {
+            ProcessingState("$data+", iteration + 1)  // <2>
+        }
+    }
+}
+----
+====
+
 <1> `clearBlackboard = true` enables returning to the same state type
 <2> Without clearing, returning `ProcessingState` would be blocked since the type already exists
 
@@ -79,6 +101,10 @@ See xref:reference.states[Using States] for more details on looping state patter
 
 You can also use `clearBlackboard` to reset context in multi-step workflows:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Multi-step document processing")
@@ -96,6 +122,27 @@ public class DocumentProcessor {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Multi-step document processing")
+class DocumentProcessor {
+
+    @Action(clearBlackboard = true)  // <1>
+    fun preprocess(doc: RawDocument): ProcessedDocument {
+        return ProcessedDocument(doc.content.trim())
+    }
+
+    @AchievesGoal(description = "Produce final output")
+    @Action
+    fun transform(doc: ProcessedDocument): FinalOutput {  // <2>
+        return FinalOutput(doc.content.uppercase())
+    }
+}
+----
+====
 
 <1> After `preprocess` completes, the blackboard is cleared and only `ProcessedDocument` remains.
 The original `RawDocument` is removed.
@@ -115,6 +162,10 @@ This is useful when the cost of an action depends on the current state of the bl
 The `@Cost` annotation marks a method that returns a cost value (a `double` between 0.0 and 1.0).
 You then reference this method from the `@Action` annotation using `costMethod` or `valueMethod`.
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Processor with dynamic cost")
@@ -135,6 +186,30 @@ public class DataProcessor {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Processor with dynamic cost")
+class DataProcessor {
+
+    @Cost(name = "processingCost")  // <1>
+    fun computeProcessingCost(data: LargeDataSet?): Double {  // <2>
+        return if (data != null && data.size() > 1000) {
+            0.9  // High cost for large datasets
+        } else {
+            0.1  // Low cost for small or missing datasets
+        }
+    }
+
+    @Action(costMethod = "processingCost")  // <3>
+    fun process(input: RawData): ProcessedData {
+        return ProcessedData(input.transform())
+    }
+}
+----
+====
+
 <1> The `@Cost` annotation marks a method for dynamic cost computation.
 The `name` parameter identifies this cost method.
 <2> Domain object parameters in `@Cost` methods must be nullable.
@@ -150,6 +225,39 @@ Key differences from `@Condition` methods:
 
 You can also compute dynamic value using `valueMethod`:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Agent(description = "Agent with dynamic value computation")
+public class PrioritizedAgent {
+
+    @Cost(name = "urgencyValue")
+    public double computeUrgency(@Nullable Task task) {
+        if (task == null) {
+            return 0.5;
+        }
+        if (task.getPriority() == Priority.HIGH) {
+            return 1.0;
+        }
+        if (task.getPriority() == Priority.MEDIUM) {
+            return 0.6;
+        }
+        return 0.2;
+    }
+
+    @AchievesGoal(description = "Process high-priority tasks")
+    @Action(valueMethod = "urgencyValue")
+    public Result processTask(Task task) {
+        return new Result(String.format("Processed: %s", task.getName()));
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Agent(description = "Agent with dynamic value computation")
@@ -172,6 +280,7 @@ class PrioritizedAgent {
     }
 }
 ----
+====
 
 NOTE: The `@Cost` method is called during planning, before the action executes.
 It allows the planner to make informed decisions about which actions to prefer based on runtime state.
@@ -200,6 +309,10 @@ See the https://docs.spring.io/spring-framework/reference/core/expressions.html[
 
 SpEL conditions are specified in the `pre` array with a `spel:` prefix:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Action(
@@ -210,6 +323,19 @@ public void handleUrgentIssue(Issue issue, IssueAssessment assessment) {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Action(
+    pre = ["spel:assessment.urgency > 0.5"]  // <1>
+)
+fun handleUrgentIssue(issue: Issue, assessment: IssueAssessment) {
+    // This action only runs when urgency exceeds 0.5
+}
+----
+====
+
 <1> The `spel:` prefix indicates this is a SpEL expression evaluated against the blackboard.
 
 ====== Expression Syntax
@@ -217,6 +343,10 @@ public void handleUrgentIssue(Issue issue, IssueAssessment assessment) {
 SpEL expressions reference blackboard objects by their binding names (typically the camelCase form of the class name).
 The expression must evaluate to a boolean.
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Issue triage agent")
@@ -245,6 +375,37 @@ public class IssueTriageAgent {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Issue triage agent")
+class IssueTriageAgent {
+
+    @Action(
+        pre = ["spel:issueAssessment.urgency > 0.0"]  // <1>
+    )
+    fun escalateUrgentIssue(
+        issue: GHIssue,
+        issueAssessment: IssueAssessment
+    ) {
+        logger.info("Escalating urgent issue #{}", issue.number)
+    }
+
+    @Action(
+        pre = ["spel:ghIssue instanceof T(org.kohsuke.github.GHPullRequest) && ghIssue.changedFiles > 10"]  // <2>
+    )
+    fun reviewLargePullRequest(
+        issue: GHPullRequest,
+        assessment: PullRequestAssessment
+    ) {
+        logger.info("Large PR detected: #{} with {} files changed",
+            issue.number, issue.changedFiles)
+    }
+}
+----
+====
+
 <1> Simple property comparison: action fires only when `urgency` property exceeds 0.0.
 <2> Type check with property access: action fires only for pull requests with more than 10 changed files.
 The `T()` operator references a Java type for `instanceof` checks.
@@ -253,6 +414,10 @@ The `T()` operator references a Java type for `instanceof` checks.
 
 SpEL's collection selection syntax (`?[]`) is useful for checking conditions on collections stored in the blackboard:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Action(
@@ -288,6 +453,45 @@ public PullRequestAssessment reactToNewPullRequest(
              .fromTemplate("pr_triage", Map.of("pr", pr));
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Action(
+    pre = [
+        "spel:newEntity.newEntities.?[#this instanceof T(com.example.domain.Issue) " +
+        "&& !(#this instanceof T(com.example.domain.PullRequest))].size() > 0"  // <1>
+    ]
+)
+fun reactToNewIssue(
+    ghIssue: GHIssue,
+    newEntity: NewEntity<*>,
+    ai: Ai
+): IssueAssessment {
+    // Fires only when newEntities contains Issues that aren't PullRequests
+    return ai.withLlm("claude-sonnet-4")
+        .creating(IssueAssessment::class.java)
+        .fromTemplate("issue_triage", mapOf("issue" to ghIssue))
+}
+
+@Action(
+    pre = [
+        "spel:newEntity.newEntities.?[#this instanceof T(com.example.domain.PullRequest)].size() > 0"  // <2>
+    ]
+)
+fun reactToNewPullRequest(
+    pr: GHPullRequest,
+    newEntity: NewEntity<*>,
+    ai: Ai
+): PullRequestAssessment {
+    // Fires only when newEntities contains PullRequests
+    return ai.withLlm("claude-sonnet-4")
+        .creating(PullRequestAssessment::class.java)
+        .fromTemplate("pr_triage", mapOf("pr" to pr))
+}
+----
+====
 
 <1> The `?[]` operator filters the collection. `#this` refers to each element.
 This expression checks that at least one element is an `Issue` but not a `PullRequest`.
@@ -386,6 +590,10 @@ This is particularly useful for:
 * **Injecting services** that aren't domain objects but are needed for processing
 * **Accessing configuration** or other platform-managed beans
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @EmbabelComponent
@@ -429,6 +637,47 @@ public class ReservationFlow {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@EmbabelComponent
+class ReservationFlow(
+    private val bookingService: BookingService,
+    private val notificationService: NotificationService
+) {
+
+    @Action
+    fun start(request: UserRequest): CollectDetails {
+        return CollectDetails(request.customerId)
+    }
+
+    @State
+    data class CollectDetails(val customerId: String) {
+
+        @Action
+        fun confirm(
+            details: ReservationDetails,                    // <1>
+            @Provided flow: ReservationFlow                 // <2>
+        ): ConfirmReservation {
+            val booking = flow.bookingService.reserve(details)
+            flow.notificationService.sendConfirmation(booking)
+            return ConfirmReservation(booking)
+        }
+    }
+
+    @State
+    data class ConfirmReservation(val booking: Booking) {
+        @AchievesGoal(description = "Reservation completed")
+        @Action
+        fun complete(): BookingResult {
+            return BookingResult(booking)
+        }
+    }
+}
+----
+====
+
 <1> `ReservationDetails` is a domain object resolved from the blackboard.
 <2> `ReservationFlow` is injected via `@Provided` from the Spring context - this gives access to the services in the enclosing component.
 
@@ -437,6 +686,28 @@ public class ReservationFlow {
 When Spring is available, the `SpringContextProvider` resolves `@Provided` parameters by looking up beans from the `ApplicationContext`.
 The parameter type must match a bean in the context.
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@State
+public record ProcessingState(String data) {
+
+    @Action
+    public NextState process(
+        @Provided MyService myService,     // <1>
+        @Provided AppConfig config         // <2>
+    ) {
+        var result = myService.process(data, config.getSetting());
+        return new NextState(result);
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @State
@@ -452,6 +723,7 @@ data class ProcessingState(val data: String) {
     }
 }
 ----
+====
 
 <1> Any Spring bean can be injected using `@Provided`.
 <2> Multiple `@Provided` parameters can be used in a single method.
@@ -489,6 +761,10 @@ This is useful in event-driven scenarios where you want to react to a particular
 
 For example, in a chat system you might want an action to fire only when a new user message arrives, not when other context is updated:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Chat message handler")
@@ -505,6 +781,25 @@ public class ChatAgent {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Chat message handler")
+class ChatAgent {
+
+    @AchievesGoal(description = "Respond to user message")
+    @Action(trigger = UserMessage::class)  // <1>
+    fun handleMessage(
+        message: UserMessage,
+        conversation: Conversation  // <2>
+    ): Response {
+        return Response("Received: ${message.content}")
+    }
+}
+----
+====
+
 <1> The `trigger` field means this action only fires when `UserMessage` is the last result added to the blackboard.
 <2> `Conversation` must also be available, but doesn't need to be the triggering event.
 
@@ -517,6 +812,10 @@ This is particularly useful when:
 * You want to distinguish between "data available" and "event just occurred"
 * You're building event-driven or reactive workflows
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Multi-event processor")
@@ -534,6 +833,27 @@ public class EventProcessor {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Multi-event processor")
+class EventProcessor {
+
+    @Action(trigger = EventA::class)  // <1>
+    fun handleEventA(eventA: EventA, eventB: EventB): Result {
+        return Result("Triggered by A")
+    }
+
+    @AchievesGoal(description = "Handle event B")
+    @Action(trigger = EventB::class)  // <2>
+    fun handleEventB(eventA: EventA, eventB: EventB): Result {
+        return Result("Triggered by B")
+    }
+}
+----
+====
 
 <1> `handleEventA` fires when `EventA` is added (and `EventB` is available).
 <2> `handleEventB` fires when `EventB` is added (and `EventA` is available).
@@ -558,6 +878,37 @@ Any non-null values will be bound to the blackboard, and the postconditions of t
 
 For example:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Must implement the SomeOf interface
+public record FrogOrDog(
+    @Nullable Frog frog,
+    @Nullable Dog dog
+) implements SomeOf {}
+
+@Agent(description = "Illustrates use of the SomeOf interface")
+public class ReturnsFrogOrDog {
+
+    @Action
+    public FrogOrDog frogOrDog() {
+        return new FrogOrDog(new Frog("Kermit"), null);
+    }
+
+    // This works because the frog field of the return type was set
+    @AchievesGoal(description = "Create a prince from a frog")
+    @Action
+    public PersonWithReverseTool toPerson(Frog frog) {
+        return new PersonWithReverseTool(frog.name());
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // Must implement the SomeOf interface
@@ -582,6 +933,7 @@ class ReturnsFrogOrDog {
     }
 }
 ----
+====
 
 This enables routing scenarios in an elegant manner.
 
@@ -590,6 +942,40 @@ It may enable the most appropriate routing.
 
 Routing can also be achieved via subtypes, as in the following example:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Action
+public Intent classifyIntent(UserInput userInput) {  // <1>
+    return switch (userInput.content()) {
+        case "billing" -> new BillingIntent();
+        case "sales" -> new SalesIntent();
+        case "service" -> new ServiceIntent();
+        default -> {
+            logger.warn("Unknown intent: {}", userInput);
+            yield null;
+        }
+    };
+}
+
+@Action
+public IntentClassificationSuccess billingAction(BillingIntent intent) {  // <2>
+    return new IntentClassificationSuccess("billing");
+}
+
+@Action
+public IntentClassificationSuccess salesAction(SalesIntent intent) {
+    return new IntentClassificationSuccess("sales");
+}
+
+// ...
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Action
@@ -616,6 +1002,7 @@ fun salesAction(intent: SalesIntent): IntentClassificationSuccess {
 
 // ...
 ----
+====
 
 <1> Classification action returns supertype `Intent`.
 Real classification would likely use an LLM.
@@ -641,6 +1028,41 @@ For example, it can add data to the blackboard.
 
 Example:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Agent(description = "self unsticking agent")
+public class SelfUnstickingAgent implements StuckHandler {
+
+    private boolean called = false;
+
+    // The agent will get stuck as there's no dog to convert to a frog
+    @Action
+    @AchievesGoal(description = "the big goal in the sky")
+    public Frog toFrog(Dog dog) {
+        return new Frog(dog.name());
+    }
+
+    // This method will be called when the agent is stuck
+    @Override
+    public StuckHandlerResult handleStuck(AgentProcess agentProcess) {
+        called = true;
+        agentProcess.addObject(new Dog("Duke"));
+        return new StuckHandlerResult(
+            "Unsticking myself",
+            this,
+            StuckHandlingResultCode.REPLAN,
+            agentProcess
+        );
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Agent(
@@ -668,6 +1090,7 @@ class SelfUnstickingAgent : StuckHandler {
     }
 }
 ----
+====
 
 ==== Advanced Usage: Nested processes
 
@@ -678,6 +1101,57 @@ Use the `ActionContext.asSubProcess` method to create a sub-process from the act
 
 For example:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Action
+public ScoredResult<Report, SimpleFeedback> report(
+        ReportRequest reportRequest,
+        ActionContext context
+) {
+    return context.asSubProcess(
+        // Will create an agent sub process with strong typing
+        EvaluatorOptimizer.generateUntilAcceptable(
+            5,
+            ctx -> ctx.promptRunner()
+                .withToolGroup(CoreToolGroups.WEB)
+                .create(String.format("""
+                    Given the topic, generate a detailed report in %d words.
+
+                    # Topic
+                    %s
+
+                    # Feedback
+                    %s
+                    """,
+                    reportRequest.words(),
+                    reportRequest.topic(),
+                    ctx.getInput() != null ? ctx.getInput() : "No feedback provided")),
+            ctx -> ctx.promptRunner()
+                .withToolGroup(CoreToolGroups.WEB)
+                .create(String.format("""
+                    Given the topic and word count, evaluate the report and provide feedback
+                    Feedback must be a score between 0 and 1, where 1 is perfect.
+
+                    # Report
+                    %s
+
+                    # Report request:
+                    %s
+                    Word count: %d
+                    """,
+                    ctx.getInput().report(),
+                    reportRequest.topic(),
+                    reportRequest.words()))
+        ));
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Action
@@ -719,6 +1193,8 @@ fun report(
         },
     ))
 ----
+====
+----
 
 ==== Running Subagents with `RunSubagent`
 
@@ -733,6 +1209,10 @@ NOTE: The annotated instance can be Spring-injected into your agent class.
 Since `@Agent` is a Spring stereotype annotation, you can inject one agent into another and run it as a subagent.
 This enables clean separation of concerns while maintaining testability.
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Outer agent that delegates to an injected subagent")
@@ -775,11 +1255,77 @@ public class InnerSubAgent {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Outer agent that delegates to an injected subagent")
+class OuterAgent(
+    private val innerSubAgent: InnerSubAgent  // <1>
+) {
+
+    @Action
+    fun start(input: UserInput): TaskOutput {
+        return RunSubagent.fromAnnotatedInstance(
+            innerSubAgent,  // <2>
+            TaskOutput::class.java
+        )
+    }
+
+    @Action
+    @AchievesGoal(description = "Processing complete")
+    fun done(output: TaskOutput): TaskOutput = output
+}
+
+@Agent(description = "Inner subagent that processes input")
+class InnerSubAgent {
+
+    @Action
+    fun stepOne(input: UserInput): Intermediate {
+        return Intermediate(input.content)
+    }
+
+    @Action
+    @AchievesGoal(description = "Subagent complete")
+    fun stepTwo(data: Intermediate): TaskOutput {
+        return TaskOutput(data.value.uppercase())
+    }
+}
+----
+====
+
 <1> Spring injects the `InnerSubAgent` bean via constructor injection.
 <2> The injected instance is passed to `RunSubagent.fromAnnotatedInstance()`.
 
 In Kotlin, you can use the reified version for a more concise syntax:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Agent(description = "Outer agent via explicit type parameter")
+public class OuterAgentExplicit {
+
+    @Action
+    public TaskOutput start(UserInput input) {
+        return RunSubagent.fromAnnotatedInstance(
+            new InnerSubAgent(),
+            TaskOutput.class
+        );
+    }
+
+    @Action
+    @AchievesGoal(description = "Processing complete")
+    public TaskOutput done(TaskOutput output) {
+        return output;
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Agent(description = "Outer agent via reified subagent")
@@ -794,11 +1340,16 @@ class OuterAgentReified {
     fun done(output: TaskOutput): TaskOutput = output
 }
 ----
+====
 
 ===== Running an `Agent` Instance
 
 Use `RunSubagent.instance()` when you already have an `Agent` object (for example, one created programmatically or via `AgentMetadataReader`):
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(description = "Outer agent with Agent instance")
@@ -819,8 +1370,55 @@ public class OuterAgentWithAgentInstance {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Outer agent with Agent instance")
+class OuterAgentWithAgentInstance {
+
+    @Action
+    fun start(input: UserInput): TaskOutput {
+        val agent = AgentMetadataReader()
+            .createAgentMetadata(InnerSubAgent()) as Agent
+        return RunSubagent.instance(agent, TaskOutput::class.java)
+    }
+
+    @Action
+    @AchievesGoal(description = "Processing complete")
+    fun done(output: TaskOutput): TaskOutput = output
+}
+----
+====
+
 In Kotlin with reified types:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Agent(description = "Outer agent via explicit agent instance")
+public class OuterAgentExplicitInstance {
+
+    @Action
+    public TaskOutput start(UserInput input) {
+        Agent agent = (Agent) new AgentMetadataReader()
+            .createAgentMetadata(new InnerSubAgent());
+        return RunSubagent.instance(agent, TaskOutput.class);
+    }
+
+    @Action
+    @AchievesGoal(description = "Processing complete")
+    public TaskOutput done(TaskOutput output) {
+        return output;
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Agent(description = "Outer agent via reified agent instance")
@@ -837,6 +1435,7 @@ class OuterAgentReifiedInstance {
     fun done(output: TaskOutput): TaskOutput = output
 }
 ----
+====
 
 ===== How It Works
 

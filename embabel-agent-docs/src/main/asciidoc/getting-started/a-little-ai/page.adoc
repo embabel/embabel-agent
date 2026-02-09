@@ -7,6 +7,10 @@ Sometimes this is all you need.
 The simplest way to use Embabel is to inject an `OperationContext` and use its AI capabilities directly.
 This approach is consistent with standard Spring dependency injection patterns.
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 package com.embabel.example.injection;
@@ -45,6 +49,46 @@ public record InjectedComponent(Ai ai) {
 
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+package com.embabel.example.injection
+
+import com.embabel.agent.api.common.OperationContext
+import com.embabel.common.ai.model.LlmOptions
+import org.springframework.stereotype.Component
+
+/**
+ * Demonstrate the simplest use of Embabel's AI capabilities,
+ * injecting an AI helper into a Spring component.
+ * The jokes will be terrible, but don't blame Embabel, blame the LLM.
+ */
+@Component
+class InjectedComponent(private val ai: Ai) {
+
+    data class Joke(val leadup: String, val punchline: String)
+
+    fun tellJokeAbout(topic: String): String {
+        return ai
+            .withDefaultLlm()
+            .generateText("Tell me a joke about $topic")
+    }
+
+    fun createJokeObjectAbout(topic1: String, topic2: String, voice: String): Joke {
+        return ai
+            .withLlm(LlmOptions.withDefaultLlm().withTemperature(.8))
+            .createObject("""
+                Tell me a joke about $topic1 and $topic2.
+                The voice of the joke should be $voice.
+                The joke should have a leadup and a punchline.
+                """,
+                Joke::class.java)
+    }
+}
+----
+====
 
 This example demonstrates several key aspects of Embabel's design philosophy:
 

@@ -11,6 +11,10 @@ Embabel provides `SpringAiLlmService` for wrapping Spring AI `ChatModel` instanc
 `SpringAiLlmService` implements the `LlmService` interface and provides framework-agnostic LLM operations
 including support for the Embabel tool loop and message sender abstraction.
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Configuration
@@ -27,6 +31,26 @@ public class LlmsConfig {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class LlmsConfig {
+    @Bean
+    fun myLlm(): LlmService<*> {
+        val chatModel: org.springframework.ai.chat.model.ChatModel = ...
+        return SpringAiLlmService(
+                "myChatModel",              // <1>
+                "myChatModelProvider",      // <2>
+                chatModel)                  // <3>
+            .withOptionsConverter(MyLlmOptionsConverter()) // <4>
+            .withKnowledgeCutoffDate(LocalDate.of(2025, 4, 1)) // <5>
+    }
+}
+----
+====
 
 <1> The name of the LLM (used for model selection).
 <2> The provider name, such as "OpenAI" or "Anthropic".
@@ -49,6 +73,37 @@ If knowledge cutoff date is provided, add the `KnowledgeCutoffDate` prompt contr
 A common requirement is to add an OpenAI-compatible LLM.
 This can be done by extending the `OpenAiCompatibleModelFactory` class as follows:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Configuration
+public class CustomOpenAiCompatibleModels extends OpenAiCompatibleModelFactory {
+
+    public CustomOpenAiCompatibleModels(
+            @Value("${MY_BASE_URL:#{null}}") String baseUrl,
+            @Value("${MY_API_KEY}") String apiKey,
+            ObservationRegistry observationRegistry) {
+        super(baseUrl, apiKey, observationRegistry);
+    }
+
+    @Bean
+    public LlmService<?> myGreatModel() {
+        // Call superclass method
+        return openAiCompatibleLlm(
+            "my-great-model",
+            "me",
+            LocalDate.of(2025, 1, 1),
+            new PerTokenPricingModel(0.40, 1.6)
+        );
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Configuration
@@ -75,6 +130,7 @@ class CustomOpenAiCompatibleModels(
     }
 }
 ----
+====
 
 ==== Adding embedding models
 
@@ -83,6 +139,10 @@ Use the `SpringAiEmbeddingService` class to wrap a Spring AI `EmbeddingModel`.
 
 Typically, this is done in an `@Configuration` class like this:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Configuration
@@ -97,6 +157,24 @@ public class EmbeddingModelsConfig {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class EmbeddingModelsConfig {
+    @Bean
+    fun myEmbeddingModel(): EmbeddingService {
+        val embeddingModel: org.springframework.ai.embedding.EmbeddingModel = ...
+        return SpringAiEmbeddingService(
+                "myEmbeddingModel",
+                "myEmbeddingModelProvider",
+                embeddingModel)
+    }
+}
+----
+====
 
 ==== Configuration via `application.properties` or `application.yml`
 
