@@ -40,7 +40,9 @@ import java.util.concurrent.TimeoutException
  * Key behaviors:
  * - Parallel execution with collect-then-add pattern for thread-safe history
  * - First-wins strategy for [ReplanRequestedException] - stops loop on first replan request
- * - Injection strategy applied once after all tools complete (using last tool's context)
+ * - Injection strategy applied once after all tools complete, using the last successful
+ *   tool's context. If all tools fail or timeout, injection strategy is not invoked
+ *   and no tools are added or removed for that iteration
  * - Per-tool and batch timeouts from [ParallelModeProperties]
  *
  * @param llmMessageSender Framework-agnostic interface for making single LLM calls

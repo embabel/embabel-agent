@@ -65,6 +65,8 @@ data class ToolLoopConfiguration(
         val executorType: ExecutorType = ExecutorType.VIRTUAL,
         /** Pool size when using [ExecutorType.FIXED] */
         val fixedPoolSize: Int = 10,
+        /** Timeout for executor shutdown on factory close */
+        val shutdownTimeout: Duration = Duration.ofSeconds(5),
     )
 
     /**

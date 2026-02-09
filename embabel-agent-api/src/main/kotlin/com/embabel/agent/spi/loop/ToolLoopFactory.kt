@@ -22,8 +22,10 @@ import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.agent.spi.loop.support.ParallelToolLoop
 import com.fasterxml.jackson.databind.ObjectMapper
+import java.io.Closeable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Factory for creating [ToolLoop] instances.
@@ -32,7 +34,7 @@ import java.util.concurrent.Executors
  * - [default] for default configuration
  * - [withConfig] for custom configuration
  */
-interface ToolLoopFactory {
+fun interface ToolLoopFactory {
 
     /**
      * Create a [ToolLoop] instance.
@@ -84,7 +86,10 @@ interface ToolLoopFactory {
 internal class ConfigurableToolLoopFactory(
     private val config: ToolLoopConfiguration,
     private val executor: ExecutorService? = null,
-) : ToolLoopFactory {
+) : ToolLoopFactory, Closeable {
+
+    private val lazyExecutorDelegate = lazy { createExecutor() }
+    private val lazyExecutor: ExecutorService by lazyExecutorDelegate
 
     override fun create(
         llmMessageSender: LlmMessageSender,
@@ -121,7 +126,7 @@ internal class ConfigurableToolLoopFactory(
         injectionStrategy = injectionStrategy,
         maxIterations = maxIterations,
         toolDecorator = toolDecorator,
-        executor = executor ?: createExecutor(),
+        executor = executor ?: lazyExecutor,
         parallelConfig = config.parallel,
     )
 
@@ -129,5 +134,20 @@ internal class ConfigurableToolLoopFactory(
         ExecutorType.VIRTUAL -> Executors.newVirtualThreadPerTaskExecutor()
         ExecutorType.FIXED -> Executors.newFixedThreadPool(config.parallel.fixedPoolSize)
         ExecutorType.CACHED -> Executors.newCachedThreadPool()
+    }
+
+    /**
+     * Shuts down the executor if one was created by this factory.
+     * Waits for configured [ParallelModeProperties.shutdownTimeout] before forcing shutdown.
+     * No-op if external executor was provided or parallel mode was never used.
+     */
+    override fun close() {
+        // Only shutdown if lazy executor was initialized (parallel mode was used)
+        if (executor == null && lazyExecutorDelegate.isInitialized()) {
+            lazyExecutor.shutdown()
+            if (!lazyExecutor.awaitTermination(config.parallel.shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                lazyExecutor.shutdownNow()
+            }
+        }
     }
 }
