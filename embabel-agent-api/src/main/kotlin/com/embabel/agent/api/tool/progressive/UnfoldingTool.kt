@@ -17,6 +17,7 @@ package com.embabel.agent.api.tool.progressive
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.MatryoshkaTools
+import com.embabel.agent.api.annotation.UnfoldingTools
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
@@ -331,19 +332,39 @@ interface UnfoldingTool : ProgressiveTool {
             objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): UnfoldingTool {
             val klass = instance::class
-            val annotation = klass.findAnnotation<MatryoshkaTools>()
-                ?: throw IllegalArgumentException(
-                    "Class ${klass.simpleName} is not annotated with @MatryoshkaTools"
+            // Check for @UnfoldingTools first (preferred), then fall back to @MatryoshkaTools (deprecated)
+            val unfoldingAnnotation = klass.findAnnotation<UnfoldingTools>()
+            val matryoshkaAnnotation = klass.findAnnotation<MatryoshkaTools>()
+
+            // Extract annotation values - prefer UnfoldingTools if present
+            val (name, description, removeOnInvoke, categoryParameter, childToolUsageNotes) = when {
+                unfoldingAnnotation != null -> AnnotationValues(
+                    name = unfoldingAnnotation.name,
+                    description = unfoldingAnnotation.description,
+                    removeOnInvoke = unfoldingAnnotation.removeOnInvoke,
+                    categoryParameter = unfoldingAnnotation.categoryParameter,
+                    childToolUsageNotes = unfoldingAnnotation.childToolUsageNotes,
                 )
+                matryoshkaAnnotation != null -> AnnotationValues(
+                    name = matryoshkaAnnotation.name,
+                    description = matryoshkaAnnotation.description,
+                    removeOnInvoke = matryoshkaAnnotation.removeOnInvoke,
+                    categoryParameter = matryoshkaAnnotation.categoryParameter,
+                    childToolUsageNotes = matryoshkaAnnotation.childToolUsageNotes,
+                )
+                else -> throw IllegalArgumentException(
+                    "Class ${klass.simpleName} is not annotated with @MatryoshkaTools or @UnfoldingTools"
+                )
+            }
 
             // Find all @LlmTool methods and create Tool instances
             val toolMethods = klass.functions.filter { it.hasAnnotation<LlmTool>() }
 
-            // Find nested inner classes with @MatryoshkaTools annotation
+            // Find nested inner classes with @UnfoldingTools or @MatryoshkaTools annotation
             val nestedUnfoldingTools = mutableListOf<UnfoldingTool>()
             // Get all nested classes
             for (nestedClass in klass.nestedClasses) {
-                if (nestedClass.hasAnnotation<MatryoshkaTools>()) {
+                if (nestedClass.hasAnnotation<UnfoldingTools>() || nestedClass.hasAnnotation<MatryoshkaTools>()) {
                     try {
                         // Create an instance of the nested class
                         val nestedInstance = nestedClass.createInstance()
@@ -367,7 +388,7 @@ interface UnfoldingTool : ProgressiveTool {
             if (toolMethods.isEmpty() && nestedUnfoldingTools.isEmpty()) {
                 throw IllegalArgumentException(
                     "Class ${klass.simpleName} has no methods annotated with @LlmTool " +
-                            "and no inner classes annotated with @MatryoshkaTools"
+                            "and no inner classes annotated with @UnfoldingTools"
                 )
             }
 
@@ -404,33 +425,33 @@ interface UnfoldingTool : ProgressiveTool {
 
                 logger.debug(
                     "Creating category-based UnfoldingTool '{}' with categories: {}",
-                    annotation.name,
+                    name,
                     toolsByCategory.keys
                 )
 
                 byCategory(
-                    name = annotation.name,
-                    description = annotation.description,
+                    name = name,
+                    description = description,
                     toolsByCategory = toolsByCategory,
-                    categoryParameter = annotation.categoryParameter,
-                    removeOnInvoke = annotation.removeOnInvoke,
-                    childToolUsageNotes = annotation.childToolUsageNotes.takeIf { it.isNotEmpty() },
+                    categoryParameter = categoryParameter,
+                    removeOnInvoke = removeOnInvoke,
+                    childToolUsageNotes = childToolUsageNotes.takeIf { it.isNotEmpty() },
                 )
             } else {
                 // No categories - create simple UnfoldingTool
                 logger.debug(
                     "Creating simple UnfoldingTool '{}' with {} tools ({} nested)",
-                    annotation.name,
+                    name,
                     uncategorizedTools.size,
                     nestedUnfoldingTools.size
                 )
 
                 of(
-                    name = annotation.name,
-                    description = annotation.description,
+                    name = name,
+                    description = description,
                     innerTools = uncategorizedTools,
-                    removeOnInvoke = annotation.removeOnInvoke,
-                    childToolUsageNotes = annotation.childToolUsageNotes.takeIf { it.isNotEmpty() },
+                    removeOnInvoke = removeOnInvoke,
+                    childToolUsageNotes = childToolUsageNotes.takeIf { it.isNotEmpty() },
                 )
             }
         }
@@ -440,19 +461,41 @@ interface UnfoldingTool : ProgressiveTool {
             objectMapper: ObjectMapper = jacksonObjectMapper(),
         ): UnfoldingTool {
             val clazz = instance::class.java
-            val annotation = clazz.getAnnotation(MatryoshkaTools::class.java)
-                ?: throw IllegalArgumentException(
-                    "Class ${clazz.simpleName} is not annotated with @MatryoshkaTools"
+            // Check for @UnfoldingTools first (preferred), then fall back to @MatryoshkaTools (deprecated)
+            val unfoldingAnnotation = clazz.getAnnotation(UnfoldingTools::class.java)
+            val matryoshkaAnnotation = clazz.getAnnotation(MatryoshkaTools::class.java)
+
+            // Extract annotation values - prefer UnfoldingTools if present
+            val (name, description, removeOnInvoke, categoryParameter, childToolUsageNotes) = when {
+                unfoldingAnnotation != null -> AnnotationValues(
+                    name = unfoldingAnnotation.name,
+                    description = unfoldingAnnotation.description,
+                    removeOnInvoke = unfoldingAnnotation.removeOnInvoke,
+                    categoryParameter = unfoldingAnnotation.categoryParameter,
+                    childToolUsageNotes = unfoldingAnnotation.childToolUsageNotes,
                 )
+                matryoshkaAnnotation != null -> AnnotationValues(
+                    name = matryoshkaAnnotation.name,
+                    description = matryoshkaAnnotation.description,
+                    removeOnInvoke = matryoshkaAnnotation.removeOnInvoke,
+                    categoryParameter = matryoshkaAnnotation.categoryParameter,
+                    childToolUsageNotes = matryoshkaAnnotation.childToolUsageNotes,
+                )
+                else -> throw IllegalArgumentException(
+                    "Class ${clazz.simpleName} is not annotated with @MatryoshkaTools or @UnfoldingTools"
+                )
+            }
 
             // Find all @LlmTool methods and create Tool instances
             val toolMethods = clazz.methods.filter { it.isAnnotationPresent(LlmTool::class.java) }
 
-            // Find nested inner classes with @MatryoshkaTools annotation
+            // Find nested inner classes with @UnfoldingTools or @MatryoshkaTools annotation
             val nestedUnfoldingTools = mutableListOf<UnfoldingTool>()
             // Get all nested classes
             for (nestedClass in clazz.declaredClasses) {
-                if (nestedClass.isAnnotationPresent(MatryoshkaTools::class.java)) {
+                if (nestedClass.isAnnotationPresent(UnfoldingTools::class.java) ||
+                    nestedClass.isAnnotationPresent(MatryoshkaTools::class.java)
+                ) {
                     try {
                         // Create an instance of the nested class
                         val nestedInstance = BeanUtils.instantiateClass(nestedClass)
@@ -476,7 +519,7 @@ interface UnfoldingTool : ProgressiveTool {
             if (toolMethods.isEmpty() && nestedUnfoldingTools.isEmpty()) {
                 throw IllegalArgumentException(
                     "Class ${clazz.simpleName} has no methods annotated with @LlmTool " +
-                            "and no inner classes annotated with @MatryoshkaTools"
+                            "and no inner classes annotated with @UnfoldingTools"
                 )
             }
 
@@ -513,33 +556,33 @@ interface UnfoldingTool : ProgressiveTool {
 
                 logger.debug(
                     "Creating category-based UnfoldingTool '{}' with categories: {}",
-                    annotation.name,
+                    name,
                     toolsByCategory.keys
                 )
 
                 byCategory(
-                    name = annotation.name,
-                    description = annotation.description,
+                    name = name,
+                    description = description,
                     toolsByCategory = toolsByCategory,
-                    categoryParameter = annotation.categoryParameter,
-                    removeOnInvoke = annotation.removeOnInvoke,
-                    childToolUsageNotes = annotation.childToolUsageNotes.takeIf { it.isNotEmpty() },
+                    categoryParameter = categoryParameter,
+                    removeOnInvoke = removeOnInvoke,
+                    childToolUsageNotes = childToolUsageNotes.takeIf { it.isNotEmpty() },
                 )
             } else {
                 // No categories - create simple UnfoldingTool
                 logger.debug(
                     "Creating simple UnfoldingTool '{}' with {} tools ({} nested)",
-                    annotation.name,
+                    name,
                     uncategorizedTools.size,
                     nestedUnfoldingTools.size
                 )
 
                 of(
-                    name = annotation.name,
-                    description = annotation.description,
+                    name = name,
+                    description = description,
                     innerTools = uncategorizedTools,
-                    removeOnInvoke = annotation.removeOnInvoke,
-                    childToolUsageNotes = annotation.childToolUsageNotes.takeIf { it.isNotEmpty() },
+                    removeOnInvoke = removeOnInvoke,
+                    childToolUsageNotes = childToolUsageNotes.takeIf { it.isNotEmpty() },
                 )
             }
         }
@@ -607,3 +650,15 @@ internal class SelectableUnfoldingTool(
         )
     }
 }
+
+/**
+ * Internal data class to hold extracted annotation values.
+ * Supports both @UnfoldingTools and @MatryoshkaTools annotations.
+ */
+private data class AnnotationValues(
+    val name: String,
+    val description: String,
+    val removeOnInvoke: Boolean,
+    val categoryParameter: String,
+    val childToolUsageNotes: String,
+)

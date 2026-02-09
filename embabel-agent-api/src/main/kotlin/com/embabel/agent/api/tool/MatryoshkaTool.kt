@@ -24,12 +24,17 @@ import com.embabel.agent.api.tool.progressive.UnfoldingTool
  * description to the LLM. When invoked, its inner tools become available and
  * (optionally) the MatryoshkaTool itself is removed.
  *
- * This is an alias for [UnfoldingTool] for backward compatibility.
- * New code should use [UnfoldingTool] directly.
- *
+ * @deprecated Use [UnfoldingTool] instead. This interface is retained for backward compatibility.
  * @see UnfoldingTool
  * @see com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy
  */
+@Deprecated(
+    message = "Use UnfoldingTool instead",
+    replaceWith = ReplaceWith(
+        "UnfoldingTool",
+        "com.embabel.agent.api.tool.progressive.UnfoldingTool"
+    )
+)
 interface MatryoshkaTool : UnfoldingTool {
 
     /**

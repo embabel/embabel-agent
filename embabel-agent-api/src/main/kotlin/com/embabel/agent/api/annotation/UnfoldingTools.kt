@@ -18,30 +18,69 @@ package com.embabel.agent.api.annotation
 /**
  * Marks a class as an UnfoldingTool container for progressive tool disclosure.
  *
- * @deprecated Use [UnfoldingTools] instead. This annotation is retained for backward compatibility.
- * @see UnfoldingTools
+ * When applied to a class containing `@LlmTool` methods, creates a facade tool
+ * that exposes those methods when invoked. This enables progressive tool disclosure,
+ * reducing the initial tool set complexity for the LLM.
+ *
+ * Example - Simple facade:
+ * ```java
+ * @UnfoldingTools(
+ *     name = "database_operations",
+ *     description = "Database operations. Invoke to see specific tools."
+ * )
+ * public class DatabaseTools {
+ *
+ *     @LlmTool(description = "Execute a SQL query")
+ *     public QueryResult query(String sql) { ... }
+ *
+ *     @LlmTool(description = "Insert a record")
+ *     public InsertResult insert(String table, Map<String, Object> data) { ... }
+ * }
+ *
+ * // Create the UnfoldingTool
+ * UnfoldingTool tool = UnfoldingTool.fromInstance(new DatabaseTools());
+ * ```
+ *
+ * Example - Category-based selection:
+ * ```java
+ * @UnfoldingTools(
+ *     name = "file_operations",
+ *     description = "File operations. Pass category to select tools."
+ * )
+ * public class FileTools {
+ *
+ *     @LlmTool(description = "Read file contents", category = "read")
+ *     public String readFile(String path) { ... }
+ *
+ *     @LlmTool(description = "List directory", category = "read")
+ *     public List<String> listDir(String path) { ... }
+ *
+ *     @LlmTool(description = "Write file", category = "write")
+ *     public void writeFile(String path, String content) { ... }
+ *
+ *     @LlmTool(description = "Delete file", category = "write")
+ *     public void deleteFile(String path) { ... }
+ * }
+ *
+ * // Creates a category-based UnfoldingTool automatically
+ * UnfoldingTool tool = UnfoldingTool.fromInstance(new FileTools());
+ * ```
+ *
  * @see LlmTool
  * @see com.embabel.agent.api.tool.progressive.UnfoldingTool.Factory.fromInstance
  */
-@Deprecated(
-    message = "Use @UnfoldingTools instead",
-    replaceWith = ReplaceWith(
-        "UnfoldingTools",
-        "com.embabel.agent.api.annotation.UnfoldingTools"
-    )
-)
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class MatryoshkaTools(
+annotation class UnfoldingTools(
 
     /**
-     * Name of the MatryoshkaTool facade.
+     * Name of the UnfoldingTool facade.
      * This is the tool name the LLM will see initially.
      */
     val name: String,
 
     /**
-     * Description of the MatryoshkaTool.
+     * Description of the UnfoldingTool.
      * Should explain what category of tools this contains
      * and instruct the LLM to invoke it to see specific options.
      */
@@ -63,11 +102,11 @@ annotation class MatryoshkaTools(
 
     /**
      * Optional usage notes to guide the LLM on when and how to use the child tools.
-     * These notes are included in the context tool created when the MatryoshkaTool is invoked.
+     * These notes are included in the context tool created when the UnfoldingTool is invoked.
      *
      * Example:
      * ```java
-     * @MatryoshkaTools(
+     * @UnfoldingTools(
      *     name = "music_search",
      *     description = "Tools for searching music data",
      *     childToolUsageNotes = "Try vector search first for semantic queries. " +
