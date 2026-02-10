@@ -25,11 +25,8 @@ import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.LlmMessageSender
-import com.embabel.agent.spi.support.LlmDataBindingProperties
-import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
-import com.embabel.agent.spi.support.OutputConverter
-import com.embabel.agent.spi.support.ToolLoopLlmOperations
-import com.embabel.agent.spi.support.ToolResolutionHelper
+import com.embabel.agent.spi.loop.ToolLoopFactory
+import com.embabel.agent.spi.support.*
 import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -102,6 +99,7 @@ internal class ChatClientLlmOperations(
     objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     private val customizers: List<ChatClientCustomizer> = emptyList(),
+    toolLoopFactory: ToolLoopFactory = ToolLoopFactory.default(),
 ) : ToolLoopLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -112,6 +110,7 @@ internal class ChatClientLlmOperations(
     promptsProperties = llmOperationsPromptsProperties,
     objectMapper = objectMapper,
     observationRegistry = observationRegistry,
+    toolLoopFactory = toolLoopFactory,
 ) {
 
     @PostConstruct
