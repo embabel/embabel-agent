@@ -27,7 +27,7 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
-import com.embabel.agent.spi.loop.support.DefaultToolLoop
+import com.embabel.agent.spi.loop.ToolLoopFactory
 import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -94,6 +94,7 @@ open class ToolLoopLlmOperations(
     promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     internal open val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    protected val toolLoopFactory: ToolLoopFactory = ToolLoopFactory.default(),
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -140,7 +141,7 @@ open class ToolLoopLlmOperations(
             }
         }
 
-        val toolLoop = DefaultToolLoop(
+        val toolLoop = toolLoopFactory.create(
             llmMessageSender = messageSender,
             objectMapper = objectMapper,
             injectionStrategy = ToolInjectionStrategy.DEFAULT,

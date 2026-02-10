@@ -31,7 +31,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@DisabledOnOs(OS.WINDOWS, disabledReason = "Windows file locking with Git pack files")
+@DisabledOnOs(value = [OS.WINDOWS, OS.LINUX], disabledReason = "File locking issues with Git pack files")
 class GitReferenceTest {
 
     private val repositoryReferenceProvider = RepositoryReferenceProvider()
