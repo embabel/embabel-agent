@@ -102,6 +102,47 @@ class ToolsJavaTest {
     }
 
     @Nested
+    class ReplanAndAddTests {
+
+        @Test
+        void replanAndAddWithValueComputer() {
+            var delegate = Tool.create(
+                    "compute_tool",
+                    "Computes a value",
+                    input -> Tool.Result.text("result")
+            );
+
+            // Use replanAndAdd with a lambda that computes a value
+            Tool wrapped = Tool.replanAndAdd(
+                    delegate,
+                    (String artifact) -> artifact.toUpperCase()
+            );
+
+            assertNotNull(wrapped);
+            assertEquals("compute_tool", wrapped.getDefinition().getName());
+            assertInstanceOf(ConditionalReplanningTool.class, wrapped);
+        }
+
+        @Test
+        void replanAndAddReturnsNullToNotReplan() {
+            var delegate = Tool.create(
+                    "maybe_tool",
+                    "Maybe replans",
+                    input -> Tool.Result.text("result")
+            );
+
+            // Return null to not trigger replanning
+            Tool wrapped = Tool.replanAndAdd(
+                    delegate,
+                    (String artifact) -> artifact.isEmpty() ? artifact : null
+            );
+
+            assertNotNull(wrapped);
+            assertInstanceOf(ConditionalReplanningTool.class, wrapped);
+        }
+    }
+
+    @Nested
     class FormatToolTreeTests {
 
         @Test

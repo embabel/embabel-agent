@@ -15,20 +15,10 @@
  */
 package com.embabel.agent.api.tool
 
-import com.embabel.agent.api.annotation.LlmTool
-import com.embabel.agent.api.annotation.MatryoshkaTools
 import com.embabel.agent.api.tool.Tool.Definition
 import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.core.DomainType
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.slf4j.LoggerFactory
-import org.springframework.core.KotlinDetector
-import java.lang.reflect.Method
-import kotlin.reflect.KFunction
-import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.functions
-import kotlin.reflect.full.hasAnnotation
 
 /**
  * Tool information including definition and metadata,
@@ -278,8 +268,7 @@ interface Tool : ToolInfo {
         fun handle(input: String): Result
     }
 
-    companion object {
-        private val logger = LoggerFactory.getLogger(Tool::class.java)
+    companion object : TypedToolFactory, MethodToolFactory, ReplanningToolFactory, ArtifactSinkFactory {
 
         /**
          * Create a tool from a function.
@@ -396,84 +385,27 @@ interface Tool : ToolInfo {
             function = Function { input -> handler.handle(input) },
         )
 
-        /**
-         * Create a tool with strongly typed input and output (Java-friendly).
-         *
-         * The input type is used to generate the JSON schema automatically.
-         * Input JSON is deserialized to [I], the function is called, and
-         * the output [O] is serialized back to JSON.
-         *
-         * Example (Java):
-         * ```java
-         * record AddRequest(int a, int b) {}
-         * record AddResult(int sum) {}
-         *
-         * Tool tool = Tool.fromFunction(
-         *     "add",
-         *     "Add two numbers",
-         *     AddRequest.class,
-         *     AddResult.class,
-         *     input -> new AddResult(input.a() + input.b())
-         * );
-         * ```
-         *
-         * @param I Input type - will be deserialized from JSON
-         * @param O Output type - will be serialized to JSON
-         * @param name Tool name
-         * @param description Tool description
-         * @param inputType Class of the input type
-         * @param outputType Class of the output type
-         * @param function Function that processes typed input and returns typed output
-         * @return A new Tool instance
-         */
         @JvmStatic
-        fun <I : Any, O : Any> fromFunction(
+        override fun <I : Any, O : Any> fromFunction(
             name: String,
             description: String,
             inputType: Class<I>,
             outputType: Class<O>,
             function: java.util.function.Function<I, O>,
-        ): Tool = fromFunction(name, description, inputType, outputType, Metadata.DEFAULT, function)
+        ): Tool = super.fromFunction(name, description, inputType, outputType, function)
 
-        /**
-         * Create a tool with strongly typed input and output with custom metadata (Java-friendly).
-         *
-         * @param I Input type - will be deserialized from JSON
-         * @param O Output type - will be serialized to JSON
-         * @param name Tool name
-         * @param description Tool description
-         * @param inputType Class of the input type
-         * @param outputType Class of the output type
-         * @param metadata Tool metadata
-         * @param function Function that processes typed input and returns typed output
-         * @return A new Tool instance
-         */
         @JvmStatic
-        fun <I : Any, O : Any> fromFunction(
+        override fun <I : Any, O : Any> fromFunction(
             name: String,
             description: String,
             inputType: Class<I>,
             outputType: Class<O>,
             metadata: Metadata,
             function: java.util.function.Function<I, O>,
-        ): Tool = fromFunction(name, description, inputType, outputType, metadata, jacksonObjectMapper(), function)
+        ): Tool = super.fromFunction(name, description, inputType, outputType, metadata, function)
 
-        /**
-         * Create a tool with strongly typed input and output with custom ObjectMapper (Java-friendly).
-         *
-         * @param I Input type - will be deserialized from JSON
-         * @param O Output type - will be serialized to JSON
-         * @param name Tool name
-         * @param description Tool description
-         * @param inputType Class of the input type
-         * @param outputType Class of the output type
-         * @param metadata Tool metadata
-         * @param objectMapper ObjectMapper for JSON serialization/deserialization
-         * @param function Function that processes typed input and returns typed output
-         * @return A new Tool instance
-         */
         @JvmStatic
-        fun <I : Any, O : Any> fromFunction(
+        override fun <I : Any, O : Any> fromFunction(
             name: String,
             description: String,
             inputType: Class<I>,
@@ -481,276 +413,48 @@ interface Tool : ToolInfo {
             metadata: Metadata,
             objectMapper: ObjectMapper,
             function: java.util.function.Function<I, O>,
-        ): Tool = TypedTool(
-            name = name,
-            description = description,
-            inputType = inputType,
-            outputType = outputType,
-            metadata = metadata,
-            objectMapper = objectMapper,
-            function = function,
-        )
+        ): Tool = super.fromFunction(name, description, inputType, outputType, metadata, objectMapper, function)
 
-        /**
-         * Create a tool with strongly typed input and output (Kotlin-friendly).
-         *
-         * Example (Kotlin):
-         * ```kotlin
-         * data class AddRequest(val a: Int, val b: Int)
-         * data class AddResult(val sum: Int)
-         *
-         * val tool = Tool.fromFunction<AddRequest, AddResult>(
-         *     name = "add",
-         *     description = "Add two numbers",
-         * ) { input -> AddResult(input.a + input.b) }
-         * ```
-         *
-         * @param I Input type - will be deserialized from JSON
-         * @param O Output type - will be serialized to JSON
-         * @param name Tool name
-         * @param description Tool description
-         * @param metadata Tool metadata (optional)
-         * @param objectMapper ObjectMapper for JSON serialization/deserialization (optional)
-         * @param function Function that processes typed input and returns typed output
-         * @return A new Tool instance
-         */
-        inline fun <reified I : Any, reified O : Any> fromFunction(
-            name: String,
-            description: String,
-            metadata: Metadata = Metadata.DEFAULT,
-            objectMapper: ObjectMapper = jacksonObjectMapper(),
-            noinline function: (I) -> O,
-        ): Tool = fromFunction(
-            name = name,
-            description = description,
-            inputType = I::class.java,
-            outputType = O::class.java,
-            metadata = metadata,
-            objectMapper = objectMapper,
-            function = java.util.function.Function { input -> function(input) },
-        )
-
-        // endregion
-
-        /**
-         * Create a Tool from a method annotated with [com.embabel.agent.api.annotation.LlmTool].
-         *
-         * @param instance The object instance containing the method
-         * @param method The method to wrap as a tool
-         * @param objectMapper ObjectMapper for JSON parsing (optional)
-         * @return A Tool that invokes the method
-         * @throws IllegalArgumentException if the method is not annotated with @Tool.Method
-         */
-        fun fromMethod(
-            instance: Any,
-            method: KFunction<*>,
-            objectMapper: ObjectMapper = jacksonObjectMapper(),
-        ): Tool {
-            val annotation = method.findAnnotation<LlmTool>()
-                ?: throw IllegalArgumentException(
-                    "Method ${method.name} is not annotated with @Tool.Method"
-                )
-
-            return KotlinMethodTool(
-                instance = instance,
-                method = method,
-                annotation = annotation,
-                objectMapper = objectMapper,
-            )
-        }
-
-        /**
-         * Create a Tool from a method annotated with [com.embabel.agent.api.annotation.LlmTool].
-         *
-         * @param instance The object instance containing the method
-         * @param method The method to wrap as a tool
-         * @param objectMapper ObjectMapper for JSON parsing (optional)
-         * @return A Tool that invokes the method
-         * @throws IllegalArgumentException if the method is not annotated with @Tool.Method
-         */
-        fun fromMethod(
-            instance: Any,
-            method: Method,
-            objectMapper: ObjectMapper = jacksonObjectMapper(),
-        ): Tool {
-            val annotation = method.getAnnotation(LlmTool::class.java)
-                ?: throw IllegalArgumentException(
-                    "Method ${method.name} is not annotated with @Tool.Method"
-                )
-
-            return JavaMethodTool(
-                instance = instance,
-                method = method,
-                annotation = annotation,
-                objectMapper = objectMapper,
-            )
-        }
-
-        /**
-         * Create Tools from all methods annotated with [LlmTool] on an instance.
-         *
-         * If the instance's class is annotated with [@MatryoshkaTools][MatryoshkaTools],
-         * returns a single [UnfoldingTool] containing all the inner tools.
-         * Otherwise, returns individual tools for each annotated method.
-         *
-         * @param instance The object instance to scan for annotated methods
-         * @param objectMapper ObjectMapper for JSON parsing (optional)
-         * @return List of Tools, one for each annotated method (or single UnfoldingTool if @MatryoshkaTools present)
-         * @throws IllegalArgumentException if no methods are annotated with @LlmTool
-         */
         @JvmStatic
-        @JvmOverloads
-        fun fromInstance(
+        fun fromInstance(instance: Any): List<Tool> =
+            super.fromInstance(instance, com.fasterxml.jackson.module.kotlin.jacksonObjectMapper())
+
+        @JvmStatic
+        override fun fromInstance(
             instance: Any,
-            objectMapper: ObjectMapper = jacksonObjectMapper(),
-        ): List<Tool> {
-            // Check for @MatryoshkaTools annotation first
-            if (instance::class.hasAnnotation<MatryoshkaTools>()) {
-                return listOf(UnfoldingTool.fromInstance(instance, objectMapper))
-            }
+            objectMapper: ObjectMapper,
+        ): List<Tool> = super.fromInstance(instance, objectMapper)
 
-            val tools = if (KotlinDetector.isKotlinReflectPresent()) {
-                instance::class.functions
-                    .filter { it.hasAnnotation<LlmTool>() }
-                    .map { fromMethod(instance, it, objectMapper) }
-            } else {
-                instance.javaClass.methods
-                    .filter { it.isAnnotationPresent(LlmTool::class.java) }
-                    .map { fromMethod(instance, it, objectMapper) }
-            }
-
-            if (tools.isEmpty()) {
-                throw IllegalArgumentException(
-                    "No methods annotated with @Tool.Method found on ${instance::class.simpleName}"
-                )
-            }
-
-            return tools
-        }
-
-        /**
-         * Safely create Tools from an instance, returning empty list if no annotated methods found.
-         * This is useful when you want to scan an object that may or may not have tool methods.
-         *
-         * @param instance The object instance to scan for annotated methods
-         * @param objectMapper ObjectMapper for JSON parsing (optional)
-         * @return List of Tools, or empty list if no annotated methods found
-         */
         @JvmStatic
-        @JvmOverloads
-        fun safelyFromInstance(
+        fun safelyFromInstance(instance: Any): List<Tool> =
+            super.safelyFromInstance(instance, com.fasterxml.jackson.module.kotlin.jacksonObjectMapper())
+
+        @JvmStatic
+        override fun safelyFromInstance(
             instance: Any,
-            objectMapper: ObjectMapper = jacksonObjectMapper(),
-        ): List<Tool> {
-            return try {
-                fromInstance(instance, objectMapper)
-            } catch (e: IllegalArgumentException) {
-                logger.debug("No @LlmTool annotations found on {}: {}", instance::class.simpleName, e.message)
-                emptyList()
-            } catch (e: Throwable) {
-                // Kotlin reflection can fail on some Java classes with KotlinReflectionInternalError (an Error, not Exception)
-                logger.debug(
-                    "Failed to scan {} for @LlmTool annotations: {}",
-                    instance::class.simpleName,
-                    e.message,
-                )
-                emptyList()
-            }
-        }
+            objectMapper: ObjectMapper,
+        ): List<Tool> = super.safelyFromInstance(instance, objectMapper)
 
-        /**
-         * Make this tool always replan after execution, adding the artifact to the blackboard.
-         */
         @JvmStatic
-        fun replanAlways(tool: Tool): Tool {
-            return ConditionalReplanningTool(tool) { context ->
-                ReplanDecision("${tool.definition.name} replans") { bb ->
-                    context.artifact?.let { bb.addObject(it) }
-                }
-            }
-        }
+        override fun replanAlways(tool: Tool): Tool = super.replanAlways(tool)
 
-        /**
-         * When the decider returns a [ReplanDecision], replan after execution, adding the artifact
-         * to the blackboard along with any additional updates from the decision.
-         * The decider receives the artifact cast to type T and the replan context.
-         * If the artifact is null or cannot be cast to T, the decider is not called.
-         */
         @JvmStatic
-        @Suppress("UNCHECKED_CAST")
-        fun <T> conditionalReplan(
+        override fun <T> conditionalReplan(
             tool: Tool,
             decider: (t: T, replanContext: ReplanContext) -> ReplanDecision?,
-        ): DelegatingTool {
-            return ConditionalReplanningTool(tool) { replanContext ->
-                val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
-                try {
-                    val decision = decider(artifact as T, replanContext)
-                        ?: return@ConditionalReplanningTool null
-                    ReplanDecision(decision.reason) { bb ->
-                        bb.addObject(artifact)
-                        decision.blackboardUpdater.accept(bb)
-                    }
-                } catch (_: ClassCastException) {
-                    null
-                }
-            }
-        }
+        ): DelegatingTool = super.conditionalReplan(tool, decider)
 
-        /**
-         * When the predicate matches the tool result artifact, replan, adding the artifact to the blackboard.
-         * The predicate receives the artifact cast to type T.
-         * If the artifact is null or cannot be cast to T, returns normally.
-         */
         @JvmStatic
-        @Suppress("UNCHECKED_CAST")
-        fun <T> replanWhen(
+        override fun <T> replanWhen(
             tool: Tool,
             predicate: (t: T) -> Boolean,
-        ): DelegatingTool {
-            return ConditionalReplanningTool(tool) { replanContext ->
-                val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
-                try {
-                    if (predicate(artifact as T)) {
-                        ReplanDecision("${tool.definition.name} replans based on result") { bb ->
-                            bb.addObject(artifact)
-                        }
-                    } else {
-                        null
-                    }
-                } catch (_: ClassCastException) {
-                    null
-                }
-            }
-        }
+        ): DelegatingTool = super.replanWhen(tool, predicate)
 
-        /**
-         * Replan and add the object returned by the predicate to the blackboard.
-         * @param tool The tool to wrap
-         * @param valueComputer Function that takes the artifact of type T and returns an object to add to the blackboard, or null to not replan
-         */
         @JvmStatic
-        @Suppress("UNCHECKED_CAST")
-        fun <T> replanAndAdd(
+        override fun <T> replanAndAdd(
             tool: Tool,
             valueComputer: (t: T) -> Any?,
-        ): DelegatingTool {
-            return ConditionalReplanningTool(tool) { replanContext ->
-                val artifact = replanContext.artifact ?: return@ConditionalReplanningTool null
-                try {
-                    val toAdd = valueComputer(artifact as T)
-                    if (toAdd != null) {
-                        ReplanDecision("${tool.definition.name} replans based on result") { bb ->
-                            bb.addObject(toAdd)
-                        }
-                    } else {
-                        null
-                    }
-                } catch (_: ClassCastException) {
-                    null
-                }
-            }
-        }
+        ): DelegatingTool = super.replanAndAdd(tool, valueComputer)
 
         /**
          * Format a list of tools as an ASCII tree structure.
@@ -788,100 +492,39 @@ interface Tool : ToolInfo {
             }
         }
 
-        /**
-         * Wrap a tool to sink artifacts of the specified type to the given sink.
-         * Handles both single artifacts and Iterables.
-         *
-         * @param tool The tool to wrap
-         * @param clazz The class of artifacts to capture
-         * @param sink Where to send captured artifacts
-         */
         @JvmStatic
-        fun <T : Any> sinkArtifacts(
+        override fun <T : Any> sinkArtifacts(
             tool: Tool,
             clazz: Class<T>,
             sink: ArtifactSink,
-        ): Tool = ArtifactSinkingTool(
-            delegate = tool,
-            clazz = clazz,
-            sink = sink,
-        )
+        ): Tool = super.sinkArtifacts(tool, clazz, sink)
 
-        /**
-         * Wrap a tool to sink artifacts of the specified type to the given sink,
-         * with optional filtering and transformation.
-         *
-         * @param tool The tool to wrap
-         * @param clazz The class of artifacts to capture
-         * @param sink Where to send captured artifacts
-         * @param filter Predicate to filter which artifacts to capture
-         * @param transform Function to transform artifacts before sinking
-         */
         @JvmStatic
-        fun <T : Any> sinkArtifacts(
+        override fun <T : Any> sinkArtifacts(
             tool: Tool,
             clazz: Class<T>,
             sink: ArtifactSink,
             filter: (T) -> Boolean,
             transform: (T) -> Any,
-        ): Tool = ArtifactSinkingTool(
-            delegate = tool,
-            clazz = clazz,
-            sink = sink,
-            filter = filter,
-            transform = transform,
-        )
+        ): Tool = super.sinkArtifacts(tool, clazz, sink, filter, transform)
 
-        /**
-         * Wrap a tool to publish all artifacts to the blackboard.
-         *
-         * @param tool The tool to wrap
-         */
         @JvmStatic
-        fun publishToBlackboard(tool: Tool): Tool = ArtifactSinkingTool(
-            delegate = tool,
-            clazz = Any::class.java,
-            sink = BlackboardSink,
-        )
+        override fun publishToBlackboard(tool: Tool): Tool = super.publishToBlackboard(tool)
 
-        /**
-         * Wrap a tool to publish artifacts of the specified type to the blackboard.
-         *
-         * @param tool The tool to wrap
-         * @param clazz The class of artifacts to publish
-         */
         @JvmStatic
-        fun <T : Any> publishToBlackboard(
+        override fun <T : Any> publishToBlackboard(
             tool: Tool,
             clazz: Class<T>,
-        ): Tool = ArtifactSinkingTool(
-            delegate = tool,
-            clazz = clazz,
-            sink = BlackboardSink,
-        )
+        ): Tool = super.publishToBlackboard(tool, clazz)
 
-        /**
-         * Wrap a tool to publish artifacts of the specified type to the blackboard,
-         * with optional filtering and transformation.
-         *
-         * @param tool The tool to wrap
-         * @param clazz The class of artifacts to publish
-         * @param filter Predicate to filter which artifacts to publish
-         * @param transform Function to transform artifacts before publishing
-         */
         @JvmStatic
-        fun <T : Any> publishToBlackboard(
+        override fun <T : Any> publishToBlackboard(
             tool: Tool,
             clazz: Class<T>,
             filter: (T) -> Boolean,
             transform: (T) -> Any,
-        ): Tool = ArtifactSinkingTool(
-            delegate = tool,
-            clazz = clazz,
-            sink = BlackboardSink,
-            filter = filter,
-            transform = transform,
-        )
+        ): Tool = super.publishToBlackboard(tool, clazz, filter, transform)
+
     }
 
     /**
