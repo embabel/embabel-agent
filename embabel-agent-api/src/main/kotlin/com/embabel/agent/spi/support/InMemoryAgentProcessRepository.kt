@@ -16,7 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.spi.AgentProcessRepository
+import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.spi.config.spring.ProcessRepositoryProperties
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue

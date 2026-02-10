@@ -16,7 +16,7 @@
 package com.embabel.agent.spi.expression.spel
 
 import com.embabel.agent.core.Blackboard
-import com.embabel.agent.spi.expression.LogicalExpression
+import com.embabel.agent.core.expression.LogicalExpression
 import com.embabel.common.util.loggerFor
 import com.embabel.plan.common.condition.ConditionDetermination
 import org.slf4j.event.Level

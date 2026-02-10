@@ -21,11 +21,11 @@ import com.embabel.agent.api.common.Aggregation
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.core.*
+import com.embabel.agent.core.expression.LogicalExpression
+import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.support.BlackboardWorldStateDeterminer
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.spi.expression.LogicalExpression
-import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.agent.test.common.EventSavingAgenticEventListener
 import com.embabel.plan.common.condition.ConditionDetermination
 import io.mockk.every

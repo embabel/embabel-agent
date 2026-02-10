@@ -19,6 +19,8 @@ import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.autonomy.GoalChoiceApprover
+import com.embabel.agent.api.common.ranking.Ranking
+import com.embabel.agent.api.common.ranking.Rankings
 import com.embabel.agent.api.dsl.EvilWizardAgent
 import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
@@ -29,8 +31,6 @@ import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.domain.library.HasContent
 import com.embabel.agent.spi.LlmOperations
-import com.embabel.agent.spi.Ranking
-import com.embabel.agent.spi.Rankings
 import com.embabel.agent.spi.expression.spel.Elephant
 import com.embabel.agent.spi.expression.spel.Spel2ActionsNoGoal
 import com.embabel.agent.spi.expression.spel.Zoo

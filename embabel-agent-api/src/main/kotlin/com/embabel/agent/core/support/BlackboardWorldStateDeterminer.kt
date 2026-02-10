@@ -19,8 +19,8 @@ import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.Condition
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.satisfiesType
-import com.embabel.agent.spi.expression.LogicalExpressionParser
 import com.embabel.plan.common.condition.ConditionDetermination
 import com.embabel.plan.common.condition.ConditionWorldState
 import com.embabel.plan.common.condition.WorldStateDeterminer
