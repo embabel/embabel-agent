@@ -89,6 +89,10 @@ This provides ready-to-use prompt templates based on your agent definitions.
 
 Agent goals become MCP tools automatically when annotated with `@Export`:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Agent(
@@ -96,7 +100,7 @@ Agent goals become MCP tools automatically when annotated with `@Export`:
     backstory = "Weather service agent"
 )
 public class WeatherAgent {
-    
+
     @Goal
     @Export(remote = true)  // Automatically becomes MCP tool
     public String getWeather(
@@ -105,7 +109,7 @@ public class WeatherAgent {
     ) {
         return "Weather for " + location + " in " + units;
     }
-    
+
     @Goal
     public String internalMethod() {
         // Not exposed to MCP (no @Export annotation)
@@ -113,6 +117,34 @@ public class WeatherAgent {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(
+    goal = "Provide weather information",
+    backstory = "Weather service agent"
+)
+class WeatherAgent {
+
+    @Goal
+    @Export(remote = true)  // Automatically becomes MCP tool
+    fun getWeather(
+        @Param("location") location: String,
+        @Param("units") units: String
+    ): String {
+        return "Weather for $location in $units"
+    }
+
+    @Goal
+    fun internalMethod(): String {
+        // Not exposed to MCP (no @Export annotation)
+        return "Internal use only"
+    }
+}
+----
+====
 
 ====== Exposing Embabel `ToolObject` and `LlmReference` types as tools
 
@@ -123,6 +155,10 @@ To do this, use `McpToolExport` to create a bean of type `McpToolExportCallbackP
 
 For example, to expose a `ToolishRag` LLM reference as an MCP tool, define a Spring configuration class as follows:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Configuration
@@ -141,6 +177,28 @@ public class RagMcpTools {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class RagMcpTools {
+
+    @Bean
+    fun ragTools( // <1>
+        searchOperations: SearchOperations
+    ): McpToolExport {
+        val toolishRag = ToolishRag(
+            "docs",
+            "Embabel docs",
+            searchOperations
+        )
+        return McpToolExport.fromLlmReference(toolishRag) // <2>
+    }
+}
+----
+====
+
 <1> Your bean should be of type `McpToolExport`
 <2> Use `McpToolExport.fromLlmReference` to return the instance
 
@@ -151,6 +209,25 @@ This is useful for namespacing tools when exporting from multiple sources to avo
 
 **Using ToolObject with a naming strategy:**
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Bean
+public McpToolExport prefixedTools() {
+    return McpToolExport.fromToolObject(
+        new ToolObject(
+            List.of(myToolInstance),
+            name -> "myservice_" + name  // <1>
+        )
+    );
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Bean
@@ -163,6 +240,7 @@ fun prefixedTools(): McpToolExport {
     )
 }
 ----
+====
 
 <1> All tool names will be prefixed with `myservice_`
 
@@ -178,6 +256,20 @@ When using `fromLlmReference`, the reference's built-in naming strategy is appli
 This prefixes tool names with the lowercased, normalized reference name.
 For example, an `LlmReference` named "MyAPI" will prefix all tools with `myapi_`.
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Reference named "WeatherService" will prefix tools with "weatherservice_"
+var reference = new MyWeatherReference();  // name = "WeatherService"
+McpToolExport.fromLlmReference(reference);
+// Tool "getWeather" becomes "weatherservice_getWeather"
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 // Reference named "WeatherService" will prefix tools with "weatherservice_"
@@ -185,9 +277,35 @@ val reference = MyWeatherReference()  // name = "WeatherService"
 McpToolExport.fromLlmReference(reference)
 // Tool "getWeather" becomes "weatherservice_getWeather"
 ----
+====
 
 **Exporting multiple sources with different prefixes:**
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Bean
+public McpToolExport multiSourceTools() {
+    return McpToolExport.fromToolObjects(
+        List.of(
+            new ToolObject(
+                List.of(weatherTools),
+                name -> "weather_" + name
+            ),
+            new ToolObject(
+                List.of(stockTools),
+                name -> "stocks_" + name
+            )
+        )
+    );
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Bean
@@ -206,11 +324,32 @@ fun multiSourceTools(): McpToolExport {
     )
 }
 ----
+====
 
 ====== Filtering Tools
 
 You can filter which tools are exported using the `filter` property on `ToolObject`:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Bean
+public McpToolExport filteredTools() {
+    return McpToolExport.fromToolObject(
+        new ToolObject(
+            List.of(myToolInstance),
+            StringTransformer.IDENTITY,
+            name -> name.startsWith("public_")  // <1>
+        )
+    );
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Bean
@@ -223,11 +362,32 @@ fun filteredTools(): McpToolExport {
     )
 }
 ----
+====
 
 <1> Only tools whose names start with `public_` will be exported
 
 You can combine naming strategies and filters:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Bean
+public McpToolExport combinedTools() {
+    return McpToolExport.fromToolObject(
+        new ToolObject(
+            List.of(myToolInstance),
+            name -> "api_" + name,
+            name -> !name.startsWith("internal")  // <1>
+        )
+    );
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Bean
@@ -241,6 +401,7 @@ fun combinedTools(): McpToolExport {
     )
 }
 ----
+====
 
 <1> The filter is applied to the original tool name before the naming strategy transforms it
 
@@ -250,6 +411,10 @@ It is also possible to expose tools on Spring components as with regular Spring 
 
 For example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Component
@@ -270,6 +435,32 @@ public class CalculatorTools {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Component
+class CalculatorTools {
+
+    @McpTool(name = "add", description = "Add two numbers together")
+    fun add(
+        @McpToolParam(description = "First number", required = true) a: Int,
+        @McpToolParam(description = "Second number", required = true) b: Int
+    ): Int {
+        return a + b
+    }
+
+    @McpTool(name = "multiply", description = "Multiply two numbers")
+    fun multiply(
+        @McpToolParam(description = "First number", required = true) x: Double,
+        @McpToolParam(description = "Second number", required = true) y: Double
+    ): Double {
+        return x * y
+    }
+}
+----
+====
 
 Of course, you can inject the Embabel `Ai` interface to help do the work of the tools if you wish, or invoke other agents from within the tool methods.
 
@@ -387,6 +578,26 @@ Tool Groups are conditionally created based on configured MCP connections using 
 
 The `@ConditionalOnMcpConnection` annotation checks for configured connections at startup:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Bean
+@ConditionalOnMcpConnection({"github-mcp", "docker-mcp"})  // <1>
+public ToolGroup githubToolsGroup() {
+    return new McpToolGroup(
+        CoreToolGroups.GITHUB_DESCRIPTION,
+        "docker-github",
+        mcpSyncClients,
+        tool -> tool.toolDefinition().name().contains("create_issue")  // <2>
+    );
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Bean
@@ -400,6 +611,7 @@ fun githubToolsGroup(): ToolGroup {
     )
 }
 ----
+====
 <1> Bean created if *any* listed connection is configured
 <2> Filter selects which MCP tools belong to this group
 

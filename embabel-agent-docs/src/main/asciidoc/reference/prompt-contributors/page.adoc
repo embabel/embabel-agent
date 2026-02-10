@@ -87,6 +87,22 @@ These are optional utilities - you can always implement the interface directly f
 
 The `Persona` class provides a structured way to define an AI agent's personality and behavior:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var persona = Persona.create(
+    "Alex the Analyst",
+    "A detail-oriented data analyst with expertise in financial markets",
+    "Professional yet approachable, uses clear explanations",
+    "Help users understand complex financial data through clear analysis"
+);
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 val persona = Persona.create(
@@ -96,6 +112,7 @@ val persona = Persona.create(
     objective = "Help users understand complex financial data through clear analysis"
 )
 ----
+====
 
 This generates a prompt contribution like:
 
@@ -110,12 +127,26 @@ Your voice: Professional yet approachable, uses clear explanations.
 
 The `RoleGoalBackstory` class follows the Crew AI pattern and is included for users migrating from that framework:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var agent = RoleGoalBackstory.withRole("Senior Software Engineer")
     .andGoal("Write clean, maintainable code")
+    .andBackstory("10+ years experience in enterprise software development");
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val agent = RoleGoalBackstory.withRole("Senior Software Engineer")
+    .andGoal("Write clean, maintainable code")
     .andBackstory("10+ years experience in enterprise software development")
 ----
+====
 
 This generates:
 
@@ -130,6 +161,45 @@ Backstory: 10+ years experience in enterprise software development
 You can create custom prompt contributors by implementing the interface directly.
 This gives you complete control over the prompt content:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class CustomSystemPrompt implements PromptContributor {
+    private final String systemName;
+
+    public CustomSystemPrompt(String systemName) {
+        this.systemName = systemName;
+    }
+
+    @Override
+    public String contribution() {
+        return "System: " + systemName + " - Current time: " + LocalDateTime.now();
+    }
+}
+
+public class ConditionalPrompt implements PromptContributor {
+    private final Supplier<Boolean> condition;
+    private final String trueContent;
+    private final String falseContent;
+
+    public ConditionalPrompt(Supplier<Boolean> condition, String trueContent, String falseContent) {
+        this.condition = condition;
+        this.trueContent = trueContent;
+        this.falseContent = falseContent;
+    }
+
+    @Override
+    public String contribution() {
+        return condition.get() ? trueContent : falseContent;
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 class CustomSystemPrompt(private val systemName: String) : PromptContributor {
@@ -148,6 +218,7 @@ class ConditionalPrompt(
     }
 }
 ----
+====
 
 ==== Examples from embabel-agent-examples
 

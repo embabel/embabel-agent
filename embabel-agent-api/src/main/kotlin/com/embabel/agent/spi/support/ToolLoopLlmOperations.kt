@@ -159,33 +159,8 @@ open class ToolLoopLlmOperations(
 
         val tools = interaction.tools
 
-        // Publish ToolLoopStartEvent before the tool loop
-        val toolLoopStartEvent = llmRequestEvent?.let { event ->
-            ToolLoopStartEvent(
-                agentProcess = event.agentProcess,
-                action = event.action,
-                toolNames = tools.map { it.definition.name },
-                maxIterations = interaction.maxToolIterations,
-                interactionId = interaction.id.value,
-                outputClass = outputClass,
-            ).also { startEvent ->
-                event.agentProcess.processContext.onProcessEvent(startEvent)
-            }
-        }
-
-        // Tool loop tracing is handled by ToolLoopStartEvent/ToolLoopCompletedEvent
-        // to keep observability uniform across all agent events (actions, LLM calls, tools, etc.)
-        // rather than mixing Observation API inline with event-based tracing.
-        // val observation = Observation.createNotStarted("embabel.tool-loop", observationRegistry)
-        //     .contextualName("Tool Loop Execution")
-        // observation.start()
-        // ... observation.stop()
-
-        val result = toolLoop.execute(
-            initialMessages = initialMessages,
-            initialTools = tools,
-            outputParser = outputParser,
-        )
+        val observation = Observation.createNotStarted("embabel.tool-loop", observationRegistry)
+            .contextualName("embabel_agent")
 
         // Publish ToolLoopCompletedEvent after the tool loop
         toolLoopStartEvent?.let { startEvent ->

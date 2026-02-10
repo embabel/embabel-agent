@@ -8,6 +8,10 @@ Domain objects in Embabel are not just strongly-typed data structures - they are
 Unlike simple structs or DTOs, Embabel domain objects can encapsulate business logic and expose it to LLMs through the `@Tool` annotation.
 For example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Entity
@@ -34,6 +38,33 @@ public class Customer {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Entity
+class Customer(
+    private val name: String,
+    private val loyaltyLevel: LoyaltyLevel,
+    private val orders: List<Order>
+) {
+    @Tool(description = "Calculate the customer's loyalty discount percentage") // <1>
+    fun getLoyaltyDiscount(): BigDecimal {
+        return loyaltyLevel.calculateDiscount(orders.size)
+    }
+
+    @Tool(description = "Check if customer is eligible for premium service")
+    fun isPremiumEligible(): Boolean {
+        return orders.sumOf { it.total } > 1000.0
+    }
+
+    fun updateLoyaltyLevel() { // <2>
+        // Internal business logic
+    }
+}
+----
+====
+
 <1> The `@Tool` annotation exposes this method to LLMs when the object is added via `PrompRunner.withToolObject()`.
 <2> Unannotated methods such as `updateLoyaltyLevel` are never exposed to LLMs, regardless of their visibility level.
 This ensures that tool exposure is safe, explicit and controlled.
@@ -55,6 +86,10 @@ IMPORTANT: Always keep internal implementation details hidden, and think careful
 Domain objects can be used naturally in action methods, combining LLM interactions with traditional object-oriented programming.
 The availability of the domain object instances also drives Embabel planning.
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Action
@@ -70,6 +105,22 @@ public Recommendation generateRecommendation(Customer customer, OperationContext
         .createObject(prompt, Recommendation.class);
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Action
+fun generateRecommendation(customer: Customer, context: OperationContext): Recommendation {
+    val prompt = "Generate a personalized recommendation for ${customer.name} based on their profile"
+
+    return context.ai()
+        .withToolObject(customer) // <1>
+        .withDefaultLlm()
+        .createObject(prompt, Recommendation::class.java)
+}
+----
+====
 
 <1> The `Customer` domain object is provided as a tool object, allowing the LLM to call its  `@Tool` methods.
 The LLM has access to `customer.getLoyaltyDiscount()` and `customer.isPremiumEligible()`.

@@ -80,19 +80,40 @@ When a goal state is found, reconstruct the path by following predecessors
 
   The planner can prune entire planning systems to remove irrelevant actions:
 
-[source,kotlin]
+[tabs]
+====
+Java::
++
+[source,java]
+-----
+PlanningSystem prune(PlanningSystem planningSystem) {
+    // Get all plans to all goals
+    List<Plan> allPlans = plansToGoals(planningSystem);
+    // Keep only actions that appear in at least one plan
+    Set<Action> filteredActions = planningSystem.getActions().stream()
+        .filter(action -> allPlans.stream()
+            .anyMatch(plan -> plan.getActions().contains(action)))
+        .collect(Collectors.toSet());
+    return planningSystem.withActions(filteredActions);
+}
 -----
 
-  function prune(planningSystem):
-  // Get all plans to all goals
-  allPlans = plansToGoals(planningSystem)
-  // Keep only actions that appear in at least one plan
-  return planningSystem.copy(
-      actions = planningSystem.actions.filter { action ->
-          allPlans.any { plan -> plan.actions.contains(action) }
-      }.toSet()
-  )
+Kotlin::
++
+[source,kotlin]
 -----
+fun prune(planningSystem: PlanningSystem): PlanningSystem {
+    // Get all plans to all goals
+    val allPlans = plansToGoals(planningSystem)
+    // Keep only actions that appear in at least one plan
+    return planningSystem.copy(
+        actions = planningSystem.actions.filter { action ->
+            allPlans.any { plan -> plan.actions.contains(action) }
+        }.toSet()
+    )
+}
+-----
+====
 
 
 ===== Heuristic Function
@@ -129,16 +150,34 @@ When a goal state is found, reconstruct the path by following predecessors
 
 ===== Progress Determination Expression
 
-[source,kotlin]
+[tabs]
+====
+Java::
++
+[source,java]
+-----
+boolean progressMade = !nextState.equals(currentState) &&
+    action.getEffects().entrySet().stream().anyMatch(entry -> {
+        String key = entry.getKey();
+        Object value = entry.getValue();
+        return goal.getPreconditions().containsKey(key) &&
+            !Objects.equals(currentState.get(key), goal.getPreconditions().get(key)) &&
+            (Objects.equals(value, goal.getPreconditions().get(key)) || !nextState.containsKey(key));
+    });
 -----
 
-  progressMade = nextState != currentState &&
-  action.effects.any { (key, value) ->
+Kotlin::
++
+[source,kotlin]
+-----
+val progressMade = nextState != currentState &&
+    action.effects.any { (key, value) ->
         goal.preconditions.containsKey(key) &&
         currentState[key] != goal.preconditions[key] &&
-        (value == goal.preconditions[key] || key not in nextState)
-  }
+        (value == goal.preconditions[key] || key !in nextState)
+    }
 -----
+====
 
 ===== Detailed Explanation
 

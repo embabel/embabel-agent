@@ -58,6 +58,57 @@ This allows the _platform_ to select actions across multiple components based on
 
 Here's an example from the Shepherd project that reacts to GitHub events:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@EmbabelComponent  // <1>
+public class IssueActions {
+
+    private final ShepherdProperties properties;
+    private final CommunityDataManager communityDataManager;
+    private final GitHubUpdater gitHubUpdater;
+
+    public IssueActions(ShepherdProperties properties,
+                        CommunityDataManager communityDataManager,
+                        GitHubUpdater gitHubUpdater) {
+        this.properties = properties;
+        this.communityDataManager = communityDataManager;
+        this.gitHubUpdater = gitHubUpdater;
+    }
+
+    @Action(outputBinding = "ghIssue")  // <2>
+    public GHIssue saveNewIssue(GHIssue ghIssue, OperationContext context) {
+        var existing = communityDataManager.findIssueByGithubId(ghIssue.getId());
+        if (existing == null) {
+            var issueEntityStatus = communityDataManager.saveAndExpandIssue(ghIssue);
+            context.add(issueEntityStatus);  // <3>
+            return ghIssue;
+        }
+        return null;  // <4>
+    }
+
+    @Action(
+        pre = {"spel:newEntity.newEntities.?[#this instanceof T(com.embabel.shepherd.domain.Issue)].size() > 0"}  // <5>
+    )
+    public IssueAssessment reactToNewIssue(GHIssue ghIssue, NewEntity<?> newEntity, Ai ai) {
+        return ai
+            .withLlm(properties.getTriageLlm())
+            .creating(IssueAssessment.class)
+            .fromTemplate("first_issue_response", Map.of("issue", ghIssue));  // <6>
+    }
+
+    @Action(pre = {"spel:issueAssessment.urgency > 0.0"})  // <7>
+    public void heavyHitterIssue(GHIssue issue, IssueAssessment issueAssessment) {
+        // Take action on high-urgency issues
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @EmbabelComponent  // <1>
@@ -98,6 +149,7 @@ class IssueActions(
     }
 }
 ----
+====
 
 <1> `@EmbabelComponent` contributes actions to the platform, not a specific agent
 <2> `outputBinding` names the result for later actions to reference
@@ -116,6 +168,23 @@ The platform selects which action to run based on:
 
 The `@Action` annotation supports `cost` and `value` parameters (both 0.0 to 1.0):
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Action(
+    cost = 0.1,   // <1>
+    value = 0.8   // <2>
+)
+public Output highValueAction(Input input) {
+    // Action implementation
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Action(
@@ -126,6 +195,7 @@ fun highValueAction(input: Input): Output {
     // Action implementation
 }
 ----
+====
 
 <1> Cost to execute (0.0 to 1.0) - lower is cheaper
 <2> Value when executed (0.0 to 1.0) - higher is more valuable
@@ -159,6 +229,78 @@ The key pattern is:
 
 Here's an example of a ticket triage system that routes support tickets based on severity:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Agent(
+    description = "Triage and process support tickets",
+    planner = PlannerType.UTILITY  // <1>
+)
+public class TicketTriageAgent {
+
+    public record Ticket(String id, String description, String customerId) {}
+    public record ResolvedTicket(String id, String resolution, String handledBy) {}
+
+    @State
+    public sealed interface TicketCategory permits CriticalTicket, BugTicket, GeneralTicket {}  // <2>
+
+    @Action
+    public TicketCategory triageTicket(Ticket ticket) {  // <3>
+        if (ticket.description().toLowerCase().contains("down")) {
+            return new CriticalTicket(ticket);
+        } else if (ticket.description().toLowerCase().contains("bug")) {
+            return new BugTicket(ticket);
+        } else {
+            return new GeneralTicket(ticket);
+        }
+    }
+
+    @State
+    public record CriticalTicket(Ticket ticket) implements TicketCategory {
+        @AchievesGoal(description = "Handle critical ticket with immediate escalation")  // <4>
+        @Action
+        public ResolvedTicket handleCritical() {
+            return new ResolvedTicket(
+                ticket.id(),
+                "Escalated to on-call engineer",
+                "CRITICAL_RESPONSE_TEAM"
+            );
+        }
+    }
+
+    @State
+    public record BugTicket(Ticket ticket) implements TicketCategory {
+        @AchievesGoal(description = "Handle bug report")
+        @Action
+        public ResolvedTicket handleBug() {
+            return new ResolvedTicket(
+                ticket.id(),
+                "Bug logged in issue tracker",
+                "ENGINEERING_TEAM"
+            );
+        }
+    }
+
+    @State
+    public record GeneralTicket(Ticket ticket) implements TicketCategory {
+        @AchievesGoal(description = "Handle general inquiry")
+        @Action
+        public ResolvedTicket handleGeneral() {
+            return new ResolvedTicket(
+                ticket.id(),
+                "Response sent with FAQ links",
+                "SUPPORT_TEAM"
+            );
+        }
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Agent(
@@ -225,6 +367,7 @@ class TicketTriageAgent {
     }
 }
 ----
+====
 
 <1> Use `PlannerType.UTILITY` for opportunistic action selection
 <2> Sealed interface as the state supertype
@@ -251,12 +394,26 @@ For simple utility workflows, you don't need to create an `@Agent` class.
 `UtilityInvocation` provides a fluent API to run utility-based workflows directly from `@EmbabelComponent` actions.
 
 .Invoking with UtilityInvocation
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 UtilityInvocation.on(agentPlatform)
     .withScope(AgentScopeBuilder.fromInstances(issueActions, labelActions))
     .run(new GHIssue(issueData));
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+UtilityInvocation.on(agentPlatform)
+    .withScope(AgentScopeBuilder.fromInstances(issueActions, labelActions))
+    .run(GHIssue(issueData))
+----
+====
 
 ====== Configuration Options
 
@@ -280,6 +437,10 @@ UtilityInvocation.on(agentPlatform)
 |===
 
 .Setting a custom agent name
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 UtilityInvocation.on(agentPlatform)
@@ -287,6 +448,17 @@ UtilityInvocation.on(agentPlatform)
     .withAgentName("issue-triage-agent")
     .run(input);
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+UtilityInvocation.on(agentPlatform)
+    .withScope(AgentScopeBuilder.fromInstance(myActions))
+    .withAgentName("issue-triage-agent")
+    .run(input)
+----
+====
 
 [[reference.planners__supervisor]]
 ==== Supervisor
@@ -344,6 +516,56 @@ Supervisor is *not* recommended when:
 
 To use Supervisor, annotate your agent with `planner = PlannerType.SUPERVISOR` and mark one action with `@AchievesGoal`:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Agent(
+    planner = PlannerType.SUPERVISOR,
+    description = "Market research report generator"
+)
+public class MarketResearchAgent {
+
+    public record MarketDataRequest(String topic) {}
+    public record MarketData(Map<String, String> revenues, Map<String, Double> marketShare) {}
+
+    public record CompetitorAnalysisRequest(List<String> companies) {}
+    public record CompetitorAnalysis(Map<String, List<String>> strengths) {}
+
+    public record ReportRequest(String topic, List<String> companies) {}
+    public record FinalReport(String title, List<String> sections) {}
+
+    @Action(description = "Gather market data including revenues and market share")  // <1>
+    public MarketData gatherMarketData(MarketDataRequest request, Ai ai) {
+        return ai.withDefaultLlm().createObject(
+            "Generate market data for: " + request.topic(),
+            MarketData.class
+        );
+    }
+
+    @Action(description = "Analyze competitors: strengths and positioning")
+    public CompetitorAnalysis analyzeCompetitors(CompetitorAnalysisRequest request, Ai ai) {
+        return ai.withDefaultLlm().createObject(
+            "Analyze competitors: " + String.join(", ", request.companies()),
+            CompetitorAnalysis.class
+        );
+    }
+
+    @AchievesGoal(description = "Compile all information into a final report")  // <2>
+    @Action(description = "Compile the final report")
+    public FinalReport compileReport(ReportRequest request, Ai ai) {
+        return ai.withDefaultLlm().createObject(
+            "Create a market research report for " + request.topic(),
+            FinalReport.class
+        );
+    }
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Agent(
@@ -384,6 +606,7 @@ class MarketResearchAgent {
     }
 }
 ----
+====
 
 <1> Tool actions have descriptions visible to the supervisor LLM
 <2> The goal action is called when the supervisor has gathered enough information
@@ -455,7 +678,40 @@ result = app.invoke({"messages": [{"role": "user", "content": "Research cloud ma
 <2> All tools always visible--no filtering based on context
 <3> State is untyped message history
 
-.Embabel (Kotlin)
+.Embabel
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Agent(planner = PlannerType.SUPERVISOR)
+public class MarketResearchAgent {
+
+    // Tools return typed objects with schemas  // <1>
+    @Action(description = "Gather market data for a topic")
+    public MarketData gatherMarketData(MarketDataRequest request, Ai ai) {
+        return ai.withDefaultLlm().createObject(
+            "Generate market data for " + request.topic(), MarketData.class);
+    }
+
+    @Action(description = "Analyze competitors")
+    public CompetitorAnalysis analyzeCompetitors(CompetitorAnalysisRequest request, Ai ai) {
+        return ai.withDefaultLlm().createObject(
+            "Analyze " + request.companies(), CompetitorAnalysis.class);
+    }
+
+    @AchievesGoal
+    @Action
+    public FinalReport compileReport(ReportRequest request, Ai ai) { ... }
+}
+
+// State is a typed blackboard  // <2>
+// Tools are filtered based on available inputs  // <3>
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 @Agent(planner = PlannerType.SUPERVISOR)
@@ -480,6 +736,7 @@ class MarketResearchAgent {
 // State is a typed blackboard  // <2>
 // Tools are filtered based on available inputs  // <3>
 ----
+====
 
 <1> Tools return typed, validated objects--`MarketData`, `CompetitorAnalysis`
 <2> Blackboard holds typed artifacts, not just message strings
@@ -577,7 +834,11 @@ This is ideal when:
 
 Here's a complete example from the https://github.com/embabel/embabel-agent-examples[embabel-agent-examples] repository:
 
-.Stages.java - Actions as @EmbabelComponent
+.Stages - Actions as @EmbabelComponent
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @EmbabelComponent
@@ -628,7 +889,61 @@ public class Stages {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@EmbabelComponent
+class Stages {
+
+    data class Cook(val name: String, val age: Int)
+
+    data class Order(val dish: String, val quantity: Int)
+
+    data class Meal(val dish: String, val quantity: Int, val orderedBy: String, val cookedBy: String)
+
+    @Action
+    fun chooseCook(userInput: UserInput, ai: Ai): Cook {
+        return ai.withAutoLlm().createObject(
+            """
+            From the following user input, choose a cook.
+            User input: $userInput
+            """.trimIndent()
+        )
+    }
+
+    @Action
+    fun takeOrder(userInput: UserInput, ai: Ai): Order {
+        return ai.withAutoLlm().createObject(
+            """
+            From the following user input, take a food order
+            User input: $userInput
+            """.trimIndent()
+        )
+    }
+
+    @Action
+    @AchievesGoal(description = "Cook the meal according to the order")
+    fun prepareMeal(cook: Cook, order: Order, userInput: UserInput, ai: Ai): Meal {
+        // The model will get the orderedBy from UserInput
+        return ai.withAutoLlm().createObject(
+            """
+            Prepare a meal based on the cook and order details and target customer
+            Cook: ${cook.name}, age ${cook.age}
+            Order: ${order.quantity} x ${order.dish}
+            User input: ${userInput.content}
+            """.trimIndent()
+        )
+    }
+}
+----
+====
+
 .Invoking with SupervisorInvocation
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 Stages stages = new Stages();
@@ -638,6 +953,19 @@ Meal meal = SupervisorInvocation.on(agentPlatform)
     .withScope(AgentScopeBuilder.fromInstance(stages))
     .invoke(new UserInput(request));
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+val stages = Stages()
+
+val meal = SupervisorInvocation.on(agentPlatform)
+    .returning(Stages.Meal::class.java)
+    .withScope(AgentScopeBuilder.fromInstance(stages))
+    .invoke(UserInput(request))
+----
+====
 
 ====== Configuration Options
 
@@ -664,6 +992,10 @@ Meal meal = SupervisorInvocation.on(agentPlatform)
 |===
 
 .Setting a custom agent name
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 SupervisorInvocation.on(agentPlatform)
@@ -672,6 +1004,18 @@ SupervisorInvocation.on(agentPlatform)
     .withAgentName("market-research-supervisor")
     .invoke(request);
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+SupervisorInvocation.on(agentPlatform)
+    .returning(Report::class.java)
+    .withScope(AgentScopeBuilder.fromInstance(actions))
+    .withAgentName("market-research-supervisor")
+    .invoke(request)
+----
+====
 
 The supervisor LLM sees:
 

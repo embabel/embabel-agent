@@ -26,6 +26,10 @@ An even more important use case arises when the LLM cannot fulfill a request—f
 
 ==== Example: Handling Objects and Thinking Blocks
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Configure the PromptRunner with an LLM and optional tools
@@ -56,10 +60,47 @@ for (ThinkingBlock block : thinkingBlocks) {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+// Configure the PromptRunner with an LLM and optional tools
+val runner = ai.withLlm("claude-sonnet-4-5")
+                .withToolObject(Tooling::class.java)
+
+val prompt = """
+    What is the hottest month in Florida and its average high temperature?
+    Please provide a detailed analysis of your reasoning.
+    """.trimIndent()
+
+// Use thinking() to enable thinking block extraction
+val response = runner
+        .thinking()
+        .createObject(prompt, MonthItem::class.java)
+
+// Access the structured result
+val result = response.result
+
+// Access the LLM's reasoning process
+val thinkingBlocks = response.thinkingBlocks
+
+// Inspect individual thinking blocks
+for (block in thinkingBlocks) {
+    println("Type: ${block.tagType}")   // TAG, PREFIX, or NO_PREFIX
+    println("Tag: ${block.tagValue}")   // e.g., "think", "analysis"
+    println("Content: ${block.content}")
+}
+----
+====
+
 ==== Example: Handling Failures Gracefully
 
 Use `createObjectIfPossible` when the LLM might not be able to produce a valid result:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 ThinkingResponse<MonthItem> response = runner
@@ -76,3 +117,23 @@ if (result != null) {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+val response = runner
+        .thinking()
+        .createObjectIfPossible(prompt, MonthItem::class.java)
+
+val result = response.result
+if (result != null) {
+    // Process the result
+} else {
+    // Object creation failed—examine the reasoning to understand why
+    for (block in response.thinkingBlocks) {
+        logger.info("LLM reasoning: {}", block.content)
+    }
+}
+----
+====

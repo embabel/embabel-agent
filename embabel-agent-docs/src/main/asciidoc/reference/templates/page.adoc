@@ -14,9 +14,13 @@ Once you have specified the template, you can create objects using a model map.
 
 An example:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
-val distinctFactualAssertions = context.ai()
+DistinctFactualAssertions distinctFactualAssertions = context.ai()
     .withLlm(properties.deduplicationLlm())
     // Jinjava template from classpath at prompts/factchecker/consolidate_assertions.jinja
     .rendering("factchecker/consolidate_assertions")
@@ -28,6 +32,24 @@ val distinctFactualAssertions = context.ai()
             )
     );
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+val distinctFactualAssertions = context.ai()
+    .withLlm(properties.deduplicationLlm())
+    // Jinjava template from classpath at prompts/factchecker/consolidate_assertions.jinja
+    .rendering("factchecker/consolidate_assertions")
+    .createObject(
+            DistinctFactualAssertions::class.java,
+            mapOf(
+                    "assertions" to allAssertions,
+                    "reasoningWordCount" to properties.reasoningWordCount()
+            )
+    )
+----
+====
 
 TIP: Don't rush to externalize prompts.
 In modern languages with multi-line strings, it's often easier to keep prompts in the codebase.

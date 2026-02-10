@@ -51,6 +51,26 @@ This is useful for:
 
 The `Chatbot` interface manages multiple chat sessions:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public interface Chatbot {
+    ChatSession createSession(
+        User user,
+        OutputChannel outputChannel,
+        String contextId,
+        String conversationId
+    );
+
+    ChatSession findSession(String conversationId);
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 interface Chatbot {
@@ -64,6 +84,7 @@ interface Chatbot {
     fun findSession(conversationId: String): ChatSession?
 }
 ----
+====
 
 ===== Context IDs and Session State
 
@@ -79,22 +100,47 @@ Each context can maintain its own state that persists across sessions.
 * **Pre-loading domain objects** - You can populate the blackboard with objects that should always be present,
 such as the current user's profile, active subscription, or relevant configuration.
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Create a session with a specific context
 ChatSession session = chatbot.createSession(
     user,
     outputChannel,
-    "project-alpha"  // Context ID - loads saved state for this project
+    "project-alpha",  // Context ID - loads saved state for this project
+    null
 );
 
 // Or create an anonymous session without context
 ChatSession anonymousSession = chatbot.createSession(
     null,
     outputChannel,
+    null,
     null
 );
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Create a session with a specific context
+val session = chatbot.createSession(
+    user,
+    outputChannel,
+    contextId = "project-alpha"  // Context ID - loads saved state for this project
+)
+
+// Or create an anonymous session without context
+val anonymousSession = chatbot.createSession(
+    user = null,
+    outputChannel = outputChannel
+)
+----
+====
 
 The context mechanism works with `AgentPlatform`'s context storage:
 
@@ -109,6 +155,25 @@ This enables **stateful conversations across sessions** without requiring the ch
 
 Each session represents an ongoing conversation:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public interface ChatSession {
+    OutputChannel getOutputChannel();
+    User getUser();
+    Conversation getConversation();
+    String getProcessId();
+
+    void onUserMessage(UserMessage userMessage);
+    boolean isFinished();
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 interface ChatSession {
@@ -121,11 +186,29 @@ interface ChatSession {
     fun isFinished(): Boolean
 }
 ----
+====
 
 ===== Conversation
 
 The `Conversation` interface holds the message history and tracks assets:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public interface Conversation extends StableIdentified, AssetView {
+    List<Message> getMessages();
+    AssetTracker getAssetTracker();
+    List<Asset> getAssets();  // Combined view of all assets
+    Message addMessage(Message message);
+    UserMessage lastMessageIfBeFromUser();
+}
+----
+
+Kotlin::
++
 [source,kotlin]
 ----
 interface Conversation : StableIdentified, AssetView {
@@ -136,6 +219,7 @@ interface Conversation : StableIdentified, AssetView {
     fun lastMessageIfBeFromUser(): UserMessage?
 }
 ----
+====
 
 Message types include:
 
@@ -151,6 +235,10 @@ Chatbots can track **assets**—structured outputs like generated documents, sea
 
 The `Conversation` has an `AssetTracker` for explicitly tracking assets throughout the session:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Add an asset to the conversation tracker
@@ -159,6 +247,18 @@ conversation.getAssetTracker().addAsset(myAsset);
 // Get all tracked assets
 List<Asset> trackedAssets = conversation.getAssetTracker().getAssets();
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Add an asset to the conversation tracker
+conversation.assetTracker.addAsset(myAsset)
+
+// Get all tracked assets
+val trackedAssets = conversation.assetTracker.assets
+----
+====
 
 Use conversation-level tracking when:
 
@@ -170,6 +270,10 @@ Use conversation-level tracking when:
 
 `AssistantMessage` implements `AssetView` and can include assets directly:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 AssistantMessage message = new AssistantMessage(
@@ -181,6 +285,18 @@ AssistantMessage message = new AssistantMessage(
 conversation.addMessage(message);
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+val message = AssistantMessage(
+    content = "Here's the report you requested",
+    assets = listOf(reportAsset, summaryAsset)
+)
+conversation.addMessage(message)
+----
+====
+
 Use message-level assets when:
 
 - Assets are directly tied to a specific response
@@ -191,11 +307,24 @@ Use message-level assets when:
 
 The `Conversation.assets` property provides a **merged view** of all assets:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Gets assets from BOTH the tracker AND all messages
 List<Asset> allAssets = conversation.getAssets();
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Gets assets from BOTH the tracker AND all messages
+val allAssets = conversation.assets
+----
+====
 
 The merge follows these rules:
 
@@ -205,6 +334,10 @@ The merge follows these rules:
 
 This allows flexible asset management:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Action(canRerun = true, trigger = UserMessage.class)
@@ -227,10 +360,38 @@ void respond(Conversation conversation, ActionContext context) {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Action(canRerun = true, trigger = UserMessage::class)
+fun respond(conversation: Conversation, context: ActionContext) {
+    // Create an asset from the response
+    val resultAsset = createResultAsset(result)
+
+    // Option 1: Add to message (appears with this response)
+    val message = AssistantMessage(
+        content = "Here's your analysis",
+        assets = listOf(resultAsset)
+    )
+    conversation.addMessage(message)
+
+    // Option 2: Add to tracker (explicitly tracked)
+    conversation.assetTracker.addAsset(resultAsset)
+
+    // Either way, it's visible via conversation.assets
+}
+----
+====
+
 ===== Using Assets as Tools
 
 Assets can be exposed to the LLM as tools via their `LlmReference`:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Get references from recent assets
@@ -241,6 +402,20 @@ var response = context.ai()
     .withReferences(refs)  // Assets become available as tools
     .respond(conversation.getMessages());
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Get references from recent assets
+val refs = conversation.mostRecent(5).references()
+
+// Use in a prompt
+val response = context.ai()
+    .withReferences(refs)  // Assets become available as tools
+    .respond(conversation.messages)
+----
+====
 
 This enables scenarios like:
 
@@ -254,6 +429,10 @@ This enables scenarios like:
 
 Define action methods in an `@EmbabelComponent` that respond to user messages using the `trigger` parameter:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @EmbabelComponent
@@ -289,6 +468,39 @@ public class ChatActions {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@EmbabelComponent
+class ChatActions(
+    searchOperations: SearchOperations,
+    private val properties: RagbotProperties
+) {
+    private val toolishRag = ToolishRag(
+        "sources",
+        "Sources for answering user questions",
+        searchOperations
+    )
+
+    @Action(canRerun = true, trigger = UserMessage::class) // <1> <2>
+    fun respond(
+        conversation: Conversation, // <3>
+        context: ActionContext
+    ) {
+        val assistantMessage = context.ai()
+            .withLlm(properties.chatLlm())
+            .withReference(toolishRag)
+            .rendering("ragbot")
+            .respondWithSystemPrompt(conversation, mapOf(
+                "properties" to properties
+            ))
+        context.sendMessage(conversation.addMessage(assistantMessage)) // <4>
+    }
+}
+----
+====
+
 <1> `trigger = UserMessage.class` - action is invoked when a `UserMessage` is the last object added to the blackboard
 <2> `canRerun = true` - action can be executed multiple times (for each user message)
 <3> `Conversation` parameter is automatically injected from the blackboard
@@ -298,6 +510,10 @@ public class ChatActions {
 
 Use `AgentProcessChatbot.utilityFromPlatform()` to create a utility-based chatbot that discovers all available actions:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Configuration
@@ -310,11 +526,29 @@ class ChatConfiguration {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class ChatConfiguration {
+
+    @Bean
+    fun chatbot(agentPlatform: AgentPlatform): Chatbot =
+        AgentProcessChatbot.utilityFromPlatform(agentPlatform) // <1> <2>
+}
+----
+====
+
 <1> Creates a chatbot using Utility AI planning to select the best action
 <2> Discovers all `@Action` methods from `@EmbabelComponent` classes on the platform
 
 For debugging, you can pass a custom `Verbosity` configuration:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Bean
@@ -326,6 +560,20 @@ Chatbot chatbot(AgentPlatform agentPlatform) {
     );
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Bean
+fun chatbot(agentPlatform: AgentPlatform): Chatbot =
+    AgentProcessChatbot.utilityFromPlatform(
+        agentPlatform,
+        InMemoryConversationFactory(), // <1>
+        Verbosity().showPrompts()      // <2>
+    )
+----
+====
 
 <1> Conversation factory (required when specifying verbosity)
 <2> `Verbosity` configuration for debugging prompts
@@ -357,6 +605,10 @@ Embabel supports two conversation storage types via `ConversationStoreType`:
 
 To use persistent conversations, inject `ConversationFactoryProvider` and pass the appropriate factory when creating the chatbot:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Configuration
@@ -379,6 +631,32 @@ class ChatConfiguration {
     }
 }
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class ChatConfiguration {
+
+    @Bean
+    fun chatbot(
+        agentPlatform: AgentPlatform,
+        conversationFactoryProvider: ConversationFactoryProvider // <1>
+    ): Chatbot {
+        val factory = conversationFactoryProvider
+            .getFactory(ConversationStoreType.STORED) // <2>
+
+        return AgentProcessChatbot(
+            agentPlatform,
+            { user -> createAgent(agentPlatform) },
+            factory,  // <3>
+            // ... other configuration
+        )
+    }
+}
+----
+====
 
 <1> Inject the `ConversationFactoryProvider` via Spring DI
 <2> Get the factory for the desired storage type
@@ -410,6 +688,10 @@ This provides:
 
 To restore a conversation, pass the `conversationId` when creating a session:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Restore existing conversation or create new one
@@ -423,6 +705,23 @@ ChatSession session = chatbot.createSession(
 // Messages are already loaded if conversation existed
 List<Message> history = session.getConversation().getMessages();
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Restore existing conversation or create new one
+val session = chatbot.createSession(
+    user,
+    outputChannel,
+    contextId = null,
+    conversationId = conversationId   // <1>
+)
+
+// Messages are already loaded if conversation existed
+val history = session.conversation.messages
+----
+====
 
 <1> If the conversation exists in storage, it will be loaded automatically. If not, a new conversation is created with this ID.
 
@@ -438,6 +737,10 @@ TIP: For lower-level access, you can also use `ConversationFactory.load(conversa
 
 Interact with the chatbot through its session interface:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // New session (fresh state, generated conversation ID)
@@ -455,6 +758,27 @@ ChatSession full = chatbot.createSession(user, outputChannel, "user-workspace-12
 session.onUserMessage(new UserMessage("What does this document say about taxes?")); // <5>
 // Response is automatically sent to the outputChannel
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+// New session (fresh state, generated conversation ID)
+val session = chatbot.createSession(user, outputChannel) // <1>
+
+// Session with context (restores blackboard state)
+val withContext = chatbot.createSession(user, outputChannel, contextId = "user-workspace-123") // <2>
+
+// Restore existing conversation by ID
+val restored = chatbot.createSession(user, outputChannel, conversationId = savedConversationId) // <3>
+
+// Both context and conversation restoration
+val full = chatbot.createSession(user, outputChannel, "user-workspace-123", savedConversationId) // <4>
+
+session.onUserMessage(UserMessage("What does this document say about taxes?")) // <5>
+// Response is automatically sent to the outputChannel
+----
+====
 
 <1> Create a new session with fresh blackboard and auto-generated conversation ID
 <2> Load prior blackboard state from the "user-workspace-123" context
@@ -481,6 +805,10 @@ This trigger-based approach means:
 
 For more sophisticated action selection, use `@Cost` methods:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 @Cost // <1>
@@ -496,6 +824,23 @@ void respond(Conversation conversation, ActionContext context) {
 }
 ----
 
+Kotlin::
++
+[source,kotlin]
+----
+@Cost // <1>
+fun dynamic(bb: Blackboard): Double = // <2>
+    if (bb.objects.size > 5) 100.0 else 10.0 // <3>
+
+@Action(canRerun = true,
+        trigger = UserMessage::class,
+        costMethod = "dynamic") // <4>
+fun respond(conversation: Conversation, context: ActionContext) {
+    // ...
+}
+----
+====
+
 <1> `@Cost` marks this as a cost calculation method
 <2> Receives the `Blackboard` to inspect current state
 <3> Returns cost value - lower costs mean higher priority
@@ -506,6 +851,10 @@ void respond(Conversation conversation, ActionContext context) {
 Chatbots typically use **Jinja prompt templates** rather than inline string prompts.
 This isn't strictly necessary—simple chatbots can use regular string prompts built in code:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var assistantMessage = context.ai()
@@ -513,6 +862,17 @@ var assistantMessage = context.ai()
         .withSystemPrompt("You are a helpful assistant. Answer questions concisely.") // <1>
         .respond(conversation.getMessages());
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+val assistantMessage = context.ai()
+    .withLlm(properties.chatLlm())
+    .withSystemPrompt("You are a helpful assistant. Answer questions concisely.") // <1>
+    .respond(conversation.messages)
+----
+====
 
 <1> Simple inline prompt - fine for basic chatbots
 
@@ -525,6 +885,10 @@ However, production chatbots often need **longer, more complex prompts** for:
 
 For these cases, Jinja templates are the better choice:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 var assistantMessage = context.ai()
@@ -537,6 +901,22 @@ var assistantMessage = context.ai()
                 "objective", properties.objective()
         ));
 ----
+
+Kotlin::
++
+[source,kotlin]
+----
+val assistantMessage = context.ai()
+    .withLlm(properties.chatLlm())
+    .withReference(toolishRag)
+    .rendering("ragbot") // <1>
+    .respondWithSystemPrompt(conversation, mapOf( // <2>
+        "properties" to properties,
+        "persona" to properties.persona(),
+        "objective" to properties.objective()
+    ))
+----
+====
 
 <1> Loads `prompts/ragbot.jinja` from resources
 <2> Template bindings - accessible in Jinja as `properties.persona()` etc.

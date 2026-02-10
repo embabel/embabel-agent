@@ -1680,6 +1680,136 @@ class MatryoshkaToolTest {
             assertTrue(decoratedToolNames.contains("leaf"), "leaf should be decorated")
         }
     }
+
+    @Nested
+    inner class UnfoldingToolBuilderTests {
+
+        @Test
+        fun `withTools adds tools to existing UnfoldingTool`() {
+            val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
+            val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
+            val tool3 = MockTool("tool3", "Tool 3") { Tool.Result.text("3") }
+
+            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+                name = "combined",
+                description = "Combined tools",
+                innerTools = listOf(tool1)
+            )
+
+            val combined = initial.withTools(tool2, tool3)
+
+            assertEquals("combined", combined.definition.name)
+            assertEquals(3, combined.innerTools.size)
+            assertTrue(combined.innerTools.any { it.definition.name == "tool1" })
+            assertTrue(combined.innerTools.any { it.definition.name == "tool2" })
+            assertTrue(combined.innerTools.any { it.definition.name == "tool3" })
+        }
+
+        @Test
+        fun `withTools preserves other properties`() {
+            val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
+            val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
+
+            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+                name = "mytools",
+                description = "My tools description",
+                innerTools = listOf(tool1),
+                removeOnInvoke = false,
+                childToolUsageNotes = "Use tool1 for primary operations"
+            )
+
+            val combined = initial.withTools(tool2)
+
+            assertEquals("mytools", combined.definition.name)
+            assertEquals("My tools description", combined.definition.description)
+            assertEquals(false, combined.removeOnInvoke)
+            assertEquals("Use tool1 for primary operations", combined.childToolUsageNotes)
+        }
+
+        @Test
+        fun `withToolObject adds tools from annotated object`() {
+            val tool1 = MockTool("existing", "Existing tool") { Tool.Result.text("existing") }
+
+            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+                name = "combined",
+                description = "Combined tools",
+                innerTools = listOf(tool1)
+            )
+
+            val combined = initial.withToolObject(BuilderTestTools())
+
+            assertEquals(3, combined.innerTools.size)
+            assertTrue(combined.innerTools.any { it.definition.name == "existing" })
+            assertTrue(combined.innerTools.any { it.definition.name == "builderSearch" })
+            assertTrue(combined.innerTools.any { it.definition.name == "builderFilter" })
+        }
+
+        @Test
+        fun `withToolObject preserves properties`() {
+            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+                name = "mytools",
+                description = "My description",
+                innerTools = emptyList(),
+                removeOnInvoke = false,
+                childToolUsageNotes = "Custom notes"
+            )
+
+            val combined = initial.withToolObject(BuilderTestTools())
+
+            assertEquals("mytools", combined.definition.name)
+            assertEquals("My description", combined.definition.description)
+            assertEquals(false, combined.removeOnInvoke)
+            assertEquals("Custom notes", combined.childToolUsageNotes)
+        }
+
+        @Test
+        fun `chaining withTools and withToolObject`() {
+            val tool1 = MockTool("tool1", "Tool 1") { Tool.Result.text("1") }
+            val tool2 = MockTool("tool2", "Tool 2") { Tool.Result.text("2") }
+
+            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+                name = "chained",
+                description = "Chained tools",
+                innerTools = listOf(tool1)
+            )
+
+            val combined = initial
+                .withTools(tool2)
+                .withToolObject(BuilderTestTools())
+
+            assertEquals(4, combined.innerTools.size)
+            assertTrue(combined.innerTools.any { it.definition.name == "tool1" })
+            assertTrue(combined.innerTools.any { it.definition.name == "tool2" })
+            assertTrue(combined.innerTools.any { it.definition.name == "builderSearch" })
+            assertTrue(combined.innerTools.any { it.definition.name == "builderFilter" })
+        }
+
+        @Test
+        fun `tools added via withToolObject are callable`() {
+            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+                name = "test",
+                description = "Test",
+                innerTools = emptyList()
+            )
+
+            val combined = initial.withToolObject(BuilderTestTools())
+
+            val searchTool = combined.innerTools.find { it.definition.name == "builderSearch" }!!
+            val result = searchTool.call("""{"query": "test query"}""")
+
+            assertTrue(result is Tool.Result.Text)
+            assertTrue((result as Tool.Result.Text).content.contains("test query"))
+        }
+    }
+}
+
+// Test fixture for builder tests
+class BuilderTestTools {
+    @LlmTool(description = "Search for items")
+    fun builderSearch(query: String): String = "Found results for: $query"
+
+    @LlmTool(description = "Filter results")
+    fun builderFilter(criteria: String): String = "Filtered by: $criteria"
 }
 
 // Test fixture classes
