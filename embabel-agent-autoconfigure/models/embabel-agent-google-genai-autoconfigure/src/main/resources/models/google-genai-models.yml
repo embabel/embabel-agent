@@ -95,3 +95,18 @@ models:
       usd_per1m_input_tokens: 0.075
       usd_per1m_output_tokens: 0.30
 
+# ========================================
+# EMBEDDING MODELS
+# ========================================
+
+embedding_models:
+  # Gemini Embedding 001 - Recommended embedding model (GA)
+  # text-embedding-004 is deprecated (shutdown Jan 2026)
+  # text-embedding-005 is not available on the Gemini API
+  - name: "gemini_embedding_001"
+    model_id: "gemini-embedding-001"
+    display_name: "Gemini Embedding 001"
+    dimensions: 3072
+    pricing_model:
+      usd_per1m_tokens: 0.15
+
