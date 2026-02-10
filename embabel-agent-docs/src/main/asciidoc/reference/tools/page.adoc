@@ -644,6 +644,18 @@ val directTool = Tool.fromFunction<LookupRequest, LookupResult>(
 ----
 ====
 
+You can also instantiate `TypedTool` directly:
+
+[source,kotlin]
+----
+val tool = TypedTool(
+    name = "add",
+    description = "Add two numbers",
+    inputType = AddRequest::class.java,
+    outputType = AddResult::class.java,
+) { input -> AddResult(input.a + input.b) }
+----
+
 Key features of typed tools:
 
 * **Automatic schema generation**: The input schema is derived from the input type's structure

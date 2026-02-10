@@ -19,6 +19,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.TypedTool
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import java.util.function.Function
 
 /**
  * Abstract typed tool that supports Human-in-the-Loop (HITL) interactions.
@@ -76,6 +77,8 @@ abstract class AwaitableTypedTool<I : Any, O : Any, P : Any> @JvmOverloads const
     outputType = outputType,
     metadata = metadata,
     objectMapper = objectMapper,
+    // Placeholder - typedCall is overridden so this function is never called
+    function = Function { throw UnsupportedOperationException() },
 ) {
 
     /**
@@ -140,16 +143,15 @@ class SimpleAwaitableTypedTool<I : Any, O : Any, P : Any> @JvmOverloads construc
     private val executor: (I) -> O,
     metadata: Tool.Metadata = Tool.Metadata.DEFAULT,
     objectMapper: ObjectMapper = jacksonObjectMapper(),
-) : AwaitableTypedTool<I, O, P>(
+) : TypedTool<I, O>(
     name = name,
     description = description,
     inputType = inputType,
     outputType = outputType,
     metadata = metadata,
     objectMapper = objectMapper,
-) {
-
-    override fun createAwaitable(input: I): Awaitable<P, *>? = awaitableFactory.create(input)
-
-    override fun execute(input: I): O = executor(input)
-}
+    function = Function { input ->
+        awaitableFactory.create(input)?.let { throw AwaitableResponseException(it) }
+        executor(input)
+    },
+)

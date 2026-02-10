@@ -20,27 +20,20 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.util.function.Function
 
 /**
- * Abstract tool with strongly typed input and output.
- * Handles JSON marshaling automatically, allowing subclasses to work with
- * domain objects directly.
+ * Tool with strongly typed input and output.
+ * Handles JSON marshaling automatically, allowing you to work with domain objects directly.
  *
  * Example usage:
  * ```kotlin
- * data class DeleteRequest(val path: String, val recursive: Boolean = false)
- * data class DeleteResult(val deleted: Boolean, val path: String)
+ * data class AddRequest(val a: Int, val b: Int)
+ * data class AddResult(val sum: Int)
  *
- * class DeleteFileTool : TypedTool<DeleteRequest, DeleteResult>(
- *     name = "delete_file",
- *     description = "Delete a file or directory",
- *     inputType = DeleteRequest::class.java,
- *     outputType = DeleteResult::class.java,
- * ) {
- *     override fun typedCall(input: DeleteRequest): DeleteResult {
- *         // Work with strongly typed input
- *         val success = Files.deleteIfExists(Path.of(input.path))
- *         return DeleteResult(deleted = success, path = input.path)
- *     }
- * }
+ * val addTool = TypedTool(
+ *     name = "add",
+ *     description = "Add two numbers",
+ *     inputType = AddRequest::class.java,
+ *     outputType = AddResult::class.java,
+ * ) { input -> AddResult(input.a + input.b) }
  * ```
  *
  * @param I Input type - will be deserialized from JSON
@@ -51,14 +44,16 @@ import java.util.function.Function
  * @param outputType Class of the output type (used for documentation)
  * @param metadata Optional tool metadata
  * @param objectMapper ObjectMapper for JSON serialization/deserialization
+ * @param function Function that processes typed input and returns typed output
  */
-abstract class TypedTool<I : Any, O : Any> @JvmOverloads constructor(
+open class TypedTool<I : Any, O : Any>(
     name: String,
     description: String,
     protected val inputType: Class<I>,
     protected val outputType: Class<O>,
     override val metadata: Tool.Metadata = Tool.Metadata.DEFAULT,
     protected val objectMapper: ObjectMapper = jacksonObjectMapper(),
+    private val function: Function<I, O>,
 ) : Tool {
 
     override val definition: Tool.Definition = Tool.Definition(
@@ -69,12 +64,13 @@ abstract class TypedTool<I : Any, O : Any> @JvmOverloads constructor(
 
     /**
      * Execute the tool with strongly typed input.
-     * Implement this method with your tool logic.
+     * Calls the function provided at construction time.
+     * Can be overridden in subclasses for custom behavior.
      *
      * @param input Deserialized input object
      * @return Output object (will be serialized to JSON)
      */
-    abstract fun typedCall(input: I): O
+    open fun typedCall(input: I): O = function.apply(input)
 
     /**
      * Executes the tool by deserializing input JSON, calling [typedCall],
@@ -123,27 +119,4 @@ abstract class TypedTool<I : Any, O : Any> @JvmOverloads constructor(
             else -> Tool.Result.text(objectMapper.writeValueAsString(result))
         }
     }
-}
-
-/**
- * Tool implementation with strongly typed input and output.
- * Extends [TypedTool] and provides the implementation via a function.
- */
-internal class FunctionTool<I : Any, O : Any>(
-    name: String,
-    description: String,
-    inputType: Class<I>,
-    outputType: Class<O>,
-    metadata: Tool.Metadata,
-    objectMapper: ObjectMapper,
-    private val function: Function<I, O>,
-) : TypedTool<I, O>(
-    name = name,
-    description = description,
-    inputType = inputType,
-    outputType = outputType,
-    metadata = metadata,
-    objectMapper = objectMapper,
-) {
-    override fun typedCall(input: I): O = function.apply(input)
 }

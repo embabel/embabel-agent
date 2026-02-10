@@ -481,7 +481,7 @@ interface Tool : ToolInfo {
             metadata: Metadata,
             objectMapper: ObjectMapper,
             function: java.util.function.Function<I, O>,
-        ): Tool = FunctionTool(
+        ): Tool = TypedTool(
             name = name,
             description = description,
             inputType = inputType,

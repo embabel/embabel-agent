@@ -22,6 +22,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.util.function.Function
 
 class TypedToolTest {
 
@@ -31,57 +32,48 @@ class TypedToolTest {
 
     data class GreetRequest(val name: String, val formal: Boolean = false)
 
-    class AddTool : TypedTool<AddRequest, AddResult>(
+    private val addTool = TypedTool(
         name = "add",
         description = "Add two numbers",
         inputType = AddRequest::class.java,
         outputType = AddResult::class.java,
-    ) {
-        override fun typedCall(input: AddRequest): AddResult {
-            return AddResult(sum = input.a + input.b)
-        }
-    }
+        function = Function { input -> AddResult(sum = input.a + input.b) },
+    )
 
-    class GreetTool : TypedTool<GreetRequest, String>(
+    private val greetTool = TypedTool(
         name = "greet",
         description = "Greet a person",
         inputType = GreetRequest::class.java,
         outputType = String::class.java,
-    ) {
-        override fun typedCall(input: GreetRequest): String {
-            return if (input.formal) "Good day, ${input.name}" else "Hi ${input.name}!"
-        }
-    }
+        function = Function { input ->
+            if (input.formal) "Good day, ${input.name}" else "Hi ${input.name}!"
+        },
+    )
 
-    class ToolResultTool : TypedTool<GreetRequest, Tool.Result>(
+    private val toolResultTool = TypedTool(
         name = "greet_result",
         description = "Greet returning Tool.Result directly",
         inputType = GreetRequest::class.java,
         outputType = Tool.Result::class.java,
-    ) {
-        override fun typedCall(input: GreetRequest): Tool.Result {
-            return Tool.Result.text("Hello ${input.name}")
-        }
-    }
+        function = Function { input -> Tool.Result.text("Hello ${input.name}") },
+    )
 
-    class ReplanningTypedTool : TypedTool<GreetRequest, String>(
+    private val replanningTool = TypedTool(
         name = "replan",
         description = "Always replans",
         inputType = GreetRequest::class.java,
         outputType = String::class.java,
-    ) {
-        override fun typedCall(input: GreetRequest): String {
+        function = Function { input ->
             throw ReplanRequestedException("Need to replan for ${input.name}")
-        }
-    }
+        },
+    )
 
     @Nested
     inner class BasicFunctionality {
 
         @Test
         fun `typedCall receives deserialized input`() {
-            val tool = AddTool()
-            val result = tool.call("""{"a": 5, "b": 3}""")
+            val result = addTool.call("""{"a": 5, "b": 3}""")
 
             assertThat(result).isInstanceOf(Tool.Result.Text::class.java)
             assertThat((result as Tool.Result.Text).content).isEqualTo("""{"sum":8}""")
@@ -89,8 +81,7 @@ class TypedToolTest {
 
         @Test
         fun `string return type is handled correctly`() {
-            val tool = GreetTool()
-            val result = tool.call("""{"name": "Alice", "formal": false}""")
+            val result = greetTool.call("""{"name": "Alice", "formal": false}""")
 
             assertThat(result).isInstanceOf(Tool.Result.Text::class.java)
             assertThat((result as Tool.Result.Text).content).isEqualTo("Hi Alice!")
@@ -98,16 +89,14 @@ class TypedToolTest {
 
         @Test
         fun `default parameter values work`() {
-            val tool = GreetTool()
-            val result = tool.call("""{"name": "Bob"}""")
+            val result = greetTool.call("""{"name": "Bob"}""")
 
             assertThat((result as Tool.Result.Text).content).isEqualTo("Hi Bob!")
         }
 
         @Test
         fun `Tool Result return type passes through`() {
-            val tool = ToolResultTool()
-            val result = tool.call("""{"name": "Charlie"}""")
+            val result = toolResultTool.call("""{"name": "Charlie"}""")
 
             assertThat(result).isInstanceOf(Tool.Result.Text::class.java)
             assertThat((result as Tool.Result.Text).content).isEqualTo("Hello Charlie")
@@ -119,16 +108,13 @@ class TypedToolTest {
 
         @Test
         fun `definition has correct name and description`() {
-            val tool = AddTool()
-
-            assertThat(tool.definition.name).isEqualTo("add")
-            assertThat(tool.definition.description).isEqualTo("Add two numbers")
+            assertThat(addTool.definition.name).isEqualTo("add")
+            assertThat(addTool.definition.description).isEqualTo("Add two numbers")
         }
 
         @Test
         fun `input schema is generated from input type`() {
-            val tool = AddTool()
-            val schema = tool.definition.inputSchema.toJsonSchema()
+            val schema = addTool.definition.inputSchema.toJsonSchema()
 
             assertThat(schema).contains("\"a\"")
             assertThat(schema).contains("\"b\"")
@@ -141,16 +127,13 @@ class TypedToolTest {
 
         @Test
         fun `exceptions are converted to error results`() {
-            val tool = object : TypedTool<GreetRequest, String>(
+            val tool = TypedTool(
                 name = "failing",
                 description = "Always fails",
                 inputType = GreetRequest::class.java,
                 outputType = String::class.java,
-            ) {
-                override fun typedCall(input: GreetRequest): String {
-                    throw IllegalStateException("Something went wrong")
-                }
-            }
+                function = Function { throw IllegalStateException("Something went wrong") },
+            )
 
             val result = tool.call("""{"name": "Test"}""")
 
@@ -160,8 +143,7 @@ class TypedToolTest {
 
         @Test
         fun `invalid JSON produces error result`() {
-            val tool = AddTool()
-            val result = tool.call("not valid json")
+            val result = addTool.call("not valid json")
 
             assertThat(result).isInstanceOf(Tool.Result.Error::class.java)
         }
@@ -172,10 +154,8 @@ class TypedToolTest {
 
         @Test
         fun `ReplanRequestedException propagates through`() {
-            val tool = ReplanningTypedTool()
-
             val exception = assertThrows<ReplanRequestedException> {
-                tool.call("""{"name": "Test"}""")
+                replanningTool.call("""{"name": "Test"}""")
             }
 
             assertThat(exception.reason).isEqualTo("Need to replan for Test")
