@@ -2946,7 +2946,7 @@ Kotlin::
 +
 [source,kotlin]
 ----
-@MatryoshkaTools(
+@UnfoldingTools(
     name = "spotify",
     description = "Access Spotify music features. Invoke this tool to enable Spotify " +
             "operations like playing music, searching tracks, managing playlists, " +
@@ -3000,9 +3000,9 @@ Kotlin::
 +
 [source,kotlin]
 ----
-// Auto-detects @MatryoshkaTools and creates a MatryoshkaTool
+// Auto-detects @UnfoldingTools and creates an UnfoldingTool
 val tools = Tool.fromInstance(SpotifyTools(user, service))
-// Returns a single MatryoshkaTool, not individual tools
+// Returns a single UnfoldingTool, not individual tools
 ----
 ====
 
@@ -3843,7 +3843,7 @@ Java::
 [source,java]
 ----
 // Create a UnfoldingTool with specific tool names
-var wikipediaTool = mcpToolFactory.matryoshkaByName(
+var wikipediaTool = mcpToolFactory.unfoldingByName(
     "wikipedia",
     "Search and find content from Wikipedia",
     Set.of("search_wikipedia", "get_article", "get_related_topics", "get_summary")
@@ -3855,7 +3855,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Create a UnfoldingTool with specific tool names
-val wikipediaTool = mcpToolFactory.matryoshkaByName(
+val wikipediaTool = mcpToolFactory.unfoldingByName(
     name = "wikipedia",
     description = "Search and find content from Wikipedia",
     toolNames = setOf("search_wikipedia", "get_article", "get_related_topics", "get_summary")
@@ -3874,7 +3874,7 @@ Java::
 import java.util.regex.Pattern;
 
 // Match tools by regex patterns
-var dbTool = mcpToolFactory.matryoshkaMatching(
+var dbTool = mcpToolFactory.unfoldingMatching(
     "database_operations",
     "Database operations. Invoke to access database tools.",
     List.of(Pattern.compile("^db_.*"), Pattern.compile(".*query.*"))
@@ -3886,7 +3886,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Match tools by regex patterns
-val dbTool = mcpToolFactory.matryoshkaMatching(
+val dbTool = mcpToolFactory.unfoldingMatching(
     name = "database_operations",
     description = "Database operations. Invoke to access database tools.",
     patterns = listOf("^db_".toRegex(), "query.*".toRegex())
@@ -3903,7 +3903,7 @@ Java::
 [source,java]
 ----
 // Custom filter predicate
-var webTool = mcpToolFactory.matryoshka(
+var webTool = mcpToolFactory.unfolding(
     "web_operations",
     "Web operations. Invoke to access web tools.",
     callback -> callback.getToolDefinition().name().startsWith("web_")
@@ -3915,7 +3915,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Custom filter predicate
-val webTool = mcpToolFactory.matryoshka(
+val webTool = mcpToolFactory.unfolding(
     name = "web_operations",
     description = "Web operations. Invoke to access web tools.",
     filter = { it.toolDefinition.name().startsWith("web_") }
@@ -3935,7 +3935,7 @@ Java::
 [source,java]
 ----
 // Keep facade even after invocation
-var persistentTool = mcpToolFactory.matryoshkaByName(
+var persistentTool = mcpToolFactory.unfoldingByName(
     "wikipedia",
     "Search Wikipedia",
     Set.of("search_wikipedia", "get_article"),
@@ -3948,7 +3948,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Keep facade even after invocation
-val persistentTool = mcpToolFactory.matryoshkaByName(
+val persistentTool = mcpToolFactory.unfoldingByName(
     name = "wikipedia",
     description = "Search Wikipedia",
     toolNames = setOf("search_wikipedia", "get_article"),
@@ -3987,7 +3987,7 @@ public class ChatConfiguration {
         }
 
         // UnfoldingTool grouping related Wikipedia MCP tools
-        var wikipediaTool = mcpToolFactory.matryoshkaByName(
+        var wikipediaTool = mcpToolFactory.unfoldingByName(
             "wikipedia",
             "Search and find content from Wikipedia: " + deferMessage,
             Set.of("search_wikipedia", "get_article", "get_related_topics", "get_summary")
@@ -4023,7 +4023,7 @@ class ChatConfiguration {
         }
 
         // UnfoldingTool grouping related Wikipedia MCP tools
-        val wikipediaTool = mcpToolFactory.matryoshkaByName(
+        val wikipediaTool = mcpToolFactory.unfoldingByName(
             name = "wikipedia",
             description = "Search and find content from Wikipedia: $deferMessage",
             toolNames = setOf("search_wikipedia", "get_article", "get_related_topics", "get_summary")
@@ -4056,12 +4056,12 @@ This pattern:
 |`requiredToolByName(String)`
 |Get a single MCP tool by exact name. Throws `IllegalArgumentException` if not found, with a helpful error message listing available tools.
 
-|`matryoshkaByName(name, description, toolNames, removeOnInvoke?)`
+|`unfoldingByName(name, description, toolNames, removeOnInvoke?)`
 |Create an `UnfoldingTool` containing tools with exact matching names.
 
-|`matryoshkaMatching(name, description, patterns, removeOnInvoke?)`
+|`unfoldingMatching(name, description, patterns, removeOnInvoke?)`
 |Create an `UnfoldingTool` containing tools matching any of the regex patterns.
 
-|`matryoshka(name, description, filter, removeOnInvoke?)`
+|`unfolding(name, description, filter, removeOnInvoke?)`
 |Create an `UnfoldingTool` with a custom filter predicate.
 |===
