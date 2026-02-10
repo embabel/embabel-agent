@@ -26,7 +26,7 @@ import com.embabel.agent.api.tool.progressive.UnfoldingTool
  *
  * @deprecated Use [UnfoldingTool] instead. This interface is retained for backward compatibility.
  * @see UnfoldingTool
- * @see com.embabel.agent.spi.loop.MatryoshkaToolInjectionStrategy
+ * @see com.embabel.agent.spi.loop.UnfoldingToolInjectionStrategy
  */
 @Deprecated(
     message = "Use UnfoldingTool instead",

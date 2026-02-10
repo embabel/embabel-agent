@@ -22,11 +22,11 @@ import com.embabel.agent.spi.support.unwrapAs
 import org.slf4j.LoggerFactory
 
 /**
- * Injection strategy that handles [MatryoshkaTool] invocations.
+ * Injection strategy that handles [UnfoldingTool] invocations.
  *
- * When a MatryoshkaTool is invoked:
+ * When an UnfoldingTool is invoked:
  * 1. Its selected inner tools are added to the available tools
- * 2. If [MatryoshkaTool.removeOnInvoke] is true, the facade is removed
+ * 2. If [com.embabel.agent.api.annotation.UnfoldingTools.removeOnInvoke] is true, the facade is removed
  *
  * This enables progressive tool disclosure - presenting simplified categories
  * initially, then revealing granular tools when the LLM expresses intent.
@@ -39,9 +39,9 @@ import org.slf4j.LoggerFactory
  *
  * This strategy can be combined with other strategies using [ChainedToolInjectionStrategy].
  *
- * @see MatryoshkaTool
+ * @see UnfoldingTool
  */
-class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
+class UnfoldingToolInjectionStrategy : ToolInjectionStrategy {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -176,7 +176,7 @@ class MatryoshkaToolInjectionStrategy : ToolInjectionStrategy {
          * Singleton instance for convenience.
          */
         @JvmField
-        val INSTANCE = MatryoshkaToolInjectionStrategy()
+        val INSTANCE = UnfoldingToolInjectionStrategy()
     }
 }
 

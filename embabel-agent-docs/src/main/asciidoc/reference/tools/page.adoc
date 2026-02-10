@@ -2569,7 +2569,7 @@ val persistentTool = UnfoldingTool.of(
 ===== Enabling UnfoldingTool in the Tool Loop
 
 UnfoldingTool is **enabled by default** when using Embabel's tool loop.
-The `ToolInjectionStrategy.DEFAULT` includes `MatryoshkaToolInjectionStrategy`, so no additional configuration is needed.
+The `ToolInjectionStrategy.DEFAULT` includes `UnfoldingToolInjectionStrategy`, so no additional configuration is needed.
 
 If you need to combine with custom strategies, use `ChainedToolInjectionStrategy`:
 
@@ -2583,7 +2583,7 @@ import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy;
 
 // Combine UnfoldingTool support with custom strategies
 ChainedToolInjectionStrategy combined =
-    ChainedToolInjectionStrategy.withMatryoshka(customStrategy1, customStrategy2);
+    ChainedToolInjectionStrategy.withUnfolding(customStrategy1, customStrategy2);
 ----
 
 Kotlin::
@@ -2593,7 +2593,7 @@ Kotlin::
 import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
 
 // Combine UnfoldingTool support with custom strategies
-val combined = ChainedToolInjectionStrategy.withMatryoshka(customStrategy1, customStrategy2)
+val combined = ChainedToolInjectionStrategy.withUnfolding(customStrategy1, customStrategy2)
 ----
 ====
 
@@ -2601,7 +2601,7 @@ val combined = ChainedToolInjectionStrategy.withMatryoshka(customStrategy1, cust
 
 1. **Initial state**: The LLM sees only the facade tool (e.g., "database_operations")
 2. **LLM invokes**: The LLM calls the facade with optional arguments
-3. **Strategy evaluates**: `MatryoshkaToolInjectionStrategy` detects the invocation
+3. **Strategy evaluates**: `UnfoldingToolInjectionStrategy` detects the invocation
 4. **Tools replaced**: The facade is removed (if `removeOnInvoke` is true) and inner tools are added
 5. **Continue**: The LLM now sees and can use the specific inner tools
 

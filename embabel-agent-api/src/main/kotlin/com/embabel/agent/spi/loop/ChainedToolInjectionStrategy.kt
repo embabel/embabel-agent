@@ -50,13 +50,24 @@ class ChainedToolInjectionStrategy(
     companion object {
 
         /**
-         * Create a chained strategy that includes MatryoshkaTool support plus custom strategies.
+         * Create a chained strategy that includes UnfoldingTool support plus custom strategies.
          */
         @JvmStatic
-        fun withMatryoshka(vararg additionalStrategies: ToolInjectionStrategy): ChainedToolInjectionStrategy {
+        fun withUnfolding(vararg additionalStrategies: ToolInjectionStrategy): ChainedToolInjectionStrategy {
             return ChainedToolInjectionStrategy(
-                listOf(MatryoshkaToolInjectionStrategy.INSTANCE) + additionalStrategies.toList()
+                listOf(UnfoldingToolInjectionStrategy.INSTANCE) + additionalStrategies.toList()
             )
         }
+
+        /**
+         * @deprecated Use [withUnfolding] instead.
+         */
+        @Deprecated(
+            message = "Use withUnfolding() instead",
+            replaceWith = ReplaceWith("withUnfolding(*additionalStrategies)")
+        )
+        @JvmStatic
+        fun withMatryoshka(vararg additionalStrategies: ToolInjectionStrategy): ChainedToolInjectionStrategy =
+            withUnfolding(*additionalStrategies)
     }
 }
