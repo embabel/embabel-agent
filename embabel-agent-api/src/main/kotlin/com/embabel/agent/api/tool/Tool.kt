@@ -397,6 +397,142 @@ interface Tool : ToolInfo {
         )
 
         /**
+         * Create a tool with strongly typed input and output (Java-friendly).
+         *
+         * The input type is used to generate the JSON schema automatically.
+         * Input JSON is deserialized to [I], the function is called, and
+         * the output [O] is serialized back to JSON.
+         *
+         * Example (Java):
+         * ```java
+         * record AddRequest(int a, int b) {}
+         * record AddResult(int sum) {}
+         *
+         * Tool tool = Tool.fromFunction(
+         *     "add",
+         *     "Add two numbers",
+         *     AddRequest.class,
+         *     AddResult.class,
+         *     input -> new AddResult(input.a() + input.b())
+         * );
+         * ```
+         *
+         * @param I Input type - will be deserialized from JSON
+         * @param O Output type - will be serialized to JSON
+         * @param name Tool name
+         * @param description Tool description
+         * @param inputType Class of the input type
+         * @param outputType Class of the output type
+         * @param function Function that processes typed input and returns typed output
+         * @return A new Tool instance
+         */
+        @JvmStatic
+        fun <I : Any, O : Any> fromFunction(
+            name: String,
+            description: String,
+            inputType: Class<I>,
+            outputType: Class<O>,
+            function: java.util.function.Function<I, O>,
+        ): Tool = fromFunction(name, description, inputType, outputType, Metadata.DEFAULT, function)
+
+        /**
+         * Create a tool with strongly typed input and output with custom metadata (Java-friendly).
+         *
+         * @param I Input type - will be deserialized from JSON
+         * @param O Output type - will be serialized to JSON
+         * @param name Tool name
+         * @param description Tool description
+         * @param inputType Class of the input type
+         * @param outputType Class of the output type
+         * @param metadata Tool metadata
+         * @param function Function that processes typed input and returns typed output
+         * @return A new Tool instance
+         */
+        @JvmStatic
+        fun <I : Any, O : Any> fromFunction(
+            name: String,
+            description: String,
+            inputType: Class<I>,
+            outputType: Class<O>,
+            metadata: Metadata,
+            function: java.util.function.Function<I, O>,
+        ): Tool = fromFunction(name, description, inputType, outputType, metadata, jacksonObjectMapper(), function)
+
+        /**
+         * Create a tool with strongly typed input and output with custom ObjectMapper (Java-friendly).
+         *
+         * @param I Input type - will be deserialized from JSON
+         * @param O Output type - will be serialized to JSON
+         * @param name Tool name
+         * @param description Tool description
+         * @param inputType Class of the input type
+         * @param outputType Class of the output type
+         * @param metadata Tool metadata
+         * @param objectMapper ObjectMapper for JSON serialization/deserialization
+         * @param function Function that processes typed input and returns typed output
+         * @return A new Tool instance
+         */
+        @JvmStatic
+        fun <I : Any, O : Any> fromFunction(
+            name: String,
+            description: String,
+            inputType: Class<I>,
+            outputType: Class<O>,
+            metadata: Metadata,
+            objectMapper: ObjectMapper,
+            function: java.util.function.Function<I, O>,
+        ): Tool = FunctionTool(
+            name = name,
+            description = description,
+            inputType = inputType,
+            outputType = outputType,
+            metadata = metadata,
+            objectMapper = objectMapper,
+            function = function,
+        )
+
+        /**
+         * Create a tool with strongly typed input and output (Kotlin-friendly).
+         *
+         * Example (Kotlin):
+         * ```kotlin
+         * data class AddRequest(val a: Int, val b: Int)
+         * data class AddResult(val sum: Int)
+         *
+         * val tool = Tool.fromFunction<AddRequest, AddResult>(
+         *     name = "add",
+         *     description = "Add two numbers",
+         * ) { input -> AddResult(input.a + input.b) }
+         * ```
+         *
+         * @param I Input type - will be deserialized from JSON
+         * @param O Output type - will be serialized to JSON
+         * @param name Tool name
+         * @param description Tool description
+         * @param metadata Tool metadata (optional)
+         * @param objectMapper ObjectMapper for JSON serialization/deserialization (optional)
+         * @param function Function that processes typed input and returns typed output
+         * @return A new Tool instance
+         */
+        inline fun <reified I : Any, reified O : Any> fromFunction(
+            name: String,
+            description: String,
+            metadata: Metadata = Metadata.DEFAULT,
+            objectMapper: ObjectMapper = jacksonObjectMapper(),
+            noinline function: (I) -> O,
+        ): Tool = fromFunction(
+            name = name,
+            description = description,
+            inputType = I::class.java,
+            outputType = O::class.java,
+            metadata = metadata,
+            objectMapper = objectMapper,
+            function = java.util.function.Function { input -> function(input) },
+        )
+
+        // endregion
+
+        /**
          * Create a Tool from a method annotated with [com.embabel.agent.api.annotation.LlmTool].
          *
          * @param instance The object instance containing the method

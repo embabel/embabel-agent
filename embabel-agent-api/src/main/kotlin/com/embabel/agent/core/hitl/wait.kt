@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.core.hitl
 
+import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.ux.form.SimpleFormGenerator
 
 /**
@@ -63,10 +64,11 @@ fun <P : Any> fromForm(
 
 /**
  * Not an error, but gets special treatment in the platform.
+ * Implements [ToolControlFlowSignal] so it propagates through [TypedTool.call].
  */
 class AwaitableResponseException(
     val awaitable: Awaitable<*, *>,
-) : RuntimeException("Awaitable response exception") {
+) : RuntimeException("Awaitable response exception"), ToolControlFlowSignal {
     override fun toString(): String {
         return "AwaitableResponseException(awaitable=$awaitable)"
     }

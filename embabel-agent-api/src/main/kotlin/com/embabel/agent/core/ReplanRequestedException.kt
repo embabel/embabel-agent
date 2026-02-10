@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.tool.ToolControlFlowSignal
+
 /**
  * Callback to update the blackboard before replanning.
  * Defined as a fun interface for Java interoperability.
@@ -64,4 +66,4 @@ fun interface BlackboardUpdater {
 class ReplanRequestedException @JvmOverloads constructor(
     val reason: String,
     val blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
-) : RuntimeException(reason)
+) : RuntimeException(reason), ToolControlFlowSignal

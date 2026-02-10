@@ -563,6 +563,96 @@ The `Tool.Parameter` class provides factory methods for common parameter types:
 
 All factory methods default to `required = true`.
 
+===== Creating Strongly Typed Tools
+
+For tools with complex input and output structures, use `Tool.fromFunction()` to work with domain objects directly.
+The input schema is generated automatically from the input type, and JSON marshaling is handled for you.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Define input and output types
+record AddRequest(int a, int b) {}
+record AddResult(int sum) {}
+
+// Create typed tool - schema is generated from AddRequest
+Tool addTool = Tool.fromFunction(
+    "add",
+    "Adds two numbers together",
+    AddRequest.class,
+    AddResult.class,
+    input -> new AddResult(input.a() + input.b())
+);
+
+// Call the tool - input is deserialized, output is serialized
+Tool.Result result = addTool.call("{\"a\": 5, \"b\": 3}");
+// Result contains: {"sum":8}
+
+// String output is returned directly (not double-serialized)
+Tool greetTool = Tool.fromFunction(
+    "greet",
+    "Greets someone",
+    GreetRequest.class,
+    String.class,
+    input -> "Hello " + input.name() + "!"
+);
+
+// With custom metadata
+Tool directTool = Tool.fromFunction(
+    "lookup",
+    "Looks up data directly",
+    LookupRequest.class,
+    LookupResult.class,
+    Tool.Metadata.create(true), // returnDirect = true
+    input -> new LookupResult(findData(input))
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Define input and output types
+data class AddRequest(val a: Int, val b: Int)
+data class AddResult(val sum: Int)
+
+// Create typed tool - uses reified types for cleaner syntax
+val addTool = Tool.fromFunction<AddRequest, AddResult>(
+    name = "add",
+    description = "Adds two numbers together",
+) { input -> AddResult(input.a + input.b) }
+
+// Call the tool - input is deserialized, output is serialized
+val result = addTool.call("""{"a": 5, "b": 3}""")
+// Result contains: {"sum":8}
+
+// String output is returned directly (not double-serialized)
+val greetTool = Tool.fromFunction<GreetRequest, String>(
+    name = "greet",
+    description = "Greets someone",
+) { input -> "Hello ${input.name}!" }
+
+// With custom metadata
+val directTool = Tool.fromFunction<LookupRequest, LookupResult>(
+    name = "lookup",
+    description = "Looks up data directly",
+    metadata = Tool.Metadata(returnDirect = true),
+) { input -> LookupResult(findData(input)) }
+----
+====
+
+Key features of typed tools:
+
+* **Automatic schema generation**: The input schema is derived from the input type's structure
+* **JSON marshaling**: Input JSON is deserialized to the input type, and output is serialized from the output type
+* **String pass-through**: If the output type is `String`, it's returned directly without JSON serialization
+* **Result pass-through**: If the function returns a `Tool.Result`, it's used as-is
+* **Exception handling**: Exceptions thrown by the function are converted to `Tool.Result.Error`
+* **Control flow signals**: Exceptions implementing `ToolControlFlowSignal` (like `ReplanRequestedException`) propagate through
+
 ===== Creating Tools from Annotated Methods
 
 Embabel provides `@LlmTool` and `@LlmTool.Param` annotations for creating tools from annotated methods.
@@ -856,7 +946,10 @@ check(customized.call("{}").text == "42")
 |You're comfortable with Spring AI and want IDE support for tool annotations on domain objects
 
 |`Tool.create()` / `Tool.of()`
-|You need programmatic tool creation, want framework independence, or are creating tools dynamically
+|You need programmatic tool creation with simple inputs, want framework independence, or are creating tools dynamically
+
+|`Tool.fromFunction()`
+|You need programmatic tool creation with complex typed inputs and outputs, automatic JSON marshaling, and schema generation
 
 |`@LlmTool` / `@LlmTool.Param`
 |You prefer annotation-based tools but want Embabel's framework-agnostic abstractions
