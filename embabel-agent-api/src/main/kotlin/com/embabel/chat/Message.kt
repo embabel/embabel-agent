@@ -15,9 +15,9 @@
  */
 package com.embabel.chat
 
-import com.embabel.agent.api.annotation.AwaitableResponseException
 import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.core.hitl.Awaitable
+import com.embabel.agent.core.hitl.AwaitableResponseException
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.agent.domain.io.AssistantContent
 import com.embabel.agent.domain.io.UserContent
@@ -107,7 +107,10 @@ sealed class BaseMessage(
     val isMultimodal: Boolean
         get() = parts.any { it !is TextPart }
 
-    @Deprecated("Ambiguous: can be confused with the user who sent the message. Use role.displayName or name directly.", replaceWith = ReplaceWith("role.displayName"))
+    @Deprecated(
+        "Ambiguous: can be confused with the user who sent the message. Use role.displayName or name directly.",
+        replaceWith = ReplaceWith("role.displayName")
+    )
     val sender: String get() = name ?: role.displayName
 }
 

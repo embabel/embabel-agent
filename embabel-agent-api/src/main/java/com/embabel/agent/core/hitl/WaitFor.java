@@ -13,15 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.annotation;
+package com.embabel.agent.core.hitl;
 
-import com.embabel.agent.core.hitl.Awaitable;
 import org.springframework.lang.NonNull;
 
 /**
  * Java syntax sugar for HITL
  *
- * @see com.embabel.agent.api.annotation.WaitKt
+ * @see WaitKt
  */
 public class WaitFor {
 
@@ -44,7 +43,7 @@ public class WaitFor {
 
     @NonNull
     public static <P> P awaitable(@NonNull Awaitable<P, ?> awaitable) {
-        return com.embabel.agent.api.annotation.WaitKt.waitFor(awaitable);
+        return WaitKt.waitFor(awaitable);
     }
 
 }

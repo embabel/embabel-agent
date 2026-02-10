@@ -22,7 +22,6 @@ import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.api.annotation.EmbabelComponent
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.RequireNameMatch
-import com.embabel.agent.api.annotation.waitFor
 import com.embabel.agent.api.common.ActionContext
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.OperationContext
@@ -38,6 +37,7 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Goal
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.hitl.ConfirmationRequest
+import com.embabel.agent.core.hitl.waitFor
 import com.embabel.agent.core.last
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.support.Dog

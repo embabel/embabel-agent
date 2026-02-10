@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.core
 
-import com.embabel.agent.api.annotation.AwaitableResponseException
+import com.embabel.agent.core.hitl.AwaitableResponseException
 import com.embabel.common.util.time
 import org.slf4j.LoggerFactory
 import java.time.Duration

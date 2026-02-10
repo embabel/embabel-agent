@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.api.annotation.support
 
-import com.embabel.agent.api.annotation.AwaitableResponseException
 import com.embabel.agent.api.annotation.RequireNameMatch
 import com.embabel.agent.api.annotation.SpecialReturnException
 import com.embabel.agent.api.common.ActionContext
@@ -29,6 +28,7 @@ import com.embabel.agent.core.DataDictionary
 import com.embabel.agent.core.DomainType
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ReplanRequestedException
+import com.embabel.agent.core.hitl.AwaitableResponseException
 import com.embabel.agent.core.support.BlackboardWorldState
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.plan.CostComputation

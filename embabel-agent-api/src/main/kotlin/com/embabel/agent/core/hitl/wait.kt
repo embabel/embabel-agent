@@ -13,12 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.api.annotation
+package com.embabel.agent.core.hitl
 
-import com.embabel.agent.core.hitl.Awaitable
-import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.ux.form.SimpleFormGenerator
-import com.embabel.agent.core.hitl.FormBindingRequest
 
 /**
  * Call when the current AgentProcess should
