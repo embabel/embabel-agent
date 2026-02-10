@@ -28,7 +28,6 @@ import com.embabel.agent.shell.config.ShellProperties
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette
 import com.embabel.chat.AssistantMessage
-import com.embabel.chat.BaseMessage
 import com.embabel.chat.ChatSession
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
@@ -48,12 +47,6 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import ch.qos.logback.classic.Logger as LogbackLogger
 
-/**
- * Extension to get a display name for any Message.
- */
-private val Message.displaySender: String
-    get() = (this as? BaseMessage)?.sender
-        ?: role.name.lowercase().replaceFirstChar { it.uppercase() }
 
 /**
  * Provide interaction and form support
@@ -253,7 +246,7 @@ class TerminalServices(
             when (event) {
                 is MessageOutputChannelEvent -> {
                     val formattedResponse = WordUtils.wrap(
-                        "${event.message.displaySender}: ${event.message.content.color(colorPalette.color2)}",
+                        "${event.message.role.displayName}: ${event.message.content.color(colorPalette.color2)}",
                         shellProperties.lineLength,
                     )
                     println(formattedResponse)

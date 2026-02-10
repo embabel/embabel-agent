@@ -32,7 +32,13 @@ import java.time.Instant
 enum class MessageRole {
     USER,
     ASSISTANT,
-    SYSTEM
+    SYSTEM;
+
+    /**
+     * Human-readable name for this role, e.g. "User", "Assistant", "System".
+     */
+    val displayName: String
+        get() = name.lowercase().replaceFirstChar { it.uppercase() }
 }
 
 /**
@@ -101,7 +107,8 @@ sealed class BaseMessage(
     val isMultimodal: Boolean
         get() = parts.any { it !is TextPart }
 
-    val sender: String get() = name ?: role.name.lowercase().replaceFirstChar { it.uppercase() }
+    @Deprecated("Ambiguous: can be confused with the user who sent the message. Use role.displayName or name directly.", replaceWith = ReplaceWith("role.displayName"))
+    val sender: String get() = name ?: role.displayName
 }
 
 /**
@@ -129,7 +136,7 @@ class UserMessage : BaseMessage, UserContent {
     ) : this(parts = listOf(TextPart(content)), name = name, timestamp = timestamp)
 
     override fun toString(): String {
-        return "UserMessage(from='${sender}', content='${trim(content, 80, 10)}')"
+        return "UserMessage(from='${role.displayName}', content='${trim(content, 80, 10)}')"
     }
 }
 
@@ -154,7 +161,7 @@ open class AssistantMessage @JvmOverloads constructor(
 ), AssistantContent, AssetView {
 
     override fun toString(): String {
-        return "AssistantMessage(from='${sender}', content='${trim(content, 80, 10)}')"
+        return "AssistantMessage(from='${role.displayName}', content='${trim(content, 80, 10)}')"
     }
 
     companion object {
