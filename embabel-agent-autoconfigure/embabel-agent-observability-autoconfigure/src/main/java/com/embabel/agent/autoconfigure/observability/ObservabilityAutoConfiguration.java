@@ -32,6 +32,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * Auto-configuration for Embabel Agent observability.
@@ -72,32 +73,50 @@ public class ObservabilityAutoConfiguration {
     }
 
     /**
-     * Creates a servlet filter that wraps request/response for body caching.
+     * Servlet-dependent beans isolated in a nested configuration class.
      *
-     * @return the body caching filter
+     * <p>This prevents {@code NoClassDefFoundError: jakarta/servlet/Filter} in non-web
+     * applications (e.g., shell apps). Without this isolation, Spring's
+     * {@code @ConditionalOnMissingBean} bean type deduction reflectively loads all methods
+     * on the outer class, triggering class loading of {@link HttpBodyCachingFilter}
+     * (which extends {@code OncePerRequestFilter} → {@code jakarta.servlet.Filter})
+     * <em>before</em> any per-method {@code @ConditionalOnClass} guards can run.
+     *
+     * @see <a href="https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html#features.developing-auto-configuration.condition-annotations.class-conditions">Spring Boot: Class Conditions</a>
      */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "org.springframework.web.util.ContentCachingRequestWrapper")
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "jakarta.servlet.Filter")
     @ConditionalOnProperty(prefix = "embabel.observability", name = "trace-http-details", havingValue = "true")
-    public HttpBodyCachingFilter httpBodyCachingFilter() {
-        log.debug("Configuring HTTP body caching filter for request/response tracing");
-        return new HttpBodyCachingFilter();
-    }
+    static class ServletObservabilityConfiguration {
 
-    /**
-     * Creates observation filter to enrich HTTP server observations with request/response details.
-     *
-     * @param properties the observability properties
-     * @return the HTTP request observation filter
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "org.springframework.http.server.observation.ServerRequestObservationContext")
-    @ConditionalOnProperty(prefix = "embabel.observability", name = "trace-http-details", havingValue = "true")
-    public HttpRequestObservationFilter httpRequestObservationFilter(ObservabilityProperties properties) {
-        log.debug("Configuring HTTP request observation filter for request/response tracing");
-        return new HttpRequestObservationFilter(properties.getMaxAttributeLength());
+        private static final Logger log = LoggerFactory.getLogger(ServletObservabilityConfiguration.class);
+
+        /**
+         * Creates a servlet filter that wraps request/response for body caching.
+         *
+         * @return the body caching filter
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        @ConditionalOnClass(name = "org.springframework.web.util.ContentCachingRequestWrapper")
+        public HttpBodyCachingFilter httpBodyCachingFilter() {
+            log.debug("Configuring HTTP body caching filter for request/response tracing");
+            return new HttpBodyCachingFilter();
+        }
+
+        /**
+         * Creates observation filter to enrich HTTP server observations with request/response details.
+         *
+         * @param properties the observability properties
+         * @return the HTTP request observation filter
+         */
+        @Bean
+        @ConditionalOnMissingBean
+        @ConditionalOnClass(name = "org.springframework.http.server.observation.ServerRequestObservationContext")
+        public HttpRequestObservationFilter httpRequestObservationFilter(ObservabilityProperties properties) {
+            log.debug("Configuring HTTP request observation filter for request/response tracing");
+            return new HttpRequestObservationFilter(properties.getMaxAttributeLength());
+        }
     }
 
     /**
