@@ -803,3 +803,21 @@ class MostSpecificPath {
     ) = Prince(frog.name)
 
 }
+
+@Agent(description = "agent with read-only action")
+class AgentWithReadOnlyAction {
+
+    @Action(readOnly = true)
+    fun analyzeData(userInput: UserInput): PersonWithReverseTool {
+        return PersonWithReverseTool(userInput.content)
+    }
+}
+
+@Agent(description = "agent with non-read-only action")
+class AgentWithNonReadOnlyAction {
+
+    @Action
+    fun modifyData(userInput: UserInput): PersonWithReverseTool {
+        return PersonWithReverseTool(userInput.content)
+    }
+}

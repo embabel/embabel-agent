@@ -159,6 +159,10 @@ annotation class ToolGroup(
  * @param post Postconditions for the action
  * @param canRerun can we rerun this action?
  * If false, the action will not be rerun if it has already run in the current process
+ * @param readOnly Does this action have no external side effects?
+ * Read-only actions only analyze data and produce derived objects without modifying
+ * external systems (APIs, databases, files, etc.). Used for learning/catchup modes
+ * where we want to ingest and understand data without triggering mutations.
  * @param clearBlackboard If true, all previous state will be cleared from the blackboard,
  * leaving only the outputs of this action.
  * @param outputBinding Output binding for the action.
@@ -196,6 +200,7 @@ annotation class Action(
     val pre: Array<String> = [],
     val post: Array<String> = [],
     val canRerun: Boolean = false,
+    val readOnly: Boolean = false,
     val clearBlackboard: Boolean = false,
     val outputBinding: String = IoBinding.DEFAULT_BINDING,
     val cost: ZeroToOne = 0.0,

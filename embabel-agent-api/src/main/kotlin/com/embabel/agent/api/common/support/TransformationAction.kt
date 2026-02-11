@@ -35,6 +35,7 @@ open class TransformationAction<I, O>(
     cost: CostComputation = { 0.0 },
     value: CostComputation = { 0.0 },
     canRerun: Boolean = false,
+    readOnly: Boolean = false,
     qos: ActionQos = ActionQos(),
     private val inputClass: Class<I>,
     val outputClass: Class<O>,
@@ -54,6 +55,7 @@ open class TransformationAction<I, O>(
     outputs = if (outputVarName == null) emptySet() else setOf(IoBinding(outputVarName, outputClass.name)),
     toolGroups = toolGroups,
     canRerun = canRerun,
+    readOnly = readOnly,
     qos = qos,
 ) {
 

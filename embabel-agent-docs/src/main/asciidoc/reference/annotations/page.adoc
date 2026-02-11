@@ -34,6 +34,10 @@ Action metadata can be specified on the annotation, including:
 - `post`: A list of postconditions _additional to the output type(s)_ that may be satisfied after the action is executed.
 - `canRerun`: A boolean indicating whether the action can be rerun if it has already been executed.
 Defaults to false.
+- `readOnly`: A boolean indicating whether the action has no external side effects.
+Read-only actions only analyze data and produce derived objects without modifying external systems (APIs, databases, files, etc.).
+This is useful for learning/catchup modes where you want to ingest and understand data without triggering mutations.
+Defaults to false.
 - `clearBlackboard`: A boolean indicating whether to clear the blackboard after this action completes.
 When true, all objects on the blackboard are removed except the action's output.
 This is useful for resetting context in multi-step workflows.

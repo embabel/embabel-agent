@@ -39,6 +39,7 @@ class MultiTransformationAction<O : Any>(
     cost: CostComputation = { 0.0 },
     value: CostComputation = { 0.0 },
     canRerun: Boolean = false,
+    readOnly: Boolean = false,
     clearBlackboard: Boolean = false,
     qos: ActionQos = ActionQos(),
     inputs: Set<IoBinding>,
@@ -59,6 +60,7 @@ class MultiTransformationAction<O : Any>(
     outputs = calculateOutputs(outputVarName, outputClass),
     toolGroups = toolGroups,
     canRerun = canRerun,
+    readOnly = readOnly,
     clearBlackboard = clearBlackboard,
     qos = qos,
 ) {

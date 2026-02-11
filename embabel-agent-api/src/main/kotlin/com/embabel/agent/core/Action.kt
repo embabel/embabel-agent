@@ -40,6 +40,15 @@ interface Action : DataFlowStep, ConditionAction, ActionRunner, DataDictionary, 
     val canRerun: Boolean
 
     /**
+     * Does this action have no external side effects?
+     * Read-only actions only analyze data and produce derived objects
+     * without modifying external systems (APIs, databases, files, etc.).
+     * Used for learning/catchup modes where we want to ingest and understand
+     * data without triggering mutations.
+     */
+    val readOnly: Boolean get() = false
+
+    /**
      * Quality of Service for this action.
      */
     val qos: ActionQos
@@ -111,6 +120,7 @@ data class ActionMetadata(
     val preconditions: EffectSpec,
     val effects: EffectSpec,
     val canRerun: Boolean,
+    val readOnly: Boolean,
     val qos: ActionQos,
 ) {
 
@@ -124,6 +134,7 @@ data class ActionMetadata(
         preconditions = action.preconditions,
         effects = action.effects,
         canRerun = action.canRerun,
+        readOnly = action.readOnly,
         qos = action.qos,
     )
 }

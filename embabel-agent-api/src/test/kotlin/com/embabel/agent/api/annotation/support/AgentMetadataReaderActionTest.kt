@@ -1163,4 +1163,28 @@ class AgentMetadataReaderActionTest {
         }
     }
 
+    @Nested
+    inner class ReadOnlyActions {
+
+        @Test
+        fun `action with readOnly true has readOnly property set`() {
+            val reader = AgentMetadataReader()
+            val metadata = reader.createAgentMetadata(AgentWithReadOnlyAction())
+            assertNotNull(metadata)
+            assertEquals(1, metadata!!.actions.size)
+            val action = metadata.actions.single()
+            assertTrue(action.readOnly, "Action with @Action(readOnly = true) should have readOnly = true")
+        }
+
+        @Test
+        fun `action without readOnly annotation defaults to false`() {
+            val reader = AgentMetadataReader()
+            val metadata = reader.createAgentMetadata(AgentWithNonReadOnlyAction())
+            assertNotNull(metadata)
+            assertEquals(1, metadata!!.actions.size)
+            val action = metadata.actions.single()
+            assertFalse(action.readOnly, "Action without readOnly should default to false")
+        }
+    }
+
 }

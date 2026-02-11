@@ -47,6 +47,7 @@ object Rerun {
  * @param inputs the input bindings
  * @param outputs the output bindings
  * @param canRerun can we rerun this action?
+ * @param readOnly does this action have no external side effects?
  * @param clearBlackboard if true, clears the blackboard on completion (e.g., state transitions).
  *        When true, output=FALSE preconditions are skipped since the blackboard resets anyway.
  * @param qos quality of service requirements
@@ -62,6 +63,7 @@ abstract class AbstractAction(
     override val outputs: Set<IoBinding> = emptySet(),
     override val toolGroups: Set<ToolGroupRequirement>,
     override val canRerun: Boolean,
+    override val readOnly: Boolean = false,
     /**
      * Whether this action clears the blackboard on completion (e.g., state transitions).
      * When true, output=FALSE preconditions are skipped since the blackboard resets anyway.

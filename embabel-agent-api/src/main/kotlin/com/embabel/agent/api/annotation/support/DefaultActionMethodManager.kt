@@ -123,6 +123,7 @@ internal class DefaultActionMethodManager(
             value = valueComputation,
             inputs = inputs.toSet(),
             canRerun = actionAnnotation.canRerun,
+            readOnly = actionAnnotation.readOnly,
             clearBlackboard = computeClearBlackboard(method, actionAnnotation),
             pre = actionAnnotation.pre.toList() + computeTriggerPreconditions(method),
             post = actionAnnotation.post.toList(),
