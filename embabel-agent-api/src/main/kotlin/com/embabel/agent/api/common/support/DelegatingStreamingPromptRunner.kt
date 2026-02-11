@@ -29,6 +29,7 @@ import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.JacksonPropertyFilter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
@@ -57,7 +58,7 @@ internal data class DelegatingStreamingPromptRunner(
     override val generateExamples: Boolean?
         get() = delegate.generateExamples
 
-    override val propertyFilter: java.util.function.Predicate<String>
+    override val propertyFilter: JacksonPropertyFilter
         get() = delegate.propertyFilter
 
     override val validation: Boolean

@@ -36,7 +36,7 @@ import java.lang.reflect.Type
  * of the used schema via [postProcessSchema]
  */
 open class JacksonOutputConverter<T> protected constructor(
-    private val type: Type,
+    protected val type: Type,
     val objectMapper: ObjectMapper,
 ) : StructuredOutputConverter<T> {
 

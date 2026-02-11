@@ -32,6 +32,7 @@ import com.embabel.chat.AssistantMessage
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.JacksonPropertyFilter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
@@ -60,7 +61,7 @@ internal data class OperationContextDelegate(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean? = null,
-    override val propertyFilter: Predicate<String> = Predicate { true },
+    override val propertyFilter: JacksonPropertyFilter = JacksonPropertyFilter.allowAll(),
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
@@ -113,6 +114,9 @@ internal data class OperationContextDelegate(
 
     override fun withPropertyFilter(filter: Predicate<String>): PromptExecutionDelegate =
         copy(propertyFilter = this.propertyFilter.and(filter))
+
+    override fun withAnnotationFilter(skipAnnotationFilter: Class<out Annotation>): PromptExecutionDelegate =
+        copy(propertyFilter = this.propertyFilter.and(JacksonPropertyFilter.SkipAnnotation(skipAnnotationFilter)))
 
     override fun withValidation(validation: Boolean): PromptExecutionDelegate = copy(validation = validation)
 

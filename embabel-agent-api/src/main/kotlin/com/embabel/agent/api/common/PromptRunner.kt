@@ -562,6 +562,17 @@ interface PromptRunner : LlmUse, PromptRunnerOperations {
         fun withPropertyFilter(filter: Predicate<String>): Creating<T>
 
         /**
+         * Add a filter that determines which properties are to be included when creating an object.
+         *
+         * Note that each predicate is applied *in addition to* previously registered predicates, including
+         * [withProperties] and [withoutProperties].
+         *
+         * @param skipAnnotationFilter the property annotation to be skipped
+         * @return this instance for method chaining
+         */
+        fun withAnnotationFilter(skipAnnotationFilter: Class<out Annotation>): Creating<T>
+
+        /**
          * Include the given properties when creating an object.
          *
          * Note that each predicate is applied *in addition to* previously registered predicates, including

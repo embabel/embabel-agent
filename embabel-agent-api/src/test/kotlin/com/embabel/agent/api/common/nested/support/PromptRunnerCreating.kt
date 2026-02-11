@@ -54,6 +54,10 @@ internal data class PromptRunnerCreating<T>(
         )
     }
 
+    override fun withAnnotationFilter(filter: Class<out Annotation>): PromptRunnerCreating<T> {
+        return this;
+    }
+
     override fun withValidation(
         validation: Boolean
     ): PromptRunner.Creating<T> {

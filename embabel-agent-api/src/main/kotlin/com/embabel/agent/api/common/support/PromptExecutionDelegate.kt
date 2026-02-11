@@ -86,6 +86,8 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     fun withPropertyFilter(filter: Predicate<String>): PromptExecutionDelegate
 
+    fun withAnnotationFilter(skipAnnotationFilter: Class<out Annotation>): PromptExecutionDelegate
+
     fun withValidation(validation: Boolean): PromptExecutionDelegate
 
     fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate

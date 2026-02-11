@@ -22,6 +22,7 @@ import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.JacksonPropertyFilter
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
@@ -84,7 +85,7 @@ class StreamingChatClientOperationsTest {
         every { mockInteraction.llm } returns mockk(relaxed = true)
         every { mockInteraction.tools } returns emptyList()
         every { mockChatClientLlmOperations.objectMapper } returns jacksonObjectMapper()
-        every { mockInteraction.propertyFilter } returns { true }
+        every { mockInteraction.propertyFilter } returns JacksonPropertyFilter.allowAll()
 
         streamingOperations = StreamingChatClientOperations(mockChatClientLlmOperations)
     }

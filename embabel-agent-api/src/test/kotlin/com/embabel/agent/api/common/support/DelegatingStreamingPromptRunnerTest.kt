@@ -23,6 +23,7 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.JacksonPropertyFilter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.textio.template.TemplateRenderer
@@ -35,7 +36,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
-import java.util.function.Predicate
 
 class DelegatingStreamingPromptRunnerTest {
 
@@ -106,7 +106,7 @@ class DelegatingStreamingPromptRunnerTest {
 
         @Test
         fun `should delegate propertyFilter property`() {
-            val filter = Predicate<String> { true }
+            val filter = JacksonPropertyFilter.allowAll()
             every { mockDelegate.propertyFilter } returns filter
 
             val runner = createPromptRunner()

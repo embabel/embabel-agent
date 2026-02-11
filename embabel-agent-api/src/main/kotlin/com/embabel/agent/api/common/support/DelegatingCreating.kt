@@ -61,6 +61,10 @@ internal data class DelegatingCreating<T>(
         delegate = delegate.withPropertyFilter(filter)
     )
 
+    override fun withAnnotationFilter(skipAnnotationFilter: Class<out Annotation>): PromptRunner.Creating<T> = copy(
+        delegate = delegate.withAnnotationFilter(skipAnnotationFilter)
+    )
+
     override fun withValidation(
         validation: Boolean
     ): PromptRunner.Creating<T> = copy(

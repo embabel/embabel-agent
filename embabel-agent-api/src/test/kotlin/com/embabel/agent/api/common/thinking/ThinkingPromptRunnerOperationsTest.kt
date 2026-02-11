@@ -25,6 +25,7 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.AssistantMessage
+import com.embabel.common.ai.converters.JacksonPropertyFilter
 import com.embabel.common.core.thinking.ThinkingBlock
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingResponse
@@ -176,7 +177,8 @@ class ThinkingPromptRunnerOperationsTest {
             override val toolObjects: List<ToolObject> = emptyList()
             override val promptContributors: List<com.embabel.common.ai.prompt.PromptContributor> = emptyList()
             override val generateExamples: Boolean? = null
-            override val propertyFilter: java.util.function.Predicate<String> = java.util.function.Predicate { true }
+            override val propertyFilter: JacksonPropertyFilter =
+                JacksonPropertyFilter.allowAll()
             override val validation: Boolean = true
 
             override fun <T> createObject(messages: List<com.embabel.chat.Message>, outputClass: Class<T>): T {

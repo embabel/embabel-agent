@@ -30,6 +30,7 @@ import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.JacksonPropertyFilter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.MobyNameGenerator
@@ -75,7 +76,7 @@ data class FakePromptRunner(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
-    override val propertyFilter: Predicate<String> = Predicate { true },
+    override val propertyFilter: JacksonPropertyFilter = JacksonPropertyFilter.allowAll(),
     override val validation: Boolean = true,
     private val context: OperationContext,
     private val _llmInvocations: MutableList<LlmInvocation> = mutableListOf(),
@@ -129,7 +130,7 @@ data class FakePromptRunner(
         override val generateExamples: Boolean?
             get() = this@FakePromptRunner.generateExamples
 
-        override val propertyFilter: Predicate<String>
+        override val propertyFilter: JacksonPropertyFilter
             get() = this@FakePromptRunner.propertyFilter
 
         override val validation: Boolean
@@ -190,6 +191,12 @@ data class FakePromptRunner(
 
         override fun withPropertyFilter(filter: Predicate<String>): PromptExecutionDelegate {
             return this@FakePromptRunner.copy(propertyFilter = this@FakePromptRunner.propertyFilter.and(filter))
+                .DelegateAdapter()
+        }
+
+        override fun withAnnotationFilter(skipAnnotationFilter: Class<out Annotation>): PromptExecutionDelegate {
+            return this@FakePromptRunner.copy(propertyFilter = this@FakePromptRunner.propertyFilter.and(
+                JacksonPropertyFilter.SkipAnnotation(skipAnnotationFilter)))
                 .DelegateAdapter()
         }
 

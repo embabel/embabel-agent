@@ -16,6 +16,7 @@
 package com.embabel.common.ai.converters.streaming
 
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
+import com.embabel.common.ai.converters.JacksonPropertyFilter
 import com.embabel.common.ai.converters.streaming.support.ThinkingDetector
 import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.streaming.ThinkingState
@@ -45,14 +46,20 @@ class StreamingJacksonOutputConverter<T> : FilteringJacksonOutputConverter<T> {
 
     constructor(
         clazz: Class<T>,
+        propertyFilter: JacksonPropertyFilter = JacksonPropertyFilter.allowAll(),
+        objectMapper: ObjectMapper,
+    ) : super(clazz, objectMapper, propertyFilter)
+
+    constructor(
+        clazz: Class<T>,
         objectMapper: ObjectMapper,
         propertyFilter: Predicate<String> = Predicate { true },
-    ) : super(clazz, objectMapper, propertyFilter)
+    ) : super(clazz, objectMapper, JacksonPropertyFilter.MatchesPropertyValue(propertyFilter))
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
-        propertyFilter: Predicate<String> = Predicate { true },
+        propertyFilter: JacksonPropertyFilter = JacksonPropertyFilter.allowAll(),
     ) : super(typeReference, objectMapper, propertyFilter)
 
     /**

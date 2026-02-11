@@ -40,6 +40,7 @@ import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOpera
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.converters.JacksonPropertyFilter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
@@ -62,7 +63,7 @@ internal data class OperationContextPromptRunner(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
-    override val propertyFilter: Predicate<String> = Predicate { true },
+    override val propertyFilter: JacksonPropertyFilter = JacksonPropertyFilter.allowAll(),
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),

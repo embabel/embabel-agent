@@ -17,10 +17,10 @@ package com.embabel.common.ai.converters
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import org.springframework.core.ParameterizedTypeReference
 import java.lang.reflect.Type
-import java.util.function.Predicate
 
 /**
  * Extension of [JacksonOutputConverter] that allows for filtering of properties of the generated object via a predicate.
@@ -28,30 +28,72 @@ import java.util.function.Predicate
 open class FilteringJacksonOutputConverter<T> private constructor(
     type: Type,
     objectMapper: ObjectMapper,
-    private val propertyFilter: Predicate<String>,
+    private val propertyFilter: JacksonPropertyFilter,
 ) : JacksonOutputConverter<T>(type, objectMapper) {
 
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
-        propertyFilter: Predicate<String>,
+        propertyFilter: JacksonPropertyFilter,
     ) : this(clazz as Type, objectMapper, propertyFilter)
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
-        propertyFilter: Predicate<String>,
+        propertyFilter: JacksonPropertyFilter,
     ) : this(typeReference.type, objectMapper, propertyFilter)
 
     override fun postProcessSchema(jsonNode: JsonNode) {
-        val propertiesNode = jsonNode.get("properties") as? ObjectNode ?: return
+        val ct = this.objectMapper.typeFactory.constructType(this.type)
+        val root = jsonNode as? ObjectNode ?: return
 
-        val fieldNames = propertiesNode.fieldNames() as MutableIterator<String>
-        while (fieldNames.hasNext()) {
-            val fieldName = fieldNames.next()
-            if (!this.propertyFilter.test(fieldName)) {
-                fieldNames.remove()
+        if (!requiresRecursivePruning(propertyFilter)) {
+            pruneTopLevelProperties(root)
+            return
+        }
+
+        val schemaPruner = SchemaPruner(
+            objectMapper = objectMapper,
+            shouldKeepProperty = { _, property ->
+                val field = property.field
+                field == null || propertyFilter.test(field)
+            },
+            shouldKeepTopLevelPropertyName = { propertyName ->
+                propertyFilter.test(propertyName)
             }
+        )
+        schemaPruner.pruneAndSweep(ct, root)
+    }
+
+    private fun requiresRecursivePruning(filter: JacksonPropertyFilter): Boolean =
+        when (filter) {
+            is JacksonPropertyFilter.MatchesPropertyValue -> false
+            is JacksonPropertyFilter.SkipAnnotation -> true
+            is JacksonPropertyFilter.Composite -> filter.filters.any { requiresRecursivePruning(it) }
+        }
+
+    private fun pruneTopLevelProperties(schemaRoot: ObjectNode) {
+        val propsNode = schemaRoot.get("properties") as? ObjectNode ?: return
+        val iterator = propsNode.fieldNames() as MutableIterator<String>
+        while (iterator.hasNext()) {
+            val name = iterator.next()
+            if (propertyFilter.test(name)) continue
+            iterator.remove()
+            removeRequiredProperty(schemaRoot, name)
         }
     }
+
+    private fun removeRequiredProperty(objSchema: ObjectNode, propertyName: String) {
+        val required = objSchema.get("required") as? ArrayNode ?: return
+        for (i in required.size() - 1 downTo 0) {
+            val requiredName = required.get(i)
+            if (requiredName.isTextual && requiredName.asText() == propertyName) {
+                required.remove(i)
+            }
+        }
+        if (required.size() == 0) {
+            objSchema.remove("required")
+        }
+    }
+
 }

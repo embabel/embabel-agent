@@ -56,6 +56,7 @@ import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.converter.StructuredOutputConverter
 import org.springframework.beans.factory.getBeansOfType
 import org.springframework.context.ApplicationContext
 import org.springframework.core.ParameterizedTypeReference
@@ -1056,7 +1057,7 @@ internal class ChatClientLlmOperations(
  * Adapter to wrap Spring AI's StructuredOutputConverter as our OutputConverter.
  */
 private class SpringAiOutputConverterAdapter<T>(
-    private val delegate: org.springframework.ai.converter.StructuredOutputConverter<T>,
+    private val delegate: StructuredOutputConverter<T>,
 ) : OutputConverter<T> {
     override fun convert(source: String): T? = delegate.convert(source)
     override fun getFormat(): String? = delegate.format
