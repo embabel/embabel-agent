@@ -30,6 +30,8 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,9 +61,14 @@ class EmbabelTracingObservationHandlerTest {
     private io.opentelemetry.api.trace.Tracer otelTracer;
     private ObservationRegistry observationRegistry;
     private EmbabelTracingObservationHandler handler;
+    private Scope otelRootScope;
 
     @BeforeEach
     void setUp() {
+        // Force clean OTel context to prevent cross-test context leakage.
+        // Without this, a stale span from a previous test class can cause
+        // tracer.currentSpan() to return non-null, breaking root span assertions.
+        otelRootScope = Context.root().makeCurrent();
         // Create in-memory span exporter for testing
         spanExporter = InMemorySpanExporter.create();
 
@@ -98,6 +105,9 @@ class EmbabelTracingObservationHandlerTest {
     @AfterEach
     void tearDown() {
         spanExporter.reset();
+        if (otelRootScope != null) {
+            otelRootScope.close();
+        }
     }
 
     @Test

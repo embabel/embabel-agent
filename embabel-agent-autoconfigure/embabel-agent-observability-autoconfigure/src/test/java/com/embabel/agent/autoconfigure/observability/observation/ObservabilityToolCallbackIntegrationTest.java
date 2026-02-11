@@ -37,6 +37,8 @@ import io.micrometer.tracing.handler.TracingObservationHandler;
 import io.micrometer.tracing.otel.bridge.OtelBaggageManager;
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
 import io.micrometer.tracing.otel.bridge.OtelTracer;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
@@ -83,9 +85,13 @@ class ObservabilityToolCallbackIntegrationTest {
     private TracingObservationHandler<?> nonEmbabelHandler;
     private ObservabilityProperties properties;
     private EmbabelFullObservationEventListener listener;
+    private Scope otelRootScope;
 
     @BeforeEach
     void setUp() {
+        // Force clean OTel context to prevent cross-test context leakage
+        otelRootScope = Context.root().makeCurrent();
+
         // In-memory exporter captures spans for assertions
         spanExporter = InMemorySpanExporter.create();
 
@@ -133,6 +139,9 @@ class ObservabilityToolCallbackIntegrationTest {
     @AfterEach
     void tearDown() {
         spanExporter.reset();
+        if (otelRootScope != null) {
+            otelRootScope.close();
+        }
     }
 
     // --- Main Integration Test ---
