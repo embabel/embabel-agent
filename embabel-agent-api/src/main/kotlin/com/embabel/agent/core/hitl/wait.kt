@@ -64,7 +64,7 @@ fun <P : Any> fromForm(
 
 /**
  * Not an error, but gets special treatment in the platform.
- * Implements [ToolControlFlowSignal] so it propagates through [TypedTool.call].
+ * Implements [ToolControlFlowSignal] so it propagates through [com.embabel.agent.api.tool.TypedTool.call].
  */
 class AwaitableResponseException(
     val awaitable: Awaitable<*, *>,

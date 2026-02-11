@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.api.event.GoalAchievedEvent
 import com.embabel.agent.api.event.ReplanRequestedEvent
+import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
@@ -181,6 +182,12 @@ open class SimpleAgentProcess(
                 )
                 // Keep status as RUNNING to trigger replanning on next tick
                 setStatus(AgentProcessStatusCode.RUNNING)
+            } catch (e: Exception) {
+                if (e is ToolControlFlowSignal) {
+                    // Other control flow signals (e.g., UserInputRequiredException) must propagate
+                    throw e
+                }
+                throw e
             }
         }
         return this

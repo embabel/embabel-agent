@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
@@ -169,6 +170,12 @@ internal open class DefaultToolLoop(
             state.replanReason = e.reason
             state.blackboardUpdater = e.blackboardUpdater
             false
+        } catch (e: Exception) {
+            if (e is ToolControlFlowSignal) {
+                // Other control flow signals (e.g., UserInputRequiredException) must propagate
+                throw e
+            }
+            throw e
         }
     }
 

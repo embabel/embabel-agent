@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.common.RetryTemplateProvider
 import org.slf4j.LoggerFactory
@@ -54,9 +55,10 @@ class LlmDataBindingProperties(
                     callback: RetryCallback<T, E>,
                     throwable: Throwable,
                 ) {
-                    // ReplanRequestedException is a control flow signal, not an error
-                    if (throwable is ReplanRequestedException) {
-                        return
+                    // ToolControlFlowSignal exceptions (ReplanRequestedException, UserInputRequiredException, etc.)
+                    // are control flow signals, not errors to retry - rethrow to abort retry
+                    if (throwable is ToolControlFlowSignal) {
+                        throw throwable
                     }
                     if (isRateLimitError(throwable)) {
                         logger.info(

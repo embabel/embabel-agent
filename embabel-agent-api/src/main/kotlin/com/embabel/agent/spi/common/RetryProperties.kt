@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.common
 
+import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.isRateLimitError
 import com.embabel.agent.spi.support.springai.SpringAiRetryPolicy
@@ -55,9 +56,10 @@ interface RetryProperties : RetryTemplateProvider {
                     callback: RetryCallback<T, E>,
                     throwable: Throwable,
                 ) {
-                    // ReplanRequestedException is a control flow signal, not an error
-                    if (throwable is ReplanRequestedException) {
-                        return
+                    // ToolControlFlowSignal exceptions (ReplanRequestedException, UserInputRequiredException, etc.)
+                    // are control flow signals, not errors to retry - rethrow to abort retry
+                    if (throwable is ToolControlFlowSignal) {
+                        throw throwable
                     }
                     if (isRateLimitError(throwable)) {
                         loggerFor<RetryProperties>().info(

@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModeProperties
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
@@ -183,6 +184,10 @@ internal class ParallelToolLoop(
         } catch (e: ReplanRequestedException) {
             ParallelToolResult.ReplanRequest(toolCall, e.reason, e.blackboardUpdater)
         } catch (e: Exception) {
+            if (e is ToolControlFlowSignal) {
+                // Other control flow signals (e.g., UserInputRequiredException) must propagate
+                throw e
+            }
             logger.error("Tool '{}' execution failed", toolCall.name, e)
             ParallelToolResult.Error(toolCall, e.message ?: "Unknown error")
         }
