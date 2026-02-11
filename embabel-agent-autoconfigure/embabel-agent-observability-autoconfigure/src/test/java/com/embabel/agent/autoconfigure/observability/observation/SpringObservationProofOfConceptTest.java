@@ -58,9 +58,13 @@ class SpringObservationProofOfConceptTest {
     private OpenTelemetrySdk openTelemetry;
     private Tracer tracer;
     private ObservationRegistry observationRegistry;
+    private Scope otelRootScope;
 
     @BeforeEach
     void setUp() {
+        // Force clean OTel context to prevent cross-test context leakage
+        otelRootScope = Context.root().makeCurrent();
+
         // Create in-memory span exporter for testing
         spanExporter = InMemorySpanExporter.create();
 
@@ -96,6 +100,9 @@ class SpringObservationProofOfConceptTest {
     @AfterEach
     void tearDown() {
         spanExporter.reset();
+        if (otelRootScope != null) {
+            otelRootScope.close();
+        }
     }
 
     // Smoke test: observation creates a span through the handler
