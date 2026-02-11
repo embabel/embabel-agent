@@ -14,170 +14,82 @@ This feature is well aligned with Embabel focus on object-oriented programming m
 - All reactive callbacks, such as _doOnNext_, _doOnComplete_, etc. are at developer's disposal
 
 ==== Example - Simple Thinking and Object Streaming with Callbacks
-
-[tabs]
-====
-Java::
-+
 [source,java]
 ----
-PromptRunner runner = ai.withLlm("qwen3:latest")
-                        .withToolObject(Tooling.class);
 
-String prompt = "What are exactly two the most hottest months in Florida and their respective highest temperatures";
+        PromptRunner runner = ai.withLlm("qwen3:latest")
+                                .withToolObject(Tooling.class);
 
-// Use StreamingPromptBuilder instead of Kotlin extension function
-Flux<StreamingEvent<MonthItem>> results = new StreamingPromptRunnerBuilder(runner)
-        .withStreaming()
-        .withPrompt(prompt)
-        .createObjectStreamWithThinking(MonthItem.class);
+        String prompt = "What are exactly two the most hottest months in Florida and their respective highest temperatures";
 
-// Subscribe with real reactive callbacks using builder pattern
-results
-        .timeout(Duration.ofSeconds(150))
-        .doOnSubscribe(subscription -> {
-            logger.info("Stream subscription started");
-        })
-        .doOnNext(event -> {
-            if (event.isThinking()) {
-                String content = event.getThinking();
-                receivedEvents.add("THINKING: " + content);
-                logger.info("Integration test received thinking: {}", content);
-            } else if (event.isObject()) {
-                MonthItem obj = event.getObject();
-                receivedEvents.add("OBJECT: " + obj.getName());
-                logger.info("Integration test received object: {}", obj.getName());
-            }
-        })
-        .doOnError(error -> {
-            errorOccurred.set(error);
-            logger.error("Integration test stream error: {}", error.getMessage());
-        })
-        .doOnComplete(() -> {
-            completionCalled.set(true);
-            logger.info("Integration test stream completed successfully");
-        })
-        .blockLast(Duration.ofSeconds(6000));
+        // Use StreamingPromptBuilder instead of Kotlin extension function
+        Flux<StreamingEvent<MonthItem>> results = new StreamingPromptRunnerBuilder(runner)
+                .streaming()
+                .withPrompt(prompt)
+                .createObjectStreamWithThinking(MonthItem.class);
+
+        // Subscribe with real reactive callbacks using builder pattern
+        results
+                .timeout(Duration.ofSeconds(150))
+                .doOnSubscribe(subscription -> {
+                    logger.info("Stream subscription started");
+                })
+                .doOnNext(event -> {
+                    if (event.isThinking()) {
+                        String content = event.getThinking();
+                        receivedEvents.add("THINKING: " + content);
+                        logger.info("Integration test received thinking: {}", content);
+                    } else if (event.isObject()) {
+                        MonthItem obj = event.getObject();
+                        receivedEvents.add("OBJECT: " + obj.getName());
+                        logger.info("Integration test received object: {}", obj.getName());
+                    }
+                })
+                .doOnError(error -> {
+                    errorOccurred.set(error);
+                    logger.error("Integration test stream error: {}", error.getMessage());
+                })
+                .doOnComplete(() -> {
+                    completionCalled.set(true);
+                    logger.info("Integration test stream completed successfully");
+                })
+                .blockLast(Duration.ofSeconds(6000));
 ----
-
-Kotlin::
-+
-[source,kotlin]
-----
-val runner = ai.withLlm("qwen3:latest")
-               .withToolObject(Tooling::class.java)
-
-val prompt = "What are exactly two the most hottest months in Florida and their respective highest temperatures"
-
-// Use Kotlin extension function for streaming
-val results: Flux<StreamingEvent<MonthItem>> = runner
-    .withStreaming()
-    .withPrompt(prompt)
-    .createObjectStreamWithThinking<MonthItem>()
-
-// Subscribe with real reactive callbacks
-results
-    .timeout(Duration.ofSeconds(150))
-    .doOnSubscribe {
-        logger.info("Stream subscription started")
-    }
-    .doOnNext { event ->
-        if (event.isThinking) {
-            val content = event.thinking
-            receivedEvents.add("THINKING: $content")
-            logger.info("Integration test received thinking: {}", content)
-        } else if (event.isObject) {
-            val obj = event.`object`
-            receivedEvents.add("OBJECT: ${obj.name}")
-            logger.info("Integration test received object: {}", obj.name)
-        }
-    }
-    .doOnError { error ->
-        errorOccurred.set(error)
-        logger.error("Integration test stream error: {}", error.message)
-    }
-    .doOnComplete {
-        completionCalled.set(true)
-        logger.info("Integration test stream completed successfully")
-    }
-    .blockLast(Duration.ofSeconds(6000))
-----
-====
 
 ==== Example - Simple Raw Text Streaming with Callbacks
-
-[tabs]
-====
-Java::
-+
 [source,java]
 ----
-PromptRunner runner = ai.withLlm("qwen3:latest");
 
-String prompt = "What is the highest building in Paris?";
+        PromptRunner runner = ai.withLlm("qwen3:latest");
 
-// Use StreamingPromptBuilder instead of Kotlin extension function
-Flux<String> results = new StreamingPromptRunnerBuilder(runner)
-        .withStreaming()
-        .withPrompt(prompt)
-        .generateStream();
+        String prompt = "What is the highest building in Paris?";
 
-// Subscribe with real reactive callbacks using builder pattern
-results
-        .timeout(Duration.ofSeconds(150))
-        .doOnSubscribe(subscription -> {
-            logger.info("Stream subscription started");
-        })
-        .doOnNext(content -> {
-            receivedTextChunks.add(content);
-            logger.info("Integration test received text chunk: {}", content);
-        })
-        .doOnError(error -> {
-            errorOccurred.set(error);
-            logger.error("Integration test stream error: {}", error.getMessage());
-        })
-        .doOnComplete(() -> {
-            completionCalled.set(true);
-            logger.info("Integration test stream completed successfully");
-        })
-        .blockLast(Duration.ofSeconds(6000));
+        // Use StreamingPromptBuilder instead of Kotlin extension function
+        Flux<String> results = new StreamingPromptRunnerBuilder(runner)
+                .streaming()
+                .withPrompt(prompt)
+                .generateStream();
+
+        // Subscribe with real reactive callbacks using builder pattern
+        results
+                .timeout(Duration.ofSeconds(150))
+                .doOnSubscribe(subscription -> {
+                    logger.info("Stream subscription started");
+                })
+                .doOnNext(content -> {
+                        receivedTextChunks.add(content);
+                        logger.info("Integration test received text chunk: {}", content);
+                })
+                .doOnError(error -> {
+                    errorOccurred.set(error);
+                    logger.error("Integration test stream error: {}", error.getMessage());
+                })
+                .doOnComplete(() -> {
+                    completionCalled.set(true);
+                    logger.info("Integration test stream completed successfully");
+                })
+                .blockLast(Duration.ofSeconds(6000));
 ----
-
-Kotlin::
-+
-[source,kotlin]
-----
-val runner = ai.withLlm("qwen3:latest")
-
-val prompt = "What is the highest building in Paris?"
-
-// Use Kotlin extension function for streaming
-val results: Flux<String> = runner
-    .withStreaming()
-    .withPrompt(prompt)
-    .generateStream()
-
-// Subscribe with real reactive callbacks
-results
-    .timeout(Duration.ofSeconds(150))
-    .doOnSubscribe {
-        logger.info("Stream subscription started")
-    }
-    .doOnNext { content ->
-        receivedTextChunks.add(content)
-        logger.info("Integration test received text chunk: {}", content)
-    }
-    .doOnError { error ->
-        errorOccurred.set(error)
-        logger.error("Integration test stream error: {}", error.message)
-    }
-    .doOnComplete {
-        completionCalled.set(true)
-        logger.info("Integration test stream completed successfully")
-    }
-    .blockLast(Duration.ofSeconds(6000))
-----
-====
 
 
 
