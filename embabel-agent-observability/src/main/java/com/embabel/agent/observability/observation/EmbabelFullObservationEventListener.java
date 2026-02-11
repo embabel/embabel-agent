@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.observability.observation;
 
+import com.embabel.agent.api.common.ranking.Ranking;
 import com.embabel.agent.api.event.*;
 import com.embabel.agent.core.Action;
 import com.embabel.agent.core.AgentProcess;
@@ -26,7 +27,6 @@ import com.embabel.agent.event.RagResponseEvent;
 import com.embabel.agent.observability.ObservabilityProperties;
 import com.embabel.common.ai.model.LlmOptions;
 import com.embabel.agent.rag.pipeline.event.*;
-import com.embabel.agent.spi.Ranking;
 import com.embabel.plan.Plan;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
