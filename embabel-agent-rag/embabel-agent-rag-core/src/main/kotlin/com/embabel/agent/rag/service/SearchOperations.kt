@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.rag.service
 
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
-import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult

@@ -19,8 +19,8 @@ import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
-import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.FinderOperations

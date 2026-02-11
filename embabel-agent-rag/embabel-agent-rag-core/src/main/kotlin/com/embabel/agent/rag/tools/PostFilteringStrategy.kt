@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.rag.tools
 
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.InMemoryPropertyFilter
-import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Datum
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult

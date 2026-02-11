@@ -15,113 +15,68 @@
  */
 package com.embabel.agent.rag.filter
 
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.model.Datum
 import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.core.types.SimilarityResult
+import com.embabel.agent.filter.InMemoryPropertyFilter as GenericPropertyFilter
 import kotlin.reflect.full.memberProperties
 
 /**
- * In-memory property filter for post-filtering when native query support is unavailable.
+ * RAG-specific property filter evaluation, extending the generic [GenericPropertyFilter]
+ * with entity-aware matching and result filtering capabilities.
  *
- * Supports two filtering modes:
- * - **Metadata filtering**: Filters on [Datum.metadata] map
- * - **Property filtering**: Filters on [NamedEntityData.properties] map or typed object properties via reflection
- *
- * This is a fallback mechanism - prefer native filtering (Cypher WHERE, Lucene queries) when available.
+ * For generic map-based matching, delegates to [GenericPropertyFilter].
+ * Adds support for:
+ * - [NamedEntityData] entity matching with label filtering via [EntityFilter]
+ * - Object matching via reflection
+ * - Bulk result filtering for [SimilarityResult] lists
  */
 object InMemoryPropertyFilter {
 
     /**
      * Test if a property map matches the filter.
-     * Works for both metadata maps and properties maps.
-     *
-     * Note: [EntityFilter.HasAnyLabel] always returns false when matching against
-     * a plain property map since labels are entity-specific. Use [matchesEntity]
-     * for entity filtering that includes label support.
+     * Delegates to the generic [GenericPropertyFilter].
      */
-    fun matches(filter: PropertyFilter, properties: Map<String, Any?>): Boolean = when (filter) {
-        is PropertyFilter.Eq -> properties[filter.key] == filter.value
-        is PropertyFilter.Ne -> properties[filter.key] != filter.value
-        is PropertyFilter.Gt -> compareNumbers(properties[filter.key], filter.value) { it > 0 }
-        is PropertyFilter.Gte -> compareNumbers(properties[filter.key], filter.value) { it >= 0 }
-        is PropertyFilter.Lt -> compareNumbers(properties[filter.key], filter.value) { it < 0 }
-        is PropertyFilter.Lte -> compareNumbers(properties[filter.key], filter.value) { it <= 0 }
-        is PropertyFilter.In -> properties[filter.key] in filter.values
-        is PropertyFilter.Nin -> properties[filter.key] !in filter.values
-        is PropertyFilter.Contains -> properties[filter.key]?.toString()?.contains(filter.value) == true
-        is PropertyFilter.ContainsIgnoreCase ->
-            properties[filter.key]?.toString()?.lowercase()?.contains(filter.value.lowercase()) == true
-        is PropertyFilter.EqIgnoreCase ->
-            properties[filter.key]?.toString()?.lowercase() == filter.value.lowercase()
-        is PropertyFilter.StartsWith -> properties[filter.key]?.toString()?.startsWith(filter.value) == true
-        is PropertyFilter.EndsWith -> properties[filter.key]?.toString()?.endsWith(filter.value) == true
-        is PropertyFilter.Like -> matchesRegex(properties[filter.key], filter.pattern)
-        is PropertyFilter.And -> filter.filters.all { matches(it, properties) }
-        is PropertyFilter.Or -> filter.filters.any { matches(it, properties) }
-        is PropertyFilter.Not -> !matches(filter.filter, properties)
-        // EntityFilter types - labels don't exist on plain property maps
-        is EntityFilter.HasAnyLabel -> false
-    }
+    fun matches(filter: PropertyFilter, properties: Map<String, Any?>): Boolean =
+        GenericPropertyFilter.matches(filter, properties)
 
     /**
      * Test if a Datum matches a metadata filter.
      */
     fun matchesMetadata(filter: PropertyFilter, metadata: Map<String, Any?>): Boolean =
-        matches(filter, metadata)
+        GenericPropertyFilter.matches(filter, metadata)
 
     /**
      * Test if properties match a property filter.
      */
     fun matchesProperties(filter: PropertyFilter, properties: Map<String, Any?>): Boolean =
-        matches(filter, properties)
+        GenericPropertyFilter.matches(filter, properties)
 
     /**
-     * Test if an object matches a property filter using reflection.
-     * Falls back to [NamedEntityData.properties] if available.
-     *
-     * Note: For [NamedEntityData] with [EntityFilter] containing [EntityFilter.HasAnyLabel],
-     * use [matchesEntity] instead.
+     * Test if an object matches a [PropertyFilter] using reflection.
+     * Supports both [PropertyFilter] leaf types and [EntityFilter].
      */
     fun matchesObject(filter: PropertyFilter, target: Any): Boolean {
-        // For NamedEntityData, use matchesEntity to support label filters
         if (target is NamedEntityData) {
             return matchesEntity(filter, target)
         }
 
         // For other objects, use reflection to build a properties map
-        val propertiesMap = extractProperties(target)
-        return matches(filter, propertiesMap)
+        return when (filter) {
+            is EntityFilter -> false // Entity filters only apply to NamedEntityData
+            else -> GenericPropertyFilter.matches(filter, extractProperties(target))
+        }
     }
 
     /**
-     * Test if a [NamedEntityData] matches a filter, including support for
+     * Test if a [NamedEntityData] matches a [PropertyFilter], including support for
      * [EntityFilter.HasAnyLabel] label-based filtering.
      */
     fun matchesEntity(filter: PropertyFilter, entity: NamedEntityData): Boolean = when (filter) {
-        // EntityFilter-specific: check labels
         is EntityFilter.HasAnyLabel -> entity.labels().any { it in filter.labels }
-
-        // PropertyFilter types: delegate to property matching
-        is PropertyFilter.Eq -> entity.properties[filter.key] == filter.value
-        is PropertyFilter.Ne -> entity.properties[filter.key] != filter.value
-        is PropertyFilter.Gt -> compareNumbers(entity.properties[filter.key], filter.value) { it > 0 }
-        is PropertyFilter.Gte -> compareNumbers(entity.properties[filter.key], filter.value) { it >= 0 }
-        is PropertyFilter.Lt -> compareNumbers(entity.properties[filter.key], filter.value) { it < 0 }
-        is PropertyFilter.Lte -> compareNumbers(entity.properties[filter.key], filter.value) { it <= 0 }
-        is PropertyFilter.In -> entity.properties[filter.key] in filter.values
-        is PropertyFilter.Nin -> entity.properties[filter.key] !in filter.values
-        is PropertyFilter.Contains -> entity.properties[filter.key]?.toString()?.contains(filter.value) == true
-        is PropertyFilter.ContainsIgnoreCase ->
-            entity.properties[filter.key]?.toString()?.lowercase()?.contains(filter.value.lowercase()) == true
-        is PropertyFilter.EqIgnoreCase ->
-            entity.properties[filter.key]?.toString()?.lowercase() == filter.value.lowercase()
-        is PropertyFilter.StartsWith -> entity.properties[filter.key]?.toString()?.startsWith(filter.value) == true
-        is PropertyFilter.EndsWith -> entity.properties[filter.key]?.toString()?.endsWith(filter.value) == true
-        is PropertyFilter.Like -> matchesRegex(entity.properties[filter.key], filter.pattern)
-        is PropertyFilter.And -> filter.filters.all { matchesEntity(it, entity) }
-        is PropertyFilter.Or -> filter.filters.any { matchesEntity(it, entity) }
-        is PropertyFilter.Not -> !matchesEntity(filter.filter, entity)
+        else -> GenericPropertyFilter.matches(filter, entity.properties)
     }
 
     /**
@@ -132,12 +87,12 @@ object InMemoryPropertyFilter {
         filter: PropertyFilter?,
     ): List<SimilarityResult<T>> {
         if (filter == null) return results
-        return results.filter { matches(filter, it.match.metadata) }
+        return results.filter { GenericPropertyFilter.matches(filter, it.match.metadata) }
     }
 
     /**
-     * Filter results using a property filter.
-     * For [NamedEntityData], filters on [NamedEntityData.properties].
+     * Filter results using an object filter.
+     * For [NamedEntityData], filters on properties and labels.
      * For other types, uses reflection.
      */
     fun <T : Retrievable> filterByProperties(
@@ -160,7 +115,7 @@ object InMemoryPropertyFilter {
         var filtered = results
 
         if (metadataFilter != null) {
-            filtered = filtered.filter { matches(metadataFilter, it.match.metadata) }
+            filtered = filtered.filter { GenericPropertyFilter.matches(metadataFilter, it.match.metadata) }
         }
 
         if (entityFilter != null) {
@@ -184,31 +139,6 @@ object InMemoryPropertyFilter {
             }
         } catch (e: Exception) {
             emptyMap()
-        }
-    }
-
-    private fun compareNumbers(
-        actual: Any?,
-        expected: Number,
-        comparison: (Int) -> Boolean,
-    ): Boolean {
-        if (actual == null) return false
-        val actualNum = when (actual) {
-            is Number -> actual.toDouble()
-            is String -> actual.toDoubleOrNull() ?: return false
-            else -> return false
-        }
-        return comparison(actualNum.compareTo(expected.toDouble()))
-    }
-
-    private fun matchesRegex(actual: Any?, pattern: String): Boolean {
-        if (actual == null) return false
-        return try {
-            val regex = Regex(pattern)
-            regex.containsMatchIn(actual.toString())
-        } catch (e: Exception) {
-            // Invalid regex pattern
-            false
         }
     }
 }

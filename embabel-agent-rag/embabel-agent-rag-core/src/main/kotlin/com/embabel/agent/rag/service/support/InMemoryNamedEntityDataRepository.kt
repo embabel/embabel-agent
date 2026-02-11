@@ -16,9 +16,9 @@
 package com.embabel.agent.rag.service.support
 
 import com.embabel.agent.core.DataDictionary
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.InMemoryPropertyFilter
-import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.RelationshipDirection
 import com.embabel.agent.rag.service.NamedEntityDataRepository

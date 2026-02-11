@@ -15,9 +15,10 @@
  */
 package com.embabel.agent.rag.service.spring
 
+import com.embabel.agent.filter.ObjectFilter
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.filter.InMemoryPropertyFilter
-import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.FilteringVectorSearch
@@ -187,11 +188,8 @@ fun PropertyFilter.toSpringAiExpression(): Filter.Expression = when (this) {
         null
     )
 
-    // EntityFilter types - not supported for native Spring AI filtering
-    // These should be handled via in-memory filtering
-    is EntityFilter.HasAnyLabel -> throw UnsupportedOperationException(
-        "HasAnyLabel filter cannot be translated to Spring AI filter expression. " +
-                "Use in-memory filtering via entityFilter parameter instead."
+    is ObjectFilter -> throw UnsupportedOperationException(
+        "ObjectFilter subtypes cannot be translated to Spring AI filter expressions."
     )
 }
 

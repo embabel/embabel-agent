@@ -16,8 +16,8 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
-import com.embabel.agent.rag.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Embeddable
 import com.embabel.agent.rag.model.Retrievable

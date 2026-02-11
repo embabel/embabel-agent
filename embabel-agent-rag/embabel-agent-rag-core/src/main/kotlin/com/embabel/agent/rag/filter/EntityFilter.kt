@@ -15,26 +15,24 @@
  */
 package com.embabel.agent.rag.filter
 
+import com.embabel.agent.filter.ObjectFilter
 import com.embabel.agent.rag.model.NamedEntityData
 
 /**
  * Filter expression for entity-based filtering in RAG searches.
  *
- * Extends [PropertyFilter] to add entity-specific filtering capabilities,
- * particularly label-based filtering via [HasAnyLabel].
+ * Extends [ObjectFilter] to participate in the shared filter type hierarchy
+ * while maintaining its own sealed hierarchy for exhaustive matching.
  *
- * Use this filter when you need to filter on entity labels in addition to
- * or instead of property-based filtering.
+ * Provides entity-specific filtering capabilities,
+ * particularly label-based filtering via [HasAnyLabel].
  *
  * ```kotlin
  * // Filter entities that have any of the specified labels
  * val filter = EntityFilter.hasAnyLabel("Person", "Organization")
- *
- * // Combine with property filters using fluent API
- * val combined = EntityFilter.hasAnyLabel("Person") and PropertyFilter.eq("status", "active")
  * ```
  */
-sealed interface EntityFilter : PropertyFilter {
+sealed interface EntityFilter : ObjectFilter {
 
     /**
      * Filter entities that have at least one of the specified labels.
@@ -68,9 +66,10 @@ sealed interface EntityFilter : PropertyFilter {
 }
 
 /**
- * Extension function to check if a NamedEntityData matches an entity filter.
+ * Extension function to check if a NamedEntityData matches a [PropertyFilter],
+ * supporting both [PropertyFilter] leaf types and [EntityFilter].
  */
-fun NamedEntityData.matchesEntityFilter(filter: PropertyFilter?): Boolean {
+fun NamedEntityData.matchesEntityFilter(filter: com.embabel.agent.filter.PropertyFilter?): Boolean {
     if (filter == null) return true
     return InMemoryPropertyFilter.matchesEntity(filter, this)
 }

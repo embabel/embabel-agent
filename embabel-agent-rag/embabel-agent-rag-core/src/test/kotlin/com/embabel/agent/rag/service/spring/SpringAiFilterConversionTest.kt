@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.rag.service.spring
 
-import com.embabel.agent.rag.filter.PropertyFilter
+import com.embabel.agent.filter.PropertyFilter
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
