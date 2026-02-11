@@ -329,6 +329,13 @@
                 <artifactId>embabel-agent-test-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
+
+            <!-- OpenTelemetry Semantic Conventions (separate group from opentelemetry-bom) -->
+            <dependency>
+                <groupId>io.opentelemetry.semconv</groupId>
+                <artifactId>opentelemetry-semconv</artifactId>
+                <version>1.29.0-alpha</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

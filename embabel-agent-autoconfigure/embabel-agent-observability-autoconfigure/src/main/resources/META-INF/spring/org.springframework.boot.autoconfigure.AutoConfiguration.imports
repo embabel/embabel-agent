@@ -1,0 +1,4 @@
+com.embabel.agent.autoconfigure.observability.OpenTelemetrySdkAutoConfiguration
+com.embabel.agent.autoconfigure.observability.MicrometerTracingAutoConfiguration
+com.embabel.agent.autoconfigure.observability.ObservabilityAutoConfiguration
+com.embabel.agent.autoconfigure.observability.TrackedAspectAutoConfiguration

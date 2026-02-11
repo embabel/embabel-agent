@@ -31,5 +31,35 @@
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-observability-autoconfigure</artifactId>
         </dependency>
+
+        <!-- Spring Boot Actuator (provides ZipkinAutoConfiguration, ObservationRegistryCustomizer) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Spring AOP for @Tracked aspect support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <!-- Micrometer Tracing Bridge to OpenTelemetry (OtelTracer, OtelCurrentTraceContext) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
+        <!-- OpenTelemetry SDK (SdkTracerProvider, SpanExporter, BatchSpanProcessor) -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+        </dependency>
+
+        <!-- OpenTelemetry Semantic Conventions (ServiceAttributes) -->
+        <dependency>
+            <groupId>io.opentelemetry.semconv</groupId>
+            <artifactId>opentelemetry-semconv</artifactId>
+        </dependency>
     </dependencies>
 </project>

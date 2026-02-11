@@ -99,7 +99,7 @@ class ChatClientLlmTransformerTest {
                     eventListener = ese,
                 )
                 assertEquals(person, result)
-                assertEquals(3, ese.processEvents.size)
+                assertEquals(5, ese.processEvents.size)
             }
 
             @Test

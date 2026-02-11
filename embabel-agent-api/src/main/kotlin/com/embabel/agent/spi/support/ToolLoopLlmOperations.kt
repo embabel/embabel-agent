@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.ToolLoopStartEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.ReplanRequestedException
@@ -159,20 +160,42 @@ open class ToolLoopLlmOperations(
 
         val tools = interaction.tools
 
-        val observation = Observation.createNotStarted("embabel.tool-loop", observationRegistry)
-            .contextualName("embabel_agent")
-
-        observation.start()
-        val result = try {
-            observation.openScope().use {
-                toolLoop.execute(
-                    initialMessages = initialMessages,
-                    initialTools = tools,
-                    outputParser = outputParser,
-                )
+        // Publish ToolLoopStartEvent before the tool loop
+        val toolLoopStartEvent = llmRequestEvent?.let { event ->
+            ToolLoopStartEvent(
+                agentProcess = event.agentProcess,
+                action = event.action,
+                toolNames = tools.map { it.definition.name },
+                maxIterations = interaction.maxToolIterations,
+                interactionId = interaction.id.value,
+                outputClass = outputClass,
+            ).also { startEvent ->
+                event.agentProcess.processContext.onProcessEvent(startEvent)
             }
-        } finally {
-            observation.stop()
+        }
+
+        // Tool loop tracing is handled by ToolLoopStartEvent/ToolLoopCompletedEvent
+        // to keep observability uniform across all agent events (actions, LLM calls, tools, etc.)
+        // rather than mixing Observation API inline with event-based tracing.
+        // val observation = Observation.createNotStarted("embabel.tool-loop", observationRegistry)
+        //     .contextualName("Tool Loop Execution")
+        // observation.start()
+        // ... observation.stop()
+
+        val result = toolLoop.execute(
+            initialMessages = initialMessages,
+            initialTools = tools,
+            outputParser = outputParser,
+        )
+
+        // Publish ToolLoopCompletedEvent after the tool loop
+        toolLoopStartEvent?.let { startEvent ->
+            llmRequestEvent.agentProcess.processContext.onProcessEvent(
+                startEvent.completedEvent(
+                    totalIterations = result.totalIterations,
+                    replanRequested = result.replanRequested,
+                )
+            )
         }
 
         result.totalUsage?.let { usage ->

@@ -47,6 +47,7 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.ObjectMapper
 import reactor.core.publisher.Flux
+import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Predicate
 
 /**
@@ -193,7 +194,11 @@ internal data class OperationContextDelegate(
     private fun idForPrompt(
         outputClass: Class<*>,
     ): InteractionId {
-        return InteractionId("${context.operation.name}-${outputClass.name}")
+        return InteractionId("${context.operation.name}-${outputClass.name}-${callCounter.incrementAndGet()}")
+    }
+
+    companion object {
+        private val callCounter = AtomicLong(0)
     }
 
     /**
