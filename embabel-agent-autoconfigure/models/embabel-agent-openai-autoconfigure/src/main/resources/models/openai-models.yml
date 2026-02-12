@@ -84,6 +84,21 @@ models:
       usd_per1m_input_tokens: 0.1
       usd_per1m_output_tokens: 0.4
 
+  # ========================================
+  # GPT-4o FAMILY
+  # ========================================
+
+  # GPT-4o Mini - Fast and cost-effective
+  - name: "gpt4omini"
+    model_id: "gpt-4o-mini"
+    display_name: "GPT-4o Mini"
+    knowledge_cutoff_date: "2023-10-01"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 0.15
+      usd_per1m_output_tokens: 0.60
+
 # ========================================
 # EMBEDDING MODELS
 # ========================================
