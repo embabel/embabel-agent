@@ -72,6 +72,15 @@ The implementation makes a single LLM inference call and returns the response.
 Importantly, it does **not** execute tools--it only returns any tool call requests from the LLM.
 Tool execution is handled by Embabel's `DefaultToolLoop`.
 
+======
+
+Even more advanced control over tools execution is available - tools can be executed in parallel, controlled by  `ParallelToolLoop`. In order to activate `ParallelToolLoop`, please set the following parameter:
+```
+embabel.agent.platform.toolloop.type=parallel
+```
+
+For full list of tool loop configuration parameters please refer to `ToolLoopConfiguration`.
+
 ===== Response Types
 
 The `LlmMessageResponse` contains:
