@@ -22,8 +22,6 @@ import com.embabel.agent.spi.support.springai.toEmbabelTool
 import com.embabel.agent.spi.support.springai.toSpringToolCallback
 import org.springframework.ai.support.ToolCallbacks
 import org.springframework.ai.tool.ToolCallback
-import org.springframework.ai.tool.definition.DefaultToolDefinition
-import org.springframework.ai.tool.definition.ToolDefinition
 
 /**
  * Extract native Tools from ToolObject instances.
@@ -97,7 +95,7 @@ internal fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallba
 /**
  * Allows renaming a Tool while preserving its behavior.
  */
-class RenamedTool(
+internal class RenamedTool(
     private val delegate: Tool,
     private val newName: String,
 ) : Tool {
@@ -111,20 +109,6 @@ class RenamedTool(
     override val metadata: Tool.Metadata = delegate.metadata
 
     override fun call(input: String): Tool.Result = delegate.call(input)
-}
-
-/**
- * Allows renaming a ToolCallback
- */
-class RenamedToolCallback(
-    private val delegate: ToolCallback,
-    private val newName: String,
-) : ToolCallback {
-
-    override fun getToolDefinition(): ToolDefinition =
-        DefaultToolDefinition(newName, delegate.toolDefinition.description(), delegate.toolDefinition.inputSchema())
-
-    override fun call(toolInput: String): String = delegate.call(toolInput)
 }
 
 fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(): Usage {
