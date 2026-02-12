@@ -13,9 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.validation
+
+package com.embabel.agent.api.validation
 
 import com.embabel.agent.core.AgentScope
+import com.embabel.agent.spi.validation.DetailedValidationResult
 import com.embabel.common.core.validation.ValidationResult
 
 interface AgentValidationManager {
