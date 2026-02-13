@@ -81,7 +81,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * @param contextId The context ID to scope queries to
      * @return A narrowed repository that only returns entities mentioned in the context
      */
-    infix fun scopedToContext(contextId: String): NamedEntityDataRepository {
+    fun withContextScope(contextId: String): NamedEntityDataRepository {
         throw UnsupportedOperationException("Context scoping is not supported by this repository implementation")
     }
 
