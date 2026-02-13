@@ -23,8 +23,8 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmUse
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions

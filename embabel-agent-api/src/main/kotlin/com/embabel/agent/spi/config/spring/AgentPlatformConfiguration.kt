@@ -21,6 +21,7 @@ import com.embabel.agent.api.common.ranking.Ranker
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.ToolGroup
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.logging.ColorPalette
 import com.embabel.agent.spi.logging.DefaultColorPalette

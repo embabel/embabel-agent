@@ -23,7 +23,7 @@ import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.asStreaming
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.core.AgentPlatform
-import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.support.FakeChatModel

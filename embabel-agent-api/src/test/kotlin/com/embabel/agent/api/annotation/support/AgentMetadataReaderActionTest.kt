@@ -20,13 +20,14 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.dsl.Frog
 import com.embabel.agent.api.dsl.SnakeMeal
 import com.embabel.agent.api.event.AgenticEventListener.Companion.DevNull
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.*
 import com.embabel.agent.core.hitl.ConfirmationRequest
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.InMemoryBlackboard
+import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.SimpleAgentProcess
 import com.embabel.agent.domain.io.UserInput
-import com.embabel.agent.core.support.LlmInteraction
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.support.Dog
 import com.embabel.agent.test.integration.IntegrationTestUtils
@@ -42,7 +43,6 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Agent as CoreAgent
 
 

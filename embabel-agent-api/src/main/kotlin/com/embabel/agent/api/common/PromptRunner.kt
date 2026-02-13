@@ -47,7 +47,7 @@ import kotlin.reflect.KProperty1
  * generateText or other LLM invocation methods.
  * Thus, a PromptRunner can be reused within an action implementation.
  * A contextual facade to LlmOperations.
- * @see com.embabel.agent.spi.LlmOperations
+ * @see com.embabel.agent.core.internal.LlmOperations
  */
 interface PromptRunner : LlmUse, PromptRunnerOperations {
 

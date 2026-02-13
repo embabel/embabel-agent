@@ -15,11 +15,7 @@
  */
 package com.embabel.agent.test.unit
 
-import com.embabel.agent.api.common.AgentImage
-import com.embabel.agent.api.common.ContextualPromptElement
-import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.OperationContext
-import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.support.DelegatingCreating
 import com.embabel.agent.api.common.support.DelegatingRendering
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
@@ -28,9 +24,9 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
