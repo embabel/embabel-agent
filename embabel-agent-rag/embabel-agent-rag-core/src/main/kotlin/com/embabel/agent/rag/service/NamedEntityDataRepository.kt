@@ -66,6 +66,26 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
     val dataDictionary: DataDictionary
 
     /**
+     * Create a context-scoped view of this repository,
+     * if possible. This implementation does nothing.
+     *
+     * Only returns entities that are mentioned in propositions belonging to the specified context.
+     * Uses the relationship pattern: Entity <-[:RESOLVED_TO]- Mention <-[:HAS_MENTION]- Proposition
+     *
+     * Example:
+     * ```kotlin
+     * val userScoped = repo.inContext(user.contextId)
+     * val contacts = userScoped.findByLabel("Contact") // Only contacts mentioned by this user
+     * ```
+     *
+     * @param contextId The context ID to scope queries to
+     * @return A narrowed repository that only returns entities mentioned in the context
+     */
+    infix fun scopedToContext(contextId: String): NamedEntityDataRepository {
+        throw UnsupportedOperationException("Context scoping is not supported by this repository implementation")
+    }
+
+    /**
      * Save an entity. If an entity with the same ID exists, it will be replaced.
      * @return The saved entity (may have updated fields like timestamps)
      */
