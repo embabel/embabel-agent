@@ -23,6 +23,8 @@ import io.micrometer.tracing.handler.DefaultTracingObservationHandler;
 import io.micrometer.tracing.otel.bridge.OtelBaggageManager;
 import io.micrometer.tracing.otel.bridge.OtelCurrentTraceContext;
 import io.micrometer.tracing.otel.bridge.OtelTracer;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
@@ -178,8 +180,14 @@ class ChatModelObservationFilterTest {
         private ObservationRegistry observationRegistry;
         private ChatModelObservationFilter chatFilter;
 
+        private Scope otelRootScope;
+
         @BeforeEach
         void setUpHierarchyTests() {
+            // Force clean OTel context to prevent cross-test context leakage
+            // (e.g., SpringObservationProofOfConceptTest leaves stale spans in thread-local)
+            otelRootScope = Context.root().makeCurrent();
+
             // Wire up a real OTel SDK -> Micrometer bridge -> ObservationRegistry pipeline
             // so span parent-child relationships can be verified against InMemorySpanExporter.
             spanExporter = InMemorySpanExporter.create();
@@ -217,6 +225,9 @@ class ChatModelObservationFilterTest {
         @AfterEach
         void tearDownHierarchyTests() {
             spanExporter.reset();
+            if (otelRootScope != null) {
+                otelRootScope.close();
+            }
         }
 
         @Test
