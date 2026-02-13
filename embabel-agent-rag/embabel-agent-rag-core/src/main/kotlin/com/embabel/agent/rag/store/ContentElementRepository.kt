@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.rag.store
 
+import com.embabel.agent.filter.InMemoryPropertyFilter
+import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.HierarchicalContentElement
@@ -73,6 +75,15 @@ interface ContentElementRepository : Named {
      * Find all content elements of the given class.
      */
     fun <C : ContentElement> findAll(clazz: Class<C>): Iterable<C>
+
+    /**
+     * Count content elements of the given class, optionally filtered by metadata properties.
+     */
+    fun <C : ContentElement> count(clazz: Class<C>, filter: PropertyFilter? = null): Int {
+        return findAll(clazz).count { element ->
+            filter == null || InMemoryPropertyFilter.matches(filter, element.metadata)
+        }
+    }
 
     /**
      * Save or update the given content element.
