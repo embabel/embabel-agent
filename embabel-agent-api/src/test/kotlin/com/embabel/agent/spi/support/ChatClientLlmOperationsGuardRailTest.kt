@@ -23,14 +23,10 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
-import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.core.Blackboard
-import com.embabel.agent.core.LlmInvocation
-import com.embabel.agent.core.LlmInvocationHistory
-import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.*
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetToolsFrom
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.MaybeReturn
 import com.embabel.agent.spi.support.springai.SpringAiLlmService

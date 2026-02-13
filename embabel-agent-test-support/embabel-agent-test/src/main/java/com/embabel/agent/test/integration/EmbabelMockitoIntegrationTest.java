@@ -16,8 +16,8 @@
 package com.embabel.agent.test.integration;
 
 import com.embabel.agent.core.AgentPlatform;
+import com.embabel.agent.core.internal.LlmOperations;
 import com.embabel.agent.core.support.LlmInteraction;
-import com.embabel.agent.spi.LlmOperations;
 import com.embabel.chat.Message;
 import com.embabel.common.ai.model.ModelProvider;
 import org.mockito.ArgumentCaptor;

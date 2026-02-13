@@ -19,7 +19,7 @@ import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.event.MulticastAgenticEventListener
-import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.core.internal.LlmOperations
 
 /**
  * Process state and services. Created by the platform,

@@ -17,8 +17,8 @@ package com.embabel.agent.api.common.support.streaming
 
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector.supportsStreaming
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
-import com.embabel.agent.spi.LlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions

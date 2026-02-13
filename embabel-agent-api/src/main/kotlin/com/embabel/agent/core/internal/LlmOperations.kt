@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi
+
+package com.embabel.agent.core.internal
 
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.Action
@@ -23,6 +24,7 @@ import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import org.jetbrains.annotations.ApiStatus
 
 /**
  * Wraps LLM operations.
@@ -34,6 +36,7 @@ import com.embabel.chat.UserMessage
  * and emitting events.
  * @see com.embabel.agent.api.common.PromptRunner
  */
+@ApiStatus.Internal
 interface LlmOperations {
 
     /**

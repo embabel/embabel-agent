@@ -22,6 +22,7 @@ import com.embabel.agent.api.event.AgentProcessCreationEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.*
 import com.embabel.agent.core.expression.LogicalExpressionParser
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.*
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.support.DefaultPlannerFactory

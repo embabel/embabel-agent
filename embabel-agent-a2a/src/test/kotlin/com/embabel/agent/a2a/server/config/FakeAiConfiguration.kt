@@ -15,7 +15,7 @@
  */
 package com.embabel.agent.a2a.server.config
 
-import com.embabel.agent.spi.LlmOperations
+import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.test.integration.DummyObjectCreatingLlmOperations
