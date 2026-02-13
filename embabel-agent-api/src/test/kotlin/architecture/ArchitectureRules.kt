@@ -15,13 +15,23 @@
  */
 package architecture
 
+import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.base.DescribedPredicate.not
+import com.tngtech.archunit.core.domain.JavaAnnotation
+import com.tngtech.archunit.core.domain.JavaClass
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
+import com.tngtech.archunit.core.domain.properties.CanBeAnnotated.Predicates.annotatedWith
 import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.core.importer.Location
 import com.tngtech.archunit.junit.AnalyzeClasses
 import com.tngtech.archunit.junit.ArchTest
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
+import org.jetbrains.annotations.ApiStatus
 import org.junit.jupiter.api.Tag
+import kotlin.metadata.Visibility
+import kotlin.metadata.jvm.KotlinClassMetadata
+import kotlin.metadata.visibility
 
 
 /**
@@ -52,13 +62,62 @@ class ArchitectureRules {
 
     @ArchTest
     val coreShouldNotDependOnApi =
-        noClasses().that().resideInAPackage("..core..")
-            .should().dependOnClassesThat().resideInAPackage("..api..")
+        noClasses().that(
+            arePublicAndResideInPackage("..core..")
+        ).should().dependOnClassesThat(
+            arePublicAndResideInPackage("..api..")
+        )
+
 
     @ArchTest
     val apiShouldNotDependOnSpi =
-        noClasses().that().resideInAPackage("..api..")
-            .should().dependOnClassesThat().resideInAPackage("..spi..")
+        noClasses().that(
+            arePublicAndResideInPackage("..api..")
+        ).should().dependOnClassesThat(
+            arePublicAndResideInPackage("..spi..")
+        )
+
+    private fun arePublicAndResideInPackage(
+        packageIdentifier: String,
+    ): DescribedPredicate<JavaClass> =
+        areKotlinPublic()
+            .and(not(annotatedWith(ApiStatus.Internal::class.java)))
+            .and(
+                resideInAPackage(packageIdentifier)
+                    .and(not(resideInAPackage("..spring..")))
+            )
+
+
+
+    private fun areKotlinPublic(): DescribedPredicate<JavaClass> =
+        object : DescribedPredicate<JavaClass>("are public") {
+            override fun test(javaClass: JavaClass): Boolean {
+                if (!javaClass.isAnnotatedWith("kotlin.Metadata")) {
+                    return true;
+                }
+                val annotation: JavaAnnotation<JavaClass> = javaClass.getAnnotationOfType("kotlin.Metadata")
+
+                val metadata = Metadata(
+                    kind = annotation.get("k").get() as Int,
+                    metadataVersion = annotation.get("mv").get() as IntArray,
+                    bytecodeVersion = annotation.get("bv").get() as IntArray,
+                    data1 = annotation.get("d1").get() as Array<String>,
+                    data2 = annotation.get("d2").get() as Array<String>,
+                    extraString = annotation.get("xs").orElse(null) as String,
+                    packageName = annotation.get("pn").orElse(null) as String,
+                    extraInt = annotation.get("xi").orElse(0) as Int
+                )
+
+                val kotlinClassMetadata = KotlinClassMetadata.readLenient(metadata)
+                if (kotlinClassMetadata !is KotlinClassMetadata.Class) {
+                    return true
+                }
+                return kotlinClassMetadata.kmClass.visibility == Visibility.PUBLIC;
+            };
+        }
+
+
+
 
 }
 

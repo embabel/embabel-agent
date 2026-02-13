@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.validation
 
+import com.embabel.agent.api.validation.AgentValidationManager
 import com.embabel.agent.core.AgentScope
 import com.embabel.common.core.validation.ValidationResult
 import org.slf4j.LoggerFactory
@@ -22,7 +23,7 @@ import org.springframework.stereotype.Service
 
 
 /**
- * Default implementation of [AgentValidationManager] that coordinates multiple [AgentValidator]s.
+ * Default implementation of [com.embabel.agent.api.validation.AgentValidationManager] that coordinates multiple [AgentValidator]s.
  *
  * Runs all configured validators on the provided [AgentScope] and aggregates their results,
  * collecting and reporting all validation errors or warnings.
