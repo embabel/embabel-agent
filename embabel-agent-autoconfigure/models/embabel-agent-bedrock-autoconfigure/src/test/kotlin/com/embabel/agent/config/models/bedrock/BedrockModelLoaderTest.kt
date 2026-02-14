@@ -56,7 +56,7 @@ class BedrockModelLoaderTest {
     }
 
     @Test
-    fun `should validate all loaded models have correct region prefixes`() {
+    fun `should validate all loaded models have correct region prefixes or ARNs`() {
         // Arrange
         val loader = BedrockModelLoader()
 
@@ -71,10 +71,12 @@ class BedrockModelLoaderTest {
                 "Region should be one of us, eu, apac for ${model.name}, got: ${model.region}"
             )
 
-            // Verify model ID starts with region prefix
+            // Verify model ID starts with region prefix or is an ARN
+            val isArn = model.modelId.startsWith("arn:")
+            val hasCorrectPrefix = model.modelId.startsWith("${model.region}.")
             assertTrue(
-                model.modelId.startsWith("${model.region}."),
-                "Model ID should start with '${model.region}.' for ${model.name}, got: ${model.modelId}"
+                isArn || hasCorrectPrefix,
+                "Model ID should start with '${model.region}.' or be an ARN for ${model.name}, got: ${model.modelId}"
             )
         }
     }
@@ -200,6 +202,103 @@ class BedrockModelLoaderTest {
         // Act & Assert
         val result = loader.loadAutoConfigMetadata()
         assertTrue(result.models.isEmpty(), "Should fail validation when model_id doesn't start with region prefix")
+    }
+
+    @Test
+    fun `should accept ARN-based inference profile model ID`() {
+        // Arrange
+        val tempFile = createTempYamlFile("""
+            models:
+              - name: inference-profile-model
+                model_id: "arn:aws:bedrock:eu-west-1:123456789:application-inference-profile/xyz"
+                region: eu
+        """.trimIndent())
+
+        val loader = BedrockModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(1, result.models.size)
+        val model = result.models.first()
+        assertEquals("inference-profile-model", model.name)
+        assertTrue(model.modelId.startsWith("arn:"), "ARN-based model ID should be accepted")
+    }
+
+    @Test
+    fun `should accept ARN-based imported model ID`() {
+        // Arrange
+        val tempFile = createTempYamlFile("""
+            models:
+              - name: imported-model
+                model_id: "arn:aws:bedrock:us-west-2:123456789:imported-model/abc"
+                region: us
+        """.trimIndent())
+
+        val loader = BedrockModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(1, result.models.size)
+        val model = result.models.first()
+        assertEquals("imported-model", model.name)
+        assertTrue(model.modelId.startsWith("arn:"), "ARN-based model ID should be accepted")
+    }
+
+    @Test
+    fun `should accept mix of region-prefixed and ARN-based model IDs`() {
+        // Arrange
+        val tempFile = createTempYamlFile("""
+            models:
+              - name: region-model
+                model_id: us.anthropic.claude-test
+                region: us
+              - name: arn-model
+                model_id: "arn:aws:bedrock:eu-west-1:123456789:application-inference-profile/xyz"
+                region: eu
+        """.trimIndent())
+
+        val loader = BedrockModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(2, result.models.size)
+        assertTrue(result.models[0].modelId.startsWith("us."))
+        assertTrue(result.models[1].modelId.startsWith("arn:"))
+    }
+
+    @Test
+    fun `should reject model ID that is neither ARN nor region-prefixed`() {
+        // Arrange
+        val tempFile = createTempYamlFile("""
+            models:
+              - name: bad-model
+                model_id: anthropic.claude-test
+                region: us
+        """.trimIndent())
+
+        val loader = BedrockModelLoader(
+            resourceLoader = DefaultResourceLoader(),
+            configPath = "file:${tempFile.absolutePath}"
+        )
+
+        // Act & Assert
+        val result = loader.loadAutoConfigMetadata()
+        assertTrue(result.models.isEmpty(), "Should fail validation when model_id is neither ARN nor region-prefixed")
     }
 
     @Test
@@ -500,7 +599,7 @@ class BedrockModelLoaderTest {
 
         // Assert
         assertEquals(3, result.models.size)
-        assertTrue(result.models.all { it.modelId.startsWith("${it.region}.") })
+        assertTrue(result.models.all { it.modelId.startsWith("${it.region}.") || it.modelId.startsWith("arn:") })
     }
 
     @Test

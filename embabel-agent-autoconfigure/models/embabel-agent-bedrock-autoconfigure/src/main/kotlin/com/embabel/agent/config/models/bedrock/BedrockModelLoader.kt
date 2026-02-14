@@ -101,8 +101,10 @@ class BedrockModelLoader(
             require(model.region in VALID_REGIONS) {
                 "Region must be one of ${VALID_REGIONS.joinToString(", ")} for model ${model.name}, got: ${model.region}"
             }
-            require(model.modelId.startsWith("${model.region}.")) {
-                "Model ID must start with region prefix '${model.region}.' for model ${model.name}"
+            val isArn = model.modelId.startsWith("arn:")
+            val hasCorrectPrefix = model.modelId.startsWith("${model.region}.")
+            require(isArn || hasCorrectPrefix) {
+                "Model ID must either be an ARN or start with region prefix '${model.region}.' for model ${model.name}"
             }
         }
 
