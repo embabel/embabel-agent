@@ -241,13 +241,22 @@ internal open class DefaultToolLoop(
             toolsToAdd
         }
 
-        state.availableTools.addAll(decoratedTools)
-        state.injectedTools.addAll(decoratedTools)
+        // Deduplicate: skip tools whose name already exists in the available set
+        val existingNames = state.availableTools.map { it.definition.name }.toSet()
+        val newTools = decoratedTools.filter { it.definition.name !in existingNames }
+
+        if (newTools.isEmpty()) {
+            logger.debug("All {} tools already present after {}, skipping", decoratedTools.size, afterToolName)
+            return
+        }
+
+        state.availableTools.addAll(newTools)
+        state.injectedTools.addAll(newTools)
         logger.info(
             "Strategy injected {} tools after {}: {}",
-            decoratedTools.size,
+            newTools.size,
             afterToolName,
-            decoratedTools.map { it.definition.name }
+            newTools.map { it.definition.name }
         )
     }
 
