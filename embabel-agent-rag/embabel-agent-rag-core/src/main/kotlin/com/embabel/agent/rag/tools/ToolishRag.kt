@@ -115,11 +115,11 @@ data class ToolishRag @JvmOverloads constructor(
 //                add(TypeRetrievalTools(searchOperations))
 //            }
             if (searchOperations is FinderOperations) {
-                logger.info("Adding FinderTools to ToolishRag '{}'", name)
+                logger.debug("Adding FinderTools to ToolishRag '{}'", name)
                 add(FinderTools(searchOperations))
             }
             if (searchOperations is VectorSearch) {
-                logger.info("Adding VectorSearchTools to ToolishRag '{}'", name)
+                logger.debug("Adding VectorSearchTools to ToolishRag '{}'", name)
                 add(VectorSearchTools(searchOperations, vectorSearchFor, metadataFilter, entityFilter, listener))
             } else {
                 if (hints.any { it is TryHyDE }) {
@@ -131,15 +131,15 @@ data class ToolishRag @JvmOverloads constructor(
                 }
             }
             if (searchOperations is TextSearch) {
-                logger.info("Adding TextSearchTools to ToolishRag '{}'", name)
+                logger.debug("Adding TextSearchTools to ToolishRag '{}'", name)
                 add(TextSearchTools(searchOperations, textSearchFor, metadataFilter, entityFilter, listener))
             }
             if (searchOperations is ResultExpander) {
-                logger.info("Adding ResultExpanderTools to ToolishRag '{}'", name)
+                logger.debug("Adding ResultExpanderTools to ToolishRag '{}'", name)
                 add(ResultExpanderTools(searchOperations))
             }
             if (searchOperations is RegexSearchOperations) {
-                logger.info("Adding RegexSearchTools to ToolishRag '{}'", name)
+                logger.debug("Adding RegexSearchTools to ToolishRag '{}'", name)
                 add(RegexSearchTools(searchOperations, metadataFilter, entityFilter, listener))
             }
         }
