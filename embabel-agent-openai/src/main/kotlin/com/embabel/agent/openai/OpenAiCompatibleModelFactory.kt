@@ -55,7 +55,7 @@ open class OpenAiCompatibleModelFactory(
     private val completionsPath: String?,
     private val embeddingsPath: String?,
     private val httpHeaders: Map<String,String> = emptyMap(),
-    private val observationRegistry: ObservationRegistry,
+    private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     private val requestFactory: ObjectProvider<ClientHttpRequestFactory> = ObjectProviders.empty()
 ) {
 
