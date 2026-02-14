@@ -164,7 +164,14 @@ internal class ChatClientLlmOperations(
     override fun createMessageSender(
         llm: LlmService<*>,
         options: LlmOptions,
+        llmRequestEvent: LlmRequestEvent<*>?,
     ): LlmMessageSender {
+        if (llmRequestEvent != null) {
+            val springAiLlm = requireSpringAiLlm(llm)
+            val chatOptions = springAiLlm.optionsConverter.convertOptions(options)
+            val instrumentedModel = InstrumentedChatModel(springAiLlm.chatModel, llmRequestEvent)
+            return SpringAiLlmMessageSender(instrumentedModel, chatOptions)
+        }
         return llm.createMessageSender(options)
     }
 
@@ -194,23 +201,10 @@ internal class ChatClientLlmOperations(
         return stringWithoutThinkBlocks(text)
     }
 
-    override fun emitCallEvent(
-        llmRequestEvent: LlmRequestEvent<*>?,
-        promptContributions: String,
-        messages: List<Message>,
-        schemaFormat: String?,
-    ) {
-        llmRequestEvent?.let {
-            val springAiPrompt = if (schemaFormat != null) {
-                buildPromptWithSchema(promptContributions, messages, schemaFormat)
-            } else {
-                buildBasicPrompt(promptContributions, messages)
-            }
-            it.agentProcess.processContext.onProcessEvent(
-                it.chatModelCallEvent(springAiPrompt)
-            )
-        }
-    }
+    // emitCallEvent is intentionally not overridden here.
+    // InstrumentedChatModel emits ChatModelCallEvent at the actual ChatModel.call() point,
+    // capturing the fully augmented prompt (with resolved options, tool schemas, etc.)
+    // and firing once per tool-loop iteration rather than once before the loop.
 
     override fun <O> doTransformIfPossible(
         messages: List<Message>,
