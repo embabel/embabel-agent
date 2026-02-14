@@ -15,8 +15,13 @@
  */
 package com.embabel.agent.rag.model
 
+import com.embabel.agent.core.DataDictionary
+import com.embabel.agent.core.JvmType
 import com.embabel.common.core.types.NamedAndDescribed
 import com.embabel.common.util.indent
+import org.slf4j.LoggerFactory
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider
+import org.springframework.core.type.filter.AssignableTypeFilter
 
 /**
  * Base contract for any named entity that can be stored and retrieved.
@@ -68,4 +73,35 @@ interface NamedEntity : Retrievable, NamedAndDescribed {
 
     override fun infoString(verbose: Boolean?, indent: Int): String =
         "(${labels().joinToString(":")} id='$id', name=$name)".indent(indent)
+
+    companion object {
+
+        private val logger = LoggerFactory.getLogger(NamedEntity::class.java)
+
+        /**
+         * Create a [DataDictionary] by scanning the given packages for all concrete
+         * [NamedEntity] implementations.
+         */
+        @JvmStatic
+        fun dataDictionaryFromPackages(vararg packages: String): DataDictionary {
+            val scanner = ClassPathScanningCandidateComponentProvider(false)
+            scanner.addIncludeFilter(AssignableTypeFilter(NamedEntity::class.java))
+            val types = mutableSetOf<JvmType>()
+            for (packageName in packages) {
+                try {
+                    for (beanDef in scanner.findCandidateComponents(packageName)) {
+                        val className = beanDef.beanClassName ?: continue
+                        try {
+                            types.add(JvmType(Class.forName(className)))
+                        } catch (_: ClassNotFoundException) {
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+            logger.info("dataDictionaryFromPackages({}) found {} NamedEntity types: {}",
+                packages.toList(), types.size, types.map { it.clazz.name })
+            return DataDictionary.fromDomainTypes("NamedEntity", types)
+        }
+    }
 }

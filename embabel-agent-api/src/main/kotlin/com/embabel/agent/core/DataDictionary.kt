@@ -101,6 +101,15 @@ interface DataDictionary : Named {
      */
     operator fun minus(classes: Collection<Class<*>>): DataDictionary = excluding(classes)
 
+    /**
+     * Combine two DataDictionaries, merging their domain types.
+     * Usage: `dictionary1 + dictionary2`
+     * @param other The DataDictionary to merge with
+     * @return A new DataDictionary containing types from both
+     */
+    operator fun plus(other: DataDictionary): DataDictionary =
+        fromDomainTypes(name, (domainTypes + other.domainTypes).toSet())
+
     val dynamicTypes: Collection<DynamicType>
         get() =
             domainTypes.filterIsInstance<DynamicType>().toSet()

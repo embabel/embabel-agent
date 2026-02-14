@@ -18,6 +18,7 @@ package com.embabel.agent.core
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class DataDictionaryTest {
@@ -474,5 +475,81 @@ class DataDictionaryTest {
         val filtered = dictionary.filter { true }
 
         assertEquals(0, filtered.domainTypes.size)
+    }
+
+    // ========== Plus operator tests ==========
+
+    @Nested
+    inner class PlusOperatorTests {
+
+        @Test
+        fun `should combine two dictionaries`() {
+            val dict1 = DataDictionary.fromClasses("dict1", Person::class.java)
+            val dict2 = DataDictionary.fromClasses("dict2", Address::class.java)
+            val combined = dict1 + dict2
+            assertEquals(2, combined.domainTypes.size)
+        }
+
+        @Test
+        fun `should preserve left dictionary name`() {
+            val dict1 = DataDictionary.fromClasses("first", Person::class.java)
+            val dict2 = DataDictionary.fromClasses("second", Address::class.java)
+            val combined = dict1 + dict2
+            assertEquals("first", combined.name)
+        }
+
+        @Test
+        fun `should deduplicate domain types`() {
+            val dict1 = DataDictionary.fromClasses("dict1", Person::class.java)
+            val dict2 = DataDictionary.fromClasses("dict2", Person::class.java)
+            val combined = dict1 + dict2
+            assertEquals(1, combined.domainTypes.size)
+        }
+
+        @Test
+        fun `should handle empty left dictionary`() {
+            val dict1 = DataDictionary.fromDomainTypes("dict1", emptyList())
+            val dict2 = DataDictionary.fromClasses("dict2", Person::class.java)
+            val combined = dict1 + dict2
+            assertEquals(1, combined.domainTypes.size)
+        }
+
+        @Test
+        fun `should handle empty right dictionary`() {
+            val dict1 = DataDictionary.fromClasses("dict1", Person::class.java)
+            val dict2 = DataDictionary.fromDomainTypes("dict2", emptyList())
+            val combined = dict1 + dict2
+            assertEquals(1, combined.domainTypes.size)
+        }
+
+        @Test
+        fun `should be chainable`() {
+            val dict1 = DataDictionary.fromClasses("dict1", Person::class.java)
+            val dict2 = DataDictionary.fromClasses("dict2", Address::class.java)
+            val dict3 = DataDictionary.fromClasses("dict3", Customer::class.java)
+            val combined = dict1 + dict2 + dict3
+            assertEquals(3, combined.domainTypes.size)
+        }
+
+        @Test
+        fun `should combine JvmTypes and DynamicTypes`() {
+            val dynamicType = DynamicType(name = "DynamicPerson")
+            val dict1 = DataDictionary.fromClasses("dict1", Person::class.java)
+            val dict2 = DataDictionary.fromDomainTypes("dict2", listOf(dynamicType))
+            val combined = dict1 + dict2
+            assertEquals(1, combined.jvmTypes.size)
+            assertEquals(1, combined.dynamicTypes.size)
+            assertEquals(2, combined.domainTypes.size)
+        }
+
+        @Test
+        fun `should preserve relationships after combining`() {
+            val dict1 = DataDictionary.fromClasses("dict1", Customer::class.java)
+            val dict2 = DataDictionary.fromClasses("dict2", Address::class.java)
+            val combined = dict1 + dict2
+            val relationships = combined.allowedRelationships()
+            assertEquals(1, relationships.size)
+            assertEquals("address", relationships[0].name)
+        }
     }
 }
