@@ -131,6 +131,52 @@ class AgentProcessChatbotTest {
     }
 
     @Test
+    fun `createSession with conversationId should use that id for new conversation, not process id`() {
+        // Reproduces: "Session not found: gracious_turing" / "Session not found: ecstatic_greider"
+        // When the welcome greeter creates a session with a UUIDv7 conversationId, but
+        // no existing conversation is found, the conversation gets created with the
+        // AgentProcess's moby name (e.g., "gracious_turing") instead of the provided
+        // conversationId. The chat store then can't find the session by its original ID.
+        val agentPlatform = mockk<AgentPlatform>()
+        val agentProcess = mockk<AgentProcess>(relaxed = true)
+        val factory = mockk<ConversationFactory>()
+
+        val providedConversationId = "019462af-1234-7abc-8def-000000000001" // UUIDv7-style
+        val mobyProcessId = "gracious_turing" // moby name assigned by AgentPlatform
+
+        every { factory.load(providedConversationId) } returns null // new session, nothing stored yet
+        every { factory.create(any()) } answers {
+            InMemoryConversation(id = firstArg())
+        }
+        every { factory.storeType } returns ConversationStoreType.STORED
+        every { agentPlatform.createAgentProcess(any(), any(), any()) } returns agentProcess
+        every { agentProcess.id } returns mobyProcessId
+        every { agentProcess[AgentProcessChatSession.CONVERSATION_KEY] } returns null
+        every { agentProcess.run() } returns mockk(relaxed = true)
+
+        val chatbot = AgentProcessChatbot(
+            agentPlatform = agentPlatform,
+            agentSource = { mockk<Agent>(relaxed = true) },
+            conversationFactory = factory,
+        )
+
+        val session = chatbot.createSession(
+            user = null,
+            outputChannel = DevNullOutputChannel,
+            contextId = null,
+            conversationId = providedConversationId,
+        )
+
+        // BUG: conversation.id should be the provided conversationId, but it gets the moby name
+        // This causes "Session not found" when the chat store looks up by the original UUIDv7 ID
+        assertEquals(
+            providedConversationId,
+            session.conversation.id,
+            "Conversation should use the provided conversationId, not the AgentProcess moby name '$mobyProcessId'"
+        )
+    }
+
+    @Test
     fun `utilityFromPlatform creates chatbot with default in-memory factory`() {
         val agentPlatform = mockk<AgentPlatform>(relaxed = true)
 

@@ -104,6 +104,7 @@ class AgentProcessChatbot(
         return AgentProcessChatSession(
             agentProcess = agentProcess,
             conversationFactory = conversationFactory,
+            conversationId = conversationId,
         ).apply {
             agentProcess.run()
         }
@@ -156,6 +157,7 @@ class AgentProcessChatbot(
 internal class AgentProcessChatSession(
     private val agentProcess: AgentProcess,
     private val conversationFactory: ConversationFactory,
+    private val conversationId: String? = null,
 ) : ChatSession {
 
     override val processId: String = agentProcess.id
@@ -169,8 +171,9 @@ internal class AgentProcessChatSession(
         // Check if conversation was pre-loaded (restored from storage)
         agentProcess[CONVERSATION_KEY] as? Conversation
             ?: run {
-                // Create new conversation
-                val conversation = conversationFactory.create(agentProcess.id)
+                // Create new conversation, preferring the caller-provided conversationId
+                // over the agentProcess.id (which is a moby name like "gracious_turing")
+                val conversation = conversationFactory.create(conversationId ?: agentProcess.id)
                 agentProcess.bindProtected(CONVERSATION_KEY, conversation)
                 agentProcess.processContext.outputChannel.send(
                     LoggingOutputChannelEvent(
