@@ -115,7 +115,7 @@ open class ToolLoopLlmOperations(
         val llm = chooseLlm(interaction.llm)
         val promptContributions = buildPromptContributions(interaction, llm)
 
-        val messageSender = createMessageSender(llm, interaction.llm)
+        val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
 
         val converter = if (outputClass != String::class.java) {
             createOutputConverter(outputClass, interaction)
@@ -244,11 +244,15 @@ open class ToolLoopLlmOperations(
      *
      * @param llm The LLM service to use
      * @param options The LLM options
+     * @param llmRequestEvent Optional domain context for instrumentation.
+     *        When present, subclasses may use this to wrap the underlying model
+     *        for observability (e.g., emitting events with the final prompt).
      * @return A framework-agnostic message sender
      */
     protected open fun createMessageSender(
         llm: LlmService<*>,
         options: LlmOptions,
+        llmRequestEvent: LlmRequestEvent<*>? = null,
     ): LlmMessageSender {
         return llm.createMessageSender(options)
     }
