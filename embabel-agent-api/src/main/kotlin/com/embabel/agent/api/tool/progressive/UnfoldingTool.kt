@@ -92,6 +92,18 @@ interface UnfoldingTool : ProgressiveTool {
     val removeOnInvoke: Boolean get() = true
 
     /**
+     * Whether to include a context tool when this tool is unfolded.
+     *
+     * When `true` (default), a `{name}_context` tool is created that preserves
+     * the parent's description and lists available child tools.
+     * When `false`, no context tool is created — useful when the parent's
+     * [call] response and [childToolUsageNotes] provide sufficient guidance,
+     * or when the context tool confuses the LLM into calling it repeatedly
+     * instead of the actual child tools.
+     */
+    val includeContextTool: Boolean get() = true
+
+    /**
      * Select which inner tools to expose based on invocation input.
      *
      * Override this method to implement category-based or argument-driven

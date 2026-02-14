@@ -100,9 +100,12 @@ class UnfoldingToolInjectionStrategy : ToolInjectionStrategy {
             selectedTools.map { it.definition.name }
         )
 
-        // Create context tool to preserve parent's description for the LLM
-        val contextTool = createContextTool(invokedTool, selectedTools)
-        val toolsToInject = selectedTools + contextTool
+        val toolsToInject = buildList {
+            addAll(selectedTools)
+            if (invokedTool.includeContextTool) {
+                add(createContextTool(invokedTool, selectedTools))
+            }
+        }
 
         // Note: remove the wrappedTool (which may have decorators), not the unwrapped invokedTool
         return if (invokedTool.removeOnInvoke) {
