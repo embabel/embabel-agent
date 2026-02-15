@@ -164,7 +164,14 @@ internal class ChatClientLlmOperations(
     override fun createMessageSender(
         llm: LlmService<*>,
         options: LlmOptions,
+        llmRequestEvent: LlmRequestEvent<*>?,
     ): LlmMessageSender {
+        if (llmRequestEvent != null) {
+            val springAiLlm = requireSpringAiLlm(llm)
+            val chatOptions = springAiLlm.optionsConverter.convertOptions(options)
+            val instrumentedModel = InstrumentedChatModel(springAiLlm.chatModel, llmRequestEvent)
+            return SpringAiLlmMessageSender(instrumentedModel, chatOptions)
+        }
         return llm.createMessageSender(options)
     }
 
@@ -194,23 +201,10 @@ internal class ChatClientLlmOperations(
         return stringWithoutThinkBlocks(text)
     }
 
-    override fun emitCallEvent(
-        llmRequestEvent: LlmRequestEvent<*>?,
-        promptContributions: String,
-        messages: List<Message>,
-        schemaFormat: String?,
-    ) {
-        llmRequestEvent?.let {
-            val springAiPrompt = if (schemaFormat != null) {
-                buildPromptWithSchema(promptContributions, messages, schemaFormat)
-            } else {
-                buildBasicPrompt(promptContributions, messages)
-            }
-            it.agentProcess.processContext.onProcessEvent(
-                it.chatModelCallEvent(springAiPrompt)
-            )
-        }
-    }
+    // emitCallEvent is intentionally not overridden here.
+    // InstrumentedChatModel emits ChatModelCallEvent at the actual ChatModel.call() point,
+    // capturing the fully augmented prompt (with resolved options, tool schemas, etc.)
+    // and firing once per tool-loop iteration rather than once before the loop.
 
     override fun <O> doTransformIfPossible(
         messages: List<Message>,
@@ -224,17 +218,13 @@ internal class ChatClientLlmOperations(
         )
 
         val llm = chooseLlm(interaction.llm)
-        val chatClient = createChatClient(llm)
+        val chatClient = createChatClient(llm, llmRequestEvent)
         val promptContributions = buildPromptContributions(interaction, llm)
         val springAiPrompt = buildPromptWithMaybeReturn(promptContributions, messages, maybeReturnPromptContribution)
 
         // Guardrails: Pre-validation of user input
         val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent.agentProcess.blackboard)
-
-        llmRequestEvent.agentProcess.processContext.onProcessEvent(
-            llmRequestEvent.chatModelCallEvent(springAiPrompt)
-        )
 
         val typeReference = createParameterizedTypeReference<MaybeReturn<*>>(
             MaybeReturn::class.java,
@@ -358,7 +348,7 @@ internal class ChatClientLlmOperations(
         llmRequestEvent: LlmRequestEvent<O>?,
     ): O {
         val llm = chooseLlm(interaction.llm)
-        val chatClient = createChatClient(llm)
+        val chatClient = createChatClient(llm, llmRequestEvent)
         val promptContributions = buildPromptContributions(interaction, llm)
 
         val springAiPrompt = buildBasicPrompt(promptContributions, messages)
@@ -366,12 +356,6 @@ internal class ChatClientLlmOperations(
         // Guardrails: Pre-validation of user input
         val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
-
-        llmRequestEvent?.let {
-            it.agentProcess.processContext.onProcessEvent(
-                it.chatModelCallEvent(springAiPrompt)
-            )
-        }
 
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
 
@@ -443,7 +427,7 @@ internal class ChatClientLlmOperations(
         logger.debug("LLM transform for interaction {} with thinking extraction", interaction.id.value)
 
         val llm = chooseLlm(interaction.llm)
-        val chatClient = createChatClient(llm)
+        val chatClient = createChatClient(llm, llmRequestEvent)
         val promptContributions = buildPromptContributions(interaction, llm)
 
         // Create converter chain once for both schema format and actual conversion
@@ -476,12 +460,6 @@ internal class ChatClientLlmOperations(
         // Guardrails: Pre-validation of user input
         val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
-
-        llmRequestEvent?.let {
-            it.agentProcess.processContext.onProcessEvent(
-                it.chatModelCallEvent(springAiPrompt)
-            )
-        }
 
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
         val timeoutMillis = getTimeoutMillis(interaction.llm)
@@ -590,7 +568,7 @@ internal class ChatClientLlmOperations(
             )
 
             val llm = chooseLlm(interaction.llm)
-            val chatClient = createChatClient(llm)
+            val chatClient = createChatClient(llm, llmRequestEvent)
             val promptContributions = buildPromptContributions(interaction, llm)
 
             val typeReference = createParameterizedTypeReference<MaybeReturn<*>>(
@@ -628,10 +606,6 @@ internal class ChatClientLlmOperations(
             // Guardrails: Pre-validation of user input
             val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
             validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
-
-            llmRequestEvent?.agentProcess?.processContext?.onProcessEvent(
-                llmRequestEvent.chatModelCallEvent(springAiPrompt)
-            )
 
             val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
             val timeoutMillis = getTimeoutMillis(interaction.llm)
@@ -765,12 +739,29 @@ internal class ChatClientLlmOperations(
     /**
      * Create a chat client for the given LlmService.
      * Requires the LlmService to be a SpringAiLlm.
+     *
+     * When [llmRequestEvent] is provided, the underlying [ChatModel] is wrapped in an
+     * [InstrumentedChatModel] that emits a [ChatModelCallEvent] with the **final augmented
+     * prompt** (including tool schemas, format instructions, etc.) at the point Spring AI
+     * actually calls the model. This replaces the need for manual event emission at each
+     * call site — the decorator handles it transparently.
+     *
+     * @param llm the LLM service to create a client for
+     * @param llmRequestEvent optional domain context; when present, enables instrumentation
      */
-    internal fun createChatClient(llm: LlmService<*>): ChatClient {
+    internal fun createChatClient(
+        llm: LlmService<*>,
+        llmRequestEvent: LlmRequestEvent<*>? = null,
+    ): ChatClient {
         val springAiLlm = requireSpringAiLlm(llm)
+        val chatModel = if (llmRequestEvent != null) {
+            InstrumentedChatModel(springAiLlm.chatModel, llmRequestEvent)
+        } else {
+            springAiLlm.chatModel
+        }
         return ChatClient
             .builder(
-                springAiLlm.chatModel,
+                chatModel,
                 observationRegistry,
                 DefaultChatClientObservationConvention(),
                 DefaultAdvisorObservationConvention()

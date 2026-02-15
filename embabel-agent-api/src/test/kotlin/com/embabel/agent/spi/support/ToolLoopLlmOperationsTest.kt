@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
@@ -502,7 +503,7 @@ class ToolLoopLlmOperationsTest {
                 messageSender = messageSender,
                 outputConverter = null,
             ) {
-                override fun createMessageSender(llm: LlmService<*>, options: LlmOptions): LlmMessageSender {
+                override fun createMessageSender(llm: LlmService<*>, options: LlmOptions, llmRequestEvent: LlmRequestEvent<*>?): LlmMessageSender {
                     senderCreated = true
                     return messageSender
                 }
@@ -643,7 +644,7 @@ internal open class TestableToolLoopLlmOperations(
     objectMapper = objectMapper,
 ) {
 
-    override fun createMessageSender(llm: LlmService<*>, options: LlmOptions): LlmMessageSender {
+    override fun createMessageSender(llm: LlmService<*>, options: LlmOptions, llmRequestEvent: LlmRequestEvent<*>?): LlmMessageSender {
         return messageSender
     }
 
