@@ -25,6 +25,8 @@ import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.api.tool.agentic.simple.DomainAwareSink
+import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -72,6 +74,7 @@ internal data class OperationContextDelegate(
     private val guardRails: List<GuardRail> = emptyList(),
     override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     override val autoDiscovery: Boolean = false,
+    override val injectionStrategies: List<ToolInjectionStrategy> = emptyList(),
 ) : PromptExecutionDelegate {
 
     val action = (context as? ActionContext)?.action
@@ -136,16 +139,25 @@ internal data class OperationContextDelegate(
     override fun withToolChainingFromAny(): PromptExecutionDelegate =
         copy(autoDiscovery = true)
 
+    override fun withInjectionStrategies(strategies: List<ToolInjectionStrategy>): PromptExecutionDelegate =
+        copy(injectionStrategies = this.injectionStrategies + strategies)
+
     private val hasDomainToolConfig: Boolean
         get() = domainToolSources.isNotEmpty() || autoDiscovery
 
+    private data class ResolvedToolConfig(
+        val tools: List<Tool>,
+        val injectionStrategies: List<ToolInjectionStrategy> = emptyList(),
+    )
+
     /**
-     * Resolve the effective tools list, wrapping with domain tool tracking if configured.
+     * Resolve the effective tools list and injection strategies,
+     * wrapping with domain tool tracking if configured.
      */
-    private fun resolveTools(): List<Tool> {
+    private fun resolveToolConfig(): ResolvedToolConfig {
         val baseTools = safelyGetTools(toolObjects) + otherTools
         if (!hasDomainToolConfig) {
-            return baseTools
+            return ResolvedToolConfig(baseTools, injectionStrategies)
         }
         val domainToolTracker = DomainToolTracker(
             sources = domainToolSources,
@@ -160,7 +172,12 @@ internal data class OperationContextDelegate(
         val domainPlaceholderTools = domainToolSources.flatMap { source ->
             DomainToolFactory.createPlaceholderTools(source, domainToolTracker)
         }
-        return wrappedTools + domainPlaceholderTools
+        val strategies = injectionStrategies + if (autoDiscovery) {
+            listOf(ToolChainingInjectionStrategy(domainToolTracker))
+        } else {
+            emptyList()
+        }
+        return ResolvedToolConfig(wrappedTools + domainPlaceholderTools, strategies)
     }
 
     // Execution methods
@@ -174,18 +191,20 @@ internal data class OperationContextDelegate(
             )
         }
         val combinedMessages = combineImagesWithMessages(this.messages + messages)
+        val toolConfig = resolveToolConfig()
         return context.processContext.createObject(
             messages = combinedMessages,
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                tools = resolveTools(),
+                tools = toolConfig.tools,
                 promptContributors = allPromptContributors,
                 id = interactionId ?: idForPrompt(outputClass),
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 validation = validation,
                 guardRails = guardRails,
+                additionalInjectionStrategies = toolConfig.injectionStrategies,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -198,12 +217,13 @@ internal data class OperationContextDelegate(
         outputClass: Class<T>,
     ): T? {
         val combinedMessages = combineImagesWithMessages(this.messages + messages)
+        val toolConfig = resolveToolConfig()
         val result = context.processContext.createObjectIfPossible<T>(
             messages = combinedMessages,
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                tools = resolveTools(),
+                tools = toolConfig.tools,
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(
                         context
@@ -214,6 +234,7 @@ internal data class OperationContextDelegate(
                 propertyFilter = propertyFilter,
                 validation = validation,
                 guardRails = guardRails,
+                additionalInjectionStrategies = toolConfig.injectionStrategies,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -311,11 +332,12 @@ internal data class OperationContextDelegate(
         )
     }
 
-    private fun streamingInteraction(): LlmInteraction =
-        LlmInteraction(
+    private fun streamingInteraction(): LlmInteraction {
+        val toolConfig = resolveToolConfig()
+        return LlmInteraction(
             llm = llm,
             toolGroups = toolGroups,
-            tools = resolveTools(),
+            tools = toolConfig.tools,
             promptContributors = promptContributors + contextualPromptContributors.map {
                 it.toPromptContributor(context)
             },
@@ -323,7 +345,9 @@ internal data class OperationContextDelegate(
             generateExamples = generateExamples,
             propertyFilter = propertyFilter,
             guardRails = guardRails,
+            additionalInjectionStrategies = toolConfig.injectionStrategies,
         )
+    }
 
     override fun supportsThinking(): Boolean = true
 
@@ -423,10 +447,11 @@ internal data class OperationContextDelegate(
 
     private fun thinkingInteraction(): LlmInteraction {
         val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
+        val toolConfig = resolveToolConfig()
         return LlmInteraction(
             llm = thinkingEnabledLlm,
             toolGroups = toolGroups,
-            tools = resolveTools(),
+            tools = toolConfig.tools,
             promptContributors = promptContributors + contextualPromptContributors.map {
                 it.toPromptContributor(context)
             },
@@ -434,6 +459,7 @@ internal data class OperationContextDelegate(
             generateExamples = generateExamples,
             propertyFilter = propertyFilter,
             guardRails = guardRails,
+            additionalInjectionStrategies = toolConfig.injectionStrategies,
         )
     }
 

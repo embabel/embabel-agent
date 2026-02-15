@@ -24,6 +24,7 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.validation.guardrails.GuardRail
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
@@ -208,6 +209,11 @@ data class FakePromptRunner(
 
         override val autoDiscovery: Boolean
             get() = false
+
+        override val injectionStrategies: List<ToolInjectionStrategy>
+            get() = emptyList()
+
+        override fun withInjectionStrategies(strategies: List<ToolInjectionStrategy>): PromptExecutionDelegate = this
 
         override fun <T : Any> withToolChainingFrom(
             type: Class<T>,
