@@ -255,10 +255,14 @@ class ThinkingPromptRunnerOperationsTest {
                 throw UnsupportedOperationException("Not implemented for test")
             }
 
-            // Guardrail methods - no-op implementations for test purposes
-            // These are required because StreamingPromptRunner extends PromptRunner which has guardrail methods
-            // For test isolation, we don't need actual guardrail functionality
             override fun withGuardRails(vararg guards: GuardRail): PromptRunner = this
+
+            override fun <T : Any> withDomainToolsFrom(
+                type: Class<T>,
+                predicate: com.embabel.agent.api.tool.agentic.DomainToolPredicate<T>,
+            ): PromptRunner = this
+
+            override fun withAnyDomainTools(): PromptRunner = this
         }
 
         // When/Then: Call withThinking() on StreamingPromptRunner should throw exception

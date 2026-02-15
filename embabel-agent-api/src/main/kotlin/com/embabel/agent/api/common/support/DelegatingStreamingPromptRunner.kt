@@ -22,6 +22,7 @@ import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -118,6 +119,15 @@ internal data class DelegatingStreamingPromptRunner(
 
     override fun withGuardRails(vararg guards: GuardRail): PromptRunner =
         copy(delegate = delegate.withGuardRails(*guards))
+
+    override fun <T : Any> withDomainToolsFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): PromptRunner =
+        copy(delegate = delegate.withDomainToolsFrom(type, predicate))
+
+    override fun withAnyDomainTools(): PromptRunner =
+        copy(delegate = delegate.withAnyDomainTools())
 
     // Execution methods
     override fun <T> createObject(

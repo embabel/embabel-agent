@@ -49,7 +49,7 @@ import kotlin.reflect.KProperty1
  * A contextual facade to LlmOperations.
  * @see com.embabel.agent.core.internal.LlmOperations
  */
-interface PromptRunner : LlmUse, PromptRunnerOperations {
+interface PromptRunner : LlmUse, PromptRunnerOperations, com.embabel.agent.api.tool.agentic.ToolChaining<PromptRunner> {
 
     /**
      * Additional objects with @Tool annotation for use in this PromptRunner

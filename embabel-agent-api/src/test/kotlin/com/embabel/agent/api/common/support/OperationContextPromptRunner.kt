@@ -29,6 +29,7 @@ import com.embabel.agent.api.common.support.streaming.StreamingImpl
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -364,5 +365,12 @@ internal data class OperationContextPromptRunner(
             guardRails = this.guardRails + guards
         )
     }
+
+    override fun <T : Any> withDomainToolsFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): PromptRunner = this
+
+    override fun withAnyDomainTools(): PromptRunner = this
 
 }

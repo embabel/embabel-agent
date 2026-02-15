@@ -17,8 +17,14 @@ package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
+import com.embabel.agent.api.tool.ArtifactSinkingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.agentic.DomainToolFactory
+import com.embabel.agent.api.tool.agentic.DomainToolPredicate
+import com.embabel.agent.api.tool.agentic.DomainToolSource
+import com.embabel.agent.api.tool.agentic.DomainToolTracker
+import com.embabel.agent.api.tool.agentic.simple.DomainAwareSink
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -64,6 +70,8 @@ internal data class OperationContextDelegate(
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
+    override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
+    override val autoDiscovery: Boolean = false,
 ) : PromptExecutionDelegate {
 
     val action = (context as? ActionContext)?.action
@@ -119,6 +127,41 @@ internal data class OperationContextDelegate(
     override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate =
         copy(guardRails = this.guardRails + guards)
 
+    override fun <T : Any> withDomainToolsFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): PromptExecutionDelegate =
+        copy(domainToolSources = domainToolSources + DomainToolSource(type, predicate))
+
+    override fun withAnyDomainTools(): PromptExecutionDelegate =
+        copy(autoDiscovery = true)
+
+    private val hasDomainToolConfig: Boolean
+        get() = domainToolSources.isNotEmpty() || autoDiscovery
+
+    /**
+     * Resolve the effective tools list, wrapping with domain tool tracking if configured.
+     */
+    private fun resolveTools(): List<Tool> {
+        val baseTools = safelyGetTools(toolObjects) + otherTools
+        if (!hasDomainToolConfig) {
+            return baseTools
+        }
+        val domainToolTracker = DomainToolTracker(
+            sources = domainToolSources,
+            autoDiscovery = autoDiscovery,
+            agentProcess = context.processContext.agentProcess,
+        )
+        val artifacts = mutableListOf<Any>()
+        val sink = DomainAwareSink(artifacts, domainToolTracker)
+        val wrappedTools = baseTools.map { tool ->
+            ArtifactSinkingTool(tool, Any::class.java, sink)
+        }
+        val domainPlaceholderTools = domainToolSources.flatMap { source ->
+            DomainToolFactory.createPlaceholderTools(source, domainToolTracker)
+        }
+        return wrappedTools + domainPlaceholderTools
+    }
 
     // Execution methods
     override fun <T> createObject(
@@ -136,7 +179,7 @@ internal data class OperationContextDelegate(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                tools = safelyGetTools(toolObjects) + otherTools,
+                tools = resolveTools(),
                 promptContributors = allPromptContributors,
                 id = interactionId ?: idForPrompt(outputClass),
                 generateExamples = generateExamples,
@@ -160,7 +203,7 @@ internal data class OperationContextDelegate(
             interaction = LlmInteraction(
                 llm = llm,
                 toolGroups = this.toolGroups + toolGroups,
-                tools = safelyGetTools(toolObjects) + otherTools,
+                tools = resolveTools(),
                 promptContributors = promptContributors + contextualPromptContributors.map {
                     it.toPromptContributor(
                         context
@@ -272,7 +315,7 @@ internal data class OperationContextDelegate(
         LlmInteraction(
             llm = llm,
             toolGroups = toolGroups,
-            tools = safelyGetTools(toolObjects) + otherTools,
+            tools = resolveTools(),
             promptContributors = promptContributors + contextualPromptContributors.map {
                 it.toPromptContributor(context)
             },
@@ -383,7 +426,7 @@ internal data class OperationContextDelegate(
         return LlmInteraction(
             llm = thinkingEnabledLlm,
             toolGroups = toolGroups,
-            tools = safelyGetTools(toolObjects) + otherTools,
+            tools = resolveTools(),
             promptContributors = promptContributors + contextualPromptContributors.map {
                 it.toPromptContributor(context)
             },

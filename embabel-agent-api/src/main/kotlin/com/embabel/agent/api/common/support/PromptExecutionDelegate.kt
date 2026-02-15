@@ -20,6 +20,8 @@ import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.agentic.DomainToolPredicate
+import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -89,6 +91,17 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withValidation(validation: Boolean): PromptExecutionDelegate
 
     fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate
+
+    val domainToolSources: List<DomainToolSource<*>>
+
+    val autoDiscovery: Boolean
+
+    fun <T : Any> withDomainToolsFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): PromptExecutionDelegate
+
+    fun withAnyDomainTools(): PromptExecutionDelegate
 
     // Execution methods
     fun <T> createObject(
