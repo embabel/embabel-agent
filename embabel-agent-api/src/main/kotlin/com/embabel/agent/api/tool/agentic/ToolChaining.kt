@@ -38,27 +38,27 @@ interface ToolChaining<THIS> {
      * @param type The domain class that may contribute @LlmTool methods
      * @param predicate Predicate to filter which instances contribute tools
      */
-    fun <T : Any> withDomainToolsFrom(
+    fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): THIS
 
     /**
-     * Register a domain class whose @LlmTool methods become available as tools
+     * Register a class whose @LlmTool methods become available as tools
      * when a single instance of that type is returned as an artifact.
      *
      * This is a convenience method that accepts all instances (no filtering).
      *
-     * @param type The domain class that may contribute @LlmTool methods
+     * @param type The class that may contribute @LlmTool methods
      */
-    fun <T : Any> withDomainToolsFrom(type: Class<T>): THIS =
-        withDomainToolsFrom(type, DomainToolPredicate.always())
+    fun <T : Any> withToolChainingFrom(type: Class<T>): THIS =
+        withToolChainingFrom(type, DomainToolPredicate.always())
 
     /**
-     * Enable auto-discovery of domain tools from any returned artifact.
+     * Enable auto-discovery of chained tools from any returned artifact.
      *
      * When enabled, any artifact with @LlmTool methods will automatically
      * have its tools exposed, replacing ALL previous bindings.
      */
-    fun withAnyDomainTools(): THIS
+    fun withToolChainingFromAny(): THIS
 }

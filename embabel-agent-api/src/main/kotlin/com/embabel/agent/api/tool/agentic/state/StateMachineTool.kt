@@ -312,7 +312,7 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
      * @param type The domain class that may contribute tools
      * @param predicate Predicate to filter which instances contribute tools
      */
-    override fun <T : Any> withDomainToolsFrom(
+    override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): StateMachineTool<S> = copy(
@@ -320,29 +320,29 @@ data class StateMachineTool<S : Enum<S>> internal constructor(
     )
 
     /**
-     * Register a domain class with a predicate.
+     * Register a class with a predicate.
      * Kotlin-friendly version using reified type parameter.
      */
-    inline fun <reified T : Any> withDomainToolsFrom(
+    inline fun <reified T : Any> withToolChainingFrom(
         noinline predicate: (T, AgentProcess?) -> Boolean,
-    ): StateMachineTool<S> = withDomainToolsFrom(T::class.java, DomainToolPredicate(predicate))
+    ): StateMachineTool<S> = withToolChainingFrom(T::class.java, DomainToolPredicate(predicate))
 
     /**
-     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     * Register a class that can contribute @LlmTool methods when a single instance is retrieved.
      * Kotlin-friendly version using reified type parameter.
      *
      * Example:
      * ```kotlin
      * StateMachineTool("orderProcessor", "Process orders", OrderState::class.java)
-     *     .withDomainToolsFrom<Order>()  // Order methods become available when a single Order is retrieved
+     *     .withToolChainingFrom<Order>()  // Order methods become available when a single Order is retrieved
      *     .withInitialState(OrderState.DRAFT)
      *     ...
      * ```
      */
-    inline fun <reified T : Any> withDomainToolsFrom(): StateMachineTool<S> =
-        withDomainToolsFrom(T::class.java)
+    inline fun <reified T : Any> withToolChainingFrom(): StateMachineTool<S> =
+        withToolChainingFrom(T::class.java)
 
-    override fun withAnyDomainTools(): StateMachineTool<S> = copy(autoDiscovery = true)
+    override fun withToolChainingFromAny(): StateMachineTool<S> = copy(autoDiscovery = true)
 
     companion object {
         fun <S : Enum<S>> defaultSystemPrompt(description: String, currentState: S) = """

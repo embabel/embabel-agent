@@ -120,14 +120,14 @@ internal data class DelegatingStreamingPromptRunner(
     override fun withGuardRails(vararg guards: GuardRail): PromptRunner =
         copy(delegate = delegate.withGuardRails(*guards))
 
-    override fun <T : Any> withDomainToolsFrom(
+    override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): PromptRunner =
-        copy(delegate = delegate.withDomainToolsFrom(type, predicate))
+        copy(delegate = delegate.withToolChainingFrom(type, predicate))
 
-    override fun withAnyDomainTools(): PromptRunner =
-        copy(delegate = delegate.withAnyDomainTools())
+    override fun withToolChainingFromAny(): PromptRunner =
+        copy(delegate = delegate.withToolChainingFromAny())
 
     // Execution methods
     override fun <T> createObject(

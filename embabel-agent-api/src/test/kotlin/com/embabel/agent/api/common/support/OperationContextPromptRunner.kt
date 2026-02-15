@@ -366,11 +366,11 @@ internal data class OperationContextPromptRunner(
         )
     }
 
-    override fun <T : Any> withDomainToolsFrom(
+    override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): PromptRunner = this
 
-    override fun withAnyDomainTools(): PromptRunner = this
+    override fun withToolChainingFromAny(): PromptRunner = this
 
 }

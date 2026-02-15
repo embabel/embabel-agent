@@ -606,7 +606,7 @@ class PlaybookToolTest {
         @Test
         fun `should add domain tool source with class`() {
             val playbook = PlaybookTool("test", "Test")
-                .withDomainToolsFrom(TestDomainObject::class.java)
+                .withToolChainingFrom(TestDomainObject::class.java)
 
             assertThat(playbook.domainToolSources).hasSize(1)
             assertThat(playbook.domainToolSources.first().type).isEqualTo(TestDomainObject::class.java)
@@ -615,7 +615,7 @@ class PlaybookToolTest {
         @Test
         fun `should add domain tool source with reified type`() {
             val playbook = PlaybookTool("test", "Test")
-                .withDomainToolsFrom<TestDomainObject>()
+                .withToolChainingFrom<TestDomainObject>()
 
             assertThat(playbook.domainToolSources).hasSize(1)
             assertThat(playbook.domainToolSources.first().type).isEqualTo(TestDomainObject::class.java)
@@ -624,8 +624,8 @@ class PlaybookToolTest {
         @Test
         fun `should support multiple domain tool sources`() {
             val playbook = PlaybookTool("test", "Test")
-                .withDomainToolsFrom<TestDomainObject>()
-                .withDomainToolsFrom<AnotherDomainObject>()
+                .withToolChainingFrom<TestDomainObject>()
+                .withToolChainingFrom<AnotherDomainObject>()
 
             assertThat(playbook.domainToolSources).hasSize(2)
         }
@@ -633,7 +633,7 @@ class PlaybookToolTest {
         @Test
         fun `should not require static tools when domain sources configured`() {
             val playbook = PlaybookTool("test", "Test")
-                .withDomainToolsFrom<TestDomainObject>()
+                .withToolChainingFrom<TestDomainObject>()
 
             // No static tools, but domain tools configured - should not fail immediately
             // (will fail due to no AgentProcess context, but not "No tools available")

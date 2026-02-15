@@ -206,7 +206,7 @@ data class SimpleAgenticTool(
         captureNestedArtifacts = capture,
     )
 
-    override fun <T : Any> withDomainToolsFrom(
+    override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): SimpleAgenticTool = copy(
@@ -217,16 +217,16 @@ data class SimpleAgenticTool(
      * Register a domain class with a predicate.
      * Kotlin-friendly version using reified type parameter.
      */
-    inline fun <reified T : Any> withDomainToolsFrom(
+    inline fun <reified T : Any> withToolChainingFrom(
         noinline predicate: (T, com.embabel.agent.core.AgentProcess?) -> Boolean,
-    ): SimpleAgenticTool = withDomainToolsFrom(T::class.java, DomainToolPredicate(predicate))
+    ): SimpleAgenticTool = withToolChainingFrom(T::class.java, DomainToolPredicate(predicate))
 
     /**
-     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     * Register a class that can contribute @LlmTool methods when a single instance is retrieved.
      * Kotlin-friendly version using reified type parameter.
      */
-    inline fun <reified T : Any> withDomainToolsFrom(): SimpleAgenticTool =
-        withDomainToolsFrom(T::class.java)
+    inline fun <reified T : Any> withToolChainingFrom(): SimpleAgenticTool =
+        withToolChainingFrom(T::class.java)
 
-    override fun withAnyDomainTools(): SimpleAgenticTool = copy(autoDiscovery = true)
+    override fun withToolChainingFromAny(): SimpleAgenticTool = copy(autoDiscovery = true)
 }

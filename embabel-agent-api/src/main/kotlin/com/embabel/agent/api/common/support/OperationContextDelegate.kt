@@ -127,13 +127,13 @@ internal data class OperationContextDelegate(
     override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate =
         copy(guardRails = this.guardRails + guards)
 
-    override fun <T : Any> withDomainToolsFrom(
+    override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): PromptExecutionDelegate =
         copy(domainToolSources = domainToolSources + DomainToolSource(type, predicate))
 
-    override fun withAnyDomainTools(): PromptExecutionDelegate =
+    override fun withToolChainingFromAny(): PromptExecutionDelegate =
         copy(autoDiscovery = true)
 
     private val hasDomainToolConfig: Boolean

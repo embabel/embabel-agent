@@ -96,12 +96,12 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     val autoDiscovery: Boolean
 
-    fun <T : Any> withDomainToolsFrom(
+    fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): PromptExecutionDelegate
 
-    fun withAnyDomainTools(): PromptExecutionDelegate
+    fun withToolChainingFromAny(): PromptExecutionDelegate
 
     // Execution methods
     fun <T> createObject(

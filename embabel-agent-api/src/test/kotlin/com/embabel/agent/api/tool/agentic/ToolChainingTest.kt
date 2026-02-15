@@ -32,12 +32,12 @@ class ToolChainingTest {
     inner class ToolChainingInterface {
 
         @Test
-        fun `withDomainToolsFrom with class only should delegate to predicate overload`() {
+        fun `withToolChainingFrom with class only should delegate to predicate overload`() {
             val chaining = object : ToolChaining<String> {
                 var capturedType: Class<*>? = null
                 var capturedPredicate: DomainToolPredicate<*>? = null
 
-                override fun <T : Any> withDomainToolsFrom(
+                override fun <T : Any> withToolChainingFrom(
                     type: Class<T>,
                     predicate: DomainToolPredicate<T>,
                 ): String {
@@ -46,9 +46,9 @@ class ToolChainingTest {
                     return "result"
                 }
 
-                override fun withAnyDomainTools(): String = "auto"
+                override fun withToolChainingFromAny(): String = "auto"
             }
-            val result = chaining.withDomainToolsFrom(TestUser::class.java)
+            val result = chaining.withToolChainingFrom(TestUser::class.java)
             assertThat(result).isEqualTo("result")
             assertThat(chaining.capturedType).isEqualTo(TestUser::class.java)
             // The default predicate should accept everything
@@ -73,10 +73,10 @@ class ToolChainingTest {
         }
 
         @Test
-        fun `withDomainToolsFrom should accumulate sources`() {
+        fun `withToolChainingFrom should accumulate sources`() {
             val delegate = createDelegate()
             assertThat(delegate.domainToolSources).isEmpty()
-            val updated = delegate.withDomainToolsFrom(
+            val updated = delegate.withToolChainingFrom(
                 TestUser::class.java,
                 DomainToolPredicate.always(),
             ) as OperationContextDelegate
@@ -85,20 +85,20 @@ class ToolChainingTest {
         }
 
         @Test
-        fun `withDomainToolsFrom should be additive`() {
+        fun `withToolChainingFrom should be additive`() {
             val delegate = createDelegate()
             val updated = delegate
-                .withDomainToolsFrom(TestUser::class.java, DomainToolPredicate.always())
-                .withDomainToolsFrom(TestOrder::class.java, DomainToolPredicate.always())
+                .withToolChainingFrom(TestUser::class.java, DomainToolPredicate.always())
+                .withToolChainingFrom(TestOrder::class.java, DomainToolPredicate.always())
                     as OperationContextDelegate
             assertThat(updated.domainToolSources).hasSize(2)
         }
 
         @Test
-        fun `withAnyDomainTools should set autoDiscovery`() {
+        fun `withToolChainingFromAny should set autoDiscovery`() {
             val delegate = createDelegate()
             assertThat(delegate.autoDiscovery).isFalse()
-            val updated = delegate.withAnyDomainTools() as OperationContextDelegate
+            val updated = delegate.withToolChainingFromAny() as OperationContextDelegate
             assertThat(updated.autoDiscovery).isTrue()
         }
 
@@ -106,8 +106,8 @@ class ToolChainingTest {
         fun `domain tool state should coexist with other configuration`() {
             val delegate = createDelegate()
             val updated = delegate
-                .withAnyDomainTools()
-                .withDomainToolsFrom(TestUser::class.java, DomainToolPredicate.always())
+                .withToolChainingFromAny()
+                .withToolChainingFrom(TestUser::class.java, DomainToolPredicate.always())
                     as OperationContextDelegate
             assertThat(updated.autoDiscovery).isTrue()
             assertThat(updated.domainToolSources).hasSize(1)
@@ -130,23 +130,23 @@ class ToolChainingTest {
         }
 
         @Test
-        fun `withDomainToolsFrom should return PromptRunner`() {
+        fun `withToolChainingFrom should return PromptRunner`() {
             val runner = createRunner()
-            val result: PromptRunner = runner.withDomainToolsFrom(TestUser::class.java)
+            val result: PromptRunner = runner.withToolChainingFrom(TestUser::class.java)
             assertThat(result).isInstanceOf(DelegatingStreamingPromptRunner::class.java)
         }
 
         @Test
-        fun `withAnyDomainTools should return PromptRunner`() {
+        fun `withToolChainingFromAny should return PromptRunner`() {
             val runner = createRunner()
-            val result: PromptRunner = runner.withAnyDomainTools()
+            val result: PromptRunner = runner.withToolChainingFromAny()
             assertThat(result).isInstanceOf(DelegatingStreamingPromptRunner::class.java)
         }
 
         @Test
-        fun `withDomainToolsFrom should propagate to delegate`() {
+        fun `withToolChainingFrom should propagate to delegate`() {
             val runner = createRunner()
-            val updated = runner.withDomainToolsFrom(
+            val updated = runner.withToolChainingFrom(
                 TestUser::class.java,
                 DomainToolPredicate.always(),
             ) as DelegatingStreamingPromptRunner
@@ -156,9 +156,9 @@ class ToolChainingTest {
         }
 
         @Test
-        fun `withAnyDomainTools should propagate to delegate`() {
+        fun `withToolChainingFromAny should propagate to delegate`() {
             val runner = createRunner()
-            val updated = runner.withAnyDomainTools() as DelegatingStreamingPromptRunner
+            val updated = runner.withToolChainingFromAny() as DelegatingStreamingPromptRunner
             val innerDelegate = updated.delegate as OperationContextDelegate
             assertThat(innerDelegate.autoDiscovery).isTrue()
         }
@@ -182,16 +182,16 @@ class ToolChainingTest {
         }
 
         @Test
-        fun `withDomainToolsFrom should return same instance`() {
+        fun `withToolChainingFrom should return same instance`() {
             val runner = createFakeRunner()
-            val result = runner.withDomainToolsFrom(TestUser::class.java)
+            val result = runner.withToolChainingFrom(TestUser::class.java)
             assertThat(result).isSameAs(runner)
         }
 
         @Test
-        fun `withAnyDomainTools should return same instance`() {
+        fun `withToolChainingFromAny should return same instance`() {
             val runner = createFakeRunner()
-            val result = runner.withAnyDomainTools()
+            val result = runner.withToolChainingFromAny()
             assertThat(result).isSameAs(runner)
         }
     }

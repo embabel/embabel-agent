@@ -257,12 +257,12 @@ class ThinkingPromptRunnerOperationsTest {
 
             override fun withGuardRails(vararg guards: GuardRail): PromptRunner = this
 
-            override fun <T : Any> withDomainToolsFrom(
+            override fun <T : Any> withToolChainingFrom(
                 type: Class<T>,
                 predicate: com.embabel.agent.api.tool.agentic.DomainToolPredicate<T>,
             ): PromptRunner = this
 
-            override fun withAnyDomainTools(): PromptRunner = this
+            override fun withToolChainingFromAny(): PromptRunner = this
         }
 
         // When/Then: Call withThinking() on StreamingPromptRunner should throw exception

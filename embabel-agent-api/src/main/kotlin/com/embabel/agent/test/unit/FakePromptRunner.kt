@@ -209,12 +209,12 @@ data class FakePromptRunner(
         override val autoDiscovery: Boolean
             get() = false
 
-        override fun <T : Any> withDomainToolsFrom(
+        override fun <T : Any> withToolChainingFrom(
             type: Class<T>,
             predicate: DomainToolPredicate<T>,
         ): PromptExecutionDelegate = this
 
-        override fun withAnyDomainTools(): PromptExecutionDelegate = this
+        override fun withToolChainingFromAny(): PromptExecutionDelegate = this
 
         override fun <T> createObject(messages: List<Message>, outputClass: Class<T>): T {
             return this@FakePromptRunner.createObject(messages, outputClass)
@@ -426,10 +426,10 @@ data class FakePromptRunner(
         return copy(guardRails = this.guardRails + guards)
     }
 
-    override fun <T : Any> withDomainToolsFrom(
+    override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): PromptRunner = this
 
-    override fun withAnyDomainTools(): PromptRunner = this
+    override fun withToolChainingFromAny(): PromptRunner = this
 }
