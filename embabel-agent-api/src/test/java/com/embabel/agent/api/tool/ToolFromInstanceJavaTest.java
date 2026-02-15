@@ -109,8 +109,8 @@ class ToolFromInstanceJavaTest {
 
             Tool.Result addResult = addTool.call("{\"a\": 5, \"b\": 3}");
 
-            assertInstanceOf(Tool.Result.Text.class, addResult);
-            assertEquals("8", ((Tool.Result.Text) addResult).getContent());
+            assertInstanceOf(Tool.Result.WithArtifact.class, addResult);
+            assertEquals("8", ((Tool.Result.WithArtifact) addResult).getContent());
         }
     }
 
@@ -135,8 +135,8 @@ class ToolFromInstanceJavaTest {
             Tool subtractTool = result.get(0);
             Tool.Result subtractResult = subtractTool.call("{\"a\": 10, \"b\": 4}");
 
-            assertInstanceOf(Tool.Result.Text.class, subtractResult);
-            assertEquals("6", ((Tool.Result.Text) subtractResult).getContent());
+            assertInstanceOf(Tool.Result.WithArtifact.class, subtractResult);
+            assertEquals("6", ((Tool.Result.WithArtifact) subtractResult).getContent());
         }
     }
 
@@ -161,8 +161,8 @@ class ToolFromInstanceJavaTest {
             Tool divideTool = result.get(0);
             Tool.Result divideResult = divideTool.call("{\"a\": 10.0, \"b\": 2.0}");
 
-            assertInstanceOf(Tool.Result.Text.class, divideResult);
-            assertEquals("5.0", ((Tool.Result.Text) divideResult).getContent());
+            assertInstanceOf(Tool.Result.WithArtifact.class, divideResult);
+            assertEquals("5.0", ((Tool.Result.WithArtifact) divideResult).getContent());
         }
     }
 

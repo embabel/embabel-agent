@@ -239,8 +239,8 @@ class LlmReferenceTest {
             val addTool = reference.tools().first { it.definition.name == "add" }
             val result = addTool.call("""{"a": 5, "b": 3}""")
 
-            assertThat(result).isInstanceOf(Tool.Result.Text::class.java)
-            assertThat((result as Tool.Result.Text).content).isEqualTo("8")
+            assertThat(result).isInstanceOf(Tool.Result.WithArtifact::class.java)
+            assertThat((result as Tool.Result.WithArtifact).content).isEqualTo("8")
         }
 
         @Test

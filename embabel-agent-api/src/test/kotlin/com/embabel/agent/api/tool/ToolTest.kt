@@ -670,21 +670,24 @@ class ToolTest {
 
             val result = sumTool.call("""{"a": 5, "b": 3}""")
 
-            assertTrue(result is Tool.Result.Text)
-            assertEquals("8", (result as Tool.Result.Text).content)
+            assertTrue(result is Tool.Result.WithArtifact)
+            assertEquals("8", (result as Tool.Result.WithArtifact).content)
         }
 
         @Test
-        fun `executes method returning complex object`() {
+        fun `executes method returning complex object produces WithArtifact`() {
             val tools = Tool.fromInstance(ComplexTools())
             val createTool = tools.find { it.definition.name == "createPerson" }!!
 
             val result = createTool.call("""{"name": "Alice", "age": 30}""")
 
-            assertTrue(result is Tool.Result.Text)
-            val content = (result as Tool.Result.Text).content
-            assertTrue(content.contains("Alice"))
-            assertTrue(content.contains("30"))
+            assertTrue(result is Tool.Result.WithArtifact)
+            val artifactResult = result as Tool.Result.WithArtifact
+            assertTrue(artifactResult.content.contains("Alice"))
+            assertTrue(artifactResult.content.contains("30"))
+            val person = artifactResult.artifact as Person
+            assertEquals("Alice", person.name)
+            assertEquals(30, person.age)
         }
 
         @Test
