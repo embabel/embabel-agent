@@ -20,8 +20,8 @@ import com.embabel.agent.core.JvmType
 import com.embabel.common.core.types.NamedAndDescribed
 import com.embabel.common.util.indent
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider
-import org.springframework.core.type.filter.AssignableTypeFilter
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver
+import org.springframework.core.type.classreading.CachingMetadataReaderFactory
 
 /**
  * Base contract for any named entity that can be stored and retrieved.
@@ -30,7 +30,7 @@ import org.springframework.core.type.filter.AssignableTypeFilter
  * but a superinterface for domain classes with strongly typed properties.
  *
  * Domain classes implement this interface to enable:
- * - Storage in [NamedEntityDataRepository]
+ * - Storage in [com.embabel.agent.rag.service.NamedEntityDataRepository]
  * - Hydration from [NamedEntityData]
  * - Vector and text search via [Retrievable]
  *
@@ -79,27 +79,36 @@ interface NamedEntity : Retrievable, NamedAndDescribed {
         private val logger = LoggerFactory.getLogger(NamedEntity::class.java)
 
         /**
-         * Create a [DataDictionary] by scanning the given packages for all concrete
-         * [NamedEntity] implementations.
+         * Create a [DataDictionary] by scanning the given packages for all
+         * [NamedEntity] types, including interfaces and abstract classes.
          */
         @JvmStatic
         fun dataDictionaryFromPackages(vararg packages: String): DataDictionary {
-            val scanner = ClassPathScanningCandidateComponentProvider(false)
-            scanner.addIncludeFilter(AssignableTypeFilter(NamedEntity::class.java))
+            val resolver = PathMatchingResourcePatternResolver()
+            val metadataReaderFactory = CachingMetadataReaderFactory(resolver)
             val types = mutableSetOf<JvmType>()
             for (packageName in packages) {
+                val pattern = "classpath*:${packageName.replace('.', '/')}/**/*.class"
                 try {
-                    for (beanDef in scanner.findCandidateComponents(packageName)) {
-                        val className = beanDef.beanClassName ?: continue
+                    for (resource in resolver.getResources(pattern)) {
                         try {
-                            types.add(JvmType(Class.forName(className)))
+                            val reader = metadataReaderFactory.getMetadataReader(resource)
+                            val clazz = Class.forName(reader.classMetadata.className)
+                            if (NamedEntity::class.java.isAssignableFrom(clazz) &&
+                                clazz != NamedEntity::class.java &&
+                                clazz != NamedEntityData::class.java
+                            ) {
+                                types.add(JvmType(clazz))
+                            }
                         } catch (_: ClassNotFoundException) {
+                        } catch (_: NoClassDefFoundError) {
                         }
                     }
                 } catch (_: Exception) {
                 }
             }
-            logger.info("dataDictionaryFromPackages({}) found {} NamedEntity types: {}",
+            logger.info(
+                "dataDictionaryFromPackages({}) found {} NamedEntity types: {}",
                 packages.toList(), types.size, types.map { it.clazz.name })
             return DataDictionary.fromDomainTypes("NamedEntity", types)
         }
