@@ -3853,12 +3853,14 @@ val awarenessAgent = SimpleAgenticTool(
 [[reference.tools__mcp-tool-factory]]
 ==== McpToolFactory: MCP Tool Integration
 
-`McpToolFactory` provides a convenient way to integrate https://modelcontextprotocol.io/[Model Context Protocol (MCP)] tools into your application.
+`McpToolFactory` is an interface that provides a convenient way to integrate https://modelcontextprotocol.io/[Model Context Protocol (MCP)] tools into your application.
 It creates Embabel `Tool` instances from MCP servers, with support for filtering tools and wrapping them in `UnfoldingTool` facades.
+
+`SpringAiMcpToolFactory` is the Spring AI-based implementation.
 
 ===== Creating McpToolFactory
 
-`McpToolFactory` requires a list of `McpSyncClient` instances, which are typically provided by Spring's MCP auto-configuration:
+`SpringAiMcpToolFactory` requires a list of `McpSyncClient` instances, which are typically provided by Spring's MCP auto-configuration:
 
 [tabs]
 ====
@@ -3867,6 +3869,7 @@ Java::
 [source,java]
 ----
 import com.embabel.agent.tools.mcp.McpToolFactory;
+import com.embabel.agent.spi.support.springai.SpringAiMcpToolFactory;
 import io.modelcontextprotocol.client.McpSyncClient;
 
 @Configuration
@@ -3874,7 +3877,7 @@ public class ToolConfiguration {
 
     @Bean
     public McpToolFactory mcpToolFactory(List<McpSyncClient> clients) {
-        return new McpToolFactory(clients);
+        return new SpringAiMcpToolFactory(clients);
     }
 }
 ----
@@ -3884,6 +3887,7 @@ Kotlin::
 [source,kotlin]
 ----
 import com.embabel.agent.tools.mcp.McpToolFactory
+import com.embabel.agent.spi.support.springai.SpringAiMcpToolFactory
 import io.modelcontextprotocol.client.McpSyncClient
 
 @Configuration
@@ -3891,7 +3895,7 @@ class ToolConfiguration {
 
     @Bean
     fun mcpToolFactory(clients: List<McpSyncClient>): McpToolFactory =
-        McpToolFactory(clients)
+        SpringAiMcpToolFactory(clients)
 }
 ----
 ====
@@ -4077,7 +4081,7 @@ public class ChatConfiguration {
 
     @Bean
     public McpToolFactory mcpToolFactory(List<McpSyncClient> clients) {
-        return new McpToolFactory(clients);
+        return new SpringAiMcpToolFactory(clients);
     }
 
     @Bean
@@ -4115,7 +4119,7 @@ class ChatConfiguration {
 
     @Bean
     fun mcpToolFactory(clients: List<McpSyncClient>): McpToolFactory =
-        McpToolFactory(clients)
+        SpringAiMcpToolFactory(clients)
 
     @Bean
     fun commonTools(mcpToolFactory: McpToolFactory): CommonTools {

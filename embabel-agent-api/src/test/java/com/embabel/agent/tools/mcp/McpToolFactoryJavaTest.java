@@ -16,11 +16,10 @@
 package com.embabel.agent.tools.mcp;
 
 import com.embabel.agent.api.tool.progressive.UnfoldingTool;
-import io.modelcontextprotocol.client.McpSyncClient;
+import com.embabel.agent.spi.support.springai.SpringAiMcpToolFactory;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -32,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class McpToolFactoryJavaTest {
 
     // Create factory with empty client list for testing API compatibility
-    private final McpToolFactory factory = new McpToolFactory(Collections.emptyList());
+    private final McpToolFactory factory = new SpringAiMcpToolFactory(Collections.emptyList());
 
     @Test
     void unfoldingAcceptsJavaLambda() {
