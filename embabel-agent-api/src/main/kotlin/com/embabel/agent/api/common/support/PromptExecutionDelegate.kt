@@ -20,7 +20,10 @@ import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.agentic.DomainToolPredicate
+import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.validation.guardrails.GuardRail
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
@@ -89,6 +92,21 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withValidation(validation: Boolean): PromptExecutionDelegate
 
     fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate
+
+    val domainToolSources: List<DomainToolSource<*>>
+
+    val autoDiscovery: Boolean
+
+    val injectionStrategies: List<ToolInjectionStrategy>
+
+    fun <T : Any> withToolChainingFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): PromptExecutionDelegate
+
+    fun withToolChainingFromAny(): PromptExecutionDelegate
+
+    fun withInjectionStrategies(strategies: List<ToolInjectionStrategy>): PromptExecutionDelegate
 
     // Execution methods
     fun <T> createObject(

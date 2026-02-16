@@ -1679,7 +1679,7 @@ public class User {
 // Register domain tools - they become available when a single User is retrieved
 PlaybookTool userManager = new PlaybookTool("userManager", "Manage users")
     .withTools(searchUserTool, getUserTool)
-    .withDomainToolsFrom(User.class);  // User methods available after getUserTool returns a single User
+    .withToolChainingFrom(User.class);  // User methods available after getUserTool returns a single User
 ----
 
 Kotlin::
@@ -1698,7 +1698,7 @@ class User(val id: String, val name: String) {
 // Register domain tools - they become available when a single User is retrieved
 val userManager = PlaybookTool("userManager", "Manage users")
     .withTools(searchUserTool, getUserTool)
-    .withDomainToolsFrom<User>()  // User methods available after getUserTool returns a single User
+    .withToolChainingFrom<User>()  // User methods available after getUserTool returns a single User
 ----
 ====
 
@@ -2056,9 +2056,9 @@ The available modification methods are:
 - `withSystemPrompt(String)`: Set a fixed system prompt
 - `withSystemPrompt((ExecutingOperationContext, String) -> String)`: Set a dynamic prompt based on execution context and input
 - `withCaptureNestedArtifacts(Boolean)`: Control whether artifacts from nested agentic tool calls are captured (default: `false`)
-- `withDomainToolsFrom(Class<T>)`: Register a domain class whose `@LlmTool` methods become available when an artifact of that type is returned
-- `withDomainToolsFrom(Class<T>, DomainToolPredicate<T>)`: Register with a predicate to filter which instances contribute tools
-- `withAnyDomainTools()`: Auto-discover tools from any returned artifact with `@LlmTool` methods
+- `withToolChainingFrom(Class<T>)`: Register a class whose `@LlmTool` methods become available when an artifact of that type is returned
+- `withToolChainingFrom(Class<T>, DomainToolPredicate<T>)`: Register with a predicate to filter which instances contribute tools
+- `withToolChainingFromAny()`: Auto-discover tools from any returned artifact with `@LlmTool` methods
 
 [[reference.tools__agentic-tools-artifact-capture]]
 ===== Controlling Artifact Capture in Nested Agentic Tools
@@ -2105,13 +2105,24 @@ val fullCapture = concertAssembler.withCaptureNestedArtifacts(true)
 IMPORTANT: This setting only affects artifacts from nested agentic tool calls.
 Artifacts from regular (non-agentic) tools are always captured.
 
-[[reference.tools__domain-tool-injection]]
-===== Dynamic Domain Tool Injection
+[[reference.tools__tool-chaining]]
+===== Tool Chaining
 
-When working with domain objects, you often want to expose `@LlmTool` methods on those objects as tools—but only after the object has been retrieved.
-The `withDomainToolsFrom()` method enables this pattern.
+When working with objects returned by tools, you often want to expose `@LlmTool` methods on those objects as additional tools—but only after the object has been retrieved.
+The `withToolChainingFrom()` method enables this pattern.
 
-When you register a domain class, placeholder tools are created for each `@LlmTool` method on that class.
+[TIP]
+====
+Tool chaining increases determinism.
+Once a tool returns a specific object, the LLM gains access to that object's business methods—navigating a data structure through well-defined operations rather than unstructured reasoning.
+This keeps the LLM on a guided path through your domain logic.
+====
+
+Tool chaining is available on both `AgenticTool` and `PromptRunner`, via the shared `ToolChaining` interface.
+This means you can use tool chaining not only in agentic tool loops, but also in simple `createObject` and `generateText` calls through `PromptRunner`.
+This is significant because it enables any action to dynamically discover and use tools from returned artifacts without requiring a full agentic tool setup.
+
+When you register a class, placeholder tools are created for each `@LlmTool` method on that class.
 Initially, these tools return "not available yet" messages.
 When a tool returns an artifact matching the registered type, the placeholder tools become active and delegate to the bound instance.
 
@@ -2136,10 +2147,10 @@ public class User {
     }
 }
 
-// Create agentic tool with domain tool injection
+// Create agentic tool with tool chaining
 SimpleAgenticTool userManager = new SimpleAgenticTool("userManager", "Manage user accounts")
     .withTools(searchUserTool, getUserTool)           // Tools to find/retrieve users
-    .withDomainToolsFrom(User.class);                 // User methods become tools when retrieved
+    .withToolChainingFrom(User.class);                // User methods become tools when retrieved
 
 // Flow:
 // 1. LLM calls searchUserTool to find users
@@ -2161,10 +2172,10 @@ class User(val id: String, var email: String) {
     }
 }
 
-// Create agentic tool with domain tool injection
+// Create agentic tool with tool chaining
 val userManager = SimpleAgenticTool("userManager", "Manage user accounts")
     .withTools(searchUserTool, getUserTool)     // Tools to find/retrieve users
-    .withDomainToolsFrom<User>()                // User methods become tools when retrieved
+    .withToolChainingFrom<User>()               // User methods become tools when retrieved
 
 // Flow:
 // 1. LLM calls searchUserTool to find users
@@ -2188,7 +2199,7 @@ Java::
 // Only expose tools for admin users
 SimpleAgenticTool adminManager = new SimpleAgenticTool("adminManager", "Manage admin users")
     .withTools(searchUserTool, getUserTool)
-    .withDomainToolsFrom(User.class, (user, agentProcess) ->
+    .withToolChainingFrom(User.class, (user, agentProcess) ->
         user.getRole().equals("admin")
     );
 
@@ -2203,7 +2214,7 @@ Kotlin::
 // Only expose tools for admin users
 val adminManager = SimpleAgenticTool("adminManager", "Manage admin users")
     .withTools(searchUserTool, getUserTool)
-    .withDomainToolsFrom<User> { user, _ ->
+    .withToolChainingFrom<User> { user, _ ->
         user.role == "admin"
     }
 
@@ -2214,8 +2225,8 @@ val adminManager = SimpleAgenticTool("adminManager", "Manage admin users")
 
 ====== Auto-Discovery Mode
 
-For maximum flexibility, use `withAnyDomainTools()` to automatically discover and expose tools from any returned artifact that has `@LlmTool` methods.
-Unlike registered domain sources, auto-discovery replaces ALL previous bindings when a new artifact is discovered—ensuring only one "current" object's tools are active at a time.
+For maximum flexibility, use `withToolChainingFromAny()` to automatically discover and expose tools from any returned artifact that has `@LlmTool` methods.
+Unlike registered sources, auto-discovery replaces ALL previous bindings when a new artifact is discovered—ensuring only one "current" object's tools are active at a time.
 
 [tabs]
 ====
@@ -2226,7 +2237,7 @@ Java::
 // Auto-discover tools from any returned object
 SimpleAgenticTool explorer = new SimpleAgenticTool("explorer", "Explore and manipulate objects")
     .withTools(searchTool, getTool)
-    .withAnyDomainTools();  // Tools from any returned object are exposed
+    .withToolChainingFromAny();  // Tools from any returned object are exposed
 
 // Flow:
 // 1. LLM calls getTool which returns a User -> User tools are available
@@ -2241,7 +2252,7 @@ Kotlin::
 // Auto-discover tools from any returned object
 val explorer = SimpleAgenticTool("explorer", "Explore and manipulate objects")
     .withTools(searchTool, getTool)
-    .withAnyDomainTools()  // Tools from any returned object are exposed
+    .withToolChainingFromAny()  // Tools from any returned object are exposed
 
 // Flow:
 // 1. LLM calls getTool which returns a User -> User tools are available
@@ -2252,16 +2263,54 @@ val explorer = SimpleAgenticTool("explorer", "Explore and manipulate objects")
 
 This pattern is useful when:
 
-- **Domain objects have operations**: The object itself knows how to perform actions (e.g., `user.updateEmail()`, `order.cancel()`)
+- **Objects have operations**: The object itself knows how to perform actions (e.g., `user.updateEmail()`, `order.cancel()`)
 - **Context-dependent tools**: Operations only make sense after retrieving a specific instance
-- **Clean API design**: Tools are defined on the domain class rather than as separate tool classes
+- **Clean API design**: Tools are defined on the class rather than as separate tool classes
 - **Exploratory workflows**: The LLM dynamically works with whatever object is "current"
 
-All agentic tool types support domain tool injection:
+All agentic tool types support tool chaining:
 
-- `SimpleAgenticTool`: Domain tools are available as soon as an artifact is returned
-- `PlaybookTool`: Domain tools are available immediately (not subject to unlock conditions)
-- `StateMachineTool`: Domain tools are available globally (not state-bound)
+- `SimpleAgenticTool`: Chained tools are available as soon as an artifact is returned
+- `PlaybookTool`: Chained tools are available immediately (not subject to unlock conditions)
+- `StateMachineTool`: Chained tools are available globally (not state-bound)
+
+====== Tool Chaining on PromptRunner
+
+Tool chaining is not limited to agentic tools.
+Because both `AgenticTool` and `PromptRunner` implement the `ToolChaining` interface, you can use `withToolChainingFrom()` and `withToolChainingFromAny()` directly on a `PromptRunner` obtained from an action's `OperationContext`.
+
+This is important because it enables dynamic tool discovery within simple `createObject` and `generateText` calls—without requiring a full `SimpleAgenticTool` wrapper.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// In an @Action method:
+PromptRunner ai = context.ai()
+    .withToolChainingFrom(User.class)       // Chained tools from User
+    .withTools(searchUserTool, getUserTool);
+
+// When getUserTool returns a User artifact, User's @LlmTool methods
+// automatically become available for the LLM to call
+String result = ai.generateText("Find user Alice and update her email to alice@new.com");
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// In an @Action method:
+val ai = context.ai()
+    .withToolChainingFrom<User>()           // Chained tools from User
+    .withTools(searchUserTool, getUserTool)
+
+// When getUserTool returns a User artifact, User's @LlmTool methods
+// automatically become available for the LLM to call
+val result = ai.generateText("Find user Alice and update her email to alice@new.com")
+----
+====
 
 [[reference.tools__artifact-filtering]]
 ===== Filtering Artifacts for Asset Tracking

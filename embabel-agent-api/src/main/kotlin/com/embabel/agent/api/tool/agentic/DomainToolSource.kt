@@ -98,6 +98,9 @@ class DomainToolTracker(
     // Map from domain class to current bound instance (if any)
     private val boundInstances = mutableMapOf<Class<*>, Any>()
 
+    // Buffer for tools discovered via auto-discovery, drained by ToolChainingInjectionStrategy
+    private val pendingTools = java.util.concurrent.LinkedBlockingQueue<Tool>()
+
     /**
      * Check if the given artifact is a single instance of a registered domain class
      * (or any class with @LlmTool methods in auto-discovery mode).
@@ -168,6 +171,9 @@ class DomainToolTracker(
         // Bind this instance
         boundInstances[artifactClass] = artifact
 
+        // Buffer tools for ToolChainingInjectionStrategy to drain
+        pendingTools.addAll(tools)
+
         logger.info(
             "Auto-discovered {} instance, exposing {} tools: {}",
             artifactClass.simpleName,
@@ -175,6 +181,17 @@ class DomainToolTracker(
             tools.map { it.definition.name },
         )
         return tools
+    }
+
+    /**
+     * Drain and return all pending tools discovered via auto-discovery.
+     * After calling this method, the pending buffer is cleared.
+     * Used by [com.embabel.agent.spi.loop.ToolChainingInjectionStrategy] to inject tools mid-loop.
+     */
+    fun drainPendingTools(): List<Tool> {
+        val drained = mutableListOf<Tool>()
+        pendingTools.drainTo(drained)
+        return drained
     }
 
     /**

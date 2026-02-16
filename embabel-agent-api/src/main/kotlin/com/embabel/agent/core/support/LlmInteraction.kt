@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.ToolConsumer
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
@@ -124,6 +125,7 @@ data class LlmInteraction(
     val useEmbabelToolLoop: Boolean = true,
     val maxToolIterations: Int = 20,
     val guardRails: List<com.embabel.agent.api.validation.guardrails.GuardRail> = emptyList(),
+    val additionalInjectionStrategies: List<ToolInjectionStrategy> = emptyList(),
 ) : LlmCall {
 
     override val name: String = id.value

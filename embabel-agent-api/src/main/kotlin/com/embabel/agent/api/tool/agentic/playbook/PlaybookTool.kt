@@ -243,7 +243,7 @@ data class PlaybookTool internal constructor(
      * @param type The domain class that may contribute tools
      * @param predicate Predicate to filter which instances contribute tools
      */
-    override fun <T : Any> withDomainToolsFrom(
+    override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): PlaybookTool = copy(
@@ -251,28 +251,28 @@ data class PlaybookTool internal constructor(
     )
 
     /**
-     * Register a domain class with a predicate.
+     * Register a class with a predicate.
      * Kotlin-friendly version using reified type parameter.
      */
-    inline fun <reified T : Any> withDomainToolsFrom(
+    inline fun <reified T : Any> withToolChainingFrom(
         noinline predicate: (T, com.embabel.agent.core.AgentProcess?) -> Boolean,
-    ): PlaybookTool = withDomainToolsFrom(T::class.java, DomainToolPredicate(predicate))
+    ): PlaybookTool = withToolChainingFrom(T::class.java, DomainToolPredicate(predicate))
 
     /**
-     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     * Register a class that can contribute @LlmTool methods when a single instance is retrieved.
      * Kotlin-friendly version using reified type parameter.
      *
      * Example:
      * ```kotlin
      * PlaybookTool("userManager", "Manage users")
      *     .withTools(searchUserTool, getUserTool)
-     *     .withDomainToolsFrom<User>()  // User methods become available when a single User is retrieved
+     *     .withToolChainingFrom<User>()  // User methods become available when a single User is retrieved
      * ```
      */
-    inline fun <reified T : Any> withDomainToolsFrom(): PlaybookTool =
-        withDomainToolsFrom(T::class.java)
+    inline fun <reified T : Any> withToolChainingFrom(): PlaybookTool =
+        withToolChainingFrom(T::class.java)
 
-    override fun withAnyDomainTools(): PlaybookTool = copy(autoDiscovery = true)
+    override fun withToolChainingFromAny(): PlaybookTool = copy(autoDiscovery = true)
 
     companion object {
 

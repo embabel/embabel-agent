@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.PromptRunner.Creating
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.agentic.ToolChaining
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -49,7 +50,7 @@ import kotlin.reflect.KProperty1
  * A contextual facade to LlmOperations.
  * @see com.embabel.agent.core.internal.LlmOperations
  */
-interface PromptRunner : LlmUse, PromptRunnerOperations {
+interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunner> {
 
     /**
      * Additional objects with @Tool annotation for use in this PromptRunner

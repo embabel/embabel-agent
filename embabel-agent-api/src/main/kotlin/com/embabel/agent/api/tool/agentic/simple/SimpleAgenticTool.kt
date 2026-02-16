@@ -21,12 +21,14 @@ import com.embabel.agent.api.tool.ListSink
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.agentic.AgenticSystemPromptCreator
 import com.embabel.agent.api.tool.agentic.AgenticTool
+import com.embabel.agent.api.common.support.DelegatingStreamingPromptRunner
 import com.embabel.agent.api.tool.agentic.AgenticToolSupport
 import com.embabel.agent.api.tool.agentic.DomainToolFactory
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
+import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
 
@@ -146,13 +148,25 @@ data class SimpleAgenticTool(
 
         val allTools = wrappedTools + domainPlaceholderTools
 
+        val strategies = if (autoDiscovery && domainToolTracker != null) {
+            listOf(ToolChainingInjectionStrategy(domainToolTracker))
+        } else {
+            emptyList()
+        }
+
         val ai = executingContext.ai()
-        val output = ai
             .withLlm(llm)
             .withId("simple-agentic-tool-${definition.name}")
             .withTools(allTools)
             .withSystemPrompt(systemPrompt)
-            .generateText(input)
+
+        val runner = if (strategies.isNotEmpty() && ai is DelegatingStreamingPromptRunner) {
+            ai.withInjectionStrategies(strategies)
+        } else {
+            ai
+        }
+
+        val output = runner.generateText(input)
 
         return AgenticToolSupport.createResult(output, artifacts)
     }
@@ -206,7 +220,7 @@ data class SimpleAgenticTool(
         captureNestedArtifacts = capture,
     )
 
-    override fun <T : Any> withDomainToolsFrom(
+    override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): SimpleAgenticTool = copy(
@@ -217,16 +231,16 @@ data class SimpleAgenticTool(
      * Register a domain class with a predicate.
      * Kotlin-friendly version using reified type parameter.
      */
-    inline fun <reified T : Any> withDomainToolsFrom(
+    inline fun <reified T : Any> withToolChainingFrom(
         noinline predicate: (T, com.embabel.agent.core.AgentProcess?) -> Boolean,
-    ): SimpleAgenticTool = withDomainToolsFrom(T::class.java, DomainToolPredicate(predicate))
+    ): SimpleAgenticTool = withToolChainingFrom(T::class.java, DomainToolPredicate(predicate))
 
     /**
-     * Register a domain class that can contribute @LlmTool methods when a single instance is retrieved.
+     * Register a class that can contribute @LlmTool methods when a single instance is retrieved.
      * Kotlin-friendly version using reified type parameter.
      */
-    inline fun <reified T : Any> withDomainToolsFrom(): SimpleAgenticTool =
-        withDomainToolsFrom(T::class.java)
+    inline fun <reified T : Any> withToolChainingFrom(): SimpleAgenticTool =
+        withToolChainingFrom(T::class.java)
 
-    override fun withAnyDomainTools(): SimpleAgenticTool = copy(autoDiscovery = true)
+    override fun withToolChainingFromAny(): SimpleAgenticTool = copy(autoDiscovery = true)
 }

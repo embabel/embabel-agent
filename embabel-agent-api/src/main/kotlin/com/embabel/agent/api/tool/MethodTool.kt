@@ -82,11 +82,12 @@ internal sealed class MethodTool(
             is String -> Tool.Result.text(result)
             is Tool.Result -> result
             else -> {
-                // Convert to JSON string
+                // Convert to JSON string and preserve the original object as an artifact
+                // so that ArtifactSinkingTool can capture it for tool chaining
                 try {
-                    Tool.Result.text(objectMapper.writeValueAsString(result))
+                    Tool.Result.withArtifact(objectMapper.writeValueAsString(result), result)
                 } catch (_: Exception) {
-                    Tool.Result.text(result.toString())
+                    Tool.Result.withArtifact(result.toString(), result)
                 }
             }
         }

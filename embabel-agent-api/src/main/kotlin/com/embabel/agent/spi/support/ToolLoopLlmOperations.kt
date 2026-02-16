@@ -26,6 +26,7 @@ import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
+import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolLoopFactory
@@ -142,10 +143,18 @@ open class ToolLoopLlmOperations(
             }
         }
 
+        val injectionStrategy = if (interaction.additionalInjectionStrategies.isNotEmpty()) {
+            ChainedToolInjectionStrategy(
+                listOf(ToolInjectionStrategy.DEFAULT) + interaction.additionalInjectionStrategies
+            )
+        } else {
+            ToolInjectionStrategy.DEFAULT
+        }
+
         val toolLoop = toolLoopFactory.create(
             llmMessageSender = messageSender,
             objectMapper = objectMapper,
-            injectionStrategy = ToolInjectionStrategy.DEFAULT,
+            injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
             toolDecorator = injectedToolDecorator,
         )

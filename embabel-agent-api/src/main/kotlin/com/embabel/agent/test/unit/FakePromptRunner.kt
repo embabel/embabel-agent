@@ -21,7 +21,10 @@ import com.embabel.agent.api.common.support.DelegatingRendering
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.agentic.DomainToolPredicate
+import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.validation.guardrails.GuardRail
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
@@ -200,6 +203,24 @@ data class FakePromptRunner(
         override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate {
             return this@FakePromptRunner.copy(guardRails = this@FakePromptRunner.guardRails + guards).DelegateAdapter()
         }
+
+        override val domainToolSources: List<DomainToolSource<*>>
+            get() = emptyList()
+
+        override val autoDiscovery: Boolean
+            get() = false
+
+        override val injectionStrategies: List<ToolInjectionStrategy>
+            get() = emptyList()
+
+        override fun withInjectionStrategies(strategies: List<ToolInjectionStrategy>): PromptExecutionDelegate = this
+
+        override fun <T : Any> withToolChainingFrom(
+            type: Class<T>,
+            predicate: DomainToolPredicate<T>,
+        ): PromptExecutionDelegate = this
+
+        override fun withToolChainingFromAny(): PromptExecutionDelegate = this
 
         override fun <T> createObject(messages: List<Message>, outputClass: Class<T>): T {
             return this@FakePromptRunner.createObject(messages, outputClass)
@@ -410,4 +431,11 @@ data class FakePromptRunner(
     override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
         return copy(guardRails = this.guardRails + guards)
     }
+
+    override fun <T : Any> withToolChainingFrom(
+        type: Class<T>,
+        predicate: DomainToolPredicate<T>,
+    ): PromptRunner = this
+
+    override fun withToolChainingFromAny(): PromptRunner = this
 }
