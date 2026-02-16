@@ -84,10 +84,14 @@ interface NamedEntity : Retrievable, NamedAndDescribed {
          */
         @JvmStatic
         fun dataDictionaryFromPackages(vararg packages: String): DataDictionary {
+            val nonBlank = packages.filter { it.isNotBlank() }
+            if (nonBlank.isEmpty()) {
+                return DataDictionary.fromDomainTypes("NamedEntity", emptySet())
+            }
             val resolver = PathMatchingResourcePatternResolver()
             val metadataReaderFactory = CachingMetadataReaderFactory(resolver)
             val types = mutableSetOf<JvmType>()
-            for (packageName in packages) {
+            for (packageName in nonBlank) {
                 val pattern = "classpath*:${packageName.replace('.', '/')}/**/*.class"
                 try {
                     for (resource in resolver.getResources(pattern)) {

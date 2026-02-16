@@ -107,6 +107,30 @@ class DataDictionaryFromPackagesTest {
         }
 
         @Test
+        fun `should return empty dictionary for empty string package`() {
+            val dictionary = NamedEntity.dataDictionaryFromPackages("")
+            assertTrue(dictionary.domainTypes.isEmpty())
+        }
+
+        @Test
+        fun `should return empty dictionary for blank string packages`() {
+            val dictionary = NamedEntity.dataDictionaryFromPackages("  ", "\t", "")
+            assertTrue(dictionary.domainTypes.isEmpty())
+        }
+
+        @Test
+        fun `should skip blank packages but scan valid ones`() {
+            val dictionary = NamedEntity.dataDictionaryFromPackages(
+                "",
+                "com.embabel.agent.rag.model",
+                "  ",
+            )
+            val classNames = dictionary.jvmTypes.map { it.clazz.name }.toSet()
+            assertTrue(classNames.contains(TestPerson::class.java.name))
+            assertTrue(classNames.contains(TestBook::class.java.name))
+        }
+
+        @Test
         fun `should produce domain types usable as JvmTypes`() {
             val dictionary = NamedEntity.dataDictionaryFromPackages(
                 "com.embabel.agent.rag.model",
