@@ -17,6 +17,7 @@ package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.MatryoshkaTools
+import com.embabel.agent.api.annotation.UnfoldingTools
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
@@ -1823,6 +1824,39 @@ class MatryoshkaToolTest {
             assertTrue((result as Tool.Result.Text).content.contains("test query"))
         }
     }
+
+    @Nested
+    inner class `withToolObject and UnfoldingTools annotation` {
+
+        @Test
+        fun `withToolObject with UnfoldingTools-annotated class adds as nested UnfoldingTool`() {
+            val tool1 = MockTool("existing", "Existing tool") { Tool.Result.text("existing") }
+            val initial = com.embabel.agent.api.tool.progressive.UnfoldingTool.of(
+                name = "combined",
+                description = "Combined tools",
+                innerTools = listOf(tool1)
+            )
+
+            val combined = initial.withToolObject(UnfoldingAnnotatedTools())
+
+            assertEquals(2, combined.innerTools.size)
+            assertTrue(combined.innerTools.any { it.definition.name == "existing" })
+            val nested = combined.innerTools.find { it.definition.name == "annotated_ops" }
+            assertNotNull(nested)
+            assertTrue(nested is com.embabel.agent.api.tool.progressive.UnfoldingTool)
+        }
+
+        @Test
+        fun `Tool fromInstance with UnfoldingTools-annotated class returns single UnfoldingTool`() {
+            val tools = Tool.fromInstance(UnfoldingAnnotatedTools())
+
+            assertEquals(1, tools.size)
+            assertTrue(tools[0] is com.embabel.agent.api.tool.progressive.UnfoldingTool)
+            assertEquals("annotated_ops", tools[0].definition.name)
+            val unfolding = tools[0] as com.embabel.agent.api.tool.progressive.UnfoldingTool
+            assertEquals(2, unfolding.innerTools.size)
+        }
+    }
 }
 
 // Test fixture for builder tests
@@ -1998,4 +2032,17 @@ class Level1Top {
             fun deepMutate(): String = "Deep mutation result"
         }
     }
+}
+
+@UnfoldingTools(
+    name = "annotated_ops",
+    description = "Operations using @UnfoldingTools annotation"
+)
+class UnfoldingAnnotatedTools {
+
+    @LlmTool(description = "Search items")
+    fun search(query: String): String = "Results for: $query"
+
+    @LlmTool(description = "Count items")
+    fun count(): String = "42"
 }
