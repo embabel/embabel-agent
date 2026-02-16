@@ -99,7 +99,7 @@ class DomainToolTracker(
     private val boundInstances = mutableMapOf<Class<*>, Any>()
 
     // Buffer for tools discovered via auto-discovery, drained by ToolChainingInjectionStrategy
-    private val pendingTools: MutableList<Tool> = java.util.Collections.synchronizedList(mutableListOf())
+    private val pendingTools = java.util.concurrent.LinkedBlockingQueue<Tool>()
 
     /**
      * Check if the given artifact is a single instance of a registered domain class
@@ -189,14 +189,9 @@ class DomainToolTracker(
      * Used by [com.embabel.agent.spi.loop.ToolChainingInjectionStrategy] to inject tools mid-loop.
      */
     fun drainPendingTools(): List<Tool> {
-        synchronized(pendingTools) {
-            if (pendingTools.isEmpty()) {
-                return emptyList()
-            }
-            val drained = pendingTools.toList()
-            pendingTools.clear()
-            return drained
-        }
+        val drained = mutableListOf<Tool>()
+        pendingTools.drainTo(drained)
+        return drained
     }
 
     /**
