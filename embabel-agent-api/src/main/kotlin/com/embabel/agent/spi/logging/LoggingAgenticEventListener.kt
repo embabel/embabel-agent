@@ -448,6 +448,11 @@ open class LoggingAgenticEventListener(
         }
     }
 
+    private fun senderLabel(msg: org.springframework.ai.chat.messages.Message): String {
+        val name = msg.metadata["name"] as? String
+        return if (name != null) "${msg.messageType} ($name)" else "${msg.messageType}"
+    }
+
     fun Prompt.toInfoString(): String {
         val bannerChar = "."
         val formattedMessages = instructions.joinToString("\n") { msg ->
@@ -458,9 +463,9 @@ open class LoggingAgenticEventListener(
                         val callSummary = calls.joinToString(", ") { tc ->
                             "${tc.name()}(${trim(s = tc.arguments(), max = 80, keepRight = 10)})"
                         }
-                        "ASSISTANT [tool calls: $callSummary]"
+                        "${senderLabel(msg)} [tool calls: $callSummary]"
                     } else {
-                        "ASSISTANT <${trim(s = msg.text ?: "", max = 200, keepRight = 20)}>"
+                        "${senderLabel(msg)} <${trim(s = msg.text ?: "", max = 200, keepRight = 20)}>"
                     }
                 }
                 is ToolResponseMessage -> {
@@ -472,7 +477,7 @@ open class LoggingAgenticEventListener(
                 }
                 else -> {
                     val text = msg.text ?: ""
-                    "${msg.messageType} <${text}>"
+                    "${senderLabel(msg)} <${text}>"
                 }
             }
         }

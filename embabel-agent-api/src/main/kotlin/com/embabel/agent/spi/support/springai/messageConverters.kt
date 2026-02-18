@@ -29,7 +29,8 @@ import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
  * Convert one of our messages to a Spring AI message with multimodal support.
  */
 fun Message.toSpringAiMessage(): SpringAiMessage {
-    val metadata: Map<String, Any> = emptyMap()
+    val name = (this as? BaseMessage)?.name
+    val metadata: Map<String, Any> = if (name != null) mapOf("name" to name) else emptyMap()
     return when (this) {
         is AssistantMessageWithToolCalls -> {
             val springToolCalls = this.toolCalls.map { toolCall ->
