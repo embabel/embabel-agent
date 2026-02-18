@@ -471,7 +471,8 @@ open class LoggingAgenticEventListener(
                     "TOOL [$respSummary]"
                 }
                 else -> {
-                    "${msg.messageType} <${trim(s = msg.text ?: "", max = 200, keepRight = 20)}>"
+                    val text = msg.text ?: ""
+                    "${msg.messageType} <${text}>"
                 }
             }
         }
