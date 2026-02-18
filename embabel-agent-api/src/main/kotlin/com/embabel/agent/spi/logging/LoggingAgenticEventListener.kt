@@ -56,6 +56,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.ai.chat.messages.AssistantMessage as SpringAiAssistantMessage
+import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.prompt.Prompt
 
 interface LoggingPersonality {
@@ -448,12 +450,33 @@ open class LoggingAgenticEventListener(
 
     fun Prompt.toInfoString(): String {
         val bannerChar = "."
-        return """|${lineSeparator("Messages ", bannerChar)}
-                  |${
-            instructions.joinToString("\n${lineSeparator("", bannerChar)}\n") {
-                "${it.messageType} <${it.text}>"
+        val formattedMessages = instructions.joinToString("\n") { msg ->
+            when (msg) {
+                is SpringAiAssistantMessage -> {
+                    val calls = msg.toolCalls.orEmpty()
+                    if (calls.isNotEmpty()) {
+                        val callSummary = calls.joinToString(", ") { tc ->
+                            "${tc.name()}(${trim(s = tc.arguments(), max = 80, keepRight = 10)})"
+                        }
+                        "ASSISTANT [tool calls: $callSummary]"
+                    } else {
+                        "ASSISTANT <${trim(s = msg.text ?: "", max = 200, keepRight = 20)}>"
+                    }
+                }
+                is ToolResponseMessage -> {
+                    val responses = msg.responses
+                    val respSummary = responses.joinToString(", ") { tr ->
+                        "${tr.name()}→${trim(s = tr.responseData(), max = 80, keepRight = 10)}"
+                    }
+                    "TOOL [$respSummary]"
+                }
+                else -> {
+                    "${msg.messageType} <${trim(s = msg.text ?: "", max = 200, keepRight = 20)}>"
+                }
             }
         }
+        return """|${lineSeparator("Messages ", bannerChar)}
+                  |$formattedMessages
                   |${lineSeparator("Options", bannerChar)}
                   |$options
                   |"""
