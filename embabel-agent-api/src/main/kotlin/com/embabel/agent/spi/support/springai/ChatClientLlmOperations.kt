@@ -1058,6 +1058,7 @@ private class SpringAiOutputConverterAdapter<T>(
  * Allows the LLM to return a result structure, under success, or an error message
  * One of success or failure must be set, but not both.
  */
+@com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = MaybeReturnDeserializer::class)
 internal data class MaybeReturn<T>(
     val success: T? = null,
     val failure: String? = null,
@@ -1069,5 +1070,78 @@ internal data class MaybeReturn<T>(
         } else {
             Result.failure(Exception(failure))
         }
+    }
+}
+
+/**
+ * Custom deserializer for MaybeReturn that gracefully handles deserialization failures
+ * in the success field. When the LLM returns a malformed success object (e.g., missing
+ * required fields or null values for non-nullable fields), this deserializer catches
+ * the error and treats it as a failure case rather than throwing an exception.
+ *
+ * This handles the scenario where some LLMs may return a response like:
+ * ```
+ * {
+ *   "success": {}
+ * }
+ * ```
+ * when they don't have enough information to populate all required fields.
+ */
+internal class MaybeReturnDeserializer<T>(
+    private val valueType: com.fasterxml.jackson.databind.JavaType,
+) : com.fasterxml.jackson.databind.deser.std.StdDeserializer<MaybeReturn<T>>(MaybeReturn::class.java),
+    com.fasterxml.jackson.databind.deser.ContextualDeserializer {
+
+    // Required no-arg constructor for Jackson
+    constructor() : this(
+        com.fasterxml.jackson.databind.type.TypeFactory.defaultInstance().constructType(Any::class.java)
+    )
+
+    override fun createContextual(
+        ctxt: com.fasterxml.jackson.databind.DeserializationContext,
+        property: com.fasterxml.jackson.databind.BeanProperty?,
+    ): com.fasterxml.jackson.databind.JsonDeserializer<*> {
+        val wrapperType = ctxt.contextualType
+        val innerType = if (wrapperType.containedTypeCount() > 0) {
+            wrapperType.containedType(0)
+        } else {
+            ctxt.typeFactory.constructType(Any::class.java)
+        }
+        return MaybeReturnDeserializer<T>(innerType)
+    }
+
+    override fun deserialize(
+        parser: com.fasterxml.jackson.core.JsonParser,
+        ctxt: com.fasterxml.jackson.databind.DeserializationContext,
+    ): MaybeReturn<T> {
+        val node = parser.codec.readTree<com.fasterxml.jackson.databind.JsonNode>(parser)
+
+        val failureNode = node.get("failure")
+        if (failureNode != null && !failureNode.isNull) {
+            return MaybeReturn(success = null, failure = failureNode.asText())
+        }
+
+        val successNode = node.get("success")
+        if (successNode != null && !successNode.isNull) {
+            // Try to deserialize the success field
+            return try {
+                val successValue = ctxt.readTreeAsValue(successNode, valueType) as T?
+                MaybeReturn(success = successValue, failure = null)
+            } catch (e: Exception) {
+                // If deserialization fails (e.g., missing required fields), treat as failure
+                val errorMessage = when (e) {
+                    is com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException ->
+                        "Missing required field: ${e.parameter.name}"
+                    is com.fasterxml.jackson.databind.exc.MismatchedInputException ->
+                        "Invalid data format for expected type"
+                    else ->
+                        "Invalid success object: ${e.message}"
+                }
+                MaybeReturn(success = null, failure = errorMessage)
+            }
+        }
+
+        // Neither success nor failure provided
+        return MaybeReturn(success = null, failure = "Neither success nor failure field provided")
     }
 }
