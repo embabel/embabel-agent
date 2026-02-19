@@ -38,17 +38,17 @@ interface ToolLoopCallback
  */
 interface ToolLoopInspector : ToolLoopCallback {
 
-    /** Called before each LLM invocation */
-    fun beforeLlmCall(context: BeforeLlmCallContext) {}
+    /** Called before each LLM invocation. Default no-op. */
+    fun beforeLlmCall(context: BeforeLlmCallContext) = Unit
 
-    /** Called after LLM returns a response, before processing tool calls */
-    fun afterLlmCall(context: AfterLlmCallContext) {}
+    /** Called after LLM returns a response, before processing tool calls. Default no-op. */
+    fun afterLlmCall(context: AfterLlmCallContext) = Unit
 
-    /** Called after each tool produces a result */
-    fun afterToolResult(context: AfterToolResultContext) {}
+    /** Called after each tool produces a result. Default no-op. */
+    fun afterToolResult(context: AfterToolResultContext) = Unit
 
-    /** Called after each complete iteration (all tool calls processed) */
-    fun afterIteration(context: AfterIterationContext) {}
+    /** Called after each complete iteration (all tool calls processed). Default no-op. */
+    fun afterIteration(context: AfterIterationContext) = Unit
 }
 
 /**

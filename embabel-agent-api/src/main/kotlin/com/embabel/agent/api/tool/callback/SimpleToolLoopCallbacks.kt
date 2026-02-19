@@ -40,7 +40,7 @@ class ToolLoopLoggingInspector(
 
     override fun afterLlmCall(context: AfterLlmCallContext) {
         val toolCalls = (context.response as? AssistantMessageWithToolCalls)?.toolCalls?.size ?: 0
-        val contentLength = context.response.content?.length ?: 0
+        val contentLength = context.response.content.length
         val usage = context.usage?.let { "prompt=${it.promptTokens}, completion=${it.completionTokens}" } ?: "n/a"
         log("afterLlmCall: iteration=${context.iteration}, toolCalls=$toolCalls, contentLength=$contentLength, usage=$usage")
     }
@@ -129,7 +129,7 @@ class ToolResultTruncatingTransformer(
             ToolLoopLoggingInspector.LogLevel.TRACE -> logger.trace(message)
             ToolLoopLoggingInspector.LogLevel.DEBUG -> logger.debug(message)
             ToolLoopLoggingInspector.LogLevel.INFO -> logger.info(message)
-            null -> {} // no logging
+            null -> Unit // logging disabled
         }
     }
 }
