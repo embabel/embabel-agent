@@ -443,7 +443,14 @@ class MyLlmConfiguration {
 ====
 
 The bean will be automatically discovered and made available through the `ModelProvider`.
-You can then use it by name or role:
+
+===== How Model Discovery and Selection Works
+
+When your application starts, `ConfigurableModelProvider` collects all `LlmService` beans from the Spring application context.
+Your custom LLM is matched by the `name` property you set on your `LlmService` implementation.
+
+**By name**: Use the `name` from your `LlmService` directly.
+This works with `@LlmCall`, `ai.withLlm()`, and `AgenticTool.withLlm()`:
 
 [tabs]
 ====
@@ -451,28 +458,76 @@ Java::
 +
 [source,java]
 ----
-// By name
+// In a declarative action
 @LlmCall(llm = "my-custom-model")
 String myAction();
 
-// Or by role (if configured)
-@LlmCall(llm = "#best")
-String myAction();
+// In an imperative action
+ai.withLlm("my-custom-model")
+    .create("Tell me a joke", String.class);
 ----
 
 Kotlin::
 +
 [source,kotlin]
 ----
-// By name
+// In a declarative action
 @LlmCall(llm = "my-custom-model")
 fun myAction(): String
 
-// Or by role (if configured)
-@LlmCall(llm = "#best")
-fun myAction(): String
+// In an imperative action
+ai.withLlm("my-custom-model")
+    .create<String>("Tell me a joke")
 ----
 ====
+
+**By role**: Map a role name to your model name in configuration, then reference it with the `#` prefix:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-llm: my-custom-model  # <1>
+    llms:
+      best: my-custom-model       # <2>
+      cheapest: my-small-model    # <3>
+----
+<1> Sets the default LLM used when no explicit model is specified
+<2> Maps the `best` role to your custom model
+<3> Maps the `cheapest` role to a different model
+
+Then reference roles with `#`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// By role
+@LlmCall(llm = "#best")
+String myAction();
+
+// Or programmatically
+ai.withLlmByRole("best")
+    .create("Tell me a joke", String.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// By role
+@LlmCall(llm = "#best")
+fun myAction(): String
+
+// Or programmatically
+ai.withLlmByRole("best")
+    .create<String>("Tell me a joke")
+----
+====
+
+NOTE: If no LLM is specified in `@LlmCall` or `withLlm()`, the `default-llm` from configuration is used.
 
 ===== Using Your Custom Implementation (Alternative)
 
