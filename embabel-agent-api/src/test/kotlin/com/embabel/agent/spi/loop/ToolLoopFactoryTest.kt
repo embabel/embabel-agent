@@ -52,6 +52,8 @@ class ToolLoopFactoryTest {
             injectionStrategy = injectionStrategy,
             maxIterations = 20,
             toolDecorator = null,
+            inspectors = emptyList(),
+            transformers = emptyList(),
         )
 
         assertNotNull(toolLoop)
@@ -72,6 +74,8 @@ class ToolLoopFactoryTest {
             injectionStrategy = injectionStrategy,
             maxIterations = 15,
             toolDecorator = null,
+            inspectors = emptyList(),
+            transformers = emptyList(),
         )
 
         assertNotNull(toolLoop)
@@ -89,6 +93,8 @@ class ToolLoopFactoryTest {
             injectionStrategy = injectionStrategy,
             maxIterations = 20,
             toolDecorator = null,
+            inspectors = emptyList(),
+            transformers = emptyList(),
         )
 
         assertNotNull(toolLoop)
@@ -113,6 +119,8 @@ class ToolLoopFactoryTest {
                 injectionStrategy = injectionStrategy,
                 maxIterations = 20,
                 toolDecorator = null,
+                inspectors = emptyList(),
+                transformers = emptyList(),
             )
 
             // Get executor via reflection before close
@@ -142,6 +150,8 @@ class ToolLoopFactoryTest {
                     injectionStrategy = injectionStrategy,
                     maxIterations = 20,
                     toolDecorator = null,
+                    inspectors = emptyList(),
+                    transformers = emptyList(),
                 )
 
                 // Close factory
@@ -166,6 +176,8 @@ class ToolLoopFactoryTest {
                 injectionStrategy = injectionStrategy,
                 maxIterations = 20,
                 toolDecorator = null,
+                inspectors = emptyList(),
+                transformers = emptyList(),
             )
 
             // Close should be no-op (no exception, no executor to check)

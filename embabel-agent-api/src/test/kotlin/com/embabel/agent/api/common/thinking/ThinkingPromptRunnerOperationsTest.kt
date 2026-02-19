@@ -19,6 +19,8 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -256,6 +258,10 @@ class ThinkingPromptRunnerOperationsTest {
             }
 
             override fun withGuardRails(vararg guards: GuardRail): PromptRunner = this
+
+            override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner = this
+
+            override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner = this
 
             override fun <T : Any> withToolChainingFrom(
                 type: Class<T>,

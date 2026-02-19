@@ -24,6 +24,8 @@ import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundException
 import com.embabel.chat.ToolCall
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
@@ -61,6 +63,8 @@ internal class ParallelToolLoop(
     injectionStrategy: ToolInjectionStrategy,
     maxIterations: Int,
     toolDecorator: ((Tool) -> Tool)?,
+    inspectors: List<ToolLoopInspector> = emptyList(),
+    transformers: List<ToolLoopTransformer> = emptyList(),
     private val executor: ExecutorService,
     private val parallelConfig: ParallelModeProperties,
 ) : DefaultToolLoop(
@@ -69,6 +73,8 @@ internal class ParallelToolLoop(
     injectionStrategy = injectionStrategy,
     maxIterations = maxIterations,
     toolDecorator = toolDecorator,
+    inspectors = inspectors,
+    transformers = transformers,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -144,13 +150,13 @@ internal class ParallelToolLoop(
         for (result in results) {
             when (result) {
                 is ParallelToolResult.Success ->
-                    addToolResultToHistory(result.toolCall, result.result, state)
+                    addToolResultToHistory(result.toolCall, result.result, result.resultContent, state)
 
                 is ParallelToolResult.Error ->
-                    addToolResultToHistory(result.toolCall, "Error: ${result.message}", state)
+                    addToolResultToHistory(result.toolCall, Tool.Result.error(result.message), "Error: ${result.message}", state)
 
                 is ParallelToolResult.Timeout ->
-                    addToolResultToHistory(result.toolCall, "Error: Tool execution timed out", state)
+                    addToolResultToHistory(result.toolCall, Tool.Result.error("Tool execution timed out"), "Error: Tool execution timed out", state)
 
                 is ParallelToolResult.ReplanRequest -> {
                     // Already handled above
@@ -161,7 +167,7 @@ internal class ParallelToolLoop(
         // 5. Apply injection strategy once (using last successful result's context)
         val lastSuccess = results.filterIsInstance<ParallelToolResult.Success>().lastOrNull()
         if (lastSuccess != null) {
-            applyInjectionStrategy(lastSuccess.toolCall, lastSuccess.result, state)
+            applyInjectionStrategy(lastSuccess.toolCall, lastSuccess.resultContent, state)
         }
 
         return true
@@ -179,8 +185,8 @@ internal class ParallelToolLoop(
             )
 
         return try {
-            val result = executeToolCall(tool, toolCall)
-            ParallelToolResult.Success(toolCall, result)
+            val (result, resultContent) = executeToolCall(tool, toolCall)
+            ParallelToolResult.Success(toolCall, result, resultContent)
         } catch (e: ReplanRequestedException) {
             ParallelToolResult.ReplanRequest(toolCall, e.reason, e.blackboardUpdater)
         } catch (e: Exception) {
@@ -201,7 +207,8 @@ internal class ParallelToolLoop(
 
         data class Success(
             override val toolCall: ToolCall,
-            val result: String,
+            val result: Tool.Result,
+            val resultContent: String,
         ) : ParallelToolResult()
 
         data class ReplanRequest(

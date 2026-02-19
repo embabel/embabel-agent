@@ -32,6 +32,8 @@ import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -203,6 +205,10 @@ data class FakePromptRunner(
         override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate {
             return this@FakePromptRunner.copy(guardRails = this@FakePromptRunner.guardRails + guards).DelegateAdapter()
         }
+
+        override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate = this
+
+        override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate = this
 
         override val domainToolSources: List<DomainToolSource<*>>
             get() = emptyList()
@@ -431,6 +437,10 @@ data class FakePromptRunner(
     override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
         return copy(guardRails = this.guardRails + guards)
     }
+
+    override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner = this
+
+    override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner = this
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
