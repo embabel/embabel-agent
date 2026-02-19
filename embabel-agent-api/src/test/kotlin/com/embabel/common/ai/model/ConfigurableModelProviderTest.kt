@@ -30,6 +30,19 @@ import kotlin.test.assertContains
 
 class ConfigurableModelProviderTest {
 
+    /**
+     * Custom EmbeddingService that does NOT extend AiModel.
+     * Verifies that the framework works with non-Spring AI embedding implementations.
+     */
+    private class CustomEmbeddingService(
+        override val name: String,
+        override val provider: String,
+    ) : EmbeddingService {
+        override val dimensions: Int = 384
+        override fun embed(text: String): FloatArray = FloatArray(dimensions)
+        override fun embed(texts: List<String>): List<FloatArray> = texts.map { embed(it) }
+    }
+
     private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(
             SpringAiLlmService("gpt40", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
@@ -145,6 +158,44 @@ class ConfigurableModelProviderTest {
         fun `valid role`() {
             val ember = mp.getEmbeddingService(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
             assertNotNull(ember)
+        }
+    }
+
+    @Nested
+    inner class CustomEmbeddingServiceTests {
+
+        private val customMp = ConfigurableModelProvider(
+            llms = listOf(
+                SpringAiLlmService("gpt-4.1-mini", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter),
+            ),
+            embeddingServices = listOf(
+                CustomEmbeddingService("my-custom-embeddings", "CustomProvider"),
+            ),
+            properties = ConfigurableModelProviderProperties(
+                embeddingServices = mapOf(
+                    CHEAPEST_ROLE to "my-custom-embeddings"
+                ),
+            ),
+        )
+
+        @Test
+        fun `custom embedding service works with listRoles`() {
+            val roles = customMp.listRoles(EmbeddingService::class.java)
+            assertContains(roles, CHEAPEST_ROLE)
+        }
+
+        @Test
+        fun `custom embedding service works with listModelNames`() {
+            val names = customMp.listModelNames(EmbeddingService::class.java)
+            assertContains(names, "my-custom-embeddings")
+        }
+
+        @Test
+        fun `custom embedding service returned by getEmbeddingService`() {
+            val service = customMp.getEmbeddingService(ByRoleModelSelectionCriteria(CHEAPEST_ROLE))
+            assertEquals("my-custom-embeddings", service.name)
+            assertEquals("CustomProvider", service.provider)
+            assertEquals(384, service.dimensions)
         }
     }
 }

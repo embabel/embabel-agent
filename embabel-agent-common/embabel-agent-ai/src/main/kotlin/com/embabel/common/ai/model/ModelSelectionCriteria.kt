@@ -32,7 +32,7 @@ class NoSuitableModelException(
 ) {
     companion object {
         @JvmStatic
-        fun forModels(criteria: ModelSelectionCriteria, models: List<AiModel<*>>): NoSuitableModelException =
+        fun forModels(criteria: ModelSelectionCriteria, models: List<ModelMetadata>): NoSuitableModelException =
             NoSuitableModelException(criteria, models.map { it.name })
     }
 }

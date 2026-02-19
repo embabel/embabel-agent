@@ -183,7 +183,7 @@ class DockerLocalModelsConfig(
         }
     }
 
-    private fun dockerEmbeddingServiceOf(model: Model): EmbeddingService {
+    private fun dockerEmbeddingServiceOf(model: Model): SpringAiEmbeddingService {
         val springEmbeddingModel = OpenAiEmbeddingModel(
             OpenAiApi.Builder()
                 .baseUrl(dockerConnectionProperties.baseUrl)

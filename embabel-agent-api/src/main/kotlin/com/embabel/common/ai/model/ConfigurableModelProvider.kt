@@ -136,7 +136,7 @@ class ConfigurableModelProvider(
         )
     }
 
-    override fun listRoles(modelClass: Class<out AiModel<*>>): List<String> {
+    override fun listRoles(modelClass: Class<*>): List<String> {
         return when {
             LlmService::class.java.isAssignableFrom(modelClass) -> properties.llms.keys.toList()
             EmbeddingService::class.java.isAssignableFrom(modelClass) -> properties.embeddingServices.keys.toList()
@@ -144,7 +144,7 @@ class ConfigurableModelProvider(
         }
     }
 
-    override fun listModelNames(modelClass: Class<out AiModel<*>>): List<String> {
+    override fun listModelNames(modelClass: Class<*>): List<String> {
         return when {
             LlmService::class.java.isAssignableFrom(modelClass) -> llms.map { it.name }
             EmbeddingService::class.java.isAssignableFrom(modelClass) -> embeddingServices.map { it.name }

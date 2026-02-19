@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.springframework.ai.embedding.EmbeddingModel
 
@@ -31,11 +32,14 @@ data class SpringAiEmbeddingService(
     override val provider: String,
     override val model: EmbeddingModel,
     val configuredDimensions: Int? = null,
-) : EmbeddingService {
+) : EmbeddingService, AiModel<EmbeddingModel> {
 
     override val dimensions get() = configuredDimensions ?: model.dimensions()
 
     override fun embed(text: String): FloatArray = model.embed(text)
 
     override fun embed(texts: List<String>): List<FloatArray> = model.embed(texts)
+
+    override fun infoString(verbose: Boolean?, indent: Int): String =
+        "name: $name, provider: $provider".indent(indent)
 }

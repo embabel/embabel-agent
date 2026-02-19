@@ -25,7 +25,6 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.embedding.EmbeddingModel
 
 class OperationContextAiTest {
 
@@ -56,12 +55,10 @@ class OperationContextAiTest {
             val mockContext = createMockOperationContext()
             val mockModelProvider = mockk<ModelProvider>()
             val mockEmbeddingService = mockk<EmbeddingService>()
-            val mockEmbeddingModel = mockk<EmbeddingModel>()
             val criteria = ModelSelectionCriteria.byName("test-embedding-model")
 
             every { mockContext.processContext.platformServices.modelProvider() } returns mockModelProvider
             every { mockModelProvider.getEmbeddingService(criteria) } returns mockEmbeddingService
-            every { mockEmbeddingService.model } returns mockEmbeddingModel
 
             val ai = createOperationContextAi(mockContext)
             val result = ai.withEmbeddingService(criteria)
@@ -75,12 +72,10 @@ class OperationContextAiTest {
             val mockContext = createMockOperationContext()
             val mockModelProvider = mockk<ModelProvider>()
             val mockEmbeddingService = mockk<EmbeddingService>()
-            val mockEmbeddingModel = mockk<EmbeddingModel>()
             val modelName = "test-embedding-model"
 
             every { mockContext.processContext.platformServices.modelProvider() } returns mockModelProvider
             every { mockModelProvider.getEmbeddingService(any()) } returns mockEmbeddingService
-            every { mockEmbeddingService.model } returns mockEmbeddingModel
 
             val ai = createOperationContextAi(mockContext)
             val result = ai.withEmbeddingService(modelName)
@@ -96,11 +91,9 @@ class OperationContextAiTest {
             val mockContext = createMockOperationContext()
             val mockModelProvider = mockk<ModelProvider>()
             val mockEmbeddingService = mockk<EmbeddingService>()
-            val mockEmbeddingModel = mockk<EmbeddingModel>()
 
             every { mockContext.processContext.platformServices.modelProvider() } returns mockModelProvider
             every { mockModelProvider.getEmbeddingService(DefaultModelSelectionCriteria) } returns mockEmbeddingService
-            every { mockEmbeddingService.model } returns mockEmbeddingModel
 
             val ai = createOperationContextAi(mockContext)
             val result = ai.withDefaultEmbeddingService()

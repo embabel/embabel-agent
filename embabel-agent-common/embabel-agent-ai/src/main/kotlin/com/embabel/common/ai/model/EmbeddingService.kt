@@ -15,6 +15,8 @@
  */
 package com.embabel.common.ai.model
 
+import com.embabel.common.core.types.HasInfoString
+import com.embabel.common.util.indent
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import java.time.LocalDate
 
@@ -48,7 +50,7 @@ interface EmbeddingServiceMetadata : ModelMetadata {
 /**
  * Embed text in vector space
  */
-interface EmbeddingService : AiModel<Any>, EmbeddingServiceMetadata {
+interface EmbeddingService : EmbeddingServiceMetadata, HasInfoString {
 
     /**
      * Embed a single text in vector space
@@ -68,6 +70,8 @@ interface EmbeddingService : AiModel<Any>, EmbeddingServiceMetadata {
      */
     val dimensions: Int
 
+    override fun infoString(verbose: Boolean?, indent: Int): String =
+        "name: $name, provider: $provider".indent(indent)
 }
 
 data class EmbeddingServiceMetadataImpl(

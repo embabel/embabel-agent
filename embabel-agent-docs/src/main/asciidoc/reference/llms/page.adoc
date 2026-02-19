@@ -617,3 +617,216 @@ The `ToolLoopLlmOperations` base class provides several extension points:
    - `AssistantMessageWithToolCalls`: LLM response with tool requests
    - `ToolResultMessage`: Result returned to LLM after tool execution
 
+
+==== Advanced: Custom Embedding Service
+
+Just as you can integrate a custom LLM, you can implement a custom embedding service that doesn't depend on Spring AI.
+This is useful when:
+
+- You want to use an embedding provider not supported by Spring AI
+- You need custom pre/post-processing of embeddings
+- You're integrating with a proprietary or internal embedding API
+
+===== The EmbeddingService Interface
+
+The `EmbeddingService` interface is framework-agnostic.
+Unlike `SpringAiEmbeddingService`, a custom implementation does not need to wrap a Spring AI `EmbeddingModel`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public interface EmbeddingService {
+    float[] embed(String text);
+    List<float[]> embed(List<String> texts);
+    int getDimensions();
+    String getName();
+    String getProvider();
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+interface EmbeddingService : EmbeddingServiceMetadata, HasInfoString {
+    fun embed(text: String): FloatArray
+    fun embed(texts: List<String>): List<FloatArray>
+    val dimensions: Int
+}
+----
+====
+
+===== Example: Custom Embedding Provider
+
+Here's an example of implementing `EmbeddingService` for an HTTP-based embedding API:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class MyCustomEmbeddingService implements EmbeddingService {
+
+    private final String name;
+    private final String provider;
+    private final int dimensions;
+    private final HttpClient httpClient;
+    private final String apiKey;
+
+    public MyCustomEmbeddingService(
+            String name,
+            String provider,
+            int dimensions,
+            HttpClient httpClient,
+            String apiKey) {
+        this.name = name;
+        this.provider = provider;
+        this.dimensions = dimensions;
+        this.httpClient = httpClient;
+        this.apiKey = apiKey;
+    }
+
+    @Override
+    public String getName() { return name; }
+
+    @Override
+    public String getProvider() { return provider; }
+
+    @Override
+    public int getDimensions() { return dimensions; }
+
+    @Override
+    public float[] embed(String text) {
+        return embed(List.of(text)).get(0);
+    }
+
+    @Override
+    public List<float[]> embed(List<String> texts) {
+        MyEmbeddingResponse response = httpClient
+            .post("https://api.my-embeddings.com/embed")
+            .header("Authorization", "Bearer " + apiKey)
+            .body(Map.of("texts", texts, "model", name))
+            .execute(MyEmbeddingResponse.class);
+        return response.getEmbeddings();
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+class MyCustomEmbeddingService(
+    override val name: String,
+    override val provider: String,
+    override val dimensions: Int,
+    private val httpClient: HttpClient,
+    private val apiKey: String,
+) : EmbeddingService {
+
+    override fun embed(text: String): FloatArray =
+        embed(listOf(text)).first()
+
+    override fun embed(texts: List<String>): List<FloatArray> {
+        val response = httpClient.post("https://api.my-embeddings.com/embed") {
+            header("Authorization", "Bearer $apiKey")
+            body = mapOf("texts" to texts, "model" to name)
+        }
+        return response.body<MyEmbeddingResponse>().embeddings
+    }
+}
+----
+====
+
+===== Registering as a Spring Bean
+
+Register your custom embedding service as a Spring bean and it will be automatically discovered:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Configuration
+public class MyEmbeddingConfiguration {
+
+    @Bean
+    public EmbeddingService myCustomEmbeddings(
+            HttpClient httpClient,
+            @Value("${my-embeddings.api-key}") String apiKey) {
+        return new MyCustomEmbeddingService(
+            "my-custom-embeddings",
+            "MyProvider",
+            384,
+            httpClient,
+            apiKey
+        );
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+class MyEmbeddingConfiguration {
+
+    @Bean
+    fun myCustomEmbeddings(
+        httpClient: HttpClient,
+        @Value("\${my-embeddings.api-key}") apiKey: String,
+    ): EmbeddingService = MyCustomEmbeddingService(
+        name = "my-custom-embeddings",
+        provider = "MyProvider",
+        dimensions = 384,
+        httpClient = httpClient,
+        apiKey = apiKey,
+    )
+}
+----
+====
+
+===== Discovery and Selection
+
+Custom embedding services follow the same discovery and selection pattern as LLMs (see <<How Model Discovery and Selection Works>>).
+
+**By name**: Use `ai.withEmbeddingService()` with the `name` from your implementation:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+ai.withEmbeddingService("my-custom-embeddings")
+    .embed("Hello world");
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+ai.withEmbeddingService("my-custom-embeddings")
+    .embed("Hello world")
+----
+====
+
+**By role**: Map a role name to your embedding service in configuration:
+
+[source,yaml]
+----
+embabel:
+  models:
+    default-embedding-model: my-custom-embeddings  # <1>
+    embedding-services:
+      cheapest: my-custom-embeddings               # <2>
+----
+<1> Sets the default embedding service
+<2> Maps the `cheapest` role to your custom embedding service
+
