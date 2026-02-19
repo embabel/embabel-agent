@@ -30,6 +30,8 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmUse
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.streaming.StreamingEvent
@@ -92,6 +94,10 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withValidation(validation: Boolean): PromptExecutionDelegate
 
     fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate
+
+    fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate
+
+    fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate
 
     val domainToolSources: List<DomainToolSource<*>>
 

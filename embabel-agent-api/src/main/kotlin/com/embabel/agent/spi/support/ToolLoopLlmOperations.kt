@@ -157,6 +157,8 @@ open class ToolLoopLlmOperations(
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
             toolDecorator = injectedToolDecorator,
+            inspectors = interaction.inspectors,
+            transformers = interaction.transformers,
         )
 
         val initialMessages = buildInitialMessages(promptContributions, messages, schemaFormat)

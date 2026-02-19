@@ -27,6 +27,8 @@ import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.support.Dog
 import com.embabel.agent.test.unit.FakeOperationContext
 import com.embabel.chat.Message
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.StringTransformer
@@ -892,6 +894,108 @@ class OperationContextPromptRunnerTest {
                 .withToolObject(null) as OperationContextPromptRunner
 
             assertEquals(0, ocpr.toolObjects.size, "Should have no tool objects when null is passed")
+        }
+    }
+
+    @Nested
+    inner class ToolLoopCallbacksTest {
+
+        @Test
+        fun `withToolLoopInspectors adds inspector`() {
+            val inspector = object : ToolLoopInspector {}
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolLoopInspectors(inspector) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("inspectors")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val inspectors = field.get(ocpr) as List<ToolLoopInspector>
+
+            assertEquals(1, inspectors.size, "Must have one inspector")
+            assertSame(inspector, inspectors[0], "Inspector instance must match")
+        }
+
+        @Test
+        fun `withToolLoopInspectors adds multiple inspectors`() {
+            val inspector1 = object : ToolLoopInspector {}
+            val inspector2 = object : ToolLoopInspector {}
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolLoopInspectors(inspector1, inspector2) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("inspectors")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val inspectors = field.get(ocpr) as List<ToolLoopInspector>
+
+            assertEquals(2, inspectors.size, "Must have two inspectors")
+        }
+
+        @Test
+        fun `withToolLoopInspectors is additive`() {
+            val inspector1 = object : ToolLoopInspector {}
+            val inspector2 = object : ToolLoopInspector {}
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolLoopInspectors(inspector1)
+                .withToolLoopInspectors(inspector2) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("inspectors")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val inspectors = field.get(ocpr) as List<ToolLoopInspector>
+
+            assertEquals(2, inspectors.size, "Chained calls must be additive")
+        }
+
+        @Test
+        fun `withToolLoopTransformers adds transformer`() {
+            val transformer = object : ToolLoopTransformer {}
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolLoopTransformers(transformer) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("transformers")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val transformers = field.get(ocpr) as List<ToolLoopTransformer>
+
+            assertEquals(1, transformers.size, "Must have one transformer")
+            assertSame(transformer, transformers[0], "Transformer instance must match")
+        }
+
+        @Test
+        fun `withToolLoopTransformers adds multiple transformers`() {
+            val transformer1 = object : ToolLoopTransformer {}
+            val transformer2 = object : ToolLoopTransformer {}
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolLoopTransformers(transformer1, transformer2) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("transformers")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val transformers = field.get(ocpr) as List<ToolLoopTransformer>
+
+            assertEquals(2, transformers.size, "Must have two transformers")
+        }
+
+        @Test
+        fun `withToolLoopTransformers is additive`() {
+            val transformer1 = object : ToolLoopTransformer {}
+            val transformer2 = object : ToolLoopTransformer {}
+
+            val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
+                .withToolLoopTransformers(transformer1)
+                .withToolLoopTransformers(transformer2) as OperationContextPromptRunner
+
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("transformers")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val transformers = field.get(ocpr) as List<ToolLoopTransformer>
+
+            assertEquals(2, transformers.size, "Chained calls must be additive")
         }
     }
 

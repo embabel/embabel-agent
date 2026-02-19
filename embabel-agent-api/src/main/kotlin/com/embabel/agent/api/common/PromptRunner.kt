@@ -27,6 +27,8 @@ import com.embabel.agent.core.support.LlmUse
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -337,6 +339,24 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * @return PromptRunner instance with additional guardrails configured
      */
     fun withGuardRails(vararg guards: GuardRail): PromptRunner
+
+    /**
+     * Add tool loop inspectors for observing tool loop lifecycle events.
+     * Inspectors are read-only observers useful for logging, metrics, and debugging.
+     *
+     * @param inspectors the inspectors to add
+     * @return PromptRunner instance with the added inspectors
+     */
+    fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner
+
+    /**
+     * Add tool loop transformers for modifying conversation history or tool results.
+     * Transformers can implement compression, summarization, or windowing strategies.
+     *
+     * @param transformers the transformers to add
+     * @return PromptRunner instance with the added transformers
+     */
+    fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner
 
     /**
      * Returns a mode for creating strongly-typed objects.

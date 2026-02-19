@@ -39,6 +39,8 @@ import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOpera
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
@@ -72,6 +74,8 @@ internal data class OperationContextDelegate(
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
+    private val inspectors: List<ToolLoopInspector> = emptyList(),
+    private val transformers: List<ToolLoopTransformer> = emptyList(),
     override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     override val autoDiscovery: Boolean = false,
     override val injectionStrategies: List<ToolInjectionStrategy> = emptyList(),
@@ -129,6 +133,12 @@ internal data class OperationContextDelegate(
 
     override fun withGuardRails(vararg guards: GuardRail): PromptExecutionDelegate =
         copy(guardRails = this.guardRails + guards)
+
+    override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate =
+        copy(inspectors = this.inspectors + inspectors)
+
+    override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate =
+        copy(transformers = this.transformers + transformers)
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
@@ -205,6 +215,8 @@ internal data class OperationContextDelegate(
                 validation = validation,
                 guardRails = guardRails,
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
+                inspectors = inspectors,
+                transformers = transformers,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -235,6 +247,8 @@ internal data class OperationContextDelegate(
                 validation = validation,
                 guardRails = guardRails,
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
+                inspectors = inspectors,
+                transformers = transformers,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -346,6 +360,8 @@ internal data class OperationContextDelegate(
             propertyFilter = propertyFilter,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
+            inspectors = inspectors,
+            transformers = transformers,
         )
     }
 
@@ -460,6 +476,8 @@ internal data class OperationContextDelegate(
             propertyFilter = propertyFilter,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
+            inspectors = inspectors,
+            transformers = transformers,
         )
     }
 

@@ -40,6 +40,8 @@ import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
@@ -67,6 +69,8 @@ internal data class OperationContextPromptRunner(
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
+    private val inspectors: List<ToolLoopInspector> = emptyList(),
+    private val transformers: List<ToolLoopTransformer> = emptyList(),
 ) : StreamingPromptRunner {
 
     val action = (context as? ActionContext)?.action
@@ -140,6 +144,8 @@ internal data class OperationContextPromptRunner(
                 propertyFilter = propertyFilter,
                 validation = validation,
                 guardRails = guardRails,
+                inspectors = inspectors,
+                transformers = transformers,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -168,6 +174,8 @@ internal data class OperationContextPromptRunner(
                 propertyFilter = propertyFilter,
                 validation = validation,
                 guardRails = guardRails,
+                inspectors = inspectors,
+                transformers = transformers,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -303,6 +311,8 @@ internal data class OperationContextPromptRunner(
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 guardRails = guardRails,
+                inspectors = inspectors,
+                transformers = transformers,
             ),
             messages = messages,
             agentProcess = context.processContext.agentProcess,
@@ -350,6 +360,8 @@ internal data class OperationContextPromptRunner(
                 generateExamples = generateExamples,
                 propertyFilter = propertyFilter,
                 guardRails = guardRails,
+                inspectors = inspectors,
+                transformers = transformers,
             ),
             messages = messages,
             agentProcess = context.processContext.agentProcess,
@@ -363,6 +375,18 @@ internal data class OperationContextPromptRunner(
     override fun withGuardRails(vararg guards: GuardRail): PromptRunner {
         return copy(
             guardRails = this.guardRails + guards
+        )
+    }
+
+    override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner {
+        return copy(
+            inspectors = this.inspectors + inspectors
+        )
+    }
+
+    override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner {
+        return copy(
+            transformers = this.transformers + transformers
         )
     }
 

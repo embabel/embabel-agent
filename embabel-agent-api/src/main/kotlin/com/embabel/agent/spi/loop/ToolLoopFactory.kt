@@ -21,6 +21,8 @@ import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ExecutorType
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.agent.spi.loop.support.ParallelToolLoop
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.io.Closeable
 import java.util.concurrent.ExecutorService
@@ -44,6 +46,8 @@ fun interface ToolLoopFactory {
      * @param injectionStrategy strategy for dynamic tool injection
      * @param maxIterations maximum loop iterations
      * @param toolDecorator optional decorator for injected tools
+     * @param inspectors read-only observers for tool loop lifecycle events
+     * @param transformers transformers for modifying conversation history or tool results
      */
     fun create(
         llmMessageSender: LlmMessageSender,
@@ -51,6 +55,8 @@ fun interface ToolLoopFactory {
         injectionStrategy: ToolInjectionStrategy,
         maxIterations: Int,
         toolDecorator: ((Tool) -> Tool)?,
+        inspectors: List<ToolLoopInspector>,
+        transformers: List<ToolLoopTransformer>,
     ): ToolLoop
 
     companion object {
@@ -97,6 +103,8 @@ internal class ConfigurableToolLoopFactory(
         injectionStrategy: ToolInjectionStrategy,
         maxIterations: Int,
         toolDecorator: ((Tool) -> Tool)?,
+        inspectors: List<ToolLoopInspector>,
+        transformers: List<ToolLoopTransformer>,
     ): ToolLoop = when (config.type) {
         ToolLoopType.DEFAULT -> DefaultToolLoop(
             llmMessageSender = llmMessageSender,
@@ -104,6 +112,8 @@ internal class ConfigurableToolLoopFactory(
             injectionStrategy = injectionStrategy,
             maxIterations = maxIterations,
             toolDecorator = toolDecorator,
+            inspectors = inspectors,
+            transformers = transformers,
         )
         ToolLoopType.PARALLEL -> createParallelToolLoop(
             llmMessageSender = llmMessageSender,
@@ -111,6 +121,8 @@ internal class ConfigurableToolLoopFactory(
             injectionStrategy = injectionStrategy,
             maxIterations = maxIterations,
             toolDecorator = toolDecorator,
+            inspectors = inspectors,
+            transformers = transformers,
         )
     }
 
@@ -120,12 +132,16 @@ internal class ConfigurableToolLoopFactory(
         injectionStrategy: ToolInjectionStrategy,
         maxIterations: Int,
         toolDecorator: ((Tool) -> Tool)?,
+        inspectors: List<ToolLoopInspector>,
+        transformers: List<ToolLoopTransformer>,
     ): ToolLoop = ParallelToolLoop(
         llmMessageSender = llmMessageSender,
         objectMapper = objectMapper,
         injectionStrategy = injectionStrategy,
         maxIterations = maxIterations,
         toolDecorator = toolDecorator,
+        inspectors = inspectors,
+        transformers = transformers,
         executor = executor ?: lazyExecutor,
         parallelConfig = config.parallel,
     )

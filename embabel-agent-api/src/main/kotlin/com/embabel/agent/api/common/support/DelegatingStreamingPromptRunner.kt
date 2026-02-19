@@ -30,6 +30,8 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -120,6 +122,12 @@ internal data class DelegatingStreamingPromptRunner(
 
     override fun withGuardRails(vararg guards: GuardRail): PromptRunner =
         copy(delegate = delegate.withGuardRails(*guards))
+
+    override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner =
+        copy(delegate = delegate.withToolLoopInspectors(*inspectors))
+
+    override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner =
+        copy(delegate = delegate.withToolLoopTransformers(*transformers))
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
