@@ -70,7 +70,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * if possible. This implementation does nothing.
      *
      * Only returns entities that are mentioned in propositions belonging to the specified context.
-     * Uses the relationship pattern: Entity <-[:RESOLVED_TO]- Mention <-[:HAS_MENTION]- Proposition
+     * Uses the relationship pattern: Entity <-[:MENTIONS]- Proposition
      *
      * Example:
      * ```kotlin
