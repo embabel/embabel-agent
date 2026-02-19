@@ -315,6 +315,7 @@ class GoogleGenAiModelsConfig(
             name = embeddingDef.modelId,
             model = embeddingModel,
             provider = GoogleGenAiModels.PROVIDER,
+            configuredDimensions = embeddingDef.dimensions,
         )
     }
 }

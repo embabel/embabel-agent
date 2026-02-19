@@ -136,6 +136,7 @@ open class OpenAiCompatibleModelFactory(
     fun openAiCompatibleEmbeddingService(
         model: String,
         provider: String,
+        configuredDimensions: Int? = null,
     ): EmbeddingService {
         val embeddingModel = OpenAiEmbeddingModel(
             openAiApi,
@@ -148,6 +149,7 @@ open class OpenAiCompatibleModelFactory(
             name = model,
             model = embeddingModel,
             provider = provider,
+            configuredDimensions = configuredDimensions,
         )
     }
 

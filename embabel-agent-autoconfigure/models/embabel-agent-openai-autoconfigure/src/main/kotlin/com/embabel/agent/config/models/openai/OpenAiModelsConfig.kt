@@ -217,6 +217,7 @@ class OpenAiModelsConfig(
         return openAiCompatibleEmbeddingService(
             model = embeddingDef.modelId,
             provider = OpenAiModels.PROVIDER,
+            configuredDimensions = embeddingDef.dimensions,
         )
     }
 }
