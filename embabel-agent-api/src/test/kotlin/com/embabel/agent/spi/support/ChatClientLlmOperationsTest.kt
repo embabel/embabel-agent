@@ -1061,6 +1061,7 @@ class ChatClientLlmOperationsTest {
                 templateRenderer = JinjavaTemplateRenderer(),
                 objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
                 dataBindingProperties = LlmDataBindingProperties(maxAttempts = 1),
+                asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
             )
 
             val exception = assertThrows(RuntimeException::class.java) {
