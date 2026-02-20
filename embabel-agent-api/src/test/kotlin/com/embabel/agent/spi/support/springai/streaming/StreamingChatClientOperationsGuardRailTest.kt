@@ -170,6 +170,7 @@ class StreamingChatClientOperationsGuardRailTest {
             templateRenderer = JinjavaTemplateRenderer(),
             objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
             dataBindingProperties = dataBindingProperties,
+            asyncer = com.embabel.agent.spi.support.ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )
         val streamingOperations = StreamingChatClientOperations(cco)
         return Setup(streamingOperations, mockAgentProcess, mutableLlmInvocationHistory)

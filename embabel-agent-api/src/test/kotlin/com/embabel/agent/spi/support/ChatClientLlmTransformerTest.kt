@@ -184,6 +184,7 @@ class ChatClientLlmTransformerTest {
                 toolDecorator = DefaultToolDecorator(),
                 validator = Validation.buildDefaultValidatorFactory().validator,
                 templateRenderer = JinjavaTemplateRenderer(),
+                asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
             )
             return transformer.createObject(
                 messages = listOf(UserMessage("Say hello")),
@@ -369,6 +370,7 @@ class ChatClientLlmTransformerTest {
                     toolDecorator = DefaultToolDecorator(),
                     templateRenderer = JinjavaTemplateRenderer(),
                     validator = Validation.buildDefaultValidatorFactory().validator,
+                    asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
                 )
             val result = transformer.createObjectIfPossible(
                 messages = listOf(UserMessage("Say hello")),

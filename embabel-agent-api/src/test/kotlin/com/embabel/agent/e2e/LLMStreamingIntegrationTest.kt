@@ -132,6 +132,7 @@ class StreamingTestConfig {
             validator = validator,
             templateRenderer = templateRenderer,
             objectMapper = objectMapper,
+            asyncer = com.embabel.agent.spi.support.ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )
     }
 }

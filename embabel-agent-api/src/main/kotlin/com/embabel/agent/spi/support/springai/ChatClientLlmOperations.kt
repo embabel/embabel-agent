@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
@@ -100,6 +101,7 @@ internal class ChatClientLlmOperations(
     observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     private val customizers: List<ChatClientCustomizer> = emptyList(),
     toolLoopFactory: ToolLoopFactory = ToolLoopFactory.default(),
+    asyncer: Asyncer,
 ) : ToolLoopLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -111,6 +113,7 @@ internal class ChatClientLlmOperations(
     objectMapper = objectMapper,
     observationRegistry = observationRegistry,
     toolLoopFactory = toolLoopFactory,
+    asyncer = asyncer,
 ) {
 
     @PostConstruct
@@ -237,7 +240,7 @@ internal class ChatClientLlmOperations(
             val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
 
             val callResponse = try {
-                CompletableFuture.supplyAsync {
+                asyncer.async {
                     chatClient
                         .prompt(springAiPrompt)
                         .toolCallbacks(interaction.tools.toSpringToolCallbacks())
@@ -471,7 +474,7 @@ internal class ChatClientLlmOperations(
             .execute<ThinkingResponse<O>, DatabindException> {
                 val attempt = (RetrySynchronizationManager.getContext()?.retryCount ?: 0) + 1
 
-                val future = CompletableFuture.supplyAsync {
+                val future = asyncer.async {
                     chatClient
                         .prompt(springAiPrompt)
                         .toolCallbacks(tools.toSpringToolCallbacks())
@@ -615,7 +618,7 @@ internal class ChatClientLlmOperations(
 
             val result = dataBindingProperties.retryTemplate(interaction.id.value)
                 .execute<Result<ThinkingResponse<O>>, DatabindException> {
-                    val future = CompletableFuture.supplyAsync {
+                    val future = asyncer.async {
                         chatClient
                             .prompt(springAiPrompt)
                             .toolCallbacks(tools.toSpringToolCallbacks())

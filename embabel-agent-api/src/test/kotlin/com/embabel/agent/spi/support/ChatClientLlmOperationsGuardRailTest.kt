@@ -153,6 +153,7 @@ class ChatClientLlmOperationsGuardRailTest {
             templateRenderer = JinjavaTemplateRenderer(),
             objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
             dataBindingProperties = dataBindingProperties,
+            asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )
         return Setup(cco, mockAgentProcess, mutableLlmInvocationHistory)
     }
