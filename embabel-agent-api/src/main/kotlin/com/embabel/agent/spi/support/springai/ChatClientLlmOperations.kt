@@ -206,6 +206,37 @@ internal class ChatClientLlmOperations(
     // capturing the fully augmented prompt (with resolved options, tool schemas, etc.)
     // and firing once per tool-loop iteration rather than once before the loop.
 
+    /**
+     * Extracts a non-null [ChatResponse] from the call response, throwing a descriptive
+     * [IllegalStateException] instead of an NPE when the response is null.
+     * A null response typically indicates an invalid API key or insufficient model permissions.
+     */
+    private fun requireChatResponse(
+        callResponse: ChatClient.CallResponseSpec,
+        interaction: LlmInteraction,
+    ): ChatResponse {
+        return callResponse.chatResponse()
+            ?: throw IllegalStateException(
+                "LLM call for interaction '${interaction.id.value}' returned no response. " +
+                    "This typically indicates an invalid API key or insufficient permissions for the configured model."
+            )
+    }
+
+    /**
+     * Extracts a non-null entity from the response, throwing a descriptive
+     * [IllegalStateException] instead of an NPE when the entity is null.
+     */
+    private fun <T> requireEntity(
+        responseEntity: ResponseEntity<ChatResponse, T>,
+        interaction: LlmInteraction,
+    ): T {
+        return responseEntity.entity
+            ?: throw IllegalStateException(
+                "LLM call for interaction '${interaction.id.value}' returned no parseable entity. " +
+                    "This typically indicates an invalid API key or insufficient permissions for the configured model."
+            )
+    }
+
     override fun <O> doTransformIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
@@ -326,7 +357,7 @@ internal class ChatClientLlmOperations(
             val rawText = responseEntity.response?.result?.output?.text ?: ""
             validateAssistantResponse(rawText, interaction, llmRequestEvent.agentProcess.blackboard)
 
-            responseEntity.entity!!.toResult() as Result<O>
+            requireEntity(responseEntity, interaction).toResult() as Result<O>
         }
     }
 
@@ -366,9 +397,9 @@ internal class ChatClientLlmOperations(
             .call()
 
         return if (outputClass == String::class.java) {
-            val chatResponse = callResponse.chatResponse()
-            chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
-            val rawText = chatResponse!!.result.output.text as String
+            val chatResponse = requireChatResponse(callResponse, interaction)
+            recordUsage(llm, chatResponse, llmRequestEvent)
+            val rawText = chatResponse.result.output.text as String
             val result = stringWithoutThinkBlocks(rawText) as O
 
             // Guardrails: Post-validation of assistant response
@@ -394,7 +425,7 @@ internal class ChatClientLlmOperations(
                 ),
             )
             re.response?.let { recordUsage(llm, it, llmRequestEvent) }
-            val result = re.entity!!
+            val result = requireEntity(re, interaction)
 
             // Guardrails: Post-validation of assistant response
             // Note: When using ResponseEntity, assistant response validation has limited value since
@@ -492,9 +523,9 @@ internal class ChatClientLlmOperations(
 
                 // Convert response with thinking extraction using manual converter chains
                 if (outputClass == String::class.java) {
-                    val chatResponse = callResponse.chatResponse()
-                    chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
-                    val rawText = chatResponse!!.result.output.text as String
+                    val chatResponse = requireChatResponse(callResponse, interaction)
+                    recordUsage(llm, chatResponse, llmRequestEvent)
+                    val rawText = chatResponse.result.output.text as String
 
                     val thinkingBlocks = extractAllThinkingBlocks(rawText)
                     logger.debug("Extracted {} thinking blocks for String response", thinkingBlocks.size)
@@ -510,9 +541,9 @@ internal class ChatClientLlmOperations(
                     thinkingResponse
                 } else {
                     // Extract thinking blocks from raw response text FIRST
-                    val chatResponse = callResponse.chatResponse()
-                    chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
-                    val rawText = chatResponse!!.result.output.text ?: ""
+                    val chatResponse = requireChatResponse(callResponse, interaction)
+                    recordUsage(llm, chatResponse, llmRequestEvent)
+                    val rawText = chatResponse.result.output.text ?: ""
 
                     val thinkingBlocks = extractAllThinkingBlocks(rawText)
                     logger.debug(
@@ -634,9 +665,9 @@ internal class ChatClientLlmOperations(
                     }
 
                     // Extract thinking blocks from raw text FIRST
-                    val chatResponse = callResponse.chatResponse()
-                    chatResponse?.let { recordUsage(llm, it, llmRequestEvent) }
-                    val rawText = chatResponse!!.result.output.text ?: ""
+                    val chatResponse = requireChatResponse(callResponse, interaction)
+                    recordUsage(llm, chatResponse, llmRequestEvent)
+                    val rawText = chatResponse.result.output.text ?: ""
                     val thinkingBlocks = extractAllThinkingBlocks(rawText)
 
                     // Execute converter chain manually instead of using responseEntity

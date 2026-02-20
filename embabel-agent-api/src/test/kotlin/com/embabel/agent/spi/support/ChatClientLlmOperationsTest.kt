@@ -1001,6 +1001,87 @@ class ChatClientLlmOperationsTest {
     }
 
     @Nested
+    inner class ApiErrorHandling {
+
+        /**
+         * ChatModel that throws RuntimeException simulating an API key
+         * that lacks access to the configured model (401/403 from OpenAI).
+         */
+        inner class ErrorThrowingChatModel(
+            private val exception: RuntimeException = RuntimeException("401 Unauthorized: Invalid API key")
+        ) : ChatModel {
+            override fun getDefaultOptions(): ChatOptions = DefaultChatOptions()
+            override fun call(prompt: Prompt): ChatResponse = throw exception
+        }
+
+        @Test
+        fun `throws RuntimeException with message when API key is invalid`() {
+            val errorModel = ErrorThrowingChatModel()
+
+            val setup = createChatClientLlmOperations(
+                FakeChatModel("unused").also {
+                    // We need to set up the infrastructure but use our own model
+                },
+                LlmDataBindingProperties(maxAttempts = 1),
+            )
+
+            // Replace the model provider to use our error-throwing model
+            val ese = EventSavingAgenticEventListener()
+            val mutableLlmInvocationHistory = MutableLlmInvocationHistory()
+            val mockProcessContext = mockk<ProcessContext>()
+            every { mockProcessContext.platformServices } returns mockk()
+            every { mockProcessContext.platformServices.agentPlatform } returns mockk()
+            every { mockProcessContext.platformServices.agentPlatform.toolGroupResolver } returns RegistryToolGroupResolver(
+                "mt",
+                emptyList()
+            )
+            every { mockProcessContext.platformServices.eventListener } returns ese
+            val mockAgentProcess = mockk<AgentProcess>()
+            every { mockAgentProcess.recordLlmInvocation(any()) } answers {
+                mutableLlmInvocationHistory.invocations.add(firstArg())
+            }
+            every { mockProcessContext.onProcessEvent(any()) } answers { ese.onProcessEvent(firstArg()) }
+            every { mockProcessContext.agentProcess } returns mockAgentProcess
+            every { mockAgentProcess.agent } returns SimpleTestAgent
+            every { mockAgentProcess.processContext } returns mockProcessContext
+            val blackboard = mockk<Blackboard>(relaxed = true)
+            every { mockAgentProcess.blackboard } returns blackboard
+
+            val mockModelProvider = mockk<ModelProvider>()
+            val crit = slot<ModelSelectionCriteria>()
+            val fakeLlm = SpringAiLlmService("fake", "provider", errorModel, DefaultOptionsConverter)
+            every { mockModelProvider.getLlm(capture(crit)) } returns fakeLlm
+            val cco = ChatClientLlmOperations(
+                modelProvider = mockModelProvider,
+                toolDecorator = DefaultToolDecorator(),
+                validator = Validation.buildDefaultValidatorFactory().validator,
+                validationPromptGenerator = DefaultValidationPromptGenerator(),
+                templateRenderer = JinjavaTemplateRenderer(),
+                objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+                dataBindingProperties = LlmDataBindingProperties(maxAttempts = 1),
+            )
+
+            val exception = assertThrows(RuntimeException::class.java) {
+                cco.doTransform(
+                    messages = listOf(UserMessage("prompt")),
+                    interaction = LlmInteraction(
+                        id = InteractionId("api-error-test"),
+                        llm = LlmOptions(),
+                        useEmbabelToolLoop = false,
+                    ),
+                    outputClass = String::class.java,
+                    llmRequestEvent = null,
+                )
+            }
+            // Should get a RuntimeException, not an NPE
+            assertFalse(
+                exception is NullPointerException,
+                "Should not be NullPointerException, but got: ${exception::class.simpleName}"
+            )
+        }
+    }
+
+    @Nested
     inner class ReturnValidation {
 
         @Test
