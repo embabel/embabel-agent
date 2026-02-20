@@ -152,6 +152,7 @@ class ChatClientLlmOperationsTest {
             templateRenderer = JinjavaTemplateRenderer(),
             objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
             dataBindingProperties = dataBindingProperties,
+            asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )
         return Setup(cco, mockAgentProcess, mutableLlmInvocationHistory)
     }
@@ -726,6 +727,7 @@ class ChatClientLlmOperationsTest {
                 objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
                 dataBindingProperties = LlmDataBindingProperties(maxAttempts = 1),  // No retries for timeout tests
                 llmOperationsPromptsProperties = promptsProperties,
+                asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
             )
             return Setup(cco, mockAgentProcess, mutableLlmInvocationHistory)
         }

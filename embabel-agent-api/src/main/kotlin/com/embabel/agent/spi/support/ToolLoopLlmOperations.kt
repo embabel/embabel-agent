@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.ToolLoopStartEvent
 import com.embabel.agent.api.tool.Tool
@@ -97,6 +98,7 @@ open class ToolLoopLlmOperations(
     internal open val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     protected val toolLoopFactory: ToolLoopFactory = ToolLoopFactory.default(),
+    asyncer: Asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -105,6 +107,7 @@ open class ToolLoopLlmOperations(
     dataBindingProperties = dataBindingProperties,
     autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver,
     promptsProperties = promptsProperties,
+    asyncer = asyncer,
 ) {
 
     override fun <O> doTransform(
