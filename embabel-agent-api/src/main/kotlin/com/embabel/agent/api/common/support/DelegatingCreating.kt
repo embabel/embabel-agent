@@ -22,6 +22,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
+import java.lang.reflect.Field
 import java.util.function.Predicate
 
 /**
@@ -55,10 +56,10 @@ internal data class DelegatingCreating<T>(
         )
     }
 
-    override fun withPropertyFilter(
-        filter: Predicate<String>
+    override fun withFieldFilter(
+        filter: Predicate<Field>,
     ): PromptRunner.Creating<T> = copy(
-        delegate = delegate.withPropertyFilter(filter)
+        delegate = delegate.withFieldFilter(filter)
     )
 
     override fun withValidation(

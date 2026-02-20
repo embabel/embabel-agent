@@ -15,12 +15,7 @@
  */
 package com.embabel.agent.api.common.support
 
-import com.embabel.agent.api.common.ActionContext
-import com.embabel.agent.api.common.AgentImage
-import com.embabel.agent.api.common.ContextualPromptElement
-import com.embabel.agent.api.common.InteractionId
-import com.embabel.agent.api.common.OperationContext
-import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.nested.support.PromptRunnerCreating
 import com.embabel.agent.api.common.nested.support.PromptRunnerRendering
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
@@ -48,6 +43,7 @@ import com.embabel.common.ai.model.Thinking
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
+import java.lang.reflect.Field
 import java.util.function.Predicate
 
 /**
@@ -65,7 +61,7 @@ internal data class OperationContextPromptRunner(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
-    override val propertyFilter: Predicate<String> = Predicate { true },
+    override val fieldFilter: Predicate<Field> = Predicate { true },
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
@@ -141,7 +137,7 @@ internal data class OperationContextPromptRunner(
                 promptContributors = allPromptContributors,
                 id = interactionId ?: idForPrompt(messages, outputClass),
                 generateExamples = generateExamples,
-                propertyFilter = propertyFilter,
+                fieldFilter = fieldFilter,
                 validation = validation,
                 guardRails = guardRails,
                 inspectors = inspectors,
@@ -171,7 +167,7 @@ internal data class OperationContextPromptRunner(
                 },
                 id = interactionId ?: idForPrompt(messages, outputClass),
                 generateExamples = generateExamples,
-                propertyFilter = propertyFilter,
+                fieldFilter = fieldFilter,
                 validation = validation,
                 guardRails = guardRails,
                 inspectors = inspectors,
@@ -258,7 +254,7 @@ internal data class OperationContextPromptRunner(
 
     @Deprecated("Use creating().withPropertyFilter() instead")
     override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
-        copy(propertyFilter = this.propertyFilter.and(filter))
+        copy(fieldFilter = this.fieldFilter.and({ filter.test(it.name) }))
 
     @Deprecated("Use creating().withValidation() instead")
     override fun withValidation(validation: Boolean): PromptRunner =
@@ -309,7 +305,7 @@ internal data class OperationContextPromptRunner(
                 },
                 id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
                 generateExamples = generateExamples,
-                propertyFilter = propertyFilter,
+                fieldFilter = fieldFilter,
                 guardRails = guardRails,
                 inspectors = inspectors,
                 transformers = transformers,
@@ -358,7 +354,7 @@ internal data class OperationContextPromptRunner(
                 },
                 id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
                 generateExamples = generateExamples,
-                propertyFilter = propertyFilter,
+                fieldFilter = fieldFilter,
                 guardRails = guardRails,
                 inspectors = inspectors,
                 transformers = transformers,

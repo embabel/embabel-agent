@@ -27,11 +27,12 @@ import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.validation.ConstraintViolation
+import java.lang.reflect.Field
 import java.util.function.Predicate
 
 /**
@@ -48,9 +49,9 @@ interface LlmUse : PromptContributorConsumer, ToolGroupConsumer {
     val generateExamples: Boolean?
 
     /**
-     * Filter that determines which properties to include when creating objects.
+     * Filter that determines which fields to include when creating objects.
      */
-    val propertyFilter: Predicate<String>
+    val fieldFilter: Predicate<Field>
 
     /**
      * Whether to validate generated objects.
@@ -91,7 +92,7 @@ private data class LlmCallImpl(
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean = false,
-    override val propertyFilter: Predicate<String> = Predicate { true },
+    override val fieldFilter: Predicate<Field> = Predicate { true },
     override val validation: Boolean = true,
 ) : LlmCall
 
@@ -122,7 +123,7 @@ data class LlmInteraction(
     override val promptContributors: List<PromptContributor> = emptyList(),
     override val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean? = null,
-    override val propertyFilter: Predicate<String> = Predicate { true },
+    override val fieldFilter: Predicate<Field> = Predicate { true },
     override val validation: Boolean = true,
     val useEmbabelToolLoop: Boolean = true,
     val maxToolIterations: Int = 20,
