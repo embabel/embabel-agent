@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.loop.support
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModeProperties
@@ -30,7 +31,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.annotations.ApiStatus
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -53,7 +53,7 @@ import java.util.concurrent.TimeoutException
  * @param injectionStrategy Strategy for dynamically injecting tools
  * @param maxIterations Maximum number of tool loop iterations
  * @param toolDecorator Optional decorator applied to injected tools
- * @param executor ExecutorService for parallel tool execution
+ * @param asyncer Asyncer for parallel tool execution with context propagation
  * @param parallelConfig Configuration for parallel mode (timeouts, etc.)
  */
 @ApiStatus.Experimental
@@ -65,7 +65,7 @@ internal class ParallelToolLoop(
     toolDecorator: ((Tool) -> Tool)?,
     inspectors: List<ToolLoopInspector> = emptyList(),
     transformers: List<ToolLoopTransformer> = emptyList(),
-    private val executor: ExecutorService,
+    private val asyncer: Asyncer,
     private val parallelConfig: ParallelModeProperties,
 ) : DefaultToolLoop(
     llmMessageSender = llmMessageSender,
@@ -103,10 +103,7 @@ internal class ParallelToolLoop(
         val perToolTimeoutMs = parallelConfig.perToolTimeout.toMillis()
 
         val futures: List<CompletableFuture<ParallelToolResult>> = toolCalls.map { toolCall ->
-            CompletableFuture.supplyAsync(
-                { executeSingleToolCall(toolCall, availableToolsSnapshot) },
-                executor,
-            )
+            asyncer.async { executeSingleToolCall(toolCall, availableToolsSnapshot) }
                 .orTimeout(perToolTimeoutMs, TimeUnit.MILLISECONDS)
                 .exceptionally { e ->
                     when (e.cause ?: e) {

@@ -25,6 +25,7 @@ import java.time.Duration
 /**
  * Unit tests for [ToolLoopConfiguration].
  */
+@Suppress("DEPRECATION")
 class ToolLoopConfigurationTest {
 
     @Test

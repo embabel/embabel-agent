@@ -15,19 +15,18 @@
  */
 package com.embabel.agent.spi.loop
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
-import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ExecutorType
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.agent.spi.loop.support.ParallelToolLoop
+import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.fasterxml.jackson.databind.ObjectMapper
-import java.io.Closeable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 /**
  * Factory for creating [ToolLoop] instances.
@@ -35,6 +34,17 @@ import java.util.concurrent.TimeUnit
  * Use companion object methods to obtain instances:
  * - [default] for default configuration
  * - [withConfig] for custom configuration
+ *
+ * ## Threading and context propagation
+ *
+ * Parallel tool execution is governed by the [Asyncer] abstraction, which is the
+ * single extension point for controlling threading behavior and propagating
+ * execution context (e.g., security context, MDC) to tool execution threads.
+ *
+ * In a Spring environment, the [Asyncer] bean is injected automatically.
+ * For programmatic usage, provide an [Asyncer] via [withConfig].
+ *
+ * @see Asyncer
  */
 fun interface ToolLoopFactory {
 
@@ -60,42 +70,72 @@ fun interface ToolLoopFactory {
     ): ToolLoop
 
     companion object {
+
+        private val DEFAULT_ASYNCER: Asyncer by lazy {
+            ExecutorAsyncer(Executors.newVirtualThreadPerTaskExecutor())
+        }
+
         /**
          * Create a factory with default configuration.
-         * Uses [ToolLoopType.DEFAULT] (sequential execution).
+         * Uses [ToolLoopType.DEFAULT] (sequential execution) with virtual thread-based [Asyncer].
          */
         fun default(): ToolLoopFactory =
-            ConfigurableToolLoopFactory(ToolLoopConfiguration())
+            ConfigurableToolLoopFactory(ToolLoopConfiguration(), DEFAULT_ASYNCER)
 
         /**
          * Create a factory with the specified configuration.
+         * Uses virtual thread-based [Asyncer] for parallel execution.
+         *
+         * For custom threading or context propagation, use [withConfig] with an [Asyncer].
          *
          * @param config the tool loop configuration
          */
         fun withConfig(config: ToolLoopConfiguration): ToolLoopFactory =
-            ConfigurableToolLoopFactory(config)
+            ConfigurableToolLoopFactory(config, DEFAULT_ASYNCER)
+
+        /**
+         * Create a factory with the specified configuration and asyncer.
+         * The [Asyncer] is used for parallel tool execution, ensuring that
+         * custom execution context (e.g., security context, MDC) is propagated
+         * to tool execution threads.
+         *
+         * This is the recommended way to customize parallel execution behavior.
+         *
+         * @param config the tool loop configuration
+         * @param asyncer asyncer for parallel mode with context propagation
+         */
+        fun withConfig(config: ToolLoopConfiguration, asyncer: Asyncer): ToolLoopFactory =
+            ConfigurableToolLoopFactory(config, asyncer)
 
         /**
          * Create a factory with the specified configuration and executor.
          *
          * @param config the tool loop configuration
          * @param executor executor service for parallel mode
+         * @deprecated Since 0.5.0. Use [withConfig] with an [Asyncer] instead.
+         * The Asyncer abstraction provides context propagation support
+         * that raw ExecutorService does not.
          */
+        @Deprecated(
+            message = "Use withConfig(config, asyncer) instead. The Asyncer abstraction provides context propagation.",
+            replaceWith = ReplaceWith("withConfig(config, ExecutorAsyncer(executor))"),
+            level = DeprecationLevel.WARNING,
+        )
         fun withConfig(config: ToolLoopConfiguration, executor: ExecutorService): ToolLoopFactory =
-            ConfigurableToolLoopFactory(config, executor)
+            ConfigurableToolLoopFactory(config, ExecutorAsyncer(executor))
     }
 }
 
 /**
  * Internal [ToolLoopFactory] implementation based on [ToolLoopConfiguration].
+ *
+ * @param config the tool loop configuration
+ * @param asyncer the asyncer to use for parallel tool execution
  */
 internal class ConfigurableToolLoopFactory(
     private val config: ToolLoopConfiguration,
-    private val executor: ExecutorService? = null,
-) : ToolLoopFactory, Closeable {
-
-    private val lazyExecutorDelegate = lazy { createExecutor() }
-    private val lazyExecutor: ExecutorService by lazyExecutorDelegate
+    private val asyncer: Asyncer,
+) : ToolLoopFactory {
 
     override fun create(
         llmMessageSender: LlmMessageSender,
@@ -115,7 +155,7 @@ internal class ConfigurableToolLoopFactory(
             inspectors = inspectors,
             transformers = transformers,
         )
-        ToolLoopType.PARALLEL -> createParallelToolLoop(
+        ToolLoopType.PARALLEL -> ParallelToolLoop(
             llmMessageSender = llmMessageSender,
             objectMapper = objectMapper,
             injectionStrategy = injectionStrategy,
@@ -123,47 +163,8 @@ internal class ConfigurableToolLoopFactory(
             toolDecorator = toolDecorator,
             inspectors = inspectors,
             transformers = transformers,
+            asyncer = asyncer,
+            parallelConfig = config.parallel,
         )
-    }
-
-    private fun createParallelToolLoop(
-        llmMessageSender: LlmMessageSender,
-        objectMapper: ObjectMapper,
-        injectionStrategy: ToolInjectionStrategy,
-        maxIterations: Int,
-        toolDecorator: ((Tool) -> Tool)?,
-        inspectors: List<ToolLoopInspector>,
-        transformers: List<ToolLoopTransformer>,
-    ): ToolLoop = ParallelToolLoop(
-        llmMessageSender = llmMessageSender,
-        objectMapper = objectMapper,
-        injectionStrategy = injectionStrategy,
-        maxIterations = maxIterations,
-        toolDecorator = toolDecorator,
-        inspectors = inspectors,
-        transformers = transformers,
-        executor = executor ?: lazyExecutor,
-        parallelConfig = config.parallel,
-    )
-
-    private fun createExecutor(): ExecutorService = when (config.parallel.executorType) {
-        ExecutorType.VIRTUAL -> Executors.newVirtualThreadPerTaskExecutor()
-        ExecutorType.FIXED -> Executors.newFixedThreadPool(config.parallel.fixedPoolSize)
-        ExecutorType.CACHED -> Executors.newCachedThreadPool()
-    }
-
-    /**
-     * Shuts down the executor if one was created by this factory.
-     * Waits for configured [ParallelModeProperties.shutdownTimeout] before forcing shutdown.
-     * No-op if external executor was provided or parallel mode was never used.
-     */
-    override fun close() {
-        // Only shutdown if lazy executor was initialized (parallel mode was used)
-        if (executor == null && lazyExecutorDelegate.isInitialized()) {
-            lazyExecutor.shutdown()
-            if (!lazyExecutor.awaitTermination(config.parallel.shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                lazyExecutor.shutdownNow()
-            }
-        }
     }
 }

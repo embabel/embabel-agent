@@ -17,20 +17,24 @@ package com.embabel.agent.spi.config.spring
 
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
+import com.embabel.agent.spi.support.ExecutorAsyncer
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
+import java.util.concurrent.Executors
 
 /**
  * Unit tests for [ToolLoopFactoryConfiguration].
  */
 class ToolLoopFactoryConfigurationTest {
 
+    private val asyncer = ExecutorAsyncer(Executors.newCachedThreadPool())
+
     @Test
     fun `creates ToolLoopFactory bean with default config`() {
         val config = ToolLoopConfiguration()
         val configuration = ToolLoopFactoryConfiguration(config)
 
-        val factory = configuration.toolLoopFactory()
+        val factory = configuration.toolLoopFactory(asyncer)
 
         assertNotNull(factory)
     }
@@ -40,7 +44,7 @@ class ToolLoopFactoryConfigurationTest {
         val config = ToolLoopConfiguration(type = ToolLoopType.PARALLEL)
         val configuration = ToolLoopFactoryConfiguration(config)
 
-        val factory = configuration.toolLoopFactory()
+        val factory = configuration.toolLoopFactory(asyncer)
 
         assertNotNull(factory)
     }

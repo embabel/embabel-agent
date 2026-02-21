@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.config.spring
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.spi.loop.ToolLoopFactory
 import org.slf4j.LoggerFactory
@@ -40,8 +41,8 @@ class ToolLoopFactoryConfiguration(
     }
 
     @Bean
-    fun toolLoopFactory(): ToolLoopFactory {
-        logger.info("Creating ToolLoopFactory with type: {}", config.type)
-        return ToolLoopFactory.withConfig(config)
+    fun toolLoopFactory(asyncer: Asyncer): ToolLoopFactory {
+        logger.info("Creating ToolLoopFactory with type: {}, using injected Asyncer", config.type)
+        return ToolLoopFactory.withConfig(config, asyncer)
     }
 }
