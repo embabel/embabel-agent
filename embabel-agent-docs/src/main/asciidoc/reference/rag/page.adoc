@@ -450,6 +450,76 @@ Based on the capabilities of the underlying `SearchOperations`, `ToolishRag` exp
 
 The LLM autonomously decides when to use these tools based on user queries.
 
+===== Eager Search
+
+By default, `ToolishRag` is entirely agentic—the LLM decides when to search and what queries to use.
+However, when the topic of the conversation is already known, you can **preload** relevant results before the LLM starts, giving it a head start and reducing the number of tool calls needed.
+
+`ToolishRag` implements the `EagerSearch` interface, which provides `withEagerSearchAbout()`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Preload results about the user's topic before the LLM starts
+ToolishRag eagerRag = toolishRag
+    .withEagerSearchAbout("Kotlin coroutines", 10);
+
+context.ai()
+    .withReference(eagerRag)
+    .respondWithSystemPrompt(conversation, Map.of());
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Preload results about the user's topic before the LLM starts
+val eagerRag = toolishRag
+    .withEagerSearchAbout("Kotlin coroutines", 10)
+
+context.ai()
+    .withReference(eagerRag)
+    .respondWithSystemPrompt(conversation, emptyMap())
+----
+====
+
+The preloaded results are included in the prompt as hints. The LLM still has access to all the usual search tools and can perform additional searches as needed.
+
+For more control over the search parameters, pass a `TextSimilaritySearchRequest` directly:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var request = new TextSimilaritySearchRequest("Kotlin coroutines", 0.7, 10);
+ToolishRag eagerRag = toolishRag.withEagerSearchAbout(request);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val request = TextSimilaritySearchRequest("Kotlin coroutines", 0.7, 10)
+val eagerRag = toolishRag.withEagerSearchAbout(request)
+----
+====
+
+TIP: Combining eager search with agentic tools is the sweet spot: preloaded results give the LLM an immediate head start (no round-trip needed), while the tools remain available for follow-up searches if the preloaded results aren't sufficient. You get the latency benefit of traditional RAG with the quality benefit of agentic RAG.
+
+IMPORTANT: Eager search requires `VectorSearch` support in the underlying `SearchOperations`. If the store does not support vector search, `withEagerSearchAbout()` throws `UnsupportedOperationException` eagerly at configuration time.
+
+[NOTE]
+.The `EagerSearch` Interface
+====
+`EagerSearch<T>` is a general-purpose interface in the `com.embabel.agent.api.reference` package for any `LlmReference` that can preload context via similarity search.
+`ToolishRag` is one implementation, but other reference types can implement `EagerSearch` to provide the same consistent pattern for preloading relevant context before an LLM call.
+====
+
 ===== ToolishRag lifecycle
 
 It is safe to create a `ToolishRag` instance and reuse across many LLM calls.

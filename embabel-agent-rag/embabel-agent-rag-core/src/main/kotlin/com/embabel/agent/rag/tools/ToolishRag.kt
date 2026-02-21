@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.tools
 
+import com.embabel.agent.api.reference.EagerSearch
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.MatryoshkaTool
@@ -28,11 +29,13 @@ import com.embabel.agent.rag.service.RegexSearchOperations
 import com.embabel.agent.rag.service.ResultExpander
 import com.embabel.agent.rag.service.RetrievableResultsFormatter
 import com.embabel.agent.rag.service.SearchOperations
+import com.embabel.agent.rag.service.SimilarityResults
 import com.embabel.agent.rag.service.SimpleRetrievableResultsFormatter
 import com.embabel.agent.rag.service.TextSearch
 import com.embabel.agent.rag.service.VectorSearch
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.core.types.SimilarityResult
+import com.embabel.common.core.types.TextSimilaritySearchRequest
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
 import org.slf4j.LoggerFactory
@@ -96,7 +99,7 @@ data class ToolishRag @JvmOverloads constructor(
     val listener: ResultsListener? = null,
     val metadataFilter: PropertyFilter? = null,
     val entityFilter: EntityFilter? = null,
-) : LlmReference, DelegatingTool {
+) : LlmReference, DelegatingTool, EagerSearch<ToolishRag> {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -196,6 +199,21 @@ data class ToolishRag @JvmOverloads constructor(
      */
     fun withEntityFilter(filter: EntityFilter): ToolishRag =
         copy(entityFilter = filter)
+
+    override fun withEagerSearchAbout(request: TextSimilaritySearchRequest): ToolishRag {
+        val vs = searchOperations as? VectorSearch
+            ?: throw UnsupportedOperationException(
+                "Eager search requires VectorSearch but searchOperations is ${searchOperations::class.simpleName}"
+            )
+        val results = vectorSearchFor.flatMap { clazz ->
+            vs.vectorSearch(request, clazz)
+        }
+        val deduplicated = deduplicateByIdKeepingHighestScore(results)
+        val formatted = formatter.formatResults(SimilarityResults.fromList(deduplicated))
+        return copy(
+            hints = hints + PromptContributor.fixed("Preloaded search results for '${request.query}':\n$formatted"),
+        )
+    }
 
     // LlmReference: returns flat list of inner tools with naming strategy applied
     override fun tools(): List<Tool> = toolObjects
