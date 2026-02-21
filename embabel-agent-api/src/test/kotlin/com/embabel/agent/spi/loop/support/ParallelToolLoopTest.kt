@@ -30,6 +30,7 @@ import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
+import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -48,6 +49,7 @@ class ParallelToolLoopTest {
 
     private val objectMapper = jacksonObjectMapper()
     private val executor = Executors.newFixedThreadPool(4)
+    private val asyncer = ExecutorAsyncer(executor)
     private val parallelConfig = ParallelModeProperties(
         perToolTimeout = Duration.ofSeconds(5),
         batchTimeout = Duration.ofSeconds(10),
@@ -82,7 +84,7 @@ class ParallelToolLoopTest {
                 injectionStrategy = ToolInjectionStrategy.NONE,
                 maxIterations = 20,
                 toolDecorator = null,
-                executor = executor,
+                asyncer = asyncer,
                 parallelConfig = parallelConfig,
             )
 
@@ -153,7 +155,7 @@ class ParallelToolLoopTest {
                 injectionStrategy = ToolInjectionStrategy.NONE,
                 maxIterations = 20,
                 toolDecorator = null,
-                executor = executor,
+                asyncer = asyncer,
                 parallelConfig = parallelConfig,
             )
 
@@ -216,7 +218,7 @@ class ParallelToolLoopTest {
                 injectionStrategy = ToolInjectionStrategy.NONE,
                 maxIterations = 20,
                 toolDecorator = null,
-                executor = executor,
+                asyncer = asyncer,
                 parallelConfig = parallelConfig,
             )
 
@@ -275,7 +277,7 @@ class ParallelToolLoopTest {
                 injectionStrategy = ToolInjectionStrategy.NONE,
                 maxIterations = 20,
                 toolDecorator = null,
-                executor = executor,
+                asyncer = asyncer,
                 parallelConfig = shortTimeoutConfig,
             )
 
@@ -336,7 +338,7 @@ class ParallelToolLoopTest {
                 injectionStrategy = ToolInjectionStrategy.NONE,
                 maxIterations = 20,
                 toolDecorator = null,
-                executor = executor,
+                asyncer = asyncer,
                 parallelConfig = parallelConfig,
             )
 
@@ -386,7 +388,7 @@ class ParallelToolLoopTest {
                 injectionStrategy = ToolInjectionStrategy.NONE,
                 maxIterations = 20,
                 toolDecorator = null,
-                executor = executor,
+                asyncer = asyncer,
                 parallelConfig = parallelConfig,
             )
 
@@ -431,7 +433,7 @@ class ParallelToolLoopTest {
                 injectionStrategy = ToolInjectionStrategy.NONE,
                 maxIterations = 20,
                 toolDecorator = null,
-                executor = executor,
+                asyncer = asyncer,
                 parallelConfig = parallelConfig,
             )
 
@@ -490,7 +492,7 @@ class ParallelToolLoopTest {
                 injectionStrategy = strategy,
                 maxIterations = 20,
                 toolDecorator = null,
-                executor = executor,
+                asyncer = asyncer,
                 parallelConfig = parallelConfig,
             )
 

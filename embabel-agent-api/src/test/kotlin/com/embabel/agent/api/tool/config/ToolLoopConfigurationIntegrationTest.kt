@@ -27,7 +27,9 @@ import java.time.Duration
 
 /**
  * Spring Boot integration test for [ToolLoopConfiguration] properties binding.
+ * Tests include deprecated executor properties to ensure backward compatibility.
  */
+@Suppress("DEPRECATION")
 @SpringBootTest(classes = [ToolLoopConfigurationIntegrationTest.TestConfig::class])
 @TestPropertySource(
     properties = [
