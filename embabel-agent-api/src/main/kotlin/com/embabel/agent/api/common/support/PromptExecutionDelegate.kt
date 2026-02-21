@@ -23,11 +23,11 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.validation.guardrails.GuardRail
-import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmUse
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
@@ -40,6 +40,7 @@ import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import reactor.core.publisher.Flux
+import java.lang.reflect.Field
 import java.util.function.Predicate
 
 /**
@@ -89,7 +90,7 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     fun withGenerateExamples(generateExamples: Boolean): PromptExecutionDelegate
 
-    fun withPropertyFilter(filter: Predicate<String>): PromptExecutionDelegate
+    fun withFieldFilter(filter: Predicate<Field>): PromptExecutionDelegate
 
     fun withValidation(validation: Boolean): PromptExecutionDelegate
 

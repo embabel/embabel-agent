@@ -20,7 +20,6 @@ import com.embabel.common.core.streaming.ThinkingState
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 class StreamingJacksonOutputConverterTest {
 
@@ -259,7 +258,7 @@ class StreamingJacksonOutputConverterTest {
         val converter = StreamingJacksonOutputConverter(
             clazz = Person::class.java,
             objectMapper = objectMapper,
-            propertyFilter = { it == "name" || it == "age" }
+            fieldFilter = { it.name == "name" || it.name == "age" }
         )
 
         // When
@@ -278,7 +277,7 @@ class StreamingJacksonOutputConverterTest {
         val converter = StreamingJacksonOutputConverter(
             clazz = Person::class.java,
             objectMapper = objectMapper,
-            propertyFilter = { it == "name" || it == "age" }
+            fieldFilter = { it.name == "name" || it.name == "age" }
         )
 
         // Create JSONL with multiple Person objects containing all fields
@@ -311,7 +310,7 @@ class StreamingJacksonOutputConverterTest {
         val converter = StreamingJacksonOutputConverter(
             clazz = Person::class.java,
             objectMapper = objectMapper,
-            propertyFilter = { it == "name" }
+            fieldFilter = { it.name == "name" }
         )
 
         // When
@@ -329,7 +328,7 @@ class StreamingJacksonOutputConverterTest {
         val converter = StreamingJacksonOutputConverter(
             clazz = Person::class.java,
             objectMapper = objectMapper,
-            propertyFilter = { it == "name" || it == "age" }
+            fieldFilter = { it.name == "name" || it.name == "age" }
         )
 
         val jsonlInput = """

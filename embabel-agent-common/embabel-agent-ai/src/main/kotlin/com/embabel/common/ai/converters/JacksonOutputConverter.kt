@@ -73,17 +73,7 @@ open class JacksonOutputConverter<T> protected constructor(
     }
 
     val jsonSchema: String by lazy {
-        val jacksonModule = JacksonModule(
-            JacksonOption.RESPECT_JSONPROPERTY_REQUIRED,
-            JacksonOption.RESPECT_JSONPROPERTY_ORDER
-        )
-        val configBuilder = SchemaGeneratorConfigBuilder(
-            SchemaVersion.DRAFT_2020_12,
-            OptionPreset.PLAIN_JSON
-        )
-            .with(jacksonModule)
-            .with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT)
-        val config = configBuilder.build()
+        val config = schemaGeneratorConfigBuilder().build()
         val generator = SchemaGenerator(config)
         val jsonNode: JsonNode = generator.generateSchema(this.type)
         postProcessSchema(jsonNode)
@@ -97,6 +87,25 @@ open class JacksonOutputConverter<T> protected constructor(
             logger.error("Could not pretty print json schema for jsonNode: {}", jsonNode)
             throw RuntimeException("Could not pretty print json schema for " + this.type, e)
         }
+    }
+
+    /**
+     * Template method that allows for customization of the JSON Schema generator.
+     * By defaults, this method generates a configuration that uses [Draft 2020-12](https://json-schema.org/draft/2020-12#draft-2020-12)
+     * of the specification, with the [JacksonModule] enabled.
+     */
+    protected open fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder {
+        return SchemaGeneratorConfigBuilder(
+            SchemaVersion.DRAFT_2020_12,
+            OptionPreset.PLAIN_JSON
+        )
+            .with(
+                JacksonModule(
+                    JacksonOption.RESPECT_JSONPROPERTY_REQUIRED,
+                    JacksonOption.RESPECT_JSONPROPERTY_ORDER
+                )
+            )
+            .with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
     }
 
     /**

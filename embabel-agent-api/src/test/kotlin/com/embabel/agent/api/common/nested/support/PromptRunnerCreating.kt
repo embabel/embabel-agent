@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.PromptRunner
 import com.embabel.chat.Message
 import com.embabel.common.ai.prompt.PromptContributor
 import com.fasterxml.jackson.databind.ObjectMapper
+import java.lang.reflect.Field
 import java.util.function.Predicate
 
 internal data class PromptRunnerCreating<T>(
@@ -44,6 +45,11 @@ internal data class PromptRunnerCreating<T>(
                 )
         )
     }
+
+    override fun withFieldFilter(
+        filter: Predicate<Field>,
+    ): PromptRunner.Creating<T> =
+        TODO("Cannot be implemented")
 
     override fun withPropertyFilter(
         filter: Predicate<String>

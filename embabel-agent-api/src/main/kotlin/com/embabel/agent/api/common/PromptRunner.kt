@@ -37,6 +37,7 @@ import com.embabel.common.core.thinking.ThinkingCapability
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.util.loggerFor
+import java.lang.reflect.Field
 import java.util.function.Predicate
 import kotlin.reflect.KProperty1
 
@@ -572,21 +573,33 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
         ): Creating<T>
 
         /**
+         * Add a filter that determines which fields are to be included when creating an object.
+         *
+         * Note that each predicate is applied *in addition to* previously registered predicates, including
+         * [withPropertyFilter], [withProperties] and [withoutProperties].
+         *
+         * @param filter the field predicate to be added
+         * @return this instance for method chaining
+         */
+        fun withFieldFilter(filter: Predicate<Field>): Creating<T>
+
+        /**
          * Add a filter that determines which properties are to be included when creating an object.
          *
          * Note that each predicate is applied *in addition to* previously registered predicates, including
-         * [withProperties] and [withoutProperties].
+         * [withFieldFilter], [withProperties] and [withoutProperties].
          *
          * @param filter the property predicate to be added
          * @return this instance for method chaining
          */
-        fun withPropertyFilter(filter: Predicate<String>): Creating<T>
+        fun withPropertyFilter(filter: Predicate<String>): Creating<T> =
+            withFieldFilter { filter.test(it.name) }
 
         /**
          * Include the given properties when creating an object.
          *
          * Note that each predicate is applied *in addition to* previously registered predicates, including
-         * [withPropertyFilter] and [withoutProperties].
+         * [withFieldFilter], [withPropertyFilter] and [withoutProperties].
          *
          * @param properties the properties that are to be included
          * @return this instance for method chaining
@@ -597,7 +610,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * Exclude the given properties when creating an object.
          *
          * Note that each predicate is applied *in addition to* previously registered predicates, including
-         * [withPropertyFilter] and [withProperties].
+         * [withFieldFilter], [withPropertyFilter] and [withProperties].
          *
          * @param properties the properties to be excluded
          * @return this instance for method chaining

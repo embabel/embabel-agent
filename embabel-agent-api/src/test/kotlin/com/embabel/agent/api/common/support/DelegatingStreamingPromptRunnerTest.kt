@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNotNull
+import java.lang.reflect.Field
 import java.util.function.Predicate
 
 class DelegatingStreamingPromptRunnerTest {
@@ -105,14 +106,14 @@ class DelegatingStreamingPromptRunnerTest {
         }
 
         @Test
-        fun `should delegate propertyFilter property`() {
-            val filter = Predicate<String> { true }
-            every { mockDelegate.propertyFilter } returns filter
+        fun `should delegate fieldFilter property`() {
+            val filter = Predicate<Field> { true }
+            every { mockDelegate.fieldFilter } returns filter
 
             val runner = createPromptRunner()
 
-            assertEquals(filter, runner.propertyFilter)
-            verify { mockDelegate.propertyFilter }
+            assertEquals(filter, runner.fieldFilter)
+            verify { mockDelegate.fieldFilter }
         }
 
         @Test

@@ -22,6 +22,7 @@ import com.embabel.common.core.streaming.ThinkingState
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.core.ParameterizedTypeReference
 import reactor.core.publisher.Flux
+import java.lang.reflect.Field
 import java.util.function.Predicate
 
 /**
@@ -46,14 +47,14 @@ class StreamingJacksonOutputConverter<T> : FilteringJacksonOutputConverter<T> {
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
-        propertyFilter: Predicate<String> = Predicate { true },
-    ) : super(clazz, objectMapper, propertyFilter)
+        fieldFilter: Predicate<Field> = Predicate { true },
+    ) : super(clazz, objectMapper, fieldFilter)
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
-        propertyFilter: Predicate<String> = Predicate { true },
-    ) : super(typeReference, objectMapper, propertyFilter)
+        fieldFilter: Predicate<Field> = Predicate { true },
+    ) : super(typeReference, objectMapper, fieldFilter)
 
     /**
      * Convert streaming JSONL text to a Flux of typed objects.

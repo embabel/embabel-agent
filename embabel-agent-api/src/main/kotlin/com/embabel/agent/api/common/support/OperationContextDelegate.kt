@@ -25,8 +25,6 @@ import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.api.tool.agentic.simple.DomainAwareSink
-import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
-import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -34,6 +32,8 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
+import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.chat.AssistantMessage
@@ -53,6 +53,7 @@ import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.databind.ObjectMapper
 import reactor.core.publisher.Flux
+import java.lang.reflect.Field
 import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Predicate
 
@@ -70,7 +71,7 @@ internal data class OperationContextDelegate(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement> = emptyList(),
     override val generateExamples: Boolean? = null,
-    override val propertyFilter: Predicate<String> = Predicate { true },
+    override val fieldFilter: Predicate<Field> = Predicate { true },
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
@@ -126,8 +127,8 @@ internal data class OperationContextDelegate(
     override fun withGenerateExamples(generateExamples: Boolean): PromptExecutionDelegate =
         copy(generateExamples = generateExamples)
 
-    override fun withPropertyFilter(filter: Predicate<String>): PromptExecutionDelegate =
-        copy(propertyFilter = this.propertyFilter.and(filter))
+    override fun withFieldFilter(filter: Predicate<Field>): PromptExecutionDelegate =
+        copy(fieldFilter = this.fieldFilter.and(filter))
 
     override fun withValidation(validation: Boolean): PromptExecutionDelegate = copy(validation = validation)
 
@@ -211,7 +212,7 @@ internal data class OperationContextDelegate(
                 promptContributors = allPromptContributors,
                 id = interactionId ?: idForPrompt(outputClass),
                 generateExamples = generateExamples,
-                propertyFilter = propertyFilter,
+                fieldFilter = fieldFilter,
                 validation = validation,
                 guardRails = guardRails,
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
@@ -243,7 +244,7 @@ internal data class OperationContextDelegate(
                 },
                 id = interactionId ?: idForPrompt(outputClass),
                 generateExamples = generateExamples,
-                propertyFilter = propertyFilter,
+                fieldFilter = fieldFilter,
                 validation = validation,
                 guardRails = guardRails,
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
@@ -357,7 +358,7 @@ internal data class OperationContextDelegate(
             },
             id = interactionId ?: InteractionId("${context.operation.name}-streaming"),
             generateExamples = generateExamples,
-            propertyFilter = propertyFilter,
+            fieldFilter = fieldFilter,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
             inspectors = inspectors,
@@ -473,7 +474,7 @@ internal data class OperationContextDelegate(
             },
             id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
             generateExamples = generateExamples,
-            propertyFilter = propertyFilter,
+            fieldFilter = fieldFilter,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
             inspectors = inspectors,

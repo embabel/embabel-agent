@@ -15,10 +15,10 @@
  */
 package com.embabel.common.ai.converters
 
-import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.ObjectNode
+import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import org.springframework.core.ParameterizedTypeReference
+import java.lang.reflect.Field
 import java.lang.reflect.Type
 import java.util.function.Predicate
 
@@ -28,30 +28,25 @@ import java.util.function.Predicate
 open class FilteringJacksonOutputConverter<T> private constructor(
     type: Type,
     objectMapper: ObjectMapper,
-    private val propertyFilter: Predicate<String>,
+    private val fieldFilter: Predicate<Field>,
 ) : JacksonOutputConverter<T>(type, objectMapper) {
 
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
-        propertyFilter: Predicate<String>,
-    ) : this(clazz as Type, objectMapper, propertyFilter)
+        fieldFilter: Predicate<Field>,
+    ) : this(clazz as Type, objectMapper, fieldFilter)
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
-        propertyFilter: Predicate<String>,
-    ) : this(typeReference.type, objectMapper, propertyFilter)
+        fieldFilter: Predicate<Field>,
+    ) : this(typeReference.type, objectMapper, fieldFilter)
 
-    override fun postProcessSchema(jsonNode: JsonNode) {
-        val propertiesNode = jsonNode.get("properties") as? ObjectNode ?: return
-
-        val fieldNames = propertiesNode.fieldNames() as MutableIterator<String>
-        while (fieldNames.hasNext()) {
-            val fieldName = fieldNames.next()
-            if (!this.propertyFilter.test(fieldName)) {
-                fieldNames.remove()
-            }
-        }
+    override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder {
+        val configBuilder = super.schemaGeneratorConfigBuilder()
+        configBuilder.forFields().withIgnoreCheck { !fieldFilter.test(it.member.rawMember) }
+        return configBuilder
     }
+
 }

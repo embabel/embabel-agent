@@ -189,7 +189,7 @@ internal class ChatClientLlmOperations(
                     FilteringJacksonOutputConverter(
                         clazz = outputClass,
                         objectMapper = objectMapper,
-                        propertyFilter = interaction.propertyFilter,
+                        fieldFilter = interaction.fieldFilter,
                     )
                 ),
                 outputClass = outputClass,
@@ -341,7 +341,7 @@ internal class ChatClientLlmOperations(
                                 FilteringJacksonOutputConverter(
                                     typeReference = typeReference,
                                     objectMapper = objectMapper,
-                                    propertyFilter = interaction.propertyFilter,
+                                    fieldFilter = interaction.fieldFilter,
                                 )
                             ),
                             outputClass = outputClass as Class<MaybeReturn<*>>,
@@ -418,7 +418,7 @@ internal class ChatClientLlmOperations(
                             FilteringJacksonOutputConverter(
                                 clazz = outputClass,
                                 objectMapper = objectMapper,
-                                propertyFilter = interaction.propertyFilter,
+                                fieldFilter = interaction.fieldFilter,
                             )
                         ),
                         outputClass = outputClass,
@@ -473,7 +473,7 @@ internal class ChatClientLlmOperations(
                         FilteringJacksonOutputConverter(
                             clazz = outputClass,
                             objectMapper = objectMapper,
-                            propertyFilter = interaction.propertyFilter,
+                            fieldFilter = interaction.fieldFilter,
                         )
                     ),
                     outputClass = outputClass,
@@ -618,7 +618,7 @@ internal class ChatClientLlmOperations(
                         FilteringJacksonOutputConverter(
                             typeReference = typeReference,
                             objectMapper = objectMapper,
-                            propertyFilter = interaction.propertyFilter,
+                            fieldFilter = interaction.fieldFilter,
                         )
                     ),
                     outputClass = outputClass as Class<MaybeReturn<*>>, // NOSONAR: Safe cast for MaybeReturn wrapper pattern
