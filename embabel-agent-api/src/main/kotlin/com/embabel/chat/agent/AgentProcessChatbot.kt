@@ -27,6 +27,7 @@ import com.embabel.chat.ChatSession
 import com.embabel.chat.Chatbot
 import com.embabel.chat.Conversation
 import com.embabel.chat.ConversationFactory
+import com.embabel.chat.EventTrigger
 import com.embabel.chat.UserMessage
 import com.embabel.chat.support.InMemoryConversationFactory
 import com.embabel.common.util.loggerFor
@@ -197,6 +198,17 @@ internal class AgentProcessChatSession(
         val agentProcessRun = agentProcess.run()
         loggerFor<AgentProcessChatSession>().debug(
             "Agent process {} run completed with status {}",
+            agentProcess.id,
+            agentProcessRun.status,
+        )
+    }
+
+    override fun onTrigger(trigger: EventTrigger) {
+        // NO conversation.addMessage() — trigger is not a message
+        agentProcess.addObject(trigger)
+        val agentProcessRun = agentProcess.run()
+        loggerFor<AgentProcessChatSession>().debug(
+            "Agent process {} trigger run completed with status {}",
             agentProcess.id,
             agentProcessRun.status,
         )
