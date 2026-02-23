@@ -20,6 +20,7 @@ import com.embabel.agent.api.identity.SimpleUser
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.chat.Conversation
 import com.embabel.chat.ConversationFactory
 import com.embabel.chat.ConversationStoreType
@@ -211,7 +212,8 @@ class AgentProcessChatbotTest {
         every { agentPlatform.createAgentProcess(any(), any(), any()) } returns agentProcess
         every { agentProcess.id } returns "process-trigger"
         every { agentProcess[AgentProcessChatSession.CONVERSATION_KEY] } returns conversation
-        every { agentProcess.run() } returns mockk(relaxed = true)
+        every { agentProcess.status } returns AgentProcessStatusCode.STUCK
+        every { agentProcess.run() } returns agentProcess
 
         val chatbot = AgentProcessChatbot(
             agentPlatform = agentPlatform,
@@ -253,7 +255,8 @@ class AgentProcessChatbotTest {
         every { agentPlatform.createAgentProcess(any(), any(), any()) } returns agentProcess
         every { agentProcess.id } returns "process-user-msg"
         every { agentProcess[AgentProcessChatSession.CONVERSATION_KEY] } returns conversation
-        every { agentProcess.run() } returns mockk(relaxed = true)
+        every { agentProcess.status } returns AgentProcessStatusCode.STUCK
+        every { agentProcess.run() } returns agentProcess
 
         val chatbot = AgentProcessChatbot(
             agentPlatform = agentPlatform,

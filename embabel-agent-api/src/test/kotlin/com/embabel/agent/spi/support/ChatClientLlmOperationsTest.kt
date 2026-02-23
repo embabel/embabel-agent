@@ -58,6 +58,7 @@ import org.springframework.ai.chat.prompt.DefaultChatOptions
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import java.time.LocalDate
+import java.util.concurrent.Executors
 import kotlin.test.assertEquals
 
 /**
@@ -152,7 +153,7 @@ class ChatClientLlmOperationsTest {
             templateRenderer = JinjavaTemplateRenderer(),
             objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
             dataBindingProperties = dataBindingProperties,
-            asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
+            asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
         )
         return Setup(cco, mockAgentProcess, mutableLlmInvocationHistory)
     }
@@ -727,7 +728,7 @@ class ChatClientLlmOperationsTest {
                 objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
                 dataBindingProperties = LlmDataBindingProperties(maxAttempts = 1),  // No retries for timeout tests
                 llmOperationsPromptsProperties = promptsProperties,
-                asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
+                asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
             )
             return Setup(cco, mockAgentProcess, mutableLlmInvocationHistory)
         }
@@ -1061,7 +1062,7 @@ class ChatClientLlmOperationsTest {
                 templateRenderer = JinjavaTemplateRenderer(),
                 objectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
                 dataBindingProperties = LlmDataBindingProperties(maxAttempts = 1),
-                asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
+                asyncer = ExecutorAsyncer(Executors.newCachedThreadPool()),
             )
 
             val exception = assertThrows(RuntimeException::class.java) {
