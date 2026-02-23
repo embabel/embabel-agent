@@ -59,15 +59,13 @@ interface ChatSession {
     )
 
     /**
-     * Handle a system-initiated event trigger.
-     * The trigger prompt is sent to the LLM but NOT stored in the conversation.
+     * Handle a system-initiated chat trigger.
+     * The trigger prompt is sent to the LLM but not stored in the conversation.
      * Only the chatbot's response is stored and sent to the output channel.
      *
-     * @param trigger the event trigger to process
+     * @param trigger the chat trigger to process
      */
-    fun onTrigger(trigger: EventTrigger) {
-        // Default no-op — subclasses override
-    }
+    fun onTrigger(trigger: ChatTrigger)
 
     /**
      * Is the conversation finished?

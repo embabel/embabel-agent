@@ -709,7 +709,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
 
         /**
          * Respond to a system-initiated trigger using the rendered template as system prompt.
-         * The trigger prompt is appended as a user message to the LLM call but NOT stored in the conversation.
+         * The trigger prompt is appended as a user message to the LLM call but not stored in the conversation.
          *
          * @param conversation the conversation so far
          * @param triggerPrompt the trigger prompt to send to the LLM

@@ -28,8 +28,8 @@ import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.prompt.persona.PersonaSpec
 import com.embabel.agent.tools.agent.AchievableGoalsToolGroupFactory
 import com.embabel.chat.AssistantMessage
+import com.embabel.chat.ChatTrigger
 import com.embabel.chat.Conversation
-import com.embabel.chat.EventTrigger
 import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 
@@ -79,7 +79,7 @@ class DefaultChatAgentBuilder(
     private fun generateResponse(
         context: TransformationActionContext<*, *>,
         conversation: Conversation,
-        trigger: EventTrigger?,
+        trigger: ChatTrigger?,
     ): AssistantMessage {
         val toolGroup = buildToolGroup(context)
         val rendering = buildRendering(context, toolGroup)
@@ -106,8 +106,8 @@ class DefaultChatAgentBuilder(
         val shouldRespond by conditionOf { context ->
             val conversation = context.last<Conversation>()
                 ?: throw IllegalStateException("No conversation found in context")
-            conversation.lastMessageIfInRole(MessageRole.USER) != null
-                || context.lastResult() is EventTrigger
+            conversation.messages.lastOrNull()?.role == MessageRole.USER
+                || context.lastResult() is ChatTrigger
         }
 
         transformation<Conversation, ConversationStatus>(
@@ -116,7 +116,7 @@ class DefaultChatAgentBuilder(
         ) { context ->
             val conversation = context.last<Conversation>()
                 ?: throw IllegalStateException("No conversation found in context")
-            val trigger = context.lastResult() as? EventTrigger
+            val trigger = context.lastResult() as? ChatTrigger
             val assistantMessage = generateResponse(context, conversation, trigger)
             conversation.addMessage(assistantMessage)
             context.sendMessage(assistantMessage)

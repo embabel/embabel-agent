@@ -56,19 +56,9 @@ interface Conversation : StableIdentified, HasInfoString, AssetView {
         }
 
     /**
-     * Non-null if the conversation has messages and the last message has one of the given roles.
-     */
-    fun lastMessageIfInRole(vararg roles: MessageRole): Message? =
-        messages.lastOrNull()?.takeIf { it.role in roles }
-
-    /**
      * Non-null if the conversation has messages and the last message is from the user.
      */
-    @Deprecated(
-        "Use lastMessageIfInRole(MessageRole.USER)",
-        ReplaceWith("lastMessageIfInRole(MessageRole.USER) as? UserMessage")
-    )
-    fun lastMessageIfBeFromUser(): UserMessage? = lastMessageIfInRole(MessageRole.USER) as? UserMessage
+    fun lastMessageIfBeFromUser(): UserMessage? = messages.lastOrNull() as? UserMessage
 
     /**
      * Modify the state of this conversation.

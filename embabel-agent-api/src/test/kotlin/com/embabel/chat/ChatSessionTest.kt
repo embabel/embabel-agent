@@ -19,7 +19,6 @@ import com.embabel.agent.api.channel.MessageOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.channel.OutputChannelEvent
 import com.embabel.agent.api.reference.LlmReference
-import com.embabel.agent.api.identity.SimpleUser
 import com.embabel.agent.api.identity.User
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.chat.support.InMemoryConversation
@@ -156,26 +155,6 @@ class ChatSessionTest {
         }
     }
 
-    @Nested
-    inner class OnTriggerTests {
-
-        @Test
-        fun `default onTrigger is a no-op`() {
-            val (session, channel) = createTestSession()
-            val trigger = EventTrigger(
-                prompt = "Greet the user",
-                onBehalfOf = listOf(
-                    SimpleUser(id = "u1", displayName = "Alice", username = "alice", email = null)
-                ),
-            )
-
-            session.onTrigger(trigger)
-
-            assertThat(session.conversation.messages).isEmpty()
-            assertThat(channel.events).isEmpty()
-        }
-    }
-
     private fun createTestSession(processId: String? = "test-process"): Pair<ChatSession, RecordingOutputChannel> {
         val channel = RecordingOutputChannel()
         val session = TestChatSession(
@@ -196,6 +175,10 @@ class ChatSessionTest {
 
         override fun onUserMessage(userMessage: UserMessage) {
             conversation.addMessage(userMessage)
+        }
+
+        override fun onTrigger(trigger: ChatTrigger) {
+            // No-op for tests
         }
     }
 

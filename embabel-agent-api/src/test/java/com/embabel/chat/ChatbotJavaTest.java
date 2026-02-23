@@ -156,5 +156,10 @@ class ChatbotJavaTest {
         public void onUserMessage(@NotNull UserMessage userMessage) {
             conversation.addMessage(userMessage);
         }
+
+        @Override
+        public void onTrigger(@NotNull ChatTrigger trigger) {
+            // No-op for tests
+        }
     }
 }

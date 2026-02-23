@@ -24,7 +24,7 @@ import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.chat.Conversation
 import com.embabel.chat.ConversationFactory
 import com.embabel.chat.ConversationStoreType
-import com.embabel.chat.EventTrigger
+import com.embabel.chat.ChatTrigger
 import com.embabel.chat.UserMessage
 import com.embabel.chat.support.InMemoryConversation
 import com.embabel.chat.support.InMemoryConversationFactory
@@ -228,7 +228,7 @@ class AgentProcessChatbotTest {
             conversationId = null,
         )
 
-        val trigger = EventTrigger(
+        val trigger = ChatTrigger(
             prompt = "Greet the user",
             onBehalfOf = listOf(
                 SimpleUser(id = "u1", displayName = "Alice", username = "alice", email = null)

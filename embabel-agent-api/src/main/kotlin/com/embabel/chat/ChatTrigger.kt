@@ -22,14 +22,14 @@ import com.embabel.agent.api.identity.User
  * The prompt reaches the LLM but is never stored as a visible message.
  *
  * Use cases:
- * - Welcome greetings: `EventTrigger("Greet new user jasper", onBehalfOf = listOf(jasper))`
- * - Daily briefings: `EventTrigger("Give morning briefing", onBehalfOf = listOf(subscriber))`
- * - Group notifications: `EventTrigger("Surf is up at North Beach", onBehalfOf = surfers)`
+ * - Welcome greetings: `ChatTrigger("Greet new user jasper", onBehalfOf = listOf(jasper))`
+ * - Daily briefings: `ChatTrigger("Give morning briefing", onBehalfOf = listOf(subscriber))`
+ * - Group notifications: `ChatTrigger("Surf is up at North Beach", onBehalfOf = surfers)`
  *
  * @param prompt the prompt to send to the LLM (not stored in conversation)
  * @param onBehalfOf the users this trigger is for — single for personalized, multiple for group
  */
-data class EventTrigger(
+data class ChatTrigger(
     val prompt: String,
     val onBehalfOf: List<User>,
 )
