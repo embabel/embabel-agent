@@ -21,19 +21,12 @@ import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.agent.spi.loop.support.ParallelToolLoop
-import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.fasterxml.jackson.databind.ObjectMapper
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 
 /**
  * Factory for creating [ToolLoop] instances.
- *
- * Use companion object methods to obtain instances:
- * - [default] for default configuration
- * - [withConfig] for custom configuration
  *
  * ## Threading and context propagation
  *
@@ -41,8 +34,9 @@ import java.util.concurrent.Executors
  * single extension point for controlling threading behavior and propagating
  * execution context (e.g., security context, MDC) to tool execution threads.
  *
- * In a Spring environment, the [Asyncer] bean is injected automatically.
- * For programmatic usage, provide an [Asyncer] via [withConfig].
+ * An [Asyncer] is always required. In a Spring environment, the [Asyncer] bean
+ * is injected automatically via [com.embabel.agent.spi.config.spring.AsyncConfiguration].
+ * For programmatic usage, provide an [Asyncer] via [create].
  *
  * @see Asyncer
  */
@@ -70,59 +64,14 @@ fun interface ToolLoopFactory {
     ): ToolLoop
 
     companion object {
-
-        private val DEFAULT_ASYNCER: Asyncer by lazy {
-            ExecutorAsyncer(Executors.newVirtualThreadPerTaskExecutor())
-        }
-
-        /**
-         * Create a factory with default configuration.
-         * Uses [ToolLoopType.DEFAULT] (sequential execution) with virtual thread-based [Asyncer].
-         */
-        fun default(): ToolLoopFactory =
-            ConfigurableToolLoopFactory(ToolLoopConfiguration(), DEFAULT_ASYNCER)
-
-        /**
-         * Create a factory with the specified configuration.
-         * Uses virtual thread-based [Asyncer] for parallel execution.
-         *
-         * For custom threading or context propagation, use [withConfig] with an [Asyncer].
-         *
-         * @param config the tool loop configuration
-         */
-        fun withConfig(config: ToolLoopConfiguration): ToolLoopFactory =
-            ConfigurableToolLoopFactory(config, DEFAULT_ASYNCER)
-
         /**
          * Create a factory with the specified configuration and asyncer.
-         * The [Asyncer] is used for parallel tool execution, ensuring that
-         * custom execution context (e.g., security context, MDC) is propagated
-         * to tool execution threads.
-         *
-         * This is the recommended way to customize parallel execution behavior.
          *
          * @param config the tool loop configuration
          * @param asyncer asyncer for parallel mode with context propagation
          */
-        fun withConfig(config: ToolLoopConfiguration, asyncer: Asyncer): ToolLoopFactory =
+        fun create(config: ToolLoopConfiguration, asyncer: Asyncer): ToolLoopFactory =
             ConfigurableToolLoopFactory(config, asyncer)
-
-        /**
-         * Create a factory with the specified configuration and executor.
-         *
-         * @param config the tool loop configuration
-         * @param executor executor service for parallel mode
-         * @deprecated Since 0.5.0. Use [withConfig] with an [Asyncer] instead.
-         * The Asyncer abstraction provides context propagation support
-         * that raw ExecutorService does not.
-         */
-        @Deprecated(
-            message = "Use withConfig(config, asyncer) instead. The Asyncer abstraction provides context propagation.",
-            replaceWith = ReplaceWith("withConfig(config, ExecutorAsyncer(executor))"),
-            level = DeprecationLevel.WARNING,
-        )
-        fun withConfig(config: ToolLoopConfiguration, executor: ExecutorService): ToolLoopFactory =
-            ConfigurableToolLoopFactory(config, ExecutorAsyncer(executor))
     }
 }
 

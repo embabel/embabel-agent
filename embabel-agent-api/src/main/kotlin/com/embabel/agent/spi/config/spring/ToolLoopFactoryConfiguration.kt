@@ -43,6 +43,6 @@ class ToolLoopFactoryConfiguration(
     @Bean
     fun toolLoopFactory(asyncer: Asyncer): ToolLoopFactory {
         logger.info("Creating ToolLoopFactory with type: {}, using injected Asyncer", config.type)
-        return ToolLoopFactory.withConfig(config, asyncer)
+        return ToolLoopFactory.create(config, asyncer)
     }
 }

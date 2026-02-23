@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.concurrent.Executors
 
@@ -39,8 +38,9 @@ class ToolLoopFactoryTest {
     private val asyncer = ExecutorAsyncer(Executors.newFixedThreadPool(4))
 
     @Test
-    fun `default factory creates DefaultToolLoop`() {
-        val factory = ToolLoopFactory.default()
+    fun `creates DefaultToolLoop for default type`() {
+        val config = ToolLoopConfiguration()
+        val factory = ToolLoopFactory.create(config, asyncer)
 
         val toolLoop = factory.create(
             llmMessageSender = mockMessageSender,
@@ -57,31 +57,9 @@ class ToolLoopFactoryTest {
     }
 
     @Test
-    fun `withConfig creates factory with custom configuration`() {
-        val config = ToolLoopConfiguration(
-            type = ToolLoopType.DEFAULT,
-            maxIterations = 10,
-        )
-        val factory = ToolLoopFactory.withConfig(config)
-
-        val toolLoop = factory.create(
-            llmMessageSender = mockMessageSender,
-            objectMapper = objectMapper,
-            injectionStrategy = injectionStrategy,
-            maxIterations = 15,
-            toolDecorator = null,
-            inspectors = emptyList(),
-            transformers = emptyList(),
-        )
-
-        assertNotNull(toolLoop)
-        assertTrue(toolLoop is DefaultToolLoop)
-    }
-
-    @Test
-    fun `parallel type creates ParallelToolLoop`() {
+    fun `creates ParallelToolLoop for parallel type`() {
         val config = ToolLoopConfiguration(type = ToolLoopType.PARALLEL)
-        val factory = ToolLoopFactory.withConfig(config, asyncer)
+        val factory = ToolLoopFactory.create(config, asyncer)
 
         val toolLoop = factory.create(
             llmMessageSender = mockMessageSender,
@@ -97,51 +75,25 @@ class ToolLoopFactoryTest {
         assertTrue(toolLoop is ParallelToolLoop)
     }
 
-    @Nested
-    inner class AsyncerTest {
+    @Test
+    fun `custom configuration is respected`() {
+        val config = ToolLoopConfiguration(
+            type = ToolLoopType.DEFAULT,
+            maxIterations = 10,
+        )
+        val factory = ToolLoopFactory.create(config, asyncer)
 
-        @Test
-        fun `withConfig with asyncer creates factory that uses provided asyncer`() {
-            val config = ToolLoopConfiguration(type = ToolLoopType.PARALLEL)
-            val factory = ToolLoopFactory.withConfig(config, asyncer)
+        val toolLoop = factory.create(
+            llmMessageSender = mockMessageSender,
+            objectMapper = objectMapper,
+            injectionStrategy = injectionStrategy,
+            maxIterations = 15,
+            toolDecorator = null,
+            inspectors = emptyList(),
+            transformers = emptyList(),
+        )
 
-            val toolLoop = factory.create(
-                llmMessageSender = mockMessageSender,
-                objectMapper = objectMapper,
-                injectionStrategy = injectionStrategy,
-                maxIterations = 20,
-                toolDecorator = null,
-                inspectors = emptyList(),
-                transformers = emptyList(),
-            )
-
-            assertNotNull(toolLoop)
-            assertTrue(toolLoop is ParallelToolLoop)
-        }
-
-        @Suppress("DEPRECATION")
-        @Test
-        fun `deprecated withConfig with executor still works`() {
-            val executor = Executors.newSingleThreadExecutor()
-            try {
-                val config = ToolLoopConfiguration(type = ToolLoopType.PARALLEL)
-                val factory = ToolLoopFactory.withConfig(config, executor)
-
-                val toolLoop = factory.create(
-                    llmMessageSender = mockMessageSender,
-                    objectMapper = objectMapper,
-                    injectionStrategy = injectionStrategy,
-                    maxIterations = 20,
-                    toolDecorator = null,
-                    inspectors = emptyList(),
-                    transformers = emptyList(),
-                )
-
-                assertNotNull(toolLoop)
-                assertTrue(toolLoop is ParallelToolLoop)
-            } finally {
-                executor.shutdown()
-            }
-        }
+        assertNotNull(toolLoop)
+        assertTrue(toolLoop is DefaultToolLoop)
     }
 }
