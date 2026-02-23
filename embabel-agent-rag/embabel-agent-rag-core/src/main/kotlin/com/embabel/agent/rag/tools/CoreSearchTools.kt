@@ -109,24 +109,22 @@ internal class ResultExpanderTools(
         @LlmTool.Param(description = "id of the chunk to expand") chunkId: String,
         @LlmTool.Param(description = "chunksToAdd", required = false) chunksToAdd: Int = 2,
     ): String {
-        val expandedElements = resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
-        return expandedElements
-            .filterIsInstance<Chunk>()
-            .joinToString("\n") { chunk ->
-                "Chunk ID: ${chunk.id}\nContent: ${chunk.text}\n"
-            }
+        val chunks = resultExpander.expandResult(chunkId, ResultExpander.Method.SEQUENCE, chunksToAdd)
+         .filterIsInstance<Chunk>()
+        if (chunks.isEmpty()) return "No adjacent chunks found for this section."
+        return chunks.joinToString("\n") { "Chunk ID: ${it.id}\nContent: ${it.text}\n" }
     }
 
     @LlmTool(description = "given a content element ID, expand to parent section")
     fun zoomOut(
         @LlmTool.Param(description = "id of the content element to expand") id: String,
     ): String {
-        val expandedElements = resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
-        return expandedElements
-            .filter { it is Embeddable }
-            .joinToString("\n") { contentElement ->
-                "${contentElement.javaClass.simpleName}: id=${contentElement.id}\nContent: ${(contentElement as Embeddable).embeddableValue()}\n"
-            }
+        val embeddables = resultExpander.expandResult(id, ResultExpander.Method.ZOOM_OUT, 1)
+         .filter { it is Embeddable }
+        if (embeddables.isEmpty()) return "No parent section found."
+        return embeddables.joinToString("\n") { contentElement ->
+            "${contentElement.javaClass.simpleName}: id=${contentElement.id}\nContent: ${(contentElement as Embeddable).embeddableValue()}\n"
+        }
     }
 }
 
