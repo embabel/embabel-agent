@@ -19,6 +19,7 @@ import com.embabel.agent.api.channel.MessageOutputChannelEvent
 import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.channel.OutputChannelEvent
 import com.embabel.agent.api.reference.LlmReference
+import com.embabel.agent.api.identity.SimpleUser
 import com.embabel.agent.api.identity.User
 import com.embabel.agent.core.hitl.ConfirmationRequest
 import com.embabel.chat.support.InMemoryConversation
@@ -152,6 +153,26 @@ class ChatSessionTest {
 
             val event = channel.events[0] as MessageOutputChannelEvent
             assertThat(event.processId).isEqualTo("anonymous")
+        }
+    }
+
+    @Nested
+    inner class OnTriggerTests {
+
+        @Test
+        fun `default onTrigger is a no-op`() {
+            val (session, channel) = createTestSession()
+            val trigger = EventTrigger(
+                prompt = "Greet the user",
+                onBehalfOf = listOf(
+                    SimpleUser(id = "u1", displayName = "Alice", username = "alice", email = null)
+                ),
+            )
+
+            session.onTrigger(trigger)
+
+            assertThat(session.conversation.messages).isEmpty()
+            assertThat(channel.events).isEmpty()
         }
     }
 

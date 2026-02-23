@@ -16,12 +16,14 @@
 package com.embabel.chat.agent
 
 import com.embabel.agent.api.channel.DevNullOutputChannel
+import com.embabel.agent.api.identity.SimpleUser
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
 import com.embabel.chat.Conversation
 import com.embabel.chat.ConversationFactory
 import com.embabel.chat.ConversationStoreType
+import com.embabel.chat.EventTrigger
 import com.embabel.chat.UserMessage
 import com.embabel.chat.support.InMemoryConversation
 import com.embabel.chat.support.InMemoryConversationFactory
@@ -197,6 +199,85 @@ class AgentProcessChatbotTest {
         )
 
         assertNotNull(chatbot)
+    }
+
+    @Test
+    fun `onTrigger adds trigger to blackboard and runs without adding to conversation`() {
+        val agentPlatform = mockk<AgentPlatform>()
+        val agentProcess = mockk<AgentProcess>(relaxed = true)
+        val conversation = InMemoryConversation(id = "conv-trigger")
+        val factory = InMemoryConversationFactory()
+
+        every { agentPlatform.createAgentProcess(any(), any(), any()) } returns agentProcess
+        every { agentProcess.id } returns "process-trigger"
+        every { agentProcess[AgentProcessChatSession.CONVERSATION_KEY] } returns conversation
+        every { agentProcess.run() } returns mockk(relaxed = true)
+
+        val chatbot = AgentProcessChatbot(
+            agentPlatform = agentPlatform,
+            agentSource = { mockk<Agent>(relaxed = true) },
+            conversationFactory = factory,
+        )
+
+        val session = chatbot.createSession(
+            user = null,
+            outputChannel = DevNullOutputChannel,
+            contextId = null,
+            conversationId = null,
+        )
+
+        val trigger = EventTrigger(
+            prompt = "Greet the user",
+            onBehalfOf = listOf(
+                SimpleUser(id = "u1", displayName = "Alice", username = "alice", email = null)
+            ),
+        )
+
+        session.onTrigger(trigger)
+
+        // Trigger should be added to blackboard and process should run
+        verify { agentProcess.addObject(trigger) }
+        verify { agentProcess.run() }
+
+        // Conversation should NOT have the trigger as a message
+        assertTrue(conversation.messages.isEmpty(), "Trigger should not be added to conversation")
+    }
+
+    @Test
+    fun `onUserMessage adds message to conversation unlike onTrigger`() {
+        val agentPlatform = mockk<AgentPlatform>()
+        val agentProcess = mockk<AgentProcess>(relaxed = true)
+        val conversation = InMemoryConversation(id = "conv-user-msg")
+        val factory = InMemoryConversationFactory()
+
+        every { agentPlatform.createAgentProcess(any(), any(), any()) } returns agentProcess
+        every { agentProcess.id } returns "process-user-msg"
+        every { agentProcess[AgentProcessChatSession.CONVERSATION_KEY] } returns conversation
+        every { agentProcess.run() } returns mockk(relaxed = true)
+
+        val chatbot = AgentProcessChatbot(
+            agentPlatform = agentPlatform,
+            agentSource = { mockk<Agent>(relaxed = true) },
+            conversationFactory = factory,
+        )
+
+        val session = chatbot.createSession(
+            user = null,
+            outputChannel = DevNullOutputChannel,
+            contextId = null,
+            conversationId = null,
+        )
+
+        val userMessage = UserMessage("Hello")
+        session.onUserMessage(userMessage)
+
+        // User message SHOULD be added to conversation
+        assertEquals(1, conversation.messages.size)
+        assertEquals("Hello", conversation.messages[0].content)
+
+        // And also added to blackboard
+        verify { agentProcess.addObject(userMessage) }
+        verify { agentProcess.run() }
     }
 
     @Test
