@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import com.embabel.agent.spi.support.MaybeReturn
 import com.embabel.common.util.DummyInstanceCreator
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule

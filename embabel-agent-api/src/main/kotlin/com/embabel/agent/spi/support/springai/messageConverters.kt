@@ -128,11 +128,18 @@ internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringA
  */
 fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
     val toolCalls = this.toolCalls
+    val content = this.text ?: ""
     return if (toolCalls.isNullOrEmpty()) {
-        AssistantMessage(content = this.text ?: "")
+        // AssistantMessage requires non-empty content (TextPart validation).
+        // For empty content, use AssistantMessageWithToolCalls which handles empty content gracefully.
+        if (content.isEmpty()) {
+            AssistantMessageWithToolCalls(content = "", toolCalls = emptyList())
+        } else {
+            AssistantMessage(content = content)
+        }
     } else {
         AssistantMessageWithToolCalls(
-            content = this.text ?: "",
+            content = content,
             toolCalls = toolCalls.map { ToolCall(it.id(), it.name(), it.arguments()) }
         )
     }

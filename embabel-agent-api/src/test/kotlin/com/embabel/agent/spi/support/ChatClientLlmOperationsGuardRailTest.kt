@@ -28,7 +28,7 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetToolsFrom
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.agent.spi.support.springai.MaybeReturn
+import com.embabel.agent.spi.support.MaybeReturn
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
 import com.embabel.agent.support.SimpleTestAgent

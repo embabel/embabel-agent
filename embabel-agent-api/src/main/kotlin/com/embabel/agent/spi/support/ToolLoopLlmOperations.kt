@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.ToolLoopStartEvent
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
@@ -30,7 +31,6 @@ import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
-import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.spi.loop.ToolLoopFactory
 import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
 import com.embabel.agent.spi.support.guardrails.validateUserInput
@@ -39,12 +39,13 @@ import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.SystemMessage
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
 import jakarta.validation.Validator
 import java.time.Duration
@@ -87,6 +88,7 @@ interface OutputConverter<T> {
  * @param promptsProperties Properties for prompt configuration
  * @param objectMapper ObjectMapper for JSON serialization
  * @param observationRegistry Registry for distributed tracing observations
+ * @param templateRenderer TemplateRenderer for rendering prompt templates (default: NoOpTemplateRenderer)
  */
 open class ToolLoopLlmOperations(
     modelProvider: ModelProvider,
@@ -100,6 +102,7 @@ open class ToolLoopLlmOperations(
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     asyncer: Asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
     protected val toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer),
+    protected val templateRenderer: TemplateRenderer = NoOpTemplateRenderer,
 ) : AbstractLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -230,7 +233,11 @@ open class ToolLoopLlmOperations(
         val finalResult = result.result
         when (finalResult) {
             is String -> validateAssistantResponse(finalResult, interaction, llmRequestEvent?.agentProcess?.blackboard)
-            is AssistantMessage -> validateAssistantResponse(finalResult, interaction, llmRequestEvent?.agentProcess?.blackboard)
+            is AssistantMessage -> validateAssistantResponse(
+                finalResult,
+                interaction,
+                llmRequestEvent?.agentProcess?.blackboard
+            )
             // For other object types, we don't have the raw response text to validate
             // but guardrails could be extended to validate structured objects in the future
         }
@@ -244,13 +251,119 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>,
     ): Result<O> {
-        // Default implementation delegates to doTransform wrapped in Result
-        // Subclasses can override for framework-specific IfPossible handling
-        return try {
-            Result.success(doTransform(messages, interaction, outputClass, llmRequestEvent))
-        } catch (e: Exception) {
-            Result.failure(e)
+        val llm = chooseLlm(interaction.llm)
+        val promptContributions = buildPromptContributions(interaction, llm)
+
+        val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
+
+        val converter = createMaybeReturnOutputConverter(outputClass, interaction)!!
+
+        val schemaFormat = converter.getFormat()
+
+        val outputParser: (String) -> MaybeReturn<O> = { text ->
+            converter.convert(text)!!
         }
+
+        // Create a decorator for dynamically injected tools (e.g., from MatryoshkaTool)
+        val injectedToolDecorator: ((Tool) -> Tool) = { tool: Tool ->
+            toolDecorator.decorate(
+                tool = tool,
+                agentProcess = llmRequestEvent.agentProcess,
+                action = llmRequestEvent.action,
+                llmOptions = interaction.llm,
+            )
+        }
+
+        val injectionStrategy = if (interaction.additionalInjectionStrategies.isNotEmpty()) {
+            ChainedToolInjectionStrategy(
+                listOf(ToolInjectionStrategy.DEFAULT) + interaction.additionalInjectionStrategies
+            )
+        } else {
+            ToolInjectionStrategy.DEFAULT
+        }
+
+        val toolLoop = toolLoopFactory.create(
+            llmMessageSender = messageSender,
+            objectMapper = objectMapper,
+            injectionStrategy = injectionStrategy,
+            maxIterations = interaction.maxToolIterations,
+            toolDecorator = injectedToolDecorator,
+            inspectors = interaction.inspectors,
+            transformers = interaction.transformers,
+        )
+
+        // Build MaybeReturn prompt contribution
+        val maybeReturnPromptContribution = templateRenderer.renderLoadedTemplate(
+            promptsProperties.maybePromptTemplate,
+            emptyMap(),
+        )
+
+        val initialMessages = buildInitialMessagesWithMaybeReturn(
+            promptContributions,
+            messages,
+            maybeReturnPromptContribution,
+            schemaFormat,
+        )
+
+        emitCallEvent(llmRequestEvent, promptContributions, messages, schemaFormat)
+
+        // Guardrails: Pre-validation of user input
+        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        validateUserInput(userMessages, interaction, llmRequestEvent.agentProcess.blackboard)
+
+        val tools = interaction.tools
+
+        // Publish ToolLoopStartEvent before the tool loop
+        val toolLoopStartEvent = ToolLoopStartEvent(
+            agentProcess = llmRequestEvent.agentProcess,
+            action = llmRequestEvent.action,
+            toolNames = tools.map { it.definition.name },
+            maxIterations = interaction.maxToolIterations,
+            interactionId = interaction.id.value,
+            outputClass = outputClass,
+        ).also { startEvent ->
+            llmRequestEvent.agentProcess.processContext.onProcessEvent(startEvent)
+        }
+
+        val result = toolLoop.execute(
+            initialMessages = initialMessages,
+            initialTools = tools,
+            outputParser = outputParser,
+        )
+
+        // Publish ToolLoopCompletedEvent after the tool loop
+        llmRequestEvent.agentProcess.processContext.onProcessEvent(
+            toolLoopStartEvent.completedEvent(
+                totalIterations = result.totalIterations,
+                replanRequested = result.replanRequested,
+            )
+        )
+
+        result.totalUsage?.let { usage ->
+            recordUsage(llm, usage, llmRequestEvent)
+        }
+
+        // If replan was requested, re-throw the exception to propagate to action executor
+        if (result.replanRequested) {
+            throw ReplanRequestedException(
+                reason = result.replanReason ?: "Tool requested replan",
+                blackboardUpdater = result.blackboardUpdater,
+            )
+        }
+
+        // ToolLoopResult.result is non-nullable by design - if tool loop completes, it has a result
+        val maybeReturn = result.result
+
+        // Guardrails: Post-validation of assistant response
+        // For MaybeReturn, validate the success value if it's a validatable type
+        when (val successValue = maybeReturn.success) {
+            is String -> validateAssistantResponse(successValue, interaction, llmRequestEvent.agentProcess.blackboard)
+            is AssistantMessage -> validateAssistantResponse(successValue, interaction, llmRequestEvent.agentProcess.blackboard)
+            // For other object types, we don't have the raw response text to validate
+        }
+
+        // Convert MaybeReturn<O> to Result<O>
+        return maybeReturn.toResult()
     }
 
     /**
@@ -284,6 +397,23 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         interaction: LlmInteraction,
     ): OutputConverter<O>? {
+        // Default implementation returns null - subclasses should override
+        return null
+    }
+
+    /**
+     * Create an output converter for MaybeReturn wrapper type.
+     * Used by doTransformIfPossible for "if possible" semantics.
+     * Subclasses implement this to provide framework-specific converters.
+     *
+     * @param outputClass The target output class (inner type of MaybeReturn)
+     * @param interaction The LLM interaction context
+     * @return An output converter for MaybeReturn<O>, or null to fall back to try-catch
+     */
+    internal open fun <O> createMaybeReturnOutputConverter(
+        outputClass: Class<O>,
+        interaction: LlmInteraction,
+    ): OutputConverter<MaybeReturn<O>>? {
         // Default implementation returns null - subclasses should override
         return null
     }
@@ -364,6 +494,26 @@ open class ToolLoopLlmOperations(
     }
 
     /**
+     * Build initial messages with MaybeReturn prompt for "if possible" semantics.
+     * Adds the MaybeReturn prompt as a UserMessage after system message, before other messages.
+     */
+    protected fun buildInitialMessagesWithMaybeReturn(
+        promptContributions: String,
+        messages: List<Message>,
+        maybeReturnPrompt: String,
+        schemaFormat: String?,
+    ): List<Message> {
+        val baseMessages = buildInitialMessages(promptContributions, messages, schemaFormat)
+        val firstMessage = baseMessages.firstOrNull()
+        return if (firstMessage is SystemMessage) {
+            // Keep system message first, insert MaybeReturn prompt, then remaining messages
+            listOf(firstMessage, UserMessage(maybeReturnPrompt)) + baseMessages.drop(1)
+        } else {
+            listOf(UserMessage(maybeReturnPrompt)) + baseMessages
+        }
+    }
+
+    /**
      * Record LLM usage for observability.
      */
     protected fun recordUsage(
@@ -393,4 +543,5 @@ open class ToolLoopLlmOperations(
         }
         return llmCall.generateExamples == true
     }
+
 }
