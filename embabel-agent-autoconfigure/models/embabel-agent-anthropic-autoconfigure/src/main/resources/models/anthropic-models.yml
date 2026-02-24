@@ -67,16 +67,6 @@ models:
       usd_per1m_input_tokens: 15.0
       usd_per1m_output_tokens: 75.0
 
-  # Claude 3.7 Sonnet - Hybrid reasoning model (being phased out)
-  - name: "claude_sonnet_37"
-    model_id: "claude-3-7-sonnet-latest"
-    display_name: "Claude 3.7 Sonnet"
-    knowledge_cutoff_date: "2024-10-31"
-    max_tokens: 8192
-    pricing_model:
-      usd_per1m_input_tokens: 3.0
-      usd_per1m_output_tokens: 15.0
-
   # Claude 3.5 Haiku - Legacy fast model (replaced by Haiku 4.5)
   - name: "claude_haiku_35"
     model_id: "claude-3-5-haiku-latest"
