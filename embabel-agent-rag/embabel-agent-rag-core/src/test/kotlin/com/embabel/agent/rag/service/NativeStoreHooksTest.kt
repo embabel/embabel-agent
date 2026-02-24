@@ -80,14 +80,14 @@ class NativeStoreHooksTest {
         }
 
         @Test
-        fun `findNativeById returns null by default`() {
-            val result = repository.findNativeById("any-id", Product::class.java)
+        fun `default nativeFinder findById returns null`() {
+            val result = repository.nativeFinder.findById("any-id", Product::class.java)
             assertNull(result)
         }
 
         @Test
-        fun `findNativeAll returns null by default`() {
-            val result = repository.findNativeAll(Product::class.java)
+        fun `default nativeFinder findAll returns null`() {
+            val result = repository.nativeFinder.findAll(Product::class.java)
             assertNull(result)
         }
 
@@ -154,11 +154,9 @@ class NativeStoreHooksTest {
                 sku = "NAT-001"
             )
 
-            val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
-                override fun isNativeType(type: Class<*>): Boolean = type == Product::class.java
-
+            val nativeFinder = object : NativeFinder {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
+                override fun <T : NamedEntity> findById(id: String, type: Class<T>): T? {
                     return if (id == "native-1" && type == Product::class.java) {
                         nativeProduct as T
                     } else {
@@ -166,6 +164,8 @@ class NativeStoreHooksTest {
                     }
                 }
             }
+
+            val repository = InMemoryNamedEntityDataRepository(testDictionary, nativeFinder = nativeFinder)
 
             // Also save a different entity with same ID in generic store
             repository.save(
@@ -197,9 +197,9 @@ class NativeStoreHooksTest {
                 sku = "NAT-001"
             )
 
-            val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+            val nativeFinder = object : NativeFinder {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
+                override fun <T : NamedEntity> findById(id: String, type: Class<T>): T? {
                     // Only handle Product type natively
                     return if (type == Product::class.java && id == "native-1") {
                         nativeProduct as T
@@ -208,6 +208,8 @@ class NativeStoreHooksTest {
                     }
                 }
             }
+
+            val repository = InMemoryNamedEntityDataRepository(testDictionary, nativeFinder = nativeFinder)
 
             // Save a Category in generic store
             repository.save(
@@ -234,9 +236,9 @@ class NativeStoreHooksTest {
                 ProductImpl("nat-2", "Native 2", "Desc 2", 20.0, "SKU-2")
             )
 
-            val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+            val nativeFinder = object : NativeFinder {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? {
+                override fun <T : NamedEntity> findAll(type: Class<T>): List<T>? {
                     return if (type == Product::class.java) {
                         nativeProducts as List<T>
                     } else {
@@ -244,6 +246,8 @@ class NativeStoreHooksTest {
                     }
                 }
             }
+
+            val repository = InMemoryNamedEntityDataRepository(testDictionary, nativeFinder = nativeFinder)
 
             // Save different products in generic store
             repository.save(
@@ -270,9 +274,9 @@ class NativeStoreHooksTest {
                 ProductImpl("nat-1", "Native 1", "Desc 1", 10.0, "SKU-1")
             )
 
-            val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+            val nativeFinder = object : NativeFinder {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? {
+                override fun <T : NamedEntity> findAll(type: Class<T>): List<T>? {
                     // Only handle Product type natively
                     return if (type == Product::class.java) {
                         nativeProducts as List<T>
@@ -281,6 +285,8 @@ class NativeStoreHooksTest {
                     }
                 }
             }
+
+            val repository = InMemoryNamedEntityDataRepository(testDictionary, nativeFinder = nativeFinder)
 
             // Save categories in generic store
             repository.save(
@@ -302,9 +308,9 @@ class NativeStoreHooksTest {
 
         @Test
         fun `findAll returns empty list from native when no entities exist`() {
-            val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
+            val nativeFinder = object : NativeFinder {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? {
+                override fun <T : NamedEntity> findAll(type: Class<T>): List<T>? {
                     return if (type == Product::class.java) {
                         emptyList()
                     } else {
@@ -312,6 +318,8 @@ class NativeStoreHooksTest {
                     }
                 }
             }
+
+            val repository = InMemoryNamedEntityDataRepository(testDictionary, nativeFinder = nativeFinder)
 
             // Save something in generic store that would match
             repository.save(
@@ -332,9 +340,7 @@ class NativeStoreHooksTest {
 
         @Test
         fun `findTypedById returns null when native returns null and entity not in generic store`() {
-            val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
-                override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? = null
-            }
+            val repository = InMemoryNamedEntityDataRepository(testDictionary)
 
             val result = repository.findTypedById("nonexistent", Product::class.java)
 
@@ -349,11 +355,9 @@ class NativeStoreHooksTest {
         fun `can have native mapping for some types and generic for others`() {
             val nativeProduct = ProductImpl("prod-1", "Native Product", "Native", 50.0, "NAT")
 
-            val repository = object : InMemoryNamedEntityDataRepository(testDictionary) {
-                override fun isNativeType(type: Class<*>): Boolean = type == Product::class.java
-
+            val nativeFinder = object : NativeFinder {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? {
+                override fun <T : NamedEntity> findById(id: String, type: Class<T>): T? {
                     return if (type == Product::class.java && id == "prod-1") {
                         nativeProduct as T
                     } else {
@@ -362,7 +366,7 @@ class NativeStoreHooksTest {
                 }
 
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? {
+                override fun <T : NamedEntity> findAll(type: Class<T>): List<T>? {
                     return if (type == Product::class.java) {
                         listOf(nativeProduct) as List<T>
                     } else {
@@ -370,6 +374,8 @@ class NativeStoreHooksTest {
                     }
                 }
             }
+
+            val repository = InMemoryNamedEntityDataRepository(testDictionary, nativeFinder = nativeFinder)
 
             // Save Category in generic store
             repository.save(

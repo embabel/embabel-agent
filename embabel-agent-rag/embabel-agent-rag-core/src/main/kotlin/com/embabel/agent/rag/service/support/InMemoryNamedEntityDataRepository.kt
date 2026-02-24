@@ -22,6 +22,7 @@ import com.embabel.agent.rag.filter.InMemoryPropertyFilter
 import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.RelationshipDirection
 import com.embabel.agent.rag.service.NamedEntityDataRepository
+import com.embabel.agent.rag.service.NativeFinder
 import com.embabel.agent.rag.service.RelationshipData
 import com.embabel.agent.rag.service.RetrievableIdentifier
 import com.embabel.common.ai.model.EmbeddingService
@@ -53,6 +54,7 @@ open class InMemoryNamedEntityDataRepository @JvmOverloads constructor(
     override val dataDictionary: DataDictionary,
     private val embeddingService: EmbeddingService? = null,
     override val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule(),
+    override val nativeFinder: NativeFinder = NativeFinder.NONE,
 ) : NamedEntityDataRepository {
 
     private val entities = ConcurrentHashMap<String, NamedEntityData>()

@@ -170,7 +170,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * Type must implement [NamedEntity] for hydration to succeed.
      *
      * For types with native store mappings (e.g., @NodeFragment classes), uses
-     * [findNativeById] instead of Jackson hydration to preserve proper field mappings.
+     * [nativeFinder] instead of Jackson hydration to preserve proper field mappings.
      *
      * @param request the search request
      * @param clazz the target type for hydration
@@ -188,7 +188,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         return vectorSearch(request, metadataFilter = null, entityFilter = null).mapNotNull { similarityResult ->
             // Try native first, fall back to generic hydration on null or exception
             val typed: NamedEntity? = try {
-                findNativeById(similarityResult.match.id, namedEntityClass)
+                nativeFinder.findById(similarityResult.match.id, namedEntityClass)
             } catch (_: Exception) {
                 null
             } ?: similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
@@ -201,7 +201,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * Type must implement [NamedEntity] for hydration to succeed.
      *
      * For types with native store mappings (e.g., @NodeFragment classes), uses
-     * [findNativeById] instead of Jackson hydration to preserve proper field mappings.
+     * [nativeFinder] instead of Jackson hydration to preserve proper field mappings.
      *
      * @param request the search request
      * @param clazz the target type for hydration
@@ -219,7 +219,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         return textSearch(request, metadataFilter = null, entityFilter = null).mapNotNull { similarityResult ->
             // Try native first, fall back to generic hydration on null or exception
             val typed: NamedEntity? = try {
-                findNativeById(similarityResult.match.id, namedEntityClass)
+                nativeFinder.findById(similarityResult.match.id, namedEntityClass)
             } catch (_: Exception) {
                 null
             } ?: similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
@@ -232,7 +232,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * Delegates to the entity-specific [vectorSearch] method with filters.
      *
      * For types with native store mappings (e.g., @NodeFragment classes), uses
-     * [findNativeById] instead of Jackson hydration to preserve proper field mappings.
+     * [nativeFinder] instead of Jackson hydration to preserve proper field mappings.
      *
      * @param request the search request
      * @param clazz the target type for hydration
@@ -254,7 +254,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         return vectorSearch(request, metadataFilter, entityFilter).mapNotNull { similarityResult ->
             // Try native first, fall back to generic hydration on null or exception
             val typed: NamedEntity? = try {
-                findNativeById(similarityResult.match.id, namedEntityClass)
+                nativeFinder.findById(similarityResult.match.id, namedEntityClass)
             } catch (_: Exception) {
                 null
             } ?: similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
@@ -267,7 +267,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * Delegates to the entity-specific [textSearch] method with filters.
      *
      * For types with native store mappings (e.g., @NodeFragment classes), uses
-     * [findNativeById] instead of Jackson hydration to preserve proper field mappings.
+     * [nativeFinder] instead of Jackson hydration to preserve proper field mappings.
      *
      * @param request the search request
      * @param clazz the target type for hydration
@@ -289,7 +289,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         return textSearch(request, metadataFilter, entityFilter).mapNotNull { similarityResult ->
             // Try native first, fall back to generic hydration on null or exception
             val typed: NamedEntity? = try {
-                findNativeById(similarityResult.match.id, namedEntityClass)
+                nativeFinder.findById(similarityResult.match.id, namedEntityClass)
             } catch (_: Exception) {
                 null
             } ?: similarityResult.match.toTypedInstance(objectMapper, namedEntityClass, this)
@@ -455,58 +455,24 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         }
     }
 
-    // === Typed hydration methods ===
-
-    // === Native store hooks ===
-    // Implementations can override these to use native store mappings (e.g., JPA, Spring Data)
+    // === Native store strategy ===
 
     /**
-     * Native store lookup by ID for a specific type.
+     * Strategy for native store lookups (e.g., JPA, Drivine).
      *
-     * Override this method in implementations that have native mappings for certain types
-     * (e.g., JPA entities, Spring Data repositories).
+     * Implementations can provide a [NativeFinder] to bypass generic label-based lookup
+     * for certain types. The finder is tried first; null results fall back to generic lookup.
      *
-     * @param id the entity ID
-     * @param type the target class
-     * @return the entity if found via native store, null to fall back to generic lookup
+     * Defaults to [NativeFinder.NONE], which always returns null.
      */
-    fun <T : NamedEntity> findNativeById(id: String, type: Class<T>): T? = null
-
-    /**
-     * Native store lookup for all entities of a specific type.
-     *
-     * Override this method in implementations that have native mappings for certain types
-     * (e.g., JPA entities, Spring Data repositories).
-     *
-     * @param type the target class
-     * @return list of entities if type has native mapping, null to fall back to generic lookup
-     */
-    fun <T : NamedEntity> findNativeAll(type: Class<T>): List<T>? = null
-
-    /**
-     * Check if a type can be loaded natively by this repository.
-     *
-     * Override this method to indicate which types have native mappings.
-     * This is used by [findEntityById] to avoid calling [findNativeById] for types
-     * that would throw exceptions or fail.
-     *
-     * For example, a Drivine-based implementation might check for @NodeFragment annotation:
-     * ```kotlin
-     * override fun isNativeType(type: Class<*>): Boolean =
-     *     type.isAnnotationPresent(NodeFragment::class.java)
-     * ```
-     *
-     * @param type the class to check
-     * @return true if this repository can natively load instances of this type
-     */
-    fun isNativeType(type: Class<*>): Boolean = false
+    val nativeFinder: NativeFinder get() = NativeFinder.NONE
 
     // === Typed hydration methods ===
 
     /**
      * Find an entity by ID and type, then hydrate to a typed JVM instance.
      *
-     * First tries [findNativeById] for native store mappings, then falls back to
+     * First tries [nativeFinder] for native store mappings, then falls back to
      * generic label-based lookup with hydration.
      *
      * IDs are scoped by type, so the same ID can exist for different types.
@@ -522,7 +488,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
     fun <T : NamedEntity> findTypedById(id: String, type: Class<T>): T? {
         // Try native store first - accept null or exception as "not supported"
         try {
-            findNativeById(id, type)?.let { return it }
+            nativeFinder.findById(id, type)?.let { return it }
         } catch (_: Exception) {
             // Native store doesn't support this type, fall back to generic lookup
         }
@@ -549,7 +515,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
     /**
      * Find all entities of a given class and hydrate them.
      *
-     * First tries [findNativeAll] for native store mappings, then falls back to
+     * First tries [nativeFinder] for native store mappings, then falls back to
      * generic label-based lookup with hydration.
      *
      * Note: This works even if [NamedEntityData.linkedDomainType] was not set when storing,
@@ -561,7 +527,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
     fun <T : NamedEntity> findAll(type: Class<T>): List<T> {
         // Try native store first - accept null or exception as "not supported"
         try {
-            findNativeAll(type)?.let { return it }
+            nativeFinder.findAll(type)?.let { return it }
         } catch (_: Exception) {
             // Native store doesn't support this type, fall back to generic lookup
         }
@@ -664,7 +630,7 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
         for (jvmType in matchingTypes) {
             val clazz = jvmType.clazz as Class<out NamedEntity>
             try {
-                findNativeById(id, clazz)?.let { return it }
+                nativeFinder.findById(id, clazz)?.let { return it }
             } catch (_: Exception) {
                 // Native store doesn't support this type, continue to next or fall back
             }
