@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.PromptRunner
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.SystemMessage
+import com.embabel.chat.UserMessage
 import com.embabel.common.textio.template.TemplateRenderer
 
 internal data class PromptRunnerRendering(
@@ -52,5 +53,17 @@ internal data class PromptRunnerRendering(
                 content = compiledTemplate.render(model = model)
             )
         ) + conversation.messages,
+    )
+
+    override fun respondWithTrigger(
+        conversation: Conversation,
+        triggerPrompt: String,
+        model: Map<String, Any>,
+    ): AssistantMessage = promptRunner.respond(
+        messages = listOf(
+            SystemMessage(
+                content = compiledTemplate.render(model = model)
+            )
+        ) + conversation.messages + listOf(UserMessage(triggerPrompt)),
     )
 }

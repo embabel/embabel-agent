@@ -15,16 +15,22 @@
  */
 package com.embabel.chat.agent
 
+import com.embabel.agent.api.common.PromptRunner
+import com.embabel.agent.api.common.TransformationActionContext
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
 import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.core.Agent
+import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.last
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.prompt.persona.PersonaSpec
 import com.embabel.agent.tools.agent.AchievableGoalsToolGroupFactory
+import com.embabel.chat.AssistantMessage
+import com.embabel.chat.ChatTrigger
 import com.embabel.chat.Conversation
+import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 
 
@@ -46,46 +52,72 @@ class DefaultChatAgentBuilder(
 
     private val achievableGoalsToolGroupFactory = AchievableGoalsToolGroupFactory(autonomy)
 
+    private fun buildToolGroup(context: TransformationActionContext<*, *>): ToolGroup =
+        achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
+            context = context,
+            bindings = mapOf("it" to UserInput("doesn't matter")),
+            listeners = listOf(object : AgenticEventListener {
+                override fun onProcessEvent(event: AgentProcessEvent) {
+                    context.onProcessEvent(event)
+                }
+            }),
+            excludedTypes = setOf(ConversationStatus::class.java)
+        )
+
+    private fun buildRendering(context: TransformationActionContext<*, *>, toolGroup: ToolGroup): PromptRunner.Rendering =
+        context.ai()
+            .withLlm(llm)
+            .withPromptElements(persona)
+            .withToolGroup(toolGroup)
+            .rendering(promptTemplate)
+
+    private fun templateModel(formattedContext: String): Map<String, Any> = mapOf(
+        "persona" to persona,
+        "formattedContext" to formattedContext,
+    )
+
+    private fun generateResponse(
+        context: TransformationActionContext<*, *>,
+        conversation: Conversation,
+        trigger: ChatTrigger?,
+    ): AssistantMessage {
+        val toolGroup = buildToolGroup(context)
+        val rendering = buildRendering(context, toolGroup)
+        val model = templateModel(blackboardFormatter.format(context))
+        return if (trigger != null) {
+            rendering.respondWithTrigger(
+                conversation = conversation,
+                triggerPrompt = trigger.prompt,
+                model = model,
+            )
+        } else {
+            rendering.respondWithSystemPrompt(
+                conversation = conversation,
+                model = model,
+            )
+        }
+    }
+
     fun build(): Agent = agent(
         name = "Default chat agent",
         description = "Default conversation agent with persona ${persona.name}"
     ) {
 
-        val userMessaged by conditionOf { context ->
+        val shouldRespond by conditionOf { context ->
             val conversation = context.last<Conversation>()
                 ?: throw IllegalStateException("No conversation found in context")
-            conversation.lastMessageIfBeFromUser() != null
+            conversation.messages.lastOrNull()?.role == MessageRole.USER
+                || context.lastResult() is ChatTrigger
         }
 
         transformation<Conversation, ConversationStatus>(
             canRerun = true,
-            preConditions = listOf(userMessaged)
+            preConditions = listOf(shouldRespond)
         ) { context ->
             val conversation = context.last<Conversation>()
                 ?: throw IllegalStateException("No conversation found in context")
-            val achievableGoalsToolGroup = achievableGoalsToolGroupFactory.achievableGoalsToolGroup(
-                context = context,
-                bindings = mapOf("it" to UserInput("doesn't matter")),
-                listeners = listOf(object : AgenticEventListener {
-                    override fun onProcessEvent(event: AgentProcessEvent) {
-                        context.onProcessEvent(event)
-                    }
-                }),
-                excludedTypes = setOf(ConversationStatus::class.java)
-            )
-            val formattedContext = blackboardFormatter.format(context)
-            val assistantMessage = context.ai()
-                .withLlm(llm)
-                .withPromptElements(persona)
-                .withToolGroup(achievableGoalsToolGroup)
-                .rendering(promptTemplate)
-                .respondWithSystemPrompt(
-                    conversation = conversation,
-                    model = mapOf(
-                        "persona" to persona,
-                        "formattedContext" to formattedContext,
-                    )
-                )
+            val trigger = context.lastResult() as? ChatTrigger
+            val assistantMessage = generateResponse(context, conversation, trigger)
             conversation.addMessage(assistantMessage)
             context.sendMessage(assistantMessage)
             // Will always get stuck but that's OK

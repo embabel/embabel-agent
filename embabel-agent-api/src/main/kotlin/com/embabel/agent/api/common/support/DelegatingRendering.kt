@@ -68,4 +68,18 @@ internal data class DelegatingRendering(
         )
         return AssistantMessage(response)
     }
+
+    override fun respondWithTrigger(
+        conversation: Conversation,
+        triggerPrompt: String,
+        model: Map<String, Any>,
+    ): AssistantMessage {
+        val response = delegate.createObject(
+            messages = listOf(
+                SystemMessage(compiledTemplate.render(model = model))
+            ) + conversation.messages + listOf(UserMessage(triggerPrompt)),
+            outputClass = String::class.java,
+        )
+        return AssistantMessage(response)
+    }
 }

@@ -706,6 +706,21 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
             conversation: Conversation,
             model: Map<String, Any> = emptyMap(),
         ): AssistantMessage
+
+        /**
+         * Respond to a system-initiated trigger using the rendered template as system prompt.
+         * The trigger prompt is appended as a user message to the LLM call but not stored in the conversation.
+         *
+         * @param conversation the conversation so far
+         * @param triggerPrompt the trigger prompt to send to the LLM
+         * @param model the model data to render the system prompt template with
+         * @return the assistant message response
+         */
+        fun respondWithTrigger(
+            conversation: Conversation,
+            triggerPrompt: String,
+            model: Map<String, Any> = emptyMap(),
+        ): AssistantMessage
     }
 
     /**

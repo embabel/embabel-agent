@@ -59,6 +59,15 @@ interface ChatSession {
     )
 
     /**
+     * Handle a system-initiated chat trigger.
+     * The trigger prompt is sent to the LLM but not stored in the conversation.
+     * Only the chatbot's response is stored and sent to the output channel.
+     *
+     * @param trigger the chat trigger to process
+     */
+    fun onTrigger(trigger: ChatTrigger)
+
+    /**
      * Is the conversation finished?
      */
     fun isFinished(): Boolean = false

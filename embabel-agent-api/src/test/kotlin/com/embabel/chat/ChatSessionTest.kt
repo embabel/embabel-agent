@@ -176,6 +176,10 @@ class ChatSessionTest {
         override fun onUserMessage(userMessage: UserMessage) {
             conversation.addMessage(userMessage)
         }
+
+        override fun onTrigger(trigger: ChatTrigger) {
+            // No-op for tests
+        }
     }
 
     private class RecordingOutputChannel : OutputChannel {

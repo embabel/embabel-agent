@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.nested.support
 
 import com.embabel.agent.api.common.support.DelegatingRendering
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
+import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.chat.SystemMessage
@@ -179,6 +180,88 @@ class DelegatingRenderingTest {
             verify { mockCompiledTemplate.render(emptyMap()) }
             verify { mockDelegate.createObject(any(), String::class.java) }
             assertEquals(expectedResponse, result.content)
+        }
+    }
+
+    @Nested
+    inner class RespondWithTriggerTest {
+
+        @Test
+        fun `should include system prompt, conversation messages, and trigger as final UserMessage`() {
+            val model = mapOf("persona" to "Friendly assistant")
+            val renderedText = "You are a friendly assistant"
+            val conversation = mockk<Conversation>()
+            val conversationMessages = listOf(
+                UserMessage("earlier message"),
+                AssistantMessage("earlier response"),
+            )
+            every { conversation.messages } returns conversationMessages
+
+            val triggerPrompt = "Greet the new user Alice"
+            val expectedResponse = "Welcome Alice!"
+            val messagesSlot = slot<List<Message>>()
+
+            every { mockCompiledTemplate.render(model) } returns renderedText
+            every { mockDelegate.createObject(capture(messagesSlot), String::class.java) } returns expectedResponse
+
+            val operations = createTemplateOperations()
+            val result = operations.respondWithTrigger(conversation, triggerPrompt, model)
+
+            assertEquals(expectedResponse, result.content)
+
+            val capturedMessages = messagesSlot.captured
+            assertEquals(4, capturedMessages.size)
+            assert(capturedMessages[0] is SystemMessage) { "First message should be SystemMessage" }
+            assertEquals(renderedText, capturedMessages[0].content)
+            assert(capturedMessages[1] is UserMessage) { "Second should be conversation UserMessage" }
+            assert(capturedMessages[2] is AssistantMessage) { "Third should be conversation AssistantMessage" }
+            assert(capturedMessages[3] is UserMessage) { "Fourth should be trigger UserMessage" }
+            assertEquals(triggerPrompt, capturedMessages[3].content)
+        }
+
+        @Test
+        fun `should work with empty conversation`() {
+            val model = mapOf("persona" to "Helper")
+            val renderedText = "You are a helper"
+            val conversation = mockk<Conversation>()
+            every { conversation.messages } returns emptyList()
+
+            val triggerPrompt = "Say hello"
+            val expectedResponse = "Hello!"
+            val messagesSlot = slot<List<Message>>()
+
+            every { mockCompiledTemplate.render(model) } returns renderedText
+            every { mockDelegate.createObject(capture(messagesSlot), String::class.java) } returns expectedResponse
+
+            val operations = createTemplateOperations()
+            val result = operations.respondWithTrigger(conversation, triggerPrompt, model)
+
+            assertEquals(expectedResponse, result.content)
+
+            val capturedMessages = messagesSlot.captured
+            assertEquals(2, capturedMessages.size)
+            assert(capturedMessages[0] is SystemMessage) { "First should be SystemMessage" }
+            assert(capturedMessages[1] is UserMessage) { "Second should be trigger UserMessage" }
+            assertEquals(triggerPrompt, capturedMessages[1].content)
+        }
+
+        @Test
+        fun `trigger prompt should not be stored in conversation`() {
+            val model = emptyMap<String, Any>()
+            val renderedText = "System prompt"
+            val conversation = mockk<Conversation>()
+            val conversationMessages = listOf(UserMessage("hello"))
+            every { conversation.messages } returns conversationMessages
+
+            every { mockCompiledTemplate.render(model) } returns renderedText
+            every { mockDelegate.createObject(any(), String::class.java) } returns "response"
+
+            val operations = createTemplateOperations()
+            operations.respondWithTrigger(conversation, "trigger text", model)
+
+            // Verify that addMessage was never called on the conversation —
+            // the trigger prompt should only be in the LLM call, not stored
+            verify(exactly = 0) { conversation.addMessage(any()) }
         }
     }
 }
