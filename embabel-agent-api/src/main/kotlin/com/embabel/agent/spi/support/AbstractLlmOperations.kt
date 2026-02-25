@@ -241,20 +241,33 @@ abstract class AbstractLlmOperations(
             messages = messages,
             outputClass = outputClass,
         )
+
+        val interactionWithToolDecoration = interaction.copy(
+            tools = allTools.map {
+                toolDecorator.decorate(
+                    tool = it,
+                    agentProcess = agentProcess,
+                    action = action,
+                    llmOptions = interaction.llm,
+                )
+            }
+        )
+
         val (response, ms) = time {
-            doTransformIfPossible(
-                messages = messages,
-                interaction = interaction.copy(tools = allTools.map {
-                    toolDecorator.decorate(
-                        tool = it,
-                        agentProcess = agentProcess,
-                        action = action,
+            dataBindingProperties.retryTemplate(interaction.id.value)
+                .execute<Result<O>, Exception> {
+                    executeWithTimeout(
+                        interactionId = interaction.id.value,
                         llmOptions = interaction.llm,
-                    )
-                }),
-                outputClass = outputClass,
-                llmRequestEvent = llmRequestEvent,
-            )
+                    ) {
+                        doTransformIfPossible(
+                            messages = messages,
+                            interaction = interactionWithToolDecoration,
+                            outputClass = outputClass,
+                            llmRequestEvent = llmRequestEvent,
+                        )
+                    }
+                }
         }
         logger.debug("LLM response={}", response)
         agentProcess.processContext.onProcessEvent(

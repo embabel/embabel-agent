@@ -18,7 +18,7 @@ package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.autonomy.Autonomy
-import com.embabel.agent.api.common.createObject
+import com.embabel.agent.api.common.createObjectIfPossible
 import com.embabel.agent.api.common.streaming.asStreaming
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration
 import com.embabel.agent.spi.LlmService
@@ -195,9 +195,9 @@ class LLMStreamingIT(
             println("DEBUG: Created runner")
 
             // Test non-streaming call first
-            val response = runner.createObject<MonthItem>(
+            val response = runner.createObjectIfPossible<MonthItem>(
                 """
-            get hottest month in florida
+            get hottest summer month in florida boca-raton
             """.trimIndent(),
             )
 

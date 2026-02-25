@@ -93,7 +93,7 @@ internal class ChatClientLlmOperations(
     toolDecorator: ToolDecorator,
     validator: Validator,
     validationPromptGenerator: ValidationPromptGenerator = DefaultValidationPromptGenerator(),
-    private val templateRenderer: TemplateRenderer,
+    templateRenderer: TemplateRenderer,
     dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
     llmOperationsPromptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     private val applicationContext: ApplicationContext? = null,
@@ -115,6 +115,7 @@ internal class ChatClientLlmOperations(
     observationRegistry = observationRegistry,
     toolLoopFactory = toolLoopFactory,
     asyncer = asyncer,
+    templateRenderer = templateRenderer,
 ) {
 
     @PostConstruct
@@ -205,6 +206,33 @@ internal class ChatClientLlmOperations(
         return stringWithoutThinkBlocks(text)
     }
 
+    @Suppress("UNCHECKED_CAST")
+    override fun <O> createMaybeReturnOutputConverter(
+        outputClass: Class<O>,
+        interaction: LlmInteraction,
+    ): OutputConverter<MaybeReturn<O>> {
+        val typeReference = createParameterizedTypeReference<MaybeReturn<*>>(
+            MaybeReturn::class.java,
+            outputClass,
+        )
+        val springAiConverter = ExceptionWrappingConverter(
+            expectedType = MaybeReturn::class.java,
+            delegate = WithExampleConverter(
+                delegate = SuppressThinkingConverter(
+                    FilteringJacksonOutputConverter(
+                        typeReference = typeReference,
+                        objectMapper = objectMapper,
+                        propertyFilter = interaction.propertyFilter,
+                    )
+                ),
+                outputClass = outputClass as Class<MaybeReturn<*>>,
+                ifPossible = true,
+                generateExamples = shouldGenerateExamples(interaction),
+            )
+        )
+        return SpringAiOutputConverterAdapter(springAiConverter) as OutputConverter<MaybeReturn<O>>
+    }
+
     // emitCallEvent is intentionally not overridden here.
     // InstrumentedChatModel emits ChatModelCallEvent at the actual ChatModel.call() point,
     // capturing the fully augmented prompt (with resolved options, tool schemas, etc.)
@@ -242,6 +270,28 @@ internal class ChatClientLlmOperations(
     }
 
     override fun <O> doTransformIfPossible(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>,
+    ): Result<O> {
+        // Check if we should use Embabel's tool loop or Spring AI's internal loop
+        return if (interaction.useEmbabelToolLoop) {
+            super.doTransformIfPossible(messages, interaction, outputClass, llmRequestEvent)
+        } else {
+            doTransformIfPossibleWithSpringAi(messages, interaction, outputClass, llmRequestEvent)
+        }
+    }
+
+    // ====================================
+    // SPRING AI SPECIFIC: LEGACY PATH
+    // ====================================
+
+    /**
+     * Transform if possible using Spring AI's ChatClient.
+     * This is the original implementation preserved for backwards compatibility.
+     */
+    private fun <O> doTransformIfPossibleWithSpringAi(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -364,10 +414,6 @@ internal class ChatClientLlmOperations(
             requireEntity(responseEntity, interaction).toResult() as Result<O>
         }
     }
-
-    // ====================================
-    // SPRING AI SPECIFIC: LEGACY PATH
-    // ====================================
 
     /**
      * Transform using Spring AI's ChatClient with internal tool handling.
@@ -1086,23 +1132,4 @@ private class SpringAiOutputConverterAdapter<T>(
 ) : OutputConverter<T> {
     override fun convert(source: String): T? = delegate.convert(source)
     override fun getFormat(): String? = delegate.format
-}
-
-/**
- * Structure to be returned by the LLM.
- * Allows the LLM to return a result structure, under success, or an error message
- * One of success or failure must be set, but not both.
- */
-internal data class MaybeReturn<T>(
-    val success: T? = null,
-    val failure: String? = null,
-) {
-
-    fun toResult(): Result<T> {
-        return if (success != null) {
-            Result.success(success)
-        } else {
-            Result.failure(Exception(failure))
-        }
-    }
 }

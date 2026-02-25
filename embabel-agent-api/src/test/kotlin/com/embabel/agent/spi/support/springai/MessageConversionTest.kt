@@ -225,12 +225,16 @@ class MessageConversionTest {
         }
 
         @Test
-        fun `throws exception when converting Spring AI AssistantMessage with empty text`() {
+        fun `converts Spring AI AssistantMessage with empty text to AssistantMessageWithToolCalls`() {
+            // Empty text is handled gracefully to allow exceptions to propagate
+            // to the converter level where they get wrapped in InvalidLlmReturnFormatException
             val springMessage = SpringAiAssistantMessage("")
 
-            org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
-                springMessage.toEmbabelMessage()
-            }
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            assertThat(embabelMessage.content).isEmpty()
+            assertThat((embabelMessage as AssistantMessageWithToolCalls).toolCalls).isEmpty()
         }
 
         @Test
