@@ -97,3 +97,10 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
           repository: ${{ github.repository }}
           event-type: publish-docs
+
+  # Build Failure Notification
+  notify:
+    needs: [build]
+    if: failure() && github.ref == 'refs/heads/main'
+    uses: embabel/embabel-build/.github/workflows/discord-notify.yml@main
+    secrets: inherit
