@@ -136,8 +136,8 @@ internal class MaybeReturnDeserializer<T> private constructor(
         // node.get("field") returns non-null if the field EXISTS in JSON (even if value is null)
         // node.isNull returns true if the JSON value is the literal `null`
         // Combined: hasValue = field exists AND value is not JSON null
-        val successNode = node.get(FIELD_SUCCESS)
-        val failureNode = node.get(FIELD_FAILURE)
+        val successNode = node[FIELD_SUCCESS]
+        val failureNode = node[FIELD_FAILURE]
         val bothFieldsExist = successNode != null && failureNode != null
         val hasSuccessValue = successNode != null && !successNode.isNull
         val hasFailureValue = failureNode != null && !failureNode.isNull
