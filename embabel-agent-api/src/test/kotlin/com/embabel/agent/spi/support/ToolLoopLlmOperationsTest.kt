@@ -55,7 +55,6 @@ import jakarta.validation.Validation
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -648,13 +647,6 @@ class ToolLoopLlmOperationsTest {
         }
 
         @Test
-        @Disabled(
-            "Replan + MaybeReturn + tool loop requires design work: " +
-                "when replan is requested, tool loop passes empty string to outputParser, " +
-                "but MaybeReturn converter cannot parse empty string. " +
-                "Consider creating specialized MaybeReturn bean deserializer that handles empty input. " +
-                "See doTransform replan test for coverage of replan in String output path."
-        )
         fun `doTransformIfPossible throws ReplanRequestedException when tool requests replan`() {
             val replanTool = TestTool(
                 name = "routing_tool",

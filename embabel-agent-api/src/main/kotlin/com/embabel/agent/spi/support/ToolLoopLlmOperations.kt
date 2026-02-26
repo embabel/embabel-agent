@@ -261,7 +261,7 @@ open class ToolLoopLlmOperations(
         val schemaFormat = converter.getFormat()
 
         val outputParser: (String) -> MaybeReturn<O> = { text ->
-            converter.convert(text)!!
+            if (text.isNotBlank()) converter.convert(text)!! else MaybeReturn.noOutput()
         }
 
         // Create a decorator for dynamically injected tools (e.g., from MatryoshkaTool)

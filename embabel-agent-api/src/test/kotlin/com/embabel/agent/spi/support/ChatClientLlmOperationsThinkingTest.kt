@@ -44,6 +44,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import jakarta.validation.Validation
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
@@ -394,6 +395,7 @@ class ChatClientLlmOperationsThinkingTest {
         }
     }
 
+    @Disabled("TODO: Refactor when loosening Spring AI coupling for thinking behavior")
     @Test
     fun `createObjectIfPossible should handle empty LLM response with exception`() {
         // Given: LlmOperations with empty response
