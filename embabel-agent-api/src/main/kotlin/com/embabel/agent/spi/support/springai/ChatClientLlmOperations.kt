@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
@@ -25,10 +26,14 @@ import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
-import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolLoopFactory
-import com.embabel.agent.spi.support.*
+import com.embabel.agent.spi.support.LlmDataBindingProperties
+import com.embabel.agent.spi.support.LlmOperationsPromptsProperties
+import com.embabel.agent.spi.support.MaybeReturn
+import com.embabel.agent.spi.support.OutputConverter
+import com.embabel.agent.spi.support.ToolLoopLlmOperations
+import com.embabel.agent.spi.support.ToolResolutionHelper
 import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -222,7 +227,7 @@ internal class ChatClientLlmOperations(
                     FilteringJacksonOutputConverter(
                         typeReference = typeReference,
                         objectMapper = objectMapper,
-                        propertyFilter = interaction.propertyFilter,
+                        fieldFilter = interaction.fieldFilter,
                     )
                 ),
                 outputClass = outputClass as Class<MaybeReturn<*>>,
@@ -250,7 +255,7 @@ internal class ChatClientLlmOperations(
         return callResponse.chatResponse()
             ?: throw IllegalStateException(
                 "LLM call for interaction '${interaction.id.value}' returned no response. " +
-                    "This typically indicates an invalid API key or insufficient permissions for the configured model."
+                        "This typically indicates an invalid API key or insufficient permissions for the configured model."
             )
     }
 
@@ -265,7 +270,7 @@ internal class ChatClientLlmOperations(
         return responseEntity.entity
             ?: throw IllegalStateException(
                 "LLM call for interaction '${interaction.id.value}' returned no parseable entity. " +
-                    "This typically indicates an invalid API key or insufficient permissions for the configured model."
+                        "This typically indicates an invalid API key or insufficient permissions for the configured model."
             )
     }
 
