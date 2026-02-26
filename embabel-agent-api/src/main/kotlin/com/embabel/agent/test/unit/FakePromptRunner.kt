@@ -24,12 +24,12 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.validation.guardrails.GuardRail
-import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
+import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
@@ -43,6 +43,7 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
+import java.lang.reflect.Field
 import java.util.function.Predicate
 
 enum class Method {
@@ -80,7 +81,7 @@ data class FakePromptRunner(
     override val promptContributors: List<PromptContributor>,
     private val contextualPromptContributors: List<ContextualPromptElement>,
     override val generateExamples: Boolean?,
-    override val propertyFilter: Predicate<String> = Predicate { true },
+    override val fieldFilter: Predicate<Field> = Predicate { true },
     override val validation: Boolean = true,
     private val context: OperationContext,
     private val _llmInvocations: MutableList<LlmInvocation> = mutableListOf(),
@@ -134,8 +135,8 @@ data class FakePromptRunner(
         override val generateExamples: Boolean?
             get() = this@FakePromptRunner.generateExamples
 
-        override val propertyFilter: Predicate<String>
-            get() = this@FakePromptRunner.propertyFilter
+        override val fieldFilter: Predicate<Field>
+            get() = this@FakePromptRunner.fieldFilter
 
         override val validation: Boolean
             get() = this@FakePromptRunner.validation
@@ -193,8 +194,8 @@ data class FakePromptRunner(
             return this@FakePromptRunner.copy(generateExamples = generateExamples).DelegateAdapter()
         }
 
-        override fun withPropertyFilter(filter: Predicate<String>): PromptExecutionDelegate {
-            return this@FakePromptRunner.copy(propertyFilter = this@FakePromptRunner.propertyFilter.and(filter))
+        override fun withFieldFilter(filter: Predicate<Field>): PromptExecutionDelegate {
+            return this@FakePromptRunner.copy(fieldFilter = this@FakePromptRunner.fieldFilter.and(filter))
                 .DelegateAdapter()
         }
 
@@ -394,7 +395,7 @@ data class FakePromptRunner(
 
     @Deprecated("Use creating().withPropertyFilter() instead")
     override fun withPropertyFilter(filter: Predicate<String>): PromptRunner =
-        copy(propertyFilter = this.propertyFilter.and(filter))
+        copy(fieldFilter = this.fieldFilter.and { filter.test(it.name) })
 
     @Deprecated("Use creating().withValidation() instead")
     override fun withValidation(validation: Boolean): PromptRunner =

@@ -37,6 +37,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.lang.reflect.Field
 
 /**
  * Test for the thinking prompt runner operations.
@@ -178,7 +179,7 @@ class ThinkingPromptRunnerOperationsTest {
             override val toolObjects: List<ToolObject> = emptyList()
             override val promptContributors: List<com.embabel.common.ai.prompt.PromptContributor> = emptyList()
             override val generateExamples: Boolean? = null
-            override val propertyFilter: java.util.function.Predicate<String> = java.util.function.Predicate { true }
+            override val fieldFilter: java.util.function.Predicate<Field> = java.util.function.Predicate { true }
             override val validation: Boolean = true
 
             override fun <T> createObject(messages: List<com.embabel.chat.Message>, outputClass: Class<T>): T {

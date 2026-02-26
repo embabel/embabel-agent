@@ -109,18 +109,18 @@ class DelegatingCreatingTest {
     inner class WithPropertyFilterTest {
 
         @Test
-        fun `should delegate to delegate withPropertyFilter`() {
+        fun `should delegate to delegate withFieldFilter`() {
             val updatedDelegate = mockk<PromptExecutionDelegate>()
             val filter = Predicate<String> { it.startsWith("test") }
 
-            every { mockDelegate.withPropertyFilter(filter) } returns updatedDelegate
+            every { mockDelegate.withFieldFilter(any()) } returns updatedDelegate
             every { updatedDelegate.objectMapper } returns objectMapper
             every { updatedDelegate.templateRenderer } returns mockTemplateRenderer
 
             val creator = createObjectCreator()
             val result = creator.withPropertyFilter(filter)
 
-            verify { mockDelegate.withPropertyFilter(filter) }
+            verify { mockDelegate.withFieldFilter(any()) }
             verify { updatedDelegate.objectMapper }
             verify { updatedDelegate.templateRenderer }
             assertEquals(updatedDelegate, (result as DelegatingCreating<String>).delegate)

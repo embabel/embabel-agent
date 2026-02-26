@@ -36,7 +36,7 @@ class FilteringJacksonOutputConverterTest {
         val converter = FilteringJacksonOutputConverter<Person>(
             clazz = Person::class.java,
             objectMapper = objectMapper,
-            propertyFilter = { it == "name" || it == "age" }
+            fieldFilter = { it.name == "name" || it.name == "age" }
         )
 
         val schema = converter.jsonSchema
@@ -52,7 +52,7 @@ class FilteringJacksonOutputConverterTest {
         val converter = FilteringJacksonOutputConverter<Person>(
             clazz = Person::class.java,
             objectMapper = objectMapper,
-            propertyFilter = { it != "email" && it != "address" }
+            fieldFilter = { it.name != "email" && it.name != "address" }
         )
 
         val schema = converter.jsonSchema
