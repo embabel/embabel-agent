@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
@@ -42,8 +43,8 @@ import static com.embabel.agent.config.models.bedrock.BedrockModelsConfig.EU_ANT
                 "spring.ai.bedrock.aws.secret-key=AWSSECRETACCESSKEY"
         })
 @ComponentScan(basePackages = "com.embabel.agent.autoconfigure")
-@ImportAutoConfiguration(classes = {AgentBedrockAutoConfiguration.class})
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@ImportAutoConfiguration(classes = {JacksonAutoConfiguration.class, AgentBedrockAutoConfiguration.class})
+        @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class AgentBedrockAutoConfigurationIT {
 
     @Autowired
