@@ -603,7 +603,7 @@ dependencies {
 
 Available LLM models include:
 
-* `gemini-3-pro-preview` - Latest Gemini 3 Pro preview with advanced reasoning
+* `gemini-3.1-pro-preview` - Latest Gemini 3.1 Pro preview with advanced reasoning
 * `gemini-2.5-pro` - High-performance model with thinking support
 * `gemini-2.5-flash` - Best price-performance model
 * `gemini-2.5-flash-lite` - Cost-effective high-throughput model
@@ -625,7 +625,7 @@ embabel:
     llms:
       fast: gemini-2.5-flash
       best: gemini-2.5-pro
-      reasoning: gemini-3-pro-preview
+      reasoning: gemini-3.1-pro-preview
     embedding-services:
       default: gemini-embedding-001
 
