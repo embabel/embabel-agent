@@ -17,6 +17,7 @@ package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModeProperties
 import com.embabel.agent.core.BlackboardUpdater
@@ -67,6 +68,7 @@ internal class ParallelToolLoop(
     transformers: List<ToolLoopTransformer> = emptyList(),
     private val asyncer: Asyncer,
     private val parallelConfig: ParallelModeProperties,
+    toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
 ) : DefaultToolLoop(
     llmMessageSender = llmMessageSender,
     objectMapper = objectMapper,
@@ -75,6 +77,7 @@ internal class ParallelToolLoop(
     toolDecorator = toolDecorator,
     inspectors = inspectors,
     transformers = transformers,
+    toolCallContext = toolCallContext,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)

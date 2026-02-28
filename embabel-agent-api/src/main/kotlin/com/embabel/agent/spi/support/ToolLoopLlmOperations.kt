@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.ToolLoopStartEvent
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.ReplanRequestedException
@@ -158,6 +159,9 @@ open class ToolLoopLlmOperations(
             ToolInjectionStrategy.DEFAULT
         }
 
+        // Merge process-level and interaction-level context (interaction wins on conflict)
+        val effectiveContext = resolveToolCallContext(llmRequestEvent, interaction)
+
         val toolLoop = toolLoopFactory.create(
             llmMessageSender = messageSender,
             objectMapper = objectMapper,
@@ -166,6 +170,7 @@ open class ToolLoopLlmOperations(
             toolDecorator = injectedToolDecorator,
             inspectors = interaction.inspectors,
             transformers = interaction.transformers,
+            toolCallContext = effectiveContext,
         )
 
         val initialMessages = buildInitialMessages(promptContributions, messages, schemaFormat)
@@ -282,6 +287,9 @@ open class ToolLoopLlmOperations(
             ToolInjectionStrategy.DEFAULT
         }
 
+        // Merge process-level and interaction-level context (interaction wins on conflict)
+        val effectiveContext = resolveToolCallContext(llmRequestEvent, interaction)
+
         val toolLoop = toolLoopFactory.create(
             llmMessageSender = messageSender,
             objectMapper = objectMapper,
@@ -290,6 +298,7 @@ open class ToolLoopLlmOperations(
             toolDecorator = injectedToolDecorator,
             inspectors = interaction.inspectors,
             transformers = interaction.transformers,
+            toolCallContext = effectiveContext,
         )
 
         // Build MaybeReturn prompt contribution
@@ -532,6 +541,24 @@ open class ToolLoopLlmOperations(
             )
             it.agentProcess.recordLlmInvocation(llmi)
         }
+    }
+
+    /**
+     * Resolve the effective [ToolCallContext] by merging process-level context
+     * (from [ProcessOptions]) with interaction-level context.
+     * Interaction-level values win on conflict.
+     */
+    private fun resolveToolCallContext(
+        llmRequestEvent: LlmRequestEvent<*>?,
+        interaction: LlmInteraction,
+    ): ToolCallContext {
+        val processContext = llmRequestEvent
+            ?.agentProcess
+            ?.processContext
+            ?.processOptions
+            ?.toolCallContext
+            ?: ToolCallContext.EMPTY
+        return processContext.merge(interaction.toolCallContext)
     }
 
     /**

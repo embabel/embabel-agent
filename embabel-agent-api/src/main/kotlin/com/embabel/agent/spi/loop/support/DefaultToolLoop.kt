@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
@@ -58,6 +59,7 @@ internal open class DefaultToolLoop(
     private val toolDecorator: ((Tool) -> Tool)? = null,
     protected val inspectors: List<ToolLoopInspector> = emptyList(),
     protected val transformers: List<ToolLoopTransformer> = emptyList(),
+    private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
 ) : ToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -264,7 +266,7 @@ internal open class DefaultToolLoop(
         toolCall: ToolCall,
     ): Pair<Tool.Result, String> {
         logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
-        val result = tool.call(toolCall.arguments)
+        val result = tool.call(toolCall.arguments, toolCallContext)
         val content = when (result) {
             is Tool.Result.Text -> result.content
             is Tool.Result.WithArtifact -> result.content
