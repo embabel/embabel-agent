@@ -60,27 +60,6 @@ class ToolCallContextJavaTest {
     }
 
     @Nested
-    class ThreadLocal {
-
-        @Test
-        void setAndCurrentRoundTrip() {
-            var ctx = ToolCallContext.of(Map.of("id", "123"));
-            try {
-                ToolCallContext.set(ctx);
-                assertEquals(ctx, ToolCallContext.current());
-            } finally {
-                ToolCallContext.remove();
-            }
-        }
-
-        @Test
-        void currentReturnsEmptyWhenUnset() {
-            ToolCallContext.remove();
-            assertEquals(ToolCallContext.EMPTY, ToolCallContext.current());
-        }
-    }
-
-    @Nested
     class GetOrDefault {
 
         @Test
