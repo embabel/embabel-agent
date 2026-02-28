@@ -49,6 +49,12 @@
             <artifactId>embabel-agent-test-internal</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-platform-autoconfigure</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>
