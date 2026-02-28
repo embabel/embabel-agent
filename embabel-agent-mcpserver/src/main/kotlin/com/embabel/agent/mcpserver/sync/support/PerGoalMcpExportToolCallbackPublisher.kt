@@ -63,9 +63,12 @@ class PerGoalMcpExportToolCallbackPublisher(
                 listeners = emptyList(),
             )
             // Wrap GoalTools with MCP-aware wrapper, then convert to ToolCallback
-            return goalTools.map { goalTool ->
+            val goalCallbacks = goalTools.map { goalTool ->
                 McpAwareGoalTool(goalTool, mcpSyncServer).toSpringToolCallback()
             }
+            // Include platform tools (e.g. submitFormAndResumeProcess, _confirm) for HITL support
+            val platformCallbacks = perGoalToolFactory.platformTools.map { it.toSpringToolCallback() }
+            return goalCallbacks + platformCallbacks
         }
 
 
