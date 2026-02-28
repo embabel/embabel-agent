@@ -30,6 +30,47 @@ import org.junit.jupiter.api.Test
 class PerGoalToolFactoryTest {
 
     @Test
+    fun `platformTools includes HITL tools with expected names`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(exportedEvenMoreEvilWizard())
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
+
+        val factory = PerGoalToolFactory(autonomy, "testApp")
+
+        val platformToolNames = factory.platformTools.map { it.definition.name }
+        assertTrue(
+            platformToolNames.contains(CONFIRMATION_TOOL_NAME),
+            "Platform tools should include '$CONFIRMATION_TOOL_NAME': $platformToolNames"
+        )
+        assertTrue(
+            platformToolNames.contains(FORM_SUBMISSION_TOOL_NAME),
+            "Platform tools should include '$FORM_SUBMISSION_TOOL_NAME': $platformToolNames"
+        )
+        assertEquals(2, factory.platformTools.size, "Should have exactly 2 platform tools")
+    }
+
+    @Test
+    fun `allTools includes both goal tools and platform tools`() {
+        val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
+        agentPlatform.deploy(exportedEvenMoreEvilWizard())
+        val autonomy = Autonomy(agentPlatform, RandomRanker(), forAutonomyTesting())
+
+        val factory = PerGoalToolFactory(autonomy, "testApp")
+
+        val allTools = factory.allTools(remoteOnly = false, listeners = emptyList())
+        val allToolNames = allTools.map { it.definition.name }
+
+        // Should contain goal tools
+        assertTrue(allToolNames.any { !it.startsWith("_") && it != FORM_SUBMISSION_TOOL_NAME },
+            "Should contain at least one goal tool")
+        // Should also contain platform tools
+        assertTrue(allToolNames.contains(CONFIRMATION_TOOL_NAME),
+            "allTools should include '$CONFIRMATION_TOOL_NAME'")
+        assertTrue(allToolNames.contains(FORM_SUBMISSION_TOOL_NAME),
+            "allTools should include '$FORM_SUBMISSION_TOOL_NAME'")
+    }
+
+    @Test
     fun `test local export by default`() {
         val agentPlatform = IntegrationTestUtils.dummyAgentPlatform()
         agentPlatform.deploy(evenMoreEvilWizard())
