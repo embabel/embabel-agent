@@ -93,7 +93,7 @@ class GeminiModelLoaderTest {
         assertEquals(6, result.models.size, "Should load exactly 6 Gemini models")
 
         val expectedModels = listOf(
-            "gemini_3_pro_preview", "gemini_25_pro", "gemini_25_flash",
+            "gemini_3_1_pro_preview", "gemini_25_pro", "gemini_25_flash",
             "gemini_25_flash_lite", "gemini_20_flash", "gemini_20_flash_lite"
         )
 

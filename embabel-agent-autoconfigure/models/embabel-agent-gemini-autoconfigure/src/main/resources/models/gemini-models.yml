@@ -7,10 +7,10 @@ models:
   # GEMINI 3 FAMILY (Preview - Latest Generation)
   # ========================================
 
-  # Gemini 3 Pro Preview - Most advanced reasoning model
-  - name: "gemini_3_pro_preview"
-    model_id: "gemini-3-pro-preview"
-    display_name: "Gemini 3 Pro Preview"
+  # Gemini 3.1 Pro Preview - Most advanced reasoning model
+  - name: "gemini_3_1_pro_preview"
+    model_id: "gemini-3.1-pro-preview"
+    display_name: "Gemini 3.1 Pro Preview"
     knowledge_cutoff_date: "2025-01-01"
     max_tokens: 65536
     temperature: 0.7

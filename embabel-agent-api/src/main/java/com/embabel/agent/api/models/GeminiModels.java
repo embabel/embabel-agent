@@ -17,7 +17,7 @@ package com.embabel.agent.api.models;
 
 /**
  * Well-known models from Google Gemini.
- * Updated with latest Gemini 2.5 and 3.0 models as of 2025.
+ * Updated with latest Gemini 2.5 and 3.1 models as of 2025.
  */
 public final class GeminiModels {
 
@@ -25,8 +25,8 @@ public final class GeminiModels {
         // Utility class - prevent instantiation
     }
 
-    // Gemini 3.0 Family (Latest)
-    public static final String GEMINI_3_PRO_PREVIEW = "gemini-3-pro-preview";
+    // Gemini 3.1 Family (Latest)
+    public static final String GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview";
 
     // Gemini 2.5 Family (Current Generation)
     public static final String GEMINI_2_5_PRO = "gemini-2.5-pro";
