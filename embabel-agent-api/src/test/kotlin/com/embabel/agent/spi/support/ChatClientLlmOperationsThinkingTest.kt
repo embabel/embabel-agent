@@ -86,6 +86,7 @@ class ChatClientLlmOperationsThinkingTest {
             emptyList()
         )
         every { mockProcessContext.platformServices.eventListener } returns ese
+        every { mockProcessContext.processOptions } returns com.embabel.agent.core.ProcessOptions()
         val mockAgentProcess = mockk<AgentProcess>()
         every { mockAgentProcess.recordLlmInvocation(any()) } answers {
             mutableLlmInvocationHistory.invocations.add(firstArg())

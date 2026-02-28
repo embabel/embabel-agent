@@ -17,6 +17,7 @@ package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
@@ -40,7 +41,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
  *
  * @see Asyncer
  */
-fun interface ToolLoopFactory {
+interface ToolLoopFactory {
 
     /**
      * Create a [ToolLoop] instance.
@@ -61,6 +62,7 @@ fun interface ToolLoopFactory {
         toolDecorator: ((Tool) -> Tool)?,
         inspectors: List<ToolLoopInspector>,
         transformers: List<ToolLoopTransformer>,
+        toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     ): ToolLoop
 
     companion object {
@@ -94,6 +96,7 @@ internal class ConfigurableToolLoopFactory(
         toolDecorator: ((Tool) -> Tool)?,
         inspectors: List<ToolLoopInspector>,
         transformers: List<ToolLoopTransformer>,
+        toolCallContext: ToolCallContext,
     ): ToolLoop = when (config.type) {
         ToolLoopType.DEFAULT -> DefaultToolLoop(
             llmMessageSender = llmMessageSender,
@@ -103,6 +106,7 @@ internal class ConfigurableToolLoopFactory(
             toolDecorator = toolDecorator,
             inspectors = inspectors,
             transformers = transformers,
+            toolCallContext = toolCallContext,
         )
         ToolLoopType.PARALLEL -> ParallelToolLoop(
             llmMessageSender = llmMessageSender,
@@ -114,6 +118,7 @@ internal class ConfigurableToolLoopFactory(
             transformers = transformers,
             asyncer = asyncer,
             parallelConfig = config.parallel,
+            toolCallContext = toolCallContext,
         )
     }
 }
