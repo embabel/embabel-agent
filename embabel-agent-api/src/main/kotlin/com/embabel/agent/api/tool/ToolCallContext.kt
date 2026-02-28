@@ -20,9 +20,8 @@ package com.embabel.agent.api.tool
  * Carries out-of-band metadata such as auth tokens, tenant IDs, or
  * correlation IDs without polluting the tool's JSON input schema.
  *
- * Thread-local holder ([current], [set], [remove]) follows the same
- * pattern as [com.embabel.agent.core.AgentProcess] to support
- * decorator chains that only override [Tool.call] (String).
+ * Context flows explicitly through the [Tool.call] two-arg overload and is
+ * propagated through decorator chains by [DelegatingTool].
  */
 class ToolCallContext private constructor(
     private val entries: Map<String, Any>,
@@ -79,8 +78,6 @@ class ToolCallContext private constructor(
         @JvmField
         val EMPTY = ToolCallContext(emptyMap())
 
-        private val holder = ThreadLocal<ToolCallContext>()
-
         // ---- Factory methods ----
 
         @JvmStatic
@@ -92,21 +89,6 @@ class ToolCallContext private constructor(
         fun of(vararg pairs: Pair<String, Any>): ToolCallContext {
             if (pairs.isEmpty()) return EMPTY
             return ToolCallContext(pairs.toMap())
-        }
-
-        // ---- Thread-local holder ----
-
-        @JvmStatic
-        fun current(): ToolCallContext = holder.get() ?: EMPTY
-
-        @JvmStatic
-        fun set(context: ToolCallContext) {
-            holder.set(context)
-        }
-
-        @JvmStatic
-        fun remove() {
-            holder.remove()
         }
     }
 }

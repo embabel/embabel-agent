@@ -42,6 +42,8 @@ import org.springframework.ai.tool.metadata.DefaultToolMetadata
  * End-to-end tests verifying that [ToolCallContext] flows correctly through
  * the tool execution pipeline: DefaultToolLoop → Tool → Spring AI bridges.
  *
+ * All context is passed explicitly — no ThreadLocal is used anywhere in the pipeline.
+ *
  * These tests validate the complete implementation of GitHub issue #1323:
  * "Allow metadata to be passed to MCP calls".
  */
@@ -139,84 +141,54 @@ class ToolCallContextFlowTest {
     }
 
     @Nested
-    inner class ThreadLocalContextDefault {
+    inner class DefaultCallBehavior {
 
         @Test
-        fun `default call(input, context) sets thread-local for call(input)`() {
-            var threadLocalValue: ToolCallContext? = null
-            val tool = object : Tool {
-                override val definition = Tool.Definition("tl_tool", "Thread-local test", Tool.InputSchema.empty())
+        fun `default two-arg call discards context for legacy tools`() {
+            var singleArgCalled = false
+            val legacyTool = object : Tool {
+                override val definition = Tool.Definition("legacy", "Legacy tool", Tool.InputSchema.empty())
                 override fun call(input: String): Tool.Result {
-                    threadLocalValue = ToolCallContext.current()
-                    return Tool.Result.text("ok")
+                    singleArgCalled = true
+                    return Tool.Result.text("legacy-ok")
                 }
             }
-            val context = ToolCallContext.of("secret" to "42")
-            tool.call("{}", context)
-            assertNotNull(threadLocalValue)
-            assertEquals("42", threadLocalValue!!.get<String>("secret"))
-            // Thread-local should be cleaned up
-            assertTrue(ToolCallContext.current().isEmpty)
-        }
-
-        @Test
-        fun `default call(input, context) restores previous thread-local`() {
-            val outer = ToolCallContext.of("outer" to true)
-            ToolCallContext.set(outer)
-            try {
-                val tool = object : Tool {
-                    override val definition = Tool.Definition("tl_tool", "test", Tool.InputSchema.empty())
-                    override fun call(input: String): Tool.Result {
-                        assertEquals("inner", ToolCallContext.current().get("scope"))
-                        return Tool.Result.text("ok")
-                    }
-                }
-                val inner = ToolCallContext.of("scope" to "inner")
-                tool.call("{}", inner)
-                assertEquals(outer, ToolCallContext.current())
-            } finally {
-                ToolCallContext.remove()
-            }
-        }
-    }
-
-    @Nested
-    inner class ContextAwareFunctionalToolTest {
-
-        @Test
-        fun `context-aware Tool of factory receives context explicitly`() {
-            var receivedToken: String? = null
-            val tool = Tool.of(
-                name = "secure_tool",
-                description = "Needs auth",
-                inputSchema = Tool.InputSchema.of(Tool.Parameter.string("query", "query")),
-            ) { _, context ->
-                receivedToken = context.get("authToken")
-                Tool.Result.text("authorized")
-            }
-            val ctx = ToolCallContext.of("authToken" to "bearer-abc")
-            val result = tool.call("""{"query":"test"}""", ctx)
-            assertEquals("bearer-abc", receivedToken)
+            val ctx = ToolCallContext.of("secret" to "42")
+            val result = legacyTool.call("{}", ctx)
+            assertTrue(singleArgCalled, "Single-arg call should be invoked via default delegation")
             assertTrue(result is Tool.Result.Text)
+            assertEquals("legacy-ok", (result as Tool.Result.Text).content)
         }
 
         @Test
-        fun `context-aware tool falls back to thread-local when called without context`() {
-            var receivedToken: String? = null
+        fun `context-aware tools receive context explicitly`() {
+            var receivedContext: ToolCallContext? = null
             val tool = Tool.of(
-                name = "fallback_tool",
-                description = "Falls back",
+                name = "aware_tool",
+                description = "Context-aware",
             ) { _, context ->
-                receivedToken = context.get("authToken")
+                receivedContext = context
                 Tool.Result.text("ok")
             }
-            ToolCallContext.set(ToolCallContext.of("authToken" to "from-threadlocal"))
-            try {
-                tool.call("{}")
-                assertEquals("from-threadlocal", receivedToken)
-            } finally {
-                ToolCallContext.remove()
+            val ctx = ToolCallContext.of("authToken" to "bearer-abc")
+            tool.call("""{"query":"test"}""", ctx)
+            assertEquals("bearer-abc", receivedContext!!.get<String>("authToken"))
+        }
+
+        @Test
+        fun `context-aware tool receives EMPTY context via single-arg call`() {
+            var receivedContext: ToolCallContext? = null
+            val tool = Tool.of(
+                name = "no_ctx_tool",
+                description = "No context",
+            ) { _, context ->
+                receivedContext = context
+                Tool.Result.text("ok")
             }
+            // Single-arg call — context-aware factory wraps with EMPTY
+            tool.call("{}")
+            assertNotNull(receivedContext)
+            assertTrue(receivedContext!!.isEmpty)
         }
     }
 
@@ -268,27 +240,27 @@ class ToolCallContextFlowTest {
         }
 
         @Test
-        fun `wrapper reads thread-local context in single-arg call`() {
+        fun `single-arg call does not bridge context`() {
             var receivedToolContext: ToolContext? = null
             val springCallback = object : ToolCallback {
                 override fun getToolDefinition() = DefaultToolDefinition.builder()
                     .name("test").description("").inputSchema("{}").build()
                 override fun getToolMetadata() = DefaultToolMetadata.builder().build()
-                override fun call(toolInput: String) = "default"
+                override fun call(toolInput: String): String {
+                    // Single-arg — no context expected
+                    return "single-arg"
+                }
                 override fun call(toolInput: String, toolContext: ToolContext?): String {
                     receivedToolContext = toolContext
-                    return "ok"
+                    return "two-arg"
                 }
             }
             val wrapper = SpringToolCallbackWrapper(springCallback)
-            ToolCallContext.set(ToolCallContext.of("key" to "from-threadlocal"))
-            try {
-                wrapper.call("{}")
-                assertNotNull(receivedToolContext)
-                assertEquals("from-threadlocal", receivedToolContext!!.context["key"])
-            } finally {
-                ToolCallContext.remove()
-            }
+            val result = wrapper.call("{}")
+            assertTrue(result is Tool.Result.Text)
+            assertEquals("single-arg", (result as Tool.Result.Text).content)
+            // Two-arg variant should NOT have been called
+            assertNull(receivedToolContext)
         }
     }
 
@@ -296,41 +268,30 @@ class ToolCallContextFlowTest {
     inner class SpringToolCallbackAdapterContextBridging {
 
         @Test
-        fun `adapter merges thread-local context with incoming ToolContext`() {
+        fun `adapter passes ToolContext to two-arg tool call`() {
             var receivedContext: ToolCallContext? = null
-            val tool = Tool.of("merge_tool", "Merge test") { _, context ->
+            val tool = Tool.of("ctx_tool", "Context test") { _, context ->
                 receivedContext = context
                 Tool.Result.text("ok")
             }
             val adapter = SpringToolCallbackAdapter(tool)
-            ToolCallContext.set(ToolCallContext.of("from-threadlocal" to "tl-val"))
-            try {
-                val springCtx = ToolContext(mapOf("from-spring" to "spring-val"))
-                adapter.call("{}", springCtx)
-                assertNotNull(receivedContext)
-                assertEquals("tl-val", receivedContext!!.get<String>("from-threadlocal"))
-                assertEquals("spring-val", receivedContext!!.get<String>("from-spring"))
-            } finally {
-                ToolCallContext.remove()
-            }
+            val springCtx = ToolContext(mapOf("from-spring" to "spring-val"))
+            adapter.call("{}", springCtx)
+            assertNotNull(receivedContext)
+            assertEquals("spring-val", receivedContext!!.get<String>("from-spring"))
         }
 
         @Test
-        fun `adapter spring context wins on conflict`() {
+        fun `adapter passes EMPTY when no ToolContext provided`() {
             var receivedContext: ToolCallContext? = null
-            val tool = Tool.of("conflict_tool", "Conflict test") { _, context ->
+            val tool = Tool.of("no_ctx_tool", "No context") { _, context ->
                 receivedContext = context
                 Tool.Result.text("ok")
             }
             val adapter = SpringToolCallbackAdapter(tool)
-            ToolCallContext.set(ToolCallContext.of("key" to "old"))
-            try {
-                val springCtx = ToolContext(mapOf("key" to "new"))
-                adapter.call("{}", springCtx)
-                assertEquals("new", receivedContext!!.get<String>("key"))
-            } finally {
-                ToolCallContext.remove()
-            }
+            adapter.call("{}", null)
+            assertNotNull(receivedContext)
+            assertTrue(receivedContext!!.isEmpty)
         }
     }
 
@@ -375,7 +336,7 @@ class ToolCallContextFlowTest {
     inner class DelegatingToolContextForwarding {
 
         @Test
-        fun `renamed tool forwards context via thread-local default`() {
+        fun `renamed tool forwards context to delegate`() {
             var receivedContext: ToolCallContext? = null
             val inner = Tool.of("original", "test") { _, context ->
                 receivedContext = context
@@ -389,7 +350,7 @@ class ToolCallContextFlowTest {
         }
 
         @Test
-        fun `described tool forwards context via thread-local default`() {
+        fun `described tool forwards context to delegate`() {
             var receivedContext: ToolCallContext? = null
             val inner = Tool.of("original", "test") { _, context ->
                 receivedContext = context

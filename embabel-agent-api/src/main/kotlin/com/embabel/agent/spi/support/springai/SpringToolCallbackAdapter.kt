@@ -72,15 +72,13 @@ class SpringToolCallbackAdapter(
 
     /**
      * Bridges Spring AI's ToolContext with Embabel's ToolCallContext.
-     * Merges context from the thread-local holder (set by the tool loop) with any
-     * incoming Spring AI ToolContext.
+     * Converts any incoming Spring AI ToolContext to an Embabel ToolCallContext
+     * and passes it explicitly to the tool.
      */
     override fun call(toolInput: String, toolContext: ToolContext?): String {
-        val embabelContext = ToolCallContext.current()
-        val springContext = toolContext?.let { ToolCallContext.of(it.context) } ?: ToolCallContext.EMPTY
-        val merged = embabelContext.merge(springContext)
+        val context = toolContext?.let { ToolCallContext.of(it.context) } ?: ToolCallContext.EMPTY
         return try {
-            when (val result = tool.call(toolInput, merged)) {
+            when (val result = tool.call(toolInput, context)) {
                 is Tool.Result.Text -> result.content
                 is Tool.Result.WithArtifact -> result.content
                 is Tool.Result.Error -> {
@@ -128,16 +126,7 @@ class SpringToolCallbackWrapper(
 
     override fun call(input: String): Tool.Result {
         return try {
-            // Read context from thread-local and bridge to Spring AI ToolContext.
-            // This is the key integration point for MCP tools: ToolCallContext entries
-            // become ToolContext entries, which Spring AI maps to McpMeta for MCP servers.
-            val context = ToolCallContext.current()
-            val result = if (context.isEmpty) {
-                callback.call(input)
-            } else {
-                callback.call(input, ToolContext(context.toMap()))
-            }
-            Tool.Result.text(result)
+            Tool.Result.text(callback.call(input))
         } catch (e: Exception) {
             Tool.Result.error(e.message ?: "Tool execution failed", e)
         }
