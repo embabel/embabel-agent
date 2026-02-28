@@ -18,6 +18,7 @@ package com.embabel.agent.core.support
 import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.ToolConsumer
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
@@ -131,6 +132,7 @@ data class LlmInteraction(
     val additionalInjectionStrategies: List<ToolInjectionStrategy> = emptyList(),
     val inspectors: List<ToolLoopInspector> = emptyList(),
     val transformers: List<ToolLoopTransformer> = emptyList(),
+    val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
 ) : LlmCall {
 
     override val name: String = id.value

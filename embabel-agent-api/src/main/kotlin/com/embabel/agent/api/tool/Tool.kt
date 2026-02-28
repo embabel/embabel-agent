@@ -52,6 +52,35 @@ interface Tool : ToolInfo {
     fun call(input: String): Result
 
     /**
+     * Execute the tool with JSON input and out-of-band context.
+     *
+     * The default implementation stores [context] in the [ToolCallContext] thread-local
+     * holder, then delegates to [call]. This means existing tools and decorators
+     * that only override [call] automatically propagate context via the thread-local,
+     * following the same pattern as [com.embabel.agent.core.AgentProcess].
+     *
+     * Override this method to receive context explicitly instead of reading
+     * from [ToolCallContext.current].
+     *
+     * @param input JSON string matching inputSchema
+     * @param context out-of-band metadata (auth tokens, tenant IDs, etc.)
+     * @return Result to send back to LLM
+     */
+    fun call(input: String, context: ToolCallContext): Result {
+        val previous = ToolCallContext.current()
+        return try {
+            ToolCallContext.set(context)
+            call(input)
+        } finally {
+            if (previous.isEmpty) {
+                ToolCallContext.remove()
+            } else {
+                ToolCallContext.set(previous)
+            }
+        }
+    }
+
+    /**
      * Framework-agnostic tool definition.
      */
     interface Definition {
@@ -260,6 +289,14 @@ interface Tool : ToolInfo {
     }
 
     /**
+     * Functional interface for context-aware tool implementations.
+     * Use when the tool needs out-of-band metadata (auth tokens, tenant IDs, etc.).
+     */
+    fun interface ContextAwareFunction {
+        fun invoke(input: String, context: ToolCallContext): Result
+    }
+
+    /**
      * Java-friendly functional interface for tool implementations.
      * Uses `handle` method name which is more idiomatic in Java than `invoke`.
      */
@@ -293,6 +330,32 @@ interface Tool : ToolInfo {
             description: String,
             metadata: Metadata = Metadata.DEFAULT,
             function: Function,
+        ): Tool = of(name, description, InputSchema.empty(), metadata, function)
+
+        /**
+         * Create a context-aware tool from a [ContextAwareFunction].
+         * The function receives [ToolCallContext] explicitly at call time.
+         */
+        fun of(
+            name: String,
+            description: String,
+            inputSchema: InputSchema,
+            metadata: Metadata = Metadata.DEFAULT,
+            function: ContextAwareFunction,
+        ): Tool = ContextAwareFunctionalTool(
+            definition = Definition(name, description, inputSchema),
+            metadata = metadata,
+            function = function,
+        )
+
+        /**
+         * Create a context-aware tool with no parameters.
+         */
+        fun of(
+            name: String,
+            description: String,
+            metadata: Metadata = Metadata.DEFAULT,
+            function: ContextAwareFunction,
         ): Tool = of(name, description, InputSchema.empty(), metadata, function)
 
         /**
@@ -697,4 +760,16 @@ private class FunctionalTool(
 ) : Tool {
     override fun call(input: String): Tool.Result =
         function.invoke(input)
+}
+
+private class ContextAwareFunctionalTool(
+    override val definition: Tool.Definition,
+    override val metadata: Tool.Metadata,
+    private val function: Tool.ContextAwareFunction,
+) : Tool {
+    override fun call(input: String): Tool.Result =
+        function.invoke(input, ToolCallContext.current())
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        function.invoke(input, context)
 }
