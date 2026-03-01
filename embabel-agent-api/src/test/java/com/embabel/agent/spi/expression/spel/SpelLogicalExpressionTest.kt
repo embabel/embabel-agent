@@ -188,4 +188,40 @@ class SpelLogicalExpressionTest {
 
         assertEquals(ConditionDetermination.TRUE, result)
     }
+
+    @Test
+    fun `evaluate map property access via dot notation returns TRUE`() {
+        val blackboard = InMemoryBlackboard()
+        val order = linkedMapOf("orderId" to "ORD-123", "total" to 99.95)
+        blackboard["orderCreatedEvent"] = order
+
+        val expression = SpelLogicalExpression("orderCreatedEvent.orderId != null")
+        val result = expression.evaluate(blackboard)
+
+        assertEquals(ConditionDetermination.TRUE, result)
+    }
+
+    @Test
+    fun `evaluate map numeric comparison via dot notation`() {
+        val blackboard = InMemoryBlackboard()
+        val order = linkedMapOf("orderId" to "ORD-456", "total" to 150.0)
+        blackboard["order"] = order
+
+        val expression = SpelLogicalExpression("order.total > 100")
+        val result = expression.evaluate(blackboard)
+
+        assertEquals(ConditionDetermination.TRUE, result)
+    }
+
+    @Test
+    fun `evaluate map string contains via dot notation`() {
+        val blackboard = InMemoryBlackboard()
+        val email = linkedMapOf("sender" to "Richard Beck", "subject" to "Hello")
+        blackboard["email"] = email
+
+        val expression = SpelLogicalExpression("email.sender.contains('Richard')")
+        val result = expression.evaluate(blackboard)
+
+        assertEquals(ConditionDetermination.TRUE, result)
+    }
 }

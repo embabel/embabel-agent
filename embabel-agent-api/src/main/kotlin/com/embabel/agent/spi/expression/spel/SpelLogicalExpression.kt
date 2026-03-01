@@ -21,6 +21,7 @@ import com.embabel.common.util.loggerFor
 import com.embabel.plan.common.condition.ConditionDetermination
 import org.slf4j.event.Level
 import org.springframework.expression.ExpressionParser
+import org.springframework.context.expression.MapAccessor
 import org.springframework.expression.spel.SpelEvaluationException
 import org.springframework.expression.spel.SpelMessage
 import org.springframework.expression.spel.standard.SpelExpressionParser
@@ -46,6 +47,8 @@ internal class SpelLogicalExpression(
             }
 
             val context = StandardEvaluationContext()
+            // Allow dot-notation property access on Map objects (e.g., DynamicType payloads)
+            context.addPropertyAccessor(MapAccessor())
             // Add each entry as a variable to the context
             model.forEach { (key, value) ->
                 context.setVariable(key, value)
