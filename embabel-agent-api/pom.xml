@@ -22,8 +22,9 @@
 
     <properties>
         <archunit.version>1.3.0</archunit.version>
-        <!-- Exclude test utilities from SonarQube coverage analysis -->
+        <!-- Exclude test utilities from SonarQube analysis -->
         <sonar.coverage.exclusions>**/test/integration/**</sonar.coverage.exclusions>
+        <sonar.cpd.exclusions>**/test/integration/**</sonar.cpd.exclusions>
     </properties>
 
     <dependencies>

@@ -1173,4 +1173,60 @@ class ChatClientLlmOperationsThinkingTest {
         assertTrue(exception2.thinkingBlocks[0].content.contains("malformed JSON that fails parsing"))
         assertTrue(exception2.message!!.contains("Conversion failed"))
     }
+
+    @Test
+    fun `doTransformWithThinking should delegate to ToolLoop when useEmbabelToolLoop is true`() {
+        val responseWithThinking = """
+            <think>Testing Embabel tool loop delegation</think>
+            Hello from tool loop
+        """.trimIndent()
+
+        val fakeChatModel = FakeChatModel(responseWithThinking)
+        val setup = createChatClientLlmOperations(fakeChatModel)
+
+        val interaction = LlmInteraction(
+            id = InteractionId("embabel-toolloop-switch"),
+            useEmbabelToolLoop = true,
+        )
+
+        val result = setup.llmOperations.doTransformWithThinking(
+            messages = listOf(UserMessage("Test switch to Embabel tool loop")),
+            interaction = interaction,
+            outputClass = String::class.java,
+            llmRequestEvent = null,
+        )
+
+        assertNotNull(result.result)
+        assertTrue(result.thinkingBlocks.isNotEmpty())
+        assertTrue(result.thinkingBlocks[0].content.contains("Embabel tool loop"))
+    }
+
+    @Test
+    fun `createObjectWithThinking should extract thinking and return result`() {
+        val responseWithThinking = """
+            <think>Analyzing the request for a simple result</think>
+            {"status": "success", "value": 123}
+        """.trimIndent()
+
+        val fakeChatModel = FakeChatModel(responseWithThinking)
+        val setup = createChatClientLlmOperations(fakeChatModel)
+
+        val interaction = LlmInteraction(
+            id = InteractionId("create-object-with-thinking"),
+        )
+
+        val result = setup.llmOperations.createObjectWithThinking(
+            messages = listOf(UserMessage("Create an object with thinking")),
+            interaction = interaction,
+            outputClass = SimpleResult::class.java,
+            agentProcess = setup.mockAgentProcess,
+            action = null,
+        )
+
+        assertNotNull(result.result)
+        assertEquals("success", result.result.status)
+        assertEquals(123, result.result.value)
+        assertTrue(result.thinkingBlocks.isNotEmpty())
+        assertTrue(result.thinkingBlocks[0].content.contains("Analyzing the request"))
+    }
 }
