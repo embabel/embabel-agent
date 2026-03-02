@@ -291,7 +291,7 @@ class GuardRailConfiguration {
                 "embabel.models.cheapest=gpt-4.1-mini",
                 "embabel.models.best=gpt-4.1-mini",
                 "embabel.models.default-llm=gpt-4.1-mini",
-                "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240",
+                "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
                 "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
                 "spring.main.allow-bean-definition-overriding=true",
 

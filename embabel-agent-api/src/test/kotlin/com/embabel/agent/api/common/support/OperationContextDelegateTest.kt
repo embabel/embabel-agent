@@ -24,6 +24,7 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.UserMessage
@@ -253,12 +254,14 @@ class OperationContextDelegateTest {
         }
 
         @Test
-        fun `createObjectWithThinking should call underlying method`() {
-            val (mockContext, mockChatClientOps, _) = createMockedContext()
+        fun `createObjectWithThinking should call ProcessContext createObjectWithThinking`() {
+            val (mockContext, _, _) = createMockedContext()
+            val mockProcessContext = mockk<ProcessContext>(relaxed = true)
 
+            every { mockContext.processContext } returns mockProcessContext
             every {
-                mockChatClientOps.doTransformWithThinking<TestResult>(
-                    any(), any(), any(), any(), any(), any()
+                mockProcessContext.createObjectWithThinking<TestResult>(
+                    any(), any(), any(), any(), any()
                 )
             } returns ThinkingResponse(result = TestResult("test"), thinkingBlocks = emptyList())
 
@@ -273,8 +276,8 @@ class OperationContextDelegateTest {
             val result = delegate.createObjectWithThinking(listOf(UserMessage("test")), TestResult::class.java)
 
             verify {
-                mockChatClientOps.doTransformWithThinking<TestResult>(
-                    any(), any(), any(), any(), any(), any()
+                mockProcessContext.createObjectWithThinking<TestResult>(
+                    any(), any(), any(), any(), any()
                 )
             }
             assertEquals("test", result.result?.value)

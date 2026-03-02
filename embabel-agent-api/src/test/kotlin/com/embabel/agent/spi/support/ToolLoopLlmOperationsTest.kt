@@ -42,6 +42,7 @@ import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -685,6 +686,90 @@ class ToolLoopLlmOperationsTest {
     }
 
     @Nested
+    inner class DoTransformWithThinkingTests {
+
+        @Test
+        fun `doTransformWithThinking returns String result with thinking blocks extracted`() {
+            val responseWithThinking = "<think>I should greet the user</think>Hello, world!"
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse(responseWithThinking))
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val result = operations.testDoTransformWithThinking(
+                messages = listOf(UserMessage("Say hello")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+            )
+
+            // String output: raw text preserved (not sanitized)
+            assertEquals(responseWithThinking, result.result)
+            assertEquals(1, result.thinkingBlocks.size)
+            assertTrue(result.thinkingBlocks[0].content.contains("I should greet the user"))
+        }
+
+        @Test
+        fun `doTransformWithThinking returns structured output with thinking blocks extracted`() {
+            data class TestOutput(val message: String)
+
+            val converter = object : OutputConverter<TestOutput> {
+                override fun convert(source: String): TestOutput {
+                    // Simulate SuppressThinkingConverter behavior
+                    val cleaned = source.replace(Regex("<think>.*?</think>"), "").trim()
+                    return TestOutput(cleaned)
+                }
+                override fun getFormat(): String = "Return a message"
+            }
+
+            val responseWithThinking = "<think>Processing</think>parsed message"
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse(responseWithThinking))
+            )
+            val operations = createTestableOperations(messageSender, converter)
+
+            val result = operations.testDoTransformWithThinking(
+                messages = listOf(UserMessage("Get output")),
+                interaction = createInteraction(),
+                outputClass = TestOutput::class.java,
+            )
+
+            assertEquals("parsed message", result.result?.message)
+            assertEquals(1, result.thinkingBlocks.size)
+            assertTrue(result.thinkingBlocks[0].content.contains("Processing"))
+        }
+
+        @Test
+        fun `doTransformWithThinking wraps conversion exception in ThinkingException`() {
+            data class TestOutput(val value: Int)
+
+            val converter = object : OutputConverter<TestOutput> {
+                override fun convert(source: String): TestOutput {
+                    throw IllegalArgumentException("Cannot parse: $source")
+                }
+                override fun getFormat(): String = "Return JSON"
+            }
+
+            val responseWithThinking = "<think>Attempting conversion</think>invalid json"
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse(responseWithThinking))
+            )
+            val operations = createTestableOperations(messageSender, converter)
+
+            val exception = assertThrows<com.embabel.common.core.thinking.ThinkingException> {
+                operations.testDoTransformWithThinking(
+                    messages = listOf(UserMessage("Parse this")),
+                    interaction = createInteraction(),
+                    outputClass = TestOutput::class.java,
+                )
+            }
+
+            assertTrue(exception.message?.contains("Conversion failed") == true)
+            assertEquals(1, exception.thinkingBlocks.size)
+            assertTrue(exception.thinkingBlocks[0].content.contains("Attempting conversion"))
+        }
+    }
+
+    @Nested
     inner class ExtensionPointTests {
 
         private fun setupMockModelProvider(): ModelProvider {
@@ -968,6 +1053,20 @@ internal open class TestableToolLoopLlmOperations(
             interaction = interaction,
             outputClass = outputClass,
             llmRequestEvent = llmRequestEvent,
+        )
+    }
+
+    // Expose doTransformWithThinking for direct testing
+    fun <O> testDoTransformWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+    ): ThinkingResponse<O> {
+        return doTransformWithThinking(
+            messages = messages,
+            interaction = interaction,
+            outputClass = outputClass,
+            llmRequestEvent = null,
         )
     }
 }

@@ -23,6 +23,7 @@ import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
+import com.embabel.common.core.thinking.ThinkingResponse
 import org.jetbrains.annotations.ApiStatus
 
 /**
@@ -133,5 +134,59 @@ interface LlmOperations {
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): O
+
+    /**
+     * Create an output object with thinking block extraction, in the context of an AgentProcess.
+     * @param messages messages in the conversation so far. Could just be user message.
+     * @param interaction Llm options and tool callbacks to use, plus unique identifier
+     * @param outputClass Class of the output object
+     * @param agentProcess Agent process we are running within
+     * @param action Action we are running within if we are running within an action
+     * @throws InvalidLlmReturnFormatException if the LLM returns an invalid object
+     * @throws InvalidLlmReturnTypeException if the LLM returns an object that fails validation
+     */
+    @Throws(
+        InvalidLlmReturnFormatException::class,
+        InvalidLlmReturnTypeException::class
+    )
+    fun <O> createObjectWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): ThinkingResponse<O>
+
+    /**
+     * Try to create an output object with thinking block extraction in the context of an AgentProcess.
+     * Return a failure result if the LLM does not have enough information to create the object.
+     * @param messages messages
+     * @param interaction Llm options and tool callbacks to use, plus unique identifier
+     * @param outputClass Class of the output object
+     * @param agentProcess Agent process we are running within
+     * @param action Action we are running within if we are running within an action
+     * @throws InvalidLlmReturnFormatException if the LLM returns an object of the wrong type
+     */
+    fun <O> createObjectIfPossibleWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Result<ThinkingResponse<O>>
+
+    /**
+     * Low level transform with thinking block extraction, not necessarily aware of platform.
+     * @param messages messages
+     * @param interaction The LLM call options
+     * @param outputClass Class of the output object
+     * @param llmRequestEvent Event already published for this request if one has been
+     */
+    fun <O> doTransformWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): ThinkingResponse<O>
 
 }

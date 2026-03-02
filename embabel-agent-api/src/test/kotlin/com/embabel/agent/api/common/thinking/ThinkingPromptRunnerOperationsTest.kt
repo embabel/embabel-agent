@@ -108,7 +108,7 @@ class ThinkingPromptRunnerOperationsTest {
         every { mockPlatform.platformServices } returns mockServices
         every { mockServices.llmOperations } returns mockChatClientOps
         every {
-            mockChatClientOps.doTransformWithThinking<ProcessedData>(
+            mockChatClientOps.doTransformWithThinkingSpringAi<ProcessedData>(
                 any<List<com.embabel.chat.Message>>(),
                 any<LlmInteraction>(),
                 any<Class<ProcessedData>>(),
@@ -429,13 +429,13 @@ class ThinkingPromptRunnerOperationsTest {
 
         // Mock responses for different method calls
         every {
-            mockChatClientOps.doTransformWithThinking<String>(
+            mockChatClientOps.doTransformWithThinkingSpringAi<String>(
                 any(), any(), eq(String::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(result = "generated text", thinkingBlocks = emptyList())
 
         every {
-            mockChatClientOps.doTransformWithThinking<SimpleTestData>(
+            mockChatClientOps.doTransformWithThinkingSpringAi<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(result = SimpleTestData("created", 123), thinkingBlocks = emptyList())
@@ -482,13 +482,13 @@ class ThinkingPromptRunnerOperationsTest {
 
         // Mock responses for multimodal methods
         every {
-            mockChatClientOps.doTransformWithThinking<String>(
+            mockChatClientOps.doTransformWithThinkingSpringAi<String>(
                 any(), any(), eq(String::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(result = "multimodal text response", thinkingBlocks = emptyList())
 
         every {
-            mockChatClientOps.doTransformWithThinking<SimpleTestData>(
+            mockChatClientOps.doTransformWithThinkingSpringAi<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(
@@ -508,7 +508,7 @@ class ThinkingPromptRunnerOperationsTest {
         )
 
         every {
-            mockChatClientOps.doTransformWithThinking<com.embabel.chat.AssistantMessage>(
+            mockChatClientOps.doTransformWithThinkingSpringAi<com.embabel.chat.AssistantMessage>(
                 any(), any(), eq(com.embabel.chat.AssistantMessage::class.java), any(), any(), any()
             )
         } returns ThinkingResponse(
@@ -552,7 +552,7 @@ class ThinkingPromptRunnerOperationsTest {
         )
 
         every {
-            mockChatClientOps.doTransformWithThinking<com.embabel.agent.experimental.primitive.Determination>(
+            mockChatClientOps.doTransformWithThinkingSpringAi<com.embabel.agent.experimental.primitive.Determination>(
                 any(), any(), any(), any(), any(), any()
             )
         } returns ThinkingResponse(

@@ -499,10 +499,32 @@ internal class ChatClientLlmOperations(
     // ====================================
 
     /**
-     * Transform messages to an object with thinking block extraction.
+     * Override doTransformWithThinking with switch pattern.
+     * Uses Embabel tool loop or Spring AI internal loop based on configuration.
      */
     @OptIn(InternalThinkingApi::class)
-    internal fun <O> doTransformWithThinking(
+    override fun <O> doTransformWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): ThinkingResponse<O> {
+        return if (interaction.useEmbabelToolLoop) {
+            super.doTransformWithThinking(messages, interaction, outputClass, llmRequestEvent)
+        } else {
+            doTransformWithThinkingSpringAi(messages, interaction, outputClass, llmRequestEvent, null, null)
+        }
+    }
+
+    /**
+     * ******************************************
+     * LEGACY SPRING AI IMPLEMENTATION
+     * ******************************************
+     * Transform messages to an object with thinking block extraction.
+     * Uses Spring AI's internal tool loop.
+     */
+    @OptIn(InternalThinkingApi::class)
+    internal fun <O> doTransformWithThinkingSpringAi(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,

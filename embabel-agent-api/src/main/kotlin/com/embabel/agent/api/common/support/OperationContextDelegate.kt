@@ -368,18 +368,22 @@ internal data class OperationContextDelegate(
 
     override fun supportsThinking(): Boolean = true
 
+    // Patterned after createObject() - uses ProcessContext flow
+    // Uses thinkingInteraction() with additions from createObject(): toolGroups, validation
     override fun <T> createObjectWithThinking(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T> {
-        val combinedMessages = this.messages + messages
-        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
-        return llmOperations.doTransformWithThinking(
+        val combinedMessages = combineImagesWithMessages(this.messages + messages)
+        val interaction = thinkingInteraction().copy(
+            toolGroups = this.toolGroups + toolGroups,
+            validation = validation,
+        )
+        return context.processContext.createObjectWithThinking(
             messages = combinedMessages,
-            interaction = thinkingInteraction(),
+            interaction = interaction,
             outputClass = outputClass,
-            llmRequestEvent = null,
-            agentProcess = context.agentProcess,
+            agentProcess = context.processContext.agentProcess,
             action = action,
         )
     }

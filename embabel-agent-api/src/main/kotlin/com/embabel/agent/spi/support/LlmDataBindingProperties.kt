@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.common.RetryTemplateProvider
 import org.slf4j.LoggerFactory
@@ -49,6 +50,8 @@ class LlmDataBindingProperties(
             .fixedBackoff(Duration.ofMillis(fixedBackoffMillis))
             // ReplanRequestedException is a control flow signal, not an error to retry
             .notRetryOn(ReplanRequestedException::class.java)
+            // GuardRailViolationException is a policy decision, not a transient error to retry
+            .notRetryOn(GuardRailViolationException::class.java)
             .withListener(object : RetryListener {
                 override fun <T : Any, E : Throwable> onError(
                     context: RetryContext,

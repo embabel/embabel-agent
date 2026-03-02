@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
                 "embabel.models.cheapest=claude_-sonnet-4-5",
                 "embabel.models.best=claude_-sonnet-4-5",
                 "embabel.models.default-llm=claude-sonnet-4-5",
-                "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240",
+                "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
                 "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
                 "spring.main.allow-bean-definition-overriding=true",
 

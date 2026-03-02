@@ -21,6 +21,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.DummyInstanceCreator
 
 /**
@@ -71,6 +72,37 @@ open class DummyObjectCreatingLlmOperations(
         interaction = interaction,
         outputClass = outputClass,
         llmRequestEvent = null,
+    )
+
+    override fun <O> createObjectWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): ThinkingResponse<O> = ThinkingResponse(
+        result = createObject(messages, interaction, outputClass, agentProcess, action),
+        thinkingBlocks = emptyList(),
+    )
+
+    override fun <O> createObjectIfPossibleWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        agentProcess: AgentProcess,
+        action: Action?,
+    ): Result<ThinkingResponse<O>> {
+        TODO("Not implemented for test class")
+    }
+
+    override fun <O> doTransformWithThinking(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): ThinkingResponse<O> = ThinkingResponse(
+        result = doTransform(messages, interaction, outputClass, llmRequestEvent),
+        thinkingBlocks = emptyList(),
     )
 
     companion object {

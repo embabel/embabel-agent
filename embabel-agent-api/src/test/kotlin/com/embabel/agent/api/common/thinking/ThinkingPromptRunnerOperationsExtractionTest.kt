@@ -456,7 +456,7 @@ class ThinkingPromptRunnerOperationsExtractionTest {
 
         // Test real extraction from raw LLM response using existing SuppressThinkingConverter
         every {
-            mockChatClientOps.doTransformWithThinking<T>(
+            mockChatClientOps.doTransformWithThinkingSpringAi<T>(
                 any<List<com.embabel.chat.Message>>(),
                 any<LlmInteraction>(),
                 any<Class<T>>(),

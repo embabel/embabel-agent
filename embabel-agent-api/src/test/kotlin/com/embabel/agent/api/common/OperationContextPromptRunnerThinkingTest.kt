@@ -27,6 +27,7 @@ import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
+import com.embabel.common.core.thinking.ThinkingResponse
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
@@ -133,6 +134,29 @@ class OperationContextPromptRunnerThinkingTest {
                 outputClass: Class<O>,
                 llmRequestEvent: LlmRequestEvent<O>?
             ): O = throw UnsupportedOperationException("Test implementation")
+
+            override fun <O> createObjectWithThinking(
+                messages: List<Message>,
+                interaction: LlmInteraction,
+                outputClass: Class<O>,
+                agentProcess: com.embabel.agent.core.AgentProcess,
+                action: com.embabel.agent.core.Action?
+            ): ThinkingResponse<O> = throw UnsupportedOperationException("Test implementation")
+
+            override fun <O> createObjectIfPossibleWithThinking(
+                messages: List<Message>,
+                interaction: LlmInteraction,
+                outputClass: Class<O>,
+                agentProcess: com.embabel.agent.core.AgentProcess,
+                action: com.embabel.agent.core.Action?
+            ): Result<ThinkingResponse<O>> = Result.failure(UnsupportedOperationException("Test implementation"))
+
+            override fun <O> doTransformWithThinking(
+                messages: List<Message>,
+                interaction: LlmInteraction,
+                outputClass: Class<O>,
+                llmRequestEvent: LlmRequestEvent<O>?
+            ): ThinkingResponse<O> = throw UnsupportedOperationException("Test implementation")
         }
 
         val context = createMockOperationContextWithLlmOperations(unsupportedLlmOps)

@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
                 "embabel.models.cheapest=qwen3:latest",
                 "embabel.models.best=qwen3:latest",
                 "embabel.models.default-llm=qwen3:latest",
-                "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240",
+                "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
                 "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
                 "spring.main.allow-bean-definition-overriding=true",
 
