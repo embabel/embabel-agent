@@ -18,6 +18,7 @@ package com.embabel.agent.rag.tools
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.rag.model.Chunk
+import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.model.SimpleNamedEntityData
@@ -497,6 +498,64 @@ class ToolishRagTest {
             assertTrue(result.contains("2 results:"))
             assertTrue(result.contains("Error E001"))
             assertTrue(result.contains("Error E002"))
+        }
+    }
+
+    @Nested
+    inner class ResultExpanderToolsTests {
+
+        @Test
+        fun `broadenChunk should return message when expansion has no chunks`() {
+            val resultExpander = mockk<ResultExpander>()
+            every {
+                resultExpander.expandResult("chunk-1", ResultExpander.Method.SEQUENCE, 2)
+            } returns emptyList()
+
+            val tools = ResultExpanderTools(resultExpander)
+            val result = tools.broadenChunk("chunk-1")
+
+            assertEquals("No adjacent chunks found for this section.", result)
+        }
+
+        @Test
+        fun `broadenChunk should ignore non chunk elements and return empty message`() {
+            val resultExpander = mockk<ResultExpander>()
+            val nonChunkElement = mockk<ContentElement>(relaxed = true)
+            every {
+                resultExpander.expandResult("chunk-1", ResultExpander.Method.SEQUENCE, 2)
+            } returns listOf(nonChunkElement)
+
+            val tools = ResultExpanderTools(resultExpander)
+            val result = tools.broadenChunk("chunk-1")
+
+            assertEquals("No adjacent chunks found for this section.", result)
+        }
+
+        @Test
+        fun `zoomOut should return message when expansion has no embeddables`() {
+            val resultExpander = mockk<ResultExpander>()
+            every {
+                resultExpander.expandResult("node-1", ResultExpander.Method.ZOOM_OUT, 1)
+            } returns emptyList()
+
+            val tools = ResultExpanderTools(resultExpander)
+            val result = tools.zoomOut("node-1")
+
+            assertEquals("No parent section found.", result)
+        }
+
+        @Test
+        fun `zoomOut should ignore non embeddable elements and return empty message`() {
+            val resultExpander = mockk<ResultExpander>()
+            val nonEmbeddableElement = mockk<ContentElement>(relaxed = true)
+            every {
+                resultExpander.expandResult("node-1", ResultExpander.Method.ZOOM_OUT, 1)
+            } returns listOf(nonEmbeddableElement)
+
+            val tools = ResultExpanderTools(resultExpander)
+            val result = tools.zoomOut("node-1")
+
+            assertEquals("No parent section found.", result)
         }
     }
 
