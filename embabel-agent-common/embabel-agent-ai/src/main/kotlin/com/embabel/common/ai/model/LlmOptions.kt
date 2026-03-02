@@ -20,6 +20,7 @@ import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byRole
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Duration
 
@@ -122,6 +123,9 @@ data class LlmOptions @JvmOverloads constructor(
     @get:Schema(
         description = "If provided, custom selection criteria for the LLM to use. If not provided, a default LLM will be used.",
         required = false,
+    )
+    @get:JsonProperty(
+        access = JsonProperty.Access.READ_ONLY
     )
     val criteria: ModelSelectionCriteria
         get() =

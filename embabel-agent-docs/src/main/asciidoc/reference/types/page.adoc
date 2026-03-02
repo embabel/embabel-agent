@@ -50,8 +50,7 @@ val analyticalOptions = LlmOptions
 - `withTopK(Integer)`: Set top-K sampling parameter
 - `withPersona(String)`: Add a system message persona
 
-`LlmOptions` is serializable to JSON, so you can set properties of type
-`LlmOptions` in `application.yml` and other application configuration files.
+`LlmOptions` is deserializable, so you can set properties of type `LlmOptions` in `application.yml` and other application configuration files.
 This is a powerful way of externalizing not only models, but hyperparameters.
 
 ==== PromptRunner
