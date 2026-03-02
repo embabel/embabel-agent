@@ -142,25 +142,8 @@ open class ToolLoopLlmOperations(
             { text -> converter!!.convert(text)!! }
         }
 
-        // Create a decorator for dynamically injected tools (e.g., from MatryoshkaTool)
-        val injectedToolDecorator: ((Tool) -> Tool)? = llmRequestEvent?.let { event ->
-            { tool: Tool ->
-                toolDecorator.decorate(
-                    tool = tool,
-                    agentProcess = event.agentProcess,
-                    action = event.action,
-                    llmOptions = interaction.llm,
-                )
-            }
-        }
-
-        val injectionStrategy = if (interaction.additionalInjectionStrategies.isNotEmpty()) {
-            ChainedToolInjectionStrategy(
-                listOf(ToolInjectionStrategy.DEFAULT) + interaction.additionalInjectionStrategies
-            )
-        } else {
-            ToolInjectionStrategy.DEFAULT
-        }
+        val injectedToolDecorator = createInjectedToolDecorator(llmRequestEvent, interaction)
+        val injectionStrategy = createInjectionStrategy(interaction)
 
         val toolLoop = toolLoopFactory.create(
             llmMessageSender = messageSender,
@@ -181,28 +164,7 @@ open class ToolLoopLlmOperations(
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         val tools = interaction.tools
-
-        // Publish ToolLoopStartEvent before the tool loop
-        val toolLoopStartEvent = llmRequestEvent?.let { event ->
-            ToolLoopStartEvent(
-                agentProcess = event.agentProcess,
-                action = event.action,
-                toolNames = tools.map { it.definition.name },
-                maxIterations = interaction.maxToolIterations,
-                interactionId = interaction.id.value,
-                outputClass = outputClass,
-            ).also { startEvent ->
-                event.agentProcess.processContext.onProcessEvent(startEvent)
-            }
-        }
-
-        // Tool loop tracing is handled by ToolLoopStartEvent/ToolLoopCompletedEvent
-        // to keep observability uniform across all agent events (actions, LLM calls, tools, etc.)
-        // rather than mixing Observation API inline with event-based tracing.
-        // val observation = Observation.createNotStarted("embabel.tool-loop", observationRegistry)
-        //     .contextualName("Tool Loop Execution")
-        // observation.start()
-        // ... observation.stop()
+        val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
         val result = toolLoop.execute(
             initialMessages = initialMessages,
@@ -210,27 +172,7 @@ open class ToolLoopLlmOperations(
             outputParser = outputParser,
         )
 
-        // Publish ToolLoopCompletedEvent after the tool loop
-        toolLoopStartEvent?.let { startEvent ->
-            llmRequestEvent.agentProcess.processContext.onProcessEvent(
-                startEvent.completedEvent(
-                    totalIterations = result.totalIterations,
-                    replanRequested = result.replanRequested,
-                )
-            )
-        }
-
-        result.totalUsage?.let { usage ->
-            recordUsage(llm, usage, llmRequestEvent)
-        }
-
-        // If replan was requested, re-throw the exception to propagate to action executor
-        if (result.replanRequested) {
-            throw ReplanRequestedException(
-                reason = result.replanReason ?: "Tool requested replan",
-                blackboardUpdater = result.blackboardUpdater,
-            )
-        }
+        handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent, llm)
 
         // Guardrails: Post-validation of assistant response
         // For the tool loop path, validate the final result based on its type
@@ -410,25 +352,8 @@ open class ToolLoopLlmOperations(
             ThinkingResponse(result, thinkingBlocks)
         }
 
-        // Create a decorator for dynamically injected tools
-        val injectedToolDecorator: ((Tool) -> Tool)? = llmRequestEvent?.let { event ->
-            { tool: Tool ->
-                toolDecorator.decorate(
-                    tool = tool,
-                    agentProcess = event.agentProcess,
-                    action = event.action,
-                    llmOptions = interaction.llm,
-                )
-            }
-        }
-
-        val injectionStrategy = if (interaction.additionalInjectionStrategies.isNotEmpty()) {
-            ChainedToolInjectionStrategy(
-                listOf(ToolInjectionStrategy.DEFAULT) + interaction.additionalInjectionStrategies
-            )
-        } else {
-            ToolInjectionStrategy.DEFAULT
-        }
+        val injectedToolDecorator = createInjectedToolDecorator(llmRequestEvent, interaction)
+        val injectionStrategy = createInjectionStrategy(interaction)
 
         val toolLoop = toolLoopFactory.create(
             llmMessageSender = messageSender,
@@ -449,20 +374,7 @@ open class ToolLoopLlmOperations(
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         val tools = interaction.tools
-
-        // Publish ToolLoopStartEvent before the tool loop
-        val toolLoopStartEvent = llmRequestEvent?.let { event ->
-            ToolLoopStartEvent(
-                agentProcess = event.agentProcess,
-                action = event.action,
-                toolNames = tools.map { it.definition.name },
-                maxIterations = interaction.maxToolIterations,
-                interactionId = interaction.id.value,
-                outputClass = outputClass,
-            ).also { startEvent ->
-                event.agentProcess.processContext.onProcessEvent(startEvent)
-            }
-        }
+        val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
         val result = toolLoop.execute(
             initialMessages = initialMessages,
@@ -470,27 +382,7 @@ open class ToolLoopLlmOperations(
             outputParser = outputParser,
         )
 
-        // Publish ToolLoopCompletedEvent after the tool loop
-        toolLoopStartEvent?.let { startEvent ->
-            llmRequestEvent.agentProcess.processContext.onProcessEvent(
-                startEvent.completedEvent(
-                    totalIterations = result.totalIterations,
-                    replanRequested = result.replanRequested,
-                )
-            )
-        }
-
-        result.totalUsage?.let { usage ->
-            recordUsage(llm, usage, llmRequestEvent)
-        }
-
-        // If replan was requested, re-throw the exception
-        if (result.replanRequested) {
-            throw ReplanRequestedException(
-                reason = result.replanReason ?: "Tool requested replan",
-                blackboardUpdater = result.blackboardUpdater,
-            )
-        }
+        handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent, llm)
 
         val thinkingResponse = result.result
 
@@ -688,6 +580,91 @@ open class ToolLoopLlmOperations(
             return llmCall.generateExamples != false
         }
         return llmCall.generateExamples == true
+    }
+
+    // ========== Private helper methods to reduce duplication ==========
+
+    /**
+     * Create a decorator for dynamically injected tools (e.g., from MatryoshkaTool).
+     */
+    private fun createInjectedToolDecorator(
+        llmRequestEvent: LlmRequestEvent<*>?,
+        interaction: LlmInteraction,
+    ): ((Tool) -> Tool)? = llmRequestEvent?.let { event ->
+        { tool: Tool ->
+            toolDecorator.decorate(
+                tool = tool,
+                agentProcess = event.agentProcess,
+                action = event.action,
+                llmOptions = interaction.llm,
+            )
+        }
+    }
+
+    /**
+     * Create the injection strategy based on interaction configuration.
+     */
+    private fun createInjectionStrategy(interaction: LlmInteraction): ToolInjectionStrategy =
+        if (interaction.additionalInjectionStrategies.isNotEmpty()) {
+            ChainedToolInjectionStrategy(
+                listOf(ToolInjectionStrategy.DEFAULT) + interaction.additionalInjectionStrategies
+            )
+        } else {
+            ToolInjectionStrategy.DEFAULT
+        }
+
+    /**
+     * Publish ToolLoopStartEvent and return it for later completion tracking.
+     */
+    private fun <O> publishToolLoopStartEvent(
+        llmRequestEvent: LlmRequestEvent<O>?,
+        tools: List<Tool>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+    ): ToolLoopStartEvent? = llmRequestEvent?.let { event ->
+        ToolLoopStartEvent(
+            agentProcess = event.agentProcess,
+            action = event.action,
+            toolNames = tools.map { it.definition.name },
+            maxIterations = interaction.maxToolIterations,
+            interactionId = interaction.id.value,
+            outputClass = outputClass,
+        ).also { startEvent ->
+            event.agentProcess.processContext.onProcessEvent(startEvent)
+        }
+    }
+
+    /**
+     * Handle tool loop completion: publish completed event, record usage, check for replan.
+     * Throws ReplanRequestedException if replan was requested.
+     */
+    private fun <O> handleToolLoopCompletion(
+        toolLoopStartEvent: ToolLoopStartEvent?,
+        result: com.embabel.agent.spi.loop.ToolLoopResult<O>,
+        llmRequestEvent: LlmRequestEvent<*>?,
+        llm: LlmService<*>,
+    ) {
+        // Publish ToolLoopCompletedEvent after the tool loop
+        toolLoopStartEvent?.let { startEvent ->
+            llmRequestEvent!!.agentProcess.processContext.onProcessEvent(
+                startEvent.completedEvent(
+                    totalIterations = result.totalIterations,
+                    replanRequested = result.replanRequested,
+                )
+            )
+        }
+
+        result.totalUsage?.let { usage ->
+            recordUsage(llm, usage, llmRequestEvent)
+        }
+
+        // If replan was requested, re-throw the exception to propagate to action executor
+        if (result.replanRequested) {
+            throw ReplanRequestedException(
+                reason = result.replanReason ?: "Tool requested replan",
+                blackboardUpdater = result.blackboardUpdater,
+            )
+        }
     }
 
 }
