@@ -247,6 +247,7 @@ class Subagent private constructor(
             verbosity = Verbosity(showPrompts = true),
             blackboard = blackboard,
             outputChannel = parentOutputChannel,
+            identities = parentAgentProcess.processOptions.identities,
         )
     }
 
