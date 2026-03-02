@@ -45,6 +45,7 @@ private val Tool.Result.content: String
  *
  * The scripted operations track what was called for verification.
  */
+@Suppress("DuplicatedCode")
 class ScriptedLlmOperations : LlmOperations {
 
     private val logger = LoggerFactory.getLogger(ScriptedLlmOperations::class.java)

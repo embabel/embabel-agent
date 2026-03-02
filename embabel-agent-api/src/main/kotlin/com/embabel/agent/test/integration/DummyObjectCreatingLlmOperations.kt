@@ -27,6 +27,7 @@ import com.embabel.common.util.DummyInstanceCreator
 /**
  * Fake LLM transformer that generates valid classes with random strings.
  */
+@Suppress("DuplicatedCode")
 open class DummyObjectCreatingLlmOperations(
     stringsToUse: List<String>,
 ) : LlmOperations, DummyInstanceCreator(stringsToUse) {
