@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
+import org.springframework.ai.chat.model.ToolContext
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.ToolDefinition
 
@@ -31,9 +32,15 @@ class ObservabilityToolCallback(
 
     override fun getToolDefinition(): ToolDefinition = delegate.toolDefinition
 
-    override fun call(toolInput: String): String {
+    override fun call(toolInput: String): String =
+        callWithObservation(toolInput) { delegate.call(toolInput) }
+
+    override fun call(toolInput: String, toolContext: ToolContext?): String =
+        callWithObservation(toolInput) { delegate.call(toolInput, toolContext) }
+
+    private inline fun callWithObservation(toolInput: String, action: () -> String): String {
         if (observationRegistry == null) {
-            return delegate.call(toolInput)
+            return action()
         }
         val currentObservation = observationRegistry.currentObservation
         if (currentObservation == null) {
@@ -50,7 +57,7 @@ class ObservabilityToolCallback(
             .parentObservation(currentObservation)
             .start()
         return try {
-            val result = delegate.call(toolInput)
+            val result = action()
             observation.lowCardinalityKeyValue("status", "success")
             observation.highCardinalityKeyValue("result", result)
             result
