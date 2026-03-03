@@ -98,7 +98,7 @@ internal open class DefaultToolLoop(
 
             val callResult = llmMessageSender.call(state.conversationHistory, state.availableTools)
             accumulateUsage(callResult.usage, state)
-9
+
             /* -------------------------------------------------
              * Apply afterLlmCall callbacks - START
              * ------------------------------------------------- */

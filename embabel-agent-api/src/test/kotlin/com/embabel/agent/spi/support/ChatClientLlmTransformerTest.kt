@@ -25,6 +25,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.LlmInvocationHistory
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.MaybeReturn
@@ -158,6 +159,7 @@ class ChatClientLlmTransformerTest {
             val mockProcessContext = mockk<ProcessContext>()
             every { mockProcessContext.onProcessEvent(any()) } answers { eventListener.onProcessEvent(firstArg()) }
             every { mockProcessContext.platformServices } returns mockPlatformServices
+            every { mockProcessContext.processOptions } returns ProcessOptions()
             every { mockProcessContext.agentProcess } returns mockAgentProcess
             every { mockAgentProcess.processContext } returns mockProcessContext
 
@@ -360,6 +362,7 @@ class ChatClientLlmTransformerTest {
             val mockProcessContext = mockk<ProcessContext>()
             every { mockProcessContext.onProcessEvent(any()) } answers { eventListener.onProcessEvent(firstArg()) }
             every { mockProcessContext.platformServices } returns mockPlatformServices
+            every { mockProcessContext.processOptions } returns ProcessOptions()
             every { mockProcessContext.agentProcess } returns mockAgentProcess
             every { mockAgentProcess.processContext } returns mockProcessContext
             every { mockAgentProcess.recordLlmInvocation(any()) } answers {

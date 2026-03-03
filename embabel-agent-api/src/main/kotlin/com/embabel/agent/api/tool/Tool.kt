@@ -54,31 +54,18 @@ interface Tool : ToolInfo {
     /**
      * Execute the tool with JSON input and out-of-band context.
      *
-     * The default implementation stores [context] in the [ToolCallContext] thread-local
-     * holder, then delegates to [call]. This means existing tools and decorators
-     * that only override [call] automatically propagate context via the thread-local,
-     * following the same pattern as [com.embabel.agent.core.AgentProcess].
+     * The default implementation simply delegates to [call] (String),
+     * discarding the context. Override this method to receive context
+     * explicitly (e.g., for auth tokens, tenant IDs, or correlation IDs).
      *
-     * Override this method to receive context explicitly instead of reading
-     * from [ToolCallContext.current].
+     * [DelegatingTool] provides a default that propagates context through
+     * decorator chains, so most decorators do not need to override this.
      *
      * @param input JSON string matching inputSchema
      * @param context out-of-band metadata (auth tokens, tenant IDs, etc.)
      * @return Result to send back to LLM
      */
-    fun call(input: String, context: ToolCallContext): Result {
-        val previous = ToolCallContext.current()
-        return try {
-            ToolCallContext.set(context)
-            call(input)
-        } finally {
-            if (previous.isEmpty) {
-                ToolCallContext.remove()
-            } else {
-                ToolCallContext.set(previous)
-            }
-        }
-    }
+    fun call(input: String, context: ToolCallContext): Result = call(input)
 
     /**
      * Framework-agnostic tool definition.
@@ -768,7 +755,7 @@ private class ContextAwareFunctionalTool(
     private val function: Tool.ContextAwareFunction,
 ) : Tool {
     override fun call(input: String): Tool.Result =
-        function.invoke(input, ToolCallContext.current())
+        function.invoke(input, ToolCallContext.EMPTY)
 
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         function.invoke(input, context)

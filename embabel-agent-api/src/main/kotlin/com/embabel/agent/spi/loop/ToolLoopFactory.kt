@@ -41,7 +41,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
  *
  * @see Asyncer
  */
-interface ToolLoopFactory {
+fun interface ToolLoopFactory {
 
     /**
      * Create a [ToolLoop] instance.
@@ -53,6 +53,7 @@ interface ToolLoopFactory {
      * @param toolDecorator optional decorator for injected tools
      * @param inspectors read-only observers for tool loop lifecycle events
      * @param transformers transformers for modifying conversation history or tool results
+     * @param toolCallContext context propagated to tool invocations
      */
     fun create(
         llmMessageSender: LlmMessageSender,
@@ -62,7 +63,7 @@ interface ToolLoopFactory {
         toolDecorator: ((Tool) -> Tool)?,
         inspectors: List<ToolLoopInspector>,
         transformers: List<ToolLoopTransformer>,
-        toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
+        toolCallContext: ToolCallContext,
     ): ToolLoop
 
     companion object {

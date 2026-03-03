@@ -45,6 +45,16 @@ class ToolCallContextTest {
         }
 
         @Test
+        fun `of empty pairs returns EMPTY singleton`() {
+            assertSame(ToolCallContext.EMPTY, ToolCallContext.of())
+        }
+
+        @Test
+        fun `of empty map returns EMPTY singleton`() {
+            assertSame(ToolCallContext.EMPTY, ToolCallContext.of(emptyMap()))
+        }
+
+        @Test
         fun `get returns null for missing key`() {
             val ctx = ToolCallContext.of("a" to 1)
             assertNull(ctx.get<String>("missing"))
@@ -96,36 +106,40 @@ class ToolCallContextTest {
         fun `merge with EMPTY returns original`() {
             val ctx = ToolCallContext.of("a" to 1)
             val merged = ctx.merge(ToolCallContext.EMPTY)
-            assertEquals(ctx, merged)
+            assertSame(ctx, merged)
+        }
+
+        @Test
+        fun `EMPTY merge with other returns other`() {
+            val ctx = ToolCallContext.of("a" to 1)
+            val merged = ToolCallContext.EMPTY.merge(ctx)
+            assertSame(ctx, merged)
         }
     }
 
     @Nested
-    inner class ThreadLocalHolder {
+    inner class EqualityTests {
 
         @Test
-        fun `current returns EMPTY when nothing set`() {
-            ToolCallContext.remove()
-            assertEquals(ToolCallContext.EMPTY, ToolCallContext.current())
+        fun `contexts with same entries are equal`() {
+            val a = ToolCallContext.of("x" to 1, "y" to 2)
+            val b = ToolCallContext.of("x" to 1, "y" to 2)
+            assertEquals(a, b)
+            assertEquals(a.hashCode(), b.hashCode())
         }
 
         @Test
-        fun `set and current round-trip`() {
-            val ctx = ToolCallContext.of("token" to "secret")
-            try {
-                ToolCallContext.set(ctx)
-                assertEquals(ctx, ToolCallContext.current())
-                assertEquals("secret", ToolCallContext.current().get<String>("token"))
-            } finally {
-                ToolCallContext.remove()
-            }
+        fun `contexts with different entries are not equal`() {
+            val a = ToolCallContext.of("x" to 1)
+            val b = ToolCallContext.of("x" to 2)
+            assertNotEquals(a, b)
         }
 
         @Test
-        fun `remove clears the holder`() {
-            ToolCallContext.set(ToolCallContext.of("a" to 1))
-            ToolCallContext.remove()
-            assertEquals(ToolCallContext.EMPTY, ToolCallContext.current())
+        fun `toString includes entries`() {
+            val ctx = ToolCallContext.of("key" to "val")
+            assertTrue(ctx.toString().contains("key"))
+            assertTrue(ctx.toString().contains("val"))
         }
     }
 }
