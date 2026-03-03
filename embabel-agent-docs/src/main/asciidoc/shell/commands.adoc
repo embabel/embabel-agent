@@ -1,2 +1,46 @@
 [[shell.commands]]
 === Shell Commands
+
+==== Tool Call Context Commands
+
+The shell supports setting out-of-band metadata that is passed to all tools during agent execution.
+This is the shell interface for <<reference.tools__tool-call-context,ToolCallContext>>.
+
+===== set-context (sc)
+
+Set persistent tool call context as comma-separated `key=value` pairs.
+This context is passed to every subsequent `execute` / `x` invocation until cleared.
+
+----
+# Set persistent context
+set-context tenantId=acme,authToken=bearer-xyz123
+
+# Shorthand alias
+sc tenantId=acme,authToken=bearer-xyz123
+
+# Clear persistent context
+set-context clear
+----
+
+===== show-context
+
+Display the current persistent tool call context.
+
+----
+shell:> show-context
+Tool call context: {tenantId=acme, authToken=bearer-xyz123}
+----
+
+===== Per-Execution Context Override
+
+The `execute` command accepts a `-c` / `--context` flag for one-off context entries.
+These are merged with the persistent context; per-execution entries win on conflict.
+
+----
+# Persistent context: tenantId=acme
+# Per-execution override adds correlationId and could override tenantId
+x "Find news for Alice" -c "correlationId=req-456,tenantId=beta"
+----
+
+In this example the effective context for that single execution is `{tenantId=beta, authToken=bearer-xyz123, correlationId=req-456}`.
+The persistent context remains `{tenantId=acme, authToken=bearer-xyz123}` for future invocations.

@@ -115,6 +115,161 @@ fun bindCustomer(id: Long): String {
 ----
 ====
 
+[[reference.tools__tool-call-context]]
+==== Receiving Out-of-Band Context in Tools
+
+Tool methods often need access to infrastructure metadata—auth tokens, tenant IDs, correlation IDs—that should not be part of the LLM-facing JSON schema.
+`ToolCallContext` provides this: an immutable key-value bag that flows through the tool pipeline without the LLM ever seeing it.
+
+Think of it like HTTP headers on a request.
+The caller sets them at the boundary (a REST filter, an event handler), and every handler in the chain can read them—but the request body (what the LLM provides) is unaffected.
+
+===== Injecting ToolCallContext into @LlmTool Methods
+
+Declare a `ToolCallContext` parameter on any `@LlmTool` method.
+The framework will:
+
+* **Inject** the current context at call time (or `ToolCallContext.EMPTY` if none was set)
+* **Exclude** the parameter from the JSON schema the LLM sees
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class CustomerTools {
+
+    @LlmTool(description = "Look up customer by ID")
+    public String lookupCustomer(
+            @LlmTool.Param(description = "Customer ID") long customerId,
+            ToolCallContext context) {
+        String tenantId = context.get("tenantId");
+        String authToken = context.get("authToken");
+        return customerService.lookup(customerId, tenantId, authToken);
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+class CustomerTools {
+
+    @LlmTool(description = "Look up customer by ID")
+    fun lookupCustomer(
+        @LlmTool.Param(description = "Customer ID") customerId: Long,
+        context: ToolCallContext,
+    ): String {
+        val tenantId = context.get<String>("tenantId")
+        val authToken = context.get<String>("authToken")
+        return customerService.lookup(customerId, tenantId, authToken)
+    }
+}
+----
+====
+
+The LLM sees only the `customerId` parameter.
+The `ToolCallContext` parameter is invisible in the tool's schema.
+
+This works for both `KotlinMethodTool` and `JavaMethodTool`—the `ToolCallContext` parameter can appear at any position in the method signature.
+
+===== Setting Context via ProcessOptions
+
+Context is set at the process boundary using `ProcessOptions.withToolCallContext()`.
+It then propagates to every tool invocation in the process—including MCP tools, where it bridges to Spring AI's `ToolContext`.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// In a REST controller or event handler
+var processOptions = new ProcessOptions()
+    .withToolCallContext(Map.of(
+        "authToken", request.getHeader("Authorization"),
+        "tenantId", request.getHeader("X-Tenant-Id"),
+        "correlationId", UUID.randomUUID().toString()
+    ));
+
+var invocation = AgentInvocation.builder(agentPlatform)
+    .options(processOptions)
+    .build(CustomerReport.class);
+
+CustomerReport report = invocation.invoke(customerQuery);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// In a REST controller or event handler
+val processOptions = ProcessOptions()
+    .withToolCallContext(ToolCallContext.of(
+        "authToken" to request.getHeader("Authorization"),
+        "tenantId" to request.getHeader("X-Tenant-Id"),
+        "correlationId" to UUID.randomUUID().toString(),
+    ))
+
+val invocation = AgentInvocation.builder(agentPlatform)
+    .options(processOptions)
+    .build<CustomerReport>()
+
+val report = invocation.invoke(customerQuery)
+----
+====
+
+===== Context Propagation Through Decorators
+
+`ToolCallContext` flows automatically through decorator chains.
+Any tool implementing `DelegatingTool` forwards the context to its delegate by default.
+Built-in decorators like `ArtifactSinkingTool` and `ReplanningTool` follow this pattern, so context reaches the underlying tool without any extra wiring.
+
+===== Using Context in Framework-Agnostic Tools
+
+For programmatically created tools, use `Tool.ContextAwareFunction` to receive context in the handler.
+The `Tool.of()` factory method accepts a `ContextAwareFunction` as the last parameter:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+Tool tenantAwareTool = Tool.of(
+    "search",
+    "Search within tenant scope",
+    Tool.InputSchema.of(Tool.Parameter.string("query", "Search query")),
+    Tool.Metadata.DEFAULT,
+    (Tool.ContextAwareFunction) (input, context) -> {
+        String tenantId = context.get("tenantId");
+        return Tool.Result.text(searchService.search(input, tenantId));
+    }
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val tenantAwareTool = Tool.of(
+    name = "search",
+    description = "Search within tenant scope",
+    inputSchema = Tool.InputSchema.of(Tool.Parameter.string("query", "Search query")),
+) { input: String, context: ToolCallContext ->
+    val tenantId = context.get<String>("tenantId")
+    Tool.Result.text(searchService.search(input, tenantId))
+}
+----
+====
+
+When no context is provided, the function receives `ToolCallContext.EMPTY`.
+
+TIP: Context is immutable and safe to read from any thread.
+If you need to pass context from a web request through to tool invocations, set it once on `ProcessOptions` and every tool in the process will receive it.
+
 [[reference.tools__tool-groups]]
 ==== Tool Groups
 
