@@ -43,9 +43,6 @@ fun interface ReplanningToolBlackboardUpdater {
  * - Chat routing: A routing tool classifies intent and triggers replan to switch handlers
  * - Discovery: A tool discovers information that requires a different plan
  *
- * Note: This tool accesses [AgentProcess] via thread-local at call time, which is set
- * by the decorator chain.
- *
  * @param delegate The tool to wrap
  * @param reason Human-readable explanation of why replan is needed
  * @param blackboardUpdater Callback to update the blackboard before replanning.
@@ -65,8 +62,14 @@ class ReplanningTool @JvmOverloads constructor(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
-        val result = delegate.call(input)
+    override fun call(input: String): Tool.Result =
+        callAndReplan { delegate.call(input) }
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        callAndReplan { delegate.call(input, context) }
+
+    private inline fun callAndReplan(action: () -> Tool.Result): Tool.Result {
+        val result = action()
         val resultContent = result.content
 
         throw ReplanRequestedException(
@@ -135,9 +138,6 @@ fun interface ReplanDecider {
  * Unlike [ReplanningTool] which always triggers replanning, this tool allows the [ReplanDecider]
  * to inspect the result and decide whether to replan.
  *
- * Note: This tool accesses [AgentProcess] via thread-local at call time, which is set
- * by the decorator chain.
- *
  * @param delegate The tool to wrap
  * @param decider Decider that inspects the result context and determines whether to replan
  */
@@ -149,19 +149,25 @@ class ConditionalReplanningTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
-        val result = delegate.call(input)
+    override fun call(input: String): Tool.Result =
+        callAndMaybeReplan { delegate.call(input) }
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        callAndMaybeReplan { delegate.call(input, context) }
+
+    private inline fun callAndMaybeReplan(action: () -> Tool.Result): Tool.Result {
+        val result = action()
 
         val agentProcess = AgentProcess.get()
             ?: throw IllegalStateException("No AgentProcess available for ConditionalReplanningTool")
 
-        val context = ReplanContext(
+        val replanContext = ReplanContext(
             result = result,
             agentProcess = agentProcess,
             tool = delegate,
         )
 
-        val decision = decider.evaluate(context)
+        val decision = decider.evaluate(replanContext)
         if (decision != null) {
             throw ReplanRequestedException(
                 reason = decision.reason,

@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.event.ToolCallRequestEvent
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
@@ -68,9 +69,15 @@ class ObservabilityTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String): Tool.Result =
+        callWithObservation(input) { delegate.call(input) }
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        callWithObservation(input) { delegate.call(input, context) }
+
+    private inline fun callWithObservation(input: String, action: () -> Tool.Result): Tool.Result {
         if (observationRegistry == null) {
-            return delegate.call(input)
+            return action()
         }
         val currentObservation = observationRegistry.currentObservation
         if (currentObservation == null) {
@@ -87,7 +94,7 @@ class ObservabilityTool(
             .parentObservation(currentObservation)
             .start()
         return try {
-            val result = delegate.call(input)
+            val result = action()
             observation.lowCardinalityKeyValue("status", "success")
             observation.highCardinalityKeyValue("result", result.content)
             result
@@ -118,8 +125,14 @@ class OutputTransformingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
-        val rawResult = delegate.call(input)
+    override fun call(input: String): Tool.Result =
+        transformOutput(input) { delegate.call(input) }
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        transformOutput(input) { delegate.call(input, context) }
+
+    private inline fun transformOutput(input: String, action: () -> Tool.Result): Tool.Result {
+        val rawResult = action()
         val transformed = outputTransformer.transform(rawResult.content)
         logger.debug(
             "Tool {} called with input: {}, raw output: {}, transformed output: {}",
@@ -145,13 +158,17 @@ class MetadataEnrichingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String): Tool.Result =
+        callWithMetadata(input) { delegate.call(input) }
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        callWithMetadata(input) { delegate.call(input, context) }
+
+    private inline fun callWithMetadata(input: String, action: () -> Tool.Result): Tool.Result {
         try {
-            return delegate.call(input)
+            return action()
         } catch (t: Throwable) {
             if (t is ToolControlFlowSignal) {
-                // ToolControlFlowSignal exceptions are not failures - they are control flow signals
-                // (e.g., ReplanRequestedException, UserInputRequiredException)
                 throw t
             }
             loggerFor<MetadataEnrichingTool>().warn(
@@ -179,10 +196,16 @@ class EventPublishingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String): Tool.Result =
+        callWithEvents(input) { delegate.call(input) }
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        callWithEvents(input) { delegate.call(input, context) }
+
+    private inline fun callWithEvents(input: String, crossinline action: () -> Tool.Result): Tool.Result {
         val functionCallRequestEvent = ToolCallRequestEvent(
             agentProcess = agentProcess,
-            action = action,
+            action = this.action,
             llmOptions = llmOptions,
             tool = delegate.definition.name,
             toolGroupMetadata = (delegate as? MetadataEnrichingTool)?.toolGroupMetadata,
@@ -194,7 +217,7 @@ class EventPublishingTool(
         agentProcess.processContext.onProcessEvent(functionCallRequestEvent)
         val (result: Result<Tool.Result>, millis) = time {
             try {
-                Result.success(delegate.call(input))
+                Result.success(action())
             } catch (t: Throwable) {
                 Result.failure(t)
             }
@@ -240,14 +263,17 @@ class ExceptionSuppressingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String): Tool.Result =
+        callSuppressing { delegate.call(input) }
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        callSuppressing { delegate.call(input, context) }
+
+    private inline fun callSuppressing(action: () -> Tool.Result): Tool.Result {
         return try {
-            delegate.call(input)
+            action()
         } catch (t: Throwable) {
-            if (t is ToolControlFlowSignal) {
-                // ToolControlFlowSignal must propagate - it's a control flow signal, not an error
-                throw t
-            }
+            if (t is ToolControlFlowSignal) throw t
             Tool.Result.text("WARNING: Tool '${delegate.definition.name}' failed with exception: ${t.message ?: "No message"}")
         }
     }
@@ -264,11 +290,17 @@ class AgentProcessBindingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String): Tool.Result =
+        callWithBinding { delegate.call(input) }
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        callWithBinding { delegate.call(input, context) }
+
+    private inline fun callWithBinding(action: () -> Tool.Result): Tool.Result {
         val previousValue = AgentProcess.get()
         try {
             AgentProcess.set(agentProcess)
-            return delegate.call(input)
+            return action()
         } finally {
             if (previousValue != null) {
                 AgentProcess.set(previousValue)
