@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.loop
 
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
@@ -50,6 +51,7 @@ class ToolLoopFactoryTest {
             toolDecorator = null,
             inspectors = emptyList(),
             transformers = emptyList(),
+            toolCallContext = ToolCallContext.EMPTY,
         )
 
         assertNotNull(toolLoop)
@@ -69,6 +71,7 @@ class ToolLoopFactoryTest {
             toolDecorator = null,
             inspectors = emptyList(),
             transformers = emptyList(),
+            toolCallContext = ToolCallContext.EMPTY,
         )
 
         assertNotNull(toolLoop)
@@ -91,6 +94,7 @@ class ToolLoopFactoryTest {
             toolDecorator = null,
             inspectors = emptyList(),
             transformers = emptyList(),
+            toolCallContext = ToolCallContext.EMPTY,
         )
 
         assertNotNull(toolLoop)

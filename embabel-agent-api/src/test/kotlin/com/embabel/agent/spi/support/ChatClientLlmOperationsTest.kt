@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.InvalidLlmReturnFormatException
 import com.embabel.agent.core.support.InvalidLlmReturnTypeException
@@ -128,6 +129,7 @@ class ChatClientLlmOperationsTest {
             emptyList()
         )
         every { mockProcessContext.platformServices.eventListener } returns ese
+        every { mockProcessContext.processOptions } returns ProcessOptions()
         val mockAgentProcess = mockk<AgentProcess>()
         every { mockAgentProcess.recordLlmInvocation(any()) } answers {
             mutableLlmInvocationHistory.invocations.add(firstArg())
@@ -699,6 +701,7 @@ class ChatClientLlmOperationsTest {
                 emptyList()
             )
             every { mockProcessContext.platformServices.eventListener } returns ese
+            every { mockProcessContext.processOptions } returns ProcessOptions()
             val mockAgentProcess = mockk<AgentProcess>()
             every { mockAgentProcess.recordLlmInvocation(any()) } answers {
                 mutableLlmInvocationHistory.invocations.add(firstArg())
@@ -1040,6 +1043,7 @@ class ChatClientLlmOperationsTest {
                 emptyList()
             )
             every { mockProcessContext.platformServices.eventListener } returns ese
+            every { mockProcessContext.processOptions } returns ProcessOptions()
             val mockAgentProcess = mockk<AgentProcess>()
             every { mockAgentProcess.recordLlmInvocation(any()) } answers {
                 mutableLlmInvocationHistory.invocations.add(firstArg())
