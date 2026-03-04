@@ -18,7 +18,9 @@ package com.embabel.agent.config.models.googlegenai
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
+import com.embabel.agent.spi.support.springai.JsonWrappingToolResponseContentAdapter
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.ToolResponseContentAdapter
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
@@ -123,6 +125,19 @@ class GoogleGenAiModelsConfig(
 ) {
     private val logger = LoggerFactory.getLogger(GoogleGenAiModelsConfig::class.java)
 
+    companion object {
+        /**
+         * Google GenAI requires tool responses (`FunctionResponse.response`) to be valid
+         * JSON objects. Plain text causes `JsonParseException` or silent data loss.
+         * This adapter wraps non-JSON tool responses in a JSON object before sending
+         * to Gemini.
+         *
+         * @see <a href="https://github.com/embabel/embabel-agent/issues/1391">#1391</a>
+         */
+        private val TOOL_RESPONSE_CONTENT_ADAPTER: ToolResponseContentAdapter =
+            JsonWrappingToolResponseContentAdapter()
+    }
+
     init {
         logger.info("Google GenAI models are available: {}", properties)
     }
@@ -207,7 +222,8 @@ class GoogleGenAiModelsConfig(
                     usdPer1mInputTokens = it.usdPer1mInputTokens,
                     usdPer1mOutputTokens = it.usdPer1mOutputTokens,
                 )
-            }
+            },
+            toolResponseContentAdapter = TOOL_RESPONSE_CONTENT_ADAPTER,
         )
     }
 

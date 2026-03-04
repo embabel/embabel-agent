@@ -27,8 +27,14 @@ import org.springframework.ai.chat.messages.UserMessage as SpringAiUserMessage
 
 /**
  * Convert one of our messages to a Spring AI message with multimodal support.
+ *
+ * @param toolResponseContentAdapter Adapts tool response content for provider-specific
+ *        format requirements (e.g., JSON wrapping for Google GenAI).
+ *        Defaults to [ToolResponseContentAdapter.PASSTHROUGH].
  */
-fun Message.toSpringAiMessage(): SpringAiMessage {
+fun Message.toSpringAiMessage(
+    toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
+): SpringAiMessage {
     val name = (this as? BaseMessage)?.name
     val metadata: Map<String, Any> = if (name != null) mapOf("name" to name) else emptyMap()
     return when (this) {
@@ -51,7 +57,7 @@ fun Message.toSpringAiMessage(): SpringAiMessage {
             val toolResponse = ToolResponseMessage.ToolResponse(
                 this.toolCallId,
                 this.toolName,
-                this.content
+                toolResponseContentAdapter.adapt(this.content)
             )
             ToolResponseMessage.builder().responses(listOf(toolResponse)).metadata(metadata).build()
         }
