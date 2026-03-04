@@ -512,12 +512,12 @@ When a `MeterRegistry` is available (e.g. via `micrometer-registry-prometheus`),
 | `embabel.agent.errors.total` | Counter | `agent` | Total agent process failures |
 | `embabel.agent.stuck.total` | Counter | `agent` | Agent stuck events (unable to plan) |
 | `embabel.llm.requests.total` | Counter | `agent`, `model` | Total LLM requests |
-| `embabel.llm.duration` | Timer | `model` | LLM call duration |
+| `embabel.llm.duration` | Timer | `model`, `agent` | LLM call duration |
 | `embabel.llm.tokens.total` | Counter | `agent`, `direction` (input/output) | LLM tokens consumed |
 | `embabel.llm.cost.total` | Counter | `agent` | Estimated LLM cost in USD |
 | `embabel.tool.calls.total` | Counter | `tool`, `agent` | Total tool calls |
-| `embabel.tool.duration` | Timer | `tool` | Tool call duration |
-| `embabel.tool.errors.total` | Counter | `tool` | Tool call failures by tool name |
+| `embabel.tool.duration` | Timer | `tool`, `agent` | Tool call duration |
+| `embabel.tool.errors.total` | Counter | `tool`, `agent` | Tool call failures by tool name |
 | `embabel.tool_loop.iterations` | Summary | `agent` | Tool loop iteration counts |
 | `embabel.planning.replanning.total` | Counter | `agent` | Replanning events |
 
