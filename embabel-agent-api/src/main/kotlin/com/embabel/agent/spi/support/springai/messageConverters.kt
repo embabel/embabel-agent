@@ -16,7 +16,7 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.chat.*
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.ai.content.Media
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.util.MimeTypeUtils
@@ -132,7 +132,7 @@ internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringA
  * The Google GenAI adapter parses tool response data as JSON.
  * Plain text responses must be wrapped in a JSON object.
  */
-private val jsonObjectMapper = ObjectMapper()
+private val jsonObjectMapper = jacksonObjectMapper()
 
 private fun String.ensureJson(): String {
     val trimmed = trimStart()
