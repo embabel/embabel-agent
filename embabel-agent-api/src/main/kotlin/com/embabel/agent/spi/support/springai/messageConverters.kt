@@ -132,12 +132,24 @@ internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringA
  * The Google GenAI adapter parses tool response data as JSON.
  * Plain text responses must be wrapped in a JSON object.
  */
+private val jsonObjectMapper = ObjectMapper()
+
 private fun String.ensureJson(): String {
     val trimmed = trimStart()
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        return this
+
+    // If the content appears to be JSON, validate it by attempting to parse.
+    if (trimmed.isNotEmpty() && (trimmed[0] == '{' || trimmed[0] == '[')) {
+        return try {
+            jsonObjectMapper.readTree(this)
+            this
+        } catch (ex: Exception) {
+            // Not valid JSON despite starting with '{' or '['; fall back to wrapping.
+            jsonObjectMapper.writeValueAsString(mapOf("result" to this))
+        }
     }
-    return ObjectMapper().writeValueAsString(mapOf("result" to this))
+
+    // Plain text or other non-JSON content: wrap in an object.
+    return jsonObjectMapper.writeValueAsString(mapOf("result" to this))
 }
 
 fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
