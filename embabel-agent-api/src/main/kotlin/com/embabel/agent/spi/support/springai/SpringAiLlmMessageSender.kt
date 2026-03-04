@@ -36,10 +36,13 @@ import org.springframework.ai.tool.ToolCallback
  *
  * @param chatModel The Spring AI ChatModel to use for LLM calls
  * @param chatOptions Options for the LLM call (temperature, etc.)
+ * @param toolResponseContentAdapter Adapts tool response content for provider-specific
+ *        format requirements (e.g., JSON wrapping for Google GenAI)
  */
 internal class SpringAiLlmMessageSender(
     private val chatModel: ChatModel,
     private val chatOptions: ChatOptions,
+    private val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
 ) : LlmMessageSender {
 
     private val logger = loggerFor<SpringAiLlmMessageSender>()
@@ -48,8 +51,11 @@ internal class SpringAiLlmMessageSender(
         messages: List<Message>,
         tools: List<Tool>,
     ): LlmMessageResponse {
-        // Convert Embabel messages to Spring AI messages
-        val springAiMessages = messages.map { it.toSpringAiMessage() }.mergeConsecutiveToolResponses()
+        // Convert Embabel messages to Spring AI messages, applying provider-specific
+        // tool response formatting (e.g., JSON wrapping for Google GenAI)
+        val springAiMessages = messages
+            .map { it.toSpringAiMessage(toolResponseContentAdapter) }
+            .mergeConsecutiveToolResponses()
 
         // Convert Embabel tools to Spring AI tool callbacks using existing adapter
         val toolCallbacks = tools.toSpringToolCallbacks()

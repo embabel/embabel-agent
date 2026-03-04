@@ -514,4 +514,90 @@ class MessageConversionTest {
             )
         }
     }
+
+    /**
+     * Tests for provider-specific tool response content adaptation.
+     *
+     * Verifies that [ToolResponseContentAdapter] is correctly applied during
+     * message conversion, allowing providers like Google GenAI to receive
+     * JSON-wrapped tool responses while others receive plain text.
+     *
+     * See: https://github.com/embabel/embabel-agent/issues/1391
+     */
+    @Nested
+    inner class ToolResponseContentAdapterTests {
+
+        @Test
+        fun `tool result uses PASSTHROUGH adapter by default`() {
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "search",
+                content = "plain text result"
+            )
+
+            val springAiMessage = message.toSpringAiMessage() as ToolResponseMessage
+
+            assertThat(springAiMessage.responses[0].responseData())
+                .isEqualTo("plain text result")
+        }
+
+        @Test
+        fun `tool result applies JsonWrapping adapter for plain text`() {
+            val adapter = JsonWrappingToolResponseContentAdapter()
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "search",
+                content = "2 results: HBNB Services - Technical Blockchain Advisor"
+            )
+
+            val springAiMessage = message.toSpringAiMessage(adapter) as ToolResponseMessage
+            val responseData = springAiMessage.responses[0].responseData()
+
+            assertThat(responseData).startsWith("{")
+            assertThat(responseData).contains("\"result\"")
+            assertThat(responseData).contains("HBNB Services")
+        }
+
+        @Test
+        fun `tool result applies JsonWrapping adapter preserving JSON content`() {
+            val adapter = JsonWrappingToolResponseContentAdapter()
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "get_count",
+                content = """{"count": 5}"""
+            )
+
+            val springAiMessage = message.toSpringAiMessage(adapter) as ToolResponseMessage
+
+            assertThat(springAiMessage.responses[0].responseData())
+                .isEqualTo("""{"count": 5}""")
+        }
+
+        @Test
+        fun `adapter does not affect non-tool messages`() {
+            val adapter = JsonWrappingToolResponseContentAdapter()
+            val userMsg = UserMessage("Hello")
+            val assistantMsg = AssistantMessage("Hi")
+            val systemMsg = SystemMessage("You are helpful")
+
+            assertThat(userMsg.toSpringAiMessage(adapter).text).isEqualTo("Hello")
+            assertThat(assistantMsg.toSpringAiMessage(adapter).text).isEqualTo("Hi")
+            assertThat(systemMsg.toSpringAiMessage(adapter).text).isEqualTo("You are helpful")
+        }
+
+        @Test
+        fun `custom adapter is applied to tool response`() {
+            val uppercaseAdapter = ToolResponseContentAdapter { it.uppercase() }
+            val message = ToolResultMessage(
+                toolCallId = "call-1",
+                toolName = "test",
+                content = "hello world"
+            )
+
+            val springAiMessage = message.toSpringAiMessage(uppercaseAdapter) as ToolResponseMessage
+
+            assertThat(springAiMessage.responses[0].responseData())
+                .isEqualTo("HELLO WORLD")
+        }
+    }
 }

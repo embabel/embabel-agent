@@ -42,6 +42,9 @@ import java.time.LocalDate
  * @param promptContributors List of prompt contributors for this model.
  *        Knowledge cutoff is automatically included if knowledgeCutoffDate is set.
  * @param pricingModel Pricing model for this LLM, if known
+ * @param toolResponseContentAdapter Adapts tool response content for provider-specific
+ *        format requirements. Defaults to [ToolResponseContentAdapter.PASSTHROUGH].
+ *        Google GenAI requires JSON; OpenAI/Anthropic accept plain text.
  */
 @JsonSerialize(`as` = LlmMetadata::class)
 data class SpringAiLlmService @JvmOverloads constructor(
@@ -54,6 +57,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     override val promptContributors: List<PromptContributor> =
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
     override val pricingModel: PricingModel? = null,
+    val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
 ) : LlmService<SpringAiLlmService>, AiModel<ChatModel> {
 
     /**
@@ -64,7 +68,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
 
     override fun createMessageSender(options: LlmOptions): LlmMessageSender {
         val chatOptions = optionsConverter.convertOptions(options)
-        return SpringAiLlmMessageSender(chatModel, chatOptions)
+        return SpringAiLlmMessageSender(chatModel, chatOptions, toolResponseContentAdapter)
     }
 
     override fun withKnowledgeCutoffDate(date: LocalDate): SpringAiLlmService =

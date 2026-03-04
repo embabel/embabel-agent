@@ -255,6 +255,50 @@ class SpringAiLlmServiceTest {
     }
 
     @Nested
+    inner class ToolResponseContentAdapterTests {
+
+        @Test
+        fun `defaults to PASSTHROUGH adapter`() {
+            val service = SpringAiLlmService(
+                name = "test-model",
+                provider = "Provider",
+                chatModel = mockChatModel,
+            )
+
+            assertThat(service.toolResponseContentAdapter)
+                .isSameAs(ToolResponseContentAdapter.PASSTHROUGH)
+        }
+
+        @Test
+        fun `accepts custom adapter`() {
+            val customAdapter = ToolResponseContentAdapter { "{\"wrapped\": \"$it\"}" }
+            val service = SpringAiLlmService(
+                name = "test-model",
+                provider = "Provider",
+                chatModel = mockChatModel,
+                toolResponseContentAdapter = customAdapter,
+            )
+
+            assertThat(service.toolResponseContentAdapter).isSameAs(customAdapter)
+        }
+
+        @Test
+        fun `adapter is preserved through copy`() {
+            val customAdapter = JsonWrappingToolResponseContentAdapter()
+            val original = SpringAiLlmService(
+                name = "test-model",
+                provider = "Provider",
+                chatModel = mockChatModel,
+                toolResponseContentAdapter = customAdapter,
+            )
+
+            val copy = original.copy(name = "other-model")
+
+            assertThat(copy.toolResponseContentAdapter).isSameAs(customAdapter)
+        }
+    }
+
+    @Nested
     inner class ModelPropertyTests {
 
         @Test
