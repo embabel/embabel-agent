@@ -668,6 +668,18 @@ interface UnfoldingTool : ProgressiveTool {
 }
 
 /**
+ * Returns a JSON-formatted tool response listing enabled tools.
+ * JSON format ensures compatibility with LLM providers that require
+ * valid JSON in tool responses (e.g. Google Gemini).
+ */
+private fun enabledToolsJson(toolNames: List<String>): Tool.Result {
+    val toolNamesJson = toolNames.joinToString(", ") { "\"$it\"" }
+    return Tool.Result.text(
+        """{"enabled_tools_count": ${toolNames.size}, "enabled_tools": [$toolNamesJson]}"""
+    )
+}
+
+/**
  * Simple implementation that exposes all inner tools.
  * Implements MatryoshkaTool for backward compatibility.
  */
@@ -680,9 +692,7 @@ internal class SimpleUnfoldingTool(
 
     override fun call(input: String): Tool.Result {
         val toolNames = innerTools.map { it.definition.name }
-        return Tool.Result.text(
-            "Enabled ${innerTools.size} tools: ${toolNames.joinToString(", ")}"
-        )
+        return enabledToolsJson(toolNames)
     }
 }
 
@@ -703,9 +713,7 @@ internal class SelectableUnfoldingTool(
     override fun call(input: String): Tool.Result {
         val selected = selectTools(input)
         val toolNames = selected.map { it.definition.name }
-        return Tool.Result.text(
-            "Enabled ${selected.size} tools: ${toolNames.joinToString(", ")}"
-        )
+        return enabledToolsJson(toolNames)
     }
 }
 
