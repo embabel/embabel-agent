@@ -124,10 +124,6 @@ internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringA
 }
 
 /**
- * Convert a Spring AI AssistantMessage to an Embabel message.
- * Handles both regular messages and messages with tool calls.
- */
-/**
  * Ensures the string is valid JSON for Gemini compatibility.
  * The Google GenAI adapter parses tool response data as JSON.
  * Plain text responses must be wrapped in a JSON object.
@@ -140,6 +136,10 @@ private fun String.ensureJson(): String {
     return ObjectMapper().writeValueAsString(mapOf("result" to this))
 }
 
+/**
+ * Convert a Spring AI AssistantMessage to an Embabel message.
+ * Handles both regular messages and messages with tool calls.
+ */
 fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
     val toolCalls = this.toolCalls
     val content = this.text ?: ""
