@@ -622,8 +622,6 @@ private class RenamedTool(
 
     override val metadata: Tool.Metadata
         get() = delegate.metadata
-
-    override fun call(input: String): Tool.Result = delegate.call(input)
 }
 
 /**
@@ -643,8 +641,6 @@ private class DescribedTool(
 
     override val metadata: Tool.Metadata
         get() = delegate.metadata
-
-    override fun call(input: String): Tool.Result = delegate.call(input)
 }
 
 // Private implementations

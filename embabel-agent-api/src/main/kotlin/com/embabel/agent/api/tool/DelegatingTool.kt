@@ -20,11 +20,16 @@ package com.embabel.agent.api.tool
  * Enables unwrapping to find the underlying tool implementation.
  * Thus, it is important that tool wrappers implement this interface to allow unwrapping.
  *
- * The default [call] (String, ToolCallContext) implementation propagates
- * context through the decorator chain by delegating to
- * `delegate.call(input, context)`. Decorators that add behavior
- * (e.g., artifact sinking, replanning) should override this method
- * to apply their logic while preserving context propagation.
+ * ## Canonical call method
+ *
+ * [call] (String, ToolCallContext) is the **single canonical entry point** for
+ * decorator logic. Decorators should override only this method. The single-arg
+ * [call] (String) routes through it automatically via [ToolCallContext.EMPTY],
+ * so both call paths execute the same decorator behavior.
+ *
+ * This eliminates a class of bugs where a decorator overrides [call] (String)
+ * but the two-arg variant (used by [com.embabel.agent.spi.loop.support.DefaultToolLoop])
+ * bypasses the decorator entirely.
  */
 interface DelegatingTool : Tool {
 
@@ -34,10 +39,18 @@ interface DelegatingTool : Tool {
     val delegate: Tool
 
     /**
-     * Propagates [context] through the decorator chain.
-     * Decorators that override [call] (String) to add behavior should
-     * also override this method to apply the same behavior while
-     * forwarding context to [delegate].
+     * Routes single-arg calls through the canonical two-arg method,
+     * ensuring decorator logic in [call] (String, ToolCallContext) is
+     * always executed regardless of which overload the caller uses.
+     */
+    override fun call(input: String): Tool.Result =
+        call(input, ToolCallContext.EMPTY)
+
+    /**
+     * Canonical entry point for decorator logic. Override this method
+     * to add behavior while preserving context propagation to [delegate].
+     *
+     * The default implementation simply forwards to the delegate.
      */
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         delegate.call(input, context)

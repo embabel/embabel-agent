@@ -88,9 +88,6 @@ class ArtifactSinkingTool<T : Any>(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result =
-        callAndSink { delegate.call(input) }
-
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         callAndSink { delegate.call(input, context) }
 

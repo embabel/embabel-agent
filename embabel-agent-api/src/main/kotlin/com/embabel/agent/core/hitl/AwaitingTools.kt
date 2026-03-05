@@ -17,6 +17,7 @@ package com.embabel.agent.core.hitl
 
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.AgentProcess
 
 /**
@@ -63,7 +64,7 @@ class ConfirmingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String, context: ToolCallContext): Tool.Result {
         val message = messageProvider(input)
         throw AwaitableResponseException(
             ConfirmationRequest(
@@ -92,21 +93,21 @@ class ConditionalAwaitingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String, context: ToolCallContext): Tool.Result {
         val agentProcess = AgentProcess.get()
             ?: throw IllegalStateException("No AgentProcess available for ConditionalAwaitingTool")
 
-        val context = AwaitContext(
+        val awaitContext = AwaitContext(
             input = input,
             agentProcess = agentProcess,
             tool = delegate,
         )
 
-        decider.evaluate(context)?.let { awaitable ->
+        decider.evaluate(awaitContext)?.let { awaitable ->
             throw AwaitableResponseException(awaitable)
         }
 
-        return delegate.call(input)
+        return delegate.call(input, context)
     }
 }
 
@@ -131,7 +132,7 @@ class TypeRequestingTool<T : Any>(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String, context: ToolCallContext): Tool.Result {
         throw AwaitableResponseException(
             TypeRequest(
                 type = type,
