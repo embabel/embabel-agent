@@ -369,15 +369,13 @@ internal data class OperationContextDelegate(
     override fun supportsThinking(): Boolean = true
 
     // Patterned after createObject() - uses ProcessContext flow
-    // Uses thinkingInteraction() with additions from createObject(): toolGroups, validation
     override fun <T> createObjectWithThinking(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T> {
         val combinedMessages = combineImagesWithMessages(this.messages + messages)
-        val interaction = thinkingInteraction().copy(
+        val interaction = thinkingInteraction(
             toolGroups = this.toolGroups + toolGroups,
-            validation = validation,
         )
         return context.processContext.createObjectWithThinking(
             messages = combinedMessages,
@@ -388,18 +386,20 @@ internal data class OperationContextDelegate(
         )
     }
 
+    // Patterned after createObjectWithThinking() - uses ProcessContext flow
     override fun <T> createObjectIfPossibleWithThinking(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T?> {
-        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
-        val combinedMessages = this.messages + messages
-        val result = llmOperations.doTransformWithThinkingIfPossible(
+        val combinedMessages = combineImagesWithMessages(this.messages + messages)
+        val interaction = thinkingInteraction(
+            toolGroups = this.toolGroups + toolGroups,
+        )
+        val result = context.processContext.createObjectIfPossibleWithThinking(
             messages = combinedMessages,
-            interaction = thinkingInteraction(),
+            interaction = interaction,
             outputClass = outputClass,
-            llmRequestEvent = null,
-            agentProcess = context.agentProcess,
+            agentProcess = context.processContext.agentProcess,
             action = action,
         )
 
@@ -466,7 +466,9 @@ internal data class OperationContextDelegate(
         )
     }
 
-    private fun thinkingInteraction(): LlmInteraction {
+    private fun thinkingInteraction(
+        toolGroups: Set<ToolGroupRequirement> = this.toolGroups,
+    ): LlmInteraction {
         val thinkingEnabledLlm = llm.withThinking(Thinking.withExtraction())
         val toolConfig = resolveToolConfig()
         return LlmInteraction(
@@ -479,6 +481,7 @@ internal data class OperationContextDelegate(
             id = interactionId ?: InteractionId("${context.operation.name}-thinking"),
             generateExamples = generateExamples,
             fieldFilter = fieldFilter,
+            validation = this.validation,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
             inspectors = inspectors,

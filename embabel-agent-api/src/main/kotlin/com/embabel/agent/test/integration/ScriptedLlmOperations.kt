@@ -332,4 +332,16 @@ class ScriptedLlmOperations : LlmOperations {
         result = doTransform(messages, interaction, outputClass, llmRequestEvent),
         thinkingBlocks = emptyList(),
     )
+
+    override fun <O> doTransformWithThinkingIfPossible(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): Result<ThinkingResponse<O>> = Result.success(
+        ThinkingResponse(
+            result = doTransform(messages, interaction, outputClass, llmRequestEvent),
+            thinkingBlocks = emptyList(),
+        )
+    )
 }

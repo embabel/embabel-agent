@@ -353,7 +353,7 @@ class ThinkingPromptRunnerOperationsTest {
         } returns Result.success(testResult)
 
         every {
-            mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
+            mockChatClientOps.doTransformWithThinkingIfPossibleSpringAi<SimpleTestData>(
                 any(), any(), any(), any(), any(), any()
             )
         } returns Result.success(
@@ -396,7 +396,7 @@ class ThinkingPromptRunnerOperationsTest {
         )
 
         every {
-            mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
+            mockChatClientOps.doTransformWithThinkingIfPossibleSpringAi<SimpleTestData>(
                 any(), any(), any(), any(), any(), any()
             )
         } returns Result.failure(exception)
@@ -441,7 +441,7 @@ class ThinkingPromptRunnerOperationsTest {
         } returns ThinkingResponse(result = SimpleTestData("created", 123), thinkingBlocks = emptyList())
 
         every {
-            mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
+            mockChatClientOps.doTransformWithThinkingIfPossibleSpringAi<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any(), any(), any()
             )
         } returns Result.success(
@@ -497,7 +497,7 @@ class ThinkingPromptRunnerOperationsTest {
         )
 
         every {
-            mockChatClientOps.doTransformWithThinkingIfPossible<SimpleTestData>(
+            mockChatClientOps.doTransformWithThinkingIfPossibleSpringAi<SimpleTestData>(
                 any(), any(), eq(SimpleTestData::class.java), any(), any(), any()
             )
         } returns Result.success(

@@ -323,8 +323,8 @@ abstract class AbstractLlmOperations(
         }
         logger.debug("LLM thinking response={}", thinkingResponse)
         agentProcess.processContext.onProcessEvent(
-            llmRequestEvent.responseEvent(
-                response = thinkingResponse.result!!,
+            llmRequestEvent.thinkingResponseEvent(
+                response = thinkingResponse,
                 runningTime = Duration.ofMillis(ms),
             ),
         )
@@ -338,10 +338,49 @@ abstract class AbstractLlmOperations(
         agentProcess: AgentProcess,
         action: Action?,
     ): Result<ThinkingResponse<O>> {
-        // Critical implementation requirements:
-        // 1. LLM can't create object → return thinking blocks (if any)
-        // 2. Thinking block extraction fails → wrap exception with captured thinking (could be empty)
-        TODO("Use OperationContextDelegate path for now")
+        val (allTools, llmRequestEvent) = getToolsAndEvent(
+            agentProcess = agentProcess,
+            interaction = interaction,
+            action = action,
+            messages = messages,
+            outputClass = outputClass,
+        )
+
+        val interactionWithToolDecoration = interaction.copy(
+            tools = allTools.map {
+                toolDecorator.decorate(
+                    tool = it,
+                    agentProcess = agentProcess,
+                    action = action,
+                    llmOptions = interaction.llm,
+                )
+            }
+        )
+
+        val (response, ms) = time {
+            dataBindingProperties.retryTemplate(interaction.id.value)
+                .execute<Result<ThinkingResponse<O>>, Exception> {
+                    executeWithTimeout(
+                        interactionId = interaction.id.value,
+                        llmOptions = interaction.llm,
+                    ) {
+                        doTransformWithThinkingIfPossible(
+                            messages = messages,
+                            interaction = interactionWithToolDecoration,
+                            outputClass = outputClass,
+                            llmRequestEvent = llmRequestEvent,
+                        )
+                    }
+                }
+        }
+        logger.debug("LLM createObjectIfPossibleWithThinking response={}", response)
+        agentProcess.processContext.onProcessEvent(
+            llmRequestEvent.maybeThinkingResponseEvent(
+                response = response,
+                runningTime = Duration.ofMillis(ms),
+            ),
+        )
+        return response
     }
 
     protected fun chooseLlm(
@@ -362,13 +401,6 @@ abstract class AbstractLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>,
     ): Result<O>
-
-    protected abstract fun <O> doTransformWithThinkingIfPossible(
-        messages: List<Message>,
-        interaction: LlmInteraction,
-        outputClass: Class<O>,
-        llmRequestEvent: LlmRequestEvent<O>?,
-    ): Result<ThinkingResponse<O>>
 
     private fun <O> getToolsAndEvent(
         agentProcess: AgentProcess,

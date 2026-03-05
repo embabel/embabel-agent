@@ -284,12 +284,14 @@ class OperationContextDelegateTest {
         }
 
         @Test
-        fun `createObjectIfPossibleWithThinking should call underlying method`() {
-            val (mockContext, mockChatClientOps, _) = createMockedContext()
+        fun `createObjectIfPossibleWithThinking should call ProcessContext createObjectIfPossibleWithThinking`() {
+            val (mockContext, _, _) = createMockedContext()
+            val mockProcessContext = mockk<ProcessContext>(relaxed = true)
 
+            every { mockContext.processContext } returns mockProcessContext
             every {
-                mockChatClientOps.doTransformWithThinkingIfPossible<TestResult>(
-                    any(), any(), any(), any(), any(), any()
+                mockProcessContext.createObjectIfPossibleWithThinking<TestResult>(
+                    any(), any(), any(), any(), any()
                 )
             } returns Result.success(ThinkingResponse(result = TestResult("test"), thinkingBlocks = emptyList()))
 
@@ -305,8 +307,8 @@ class OperationContextDelegateTest {
                 delegate.createObjectIfPossibleWithThinking(listOf(UserMessage("test")), TestResult::class.java)
 
             verify {
-                mockChatClientOps.doTransformWithThinkingIfPossible<TestResult>(
-                    any(), any(), any(), any(), any(), any()
+                mockProcessContext.createObjectIfPossibleWithThinking<TestResult>(
+                    any(), any(), any(), any(), any()
                 )
             }
             assertEquals("test", result.result?.value)

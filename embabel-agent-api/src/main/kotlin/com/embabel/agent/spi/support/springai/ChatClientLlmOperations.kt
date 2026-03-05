@@ -659,9 +659,27 @@ internal class ChatClientLlmOperations(
 
     /**
      * Transform messages with thinking extraction using IfPossible pattern.
+     * Delegates to either tool loop or Spring AI implementation based on configuration.
      */
     @OptIn(InternalThinkingApi::class)
-    internal fun <O> doTransformWithThinkingIfPossible(
+    override fun <O> doTransformWithThinkingIfPossible(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): Result<ThinkingResponse<O>> {
+        return if (interaction.useEmbabelToolLoop) {
+            super.doTransformWithThinkingIfPossible(messages, interaction, outputClass, llmRequestEvent)
+        } else {
+            doTransformWithThinkingIfPossibleSpringAi(messages, interaction, outputClass, llmRequestEvent, null, null)
+        }
+    }
+
+    /**
+     * Spring AI implementation of transform with thinking extraction using IfPossible pattern.
+     */
+    @OptIn(InternalThinkingApi::class)
+    internal fun <O> doTransformWithThinkingIfPossibleSpringAi(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,

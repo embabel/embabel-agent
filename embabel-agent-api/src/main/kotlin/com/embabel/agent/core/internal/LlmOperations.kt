@@ -189,4 +189,20 @@ interface LlmOperations {
         llmRequestEvent: LlmRequestEvent<O>?,
     ): ThinkingResponse<O>
 
+    /**
+     * Low level transform with thinking block extraction and MaybeReturn semantics,
+     * not necessarily aware of platform.
+     * Returns a failure result if the LLM indicates it cannot create the object.
+     * @param messages messages
+     * @param interaction The LLM call options
+     * @param outputClass Class of the output object
+     * @param llmRequestEvent Event already published for this request if one has been
+     */
+    fun <O> doTransformWithThinkingIfPossible(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>?,
+    ): Result<ThinkingResponse<O>>
+
 }

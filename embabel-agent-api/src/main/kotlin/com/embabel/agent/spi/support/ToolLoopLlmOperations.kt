@@ -392,16 +392,140 @@ open class ToolLoopLlmOperations(
         return thinkingResponse
     }
 
+    @OptIn(InternalThinkingApi::class)
     override fun <O> doTransformWithThinkingIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): Result<ThinkingResponse<O>> {
-        // Critical implementation requirements:
-        // 1. LLM can't create object → return thinking blocks (if any)
-        // 2. Thinking block extraction fails → wrap exception with captured thinking (could be empty)
-        TODO("Use OperationContextDelegate path for now")
+        return try {
+            val llm = chooseLlm(interaction.llm)
+            val promptContributions = buildPromptContributions(interaction, llm)
+
+            val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)
+
+            val converter = createMaybeReturnOutputConverter(outputClass, interaction)!!
+
+            val schemaFormat = converter.getFormat()
+
+            // Output parser: extract thinking blocks FIRST, then parse MaybeReturn
+            val outputParser: (String) -> Result<ThinkingResponse<O>> = { text ->
+                val thinkingBlocks = extractAllThinkingBlocks(text)
+                try {
+                    val maybeResult = if (text.isNotBlank()) {
+                        converter.convert(text)!!
+                    } else {
+                        MaybeReturn.noOutput<O>()
+                    }
+
+                    // Convert MaybeReturn<O> to Result<ThinkingResponse<O>>
+                    @Suppress("UNCHECKED_CAST")
+                    val innerResult = maybeResult.toResult()
+                    when {
+                        innerResult.isSuccess -> {
+                            val thinkingResponse = ThinkingResponse(
+                                result = innerResult.getOrThrow(),
+                                thinkingBlocks = thinkingBlocks
+                            )
+                            Result.success(thinkingResponse)
+                        }
+
+                        else -> {
+                            // LLM indicated it can't create the object - wrap with thinking blocks
+                            Result.failure(
+                                ThinkingException(
+                                    message = "Object creation not possible: ${innerResult.exceptionOrNull()?.message ?: "Unknown error"}",
+                                    thinkingBlocks = thinkingBlocks
+                                )
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Conversion failed - wrap exception with captured thinking blocks
+                    Result.failure(
+                        ThinkingException(
+                            message = "Conversion failed: ${e.message}",
+                            thinkingBlocks = thinkingBlocks
+                        )
+                    )
+                }
+            }
+
+            val injectedToolDecorator = createInjectedToolDecorator(llmRequestEvent, interaction)
+            val injectionStrategy = createInjectionStrategy(interaction)
+
+            val toolLoop = toolLoopFactory.create(
+                llmMessageSender = messageSender,
+                objectMapper = objectMapper,
+                injectionStrategy = injectionStrategy,
+                maxIterations = interaction.maxToolIterations,
+                toolDecorator = injectedToolDecorator,
+                inspectors = interaction.inspectors,
+                transformers = interaction.transformers,
+            )
+
+            // Build MaybeReturn prompt contribution
+            val maybeReturnPromptContribution = templateRenderer.renderLoadedTemplate(
+                promptsProperties.maybePromptTemplate,
+                emptyMap(),
+            )
+
+            val initialMessages = buildInitialMessagesWithMaybeReturn(
+                promptContributions,
+                messages,
+                maybeReturnPromptContribution,
+                schemaFormat,
+            )
+
+            emitCallEvent(llmRequestEvent, promptContributions, messages, schemaFormat)
+
+            // Guardrails: Pre-validation of user input
+            val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+            validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
+
+            val tools = interaction.tools
+            val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
+
+            val result = toolLoop.execute(
+                initialMessages = initialMessages,
+                initialTools = tools,
+                outputParser = outputParser,
+            )
+
+            handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent, llm)
+
+            val thinkingResult = result.result
+
+            // Guardrails: Post-validation of assistant response
+            // Validate ThinkingResponse on success, or thinking blocks on failure (if non-empty)
+            if (thinkingResult.isSuccess) {
+                validateAssistantResponse(
+                    thinkingResult.getOrNull()!!,
+                    interaction,
+                    llmRequestEvent?.agentProcess?.blackboard
+                )
+            } else {
+                val exception = thinkingResult.exceptionOrNull()
+                if (exception is ThinkingException && exception.thinkingBlocks.isNotEmpty()) {
+                    val thinkingResponse = ThinkingResponse(
+                        result = null,
+                        thinkingBlocks = exception.thinkingBlocks
+                    )
+                    validateAssistantResponse(
+                        thinkingResponse,
+                        interaction,
+                        llmRequestEvent?.agentProcess?.blackboard
+                    )
+                }
+            }
+
+            thinkingResult
+        } catch (e: Exception) {
+            // Technical errors (including GuardRailViolationException) return Result.failure
+            // without ThinkingException wrapper - thinking blocks weren't extracted yet
+            Result.failure(e)
+        }
     }
 
     /**

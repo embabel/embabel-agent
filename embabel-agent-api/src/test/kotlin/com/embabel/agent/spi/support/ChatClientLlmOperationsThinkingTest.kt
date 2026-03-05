@@ -17,6 +17,7 @@ package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.event.LlmResponseEvent
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.AgentProcess
@@ -36,6 +37,8 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingException
+import com.embabel.common.core.thinking.ThinkingResponse
+import org.junit.jupiter.api.Nested
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
@@ -58,7 +61,7 @@ import kotlin.test.assertTrue
  *
  * Focuses on the new thinking-aware methods:
  * - doTransformWithThinking() for comprehensive thinking extraction
- * - doTransformWithThinkingIfPossible() for safe thinking extraction with MaybeReturn
+ * - doTransformWithThinkingIfPossibleSpringAi() for safe thinking extraction with MaybeReturn
  * - Integration with SuppressThinkingConverter and existing LlmOperations infrastructure
  *
  * NOTE: For comprehensive business scenario testing,
@@ -70,6 +73,7 @@ class ChatClientLlmOperationsThinkingTest {
         val llmOperations: ChatClientLlmOperations,
         val mockAgentProcess: AgentProcess,
         val mutableLlmInvocationHistory: MutableLlmInvocationHistory,
+        val eventListener: EventSavingAgenticEventListener,
     )
 
     private fun createChatClientLlmOperations(
@@ -114,7 +118,7 @@ class ChatClientLlmOperationsThinkingTest {
             dataBindingProperties = dataBindingProperties,
             asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
         )
-        return Setup(cco, mockAgentProcess, mutableLlmInvocationHistory)
+        return Setup(cco, mockAgentProcess, mutableLlmInvocationHistory, ese)
     }
 
     // Test data class
@@ -502,7 +506,7 @@ class ChatClientLlmOperationsThinkingTest {
     }
 
     @Test
-    fun `doTransformWithThinkingIfPossible should handle success path`() {
+    fun `doTransformWithThinkingIfPossibleSpringAi should handle success path`() {
         // Given: LlmOperations with valid MaybeReturn success response
         val successResponse = """
             {
@@ -515,8 +519,8 @@ class ChatClientLlmOperationsThinkingTest {
         val fakeChatModel = FakeChatModel(successResponse)
         val setup = createChatClientLlmOperations(fakeChatModel)
 
-        // When: Call doTransformWithThinkingIfPossible
-        val result = setup.llmOperations.doTransformWithThinkingIfPossible<SimpleResult>(
+        // When: Call doTransformWithThinkingIfPossibleSpringAi
+        val result = setup.llmOperations.doTransformWithThinkingIfPossibleSpringAi<SimpleResult>(
             messages = listOf(UserMessage("Test thinking success")),
             interaction = LlmInteraction(InteractionId("thinking-success")),
             outputClass = SimpleResult::class.java,
@@ -995,7 +999,7 @@ class ChatClientLlmOperationsThinkingTest {
     }
 
     @Test
-    fun `doTransformWithThinkingIfPossible should validate guardrails for user input and assistant response`() {
+    fun `doTransformWithThinkingIfPossibleSpringAi should validate guardrails for user input and assistant response`() {
         val inputValidationCalled = mutableListOf<String>()
         val responseValidationCalled = mutableListOf<com.embabel.common.core.thinking.ThinkingResponse<*>>()
 
@@ -1052,7 +1056,7 @@ class ChatClientLlmOperationsThinkingTest {
         val llmRequestEvent = mockk<LlmRequestEvent<SimpleResult>>(relaxed = true)
         every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
 
-        val result = setup.llmOperations.doTransformWithThinkingIfPossible<SimpleResult>(
+        val result = setup.llmOperations.doTransformWithThinkingIfPossibleSpringAi<SimpleResult>(
             messages = listOf(UserMessage("Test thinking if possible input with guardrails")),
             interaction = interaction,
             outputClass = SimpleResult::class.java,
@@ -1111,7 +1115,7 @@ class ChatClientLlmOperationsThinkingTest {
     }
 
     @Test
-    fun `doTransformWithThinkingIfPossible should handle failure scenarios with preserved thinking blocks`() {
+    fun `doTransformWithThinkingIfPossibleSpringAi should handle failure scenarios with preserved thinking blocks`() {
         // Test both MaybeReturn failure and conversion exception scenarios
 
         // Scenario 1: MaybeReturn failure response
@@ -1129,7 +1133,7 @@ class ChatClientLlmOperationsThinkingTest {
         val fakeChatModel1 = FakeChatModel(failureResponse)
         val setup1 = createChatClientLlmOperations(fakeChatModel1)
 
-        val result1 = setup1.llmOperations.doTransformWithThinkingIfPossible<SimpleResult>(
+        val result1 = setup1.llmOperations.doTransformWithThinkingIfPossibleSpringAi<SimpleResult>(
             messages = listOf(UserMessage("Process insufficient data")),
             interaction = LlmInteraction(InteractionId("thinking-ifpossible-failure")),
             outputClass = SimpleResult::class.java,
@@ -1157,7 +1161,7 @@ class ChatClientLlmOperationsThinkingTest {
         val fakeChatModel2 = FakeChatModel(malformedResponse)
         val setup2 = createChatClientLlmOperations(fakeChatModel2)
 
-        val result2 = setup2.llmOperations.doTransformWithThinkingIfPossible<SimpleResult>(
+        val result2 = setup2.llmOperations.doTransformWithThinkingIfPossibleSpringAi<SimpleResult>(
             messages = listOf(UserMessage("Generate malformed JSON")),
             interaction = LlmInteraction(InteractionId("thinking-ifpossible-exception")),
             outputClass = SimpleResult::class.java,
@@ -1202,6 +1206,35 @@ class ChatClientLlmOperationsThinkingTest {
     }
 
     @Test
+    fun `doTransformWithThinkingIfPossible should delegate to ToolLoop when useEmbabelToolLoop is true`() {
+        val responseWithThinking = """
+            <think>Testing Embabel tool loop delegation for IfPossible</think>
+            {"success": {"status": "success", "value": 456}}
+        """.trimIndent()
+
+        val fakeChatModel = FakeChatModel(responseWithThinking)
+        val setup = createChatClientLlmOperations(fakeChatModel)
+
+        val interaction = LlmInteraction(
+            id = InteractionId("embabel-toolloop-switch-ifpossible"),
+            useEmbabelToolLoop = true,
+        )
+
+        val result = setup.llmOperations.doTransformWithThinkingIfPossible(
+            messages = listOf(UserMessage("Test switch to Embabel tool loop for IfPossible")),
+            interaction = interaction,
+            outputClass = SimpleResult::class.java,
+            llmRequestEvent = null,
+        )
+
+        assertTrue(result.isSuccess)
+        val thinkingResponse = result.getOrThrow()
+        assertNotNull(thinkingResponse.result)
+        assertTrue(thinkingResponse.thinkingBlocks.isNotEmpty())
+        assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("Embabel tool loop"))
+    }
+
+    @Test
     fun `createObjectWithThinking should extract thinking and return result`() {
         val responseWithThinking = """
             <think>Analyzing the request for a simple result</think>
@@ -1228,5 +1261,85 @@ class ChatClientLlmOperationsThinkingTest {
         assertEquals(123, result.result.value)
         assertTrue(result.thinkingBlocks.isNotEmpty())
         assertTrue(result.thinkingBlocks[0].content.contains("Analyzing the request"))
+    }
+
+    @Nested
+    inner class ThinkingEventEmissionTests {
+
+        @Test
+        fun `createObjectWithThinking emits event with ThinkingResponse containing thinking blocks`() {
+            val responseWithThinking = """
+                <think>Event emission test thinking</think>
+                {"status": "success", "value": 999}
+            """.trimIndent()
+
+            val fakeChatModel = FakeChatModel(responseWithThinking)
+            val setup = createChatClientLlmOperations(fakeChatModel)
+
+            val interaction = LlmInteraction(
+                id = InteractionId("event-test-with-thinking"),
+            )
+
+            setup.llmOperations.createObjectWithThinking(
+                messages = listOf(UserMessage("Test event emission")),
+                interaction = interaction,
+                outputClass = SimpleResult::class.java,
+                agentProcess = setup.mockAgentProcess,
+                action = null,
+            )
+
+            // Verify event was emitted with ThinkingResponse containing thinking blocks
+            val responseEvents = setup.eventListener.processEvents
+                .filterIsInstance<LlmResponseEvent<*>>()
+            assertEquals(1, responseEvents.size, "Should emit exactly one LlmResponseEvent")
+
+            val responseEvent = responseEvents[0]
+            val response = responseEvent.response
+            assertTrue(response is ThinkingResponse<*>, "Response should be ThinkingResponse")
+
+            val thinkingResponse = response as ThinkingResponse<*>
+            assertTrue(thinkingResponse.thinkingBlocks.isNotEmpty(), "Event should contain thinking blocks")
+            assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("Event emission test"))
+        }
+
+        @Test
+        fun `createObjectIfPossibleWithThinking emits event with Result containing ThinkingResponse`() {
+            val responseWithThinking = """
+                <think>IfPossible event emission test</think>
+                {"success": {"status": "success", "value": 888}}
+            """.trimIndent()
+
+            val fakeChatModel = FakeChatModel(responseWithThinking)
+            val setup = createChatClientLlmOperations(fakeChatModel)
+
+            val interaction = LlmInteraction(
+                id = InteractionId("event-test-if-possible-with-thinking"),
+            )
+
+            setup.llmOperations.createObjectIfPossibleWithThinking(
+                messages = listOf(UserMessage("Test event emission for IfPossible")),
+                interaction = interaction,
+                outputClass = SimpleResult::class.java,
+                agentProcess = setup.mockAgentProcess,
+                action = null,
+            )
+
+            // Verify event was emitted with Result<ThinkingResponse> containing thinking blocks
+            val responseEvents = setup.eventListener.processEvents
+                .filterIsInstance<LlmResponseEvent<*>>()
+            assertEquals(1, responseEvents.size, "Should emit exactly one LlmResponseEvent")
+
+            val responseEvent = responseEvents[0]
+            val response = responseEvent.response
+            assertTrue(response is Result<*>, "Response should be Result")
+
+            @Suppress("UNCHECKED_CAST")
+            val resultResponse = response as Result<ThinkingResponse<*>>
+            assertTrue(resultResponse.isSuccess, "Result should be success")
+
+            val thinkingResponse = resultResponse.getOrThrow()
+            assertTrue(thinkingResponse.thinkingBlocks.isNotEmpty(), "Event should contain thinking blocks")
+            assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("IfPossible event emission"))
+        }
     }
 }

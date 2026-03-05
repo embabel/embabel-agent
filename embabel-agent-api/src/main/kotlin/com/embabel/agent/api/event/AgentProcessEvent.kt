@@ -26,6 +26,7 @@ import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.Timed
 import com.embabel.common.util.VisualizableTask
 import com.embabel.plan.Goal
@@ -268,6 +269,30 @@ class LlmRequestEvent<O>(
         response: Result<O>,
         runningTime: Duration,
     ): LlmResponseEvent<Result<O>> {
+        return LlmResponseEvent(
+            request = this,
+            outputClass = outputClass,
+            response = response,
+            runningTime = runningTime
+        )
+    }
+
+    fun thinkingResponseEvent(
+        response: ThinkingResponse<O>,
+        runningTime: Duration,
+    ): LlmResponseEvent<ThinkingResponse<O>> {
+        return LlmResponseEvent(
+            request = this,
+            outputClass = outputClass,
+            response = response,
+            runningTime = runningTime
+        )
+    }
+
+    fun maybeThinkingResponseEvent(
+        response: Result<ThinkingResponse<O>>,
+        runningTime: Duration,
+    ): LlmResponseEvent<Result<ThinkingResponse<O>>> {
         return LlmResponseEvent(
             request = this,
             outputClass = outputClass,

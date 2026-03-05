@@ -120,12 +120,15 @@ class ToolLoopLlmOperationsTest {
     /**
      * Creates a MaybeReturn converter for testing doTransformIfPossible.
      * Parses JSON like {"success": <value>} or {"failure": "reason"}.
+     * Strips thinking blocks before parsing (simulates SuppressThinkingConverter behavior).
      */
     @Suppress("UNCHECKED_CAST")
     private fun <T> createMaybeReturnConverter(innerClass: Class<T>): OutputConverter<MaybeReturn<*>> {
         return object : OutputConverter<MaybeReturn<T>> {
             override fun convert(source: String): MaybeReturn<T>? {
-                val tree = objectMapper.readTree(source)
+                // Strip thinking blocks before parsing (simulates SuppressThinkingConverter)
+                val cleaned = source.replace(Regex("<think>.*?</think>"), "").trim()
+                val tree = objectMapper.readTree(cleaned)
                 return when {
                     tree.has("success") -> {
                         val successValue = objectMapper.treeToValue(tree.get("success"), innerClass)
@@ -770,6 +773,116 @@ class ToolLoopLlmOperationsTest {
     }
 
     @Nested
+    inner class DoTransformWithThinkingIfPossibleTests {
+
+        @Test
+        fun `doTransformWithThinkingIfPossible returns success with thinking blocks extracted`() {
+            val responseWithThinking = """<think>I should check if this can succeed</think>{"success": "Success!"}"""
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse(responseWithThinking))
+            )
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            val result = operations.testDoTransformWithThinkingIfPossible(
+                messages = listOf(UserMessage("Try something")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+            )
+
+            assertTrue(result.isSuccess)
+            val thinkingResponse = result.getOrThrow()
+            assertEquals("Success!", thinkingResponse.result)
+            assertEquals(1, thinkingResponse.thinkingBlocks.size)
+            assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("check if this can succeed"))
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible returns failure with thinking blocks preserved in ThinkingException`() {
+            val responseWithThinking = """<think>I cannot fulfill this request</think>{"failure": "Cannot create this object"}"""
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse(responseWithThinking))
+            )
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            val result = operations.testDoTransformWithThinkingIfPossible(
+                messages = listOf(UserMessage("Try something impossible")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+            )
+
+            assertTrue(result.isFailure)
+            val exception = result.exceptionOrNull() as com.embabel.common.core.thinking.ThinkingException
+            assertTrue(exception.message?.contains("Object creation not possible") == true)
+            assertEquals(1, exception.thinkingBlocks.size)
+            assertTrue(exception.thinkingBlocks[0].content.contains("cannot fulfill this request"))
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible wraps conversion exception in ThinkingException`() {
+            // Response with thinking blocks but malformed MaybeReturn JSON
+            val malformedResponse = """<think>Attempting to parse</think>{ completely malformed JSON"""
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse(malformedResponse))
+            )
+            val maybeConverter = object : OutputConverter<MaybeReturn<String>> {
+                override fun convert(source: String): MaybeReturn<String>? {
+                    throw IllegalArgumentException("Cannot parse malformed JSON")
+                }
+                override fun getFormat(): String = "MaybeReturn format"
+            }
+            @Suppress("UNCHECKED_CAST")
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = maybeConverter as OutputConverter<MaybeReturn<*>>,
+            )
+
+            val result = operations.testDoTransformWithThinkingIfPossible(
+                messages = listOf(UserMessage("Parse malformed")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+            )
+
+            assertTrue(result.isFailure)
+            val exception = result.exceptionOrNull() as com.embabel.common.core.thinking.ThinkingException
+            assertTrue(exception.message?.contains("Conversion failed") == true)
+            assertEquals(1, exception.thinkingBlocks.size)
+            assertTrue(exception.thinkingBlocks[0].content.contains("Attempting to parse"))
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible handles structured output with thinking blocks`() {
+            data class TestOutput(val message: String)
+
+            val responseWithThinking = """<think>Processing request</think>{"success": {"message": "Processed"}}"""
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse(responseWithThinking))
+            )
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = createMaybeReturnConverter(TestOutput::class.java),
+            )
+
+            val result = operations.testDoTransformWithThinkingIfPossible(
+                messages = listOf(UserMessage("Process this")),
+                interaction = createInteraction(),
+                outputClass = TestOutput::class.java,
+            )
+
+            assertTrue(result.isSuccess)
+            val thinkingResponse = result.getOrThrow()
+            assertEquals("Processed", thinkingResponse.result?.message)
+            assertEquals(1, thinkingResponse.thinkingBlocks.size)
+            assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("Processing request"))
+        }
+    }
+
+    @Nested
     inner class ExtensionPointTests {
 
         private fun setupMockModelProvider(): ModelProvider {
@@ -1063,6 +1176,20 @@ internal open class TestableToolLoopLlmOperations(
         outputClass: Class<O>,
     ): ThinkingResponse<O> {
         return doTransformWithThinking(
+            messages = messages,
+            interaction = interaction,
+            outputClass = outputClass,
+            llmRequestEvent = null,
+        )
+    }
+
+    // Expose doTransformWithThinkingIfPossible for direct testing
+    fun <O> testDoTransformWithThinkingIfPossible(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+    ): Result<ThinkingResponse<O>> {
+        return doTransformWithThinkingIfPossible(
             messages = messages,
             interaction = interaction,
             outputClass = outputClass,

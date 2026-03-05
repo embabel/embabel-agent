@@ -157,6 +157,13 @@ class OperationContextPromptRunnerThinkingTest {
                 outputClass: Class<O>,
                 llmRequestEvent: LlmRequestEvent<O>?
             ): ThinkingResponse<O> = throw UnsupportedOperationException("Test implementation")
+
+            override fun <O> doTransformWithThinkingIfPossible(
+                messages: List<Message>,
+                interaction: LlmInteraction,
+                outputClass: Class<O>,
+                llmRequestEvent: LlmRequestEvent<O>?
+            ): Result<ThinkingResponse<O>> = Result.failure(UnsupportedOperationException("Test implementation"))
         }
 
         val context = createMockOperationContextWithLlmOperations(unsupportedLlmOps)
