@@ -62,9 +62,6 @@ class ReplanningTool @JvmOverloads constructor(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result =
-        callAndReplan { delegate.call(input) }
-
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         callAndReplan { delegate.call(input, context) }
 
@@ -148,9 +145,6 @@ class ConditionalReplanningTool(
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
-
-    override fun call(input: String): Tool.Result =
-        callAndMaybeReplan { delegate.call(input) }
 
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         callAndMaybeReplan { delegate.call(input, context) }

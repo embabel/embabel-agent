@@ -69,9 +69,6 @@ class ObservabilityTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result =
-        callWithObservation(input) { delegate.call(input) }
-
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         callWithObservation(input) { delegate.call(input, context) }
 
@@ -125,9 +122,6 @@ class OutputTransformingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result =
-        transformOutput(input) { delegate.call(input) }
-
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         transformOutput(input) { delegate.call(input, context) }
 
@@ -157,9 +151,6 @@ class MetadataEnrichingTool(
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
-
-    override fun call(input: String): Tool.Result =
-        callWithMetadata(input) { delegate.call(input) }
 
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         callWithMetadata(input) { delegate.call(input, context) }
@@ -195,9 +186,6 @@ class EventPublishingTool(
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
-
-    override fun call(input: String): Tool.Result =
-        callWithEvents(input) { delegate.call(input) }
 
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         callWithEvents(input) { delegate.call(input, context) }
@@ -263,9 +251,6 @@ class ExceptionSuppressingTool(
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
 
-    override fun call(input: String): Tool.Result =
-        callSuppressing { delegate.call(input) }
-
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         callSuppressing { delegate.call(input, context) }
 
@@ -289,9 +274,6 @@ class AgentProcessBindingTool(
 
     override val definition: Tool.Definition = delegate.definition
     override val metadata: Tool.Metadata = delegate.metadata
-
-    override fun call(input: String): Tool.Result =
-        callWithBinding { delegate.call(input) }
 
     override fun call(input: String, context: ToolCallContext): Tool.Result =
         callWithBinding { delegate.call(input, context) }
