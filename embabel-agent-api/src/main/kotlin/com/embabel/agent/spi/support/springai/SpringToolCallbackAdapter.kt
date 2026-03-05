@@ -52,23 +52,8 @@ class SpringToolCallbackAdapter(
             .build()
     }
 
-    override fun call(toolInput: String): String {
-        logger.debug("Executing tool '{}' with input: {}", tool.definition.name, toolInput)
-
-        return try {
-            when (val result = tool.call(toolInput)) {
-                is Tool.Result.Text -> result.content
-                is Tool.Result.WithArtifact -> result.content
-                is Tool.Result.Error -> {
-                    logger.warn("Tool '{}' returned error: {}", tool.definition.name, result.message)
-                    "ERROR: ${result.message}"
-                }
-            }
-        } catch (e: Exception) {
-            logger.error("Tool '{}' threw exception: {}", tool.definition.name, e.message, e)
-            "ERROR: ${e.message ?: "Unknown error"}"
-        }
-    }
+    override fun call(toolInput: String): String =
+        call(toolInput, null)
 
     /**
      * Bridges Spring AI's ToolContext with Embabel's ToolCallContext.
@@ -76,6 +61,7 @@ class SpringToolCallbackAdapter(
      * and passes it explicitly to the tool.
      */
     override fun call(toolInput: String, toolContext: ToolContext?): String {
+        logger.debug("Executing tool '{}' with input: {}", tool.definition.name, toolInput)
         val context = toolContext?.let { ToolCallContext.of(it.context) } ?: ToolCallContext.EMPTY
         return try {
             when (val result = tool.call(toolInput, context)) {
