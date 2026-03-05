@@ -82,7 +82,7 @@ class GeminiModelLoaderTest {
     }
 
     @Test
-    fun `should load all 6 expected Gemini models`() {
+    fun `should load all 8 expected Gemini models`() {
         // Arrange
         val loader = GeminiModelLoader()
 
