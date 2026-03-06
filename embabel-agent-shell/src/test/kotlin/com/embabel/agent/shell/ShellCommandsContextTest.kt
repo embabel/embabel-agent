@@ -39,7 +39,7 @@ import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.core.env.ConfigurableEnvironment
 
 /**
- * Tests for the ToolCallContext-related shell commands introduced in PR #1456:
+ * Tests for the ToolCallContext-related shell commands introduced in PR #1462 (issue #1323):
  * set-context, show-context, and the -c flag on execute.
  */
 class ShellCommandsContextTest {
