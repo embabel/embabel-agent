@@ -29,4 +29,3 @@ include::resources/page.adoc[]
 
 == APPENDIX
 
-include::appendix/page.adoc[]
