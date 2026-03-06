@@ -36,13 +36,16 @@ import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
+import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.lang.reflect.Field
 import java.time.Duration
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.function.Predicate
 
 // Log message constants to avoid duplication
 private const val LLM_TIMEOUT_MESSAGE = "LLM {}: attempt {} timed out after {}ms"
@@ -162,6 +165,7 @@ abstract class AbstractLlmOperations(
                         validationPromptGenerator.generateRequirementsPrompt(
                             validator = validator,
                             outputClass = outputClass,
+                            fieldFilter = interaction.fieldFilter,
                         )
                     )
                 } else {
@@ -186,6 +190,8 @@ abstract class AbstractLlmOperations(
                 }
             if (interaction.validation) {
                 var constraintViolations = validator.validate(candidate)
+                constraintViolations =
+                    filterConstraintViolations(constraintViolations, outputClass, interaction.fieldFilter)
                 if (constraintViolations.isNotEmpty()) {
                     // If we had violations, try again, once, before throwing an exception
                     candidate = dataBindingProperties.retryTemplate(interaction.id.value)
@@ -207,6 +213,8 @@ abstract class AbstractLlmOperations(
                             }
                         }
                     constraintViolations = validator.validate(candidate)
+                    constraintViolations =
+                        filterConstraintViolations(constraintViolations, outputClass, interaction.fieldFilter)
                     if (constraintViolations.isNotEmpty()) {
                         throw InvalidLlmReturnTypeException(
                             returnedObject = candidate as Any,
@@ -226,6 +234,17 @@ abstract class AbstractLlmOperations(
         )
         return createdObject
     }
+
+    private fun <O> filterConstraintViolations(
+        constraintViolations: Set<ConstraintViolation<O>>,
+        outputClass: Class<O>,
+        fieldFilter: Predicate<Field>,
+    ): Set<ConstraintViolation<O>> =
+        constraintViolations.filterTo(mutableSetOf()) { violation ->
+            runCatching { outputClass.getDeclaredField(violation.propertyPath.toString()) }
+                .map { fieldFilter.test(it) }
+                .getOrDefault(true)
+        }
 
     final override fun <O> createObjectIfPossible(
         messages: List<Message>,

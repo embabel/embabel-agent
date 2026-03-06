@@ -17,6 +17,8 @@ package com.embabel.agent.spi.validation
 
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
+import java.lang.reflect.Field
+import java.util.function.Predicate
 
 /**
  * Generate validation prompts for JSR-380 annotated types
@@ -30,6 +32,7 @@ interface ValidationPromptGenerator {
     fun generateRequirementsPrompt(
         validator: Validator,
         outputClass: Class<*>,
+        fieldFilter: Predicate<Field> = Predicate { true },
     ): String
 
     /**

@@ -17,25 +17,30 @@ package com.embabel.agent.spi.validation
 
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
+import java.lang.reflect.Field
+import java.util.function.Predicate
 
 class DefaultValidationPromptGenerator : ValidationPromptGenerator {
 
     override fun generateRequirementsPrompt(
         validator: Validator,
         outputClass: Class<*>,
+        fieldFilter: Predicate<Field>,
     ): String {
         val descriptor = validator.getConstraintsForClass(outputClass)
         val requirements = mutableListOf<String>()
 
         descriptor.constrainedProperties.forEach { propertyDescriptor ->
             val propertyName = propertyDescriptor.propertyName
-            val constraints = propertyDescriptor.constraintDescriptors
+            if (filter(propertyName, outputClass, fieldFilter)) {
+                val constraints = propertyDescriptor.constraintDescriptors
 
-            constraints.forEach { constraint ->
-                val annotationType = constraint.annotation.annotationClass.simpleName
-                val message = constraint.messageTemplate
+                constraints.forEach { constraint ->
+                    val annotationType = constraint.annotation.annotationClass.simpleName
+                    val message = constraint.messageTemplate
 
-                requirements.add("- Field '$propertyName': $annotationType constraint ($message)")
+                    requirements.add("- Field '$propertyName': $annotationType constraint ($message)")
+                }
             }
         }
 
@@ -44,6 +49,19 @@ class DefaultValidationPromptGenerator : ValidationPromptGenerator {
         } else {
             "Validation Requirements:\n" + requirements.joinToString("\n")
         }
+    }
+
+    private fun filter(
+        propertyName: String,
+        outputClass: Class<*>,
+        fieldFilter: Predicate<Field>,
+    ): Boolean = try {
+        val field = outputClass.getDeclaredField(propertyName)
+        fieldFilter.test(field)
+    } catch (_: NoSuchFieldException) {
+        true
+    } catch (_: SecurityException) {
+        true
     }
 
     /**
