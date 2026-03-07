@@ -17,6 +17,7 @@ package com.embabel.chat.support
 
 import com.embabel.agent.api.tool.DelegatingTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.chat.Asset
 import com.embabel.chat.AssetTracker
 import org.slf4j.LoggerFactory
@@ -43,8 +44,8 @@ class AssetAddingTool<T>(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    override fun call(input: String): Tool.Result {
-        val result = delegate.call(input)
+    override fun call(input: String, context: ToolCallContext): Tool.Result {
+        val result = delegate.call(input, context)
         when (result) {
             is Tool.Result.WithArtifact -> {
                 val artifact = result.artifact

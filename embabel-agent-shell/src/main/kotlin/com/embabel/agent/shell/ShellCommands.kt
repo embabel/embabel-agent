@@ -17,6 +17,7 @@ package com.embabel.agent.shell
 
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.common.autonomy.*
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.core.*
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.shell.config.ShellProperties
@@ -76,6 +77,12 @@ class ShellCommands(
      */
     private var openMode: Boolean = false
 
+    /**
+     * Persistent tool call context, set via `set-context` command.
+     * Passed to all subsequent agent executions.
+     */
+    private var persistentToolCallContext: ToolCallContext = ToolCallContext.EMPTY
+
     private var defaultProcessOptions: ProcessOptions = ProcessOptions(
         verbosity = Verbosity(
             debug = false,
@@ -89,6 +96,38 @@ class ShellCommands(
     fun clear(): String {
         blackboard = null
         return "Blackboard cleared"
+    }
+
+    @ShellMethod(
+        value = "Set persistent tool call context as key=value pairs, passed to all tools during execution. " +
+                "Example: set-context tenantId=acme,apiKey=secret123",
+        key = ["set-context", "sc"],
+    )
+    fun setContext(
+        @ShellOption(
+            help = "Comma-separated key=value pairs (e.g. tenantId=acme,apiKey=secret). Use 'clear' to reset.",
+            defaultValue = "",
+        ) context: String,
+    ): String {
+        if (context.isBlank() || context == "clear") {
+            persistentToolCallContext = ToolCallContext.EMPTY
+            return "Tool call context cleared".color(colorPalette.color2)
+        }
+        persistentToolCallContext = parseToolCallContext(context)
+        return "Tool call context set: ${persistentToolCallContext.toMap()}".color(colorPalette.color2)
+    }
+
+    @ShellMethod(
+        value = "Show current tool call context",
+        key = ["show-context"],
+    )
+    fun showContext(): String {
+        val ctx = persistentToolCallContext.toMap()
+        return if (ctx.isEmpty()) {
+            "Tool call context is empty"
+        } else {
+            "Tool call context: $ctx"
+        }.color(colorPalette.color2)
     }
 
     @ShellMethod(value = "Show recent agent process runs. This is what actually happened, not just what was planned.")
@@ -319,6 +358,12 @@ class ShellCommands(
             help = "show detailed planning info",
             defaultValue = "true",
         ) showPlanning: Boolean = true,
+        @ShellOption(
+            value = ["-c", "--context"],
+            help = "Tool call context as comma-separated key=value pairs (e.g. tenantId=acme,apiKey=secret). " +
+                    "Merged with persistent context set via set-context; these values win on conflict.",
+            defaultValue = ShellOption.NULL,
+        ) context: String? = null,
     ): String {
         // Override any options
         setOptions(
@@ -331,9 +376,24 @@ class ShellCommands(
             operationDelay = operationDelay,
             showPlanning = showPlanning,
         )
+        // Merge persistent context with one-off context (one-off wins on conflict)
+        val effectiveContext = if (context != null) {
+            persistentToolCallContext.merge(parseToolCallContext(context))
+        } else {
+            persistentToolCallContext
+        }
+        val processOptions = if (effectiveContext != ToolCallContext.EMPTY) {
+            logger.info(
+                "ToolCallContext: {}".color(colorPalette.highlight),
+                effectiveContext.toMap(),
+            )
+            defaultProcessOptions.withToolCallContext(effectiveContext)
+        } else {
+            defaultProcessOptions
+        }
         return executeIntent(
             intent = intent,
-            processOptions = defaultProcessOptions,
+            processOptions = processOptions,
         )
     }
 
@@ -390,6 +450,22 @@ class ShellCommands(
             }
         }
 
+    }
+
+    /**
+     * Parse a comma-separated "key=value" string into a [ToolCallContext].
+     * Example input: "tenantId=acme,apiKey=secret123"
+     */
+    private fun parseToolCallContext(input: String): ToolCallContext {
+        if (input.isBlank()) return ToolCallContext.EMPTY
+        val map = input.split(",")
+            .map { it.trim() }
+            .filter { it.contains("=") }
+            .associate { entry ->
+                val (key, value) = entry.split("=", limit = 2)
+                key.trim() to value.trim()
+            }
+        return ToolCallContext.of(map)
     }
 
     private fun recordAgentProcess(agentProcess: AgentProcess) {

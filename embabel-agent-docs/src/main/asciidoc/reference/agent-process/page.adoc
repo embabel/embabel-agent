@@ -19,6 +19,36 @@ Allows fine grained control over logging prompts, LLM returns and detailed plann
 * `control`: Control options, determining whether the agent should be terminated as a last resort. `EarlyTerminationPolicy` can based on an absolute number of actions or a maximum budget.
 * Delays: Both operations (actions) and tools can have delays.
 This is useful to avoid rate limiting.
+* `toolCallContext`: Out-of-band metadata (e.g., auth tokens, tenant IDs, correlation IDs) passed to all tool invocations during the process.
+This context propagates through the entire tool pipeline—including decorator chains and MCP tools—without being exposed to the LLM.
+Set via `withToolCallContext()`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+var processOptions = new ProcessOptions()
+    .withToolCallContext(Map.of(
+        "authToken", bearerToken,
+        "tenantId", tenantId
+    ));
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val processOptions = ProcessOptions()
+    .withToolCallContext(ToolCallContext.of(
+        "authToken" to bearerToken,
+        "tenantId" to tenantId,
+    ))
+----
+====
+
+See <<reference.tools__tool-call-context>> for how tools receive this context.
 
 
 [graphviz, embabel_execution_context.dot, png]

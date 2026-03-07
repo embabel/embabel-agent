@@ -17,6 +17,7 @@ package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
@@ -52,6 +53,7 @@ fun interface ToolLoopFactory {
      * @param toolDecorator optional decorator for injected tools
      * @param inspectors read-only observers for tool loop lifecycle events
      * @param transformers transformers for modifying conversation history or tool results
+     * @param toolCallContext context propagated to tool invocations
      */
     fun create(
         llmMessageSender: LlmMessageSender,
@@ -61,6 +63,7 @@ fun interface ToolLoopFactory {
         toolDecorator: ((Tool) -> Tool)?,
         inspectors: List<ToolLoopInspector>,
         transformers: List<ToolLoopTransformer>,
+        toolCallContext: ToolCallContext,
     ): ToolLoop
 
     companion object {
@@ -94,6 +97,7 @@ internal class ConfigurableToolLoopFactory(
         toolDecorator: ((Tool) -> Tool)?,
         inspectors: List<ToolLoopInspector>,
         transformers: List<ToolLoopTransformer>,
+        toolCallContext: ToolCallContext,
     ): ToolLoop = when (config.type) {
         ToolLoopType.DEFAULT -> DefaultToolLoop(
             llmMessageSender = llmMessageSender,
@@ -103,6 +107,7 @@ internal class ConfigurableToolLoopFactory(
             toolDecorator = toolDecorator,
             inspectors = inspectors,
             transformers = transformers,
+            toolCallContext = toolCallContext,
         )
         ToolLoopType.PARALLEL -> ParallelToolLoop(
             llmMessageSender = llmMessageSender,
@@ -114,6 +119,7 @@ internal class ConfigurableToolLoopFactory(
             transformers = transformers,
             asyncer = asyncer,
             parallelConfig = config.parallel,
+            toolCallContext = toolCallContext,
         )
     }
 }

@@ -20,6 +20,7 @@ import com.embabel.agent.api.channel.OutputChannel
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.identity.User
+import com.embabel.agent.api.tool.ToolCallContext
 
 /**
  * Control how much detail to log from LLM interactions.
@@ -206,6 +207,9 @@ constructor(
  * @param listeners additional listeners (beyond platform event listeners) to receive events from this process.
  * @param outputChannel custom output channel to use for this process.
  * @param plannerType the type of planner to use for this process. Defaults to GOAP planner.
+ * @param toolCallContext out-of-band metadata (e.g., auth tokens, tenant IDs) passed to tools
+ * at call time. This context is propagated to all tools, including MCP tools where it bridges
+ * to Spring AI's ToolContext and ultimately to MCP's McpMeta.
  */
 data class ProcessOptions @JvmOverloads constructor(
     val contextId: ContextId? = null,
@@ -222,6 +226,7 @@ data class ProcessOptions @JvmOverloads constructor(
     val listeners: List<AgenticEventListener> = emptyList(),
     val outputChannel: OutputChannel = DevNullOutputChannel,
     val plannerType: PlannerType = PlannerType.GOAP,
+    val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
 ) {
 
     /**
@@ -280,6 +285,15 @@ data class ProcessOptions @JvmOverloads constructor(
 
     fun withPlannerType(plannerType: PlannerType): ProcessOptions =
         this.copy(plannerType = plannerType)
+
+    fun withToolCallContext(toolCallContext: ToolCallContext): ProcessOptions =
+        this.copy(toolCallContext = toolCallContext)
+
+    /**
+     * Java-friendly overload accepting a raw map.
+     */
+    fun withToolCallContext(context: Map<String, Any>): ProcessOptions =
+        this.copy(toolCallContext = ToolCallContext.of(context))
 
     companion object {
 

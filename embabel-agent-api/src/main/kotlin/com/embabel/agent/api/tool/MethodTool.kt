@@ -32,6 +32,11 @@ import kotlin.reflect.jvm.javaType
 
 /**
  * Tool implementation that wraps a method annotated with [@LlmTool].
+ *
+ * Supports [ToolCallContext] injection: if the annotated method declares a
+ * parameter of type [ToolCallContext], the framework injects the current context
+ * automatically — just like Spring AI injects `ToolContext` into `@Tool` methods.
+ * Such parameters are excluded from the JSON input schema sent to the LLM.
  */
 internal sealed class MethodTool(
     protected val instance: Any,
@@ -43,10 +48,16 @@ internal sealed class MethodTool(
 
     override val metadata: Tool.Metadata = Tool.Metadata(returnDirect = annotation.returnDirect)
 
-    override fun call(input: String): Tool.Result {
+    override fun call(input: String): Tool.Result =
+        callWithContext(input, ToolCallContext.EMPTY)
+
+    override fun call(input: String, context: ToolCallContext): Tool.Result =
+        callWithContext(input, context)
+
+    private fun callWithContext(input: String, context: ToolCallContext): Tool.Result {
         return try {
             val args = parseArguments(input)
-            val result = invokeMethod(args)
+            val result = invokeMethod(args, context)
             convertResult(result)
         } catch (e: Exception) {
             // Unwrap InvocationTargetException to get the actual cause
@@ -74,7 +85,7 @@ internal sealed class MethodTool(
         }
     }
 
-    protected abstract fun invokeMethod(args: Map<String, Any?>): Any?
+    protected abstract fun invokeMethod(args: Map<String, Any?>, context: ToolCallContext): Any?
 
     private fun convertResult(result: Any?): Tool.Result {
         return when (result) {
@@ -138,8 +149,10 @@ internal class KotlinMethodTool(
     override val definition: Tool.Definition by lazy {
         val name = annotation.name.ifEmpty { method.name }
         // Use victools-based schema generation for proper generic type handling
+        // Exclude ToolCallContext parameters — they are framework-injected, not LLM-provided
         val parameterInfos = method.parameters
             .filter { it.kind == KParameter.Kind.VALUE }
+            .filter { it.type.javaType != ToolCallContext::class.java }
             .map { param ->
                 val paramAnnotation = param.findAnnotation<Param>()
                 ParameterInfo(
@@ -156,7 +169,7 @@ internal class KotlinMethodTool(
         )
     }
 
-    override fun invokeMethod(args: Map<String, Any?>): Any? {
+    override fun invokeMethod(args: Map<String, Any?>, context: ToolCallContext): Any? {
         val params = method.parameters
         val callArgs = mutableMapOf<KParameter, Any?>()
 
@@ -165,6 +178,12 @@ internal class KotlinMethodTool(
             when (param.kind) {
                 KParameter.Kind.INSTANCE -> callArgs[param] = instance
                 KParameter.Kind.VALUE -> {
+                    // Inject ToolCallContext if the parameter type matches
+                    if (param.type.javaType == ToolCallContext::class.java) {
+                        callArgs[param] = context
+                        continue
+                    }
+
                     val paramAnnotation = param.findAnnotation<Param>()
                     val paramName = param.name ?: continue
                     val value = args[paramName]
@@ -207,7 +226,9 @@ internal class JavaMethodTool(
     override val definition: Tool.Definition by lazy {
         val name = annotation.name.ifEmpty { method.name }
         // Use victools-based schema generation for proper generic type handling
+        // Exclude ToolCallContext parameters — they are framework-injected, not LLM-provided
         val parameterInfos = method.parameters
+            .filter { !ToolCallContext::class.java.isAssignableFrom(it.type) }
             .map { param ->
                 val paramAnnotation = param.getAnnotation(Param::class.java)
                 ParameterInfo(
@@ -224,11 +245,16 @@ internal class JavaMethodTool(
         )
     }
 
-    override fun invokeMethod(args: Map<String, Any?>): Any? {
+    override fun invokeMethod(args: Map<String, Any?>, context: ToolCallContext): Any? {
         val params = method.parameters
         val callArgs = arrayOfNulls<Any?>(method.parameters.size)
 
         for ((index, param) in params.withIndex()) {
+            // Inject ToolCallContext if the parameter type matches
+            if (ToolCallContext::class.java.isAssignableFrom(param.type)) {
+                callArgs[index] = context
+                continue
+            }
             val value = args[param.name]
             if (value != null) {
                 // Convert value to expected type if needed
