@@ -152,3 +152,9 @@ jobs:
               echo 'Testing web access:' &&
               curl -I http://localhost/embabel-agent/guide/$VERSION/index.html || echo 'Versioned guide not responding'
             "
+      - name: Trigger acceptance repo workflow to validate User Guide
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          repository: embabel/embabel-acceptance-tests
+          event-type: publish-docs
