@@ -23,7 +23,9 @@ import jakarta.validation.constraints.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.lang.reflect.Field
 import java.time.LocalDate
+import java.util.function.Predicate
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -86,6 +88,13 @@ class DefaultValidationPromptGeneratorTest {
     )
 
     class EmptyClass
+
+    data class TwoFieldClass(
+        @field:NotBlank(message = "Name cannot be blank")
+        val name: String,
+        @field:Email(message = "Must be a valid email address")
+        val email: String,
+    )
 
     @Nested
     inner class GenerateRequirementsPrompt {
@@ -299,6 +308,86 @@ class DefaultValidationPromptGeneratorTest {
                 // Should handle nested property paths
                 assertTrue(result.contains("nested.nestedValue"))
             }
+        }
+    }
+
+    @Nested
+    inner class FieldFilterBehavior {
+
+        @Test
+        fun `default field filter includes all constrained fields in requirements`() {
+            val result = generator.generateRequirementsPrompt(validator, TwoFieldClass::class.java)
+
+            assertTrue(result.contains("Field 'name'"), "name should be included with default filter")
+            assertTrue(result.contains("Field 'email'"), "email should be included with default filter")
+        }
+
+        @Test
+        fun `field filter excluding a field omits its requirements from prompt`() {
+            val filterExcludeEmail = Predicate<Field> { it.name != "email" }
+
+            val result = generator.generateRequirementsPrompt(validator, TwoFieldClass::class.java, filterExcludeEmail)
+
+            assertTrue(result.contains("Field 'name'"), "name should still appear")
+            assertTrue(!result.contains("Field 'email'"), "email should be omitted when filtered out")
+        }
+
+        @Test
+        fun `field filter excluding all fields yields no constraints message`() {
+            val excludeAll = Predicate<Field> { false }
+
+            val result = generator.generateRequirementsPrompt(validator, TwoFieldClass::class.java, excludeAll)
+
+            assertEquals("No validation constraints defined.", result)
+        }
+
+        @Test
+        fun `field filter including only one field omits the other`() {
+            val nameOnly = Predicate<Field> { it.name == "name" }
+
+            val result = generator.generateRequirementsPrompt(validator, TwoFieldClass::class.java, nameOnly)
+
+            assertTrue(result.contains("Field 'name'"))
+            assertTrue(!result.contains("Field 'email'"))
+        }
+
+        @Test
+        fun `filterConstraintViolations drops violations for fields excluded by filter`() {
+            val invalid = TwoFieldClass(name = "", email = "not-an-email")
+            val violations = validator.validate(invalid)
+            assertTrue(violations.isNotEmpty())
+
+            val nameOnly = Predicate<Field> { it.name == "name" }
+            val filtered = violations.filterTo(mutableSetOf()) { violation ->
+                runCatching { TwoFieldClass::class.java.getDeclaredField(violation.propertyPath.toString()) }
+                    .map { nameOnly.test(it) }
+                    .getOrDefault(true)
+            }
+
+            assertTrue(
+                filtered.all { it.propertyPath.toString() == "name" },
+                "only name violations should survive the filter"
+            )
+            assertTrue(
+                filtered.none { it.propertyPath.toString() == "email" },
+                "email violations should be dropped by the filter"
+            )
+        }
+
+        @Test
+        fun `filterConstraintViolations keeps violations when field cannot be resolved`() {
+            val invalid = TwoFieldClass(name = "", email = "not-an-email")
+            val violations = validator.validate(invalid)
+
+            val excludeAll = Predicate<Field> { false }
+            // Look up fields on an unrelated class so lookup always fails → default true → all kept
+            val filtered = violations.filterTo(mutableSetOf()) { violation ->
+                runCatching { String::class.java.getDeclaredField(violation.propertyPath.toString()) }
+                    .map { excludeAll.test(it) }
+                    .getOrDefault(true)
+            }
+
+            assertEquals(violations.size, filtered.size)
         }
     }
 

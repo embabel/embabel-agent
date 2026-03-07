@@ -59,6 +59,7 @@ import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import java.time.LocalDate
 import java.util.concurrent.Executors
+import java.util.function.Predicate
 import kotlin.test.assertEquals
 
 /**
@@ -1338,6 +1339,65 @@ class ChatClientLlmOperationsTest {
                 agentProcess = setup.mockAgentProcess,
             )
             assertEquals(invalidHusky, createdDog, "Invalid response should have been corrected")
+        }
+
+        @Test
+        fun `field filter suppresses constraint violation for excluded field`() {
+            data class BorderCollie(
+                val name: String,
+                @field:Pattern(regexp = "^mince$", message = "eats field must be 'mince'")
+                val eats: String,
+            )
+
+            val invalidHusky = BorderCollie("Husky", eats = "kibble")
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(invalidHusky))
+            val setup = createChatClientLlmOperations(fakeChatModel)
+
+            // Exclude 'eats' from the field filter — its constraint violation should be ignored
+            val result = setup.llmOperations.createObject(
+                messages = listOf(UserMessage("prompt")),
+                interaction = LlmInteraction(
+                    id = InteractionId("id"),
+                    llm = LlmOptions(),
+                    fieldFilter = Predicate { field -> field.name != "eats" },
+                ),
+                outputClass = BorderCollie::class.java,
+                action = SimpleTestAgent.actions.first(),
+                agentProcess = setup.mockAgentProcess,
+            )
+
+            assertEquals(invalidHusky, result, "Filtered-out field violation should not block the result")
+        }
+
+        @Test
+        fun `field filter does not suppress constraint violation for included field`() {
+            data class BorderCollie(
+                val name: String,
+                @field:Pattern(regexp = "^mince$", message = "eats field must be 'mince'")
+                val eats: String,
+            )
+
+            val invalidHusky = BorderCollie("Husky", eats = "kibble")
+            val fakeChatModel = FakeChatModel(jacksonObjectMapper().writeValueAsString(invalidHusky))
+            val setup = createChatClientLlmOperations(fakeChatModel)
+
+            // 'eats' is still included in the filter — violation should be raised
+            try {
+                setup.llmOperations.createObject(
+                    messages = listOf(UserMessage("prompt")),
+                    interaction = LlmInteraction(
+                        id = InteractionId("id"),
+                        llm = LlmOptions(),
+                        fieldFilter = Predicate { true },
+                    ),
+                    outputClass = BorderCollie::class.java,
+                    action = SimpleTestAgent.actions.first(),
+                    agentProcess = setup.mockAgentProcess,
+                )
+                fail("Should have thrown InvalidLlmReturnTypeException")
+            } catch (e: InvalidLlmReturnTypeException) {
+                assertTrue(e.constraintViolations.any { it.propertyPath.toString() == "eats" })
+            }
         }
     }
 
