@@ -21,6 +21,17 @@ models:
       usd_per1m_input_tokens: 2.00
       usd_per1m_output_tokens: 12.00
 
+  # Gemini 3.1 Pro Preview Customtools - Optimized for custom tool usage
+  - name: "gemini_3_1_pro_preview_customtools"
+    model_id: "gemini-3.1-pro-preview-customtools"
+    display_name: "Gemini 3.1 Pro Preview Customtools"
+    knowledge_cutoff_date: "2025-01-01"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 2.00
+      usd_per1m_output_tokens: 12.00
+
   # Gemini 3 Flash Preview - Fast model with thinking capabilities
   - name: "gemini_3_flash_preview"
     model_id: "gemini-3-flash-preview"
@@ -31,6 +42,17 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 0.50
       usd_per1m_output_tokens: 3.00
+
+  # Gemini 3.1 Flash Lite Preview - Lightweight and cost-effective latest generation model
+  - name: "gemini_3_1_flash_lite_preview"
+    model_id: "gemini-3.1-flash-lite-preview"
+    display_name: "Gemini 3.1 Flash Lite Preview"
+    knowledge_cutoff_date: "2025-01-01"
+    max_output_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.25
+      usd_per1m_output_tokens: 1.50
 
   # ========================================
   # GEMINI 2.5 FAMILY (Stable - Current Generation)

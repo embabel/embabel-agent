@@ -27,6 +27,8 @@ public final class GeminiModels {
 
     // Gemini 3.1 Family (Latest)
     public static final String GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview";
+    public static final String GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = "gemini-3.1-pro-preview-customtools";
+    public static final String GEMINI_3_1_FLASH_LITE_PREVIEW = "gemini-3.1-flash-lite-preview";
 
     // Gemini 2.5 Family (Current Generation)
     public static final String GEMINI_2_5_PRO = "gemini-2.5-pro";
