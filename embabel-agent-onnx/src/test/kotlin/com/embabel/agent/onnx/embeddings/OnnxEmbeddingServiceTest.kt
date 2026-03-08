@@ -70,4 +70,33 @@ class OnnxEmbeddingServiceTest {
         assertEquals("all-MiniLM-L6-v2", OnnxEmbeddingService.DEFAULT_MODEL_NAME)
         assertEquals(384, OnnxEmbeddingService.DEFAULT_DIMENSIONS)
     }
+
+    @Test
+    fun `meanPool with uniform attention mask returns simple average`() {
+        val tokenEmbeddings = arrayOf(
+            floatArrayOf(2.0f, 4.0f),
+            floatArrayOf(6.0f, 8.0f),
+            floatArrayOf(10.0f, 12.0f),
+        )
+        val attentionMask = longArrayOf(1, 1, 1)
+
+        val result = OnnxEmbeddingService.meanPool(tokenEmbeddings, attentionMask)
+
+        assertEquals(6.0f, result[0], 1e-6f)
+        assertEquals(8.0f, result[1], 1e-6f)
+    }
+
+    @Test
+    fun `meanPool with partial mask ignores padding tokens`() {
+        val tokenEmbeddings = arrayOf(
+            floatArrayOf(10.0f),
+            floatArrayOf(20.0f),
+            floatArrayOf(999.0f), // padding — should be ignored
+        )
+        val attentionMask = longArrayOf(1, 1, 0)
+
+        val result = OnnxEmbeddingService.meanPool(tokenEmbeddings, attentionMask)
+
+        assertEquals(15.0f, result[0], 1e-6f)
+    }
 }

@@ -32,17 +32,30 @@ import java.nio.file.Path
  */
 @JsonSerialize(`as` = com.embabel.common.ai.model.EmbeddingServiceMetadata::class)
 class OnnxEmbeddingService(
-    modelPath: Path,
-    tokenizerPath: Path,
+    private val environment: OrtEnvironment,
+    private val session: OrtSession,
+    private val tokenizer: HuggingFaceTokenizer,
     override val dimensions: Int = DEFAULT_DIMENSIONS,
     override val name: String = DEFAULT_MODEL_NAME,
 ) : EmbeddingService, AutoCloseable {
 
-    override val provider: String = PROVIDER
+    /**
+     * Convenience constructor that creates the ONNX environment, session and tokenizer from file paths.
+     */
+    constructor(
+        modelPath: Path,
+        tokenizerPath: Path,
+        dimensions: Int = DEFAULT_DIMENSIONS,
+        name: String = DEFAULT_MODEL_NAME,
+    ) : this(
+        environment = OrtEnvironment.getEnvironment(),
+        session = OrtEnvironment.getEnvironment().createSession(modelPath.toString()),
+        tokenizer = HuggingFaceTokenizer.newInstance(tokenizerPath),
+        dimensions = dimensions,
+        name = name,
+    )
 
-    private val environment: OrtEnvironment = OrtEnvironment.getEnvironment()
-    private val session: OrtSession = environment.createSession(modelPath.toString())
-    private val tokenizer: HuggingFaceTokenizer = HuggingFaceTokenizer.newInstance(tokenizerPath)
+    override val provider: String = PROVIDER
 
     override fun embed(text: String): FloatArray {
         val encoding = tokenizer.encode(text)
