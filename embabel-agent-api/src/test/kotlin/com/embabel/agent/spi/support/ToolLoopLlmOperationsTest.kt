@@ -1033,6 +1033,55 @@ class ToolLoopLlmOperationsTest {
         }
     }
 
+    @Nested
+    inner class ChooseLlmForInteractionTest {
+
+        @Test
+        fun `doTransform uses pre-resolved llmService and bypasses ModelProvider`() {
+            val byokLlm = SpringAiLlmService("byok-model", "custom-provider", FakeChatModel("byok"), DefaultOptionsConverter)
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse("byok response"))
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val interaction = LlmInteraction(
+                id = InteractionId("byok-test"),
+                tools = emptyList(),
+                llm = LlmOptions(),
+                llmService = byokLlm,
+            )
+
+            val result = operations.testDoTransform(
+                messages = listOf(UserMessage("Hello")),
+                interaction = interaction,
+                outputClass = String::class.java,
+            )
+
+            assertEquals("byok response", result)
+            // ModelProvider.getLlm should NOT have been called
+            verify(exactly = 0) { mockModelProvider.getLlm(any()) }
+        }
+
+        @Test
+        fun `doTransform falls back to ModelProvider when llmService is null`() {
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(textResponse("provider response"))
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val result = operations.testDoTransform(
+                messages = listOf(UserMessage("Hello")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+            )
+
+            assertEquals("provider response", result)
+            // ModelProvider.getLlm SHOULD have been called
+            verify(atLeast = 1) { mockModelProvider.getLlm(any()) }
+        }
+    }
+
     // Helper methods
 
     private fun createInteraction(

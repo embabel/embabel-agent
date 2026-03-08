@@ -15,7 +15,17 @@
  */
 package com.embabel.agent.onnx.embeddings
 
+import ai.djl.huggingface.tokenizers.Encoding
+import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
+import ai.onnxruntime.OnnxTensor
+import ai.onnxruntime.OnnxValue
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class OnnxEmbeddingServiceTest {
@@ -98,5 +108,129 @@ class OnnxEmbeddingServiceTest {
         val result = OnnxEmbeddingService.meanPool(tokenEmbeddings, attentionMask)
 
         assertEquals(15.0f, result[0], 1e-6f)
+    }
+
+    @Nested
+    inner class EmbedWithMocksTest {
+
+        private val environment = OrtEnvironment.getEnvironment()
+
+        private fun createService(
+            session: OrtSession,
+            tokenizer: HuggingFaceTokenizer,
+        ): OnnxEmbeddingService {
+            return OnnxEmbeddingService(
+                environment = environment,
+                session = session,
+                tokenizer = tokenizer,
+                dimensions = 3,
+                name = "test-model",
+            )
+        }
+
+        private fun mockEncoding(
+            ids: LongArray,
+            attentionMask: LongArray,
+            typeIds: LongArray,
+        ): Encoding {
+            val encoding = mockk<Encoding>()
+            every { encoding.ids } returns ids
+            every { encoding.attentionMask } returns attentionMask
+            every { encoding.typeIds } returns typeIds
+            return encoding
+        }
+
+        @Test
+        fun `embed tokenizes and runs session then mean-pools`() {
+            val tokenizer = mockk<HuggingFaceTokenizer>()
+            val session = mockk<OrtSession>()
+
+            // 2 tokens, 3 dimensions
+            val ids = longArrayOf(101, 102)
+            val mask = longArrayOf(1, 1)
+            val typeIds = longArrayOf(0, 0)
+            every { tokenizer.encode("hello") } returns mockEncoding(ids, mask, typeIds)
+
+            // last_hidden_state: batch=1, tokens=2, dims=3
+            val hiddenState = arrayOf(
+                arrayOf(
+                    floatArrayOf(1.0f, 2.0f, 3.0f),
+                    floatArrayOf(3.0f, 4.0f, 5.0f),
+                )
+            )
+            val outputTensor = mockk<OnnxValue>()
+            every { outputTensor.value } returns hiddenState
+
+            val ortResult = mockk<OrtSession.Result>()
+            every { ortResult[0] } returns outputTensor
+            every { ortResult.close() } returns Unit
+            every { session.run(any<Map<String, OnnxTensor>>()) } returns ortResult
+
+            val service = createService(session, tokenizer)
+            val embedding = service.embed("hello")
+
+            assertEquals(3, embedding.size)
+            // mean of [1,3]=2, [2,4]=3, [3,5]=4
+            assertEquals(2.0f, embedding[0], 1e-6f)
+            assertEquals(3.0f, embedding[1], 1e-6f)
+            assertEquals(4.0f, embedding[2], 1e-6f)
+        }
+
+        @Test
+        fun `embed batch delegates to single embed`() {
+            val tokenizer = mockk<HuggingFaceTokenizer>()
+            val session = mockk<OrtSession>()
+
+            val ids = longArrayOf(101)
+            val mask = longArrayOf(1)
+            val typeIds = longArrayOf(0)
+
+            every { tokenizer.encode(any<String>()) } returns mockEncoding(ids, mask, typeIds)
+
+            val hiddenState = arrayOf(arrayOf(floatArrayOf(1.0f, 2.0f)))
+            val outputTensor = mockk<OnnxValue>()
+            every { outputTensor.value } returns hiddenState
+            val ortResult = mockk<OrtSession.Result>()
+            every { ortResult[0] } returns outputTensor
+            every { ortResult.close() } returns Unit
+            every { session.run(any<Map<String, OnnxTensor>>()) } returns ortResult
+
+            val service = createService(session, tokenizer)
+            val results = service.embed(listOf("a", "b", "c"))
+
+            assertEquals(3, results.size)
+            results.forEach { assertEquals(2, it.size) }
+        }
+
+        @Test
+        fun `close closes session`() {
+            val session = mockk<OrtSession>()
+            val tokenizer = mockk<HuggingFaceTokenizer>()
+            every { session.close() } returns Unit
+
+            val service = createService(session, tokenizer)
+            service.close()
+
+            verify { session.close() }
+        }
+
+        @Test
+        fun `provider returns onnx`() {
+            val session = mockk<OrtSession>()
+            val tokenizer = mockk<HuggingFaceTokenizer>()
+            val service = createService(session, tokenizer)
+
+            assertEquals("onnx", service.provider)
+        }
+
+        @Test
+        fun `name and dimensions from constructor`() {
+            val session = mockk<OrtSession>()
+            val tokenizer = mockk<HuggingFaceTokenizer>()
+            val service = createService(session, tokenizer)
+
+            assertEquals("test-model", service.name)
+            assertEquals(3, service.dimensions)
+        }
     }
 }
