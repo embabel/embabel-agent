@@ -113,12 +113,18 @@ internal sealed class MethodTool(
             return value
         }
 
-        // Handle numeric conversions from JSON (Jackson often returns Int/Double)
+        // Handle numeric conversions from JSON.
+        // Jackson often returns Int/Double, but LLMs may also send numbers as strings
+        // (e.g. "5" instead of 5), so we coerce string-wrapped numbers too.
         return when (targetType) {
-            Int::class.java, Integer::class.java -> (value as? Number)?.toInt() ?: value
-            Long::class.java, java.lang.Long::class.java -> (value as? Number)?.toLong() ?: value
-            Double::class.java, java.lang.Double::class.java -> (value as? Number)?.toDouble() ?: value
-            Float::class.java, java.lang.Float::class.java -> (value as? Number)?.toFloat() ?: value
+            Int::class.java, Integer::class.java ->
+                (value as? Number)?.toInt() ?: (value as? String)?.toIntOrNull() ?: value
+            Long::class.java, java.lang.Long::class.java ->
+                (value as? Number)?.toLong() ?: (value as? String)?.toLongOrNull() ?: value
+            Double::class.java, java.lang.Double::class.java ->
+                (value as? Number)?.toDouble() ?: (value as? String)?.toDoubleOrNull() ?: value
+            Float::class.java, java.lang.Float::class.java ->
+                (value as? Number)?.toFloat() ?: (value as? String)?.toFloatOrNull() ?: value
             Boolean::class.java, java.lang.Boolean::class.java -> value as? Boolean ?: value.toString().toBoolean()
             String::class.java -> value.toString()
             else -> {

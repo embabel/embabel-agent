@@ -414,6 +414,14 @@ abstract class AbstractLlmOperations(
         return modelProvider.getLlm(crit)
     }
 
+    /**
+     * Choose the LLM for an interaction. If the interaction has a pre-resolved
+     * [LlmInteraction.llmService], use it directly (bypassing ModelProvider).
+     * Otherwise fall back to normal model resolution via [chooseLlm].
+     */
+    protected fun chooseLlmForInteraction(interaction: LlmInteraction): LlmService<*> =
+        interaction.llmService ?: chooseLlm(interaction.llm)
+
     protected abstract fun <O> doTransformIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
@@ -435,7 +443,7 @@ abstract class AbstractLlmOperations(
             action = action,
             outputClass = outputClass,
             interaction = interaction.copy(tools = allTools),
-            llmMetadata = chooseLlm(llmOptions = interaction.llm),
+            llmMetadata = chooseLlmForInteraction(interaction),
             messages = messages,
         )
         agentProcess.processContext.onProcessEvent(llmRequestEvent)

@@ -17,6 +17,7 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.api.common.support.DelegatingStreamingPromptRunner
 import com.embabel.agent.api.common.support.OperationContextDelegate
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.identity.User
@@ -237,5 +238,9 @@ internal class OperationContextAi(
 
     override fun withLlm(llm: LlmOptions): PromptRunner {
         return context.promptRunner().withLlm(llm)
+    }
+
+    override fun withLlmService(llmService: LlmService<*>): PromptRunner {
+        return context.promptRunner().withLlmService(llmService)
     }
 }
