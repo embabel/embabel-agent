@@ -64,6 +64,15 @@ internal open class DefaultToolLoop(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        /**
+         * Maximum consecutive tool-not-found errors before throwing
+         * [ToolNotFoundException]. Prevents wasting LLM calls when the model
+         * persistently hallucinates tool names.
+         */
+        const val MAX_TOOL_NOT_FOUND_RETRIES = 3
+    }
+
     override fun <O> execute(
         initialMessages: List<Message>,
         initialTools: List<Tool>,
@@ -241,6 +250,8 @@ internal open class DefaultToolLoop(
         val tool = findTool(state.availableTools, toolCall.name)
             ?: return handleToolNotFound(toolCall, state)
 
+        state.toolNotFoundCount = 0 // reset consecutive counter on successful lookup
+
         return try {
             val (result, resultContent) = executeToolCall(tool, toolCall)
             applyInjectionStrategy(toolCall, resultContent, state)
@@ -385,6 +396,7 @@ internal open class DefaultToolLoop(
         var replanRequested: Boolean = false,
         var replanReason: String? = null,
         var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
+        var toolNotFoundCount: Int = 0,
     )
 
     /**
@@ -401,9 +413,19 @@ internal open class DefaultToolLoop(
      * (e.g. "ragbot_docs_vectorSearch" → suggests "docs_vectorSearch").
      * This commonly occurs when the model reads source code or RAG chunks
      * that mention tool-like names and conflates them with actual available tools.
+     *
+     * If the model cannot recover (keeps calling non-existent tools),
+     * [ToolNotFoundException] is thrown after [MAX_TOOL_NOT_FOUND_RETRIES] consecutive
+     * failures to prevent wasting LLM calls for the remainder of [maxIterations].
      */
     private fun handleToolNotFound(toolCall: ToolCall, state: LoopState): Boolean {
+        state.toolNotFoundCount++
         val availableNames = state.availableTools.map { it.definition.name }
+
+        if (state.toolNotFoundCount > MAX_TOOL_NOT_FOUND_RETRIES) {
+            throw ToolNotFoundException(toolCall.name, availableNames)
+        }
+
         val suffixMatches = state.availableTools.filter {
             toolCall.name.endsWith("_${it.definition.name}") || toolCall.name.endsWith(it.definition.name)
         }
