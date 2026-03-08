@@ -48,6 +48,26 @@ class ToolTest {
         }
     }
 
+    class NumericTools {
+        @LlmTool(description = "Multiply two longs")
+        fun multiplyLongs(
+            @Param(description = "First") a: Long,
+            @Param(description = "Second") b: Long,
+        ): Long = a * b
+
+        @LlmTool(description = "Add two doubles")
+        fun addDoubles(
+            @Param(description = "First") a: Double,
+            @Param(description = "Second") b: Double,
+        ): Double = a + b
+
+        @LlmTool(description = "Add two floats")
+        fun addFloats(
+            @Param(description = "First") a: Float,
+            @Param(description = "Second") b: Float,
+        ): Float = a + b
+    }
+
     class NoToolMethods {
         fun regularMethod(): String = "not a tool"
     }
@@ -866,6 +886,64 @@ class ToolTest {
             val modified = original.withDescription("New base").withNote("Additional info")
 
             assertEquals("New base. Additional info", modified.definition.description)
+        }
+    }
+
+    @Nested
+    inner class StringToNumberCoercionTest {
+
+        @Test
+        fun `integer parameters accept string-wrapped numbers`() {
+            val tools = Tool.fromInstance(WeatherTools())
+            val sumTool = tools.find { it.definition.name == "calculate_sum" }!!
+
+            val result = sumTool.call("""{"a": "5", "b": "3"}""")
+
+            assertTrue(result is Tool.Result.WithArtifact)
+            assertEquals("8", (result as Tool.Result.WithArtifact).content)
+        }
+
+        @Test
+        fun `long parameters accept string-wrapped numbers`() {
+            val tools = Tool.fromInstance(NumericTools())
+            val tool = tools.find { it.definition.name == "multiplyLongs" }!!
+
+            val result = tool.call("""{"a": "100", "b": "200"}""")
+
+            assertTrue(result is Tool.Result.WithArtifact)
+            assertEquals("20000", (result as Tool.Result.WithArtifact).content)
+        }
+
+        @Test
+        fun `double parameters accept string-wrapped numbers`() {
+            val tools = Tool.fromInstance(NumericTools())
+            val tool = tools.find { it.definition.name == "addDoubles" }!!
+
+            val result = tool.call("""{"a": "1.5", "b": "2.5"}""")
+
+            assertTrue(result is Tool.Result.WithArtifact)
+            assertEquals("4.0", (result as Tool.Result.WithArtifact).content)
+        }
+
+        @Test
+        fun `float parameters accept string-wrapped numbers`() {
+            val tools = Tool.fromInstance(NumericTools())
+            val tool = tools.find { it.definition.name == "addFloats" }!!
+
+            val result = tool.call("""{"a": "1.5", "b": "2.5"}""")
+
+            assertTrue(result is Tool.Result.WithArtifact)
+            assertEquals("4.0", (result as Tool.Result.WithArtifact).content)
+        }
+
+        @Test
+        fun `non-numeric string for int parameter returns error`() {
+            val tools = Tool.fromInstance(WeatherTools())
+            val sumTool = tools.find { it.definition.name == "calculate_sum" }!!
+
+            val result = sumTool.call("""{"a": "hello", "b": "3"}""")
+
+            assertTrue(result is Tool.Result.Error)
         }
     }
 }

@@ -956,6 +956,67 @@ class ToolLoopAdditionalTests {
         }
 
         @Test
+        fun `tool not found counter resets after successful tool call`() {
+            val realTool = MockTool("real_tool", "A tool", { Tool.Result.text("""{"ok": true}""") })
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    // Two not-found errors (under the limit of 3)
+                    MockLlmMessageSender.toolCallResponse("call_1", "bad_tool", "{}"),
+                    MockLlmMessageSender.toolCallResponse("call_2", "bad_tool", "{}"),
+                    // Successful tool call — resets the counter
+                    MockLlmMessageSender.toolCallResponse("call_3", "real_tool", "{}"),
+                    // Two more not-found errors (under the limit again because counter reset)
+                    MockLlmMessageSender.toolCallResponse("call_4", "bad_tool", "{}"),
+                    MockLlmMessageSender.toolCallResponse("call_5", "bad_tool", "{}"),
+                    // Final text response
+                    MockLlmMessageSender.textResponse("Done"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Go")),
+                initialTools = listOf(realTool),
+                outputParser = { it }
+            )
+
+            assertEquals("Done", result.result)
+        }
+
+        @Test
+        fun `tool not found suggests suffix-matched tool name`() {
+            val tool = MockTool("vectorSearch", "Search vectors", { Tool.Result.text("{}") })
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    // Model hallucinates a prefixed name
+                    MockLlmMessageSender.toolCallResponse("call_1", "ragbot_vectorSearch", "{}"),
+                    // Self-corrects after suggestion
+                    MockLlmMessageSender.toolCallResponse("call_2", "vectorSearch", "{}"),
+                    MockLlmMessageSender.textResponse("Found results"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Search")),
+                initialTools = listOf(tool),
+                outputParser = { it }
+            )
+
+            assertEquals("Found results", result.result)
+        }
+
+        @Test
         fun `MaxIterationsExceededException includes iteration count in message`() {
             val mockTool = MockTool(
                 name = "loop_tool",
