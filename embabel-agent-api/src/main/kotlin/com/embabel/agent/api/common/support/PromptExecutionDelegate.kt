@@ -26,6 +26,7 @@ import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.core.support.LlmUse
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.chat.AssistantMessage
@@ -69,6 +70,10 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withInteractionId(interactionId: InteractionId): PromptExecutionDelegate
 
     fun withLlm(llm: LlmOptions): PromptExecutionDelegate
+
+    val llmService: LlmService<*>?
+
+    fun withLlmService(llmService: LlmService<*>): PromptExecutionDelegate
 
     fun withMessages(messages: List<Message>): PromptExecutionDelegate
 

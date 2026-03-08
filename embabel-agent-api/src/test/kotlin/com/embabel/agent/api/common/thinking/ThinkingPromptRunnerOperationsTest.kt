@@ -270,6 +270,8 @@ class ThinkingPromptRunnerOperationsTest {
             ): PromptRunner = this
 
             override fun withToolChainingFromAny(): PromptRunner = this
+
+            override fun withLlmService(llmService: com.embabel.agent.spi.LlmService<*>): PromptRunner = this
         }
 
         // When/Then: Call withThinking() on StreamingPromptRunner should throw exception

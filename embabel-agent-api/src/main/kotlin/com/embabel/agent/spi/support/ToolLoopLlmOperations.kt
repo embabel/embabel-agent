@@ -125,7 +125,7 @@ open class ToolLoopLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): O {
-        val llm = chooseLlm(interaction.llm)
+        val llm = chooseLlmForInteraction(interaction)
         val promptContributions = buildPromptContributions(interaction, llm)
 
         val messageSender = createMessageSender(llm, interaction.llm, llmRequestEvent)

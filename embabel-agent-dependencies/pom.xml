@@ -188,6 +188,24 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-onnx</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-onnx-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-onnx</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-rag-core</artifactId>
                 <version>${project.version}</version>
             </dependency>

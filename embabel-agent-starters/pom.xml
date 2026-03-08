@@ -38,6 +38,7 @@
         <module>embabel-agent-starter-mistral-ai</module>
         <module>embabel-agent-starter-a2a</module>
         <module>embabel-agent-starter-webmvc</module>
+        <module>embabel-agent-starter-onnx</module>
     </modules>
 
 </project>

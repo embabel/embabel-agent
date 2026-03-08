@@ -17,6 +17,7 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.api.common.PromptRunner.Creating
 import com.embabel.agent.api.reference.LlmReference
+import com.embabel.agent.spi.LlmService
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.ToolChaining
@@ -85,6 +86,12 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * Specify an LLM for the PromptRunner
      */
     fun withLlm(llm: LlmOptions): PromptRunner
+
+    /**
+     * Use a pre-resolved LLM service, bypassing ModelProvider resolution.
+     * For BYOK (bring your own key) scenarios.
+     */
+    fun withLlmService(llmService: LlmService<*>): PromptRunner
 
     /**
      * Add a message that will be included in the final prompt.

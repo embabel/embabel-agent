@@ -307,7 +307,7 @@ internal class ChatClientLlmOperations(
             emptyMap(),
         )
 
-        val llm = chooseLlm(interaction.llm)
+        val llm = chooseLlmForInteraction(interaction)
         val chatClient = createChatClient(llm, llmRequestEvent)
         val promptContributions = buildPromptContributions(interaction, llm)
         val springAiPrompt = buildPromptWithMaybeReturn(promptContributions, messages, maybeReturnPromptContribution)
@@ -433,7 +433,7 @@ internal class ChatClientLlmOperations(
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>?,
     ): O {
-        val llm = chooseLlm(interaction.llm)
+        val llm = chooseLlmForInteraction(interaction)
         val chatClient = createChatClient(llm, llmRequestEvent)
         val promptContributions = buildPromptContributions(interaction, llm)
 
@@ -534,7 +534,7 @@ internal class ChatClientLlmOperations(
     ): ThinkingResponse<O> {
         logger.debug("LLM transform for interaction {} with thinking extraction", interaction.id.value)
 
-        val llm = chooseLlm(interaction.llm)
+        val llm = chooseLlmForInteraction(interaction)
         val chatClient = createChatClient(llm, llmRequestEvent)
         val promptContributions = buildPromptContributions(interaction, llm)
 
@@ -693,7 +693,7 @@ internal class ChatClientLlmOperations(
                 emptyMap(),
             )
 
-            val llm = chooseLlm(interaction.llm)
+            val llm = chooseLlmForInteraction(interaction)
             val chatClient = createChatClient(llm, llmRequestEvent)
             val promptContributions = buildPromptContributions(interaction, llm)
 
@@ -852,7 +852,7 @@ internal class ChatClientLlmOperations(
     /**
      * Expose LLM selection for streaming operations
      */
-    internal fun getLlm(interaction: LlmInteraction): LlmService<*> = chooseLlm(interaction.llm)
+    internal fun getLlm(interaction: LlmInteraction): LlmService<*> = chooseLlmForInteraction(interaction)
 
     /**
      * Require the LLM to be a SpringAiLlm for Spring AI specific operations.

@@ -229,6 +229,8 @@ internal data class OperationContextPromptRunner(
     override fun withLlm(llm: LlmOptions): PromptRunner =
         copy(llm = llm)
 
+    override fun withLlmService(llmService: com.embabel.agent.spi.LlmService<*>): PromptRunner = this
+
     override fun withToolGroup(toolGroup: ToolGroupRequirement): PromptRunner =
         copy(toolGroups = this.toolGroups + toolGroup)
 

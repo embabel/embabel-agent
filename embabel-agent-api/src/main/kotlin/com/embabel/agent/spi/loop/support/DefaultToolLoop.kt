@@ -239,7 +239,7 @@ internal open class DefaultToolLoop(
         state: LoopState,
     ): Boolean {
         val tool = findTool(state.availableTools, toolCall.name)
-            ?: throw ToolNotFoundException(toolCall.name, state.availableTools.map { it.definition.name })
+            ?: return handleToolNotFound(toolCall, state)
 
         return try {
             val (result, resultContent) = executeToolCall(tool, toolCall)
@@ -392,6 +392,39 @@ internal open class DefaultToolLoop(
      */
     protected fun findTool(tools: List<Tool>, name: String): Tool? {
         return tools.find { it.definition.name == name }
+    }
+
+    /**
+     * When a tool is not found, feed the error back as a tool result
+     * so the model can self-correct on the next iteration.
+     * Includes a suffix-match suggestion when the model hallucinates an extra prefix
+     * (e.g. "ragbot_docs_vectorSearch" → suggests "docs_vectorSearch").
+     * This commonly occurs when the model reads source code or RAG chunks
+     * that mention tool-like names and conflates them with actual available tools.
+     */
+    private fun handleToolNotFound(toolCall: ToolCall, state: LoopState): Boolean {
+        val availableNames = state.availableTools.map { it.definition.name }
+        val suffixMatches = state.availableTools.filter {
+            toolCall.name.endsWith("_${it.definition.name}") || toolCall.name.endsWith(it.definition.name)
+        }
+        val suggestion = if (suffixMatches.size == 1) {
+            " Did you mean '${suffixMatches[0].definition.name}'?"
+        } else {
+            ""
+        }
+        val errorMessage = "Tool '${toolCall.name}' does not exist.$suggestion " +
+            "Available tools: $availableNames. " +
+            "Use the exact tool name from this list. " +
+            "Do not combine or prefix tool names — tool names found in source code or search results are not callable."
+        logger.warn(errorMessage)
+        state.conversationHistory.add(
+            ToolResultMessage(
+                toolCallId = toolCall.id,
+                toolName = toolCall.name,
+                content = errorMessage,
+            )
+        )
+        return true // continue the loop so the model can retry
     }
 
     /**
