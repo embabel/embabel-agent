@@ -15,9 +15,12 @@
  */
 package com.embabel.agent.onnx
 
+import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.net.InetSocketAddress
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -68,5 +71,56 @@ class OnnxModelLoaderTest {
         OnnxModelLoader.resolve(localFile.toUri().toString(), cacheDir, "model.onnx")
 
         assertTrue(Files.exists(cacheDir))
+    }
+
+    @Nested
+    inner class HttpDownloadTest {
+
+        @Test
+        fun `resolve downloads from HTTP and caches locally`(@TempDir tempDir: Path) {
+            val payload = "fake model bytes"
+            val server = HttpServer.create(InetSocketAddress(0), 0)
+            server.createContext("/model.onnx") { exchange ->
+                val bytes = payload.toByteArray()
+                exchange.sendResponseHeaders(200, bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            }
+            server.start()
+            try {
+                val port = server.address.port
+                val cacheDir = tempDir.resolve("dl-cache")
+                val result = OnnxModelLoader.resolve(
+                    "http://localhost:$port/model.onnx", cacheDir, "model.onnx",
+                )
+                assertTrue(Files.exists(result))
+                assertEquals(payload, Files.readString(result))
+                assertEquals(cacheDir.resolve("model.onnx"), result)
+            } finally {
+                server.stop(0)
+            }
+        }
+
+        @Test
+        fun `resolve download failure does not leave partial file`(@TempDir tempDir: Path) {
+            val server = HttpServer.create(InetSocketAddress(0), 0)
+            server.createContext("/model.onnx") { exchange ->
+                exchange.sendResponseHeaders(500, -1)
+                exchange.close()
+            }
+            server.start()
+            try {
+                val port = server.address.port
+                val cacheDir = tempDir.resolve("dl-cache")
+                assertThrows(Exception::class.java) {
+                    OnnxModelLoader.resolve(
+                        "http://localhost:$port/model.onnx", cacheDir, "model.onnx",
+                    )
+                }
+                // No partial file should remain
+                assertFalse(Files.exists(cacheDir.resolve("model.onnx")))
+            } finally {
+                server.stop(0)
+            }
+        }
     }
 }
