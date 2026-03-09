@@ -16,12 +16,12 @@
 package com.embabel.agent.onnx.embeddings
 
 import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
-import com.embabel.common.ai.model.EmbeddingService
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import com.embabel.common.ai.model.EmbeddingService
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer
 import java.nio.LongBuffer
 import java.nio.file.Path
 
