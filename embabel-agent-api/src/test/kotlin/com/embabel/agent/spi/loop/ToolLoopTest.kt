@@ -19,8 +19,6 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
-import io.mockk.mockk
-import io.mockk.verify
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
@@ -29,6 +27,8 @@ import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test

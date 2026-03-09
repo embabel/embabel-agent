@@ -17,7 +17,6 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.api.common.PromptRunner.Creating
 import com.embabel.agent.api.reference.LlmReference
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.ToolChaining
@@ -27,6 +26,7 @@ import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmUse
+import com.embabel.agent.spi.LlmService
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message

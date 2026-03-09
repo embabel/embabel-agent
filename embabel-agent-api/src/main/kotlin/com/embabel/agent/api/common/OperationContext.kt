@@ -17,7 +17,6 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.api.common.support.DelegatingStreamingPromptRunner
 import com.embabel.agent.api.common.support.OperationContextDelegate
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.api.dsl.TypedAgentScopeBuilder
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.api.identity.User
@@ -31,6 +30,7 @@ import com.embabel.agent.core.Operation
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
+import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
