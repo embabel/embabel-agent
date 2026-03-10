@@ -85,7 +85,7 @@ When the LLM calls a tool by a name that doesn't exist in the available set, the
 
 Two built-in policies are provided:
 
-- **`AutoCorrectionPolicy`** (default) — feeds the error back to the LLM so it can self-correct. Includes suffix-match suggestions for hallucinated prefixes (e.g., `ragbot_vectorSearch` → suggests `vectorSearch`). Throws `ToolNotFoundException` after 3 consecutive failures.
+- **`AutoCorrectionPolicy`** (default) — feeds the error back to the LLM so it can self-correct. Uses case-insensitive fuzzy matching to suggest corrections for hallucinated tool names (e.g., `ragbot_vectorSearch` → suggests `vectorSearch`). When multiple candidates match, all are listed. Throws `ToolNotFoundException` after 3 consecutive failures.
 - **`ImmediateThrowPolicy`** — throws `ToolNotFoundException` immediately.
 
 The system-wide default is configured via properties:
@@ -128,9 +128,9 @@ Custom policies can be implemented by implementing the `ToolNotFoundPolicy` inte
 
 [source,kotlin]
 ----
-class MyFuzzyMatchPolicy : ToolNotFoundPolicy {
+class MyEditDistancePolicy : ToolNotFoundPolicy {
     override fun handle(requestedName: String, availableTools: List<Tool>): ToolNotFoundAction {
-        // Custom fuzzy matching logic
+        // Custom recovery logic, e.g. edit-distance matching
         ...
     }
 }

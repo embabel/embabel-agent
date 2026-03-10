@@ -59,8 +59,9 @@ sealed class ToolNotFoundAction {
 }
 
 /**
- * Feeds the error back to the LLM with a suffix-match suggestion,
- * allowing it to self-correct. Throws [ToolNotFoundException] after
+ * Feeds the error back to the LLM with a fuzzy-match suggestion,
+ * allowing it to self-correct. Matches tool names using case-insensitive
+ * containment (either direction). Throws [ToolNotFoundException] after
  * [maxRetries] consecutive failures.
  */
 class AutoCorrectionPolicy(
@@ -75,13 +76,23 @@ class AutoCorrectionPolicy(
         if (consecutiveFailures > maxRetries) {
             return ToolNotFoundAction.Throw(ToolNotFoundException(requestedName, availableNames))
         }
-        val suffixMatches = availableTools.filter {
-            requestedName.endsWith("_${it.definition.name}") || requestedName.endsWith(it.definition.name)
-        }
-        val suggestion = if (suffixMatches.size == 1) {
-            " Did you mean '${suffixMatches[0].definition.name}'?"
+        val requestedLower = requestedName.lowercase()
+        val matches = if (requestedLower.length < MIN_FUZZY_LENGTH) {
+            emptyList()
         } else {
-            ""
+            val requestedTokens = requestedLower.split("_", "-").filter { it.length >= MIN_FUZZY_LENGTH }
+            availableTools.filter {
+                val nameLower = it.definition.name.lowercase()
+                nameLower.length >= MIN_FUZZY_LENGTH && (
+                    requestedLower.contains(nameLower) || nameLower.contains(requestedLower) ||
+                        requestedTokens.any { token -> nameLower.contains(token) }
+                    )
+            }
+        }
+        val suggestion = when {
+            matches.size == 1 -> " Did you mean '${matches[0].definition.name}'?"
+            matches.size > 1 -> " Possible matches: ${matches.map { "'${it.definition.name}'" }}."
+            else -> ""
         }
         val message = "Tool '$requestedName' does not exist.$suggestion " +
             "Available tools: $availableNames. " +
@@ -96,6 +107,7 @@ class AutoCorrectionPolicy(
 
     companion object {
         const val DEFAULT_MAX_RETRIES = 3
+        const val MIN_FUZZY_LENGTH = 3
     }
 }
 
