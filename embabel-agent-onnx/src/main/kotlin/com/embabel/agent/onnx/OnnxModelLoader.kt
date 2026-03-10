@@ -15,12 +15,12 @@
  */
 package com.embabel.agent.onnx
 
-import org.slf4j.LoggerFactory
 import java.io.InputStream
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import org.slf4j.LoggerFactory
 
 /**
  * Shared utility for downloading and caching ONNX model files.

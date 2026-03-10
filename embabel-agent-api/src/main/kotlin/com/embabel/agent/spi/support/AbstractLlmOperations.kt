@@ -39,14 +39,14 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 import java.time.Duration
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.function.Predicate
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 // Log message constants to avoid duplication
 private const val LLM_TIMEOUT_MESSAGE = "LLM {}: attempt {} timed out after {}ms"

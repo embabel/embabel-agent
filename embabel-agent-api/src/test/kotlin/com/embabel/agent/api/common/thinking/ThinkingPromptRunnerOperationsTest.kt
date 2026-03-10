@@ -34,10 +34,10 @@ import com.embabel.common.core.thinking.ThinkingTagType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.lang.reflect.Field
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import java.lang.reflect.Field
 
 /**
  * Test for the thinking prompt runner operations.

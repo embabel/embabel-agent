@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.api.tool.config
 
-import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
+import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
  * Configuration for tool loop execution.

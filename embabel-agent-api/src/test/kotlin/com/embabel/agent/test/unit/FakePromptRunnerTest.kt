@@ -20,13 +20,13 @@ import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.LlmOptions
 import io.mockk.mockk
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 // Test data classes - defined at top level to avoid Kotlin inner class restrictions
 data class TestUserIntent(val type: String, val description: String)
