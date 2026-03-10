@@ -40,9 +40,9 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.TemplateRenderer
 import com.fasterxml.jackson.databind.ObjectMapper
-import reactor.core.publisher.Flux
 import java.lang.reflect.Field
 import java.util.function.Predicate
+import reactor.core.publisher.Flux
 
 /**
  * Delegate interface for prompt execution functionality.

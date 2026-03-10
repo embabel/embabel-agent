@@ -42,10 +42,10 @@ import com.embabel.common.core.MobyNameGenerator
 import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
-import org.slf4j.LoggerFactory
-import reactor.core.publisher.Flux
 import java.lang.reflect.Field
 import java.util.function.Predicate
+import org.slf4j.LoggerFactory
+import reactor.core.publisher.Flux
 
 enum class Method {
     CREATE_OBJECT,

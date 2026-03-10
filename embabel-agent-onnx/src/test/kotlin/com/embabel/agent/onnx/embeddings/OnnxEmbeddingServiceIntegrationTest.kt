@@ -16,10 +16,10 @@
 package com.embabel.agent.onnx.embeddings
 
 import com.embabel.agent.onnx.OnnxModelLoader
+import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable
-import java.nio.file.Path
 
 /**
  * Integration test that downloads the real all-MiniLM-L6-v2 model and runs inference.

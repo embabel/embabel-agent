@@ -18,12 +18,12 @@ package com.embabel.agent.spi.loop
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.agent.spi.loop.support.ParallelToolLoop
-import com.embabel.agent.api.tool.callback.ToolLoopInspector
-import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.fasterxml.jackson.databind.ObjectMapper
 
 /**

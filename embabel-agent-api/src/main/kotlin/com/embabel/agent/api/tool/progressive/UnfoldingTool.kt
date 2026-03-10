@@ -23,14 +23,14 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
-import org.springframework.beans.BeanUtils
-import org.springframework.core.KotlinDetector
 import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.hasAnnotation
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import org.springframework.beans.BeanUtils
+import org.springframework.core.KotlinDetector
 
 /**
  * A [ProgressiveTool] with a fixed set of inner tools that are revealed

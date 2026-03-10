@@ -16,13 +16,13 @@
 package com.embabel.agent.onnx
 
 import com.sun.net.httpserver.HttpServer
+import java.net.InetSocketAddress
+import java.nio.file.Files
+import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import java.net.InetSocketAddress
-import java.nio.file.Files
-import java.nio.file.Path
 
 class OnnxModelLoaderTest {
 

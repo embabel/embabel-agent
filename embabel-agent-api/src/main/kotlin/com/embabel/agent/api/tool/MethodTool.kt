@@ -20,8 +20,6 @@ import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.tool.VictoolsSchemaGenerator.ParameterInfo
 import com.embabel.agent.core.ReplanRequestedException
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.slf4j.LoggerFactory
-import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
 import java.lang.reflect.Type
 import kotlin.reflect.KFunction
@@ -29,6 +27,8 @@ import kotlin.reflect.KParameter
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
+import org.slf4j.LoggerFactory
+import org.springframework.util.ReflectionUtils
 
 /**
  * Tool implementation that wraps a method annotated with [@LlmTool].
