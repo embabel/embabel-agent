@@ -1,0 +1,77 @@
+[[reference.asynch-mode]]
+== Asynchronous Mode and Java 25
+
+Async Configuration got defined in _AsyncConfiguration.kt_.
+Default implementation employs spring-managed task executor with virtual threads being configured in:
+----
+agent-application.properties
+
+spring.threads.virtual.enabled=true
+----
+If spring managed task executor cannot be obtained,  implementation falls back to default task executor, _Executors.newCachedThreadPool()_.
+
+Framework employs _Asyncer_ abstraction consistently cross Agent Invocation (see <<reference.invoking>> ), Agent Actions, Tool Loop, ShellCommands, and other scenarios.
+
+=== Java 25 Implications
+
+Prior to Java 25, the JVM was imprecise when reading container CPU limits — it often saw the host's full CPU count rather than the container's cgroup allocation. Java 25 corrects this to accurately respect cgroup CPU limits (e.g., Kubernetes resources.limits.cpu).
+
+Related OpenJDK ticket: [JDK-8362881](https://bugs.openjdk.org/browse/JDK-8362881)
+
+When running Embabel on Java 25 inside containers (Docker/Kubernetes), all agent actions execute serially instead of in parallel. As mentioned above this is caused by Java 25's improved (more accurate) cgroup CPU detection, which reports availableProcessors() = 1 in CPU-constrained containers. Since ForkJoinPool.commonPool sizes its parallelism based on this value, the effective parallelism drops to 1, serializing all concurrent agent operations.
+
+
+[cols="1,2,2,2", options="header", frame="all", grid="all"]
+|===
+|JVM Version |availableProcessors() |Common pool parallelism |Behavior
+
+|Pre-25
+|Host CPU count (e.g., 8)
+|7
+|Actions run in parallel
+
+|25
+|Container CPU limit (e.g., 1)
+|1 (minimum)
+|Actions serialize
+|===
+
+
+Also, note: modern (post 1.3) Kotlin  coroutines implementation in Dispatchers.Default and Dispatchers.IO is backed by Kotlin’s own coroutine scheduler, not Java’s ForkJoinPool.commonPool().
+
+==== Why Embabel is Safe
+
+1. Asyncer Abstraction — All parallel execution routes through ExecutorAsyncer
+2. Spring Executor — Uses applicationTaskExecutor (ThreadPoolTaskExecutor), not ForkJoinPool
+3. Fallback Safety — Even fallback uses newCachedThreadPool(), not ForkJoinPool
+4. Coroutine Defaults — Production code uses Dispatchers.IO, not Dispatchers.Default
+
+If Users report serialization issues on Java 25, recommendation is to check for:
+
+1. Custom code using CompletableFuture.supplyAsync() without explicit executor
+2. Custom code using Dispatchers.Default (Kotlin coroutines)
+3. Spring misconfiguration — applicationTaskExecutor not properly configured
+4. Third-party libraries that depend on ForkJoinPool.commonPool
+
+==== Workarounds (if needed)
+
+Even though Embabel core is safe, users can apply below settings if they have custom code affected:
+
+Option 1: Set container CPU limits
+[source,yaml]
+----
+# Kubernetes
+resources:
+limits:
+cpu: "4"
+requests:
+cpu: "2"
+----
+
+
+
+
+Option 2: Override ForkJoinPool parallelism
+```
+java -Djava.util.concurrent.ForkJoinPool.common.parallelism=4 -jar agent.jar
+```

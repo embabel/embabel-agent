@@ -34,7 +34,7 @@ class AsyncConfiguration {
         executorProvider: ObjectProvider<Executor>,
     ): Asyncer {
         val executor = executorProvider.getIfAvailable {
-            Executors.newCachedThreadPool() // default fallback
+            Executors.newCachedThreadPool() // default fallback, Consider Executors.newVirtualThreadPerTaskExecutor()
         }
         return ExecutorAsyncer(executor)
     }

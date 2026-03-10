@@ -54,3 +54,5 @@ include::migrating/page.adoc[]
 
 include::api-evolution/page.adoc[]
 
+include::asynch-mode/page.adoc[]
+
