@@ -158,6 +158,7 @@ open class ToolLoopLlmOperations(
             inspectors = interaction.inspectors,
             transformers = interaction.transformers,
             toolCallContext = effectiveContext,
+            toolNotFoundPolicy = interaction.toolNotFoundPolicy,
         )
 
         val initialMessages = buildInitialMessages(promptContributions, messages, schemaFormat)
@@ -245,6 +246,7 @@ open class ToolLoopLlmOperations(
             inspectors = interaction.inspectors,
             transformers = interaction.transformers,
             toolCallContext = effectiveContext,
+            toolNotFoundPolicy = interaction.toolNotFoundPolicy,
         )
 
         // Build MaybeReturn prompt contribution
@@ -374,6 +376,7 @@ open class ToolLoopLlmOperations(
             inspectors = interaction.inspectors,
             transformers = interaction.transformers,
             toolCallContext = effectiveContext,
+            toolNotFoundPolicy = interaction.toolNotFoundPolicy,
         )
 
         val initialMessages = buildInitialMessages(promptContributions, messages, schemaFormat)

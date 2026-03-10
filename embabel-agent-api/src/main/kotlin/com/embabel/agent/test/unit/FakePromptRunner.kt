@@ -32,6 +32,7 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
@@ -210,6 +211,8 @@ data class FakePromptRunner(
         override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate = this
 
         override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate = this
+
+        override fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptExecutionDelegate = this
 
         override val domainToolSources: List<DomainToolSource<*>>
             get() = emptyList()
@@ -442,6 +445,8 @@ data class FakePromptRunner(
     override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner = this
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner = this
+
+    override fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptRunner = this
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,

@@ -25,6 +25,7 @@ import com.embabel.agent.core.ToolConsumer
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptContributorConsumer
@@ -133,6 +134,7 @@ data class LlmInteraction(
     val inspectors: List<ToolLoopInspector> = emptyList(),
     val transformers: List<ToolLoopTransformer> = emptyList(),
     val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
+    val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
 ) : LlmCall {
 
     override val name: String = id.value

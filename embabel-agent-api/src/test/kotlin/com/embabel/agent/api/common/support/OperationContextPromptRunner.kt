@@ -27,6 +27,7 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -387,6 +388,8 @@ internal data class OperationContextPromptRunner(
             transformers = this.transformers + transformers
         )
     }
+
+    override fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptRunner = this
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,

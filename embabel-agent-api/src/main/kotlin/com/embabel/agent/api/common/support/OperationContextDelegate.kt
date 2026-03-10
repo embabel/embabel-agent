@@ -36,6 +36,7 @@ import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.chat.AssistantMessage
@@ -77,6 +78,7 @@ internal data class OperationContextDelegate(
     private val guardRails: List<GuardRail> = emptyList(),
     private val inspectors: List<ToolLoopInspector> = emptyList(),
     private val transformers: List<ToolLoopTransformer> = emptyList(),
+    private val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
     override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     override val autoDiscovery: Boolean = false,
     override val injectionStrategies: List<ToolInjectionStrategy> = emptyList(),
@@ -140,6 +142,9 @@ internal data class OperationContextDelegate(
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate =
         copy(transformers = this.transformers + transformers)
+
+    override fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptExecutionDelegate =
+        copy(toolNotFoundPolicy = policy)
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
@@ -218,6 +223,7 @@ internal data class OperationContextDelegate(
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
                 inspectors = inspectors,
                 transformers = transformers,
+                toolNotFoundPolicy = toolNotFoundPolicy,
 
             ),
             outputClass = outputClass,
@@ -251,6 +257,7 @@ internal data class OperationContextDelegate(
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
                 inspectors = inspectors,
                 transformers = transformers,
+                toolNotFoundPolicy = toolNotFoundPolicy,
 
             ),
             outputClass = outputClass,
