@@ -71,15 +71,65 @@ class ToolNotFoundPolicyTest {
         }
 
         @Test
-        fun `no suggestion when multiple suffix matches`() {
-            val ambiguousTools = listOf(
-                MockTool("search", "A", { Tool.Result.text("{}") }),
-                MockTool("_search", "B", { Tool.Result.text("{}") }),
+        fun `suggests tool name found via contains match`() {
+            val policy = AutoCorrectionPolicy()
+            val action = policy.handle("my_vectorSearch_v2", tools)
+            val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
+            assertTrue(feedback.contains("Did you mean 'vectorSearch'?"))
+        }
+
+        @Test
+        fun `suggests multiple candidates when more than one match`() {
+            val multiTools = listOf(
+                MockTool("vectorSearch", "Search", { Tool.Result.text("{}") }),
+                MockTool("vectorQuery", "Query", { Tool.Result.text("{}") }),
+                MockTool("unrelated", "Other", { Tool.Result.text("{}") }),
             )
             val policy = AutoCorrectionPolicy()
-            val action = policy.handle("ragbot_search", ambiguousTools)
+            val action = policy.handle("ragbot_vector_tool", multiTools)
+            val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
+            assertTrue(feedback.contains("Possible matches:"))
+            assertTrue(feedback.contains("vectorSearch"))
+            assertTrue(feedback.contains("vectorQuery"))
+            assertFalse(feedback.contains("'unrelated'"))
+        }
+
+        @Test
+        fun `case insensitive contains match`() {
+            val policy = AutoCorrectionPolicy()
+            val action = policy.handle("VECTORSEARCH", tools)
+            val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
+            assertTrue(feedback.contains("Did you mean 'vectorSearch'?"))
+        }
+
+        @Test
+        fun `empty requested name does not suggest matches`() {
+            val policy = AutoCorrectionPolicy()
+            val action = policy.handle("", tools)
             val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
             assertFalse(feedback.contains("Did you mean"))
+            assertFalse(feedback.contains("Possible matches"))
+        }
+
+        @Test
+        fun `very short requested name does not suggest matches`() {
+            val policy = AutoCorrectionPolicy()
+            val action = policy.handle("ab", tools)
+            val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
+            assertFalse(feedback.contains("Did you mean"))
+            assertFalse(feedback.contains("Possible matches"))
+        }
+
+        @Test
+        fun `short tool names are excluded from fuzzy matching`() {
+            val shortTools = listOf(
+                MockTool("ab", "Short", { Tool.Result.text("{}") }),
+                MockTool("vectorSearch", "Search", { Tool.Result.text("{}") }),
+            )
+            val policy = AutoCorrectionPolicy()
+            val action = policy.handle("ab_something", shortTools)
+            val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
+            assertFalse(feedback.contains("'ab'"))
         }
 
         @Test
