@@ -930,8 +930,7 @@ class ToolLoopAdditionalTests {
 
         @Test
         fun `tool not found repeatedly throws ToolNotFoundException after retry limit`() {
-            // Need MAX_TOOL_NOT_FOUND_RETRIES + 1 responses to exhaust retries
-            val retries = DefaultToolLoop.MAX_TOOL_NOT_FOUND_RETRIES + 1
+            val retries = AutoCorrectionPolicy.DEFAULT_MAX_RETRIES + 1
             val mockCaller = MockLlmMessageSender(
                 responses = List(retries) {
                     MockLlmMessageSender.toolCallResponse("call_$it", "nonexistent_tool", "{}")
@@ -1017,7 +1016,7 @@ class ToolLoopAdditionalTests {
         }
 
         @Test
-        fun `tool not found throws immediately when auto-correction disabled`() {
+        fun `tool not found throws immediately with ImmediateThrowPolicy`() {
             val tool = MockTool("real_tool", "A tool", { Tool.Result.text("{}") })
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
@@ -1028,7 +1027,7 @@ class ToolLoopAdditionalTests {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                toolNameAutoCorrection = false,
+                toolNotFoundPolicy = ImmediateThrowPolicy(),
             )
 
             val exception = assertThrows<ToolNotFoundException> {

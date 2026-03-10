@@ -23,6 +23,7 @@ import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.MaxIterationsExceededException
 import com.embabel.agent.spi.loop.ToolCallResult
@@ -30,7 +31,8 @@ import com.embabel.agent.spi.loop.ToolInjectionContext
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolLoop
 import com.embabel.agent.spi.loop.ToolLoopResult
-import com.embabel.agent.spi.loop.ToolNotFoundException
+import com.embabel.agent.spi.loop.ToolNotFoundAction
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
@@ -60,19 +62,10 @@ internal open class DefaultToolLoop(
     protected val inspectors: List<ToolLoopInspector> = emptyList(),
     protected val transformers: List<ToolLoopTransformer> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
-    private val toolNameAutoCorrection: Boolean = true,
+    private val toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
 ) : ToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)
-
-    companion object {
-        /**
-         * Maximum consecutive tool-not-found errors before throwing
-         * [ToolNotFoundException]. Prevents wasting LLM calls when the model
-         * persistently hallucinates tool names.
-         */
-        const val MAX_TOOL_NOT_FOUND_RETRIES = 3
-    }
 
     override fun <O> execute(
         initialMessages: List<Message>,
@@ -249,9 +242,9 @@ internal open class DefaultToolLoop(
         state: LoopState,
     ): Boolean {
         val tool = findTool(state.availableTools, toolCall.name)
-            ?: return handleToolNotFound(toolCall, state)
+            ?: return applyToolNotFoundPolicy(toolCall, state)
 
-        state.toolNotFoundCount = 0 // reset consecutive counter on successful lookup
+        toolNotFoundPolicy.onToolFound()
 
         return try {
             val (result, resultContent) = executeToolCall(tool, toolCall)
@@ -397,7 +390,6 @@ internal open class DefaultToolLoop(
         var replanRequested: Boolean = false,
         var replanReason: String? = null,
         var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
-        var toolNotFoundCount: Int = 0,
     )
 
     /**
@@ -407,52 +399,21 @@ internal open class DefaultToolLoop(
         return tools.find { it.definition.name == name }
     }
 
-    /**
-     * When a tool is not found, feed the error back as a tool result
-     * so the model can self-correct on the next iteration.
-     * Includes a suffix-match suggestion when the model hallucinates an extra prefix
-     * (e.g. "ragbot_docs_vectorSearch" → suggests "docs_vectorSearch").
-     * This commonly occurs when the model reads source code or RAG chunks
-     * that mention tool-like names and conflates them with actual available tools.
-     *
-     * If the model cannot recover (keeps calling non-existent tools),
-     * [ToolNotFoundException] is thrown after [MAX_TOOL_NOT_FOUND_RETRIES] consecutive
-     * failures to prevent wasting LLM calls for the remainder of [maxIterations].
-     */
-    private fun handleToolNotFound(toolCall: ToolCall, state: LoopState): Boolean {
-        val availableNames = state.availableTools.map { it.definition.name }
-
-        if (!toolNameAutoCorrection) {
-            throw ToolNotFoundException(toolCall.name, availableNames)
+    private fun applyToolNotFoundPolicy(toolCall: ToolCall, state: LoopState): Boolean {
+        return when (val action = toolNotFoundPolicy.handle(toolCall.name, state.availableTools)) {
+            is ToolNotFoundAction.Throw -> throw action.exception
+            is ToolNotFoundAction.FeedbackToModel -> {
+                logger.warn(action.message)
+                state.conversationHistory.add(
+                    ToolResultMessage(
+                        toolCallId = toolCall.id,
+                        toolName = toolCall.name,
+                        content = action.message,
+                    )
+                )
+                true
+            }
         }
-
-        state.toolNotFoundCount++
-
-        if (state.toolNotFoundCount > MAX_TOOL_NOT_FOUND_RETRIES) {
-            throw ToolNotFoundException(toolCall.name, availableNames)
-        }
-
-        val suffixMatches = state.availableTools.filter {
-            toolCall.name.endsWith("_${it.definition.name}") || toolCall.name.endsWith(it.definition.name)
-        }
-        val suggestion = if (suffixMatches.size == 1) {
-            " Did you mean '${suffixMatches[0].definition.name}'?"
-        } else {
-            ""
-        }
-        val errorMessage = "Tool '${toolCall.name}' does not exist.$suggestion " +
-            "Available tools: $availableNames. " +
-            "Use the exact tool name from this list. " +
-            "Do not combine or prefix tool names — tool names found in source code or search results are not callable."
-        logger.warn(errorMessage)
-        state.conversationHistory.add(
-            ToolResultMessage(
-                toolCallId = toolCall.id,
-                toolName = toolCall.name,
-                content = errorMessage,
-            )
-        )
-        return true // continue the loop so the model can retry
     }
 
     /**
