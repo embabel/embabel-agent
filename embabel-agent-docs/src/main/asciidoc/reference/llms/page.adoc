@@ -79,6 +79,63 @@ embabel.agent.platform.toolloop.type=parallel
 
 For full list of tool loop configuration parameters please refer to `ToolLoopConfiguration`.
 
+===== Tool-Not-Found Recovery Policy
+
+When the LLM calls a tool by a name that doesn't exist in the available set, the behavior is controlled by `ToolNotFoundPolicy`.
+
+Two built-in policies are provided:
+
+- **`AutoCorrectionPolicy`** (default) — feeds the error back to the LLM so it can self-correct. Includes suffix-match suggestions for hallucinated prefixes (e.g., `ragbot_vectorSearch` → suggests `vectorSearch`). Throws `ToolNotFoundException` after 3 consecutive failures.
+- **`ImmediateThrowPolicy`** — throws `ToolNotFoundException` immediately.
+
+The system-wide default is configured via properties:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      toolloop:
+        tool-name-auto-correction: true  # false selects ImmediateThrowPolicy
+----
+
+For per-interaction control, use `withToolNotFoundPolicy()` on `PromptRunner`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+promptRunner
+    .withToolNotFoundPolicy(new AutoCorrectionPolicy(5))
+    .creating(MyOutput.class)
+    .create(messages);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+promptRunner
+    .withToolNotFoundPolicy(AutoCorrectionPolicy(maxRetries = 5))
+    .creating(MyOutput::class.java)
+    .create(messages)
+----
+====
+
+Custom policies can be implemented by implementing the `ToolNotFoundPolicy` interface:
+
+[source,kotlin]
+----
+class MyFuzzyMatchPolicy : ToolNotFoundPolicy {
+    override fun handle(requestedName: String, availableTools: List<Tool>): ToolNotFoundAction {
+        // Custom fuzzy matching logic
+        ...
+    }
+}
+----
+
 ===== Response Types
 
 The `LlmMessageResponse` contains:
