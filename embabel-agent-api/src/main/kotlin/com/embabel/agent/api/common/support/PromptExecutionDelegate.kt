@@ -25,12 +25,12 @@ import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
-import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmUse
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
