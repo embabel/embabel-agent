@@ -42,6 +42,7 @@ import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
+import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
 import com.embabel.common.textio.template.TemplateRenderer
@@ -1048,8 +1049,7 @@ class ToolLoopLlmOperationsTest {
             val interaction = LlmInteraction(
                 id = InteractionId("byok-test"),
                 tools = emptyList(),
-                llm = LlmOptions(),
-                llmService = byokLlm,
+                llm = LlmOptions(modelSelectionCriteria = PreResolvedModelSelectionCriteria(byokLlm)),
             )
 
             val result = operations.testDoTransform(

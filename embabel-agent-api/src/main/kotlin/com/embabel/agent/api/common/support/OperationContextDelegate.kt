@@ -34,7 +34,6 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
@@ -81,7 +80,6 @@ internal data class OperationContextDelegate(
     override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     override val autoDiscovery: Boolean = false,
     override val injectionStrategies: List<ToolInjectionStrategy> = emptyList(),
-    override val llmService: LlmService<*>? = null,
 ) : PromptExecutionDelegate {
 
     val action = (context as? ActionContext)?.action
@@ -101,8 +99,6 @@ internal data class OperationContextDelegate(
         copy(interactionId = interactionId)
 
     override fun withLlm(llm: LlmOptions): PromptExecutionDelegate = copy(llm = llm)
-
-    override fun withLlmService(llmService: LlmService<*>): PromptExecutionDelegate = copy(llmService = llmService)
 
     override fun withMessages(messages: List<Message>): PromptExecutionDelegate =
         copy(messages = this.messages + messages)
@@ -222,7 +218,7 @@ internal data class OperationContextDelegate(
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
                 inspectors = inspectors,
                 transformers = transformers,
-                llmService = llmService,
+
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -255,7 +251,7 @@ internal data class OperationContextDelegate(
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
                 inspectors = inspectors,
                 transformers = transformers,
-                llmService = llmService,
+
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -369,7 +365,6 @@ internal data class OperationContextDelegate(
             additionalInjectionStrategies = toolConfig.injectionStrategies,
             inspectors = inspectors,
             transformers = transformers,
-            llmService = llmService,
         )
     }
 
@@ -493,7 +488,6 @@ internal data class OperationContextDelegate(
             additionalInjectionStrategies = toolConfig.injectionStrategies,
             inspectors = inspectors,
             transformers = transformers,
-            llmService = llmService,
         )
     }
 

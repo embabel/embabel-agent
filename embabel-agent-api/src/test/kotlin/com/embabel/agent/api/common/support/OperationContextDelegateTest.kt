@@ -26,7 +26,6 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
@@ -109,14 +108,6 @@ class OperationContextDelegateTest {
         }
 
         @Test
-        fun `withLlmService should set llm service`() {
-            val llmService = mockk<LlmService<*>>()
-            val delegate = createDelegateWithDefaults(mockk<OperationContext>())
-                .withLlmService(llmService)
-            assertEquals(llmService, (delegate as OperationContextDelegate).llmService)
-        }
-
-        @Test
         fun `withValidation should set validation flag`() {
             val delegate = createDelegateWithDefaults(mockk<OperationContext>())
                 .withValidation(false)
@@ -156,16 +147,6 @@ class OperationContextDelegateTest {
 
             assertNotSame(delegate1, delegate2, "withLlm should return a new instance")
             assertNotEquals(delegate1.llm, delegate2.llm, "LLM options should differ")
-        }
-
-        @Test
-        fun `withLlmService should not modify original`() {
-            val delegate1 = createDelegateWithDefaults(mockk<OperationContext>())
-            val llmService = mockk<LlmService<*>>()
-            val delegate2 = delegate1.withLlmService(llmService)
-
-            assertNull(delegate1.llmService, "Original delegate should have null llmService")
-            assertEquals(llmService, (delegate2 as OperationContextDelegate).llmService, "New delegate should have llmService set")
         }
 
         @Test

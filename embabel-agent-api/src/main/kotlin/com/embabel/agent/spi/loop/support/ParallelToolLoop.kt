@@ -69,6 +69,7 @@ internal class ParallelToolLoop(
     private val asyncer: Asyncer,
     private val parallelConfig: ParallelModeProperties,
     toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
+    toolNameAutoCorrection: Boolean = true,
 ) : DefaultToolLoop(
     llmMessageSender = llmMessageSender,
     objectMapper = objectMapper,
@@ -78,6 +79,7 @@ internal class ParallelToolLoop(
     inspectors = inspectors,
     transformers = transformers,
     toolCallContext = toolCallContext,
+    toolNameAutoCorrection = toolNameAutoCorrection,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)

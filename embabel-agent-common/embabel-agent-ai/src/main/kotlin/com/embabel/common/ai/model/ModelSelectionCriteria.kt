@@ -52,6 +52,7 @@ class NoSuitableModelException(
     JsonSubTypes.Type(value = FallbackByNameModelSelectionCriteria::class),
     JsonSubTypes.Type(value = AutoModelSelectionCriteria::class),
     JsonSubTypes.Type(value = DefaultModelSelectionCriteria::class),
+    JsonSubTypes.Type(value = PreResolvedModelSelectionCriteria::class),
 )
 sealed interface ModelSelectionCriteria {
 
@@ -80,6 +81,9 @@ sealed interface ModelSelectionCriteria {
 
         @JvmStatic
         val PlatformDefault: ModelSelectionCriteria = DefaultModelSelectionCriteria
+
+        @JvmStatic
+        fun <T : Any> preResolved(resolved: T): ModelSelectionCriteria = PreResolvedModelSelectionCriteria(resolved)
     }
 }
 
@@ -112,4 +116,18 @@ object AutoModelSelectionCriteria : ModelSelectionCriteria {
 
 object DefaultModelSelectionCriteria : ModelSelectionCriteria {
     override fun toString(): String = "DefaultModelSelectionCriteria"
+}
+
+/**
+ * Pre-resolved model selection criteria that wraps an already-resolved service instance,
+ * bypassing [ModelProvider] resolution.
+ * Useful when the caller already has a concrete service instance, for example
+ * in BYOK (bring your own per-user key) scenarios, testing, or dynamic provider selection.
+ * The generic type parameter provides compile-time safety at the construction site,
+ * while the resolution site uses a single localized cast.
+ */
+data class PreResolvedModelSelectionCriteria<T : Any>(
+    @com.fasterxml.jackson.annotation.JsonIgnore val resolved: T,
+) : ModelSelectionCriteria {
+    override fun toString(): String = "PreResolvedModelSelectionCriteria(${resolved::class.simpleName})"
 }

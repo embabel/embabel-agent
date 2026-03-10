@@ -29,6 +29,7 @@ import java.time.Duration
  *       toolloop:
  *         type: default              # default | parallel
  *         max-iterations: 20
+ *         tool-name-auto-correction: false  # enable tool name self-recovery
  *         parallel:
  *           per-tool-timeout: 30s
  *           batch-timeout: 60s
@@ -49,6 +50,7 @@ import java.time.Duration
 data class ToolLoopConfiguration(
     val type: ToolLoopType = ToolLoopType.DEFAULT,
     val maxIterations: Int = 20,
+    val toolNameAutoCorrection: Boolean = true,
     val parallel: ParallelModeProperties = ParallelModeProperties(),
 ) {
     /**

@@ -91,9 +91,11 @@ interface Ai {
 
     /**
      * Get a configurable PromptRunner using a pre-resolved LLM service.
-     * Bypasses ModelProvider resolution — use for BYOK (bring your own key) scenarios.
+     * Bypasses ModelProvider resolution — useful for BYOK (bring your own per-user key) scenarios,
+     * testing, or dynamic provider selection.
      */
-    fun withLlmService(llmService: LlmService<*>): PromptRunner
+    fun withLlmService(llmService: LlmService<*>): PromptRunner =
+        withLlm(LlmOptions(modelSelectionCriteria = PreResolvedModelSelectionCriteria(llmService)))
 }
 
 /**

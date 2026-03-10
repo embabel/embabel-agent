@@ -32,6 +32,7 @@ import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
 import com.embabel.common.core.thinking.ThinkingCapability
@@ -89,9 +90,11 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
 
     /**
      * Use a pre-resolved LLM service, bypassing ModelProvider resolution.
-     * For BYOK (bring your own key) scenarios.
+     * Useful for BYOK (bring your own per-user key) scenarios,
+     * testing, or dynamic provider selection.
      */
-    fun withLlmService(llmService: LlmService<*>): PromptRunner
+    fun withLlmService(llmService: LlmService<*>): PromptRunner =
+        withLlm(LlmOptions(modelSelectionCriteria = PreResolvedModelSelectionCriteria(llmService)))
 
     /**
      * Add a message that will be included in the final prompt.

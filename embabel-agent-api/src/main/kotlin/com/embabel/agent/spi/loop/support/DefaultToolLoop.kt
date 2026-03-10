@@ -60,6 +60,7 @@ internal open class DefaultToolLoop(
     protected val inspectors: List<ToolLoopInspector> = emptyList(),
     protected val transformers: List<ToolLoopTransformer> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
+    private val toolNameAutoCorrection: Boolean = true,
 ) : ToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -419,8 +420,13 @@ internal open class DefaultToolLoop(
      * failures to prevent wasting LLM calls for the remainder of [maxIterations].
      */
     private fun handleToolNotFound(toolCall: ToolCall, state: LoopState): Boolean {
-        state.toolNotFoundCount++
         val availableNames = state.availableTools.map { it.definition.name }
+
+        if (!toolNameAutoCorrection) {
+            throw ToolNotFoundException(toolCall.name, availableNames)
+        }
+
+        state.toolNotFoundCount++
 
         if (state.toolNotFoundCount > MAX_TOOL_NOT_FOUND_RETRIES) {
             throw ToolNotFoundException(toolCall.name, availableNames)
