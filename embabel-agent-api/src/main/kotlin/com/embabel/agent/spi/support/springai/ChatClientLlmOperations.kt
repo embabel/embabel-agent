@@ -180,7 +180,7 @@ internal class ChatClientLlmOperations(
             val springAiLlm = requireSpringAiLlm(llm)
             val chatOptions = springAiLlm.optionsConverter.convertOptions(options)
             val instrumentedModel = InstrumentedChatModel(springAiLlm.chatModel, llmRequestEvent)
-            return SpringAiLlmMessageSender(instrumentedModel, chatOptions)
+            return SpringAiLlmMessageSender(instrumentedModel, chatOptions, springAiLlm.toolResponseContentAdapter)
         }
         return llm.createMessageSender(options)
     }
