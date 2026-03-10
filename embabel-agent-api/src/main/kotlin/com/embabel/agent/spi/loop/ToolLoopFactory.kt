@@ -108,6 +108,7 @@ internal class ConfigurableToolLoopFactory(
             inspectors = inspectors,
             transformers = transformers,
             toolCallContext = toolCallContext,
+            toolNameAutoCorrection = config.toolNameAutoCorrection,
         )
         ToolLoopType.PARALLEL -> ParallelToolLoop(
             llmMessageSender = llmMessageSender,
@@ -120,6 +121,7 @@ internal class ConfigurableToolLoopFactory(
             asyncer = asyncer,
             parallelConfig = config.parallel,
             toolCallContext = toolCallContext,
+            toolNameAutoCorrection = config.toolNameAutoCorrection,
         )
     }
 }

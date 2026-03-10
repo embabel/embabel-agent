@@ -34,6 +34,7 @@ import com.embabel.common.ai.model.AutoModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
+import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
 import jakarta.validation.ConstraintViolation
@@ -411,16 +412,12 @@ abstract class AbstractLlmOperations(
 
             else -> llmOptions.criteria
         }
+        if (crit is PreResolvedModelSelectionCriteria<*>) {
+            @Suppress("UNCHECKED_CAST")
+            return crit.resolved as LlmService<*>
+        }
         return modelProvider.getLlm(crit)
     }
-
-    /**
-     * Choose the LLM for an interaction. If the interaction has a pre-resolved
-     * [LlmInteraction.llmService], use it directly (bypassing ModelProvider).
-     * Otherwise fall back to normal model resolution via [chooseLlm].
-     */
-    protected fun chooseLlmForInteraction(interaction: LlmInteraction): LlmService<*> =
-        interaction.llmService ?: chooseLlm(interaction.llm)
 
     protected abstract fun <O> doTransformIfPossible(
         messages: List<Message>,
@@ -443,7 +440,7 @@ abstract class AbstractLlmOperations(
             action = action,
             outputClass = outputClass,
             interaction = interaction.copy(tools = allTools),
-            llmMetadata = chooseLlmForInteraction(interaction),
+            llmMetadata = chooseLlm(interaction.llm),
             messages = messages,
         )
         agentProcess.processContext.onProcessEvent(llmRequestEvent)

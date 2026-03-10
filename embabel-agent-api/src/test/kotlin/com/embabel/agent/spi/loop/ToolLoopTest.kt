@@ -1017,6 +1017,33 @@ class ToolLoopAdditionalTests {
         }
 
         @Test
+        fun `tool not found throws immediately when auto-correction disabled`() {
+            val tool = MockTool("real_tool", "A tool", { Tool.Result.text("{}") })
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("call_1", "nonexistent_tool", "{}"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                toolNameAutoCorrection = false,
+            )
+
+            val exception = assertThrows<ToolNotFoundException> {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Use a tool")),
+                    initialTools = listOf(tool),
+                    outputParser = { it }
+                )
+            }
+
+            assertEquals("nonexistent_tool", exception.requestedTool)
+            assertTrue(exception.availableTools.contains("real_tool"))
+        }
+
+        @Test
         fun `MaxIterationsExceededException includes iteration count in message`() {
             val mockTool = MockTool(
                 name = "loop_tool",

@@ -23,7 +23,6 @@ import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.experimental.primitive.Determination
-import com.embabel.agent.spi.LlmService
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -158,21 +157,6 @@ class DelegatingStreamingPromptRunnerTest {
             val result = runner.withLlm(llm)
 
             verify { mockDelegate.withLlm(llm) }
-            assertTrue(result is DelegatingStreamingPromptRunner)
-            assertEquals(updatedDelegate, (result as DelegatingStreamingPromptRunner).delegate)
-        }
-
-        @Test
-        fun `withLlmService should delegate and wrap result`() {
-            val updatedDelegate = mockk<PromptExecutionDelegate>()
-            val llmService = mockk<LlmService<*>>()
-
-            every { mockDelegate.withLlmService(llmService) } returns updatedDelegate
-
-            val runner = createPromptRunner()
-            val result = runner.withLlmService(llmService)
-
-            verify { mockDelegate.withLlmService(llmService) }
             assertTrue(result is DelegatingStreamingPromptRunner)
             assertEquals(updatedDelegate, (result as DelegatingStreamingPromptRunner).delegate)
         }

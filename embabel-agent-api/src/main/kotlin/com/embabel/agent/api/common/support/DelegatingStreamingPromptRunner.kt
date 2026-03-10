@@ -30,7 +30,6 @@ import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.experimental.primitive.Determination
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
@@ -83,9 +82,6 @@ internal data class DelegatingStreamingPromptRunner(
 
     override fun withLlm(llm: LlmOptions): PromptRunner =
         copy(delegate = delegate.withLlm(llm))
-
-    override fun withLlmService(llmService: LlmService<*>): PromptRunner =
-        copy(delegate = delegate.withLlmService(llmService))
 
     override fun withMessages(messages: List<Message>): PromptRunner =
         copy(delegate = delegate.withMessages(messages))

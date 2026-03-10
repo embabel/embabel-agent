@@ -32,7 +32,6 @@ import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
@@ -237,10 +236,6 @@ data class FakePromptRunner(
 
         override fun withToolChainingFromAny(): PromptExecutionDelegate = this
 
-        override val llmService: LlmService<*>? = null
-
-        override fun withLlmService(llmService: LlmService<*>): PromptExecutionDelegate = this
-
         override fun <T> createObject(messages: List<Message>, outputClass: Class<T>): T {
             return this@FakePromptRunner.createObject(messages, outputClass)
         }
@@ -387,8 +382,6 @@ data class FakePromptRunner(
 
     override fun withLlm(llm: LlmOptions): PromptRunner =
         copy(llm = llm)
-
-    override fun withLlmService(llmService: LlmService<*>): PromptRunner = this
 
     override fun withToolGroup(toolGroup: ToolGroupRequirement): PromptRunner =
         copy(toolGroups = this.toolGroups + toolGroup)

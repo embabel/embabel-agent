@@ -194,6 +194,10 @@ class ConfigurableModelProvider(
                 defaultLlm
             }
 
+            is PreResolvedModelSelectionCriteria<*> -> {
+                @Suppress("UNCHECKED_CAST")
+                criteria.resolved as LlmService<*>
+            }
         }
 
     override fun getEmbeddingService(criteria: ModelSelectionCriteria): EmbeddingService =

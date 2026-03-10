@@ -24,7 +24,6 @@ import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.core.ToolConsumer
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -134,11 +133,6 @@ data class LlmInteraction(
     val inspectors: List<ToolLoopInspector> = emptyList(),
     val transformers: List<ToolLoopTransformer> = emptyList(),
     val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
-    /**
-     * Optional pre-resolved LLM service. When set, bypasses ModelProvider resolution.
-     * Used for BYOK (bring your own key) scenarios where the caller provides their own LlmService.
-     */
-    val llmService: LlmService<*>? = null,
 ) : LlmCall {
 
     override val name: String = id.value
