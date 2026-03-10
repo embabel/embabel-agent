@@ -176,6 +176,38 @@ class EmbeddingModelsConfig {
 ----
 ====
 
+==== Using a pre-resolved LLM (BYOK)
+
+For scenarios where you already have an `LlmService` instance — such as bring-your-own-key (BYOK) where each user session has a different LLM provider — use `withLlmService()` on `PromptRunner` or `Ai`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+LlmService<?> userLlm = ... // created with user's API key
+promptRunner
+    .withLlmService(userLlm)
+    .creating(MyOutput.class)
+    .create(messages);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val userLlm: LlmService<*> = ... // created with user's API key
+promptRunner
+    .withLlmService(userLlm)
+    .creating(MyOutput::class.java)
+    .create(messages)
+----
+====
+
+Internally, this flows through the same `ModelProvider` / model selection path as all other LLM resolution via `PreResolvedModelSelectionCriteria`.
+No separate resolution path is needed — the pre-resolved service is just another criteria type in the sealed hierarchy.
+
 ==== Configuration via `application.properties` or `application.yml`
 
 You can specify Spring configuration, your own configuration and Embabel configuration in the regular Spring configuration files.
