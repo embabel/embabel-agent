@@ -15,6 +15,9 @@
  */
 package com.embabel.agent.api.tool.config
 
+import com.embabel.agent.spi.loop.AutoCorrectionPolicy
+import com.embabel.agent.spi.loop.ImmediateThrowPolicy
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import java.time.Duration
 import org.springframework.boot.context.properties.ConfigurationProperties
 
@@ -53,6 +56,10 @@ data class ToolLoopConfiguration(
     val toolNameAutoCorrection: Boolean = true,
     val parallel: ParallelModeProperties = ParallelModeProperties(),
 ) {
+
+    fun toolNotFoundPolicy(): ToolNotFoundPolicy =
+        if (toolNameAutoCorrection) AutoCorrectionPolicy() else ImmediateThrowPolicy()
+
     /**
      * Type of tool loop to use.
      */

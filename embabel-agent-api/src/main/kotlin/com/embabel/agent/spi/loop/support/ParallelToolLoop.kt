@@ -24,9 +24,11 @@ import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModeProperties
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
+import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundException
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.ToolCall
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.concurrent.CompletableFuture
@@ -69,7 +71,7 @@ internal class ParallelToolLoop(
     private val asyncer: Asyncer,
     private val parallelConfig: ParallelModeProperties,
     toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
-    toolNameAutoCorrection: Boolean = true,
+    toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
 ) : DefaultToolLoop(
     llmMessageSender = llmMessageSender,
     objectMapper = objectMapper,
@@ -79,7 +81,7 @@ internal class ParallelToolLoop(
     inspectors = inspectors,
     transformers = transformers,
     toolCallContext = toolCallContext,
-    toolNameAutoCorrection = toolNameAutoCorrection,
+    toolNotFoundPolicy = toolNotFoundPolicy,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
