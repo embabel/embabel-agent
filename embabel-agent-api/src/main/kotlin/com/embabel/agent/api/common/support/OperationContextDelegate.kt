@@ -37,6 +37,7 @@ import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.chat.AssistantMessage
@@ -79,6 +80,7 @@ internal data class OperationContextDelegate(
     private val inspectors: List<ToolLoopInspector> = emptyList(),
     private val transformers: List<ToolLoopTransformer> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
+    private val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
     override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     override val autoDiscovery: Boolean = false,
     override val injectionStrategies: List<ToolInjectionStrategy> = emptyList(),
@@ -145,6 +147,9 @@ internal data class OperationContextDelegate(
 
     override fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate =
         copy(toolCallContext = this.toolCallContext.merge(context))
+
+    override fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptExecutionDelegate =
+        copy(toolNotFoundPolicy = policy)
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
@@ -224,6 +229,7 @@ internal data class OperationContextDelegate(
                 inspectors = inspectors,
                 transformers = transformers,
                 toolCallContext = toolCallContext,
+                toolNotFoundPolicy = toolNotFoundPolicy,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -257,6 +263,7 @@ internal data class OperationContextDelegate(
                 inspectors = inspectors,
                 transformers = transformers,
                 toolCallContext = toolCallContext,
+                toolNotFoundPolicy = toolNotFoundPolicy,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,

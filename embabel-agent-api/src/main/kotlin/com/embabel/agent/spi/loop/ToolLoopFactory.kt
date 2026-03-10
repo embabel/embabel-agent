@@ -42,7 +42,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
  *
  * @see Asyncer
  */
-fun interface ToolLoopFactory {
+interface ToolLoopFactory {
 
     /**
      * Create a [ToolLoop] instance.
@@ -65,6 +65,7 @@ fun interface ToolLoopFactory {
         inspectors: List<ToolLoopInspector>,
         transformers: List<ToolLoopTransformer>,
         toolCallContext: ToolCallContext,
+        toolNotFoundPolicy: ToolNotFoundPolicy? = null,
     ): ToolLoop
 
     companion object {
@@ -99,8 +100,9 @@ internal class ConfigurableToolLoopFactory(
         inspectors: List<ToolLoopInspector>,
         transformers: List<ToolLoopTransformer>,
         toolCallContext: ToolCallContext,
+        toolNotFoundPolicy: ToolNotFoundPolicy?,
     ): ToolLoop {
-        val policy = config.toolNotFoundPolicy()
+        val policy = toolNotFoundPolicy ?: config.toolNotFoundPolicy()
         return when (config.type) {
             ToolLoopType.DEFAULT -> DefaultToolLoop(
                 llmMessageSender = llmMessageSender,

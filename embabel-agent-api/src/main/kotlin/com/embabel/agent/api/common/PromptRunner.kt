@@ -28,6 +28,7 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmUse
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
@@ -414,6 +415,17 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      */
     fun withToolCallContext(entries: Map<String, Any>): PromptRunner =
         withToolCallContext(ToolCallContext.of(entries))
+
+    /**
+     * Override the tool-not-found recovery policy for this interaction.
+     * When not set, the system default from configuration is used.
+     *
+     * @param policy the policy to use
+     * @return PromptRunner instance with the specified policy
+     * @see AutoCorrectionPolicy
+     * @see ImmediateThrowPolicy
+     */
+    fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptRunner
 
     /**
      * Returns a mode for creating strongly-typed objects.

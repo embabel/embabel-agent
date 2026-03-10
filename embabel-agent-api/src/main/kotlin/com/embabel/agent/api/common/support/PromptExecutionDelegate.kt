@@ -26,6 +26,7 @@ import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.internal.LlmOperations
@@ -102,6 +103,8 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate
 
     fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate
+
+    fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptExecutionDelegate
 
     val domainToolSources: List<DomainToolSource<*>>
 

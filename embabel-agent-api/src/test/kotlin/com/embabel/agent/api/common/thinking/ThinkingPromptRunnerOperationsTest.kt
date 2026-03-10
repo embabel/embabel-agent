@@ -265,6 +265,8 @@ class ThinkingPromptRunnerOperationsTest {
 
             override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner = this
 
+            override fun withToolNotFoundPolicy(policy: com.embabel.agent.spi.loop.ToolNotFoundPolicy): PromptRunner = this
+
             override fun <T : Any> withToolChainingFrom(
                 type: Class<T>,
                 predicate: com.embabel.agent.api.tool.agentic.DomainToolPredicate<T>,

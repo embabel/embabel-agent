@@ -31,6 +31,7 @@ import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.experimental.primitive.Determination
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
@@ -134,6 +135,9 @@ internal data class DelegatingStreamingPromptRunner(
 
     override fun withToolCallContext(context: ToolCallContext): PromptRunner =
         copy(delegate = delegate.withToolCallContext(context))
+
+    override fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptRunner =
+        copy(delegate = delegate.withToolNotFoundPolicy(policy))
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
