@@ -40,7 +40,9 @@ interface ToolNotFoundPolicy {
      * Called when a tool is found successfully, allowing stateful
      * policies to reset internal counters.
      */
-    fun onToolFound() {}
+    fun onToolFound() {
+        // No-op default for stateless policies
+    }
 }
 
 /**
