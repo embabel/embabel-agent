@@ -21,11 +21,13 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable
 
 class HttpContentFetcherTest {
 
     @Nested
     @Tag("integration")
+    @DisabledIfEnvironmentVariable(named = "CI", matches = "true")
     inner class Integration {
 
         @Test
