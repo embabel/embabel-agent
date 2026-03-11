@@ -99,6 +99,7 @@ data class ToolishRag @JvmOverloads constructor(
     val listener: ResultsListener? = null,
     val metadataFilter: PropertyFilter? = null,
     val entityFilter: EntityFilter? = null,
+    val maxZoomOutChars: Int = ResultExpanderTools.DEFAULT_MAX_ZOOM_OUT_CHARS,
 ) : LlmReference, DelegatingTool, EagerSearch<ToolishRag> {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -139,7 +140,7 @@ data class ToolishRag @JvmOverloads constructor(
             }
             if (searchOperations is ResultExpander) {
                 logger.debug("Adding ResultExpanderTools to ToolishRag '{}'", name)
-                add(ResultExpanderTools(searchOperations))
+                add(ResultExpanderTools(searchOperations, maxZoomOutChars))
             }
             if (searchOperations is RegexSearchOperations) {
                 logger.debug("Adding RegexSearchTools to ToolishRag '{}'", name)
@@ -199,6 +200,13 @@ data class ToolishRag @JvmOverloads constructor(
      */
     fun withEntityFilter(filter: EntityFilter): ToolishRag =
         copy(entityFilter = filter)
+
+    /**
+     * Set the maximum number of characters for zoomOut results before truncation.
+     * Larger values suit LLMs with bigger context windows.
+     */
+    fun withMaxZoomOutChars(maxChars: Int): ToolishRag =
+        copy(maxZoomOutChars = maxChars)
 
     override fun withEagerSearchAbout(request: TextSimilaritySearchRequest): ToolishRag {
         val vs = searchOperations as? VectorSearch

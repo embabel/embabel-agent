@@ -33,8 +33,6 @@ import org.springframework.core.io.Resource
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URI
 import java.nio.charset.Charset
 import java.nio.charset.IllegalCharsetNameException
 import java.nio.charset.UnsupportedCharsetException
@@ -42,8 +40,6 @@ import java.nio.file.Files
 import java.time.Duration
 import java.time.Instant
 import java.util.*
-import java.util.zip.GZIPInputStream
-import java.util.zip.InflaterInputStream
 
 /**
  * Reads various content types using Apache Tika and extracts LeafSection objects containing the actual content.
@@ -52,7 +48,9 @@ import java.util.zip.InflaterInputStream
  * This reader can handle Markdown, HTML, PDF, Word documents, and many other formats
  * supported by Apache Tika and returns a list of LeafSection objects that can be processed for RAG.
  */
-class TikaHierarchicalContentReader : HierarchicalContentReader {
+class TikaHierarchicalContentReader @JvmOverloads constructor(
+    private val contentFetcher: ContentFetcher = HttpContentFetcher(),
+) : HierarchicalContentReader {
 
     private val logger = LoggerFactory.getLogger(javaClass)
     private val parser = AutoDetectParser()
@@ -68,75 +66,20 @@ class TikaHierarchicalContentReader : HierarchicalContentReader {
      * Overrides the default implementation to add browser-like headers for HTTP/HTTPS URLs.
      */
     override fun parseUrl(url: String): MaterializedDocument {
-        // Check if it's an HTTP/HTTPS URL and handle it with proper headers
+        // Check if it's an HTTP/HTTPS URL — delegate to ContentFetcher
         if (url.startsWith("http://") || url.startsWith("https://")) {
-            logger.debug("Fetching URL with custom headers: {}", url)
+            logger.debug("Fetching URL via {}: {}", contentFetcher.javaClass.simpleName, url)
 
-            val uri = URI(url)
-            val connection = uri.toURL().openConnection() as HttpURLConnection
-
-            try {
-                // Set headers to look like a legitimate browser request
-                // Note: Only requesting gzip and deflate which Java handles automatically
-                // Brotli (br) is not supported natively and can cause stream detection issues
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                connection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
-                connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9")
-                connection.setRequestProperty("Accept-Encoding", "gzip, deflate")
-                connection.setRequestProperty("Connection", "keep-alive")
-                connection.setRequestProperty("Upgrade-Insecure-Requests", "1")
-                connection.connectTimeout = 30000 // 30 seconds
-                connection.readTimeout = 30000 // 30 seconds
-
-                connection.connect()
-
-                val responseCode = connection.responseCode
-                if (responseCode != 200) {
-                    logger.warn("Received HTTP {} for URL: {}", responseCode, url)
-                    throw java.io.IOException("Server returned HTTP response code: $responseCode for URL: $url")
-                }
-
-                // Get the Content-Type from the response headers to help with detection
+            val fetchResult = contentFetcher.fetch(url)
+            return fetchResult.inputStream.use { stream ->
                 val metadata = Metadata()
-                val contentType = connection.contentType
-                if (contentType != null) {
-                    // Parse Content-Type header: "text/html; charset=UTF-8"
-                    val parts = contentType.split(";").map { it.trim() }
-                    metadata.set(TikaCoreProperties.CONTENT_TYPE_HINT, parts[0])
-
-                    // Extract charset if present
-                    val charsetPart = parts.find { it.startsWith("charset=", ignoreCase = true) }
-                    if (charsetPart != null) {
-                        val charset = charsetPart.substringAfter("=").trim()
-                        metadata.set("charset", charset)
-                        logger.debug("Server reported Content-Type: {} with charset: {}", parts[0], charset)
-                    } else {
-                        logger.debug("Server reported Content-Type: {}", parts[0])
-                    }
+                if (fetchResult.contentType != null) {
+                    metadata.set(TikaCoreProperties.CONTENT_TYPE_HINT, fetchResult.contentType)
                 }
-
-                // Handle Content-Encoding (gzip, deflate, etc.)
-                val contentEncoding = connection.contentEncoding
-                logger.debug("Content-Encoding: {}", contentEncoding ?: "none")
-
-                return connection.inputStream.use { rawStream ->
-                    // Decompress the stream if needed
-                    val decompressedStream = when (contentEncoding?.lowercase()) {
-                        "gzip" -> {
-                            logger.debug("Decompressing gzip content")
-                            GZIPInputStream(rawStream)
-                        }
-                        "deflate" -> {
-                            logger.debug("Decompressing deflate content")
-                            InflaterInputStream(rawStream)
-                        }
-                        else -> rawStream
-                    }
-
-                    parseContent(decompressedStream, url, metadata)
+                if (fetchResult.charset != null) {
+                    metadata.set("charset", fetchResult.charset)
                 }
-            } finally {
-                connection.disconnect()
+                parseContent(stream, url, metadata)
             }
         }
 
