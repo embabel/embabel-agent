@@ -264,11 +264,6 @@ From `ToolLoopConfiguration` - configuration for tool loop execution.
 |`20`
 |Maximum number of tool loop iterations
 
-|`embabel.agent.platform.toolloop.tool-name-auto-correction`
-|Boolean
-|`true`
-|When true, uses `AutoCorrectionPolicy` (feeds errors back so the LLM can self-correct). When false, uses `ImmediateThrowPolicy` (throws immediately).
-
 |`embabel.agent.platform.toolloop.parallel.per-tool-timeout`
 |Duration
 |`30s`

@@ -88,16 +88,8 @@ Two built-in policies are provided:
 - **`AutoCorrectionPolicy`** (default) — feeds the error back to the LLM so it can self-correct. Uses case-insensitive fuzzy matching to suggest corrections for hallucinated tool names (e.g., `ragbot_vectorSearch` → suggests `vectorSearch`). When multiple candidates match, all are listed. Throws `ToolNotFoundException` after 3 consecutive failures.
 - **`ImmediateThrowPolicy`** — throws `ToolNotFoundException` immediately.
 
-The system-wide default is configured via properties:
-
-[source,yaml]
-----
-embabel:
-  agent:
-    platform:
-      toolloop:
-        tool-name-auto-correction: true  # false selects ImmediateThrowPolicy
-----
+The system-wide default is `AutoCorrectionPolicy`, provided as a Spring bean with `@ConditionalOnMissingBean`.
+To override it globally, define your own `ToolNotFoundPolicy` bean.
 
 For per-interaction control, use `withToolNotFoundPolicy()` on `PromptRunner`:
 

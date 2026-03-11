@@ -75,8 +75,12 @@ interface ToolLoopFactory {
          * @param config the tool loop configuration
          * @param asyncer asyncer for parallel mode with context propagation
          */
-        fun create(config: ToolLoopConfiguration, asyncer: Asyncer): ToolLoopFactory =
-            ConfigurableToolLoopFactory(config, asyncer)
+        fun create(
+            config: ToolLoopConfiguration,
+            asyncer: Asyncer,
+            defaultToolNotFoundPolicy: ToolNotFoundPolicy,
+        ): ToolLoopFactory =
+            ConfigurableToolLoopFactory(config, asyncer, defaultToolNotFoundPolicy)
     }
 }
 
@@ -89,6 +93,7 @@ interface ToolLoopFactory {
 internal class ConfigurableToolLoopFactory(
     private val config: ToolLoopConfiguration,
     private val asyncer: Asyncer,
+    private val defaultToolNotFoundPolicy: ToolNotFoundPolicy,
 ) : ToolLoopFactory {
 
     override fun create(
@@ -102,7 +107,7 @@ internal class ConfigurableToolLoopFactory(
         toolCallContext: ToolCallContext,
         toolNotFoundPolicy: ToolNotFoundPolicy?,
     ): ToolLoop {
-        val policy = toolNotFoundPolicy ?: config.toolNotFoundPolicy()
+        val policy = toolNotFoundPolicy ?: defaultToolNotFoundPolicy
         return when (config.type) {
             ToolLoopType.DEFAULT -> DefaultToolLoop(
                 llmMessageSender = llmMessageSender,
