@@ -1027,7 +1027,7 @@ class ToolLoopAdditionalTests {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                toolNotFoundPolicy = ImmediateThrowPolicy(),
+                toolNotFoundPolicy = ImmediateThrowPolicy,
             )
 
             val exception = assertThrows<ToolNotFoundException> {

@@ -143,7 +143,7 @@ class ToolNotFoundPolicyTest {
 
         @Test
         fun `throws immediately on first call`() {
-            val policy = ImmediateThrowPolicy()
+            val policy = ImmediateThrowPolicy
             val action = policy.handle("bad_tool", tools)
             assertTrue(action is ToolNotFoundAction.Throw)
             val thrown = (action as ToolNotFoundAction.Throw).exception
