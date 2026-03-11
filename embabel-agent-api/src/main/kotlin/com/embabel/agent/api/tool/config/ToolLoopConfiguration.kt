@@ -15,9 +15,6 @@
  */
 package com.embabel.agent.api.tool.config
 
-import com.embabel.agent.spi.loop.AutoCorrectionPolicy
-import com.embabel.agent.spi.loop.ImmediateThrowPolicy
-import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import java.time.Duration
 import org.springframework.boot.context.properties.ConfigurationProperties
 
@@ -32,7 +29,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  *       toolloop:
  *         type: default              # default | parallel
  *         max-iterations: 20
- *         tool-name-auto-correction: false  # enable tool name self-recovery
  *         parallel:
  *           per-tool-timeout: 30s
  *           batch-timeout: 60s
@@ -53,12 +49,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class ToolLoopConfiguration(
     val type: ToolLoopType = ToolLoopType.DEFAULT,
     val maxIterations: Int = 20,
-    val toolNameAutoCorrection: Boolean = true,
     val parallel: ParallelModeProperties = ParallelModeProperties(),
 ) {
-
-    fun toolNotFoundPolicy(): ToolNotFoundPolicy =
-        if (toolNameAutoCorrection) AutoCorrectionPolicy() else ImmediateThrowPolicy()
 
     /**
      * Type of tool loop to use.
