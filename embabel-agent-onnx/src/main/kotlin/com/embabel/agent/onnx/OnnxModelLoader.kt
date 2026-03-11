@@ -32,8 +32,8 @@ object OnnxModelLoader {
 
     private val logger = LoggerFactory.getLogger(OnnxModelLoader::class.java)
 
-    private const val CONNECT_TIMEOUT_MS = 15_000
-    private const val READ_TIMEOUT_MS = 120_000
+    const val DEFAULT_CONNECT_TIMEOUT_MS = 15_000
+    const val DEFAULT_READ_TIMEOUT_MS = 120_000
 
     /**
      * Resolves a model resource, downloading and caching it if necessary.
@@ -41,9 +41,17 @@ object OnnxModelLoader {
      * @param uri HTTPS or file:// URI of the resource
      * @param cacheDir local directory for cached files
      * @param filename name to use for the cached file
+     * @param connectTimeoutMs connection timeout in milliseconds
+     * @param readTimeoutMs read timeout in milliseconds
      * @return path to the local file
      */
-    fun resolve(uri: String, cacheDir: Path, filename: String): Path {
+    fun resolve(
+        uri: String,
+        cacheDir: Path,
+        filename: String,
+        connectTimeoutMs: Int = DEFAULT_CONNECT_TIMEOUT_MS,
+        readTimeoutMs: Int = DEFAULT_READ_TIMEOUT_MS,
+    ): Path {
         val cachedFile = cacheDir.resolve(filename)
 
         if (Files.exists(cachedFile)) {
@@ -63,7 +71,7 @@ object OnnxModelLoader {
         logger.info("Downloading {} to {}", uri, cachedFile)
         val tempFile = Files.createTempFile(cacheDir, filename, ".tmp")
         try {
-            downloadWithRedirects(parsedUri).use { input ->
+            downloadWithRedirects(parsedUri, connectTimeoutMs, readTimeoutMs).use { input ->
                 Files.copy(input, tempFile, StandardCopyOption.REPLACE_EXISTING)
             }
             Files.move(tempFile, cachedFile, StandardCopyOption.ATOMIC_MOVE)
@@ -80,11 +88,11 @@ object OnnxModelLoader {
      * Opens an InputStream from the given URI, following HTTP redirects.
      * HuggingFace uses 302 redirects to CDN URLs.
      */
-    private fun downloadWithRedirects(uri: URI): InputStream {
+    private fun downloadWithRedirects(uri: URI, connectTimeoutMs: Int, readTimeoutMs: Int): InputStream {
         val connection = uri.toURL().openConnection() as java.net.HttpURLConnection
         connection.instanceFollowRedirects = true
-        connection.connectTimeout = CONNECT_TIMEOUT_MS
-        connection.readTimeout = READ_TIMEOUT_MS
+        connection.connectTimeout = connectTimeoutMs
+        connection.readTimeout = readTimeoutMs
         return connection.inputStream
     }
 }

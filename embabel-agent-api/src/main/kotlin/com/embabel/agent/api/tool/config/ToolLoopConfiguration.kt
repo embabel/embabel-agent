@@ -29,6 +29,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  *       toolloop:
  *         type: default              # default | parallel
  *         max-iterations: 20
+ *         tool-not-found:
+ *           max-retries: 3
+ *           min-fuzzy-length: 3
  *         parallel:
  *           per-tool-timeout: 30s
  *           batch-timeout: 60s
@@ -50,6 +53,7 @@ data class ToolLoopConfiguration(
     val type: ToolLoopType = ToolLoopType.DEFAULT,
     val maxIterations: Int = 20,
     val parallel: ParallelModeProperties = ParallelModeProperties(),
+    val toolNotFound: ToolNotFoundProperties = ToolNotFoundProperties(),
 ) {
 
     /**
@@ -123,4 +127,14 @@ data class ToolLoopConfiguration(
         /** Cached thread pool */
         CACHED,
     }
+
+    /**
+     * Properties for tool-not-found auto-correction behavior.
+     */
+    data class ToolNotFoundProperties(
+        /** Maximum consecutive tool-not-found retries before throwing */
+        val maxRetries: Int = 3,
+        /** Minimum tool name length for fuzzy matching */
+        val minFuzzyLength: Int = 3,
+    )
 }

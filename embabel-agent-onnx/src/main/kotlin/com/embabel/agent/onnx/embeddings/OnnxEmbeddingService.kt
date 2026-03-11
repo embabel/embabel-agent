@@ -74,26 +74,23 @@ class OnnxEmbeddingService(
             environment, LongBuffer.wrap(typeIds), longArrayOf(1, seqLen),
         )
 
-        try {
-            val inputs = mapOf(
-                "input_ids" to inputIdsTensor,
-                "attention_mask" to attentionMaskTensor,
-                "token_type_ids" to typeIdsTensor,
-            )
-            val result = session.run(inputs)
-            try {
-                // sentence-transformers ONNX models output last_hidden_state;
-                // apply mean pooling weighted by attention mask.
-                @Suppress("UNCHECKED_CAST")
-                val lastHiddenState = result[0].value as Array<Array<FloatArray>>
-                return meanPool(lastHiddenState[0], attentionMask)
-            } finally {
-                result.close()
+        return inputIdsTensor.use {
+            attentionMaskTensor.use {
+                typeIdsTensor.use {
+                    val inputs = mapOf(
+                        "input_ids" to inputIdsTensor,
+                        "attention_mask" to attentionMaskTensor,
+                        "token_type_ids" to typeIdsTensor,
+                    )
+                    session.run(inputs).use { result ->
+                        // sentence-transformers ONNX models output last_hidden_state;
+                        // apply mean pooling weighted by attention mask.
+                        @Suppress("UNCHECKED_CAST")
+                        val lastHiddenState = result[0].value as Array<Array<FloatArray>>
+                        meanPool(lastHiddenState[0], attentionMask)
+                    }
+                }
             }
-        } finally {
-            inputIdsTensor.close()
-            attentionMaskTensor.close()
-            typeIdsTensor.close()
         }
     }
 
@@ -101,6 +98,7 @@ class OnnxEmbeddingService(
 
     override fun close() {
         session.close()
+        tokenizer.close()
     }
 
     companion object {
