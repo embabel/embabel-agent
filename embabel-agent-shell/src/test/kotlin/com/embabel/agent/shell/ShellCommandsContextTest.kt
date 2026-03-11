@@ -83,6 +83,7 @@ class ShellCommandsContextTest {
             toolsStats = toolsStats,
             context = context,
             shellProperties = ShellProperties(),
+            asyncer =  mockk(relaxed = true)
         )
     }
 
