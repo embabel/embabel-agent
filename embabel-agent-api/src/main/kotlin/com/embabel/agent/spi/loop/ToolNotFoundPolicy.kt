@@ -24,7 +24,7 @@ import com.embabel.agent.api.tool.Tool
  * @see AutoCorrectionPolicy
  * @see ImmediateThrowPolicy
  */
-fun interface ToolNotFoundPolicy {
+interface ToolNotFoundPolicy {
 
     /**
      * Handle a tool-not-found event.
@@ -66,6 +66,7 @@ sealed class ToolNotFoundAction {
  */
 class AutoCorrectionPolicy(
     private val maxRetries: Int = DEFAULT_MAX_RETRIES,
+    private val minFuzzyLength: Int = DEFAULT_MIN_FUZZY_LENGTH,
 ) : ToolNotFoundPolicy {
 
     private var consecutiveFailures = 0
@@ -77,13 +78,13 @@ class AutoCorrectionPolicy(
             return ToolNotFoundAction.Throw(ToolNotFoundException(requestedName, availableNames))
         }
         val requestedLower = requestedName.lowercase()
-        val matches = if (requestedLower.length < MIN_FUZZY_LENGTH) {
+        val matches = if (requestedLower.length < minFuzzyLength) {
             emptyList()
         } else {
-            val requestedTokens = requestedLower.split("_", "-").filter { it.length >= MIN_FUZZY_LENGTH }
+            val requestedTokens = requestedLower.split("_", "-").filter { it.length >= minFuzzyLength }
             availableTools.filter {
                 val nameLower = it.definition.name.lowercase()
-                nameLower.length >= MIN_FUZZY_LENGTH && (
+                nameLower.length >= minFuzzyLength && (
                     requestedLower.contains(nameLower) || nameLower.contains(requestedLower) ||
                         requestedTokens.any { token -> nameLower.contains(token) }
                     )
@@ -107,7 +108,7 @@ class AutoCorrectionPolicy(
 
     companion object {
         const val DEFAULT_MAX_RETRIES = 3
-        const val MIN_FUZZY_LENGTH = 3
+        const val DEFAULT_MIN_FUZZY_LENGTH = 3
     }
 }
 

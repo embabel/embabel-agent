@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.onnx.embeddings
 
+import com.embabel.agent.onnx.OnnxModelLoader
 import com.embabel.agent.onnx.embeddings.OnnxEmbeddingService
 import org.springframework.boot.context.properties.ConfigurationProperties
 
@@ -45,6 +46,12 @@ class OnnxEmbeddingProperties {
 
     /** Logical name for the embedding model (used for bean registration). */
     var modelName: String = OnnxEmbeddingService.DEFAULT_MODEL_NAME
+
+    /** Connection timeout in milliseconds for model downloads. */
+    var connectTimeoutMs: Int = OnnxModelLoader.DEFAULT_CONNECT_TIMEOUT_MS
+
+    /** Read timeout in milliseconds for model downloads. */
+    var readTimeoutMs: Int = OnnxModelLoader.DEFAULT_READ_TIMEOUT_MS
 
     companion object {
         private const val HF_BASE = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main"

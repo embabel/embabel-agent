@@ -203,15 +203,17 @@ class OnnxEmbeddingServiceTest {
         }
 
         @Test
-        fun `close closes session`() {
+        fun `close closes session and tokenizer`() {
             val session = mockk<OrtSession>()
             val tokenizer = mockk<HuggingFaceTokenizer>()
             every { session.close() } returns Unit
+            every { tokenizer.close() } returns Unit
 
             val service = createService(session, tokenizer)
             service.close()
 
             verify { session.close() }
+            verify { tokenizer.close() }
         }
 
         @Test

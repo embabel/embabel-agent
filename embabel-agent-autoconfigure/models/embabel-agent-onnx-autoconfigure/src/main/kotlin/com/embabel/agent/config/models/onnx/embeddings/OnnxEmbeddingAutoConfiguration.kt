@@ -50,8 +50,14 @@ class OnnxEmbeddingAutoConfiguration {
     @Bean
     fun onnxEmbeddingService(properties: OnnxEmbeddingProperties): EmbeddingService {
         val cacheDir = Path.of(properties.cacheDir, properties.modelName)
-        val modelPath = OnnxModelLoader.resolve(properties.modelUri, cacheDir, "model.onnx")
-        val tokenizerPath = OnnxModelLoader.resolve(properties.tokenizerUri, cacheDir, "tokenizer.json")
+        val modelPath = OnnxModelLoader.resolve(
+            properties.modelUri, cacheDir, "model.onnx",
+            properties.connectTimeoutMs, properties.readTimeoutMs,
+        )
+        val tokenizerPath = OnnxModelLoader.resolve(
+            properties.tokenizerUri, cacheDir, "tokenizer.json",
+            properties.connectTimeoutMs, properties.readTimeoutMs,
+        )
 
         logger.info(
             "Initializing ONNX embedding service: model={}, dimensions={}, cache={}",
