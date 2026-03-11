@@ -194,5 +194,83 @@ class RssContentFetcherTest {
             val content = result.inputStream.bufferedReader().readText()
             assertTrue(content.contains("Found by guid"))
         }
+
+        @Test
+        fun `uses Untitled when item has no title element`() {
+            val feedNoTitle = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+                    <channel>
+                        <title>Test Blog</title>
+                        <item>
+                            <link>https://blog.com/pub/no-title-article</link>
+                            <guid>https://blog.com/pub/no-title-article</guid>
+                            <description>Content without a title</description>
+                        </item>
+                    </channel>
+                </rss>
+            """.trimIndent()
+
+            val noTitleServer = HttpServer.create(InetSocketAddress(0), 0)
+            val noTitlePort = noTitleServer.address.port
+            noTitleServer.createContext("/feed") { exchange ->
+                val bytes = feedNoTitle.toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/rss+xml; charset=UTF-8")
+                exchange.sendResponseHeaders(200, bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            }
+            noTitleServer.start()
+
+            try {
+                val fetcher = RssContentFetcher(
+                    feedResolver = FeedResolver { "http://localhost:$noTitlePort/feed" },
+                )
+                val result = fetcher.fetch("https://blog.com/pub/no-title-article")
+
+                val content = result.inputStream.bufferedReader().readText()
+                assertTrue(content.contains("Untitled"))
+                assertTrue(content.contains("Content without a title"))
+            } finally {
+                noTitleServer.stop(0)
+            }
+        }
+
+        @Test
+        fun `throws IOException when matched item has no content or description`() {
+            val feedNoContent = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+                    <channel>
+                        <title>Test Blog</title>
+                        <item>
+                            <title>Empty Article</title>
+                            <link>https://blog.com/pub/empty-article</link>
+                            <guid>https://blog.com/pub/empty-article</guid>
+                        </item>
+                    </channel>
+                </rss>
+            """.trimIndent()
+
+            val emptyServer = HttpServer.create(InetSocketAddress(0), 0)
+            val emptyPort = emptyServer.address.port
+            emptyServer.createContext("/feed") { exchange ->
+                val bytes = feedNoContent.toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/rss+xml; charset=UTF-8")
+                exchange.sendResponseHeaders(200, bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            }
+            emptyServer.start()
+
+            try {
+                val fetcher = RssContentFetcher(
+                    feedResolver = FeedResolver { "http://localhost:$emptyPort/feed" },
+                )
+                assertThrows<IOException> {
+                    fetcher.fetch("https://blog.com/pub/empty-article")
+                }
+            } finally {
+                emptyServer.stop(0)
+            }
+        }
     }
 }

@@ -140,6 +140,46 @@ class HttpContentFetcherTest {
     }
 
     @Nested
+    inner class EdgeCases {
+
+        @Test
+        fun `handles response with no Content-Type header`() {
+            server.createContext("/no-content-type") { exchange ->
+                val bytes = "raw data".toByteArray()
+                exchange.sendResponseHeaders(200, bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            }
+            server.start()
+
+            val result = HttpContentFetcher().fetch("http://localhost:$port/no-content-type")
+
+            val content = result.inputStream.bufferedReader().readText()
+            assertTrue(content.contains("raw data"))
+        }
+
+        @Test
+        fun `handles deflate compressed response`() {
+            val html = "<html><body>Deflate content</body></html>"
+            server.createContext("/deflate") { exchange ->
+                val compressed = java.io.ByteArrayOutputStream().use { baos ->
+                    java.util.zip.DeflaterOutputStream(baos).use { it.write(html.toByteArray()) }
+                    baos.toByteArray()
+                }
+                exchange.responseHeaders.add("Content-Type", "text/html")
+                exchange.responseHeaders.add("Content-Encoding", "deflate")
+                exchange.sendResponseHeaders(200, compressed.size.toLong())
+                exchange.responseBody.use { it.write(compressed) }
+            }
+            server.start()
+
+            val result = HttpContentFetcher().fetch("http://localhost:$port/deflate")
+
+            val content = result.inputStream.bufferedReader().readText()
+            assertTrue(content.contains("Deflate content"))
+        }
+    }
+
+    @Nested
     inner class ContentFetcherInjection {
 
         @Test

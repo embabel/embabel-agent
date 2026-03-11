@@ -74,10 +74,10 @@ class TikaHierarchicalContentReader @JvmOverloads constructor(
             return fetchResult.inputStream.use { stream ->
                 val metadata = Metadata()
                 if (fetchResult.contentType != null) {
-                    metadata.set(TikaCoreProperties.CONTENT_TYPE_HINT, fetchResult.contentType)
+                    metadata[TikaCoreProperties.CONTENT_TYPE_HINT] = fetchResult.contentType
                 }
                 if (fetchResult.charset != null) {
-                    metadata.set("charset", fetchResult.charset)
+                    metadata["charset"] = fetchResult.charset
                 }
                 parseContent(stream, url, metadata)
             }
