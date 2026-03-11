@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.loop
 
 import com.embabel.agent.api.tool.Tool
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Determines how the tool loop responds when the LLM calls a tool
@@ -69,12 +70,12 @@ class AutoCorrectionPolicy(
     private val minFuzzyLength: Int = DEFAULT_MIN_FUZZY_LENGTH,
 ) : ToolNotFoundPolicy {
 
-    private var consecutiveFailures = 0
+    private val consecutiveFailures = AtomicInteger(0)
 
     override fun handle(requestedName: String, availableTools: List<Tool>): ToolNotFoundAction {
-        consecutiveFailures++
+        val failures = consecutiveFailures.incrementAndGet()
         val availableNames = availableTools.map { it.definition.name }
-        if (consecutiveFailures > maxRetries) {
+        if (failures > maxRetries) {
             return ToolNotFoundAction.Throw(ToolNotFoundException(requestedName, availableNames))
         }
         val requestedLower = requestedName.lowercase()
@@ -103,7 +104,7 @@ class AutoCorrectionPolicy(
     }
 
     override fun onToolFound() {
-        consecutiveFailures = 0
+        consecutiveFailures.set(0)
     }
 
     companion object {
@@ -115,7 +116,7 @@ class AutoCorrectionPolicy(
 /**
  * Throws [ToolNotFoundException] immediately on first unknown tool call.
  */
-class ImmediateThrowPolicy : ToolNotFoundPolicy {
+object ImmediateThrowPolicy : ToolNotFoundPolicy {
 
     override fun handle(requestedName: String, availableTools: List<Tool>): ToolNotFoundAction {
         val availableNames = availableTools.map { it.definition.name }
