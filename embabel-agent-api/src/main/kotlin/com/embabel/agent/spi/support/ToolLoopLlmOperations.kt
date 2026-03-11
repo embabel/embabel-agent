@@ -465,6 +465,7 @@ open class ToolLoopLlmOperations(
 
             val injectedToolDecorator = createInjectedToolDecorator(llmRequestEvent, interaction)
             val injectionStrategy = createInjectionStrategy(interaction)
+            val effectiveContext = resolveToolCallContext(llmRequestEvent, interaction)
 
             val toolLoop = toolLoopFactory.create(
                 llmMessageSender = messageSender,
@@ -474,6 +475,7 @@ open class ToolLoopLlmOperations(
                 toolDecorator = injectedToolDecorator,
                 inspectors = interaction.inspectors,
                 transformers = interaction.transformers,
+                toolCallContext = effectiveContext,
             )
 
             // Build MaybeReturn prompt contribution
