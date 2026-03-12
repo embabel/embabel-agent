@@ -19,6 +19,8 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
+import io.mockk.mockk
+import io.mockk.verify
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
@@ -27,8 +29,6 @@ import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
 import com.embabel.chat.UserMessage
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -140,16 +140,14 @@ class ToolLoopTest {
         }
 
         @Test
-        fun `execute feeds error back to model for unknown tool`() {
+        fun `execute throws ToolNotFoundException for unknown tool`() {
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
                     MockLlmMessageSender.toolCallResponse(
                         toolCallId = "call_123",
                         toolName = "unknown_tool",
                         arguments = "{}"
-                    ),
-                    // Model self-corrects and returns a text response
-                    MockLlmMessageSender.textResponse("I could not find that tool."),
+                    )
                 )
             )
 
@@ -158,13 +156,16 @@ class ToolLoopTest {
                 objectMapper = objectMapper,
             )
 
-            val result = toolLoop.execute(
-                initialMessages = listOf(UserMessage("Do something")),
-                initialTools = emptyList(),
-                outputParser = { it }
-            )
+            val exception = assertThrows<ToolNotFoundException> {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Do something")),
+                    initialTools = emptyList(),
+                    outputParser = { it }
+                )
+            }
 
-            assertEquals("I could not find that tool.", result.result)
+            assertEquals("unknown_tool", exception.requestedTool)
+            assertTrue(exception.availableTools.isEmpty())
         }
     }
 
@@ -901,40 +902,14 @@ class ToolLoopAdditionalTests {
     inner class ExceptionDetailsTest {
 
         @Test
-        fun `tool not found feeds error back and model self-corrects`() {
+        fun `ToolNotFoundException includes available tools in message`() {
             val tool1 = MockTool("available_tool_1", "First tool", { Tool.Result.text("{}") })
             val tool2 = MockTool("available_tool_2", "Second tool", { Tool.Result.text("{}") })
 
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
-                    // Model calls a tool that doesn't exist
-                    MockLlmMessageSender.toolCallResponse("call_1", "nonexistent_tool", "{}"),
-                    // After receiving the error feedback, model self-corrects
-                    MockLlmMessageSender.textResponse("Sorry, I used the wrong tool name."),
+                    MockLlmMessageSender.toolCallResponse("call_1", "nonexistent_tool", "{}")
                 )
-            )
-
-            val toolLoop = DefaultToolLoop(
-                llmMessageSender = mockCaller,
-                objectMapper = objectMapper,
-            )
-
-            val result = toolLoop.execute(
-                initialMessages = listOf(UserMessage("Use a tool")),
-                initialTools = listOf(tool1, tool2),
-                outputParser = { it }
-            )
-
-            assertEquals("Sorry, I used the wrong tool name.", result.result)
-        }
-
-        @Test
-        fun `tool not found repeatedly throws ToolNotFoundException after retry limit`() {
-            val retries = AutoCorrectionPolicy.DEFAULT_MAX_RETRIES + 1
-            val mockCaller = MockLlmMessageSender(
-                responses = List(retries) {
-                    MockLlmMessageSender.toolCallResponse("call_$it", "nonexistent_tool", "{}")
-                }
             )
 
             val toolLoop = DefaultToolLoop(
@@ -945,101 +920,16 @@ class ToolLoopAdditionalTests {
             val exception = assertThrows<ToolNotFoundException> {
                 toolLoop.execute(
                     initialMessages = listOf(UserMessage("Use a tool")),
-                    initialTools = listOf(MockTool("real_tool", "A tool", { Tool.Result.text("{}") })),
+                    initialTools = listOf(tool1, tool2),
                     outputParser = { it }
                 )
             }
 
             assertEquals("nonexistent_tool", exception.requestedTool)
-            assertTrue(exception.availableTools.contains("real_tool"))
-        }
-
-        @Test
-        fun `tool not found counter resets after successful tool call`() {
-            val realTool = MockTool("real_tool", "A tool", { Tool.Result.text("""{"ok": true}""") })
-
-            val mockCaller = MockLlmMessageSender(
-                responses = listOf(
-                    // Two not-found errors (under the limit of 3)
-                    MockLlmMessageSender.toolCallResponse("call_1", "bad_tool", "{}"),
-                    MockLlmMessageSender.toolCallResponse("call_2", "bad_tool", "{}"),
-                    // Successful tool call — resets the counter
-                    MockLlmMessageSender.toolCallResponse("call_3", "real_tool", "{}"),
-                    // Two more not-found errors (under the limit again because counter reset)
-                    MockLlmMessageSender.toolCallResponse("call_4", "bad_tool", "{}"),
-                    MockLlmMessageSender.toolCallResponse("call_5", "bad_tool", "{}"),
-                    // Final text response
-                    MockLlmMessageSender.textResponse("Done"),
-                )
-            )
-
-            val toolLoop = DefaultToolLoop(
-                llmMessageSender = mockCaller,
-                objectMapper = objectMapper,
-            )
-
-            val result = toolLoop.execute(
-                initialMessages = listOf(UserMessage("Go")),
-                initialTools = listOf(realTool),
-                outputParser = { it }
-            )
-
-            assertEquals("Done", result.result)
-        }
-
-        @Test
-        fun `tool not found suggests suffix-matched tool name`() {
-            val tool = MockTool("vectorSearch", "Search vectors", { Tool.Result.text("{}") })
-
-            val mockCaller = MockLlmMessageSender(
-                responses = listOf(
-                    // Model hallucinates a prefixed name
-                    MockLlmMessageSender.toolCallResponse("call_1", "ragbot_vectorSearch", "{}"),
-                    // Self-corrects after suggestion
-                    MockLlmMessageSender.toolCallResponse("call_2", "vectorSearch", "{}"),
-                    MockLlmMessageSender.textResponse("Found results"),
-                )
-            )
-
-            val toolLoop = DefaultToolLoop(
-                llmMessageSender = mockCaller,
-                objectMapper = objectMapper,
-            )
-
-            val result = toolLoop.execute(
-                initialMessages = listOf(UserMessage("Search")),
-                initialTools = listOf(tool),
-                outputParser = { it }
-            )
-
-            assertEquals("Found results", result.result)
-        }
-
-        @Test
-        fun `tool not found throws immediately with ImmediateThrowPolicy`() {
-            val tool = MockTool("real_tool", "A tool", { Tool.Result.text("{}") })
-            val mockCaller = MockLlmMessageSender(
-                responses = listOf(
-                    MockLlmMessageSender.toolCallResponse("call_1", "nonexistent_tool", "{}"),
-                )
-            )
-
-            val toolLoop = DefaultToolLoop(
-                llmMessageSender = mockCaller,
-                objectMapper = objectMapper,
-                toolNotFoundPolicy = ImmediateThrowPolicy,
-            )
-
-            val exception = assertThrows<ToolNotFoundException> {
-                toolLoop.execute(
-                    initialMessages = listOf(UserMessage("Use a tool")),
-                    initialTools = listOf(tool),
-                    outputParser = { it }
-                )
-            }
-
-            assertEquals("nonexistent_tool", exception.requestedTool)
-            assertTrue(exception.availableTools.contains("real_tool"))
+            assertEquals(listOf("available_tool_1", "available_tool_2"), exception.availableTools)
+            assertTrue(exception.message!!.contains("nonexistent_tool"))
+            assertTrue(exception.message!!.contains("available_tool_1"))
+            assertTrue(exception.message!!.contains("available_tool_2"))
         }
 
         @Test

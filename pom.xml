@@ -34,7 +34,6 @@
         <module>embabel-agent-starters</module>
         <module>embabel-agent-test-support</module>
         <module>embabel-agent-openai</module>
-        <module>embabel-agent-onnx</module>
     </modules>
 
     <scm>

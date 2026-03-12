@@ -17,13 +17,8 @@ package com.embabel.agent.spi.config.spring
 
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ToolLoopType
-import com.embabel.agent.spi.loop.AutoCorrectionPolicy
-import com.embabel.agent.spi.loop.ImmediateThrowPolicy
-import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.util.concurrent.Executors
 
@@ -34,41 +29,23 @@ class ToolLoopFactoryConfigurationTest {
 
     private val asyncer = ExecutorAsyncer(Executors.newCachedThreadPool())
 
-    @Nested
-    inner class ToolLoopFactoryBean {
+    @Test
+    fun `creates ToolLoopFactory bean with default config`() {
+        val config = ToolLoopConfiguration()
+        val configuration = ToolLoopFactoryConfiguration(config)
 
-        @Test
-        fun `creates ToolLoopFactory bean with default config`() {
-            val config = ToolLoopConfiguration()
-            val configuration = ToolLoopFactoryConfiguration(config)
+        val factory = configuration.toolLoopFactory(asyncer)
 
-            val factory = configuration.toolLoopFactory(asyncer, AutoCorrectionPolicy())
-
-            assertNotNull(factory)
-        }
-
-        @Test
-        fun `creates ToolLoopFactory bean with parallel config`() {
-            val config = ToolLoopConfiguration(type = ToolLoopType.PARALLEL)
-            val configuration = ToolLoopFactoryConfiguration(config)
-
-            val factory = configuration.toolLoopFactory(asyncer, AutoCorrectionPolicy())
-
-            assertNotNull(factory)
-        }
+        assertNotNull(factory)
     }
 
-    @Nested
-    inner class ToolNotFoundPolicyBean {
+    @Test
+    fun `creates ToolLoopFactory bean with parallel config`() {
+        val config = ToolLoopConfiguration(type = ToolLoopType.PARALLEL)
+        val configuration = ToolLoopFactoryConfiguration(config)
 
-        @Test
-        fun `default policy is AutoCorrectionPolicy`() {
-            val config = ToolLoopConfiguration()
-            val configuration = ToolLoopFactoryConfiguration(config)
+        val factory = configuration.toolLoopFactory(asyncer)
 
-            val policy: ToolNotFoundPolicy = configuration.toolNotFoundPolicy()
-
-            assertTrue(policy is AutoCorrectionPolicy)
-        }
+        assertNotNull(factory)
     }
 }

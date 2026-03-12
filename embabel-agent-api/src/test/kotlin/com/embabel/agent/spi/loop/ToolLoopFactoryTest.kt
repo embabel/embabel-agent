@@ -37,12 +37,11 @@ class ToolLoopFactoryTest {
     private val objectMapper = ObjectMapper()
     private val injectionStrategy = ToolInjectionStrategy.NONE
     private val asyncer = ExecutorAsyncer(Executors.newFixedThreadPool(4))
-    private val defaultPolicy = AutoCorrectionPolicy()
 
     @Test
     fun `creates DefaultToolLoop for default type`() {
         val config = ToolLoopConfiguration()
-        val factory = ToolLoopFactory.create(config, asyncer, defaultPolicy)
+        val factory = ToolLoopFactory.create(config, asyncer)
 
         val toolLoop = factory.create(
             llmMessageSender = mockMessageSender,
@@ -62,7 +61,7 @@ class ToolLoopFactoryTest {
     @Test
     fun `creates ParallelToolLoop for parallel type`() {
         val config = ToolLoopConfiguration(type = ToolLoopType.PARALLEL)
-        val factory = ToolLoopFactory.create(config, asyncer, defaultPolicy)
+        val factory = ToolLoopFactory.create(config, asyncer)
 
         val toolLoop = factory.create(
             llmMessageSender = mockMessageSender,
@@ -85,7 +84,7 @@ class ToolLoopFactoryTest {
             type = ToolLoopType.DEFAULT,
             maxIterations = 10,
         )
-        val factory = ToolLoopFactory.create(config, asyncer, defaultPolicy)
+        val factory = ToolLoopFactory.create(config, asyncer)
 
         val toolLoop = factory.create(
             llmMessageSender = mockMessageSender,

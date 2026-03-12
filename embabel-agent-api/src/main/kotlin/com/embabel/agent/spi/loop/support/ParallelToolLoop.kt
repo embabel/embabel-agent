@@ -19,23 +19,21 @@ import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
-import com.embabel.agent.api.tool.callback.ToolLoopInspector
-import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModeProperties
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
-import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundException
-import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.ToolCall
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
+import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.jetbrains.annotations.ApiStatus
+import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import org.jetbrains.annotations.ApiStatus
-import org.slf4j.LoggerFactory
 
 /**
  * Experimental [com.embabel.agent.spi.loop.ToolLoop] implementation that executes
@@ -71,7 +69,6 @@ internal class ParallelToolLoop(
     private val asyncer: Asyncer,
     private val parallelConfig: ParallelModeProperties,
     toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
-    toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
 ) : DefaultToolLoop(
     llmMessageSender = llmMessageSender,
     objectMapper = objectMapper,
@@ -81,7 +78,6 @@ internal class ParallelToolLoop(
     inspectors = inspectors,
     transformers = transformers,
     toolCallContext = toolCallContext,
-    toolNotFoundPolicy = toolNotFoundPolicy,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)

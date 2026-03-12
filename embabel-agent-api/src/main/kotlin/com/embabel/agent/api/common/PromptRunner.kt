@@ -26,14 +26,11 @@ import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
 import com.embabel.agent.core.support.LlmUse
-import com.embabel.agent.spi.LlmService
-import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
-import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.ai.prompt.PromptContributor
 import com.embabel.common.ai.prompt.PromptElement
 import com.embabel.common.core.thinking.ThinkingCapability
@@ -88,14 +85,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * Specify an LLM for the PromptRunner
      */
     fun withLlm(llm: LlmOptions): PromptRunner
-
-    /**
-     * Use a pre-resolved LLM service, bypassing ModelProvider resolution.
-     * Useful for BYOK (bring your own per-user key) scenarios,
-     * testing, or dynamic provider selection.
-     */
-    fun withLlmService(llmService: LlmService<*>): PromptRunner =
-        withLlm(LlmOptions(modelSelectionCriteria = PreResolvedModelSelectionCriteria(llmService)))
 
     /**
      * Add a message that will be included in the final prompt.
@@ -370,17 +359,6 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * @return PromptRunner instance with the added transformers
      */
     fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner
-
-    /**
-     * Override the tool-not-found recovery policy for this interaction.
-     * When not set, the system default from configuration is used.
-     *
-     * @param policy the policy to use
-     * @return PromptRunner instance with the specified policy
-     * @see AutoCorrectionPolicy
-     * @see ImmediateThrowPolicy
-     */
-    fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptRunner
 
     /**
      * Returns a mode for creating strongly-typed objects.

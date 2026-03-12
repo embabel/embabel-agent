@@ -37,7 +37,6 @@
         <module>models/embabel-agent-gemini-autoconfigure</module>
         <module>models/embabel-agent-google-genai-autoconfigure</module>
         <module>models/embabel-agent-mistral-ai-autoconfigure</module>
-        <module>models/embabel-agent-onnx-autoconfigure</module>
     </modules>
 
     <dependencies>

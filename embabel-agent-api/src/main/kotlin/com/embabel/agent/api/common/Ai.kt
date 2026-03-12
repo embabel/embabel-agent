@@ -17,7 +17,6 @@ package com.embabel.agent.api.common
 
 import com.embabel.agent.core.LlmVerbosity
 import com.embabel.agent.core.ProcessOptions
-import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.*
 
 typealias Embedding = FloatArray
@@ -88,14 +87,6 @@ interface Ai {
     fun withFirstAvailableLlmOf(vararg llms: String): PromptRunner {
         return withLlm(LlmOptions(criteria = FallbackByNameModelSelectionCriteria(llms.toList())))
     }
-
-    /**
-     * Get a configurable PromptRunner using a pre-resolved LLM service.
-     * Bypasses ModelProvider resolution — useful for BYOK (bring your own per-user key) scenarios,
-     * testing, or dynamic provider selection.
-     */
-    fun withLlmService(llmService: LlmService<*>): PromptRunner =
-        withLlm(LlmOptions(modelSelectionCriteria = PreResolvedModelSelectionCriteria(llmService)))
 }
 
 /**

@@ -47,7 +47,7 @@ class ClonedRepositoryReference(
 ) : AutoCloseable, FileReadTools, SymbolSearch, FileReadLog by DefaultFileReadLog(), LlmReference {
 
     override val name: String
-        get() = url.substringAfterLast('/').removeSuffix(".git")
+        get() = url.substringAfterLast('/')
 
     override val fileContentTransformers: List<StringTransformer>
         get() = listOf(WellKnownFileContentTransformers.removeApacheLicenseHeader)

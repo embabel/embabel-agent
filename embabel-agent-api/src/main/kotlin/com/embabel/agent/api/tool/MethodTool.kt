@@ -20,6 +20,8 @@ import com.embabel.agent.api.annotation.LlmTool.Param
 import com.embabel.agent.api.tool.VictoolsSchemaGenerator.ParameterInfo
 import com.embabel.agent.core.ReplanRequestedException
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
+import org.springframework.util.ReflectionUtils
 import java.lang.reflect.Method
 import java.lang.reflect.Type
 import kotlin.reflect.KFunction
@@ -27,8 +29,6 @@ import kotlin.reflect.KParameter
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
-import org.slf4j.LoggerFactory
-import org.springframework.util.ReflectionUtils
 
 /**
  * Tool implementation that wraps a method annotated with [@LlmTool].
@@ -113,18 +113,12 @@ internal sealed class MethodTool(
             return value
         }
 
-        // Handle numeric conversions from JSON.
-        // Jackson often returns Int/Double, but LLMs may also send numbers as strings
-        // (e.g. "5" instead of 5), so we coerce string-wrapped numbers too.
+        // Handle numeric conversions from JSON (Jackson often returns Int/Double)
         return when (targetType) {
-            Int::class.java, Integer::class.java ->
-                (value as? Number)?.toInt() ?: (value as? String)?.toIntOrNull() ?: value
-            Long::class.java, java.lang.Long::class.java ->
-                (value as? Number)?.toLong() ?: (value as? String)?.toLongOrNull() ?: value
-            Double::class.java, java.lang.Double::class.java ->
-                (value as? Number)?.toDouble() ?: (value as? String)?.toDoubleOrNull() ?: value
-            Float::class.java, java.lang.Float::class.java ->
-                (value as? Number)?.toFloat() ?: (value as? String)?.toFloatOrNull() ?: value
+            Int::class.java, Integer::class.java -> (value as? Number)?.toInt() ?: value
+            Long::class.java, java.lang.Long::class.java -> (value as? Number)?.toLong() ?: value
+            Double::class.java, java.lang.Double::class.java -> (value as? Number)?.toDouble() ?: value
+            Float::class.java, java.lang.Float::class.java -> (value as? Number)?.toFloat() ?: value
             Boolean::class.java, java.lang.Boolean::class.java -> value as? Boolean ?: value.toString().toBoolean()
             String::class.java -> value.toString()
             else -> {

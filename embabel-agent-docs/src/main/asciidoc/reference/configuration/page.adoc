@@ -246,36 +246,6 @@ From `AgentPlatformProperties.LlmOperationsConfig` - configuration for LLM opera
 
 |===
 
-===== Tool Loop
-
-From `ToolLoopConfiguration` - configuration for tool loop execution.
-
-[cols="3,2,1,4",options="header"]
-|===
-|Property |Type |Default |Description
-
-|`embabel.agent.platform.toolloop.type`
-|String
-|`default`
-|Tool loop type: `default` (sequential) or `parallel` (experimental)
-
-|`embabel.agent.platform.toolloop.max-iterations`
-|Int
-|`20`
-|Maximum number of tool loop iterations
-
-|`embabel.agent.platform.toolloop.parallel.per-tool-timeout`
-|Duration
-|`30s`
-|Timeout for individual tool execution in parallel mode
-
-|`embabel.agent.platform.toolloop.parallel.batch-timeout`
-|Duration
-|`60s`
-|Timeout for entire batch of parallel tools
-
-|===
-
 ===== Process ID Generation
 
 From `AgentPlatformProperties.ProcessIdGenerationConfig` - configuration for process ID generation.
@@ -656,46 +626,6 @@ From `BedrockProperties` - AWS Bedrock model configuration properties.
 |Double
 |`0.0`
 |Output token price
-
-|===
-
-====== ONNX Embeddings
-
-From `OnnxEmbeddingProperties` - configuration for local ONNX embedding models.
-
-[cols="3,2,1,4",options="header"]
-|===
-|Property |Type |Default |Description
-
-|`embabel.agent.platform.models.onnx.embeddings.enabled`
-|Boolean
-|`true`
-|Whether to enable ONNX embedding service
-
-|`embabel.agent.platform.models.onnx.embeddings.model-uri`
-|String
-|_(HuggingFace all-MiniLM-L6-v2)_
-|URI to the ONNX model file (HuggingFace URL or `file://` path)
-
-|`embabel.agent.platform.models.onnx.embeddings.tokenizer-uri`
-|String
-|_(HuggingFace all-MiniLM-L6-v2)_
-|URI to the tokenizer JSON file
-
-|`embabel.agent.platform.models.onnx.embeddings.dimensions`
-|Int
-|`384`
-|Embedding dimensions
-
-|`embabel.agent.platform.models.onnx.embeddings.model-name`
-|String
-|`all-MiniLM-L6-v2`
-|Name for the embedding model
-
-|`embabel.agent.platform.models.onnx.embeddings.cache-dir`
-|String
-|`~/.embabel/models`
-|Local cache directory for downloaded model files
 
 |===
 

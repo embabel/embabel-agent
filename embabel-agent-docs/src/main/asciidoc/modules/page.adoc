@@ -82,12 +82,6 @@ The following are modules intended for direct use (versus supporting infrastruct
 | Structured outputs, response format
 | Stable
 
-| `embabel-agent-onnx`
-| This repo
-| Local ONNX Runtime inference
-| Local embedding models via ONNX Runtime. Default: `all-MiniLM-L6-v2`
-| Incubating
-
 | `embabel-agent-remote`
 | This repo
 | Remote action support
@@ -187,12 +181,6 @@ The following are modules intended for direct use (versus supporting infrastruct
 | Ollama starter
 | Quick start with local Ollama
 | Stable
-
-| `embabel-agent-starter-onnx`
-| This repo
-| ONNX starter
-| Add local ONNX embedding models
-| Incubating
 
 | `embabel-agent-starter-shell`
 | This repo

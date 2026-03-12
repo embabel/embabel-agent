@@ -34,19 +34,18 @@ import com.embabel.common.ai.model.AutoModelSelectionCriteria
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
-import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.lang.reflect.Field
 import java.time.Duration
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.function.Predicate
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 
 // Log message constants to avoid duplication
 private const val LLM_TIMEOUT_MESSAGE = "LLM {}: attempt {} timed out after {}ms"
@@ -412,10 +411,6 @@ abstract class AbstractLlmOperations(
 
             else -> llmOptions.criteria
         }
-        if (crit is PreResolvedModelSelectionCriteria<*>) {
-            @Suppress("UNCHECKED_CAST")
-            return crit.resolved as LlmService<*>
-        }
         return modelProvider.getLlm(crit)
     }
 
@@ -440,7 +435,7 @@ abstract class AbstractLlmOperations(
             action = action,
             outputClass = outputClass,
             interaction = interaction.copy(tools = allTools),
-            llmMetadata = chooseLlm(interaction.llm),
+            llmMetadata = chooseLlm(llmOptions = interaction.llm),
             messages = messages,
         )
         agentProcess.processContext.onProcessEvent(llmRequestEvent)

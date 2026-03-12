@@ -30,7 +30,6 @@ import com.embabel.agent.core.Operation
 import com.embabel.agent.core.ProcessContext
 import com.embabel.agent.core.ToolGroupConsumer
 import com.embabel.agent.core.ToolGroupRequirement
-import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelSelectionCriteria
@@ -238,9 +237,5 @@ internal class OperationContextAi(
 
     override fun withLlm(llm: LlmOptions): PromptRunner {
         return context.promptRunner().withLlm(llm)
-    }
-
-    override fun withLlmService(llmService: LlmService<*>): PromptRunner {
-        return context.promptRunner().withLlmService(llmService)
     }
 }
