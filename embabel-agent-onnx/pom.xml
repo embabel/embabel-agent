@@ -31,6 +31,12 @@
             <artifactId>embabel-agent-ai</artifactId>
         </dependency>
 
+        <!-- RestClient for model downloads -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+
         <!-- ONNX Runtime for model inference -->
         <dependency>
             <groupId>com.microsoft.onnxruntime</groupId>

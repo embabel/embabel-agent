@@ -1,1 +1,1 @@
-com.embabel.agent.config.models.onnx.OnnxAutoConfiguration
+com.embabel.agent.autoconfigure.models.onnx.AgentOnnxAutoConfiguration

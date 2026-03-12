@@ -20,8 +20,8 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import com.embabel.common.ai.model.EmbeddingService
+import com.embabel.common.ai.model.EmbeddingServiceMetadata
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer
 import java.nio.LongBuffer
 import java.nio.file.Path
 
@@ -30,7 +30,7 @@ import java.nio.file.Path
  *
  * Default model: all-MiniLM-L6-v2 (384 dimensions).
  */
-@JsonSerialize(`as` = com.embabel.common.ai.model.EmbeddingServiceMetadata::class)
+@JsonSerialize(`as` = EmbeddingServiceMetadata::class)
 class OnnxEmbeddingService(
     private val environment: OrtEnvironment,
     private val session: OrtSession,
@@ -39,41 +39,30 @@ class OnnxEmbeddingService(
     override val name: String = DEFAULT_MODEL_NAME,
 ) : EmbeddingService, AutoCloseable {
 
-    /**
-     * Convenience constructor that creates the ONNX environment, session and tokenizer from file paths.
-     */
-    constructor(
-        modelPath: Path,
-        tokenizerPath: Path,
-        dimensions: Int = DEFAULT_DIMENSIONS,
-        name: String = DEFAULT_MODEL_NAME,
-    ) : this(
-        environment = OrtEnvironment.getEnvironment(),
-        session = OrtEnvironment.getEnvironment().createSession(modelPath.toString()),
-        tokenizer = HuggingFaceTokenizer.newInstance(tokenizerPath),
-        dimensions = dimensions,
-        name = name,
-    )
-
     override val provider: String = PROVIDER
 
-    override fun embed(text: String): FloatArray {
-        val encoding = tokenizer.encode(text)
-        val inputIds = encoding.ids
-        val attentionMask = encoding.attentionMask
-        val typeIds = encoding.typeIds
-        val seqLen = inputIds.size.toLong()
+    override fun embed(text: String): FloatArray = embed(listOf(text)).first()
 
-        val inputIdsTensor = OnnxTensor.createTensor(
-            environment, LongBuffer.wrap(inputIds), longArrayOf(1, seqLen),
-        )
-        val attentionMaskTensor = OnnxTensor.createTensor(
-            environment, LongBuffer.wrap(attentionMask), longArrayOf(1, seqLen),
-        )
-        val typeIdsTensor = OnnxTensor.createTensor(
-            environment, LongBuffer.wrap(typeIds), longArrayOf(1, seqLen),
-        )
-
+    override fun embed(texts: List<String>): List<FloatArray> {
+        if (texts.isEmpty()) return emptyList()
+        val encodings = texts.map { tokenizer.encode(it) }
+        val batchSize = encodings.size
+        val maxSeqLen = encodings.maxOf { it.ids.size }
+        val allInputIds = LongArray(batchSize * maxSeqLen)
+        val allAttentionMask = LongArray(batchSize * maxSeqLen)
+        val allTypeIds = LongArray(batchSize * maxSeqLen)
+        for (i in encodings.indices) {
+            val enc = encodings[i]
+            val offset = i * maxSeqLen
+            enc.ids.copyInto(allInputIds, offset)
+            enc.attentionMask.copyInto(allAttentionMask, offset)
+            enc.typeIds.copyInto(allTypeIds, offset)
+            // Remaining positions stay 0 (padding)
+        }
+        val shape = longArrayOf(batchSize.toLong(), maxSeqLen.toLong())
+        val inputIdsTensor = OnnxTensor.createTensor(environment, LongBuffer.wrap(allInputIds), shape)
+        val attentionMaskTensor = OnnxTensor.createTensor(environment, LongBuffer.wrap(allAttentionMask), shape)
+        val typeIdsTensor = OnnxTensor.createTensor(environment, LongBuffer.wrap(allTypeIds), shape)
         return inputIdsTensor.use {
             attentionMaskTensor.use {
                 typeIdsTensor.use {
@@ -83,18 +72,17 @@ class OnnxEmbeddingService(
                         "token_type_ids" to typeIdsTensor,
                     )
                     session.run(inputs).use { result ->
-                        // sentence-transformers ONNX models output last_hidden_state;
-                        // apply mean pooling weighted by attention mask.
                         @Suppress("UNCHECKED_CAST")
                         val lastHiddenState = result[0].value as Array<Array<FloatArray>>
-                        meanPool(lastHiddenState[0], attentionMask)
+                        encodings.indices.map { i ->
+                            val paddedMask = allAttentionMask.copyOfRange(i * maxSeqLen, (i + 1) * maxSeqLen)
+                            meanPool(lastHiddenState[i], paddedMask)
+                        }
                     }
                 }
             }
         }
     }
-
-    override fun embed(texts: List<String>): List<FloatArray> = texts.map { embed(it) }
 
     override fun close() {
         session.close()
@@ -106,14 +94,27 @@ class OnnxEmbeddingService(
         const val DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
         const val DEFAULT_DIMENSIONS = 384
 
-        /**
-         * Mean pooling: average token embeddings weighted by attention mask.
-         */
+        @JvmStatic
+        fun create(
+            modelPath: Path,
+            tokenizerPath: Path,
+            dimensions: Int = DEFAULT_DIMENSIONS,
+            name: String = DEFAULT_MODEL_NAME,
+        ): OnnxEmbeddingService {
+            val env = OrtEnvironment.getEnvironment()
+            return OnnxEmbeddingService(
+                environment = env,
+                session = env.createSession(modelPath.toString()),
+                tokenizer = HuggingFaceTokenizer.newInstance(tokenizerPath),
+                dimensions = dimensions,
+                name = name,
+            )
+        }
+
         internal fun meanPool(tokenEmbeddings: Array<FloatArray>, attentionMask: LongArray): FloatArray {
             val dim = tokenEmbeddings[0].size
             val result = FloatArray(dim)
             var maskSum = 0f
-
             for (i in tokenEmbeddings.indices) {
                 val mask = attentionMask[i].toFloat()
                 maskSum += mask
@@ -121,13 +122,11 @@ class OnnxEmbeddingService(
                     result[j] += tokenEmbeddings[i][j] * mask
                 }
             }
-
             if (maskSum > 0f) {
                 for (j in 0 until dim) {
                     result[j] /= maskSum
                 }
             }
-
             return result
         }
     }

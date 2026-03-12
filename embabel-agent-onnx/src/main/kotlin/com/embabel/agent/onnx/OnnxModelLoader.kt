@@ -15,12 +15,11 @@
  */
 package com.embabel.agent.onnx
 
-import java.io.InputStream
-import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import org.slf4j.LoggerFactory
+import org.springframework.web.client.RestClient
 
 /**
  * Shared utility for downloading and caching ONNX model files.
@@ -32,67 +31,54 @@ object OnnxModelLoader {
 
     private val logger = LoggerFactory.getLogger(OnnxModelLoader::class.java)
 
-    const val DEFAULT_CONNECT_TIMEOUT_MS = 15_000
-    const val DEFAULT_READ_TIMEOUT_MS = 120_000
-
     /**
      * Resolves a model resource, downloading and caching it if necessary.
      *
      * @param uri HTTPS or file:// URI of the resource
      * @param cacheDir local directory for cached files
      * @param filename name to use for the cached file
-     * @param connectTimeoutMs connection timeout in milliseconds
-     * @param readTimeoutMs read timeout in milliseconds
+     * @param restClient RestClient to use for HTTP downloads
      * @return path to the local file
      */
     fun resolve(
         uri: String,
         cacheDir: Path,
         filename: String,
-        connectTimeoutMs: Int = DEFAULT_CONNECT_TIMEOUT_MS,
-        readTimeoutMs: Int = DEFAULT_READ_TIMEOUT_MS,
+        restClient: RestClient = RestClient.create(),
     ): Path {
         val cachedFile = cacheDir.resolve(filename)
-
         if (Files.exists(cachedFile)) {
             logger.debug("Using cached file: {}", cachedFile)
             return cachedFile
         }
-
         Files.createDirectories(cacheDir)
-
-        val parsedUri = URI(uri)
+        val parsedUri = java.net.URI(uri)
         if (parsedUri.scheme == "file") {
             val localPath = Path.of(parsedUri)
             require(Files.exists(localPath)) { "Local file not found: $localPath" }
             return localPath
         }
-
         logger.info("Downloading {} to {}", uri, cachedFile)
         val tempFile = Files.createTempFile(cacheDir, filename, ".tmp")
         try {
-            downloadWithRedirects(parsedUri, connectTimeoutMs, readTimeoutMs).use { input ->
-                Files.copy(input, tempFile, StandardCopyOption.REPLACE_EXISTING)
-            }
+            restClient.get()
+                .uri(parsedUri)
+                .exchange { _, response ->
+                    if (response.statusCode.isError) {
+                        throw IllegalStateException(
+                            "Download failed: $uri returned ${response.statusCode}",
+                        )
+                    }
+                    response.body.use { input ->
+                        Files.copy(input, tempFile, StandardCopyOption.REPLACE_EXISTING)
+                    }
+                }
             Files.move(tempFile, cachedFile, StandardCopyOption.ATOMIC_MOVE)
             logger.info("Downloaded {} ({} bytes)", filename, Files.size(cachedFile))
         } catch (e: Exception) {
             Files.deleteIfExists(tempFile)
             throw e
         }
-
         return cachedFile
-    }
-
-    /**
-     * Opens an InputStream from the given URI, following HTTP redirects.
-     * HuggingFace uses 302 redirects to CDN URLs.
-     */
-    private fun downloadWithRedirects(uri: URI, connectTimeoutMs: Int, readTimeoutMs: Int): InputStream {
-        val connection = uri.toURL().openConnection() as java.net.HttpURLConnection
-        connection.instanceFollowRedirects = true
-        connection.connectTimeout = connectTimeoutMs
-        connection.readTimeout = readTimeoutMs
-        return connection.inputStream
     }
 }
