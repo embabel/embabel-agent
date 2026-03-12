@@ -19,15 +19,13 @@ import com.embabel.agent.onnx.OnnxModelLoader
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable
 
 /**
- * Integration test that downloads the real all-MiniLM-L6-v2 model and runs inference.
- * Skipped in CI (GitHub Actions sets CI=true). Runs locally where the model
- * is cached in ~/.embabel/models/ after first download (~80MB).
+ * IT test that downloads the real all-MiniLM-L6-v2 model and runs inference.
+ * Excluded from surefire (CI) by naming convention (*IT).
+ * Runs locally where the model is cached in ~/.embabel/models/ after first download (~80MB).
  */
-@DisabledIfEnvironmentVariable(named = "CI", matches = "true")
-class OnnxEmbeddingServiceIntegrationTest {
+class OnnxEmbeddingServiceIT {
 
     companion object {
         private const val HF_BASE = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main"
