@@ -48,8 +48,9 @@ public class NettyClientAutoConfiguration {
     @Bean("aiModelHttpRequestFactory")
     @ConditionalOnProperty(value = "embabel.agent.platform.http-client.use-reactor-netty", havingValue = "true", matchIfMissing = true)
     ClientHttpRequestFactory reactorClientHttpRequestFactory(NettyClientFactoryProperties httpClientProperties) {
-        var httpClient = HttpClient.create().responseTimeout(httpClientProperties
-                        .readTimeout())
+        var httpClient = HttpClient.create()
+                .followRedirect(true)
+                .responseTimeout(httpClientProperties.readTimeout())
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) httpClientProperties
                         .connectTimeout()
                         .toMillis());

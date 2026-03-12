@@ -22,12 +22,15 @@ import com.embabel.common.ai.autoconfig.RegisteredModel
 import jakarta.annotation.PreDestroy
 import java.nio.file.Path
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.client.ClientHttpRequestFactory
+import org.springframework.web.client.RestClient
 
 /**
  * Auto-configuration for the ONNX embedding service.
@@ -37,16 +40,9 @@ import org.springframework.context.annotation.Configuration
  * via [ConfigurableBeanFactory.registerSingleton] so the bean name
  * matches the model name used in [ProviderInitialization].
  *
- * **Why this class does NOT inject `aiModelHttpRequestFactory`:**
- * Other providers (Anthropic, OpenAI, Ollama) use the shared factory for
- * ongoing API calls where shared proxy/SSL/timeout settings are appropriate.
- * ONNX model downloads are fundamentally different: they are one-time large
- * file downloads from HuggingFace, which returns HTTP 302 redirects to CDN
- * URLs. The Reactor Netty client created by [NettyClientAutoConfiguration]
- * does not follow redirects by default (`HttpClient.create()` requires an
- * explicit `.followRedirect(true)`), so using it here would cause downloads
- * to fail silently. The default JDK-based `RestClient` follows redirects
- * out of the box and is the correct choice for this use case.
+ * Uses the shared `aiModelHttpRequestFactory` (if available) for model
+ * downloads, consistent with other providers. Falls back to default
+ * JDK-based `RestClient` when the factory bean is absent.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(OnnxEmbeddingService::class)
@@ -59,6 +55,7 @@ import org.springframework.context.annotation.Configuration
 @EnableConfigurationProperties(OnnxEmbeddingProperties::class)
 class OnnxEmbeddingAutoConfiguration(
     private val configurableBeanFactory: ConfigurableBeanFactory,
+    private val requestFactory: ObjectProvider<ClientHttpRequestFactory>,
 ) {
 
     private val logger = LoggerFactory.getLogger(OnnxEmbeddingAutoConfiguration::class.java)
@@ -68,8 +65,11 @@ class OnnxEmbeddingAutoConfiguration(
     @Bean
     fun onnxEmbeddingInitializer(properties: OnnxEmbeddingProperties): ProviderInitialization {
         val cacheDir = Path.of(properties.cacheDir, properties.modelName)
-        val modelPath = OnnxModelLoader.resolve(properties.modelUri, cacheDir, "model.onnx")
-        val tokenizerPath = OnnxModelLoader.resolve(properties.tokenizerUri, cacheDir, "tokenizer.json")
+        val restClient = RestClient.builder()
+            .also { b -> requestFactory.ifAvailable { b.requestFactory(it) } }
+            .build()
+        val modelPath = OnnxModelLoader.resolve(properties.modelUri, cacheDir, "model.onnx", restClient)
+        val tokenizerPath = OnnxModelLoader.resolve(properties.tokenizerUri, cacheDir, "tokenizer.json", restClient)
         logger.info(
             "Initializing ONNX embedding service: model={}, dimensions={}, cache={}",
             properties.modelName, properties.dimensions, cacheDir,
