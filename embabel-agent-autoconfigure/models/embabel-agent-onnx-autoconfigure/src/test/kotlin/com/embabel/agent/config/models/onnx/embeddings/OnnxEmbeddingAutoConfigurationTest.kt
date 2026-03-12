@@ -29,7 +29,7 @@ class OnnxEmbeddingAutoConfigurationTest {
     @Test
     fun `no embedding service bean when disabled`() {
         contextRunner
-            .withPropertyValues("embabel.onnx.embeddings.enabled=false")
+            .withPropertyValues("embabel.agent.platform.models.onnx.embeddings.enabled=false")
             .run { context ->
                 assertThat(context).doesNotHaveBean(EmbeddingService::class.java)
                 assertThat(context).doesNotHaveBean("onnxEmbeddingInitializer")
@@ -39,7 +39,7 @@ class OnnxEmbeddingAutoConfigurationTest {
     @Test
     fun `no beans at all when disabled`() {
         contextRunner
-            .withPropertyValues("embabel.onnx.embeddings.enabled=false")
+            .withPropertyValues("embabel.agent.platform.models.onnx.embeddings.enabled=false")
             .run { context ->
                 assertThat(context).doesNotHaveBean(OnnxEmbeddingProperties::class.java)
                 assertThat(context).doesNotHaveBean(EmbeddingService::class.java)

@@ -41,10 +41,9 @@ class OnnxEmbeddingServiceIntegrationTest {
         val modelPath = OnnxModelLoader.resolve(MODEL_URI, cacheDir, "model.onnx")
         val tokenizerPath = OnnxModelLoader.resolve(TOKENIZER_URI, cacheDir, "tokenizer.json")
 
-        OnnxEmbeddingService(modelPath, tokenizerPath).use { service ->
+        OnnxEmbeddingService.create(modelPath, tokenizerPath).use { service ->
             val embedding = service.embed("Hello world")
             assertEquals(384, embedding.size)
-            // Verify it's not a zero vector
             assertTrue(embedding.any { it != 0.0f })
         }
     }
@@ -55,7 +54,7 @@ class OnnxEmbeddingServiceIntegrationTest {
         val modelPath = OnnxModelLoader.resolve(MODEL_URI, cacheDir, "model.onnx")
         val tokenizerPath = OnnxModelLoader.resolve(TOKENIZER_URI, cacheDir, "tokenizer.json")
 
-        OnnxEmbeddingService(modelPath, tokenizerPath).use { service ->
+        OnnxEmbeddingService.create(modelPath, tokenizerPath).use { service ->
             val a = service.embed("The cat sat on the mat")
             val b = service.embed("A cat was sitting on a mat")
             val c = service.embed("Quantum chromodynamics describes the strong force")

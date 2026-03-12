@@ -667,34 +667,34 @@ From `OnnxEmbeddingProperties` - configuration for local ONNX embedding models.
 |===
 |Property |Type |Default |Description
 
-|`embabel.onnx.embeddings.enabled`
+|`embabel.agent.platform.models.onnx.embeddings.enabled`
 |Boolean
 |`true`
 |Whether to enable ONNX embedding service
 
-|`embabel.onnx.embeddings.model-uri`
+|`embabel.agent.platform.models.onnx.embeddings.model-uri`
 |String
 |_(HuggingFace all-MiniLM-L6-v2)_
 |URI to the ONNX model file (HuggingFace URL or `file://` path)
 
-|`embabel.onnx.embeddings.tokenizer-uri`
+|`embabel.agent.platform.models.onnx.embeddings.tokenizer-uri`
 |String
 |_(HuggingFace all-MiniLM-L6-v2)_
 |URI to the tokenizer JSON file
 
-|`embabel.onnx.embeddings.dimensions`
+|`embabel.agent.platform.models.onnx.embeddings.dimensions`
 |Int
 |`384`
 |Embedding dimensions
 
-|`embabel.onnx.embeddings.model-name`
+|`embabel.agent.platform.models.onnx.embeddings.model-name`
 |String
 |`all-MiniLM-L6-v2`
 |Name for the embedding model
 
-|`embabel.onnx.embeddings.cache-dir`
+|`embabel.agent.platform.models.onnx.embeddings.cache-dir`
 |String
-|`~/.cache/embabel/onnx`
+|`~/.embabel/models`
 |Local cache directory for downloaded model files
 
 |===

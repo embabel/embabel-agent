@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.web.client.RestClient
 
 class OnnxModelLoaderTest {
 
@@ -32,9 +33,7 @@ class OnnxModelLoaderTest {
         Files.createDirectories(cacheDir)
         val cachedFile = cacheDir.resolve("model.onnx")
         Files.writeString(cachedFile, "cached model data")
-
         val result = OnnxModelLoader.resolve("https://example.com/model.onnx", cacheDir, "model.onnx")
-
         assertEquals(cachedFile, result)
         assertEquals("cached model data", Files.readString(result))
     }
@@ -44,9 +43,7 @@ class OnnxModelLoaderTest {
         val localFile = tempDir.resolve("local-model.onnx")
         Files.writeString(localFile, "local model data")
         val cacheDir = tempDir.resolve("cache")
-
         val result = OnnxModelLoader.resolve(localFile.toUri().toString(), cacheDir, "model.onnx")
-
         assertEquals(localFile, result)
         assertEquals("local model data", Files.readString(result))
     }
@@ -55,7 +52,6 @@ class OnnxModelLoaderTest {
     fun `resolve with file URI throws when file does not exist`(@TempDir tempDir: Path) {
         val missingFile = tempDir.resolve("missing.onnx")
         val cacheDir = tempDir.resolve("cache")
-
         assertThrows(IllegalArgumentException::class.java) {
             OnnxModelLoader.resolve(missingFile.toUri().toString(), cacheDir, "model.onnx")
         }
@@ -66,10 +62,7 @@ class OnnxModelLoaderTest {
         val cacheDir = tempDir.resolve("deep/nested/cache")
         val localFile = tempDir.resolve("model.onnx")
         Files.writeString(localFile, "data")
-
-        // Use file:// URI so we don't need a network call
         OnnxModelLoader.resolve(localFile.toUri().toString(), cacheDir, "model.onnx")
-
         assertTrue(Files.exists(cacheDir))
     }
 
@@ -89,8 +82,9 @@ class OnnxModelLoaderTest {
             try {
                 val port = server.address.port
                 val cacheDir = tempDir.resolve("dl-cache")
+                val restClient = RestClient.create()
                 val result = OnnxModelLoader.resolve(
-                    "http://localhost:$port/model.onnx", cacheDir, "model.onnx",
+                    "http://localhost:$port/model.onnx", cacheDir, "model.onnx", restClient,
                 )
                 assertTrue(Files.exists(result))
                 assertEquals(payload, Files.readString(result))
@@ -111,12 +105,12 @@ class OnnxModelLoaderTest {
             try {
                 val port = server.address.port
                 val cacheDir = tempDir.resolve("dl-cache")
+                val restClient = RestClient.create()
                 assertThrows(Exception::class.java) {
                     OnnxModelLoader.resolve(
-                        "http://localhost:$port/model.onnx", cacheDir, "model.onnx",
+                        "http://localhost:$port/model.onnx", cacheDir, "model.onnx", restClient,
                     )
                 }
-                // No partial file should remain
                 assertFalse(Files.exists(cacheDir.resolve("model.onnx")))
             } finally {
                 server.stop(0)
