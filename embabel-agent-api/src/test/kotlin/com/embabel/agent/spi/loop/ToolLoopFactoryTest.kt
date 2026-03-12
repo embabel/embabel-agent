@@ -23,10 +23,10 @@ import com.embabel.agent.spi.loop.support.ParallelToolLoop
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.mockk
+import java.util.concurrent.Executors
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.util.concurrent.Executors
 
 /**
  * Unit tests for [ToolLoopFactory].

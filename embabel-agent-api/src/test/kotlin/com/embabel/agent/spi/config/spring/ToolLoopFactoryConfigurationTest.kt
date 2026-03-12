@@ -21,11 +21,11 @@ import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.ImmediateThrowPolicy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.agent.spi.support.ExecutorAsyncer
+import java.util.concurrent.Executors
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.util.concurrent.Executors
 
 /**
  * Unit tests for [ToolLoopFactoryConfiguration].
