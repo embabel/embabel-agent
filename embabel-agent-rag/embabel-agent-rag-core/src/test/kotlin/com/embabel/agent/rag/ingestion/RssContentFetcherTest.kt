@@ -26,6 +26,7 @@ import org.junit.jupiter.api.assertThrows
 import java.io.IOException
 import java.net.URI
 import java.nio.charset.StandardCharsets
+import org.springframework.util.MimeType
 
 class RssContentFetcherTest {
 
@@ -105,7 +106,7 @@ class RssContentFetcherTest {
         fun `delegates fetching to injected ContentFetcher`() {
             every { delegate.fetch(any()) } returns FetchResult(
                 content = feedWithContentEncoded.toByteArray(StandardCharsets.UTF_8),
-                contentType = "application/rss+xml",
+                contentType = MimeType("application", "rss+xml"),
             )
             val fetcher = createFetcher()
             fetcher.fetch(URI("https://blog.com/pub/first-article"))
@@ -117,21 +118,22 @@ class RssContentFetcherTest {
         fun `extracts article content from fetched feed`() {
             every { delegate.fetch(any()) } returns FetchResult(
                 content = feedWithContentEncoded.toByteArray(StandardCharsets.UTF_8),
-                contentType = "application/rss+xml",
+                contentType = MimeType("application", "rss+xml"),
             )
             val result = createFetcher().fetch(URI("https://blog.com/pub/first-article"))
 
             val html = String(result.content, StandardCharsets.UTF_8)
             assertTrue(html.contains("Full article content here"))
-            assertEquals("text/html", result.contentType)
-            assertEquals(Charsets.UTF_8, result.charset)
+            assertEquals("text", result.contentType?.type)
+            assertEquals("html", result.contentType?.subtype)
+            assertEquals(Charsets.UTF_8, result.contentType?.charset)
         }
 
         @Test
         fun `throws IOException when article not found in feed`() {
             every { delegate.fetch(any()) } returns FetchResult(
                 content = feedWithContentEncoded.toByteArray(StandardCharsets.UTF_8),
-                contentType = "application/rss+xml",
+                contentType = MimeType("application", "rss+xml"),
             )
 
             assertThrows<IOException> {

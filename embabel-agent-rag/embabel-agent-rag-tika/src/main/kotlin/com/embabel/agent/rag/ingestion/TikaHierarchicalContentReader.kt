@@ -74,12 +74,13 @@ class TikaHierarchicalContentReader @JvmOverloads constructor(
             val fetchResult = contentFetcher.fetch(uri)
             val mappedContent = contentMapper.map(fetchResult.content, uri)
             val metadata = Metadata()
-            if (fetchResult.contentType != null) {
-                metadata[TikaCoreProperties.CONTENT_TYPE_HINT] = fetchResult.contentType
-            }
-            val charset = fetchResult.charset
-            if (charset != null) {
-                metadata["charset"] = charset.name()
+            val contentType = fetchResult.contentType
+            if (contentType != null) {
+                metadata[TikaCoreProperties.CONTENT_TYPE_HINT] = "${contentType.type}/${contentType.subtype}"
+                val charset = contentType.charset
+                if (charset != null) {
+                    metadata["charset"] = charset.name()
+                }
             }
             return parseContent(java.io.ByteArrayInputStream(mappedContent), url, metadata)
         }

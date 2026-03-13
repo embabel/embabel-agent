@@ -63,8 +63,9 @@ class HttpContentFetcherTest {
 
             val result = HttpContentFetcher().fetch(URI("http://localhost:$port/page"))
 
-            assertEquals("text/html", result.contentType)
-            assertEquals(Charsets.UTF_8, result.charset)
+            assertEquals("text", result.contentType?.type)
+            assertEquals("html", result.contentType?.subtype)
+            assertEquals(Charsets.UTF_8, result.contentType?.charset)
             assertTrue(String(result.content).contains("Hello"))
         }
 
@@ -100,8 +101,9 @@ class HttpContentFetcherTest {
 
             val result = HttpContentFetcher().fetch(URI("http://localhost:$port/no-charset"))
 
-            assertEquals("text/plain", result.contentType)
-            assertEquals(null, result.charset)
+            assertEquals("text", result.contentType?.type)
+            assertEquals("plain", result.contentType?.subtype)
+            assertEquals(null, result.contentType?.charset)
         }
     }
 

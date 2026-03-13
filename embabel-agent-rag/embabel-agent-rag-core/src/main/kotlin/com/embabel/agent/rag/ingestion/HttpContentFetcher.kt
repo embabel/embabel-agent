@@ -67,7 +67,7 @@ class HttpContentFetcher @JvmOverloads constructor(
             throw IOException("Server returned HTTP response code: $statusCode for URI: $uri")
         }
         val contentTypeHeader = response.headers().firstValue("Content-Type").orElse(null)
-        val parsed = contentTypeHeader?.let {
+        val contentType = contentTypeHeader?.let {
             try {
                 MimeTypeUtils.parseMimeType(it)
             } catch (e: Exception) {
@@ -75,9 +75,7 @@ class HttpContentFetcher @JvmOverloads constructor(
                 null
             }
         }
-        val mimeType = parsed?.let { "${it.type}/${it.subtype}" }
-        val charset = parsed?.charset
-        logger.debug("Content-Type: {}, charset: {}", mimeType ?: "unknown", charset ?: "unspecified")
+        logger.debug("Content-Type: {}", contentType ?: "unknown")
         val contentEncoding = response.headers().firstValue("Content-Encoding").orElse(null)
         logger.debug("Content-Encoding: {}", contentEncoding ?: "none")
         val content = response.body().use { rawStream ->
@@ -90,8 +88,7 @@ class HttpContentFetcher @JvmOverloads constructor(
         }
         return FetchResult(
             content = content,
-            contentType = mimeType,
-            charset = charset,
+            contentType = contentType,
         )
     }
 

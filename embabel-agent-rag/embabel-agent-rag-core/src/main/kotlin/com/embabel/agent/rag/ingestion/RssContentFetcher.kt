@@ -16,7 +16,9 @@
 package com.embabel.agent.rag.ingestion
 
 import java.net.URI
+import java.nio.charset.StandardCharsets
 import org.slf4j.LoggerFactory
+import org.springframework.util.MimeType
 
 /**
  * Strategy for resolving an article URL to its RSS feed URL.
@@ -56,8 +58,7 @@ class RssContentFetcher(
         val articleHtml = rssMapper.map(feedResult.content, uri)
         return FetchResult(
             content = articleHtml,
-            contentType = "text/html",
-            charset = Charsets.UTF_8,
+            contentType = MimeType("text", "html", StandardCharsets.UTF_8),
         )
     }
 

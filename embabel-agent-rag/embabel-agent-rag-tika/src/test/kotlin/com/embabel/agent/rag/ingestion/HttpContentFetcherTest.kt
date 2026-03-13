@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.net.URI
+import org.springframework.util.MimeType
 
 class ContentFetcherInjectionTest {
 
@@ -33,8 +34,7 @@ class ContentFetcherInjectionTest {
                 override fun fetch(uri: URI): FetchResult {
                     return FetchResult(
                         content = html.toByteArray(),
-                        contentType = "text/html",
-                        charset = Charsets.UTF_8,
+                        contentType = MimeType("text", "html", Charsets.UTF_8),
                     )
                 }
             }

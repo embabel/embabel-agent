@@ -16,31 +16,28 @@
 package com.embabel.agent.rag.ingestion
 
 import java.net.URI
-import java.nio.charset.Charset
+import org.springframework.util.MimeType
 
 /**
  * Result of fetching content from a URI.
  * @param content the raw content bytes
- * @param contentType the MIME type of the content (e.g. "text/html"), or null if unknown
- * @param charset the charset of the content, or null if unknown
+ * @param contentType the MIME type of the content, or null if unknown.
+ *        Carries charset when available (e.g. `text/html;charset=UTF-8`).
  */
 data class FetchResult(
     val content: ByteArray,
-    val contentType: String? = null,
-    val charset: Charset? = null,
+    val contentType: MimeType? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is FetchResult) return false
         return content.contentEquals(other.content) &&
-            contentType == other.contentType &&
-            charset == other.charset
+            contentType == other.contentType
     }
 
     override fun hashCode(): Int {
         var result = content.contentHashCode()
         result = 31 * result + (contentType?.hashCode() ?: 0)
-        result = 31 * result + (charset?.hashCode() ?: 0)
         return result
     }
 }

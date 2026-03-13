@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.net.URI
+import org.springframework.util.MimeType
 
 class RoutingContentFetcherTest {
 
@@ -31,7 +32,7 @@ class RoutingContentFetcherTest {
 
     private fun fetchResult(content: String) = FetchResult(
         content = content.toByteArray(),
-        contentType = "text/html",
+        contentType = MimeType("text", "html"),
     )
 
     @Nested
