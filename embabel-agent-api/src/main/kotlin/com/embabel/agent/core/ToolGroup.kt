@@ -128,9 +128,14 @@ interface ToolGroupMetadata : ToolGroupDescription, AssetCoordinates, HasInfoStr
 
 /**
  * Specifies a tool group that a tool consumer requires.
+ * @param requiredToolNames optional set of tool names that must be present in the resolved group.
+ * When non-empty, resolution throws [com.embabel.agent.spi.loop.RequiredToolGroupException]
+ * if the group is not found or any required tool name is absent.
+ * An empty set (default) preserves backward-compatible behavior: a missing group is logged and tolerated.
  */
 data class ToolGroupRequirement(
     val role: String,
+    val requiredToolNames: Set<String> = emptySet(),
 )
 
 interface ToolGroupConsumer {
