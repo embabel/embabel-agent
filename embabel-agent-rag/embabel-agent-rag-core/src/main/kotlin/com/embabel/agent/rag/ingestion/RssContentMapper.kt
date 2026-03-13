@@ -41,16 +41,15 @@ class RssContentMapper : ContentMapper {
     }
 
     override fun map(content: ByteArray, uri: URI): ByteArray {
-        val feedXml = String(content, StandardCharsets.UTF_8)
-        val html = extractArticleContent(feedXml, uri)
+        val html = extractArticleContent(content, uri)
             ?: throw IOException("Article not found in RSS feed for URI: $uri")
         logger.info("Extracted {} chars of article content from RSS", html.length)
         return html.toByteArray(StandardCharsets.UTF_8)
     }
 
-    private fun extractArticleContent(feedXml: String, articleUri: URI): String? {
+    private fun extractArticleContent(feedBytes: ByteArray, articleUri: URI): String? {
         val doc = documentBuilderFactory.newDocumentBuilder()
-            .parse(ByteArrayInputStream(feedXml.toByteArray(StandardCharsets.UTF_8)))
+            .parse(ByteArrayInputStream(feedBytes))
         val items: NodeList = doc.getElementsByTagName("item")
         val articleSlug = articleUri.path.trimEnd('/').substringAfterLast('/')
         for (i in 0 until items.length) {

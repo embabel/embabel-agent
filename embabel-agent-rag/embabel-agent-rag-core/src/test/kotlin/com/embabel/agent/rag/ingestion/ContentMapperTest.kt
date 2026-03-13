@@ -16,6 +16,7 @@
 package com.embabel.agent.rag.ingestion
 
 import org.junit.jupiter.api.Assertions.assertArrayEquals
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.net.URI
@@ -47,7 +48,7 @@ class ContentMapperTest {
 
             val result = String(composed.map("X".toByteArray(), testUri))
 
-            org.junit.jupiter.api.Assertions.assertEquals("XAB", result)
+            assertEquals("XAB", result)
         }
 
         @Test
@@ -57,7 +58,7 @@ class ContentMapperTest {
 
             val result = String(composed.map("X".toByteArray(), testUri))
 
-            org.junit.jupiter.api.Assertions.assertEquals("XA", result)
+            assertEquals("XA", result)
         }
 
         @Test
@@ -69,7 +70,7 @@ class ContentMapperTest {
             val pipeline = upper.then(addPrefix).then(addSuffix)
             val result = String(pipeline.map("hello".toByteArray(), testUri))
 
-            org.junit.jupiter.api.Assertions.assertEquals("PREFIX:HELLO:SUFFIX", result)
+            assertEquals("PREFIX:HELLO:SUFFIX", result)
         }
     }
 }

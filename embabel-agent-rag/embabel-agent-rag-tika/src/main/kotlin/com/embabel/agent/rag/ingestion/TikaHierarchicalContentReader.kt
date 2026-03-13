@@ -250,7 +250,6 @@ class TikaHierarchicalContentReader @JvmOverloads constructor(
         )
     }
 
-
     override fun parseFromDirectory(
         fileTools: FileReadTools,
         config: DirectoryParsingConfig,
