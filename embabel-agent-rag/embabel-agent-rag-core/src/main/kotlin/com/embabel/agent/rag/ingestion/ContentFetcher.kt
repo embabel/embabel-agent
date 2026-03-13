@@ -63,7 +63,7 @@ interface ContentFetcher {
  * stripping ads, or normalizing encoding.
  *
  * Mappers are composable via [then], allowing pipelines such as
- * `rssMapper.then(removeAds).then(removeProfanity)`.
+ * `rssMapper.then(removeAds).then(translateTo(Language.FRENCH))`.
  */
 fun interface ContentMapper {
 
