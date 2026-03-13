@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.ingestion
 
+import java.io.InputStream
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -34,7 +35,7 @@ class HttpContentFetcher @JvmOverloads constructor(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    override fun fetch(url: String): FetchResult {
+    override fun <T> fetch(url: String, mapper: (InputStream) -> T): FetchResult<T> {
         logger.debug("Fetching URL with HttpURLConnection: {}", url)
 
         val uri = URI(url)
@@ -86,14 +87,14 @@ class HttpContentFetcher @JvmOverloads constructor(
                 else -> rawStream
             }
 
+            val content = decompressedStream.use { mapper(it) }
             return FetchResult(
-                inputStream = decompressedStream,
+                content = content,
                 contentType = mimeType,
                 charset = charset,
             )
-        } catch (e: Exception) {
+        } finally {
             connection.disconnect()
-            throw e
         }
     }
 

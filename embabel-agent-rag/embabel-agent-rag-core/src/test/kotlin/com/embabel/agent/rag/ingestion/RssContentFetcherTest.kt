@@ -131,68 +131,64 @@ class RssContentFetcherTest {
             )
         }
 
+        private fun readText() = { stream: java.io.InputStream -> stream.bufferedReader().readText() }
+
         @Test
         fun `extracts content encoded when available`() {
-            val result = createFetcher().fetch("https://blog.com/pub/first-article")
+            val result = createFetcher().fetch("https://blog.com/pub/first-article", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
-            assertTrue(content.contains("Full article content here"))
-            assertTrue(content.contains("First Article"))
+            assertTrue(result.content.contains("Full article content here"))
+            assertTrue(result.content.contains("First Article"))
             assertEquals("text/html", result.contentType)
             assertEquals("UTF-8", result.charset)
         }
 
         @Test
         fun `falls back to description when content encoded is absent`() {
-            val result = createFetcher().fetch("https://blog.com/pub/second-article")
+            val result = createFetcher().fetch("https://blog.com/pub/second-article", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
-            assertTrue(content.contains("Second article description only"))
-            assertTrue(content.contains("Second Article"))
+            assertTrue(result.content.contains("Second article description only"))
+            assertTrue(result.content.contains("Second Article"))
         }
 
         @Test
         fun `throws IOException when article not found in feed`() {
             val exception = assertThrows<IOException> {
-                createFetcher().fetch("https://blog.com/pub/nonexistent-article")
+                createFetcher().fetch("https://blog.com/pub/nonexistent-article", readText())
             }
             assertTrue(exception.message!!.contains("Article not found"))
         }
 
         @Test
         fun `matches article by slug from URL path`() {
-            // URL has extra path but slug "first-article" matches
-            val result = createFetcher().fetch("https://blog.com/category/first-article")
+            val result = createFetcher().fetch("https://blog.com/category/first-article", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
-            assertTrue(content.contains("Full article content here"))
+            assertTrue(result.content.contains("Full article content here"))
         }
 
         @Test
         fun `wraps content in HTML document with title`() {
-            val result = createFetcher().fetch("https://blog.com/pub/first-article")
+            val result = createFetcher().fetch("https://blog.com/pub/first-article", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
-            assertTrue(content.contains("<html>"))
-            assertTrue(content.contains("<title>First Article</title>"))
-            assertTrue(content.contains("<h1>First Article</h1>"))
+            assertTrue(result.content.contains("<html>"))
+            assertTrue(result.content.contains("<title>First Article</title>"))
+            assertTrue(result.content.contains("<h1>First Article</h1>"))
         }
 
         @Test
         fun `returns valid FetchResult metadata`() {
-            val result = createFetcher().fetch("https://blog.com/pub/first-article")
+            val result = createFetcher().fetch("https://blog.com/pub/first-article", readText())
 
-            assertNotNull(result.inputStream)
+            assertNotNull(result.content)
             assertEquals("text/html", result.contentType)
             assertEquals("UTF-8", result.charset)
         }
 
         @Test
         fun `matches article by guid when link does not match`() {
-            val result = createFetcher().fetch("https://blog.com/pub/guid-article")
+            val result = createFetcher().fetch("https://blog.com/pub/guid-article", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
-            assertTrue(content.contains("Found by guid"))
+            assertTrue(result.content.contains("Found by guid"))
         }
 
         @Test
@@ -225,11 +221,10 @@ class RssContentFetcherTest {
                 val fetcher = RssContentFetcher(
                     feedResolver = FeedResolver { "http://localhost:$noTitlePort/feed" },
                 )
-                val result = fetcher.fetch("https://blog.com/pub/no-title-article")
+                val result = fetcher.fetch("https://blog.com/pub/no-title-article", readText())
 
-                val content = result.inputStream.bufferedReader().readText()
-                assertTrue(content.contains("Untitled"))
-                assertTrue(content.contains("Content without a title"))
+                assertTrue(result.content.contains("Untitled"))
+                assertTrue(result.content.contains("Content without a title"))
             } finally {
                 noTitleServer.stop(0)
             }
@@ -266,7 +261,7 @@ class RssContentFetcherTest {
                     feedResolver = FeedResolver { "http://localhost:$emptyPort/feed" },
                 )
                 assertThrows<IOException> {
-                    fetcher.fetch("https://blog.com/pub/empty-article")
+                    fetcher.fetch("https://blog.com/pub/empty-article", readText())
                 }
             } finally {
                 emptyServer.stop(0)

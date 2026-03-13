@@ -19,12 +19,13 @@ import java.io.InputStream
 
 /**
  * Result of fetching content from a URL.
- * @param inputStream the decompressed content stream. Caller is responsible for closing.
+ * @param T the type of the transformed content
+ * @param content the content produced by the mapper function
  * @param contentType the MIME type of the content (e.g. "text/html"), or null if unknown
  * @param charset the charset of the content (e.g. "UTF-8"), or null if unknown
  */
-data class FetchResult(
-    val inputStream: InputStream,
+data class FetchResult<T>(
+    val content: T,
     val contentType: String? = null,
     val charset: String? = null,
 )
@@ -34,16 +35,17 @@ data class FetchResult(
  * Implementations can use different strategies such as HttpURLConnection,
  * headless browsers (Selenium), or other HTTP clients.
  *
- * This allows plugging in alternative fetchers for sites that block
- * simple HTTP clients (e.g. Medium's paywall, Cloudflare-protected sites).
+ * The [mapper] function is invoked while the underlying connection is still open,
+ * ensuring the stream remains readable. The connection is closed after the mapper returns.
  */
-fun interface ContentFetcher {
+interface ContentFetcher {
 
     /**
-     * Fetch content from the given URL.
+     * Fetch content from the given URL, transforming the response stream via [mapper].
      * @param url the HTTP/HTTPS URL to fetch
-     * @return a [FetchResult] containing the content stream and metadata
+     * @param mapper transforms the response [InputStream] into the desired result type
+     * @return a [FetchResult] containing the mapped content and HTTP metadata
      * @throws java.io.IOException if the fetch fails
      */
-    fun fetch(url: String): FetchResult
+    fun <T> fetch(url: String, mapper: (InputStream) -> T): FetchResult<T>
 }

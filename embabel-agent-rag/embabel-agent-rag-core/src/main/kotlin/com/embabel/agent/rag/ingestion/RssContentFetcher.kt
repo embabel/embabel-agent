@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.ingestion
 
+import java.io.InputStream
 import org.slf4j.LoggerFactory
 import org.w3c.dom.Element
 import org.w3c.dom.NodeList
@@ -53,18 +54,19 @@ class RssContentFetcher @JvmOverloads constructor(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    override fun fetch(url: String): FetchResult {
+    override fun <T> fetch(url: String, mapper: (InputStream) -> T): FetchResult<T> {
         val feedUrl = feedResolver.resolve(url)
         logger.info("Fetching RSS feed: {} (for article: {})", feedUrl, url)
 
         val feedXml = fetchFeed(feedUrl)
-        val content = extractArticleContent(feedXml, url)
+        val html = extractArticleContent(feedXml, url)
             ?: throw IOException("Article not found in RSS feed $feedUrl for URL: $url")
 
-        logger.info("Extracted {} chars of article content from RSS", content.length)
+        logger.info("Extracted {} chars of article content from RSS", html.length)
 
+        val content = ByteArrayInputStream(html.toByteArray(StandardCharsets.UTF_8)).use { mapper(it) }
         return FetchResult(
-            inputStream = ByteArrayInputStream(content.toByteArray(StandardCharsets.UTF_8)),
+            content = content,
             contentType = "text/html",
             charset = "UTF-8",
         )

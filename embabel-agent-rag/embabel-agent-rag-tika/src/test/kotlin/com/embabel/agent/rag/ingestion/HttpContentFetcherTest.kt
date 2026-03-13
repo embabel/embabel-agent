@@ -45,6 +45,8 @@ class HttpContentFetcherTest {
         server.stop(0)
     }
 
+    private fun readText() = { stream: java.io.InputStream -> stream.bufferedReader().readText() }
+
     @Nested
     inner class SuccessfulFetch {
 
@@ -59,12 +61,11 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch("http://localhost:$port/page")
+            val result = HttpContentFetcher().fetch("http://localhost:$port/page", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
             assertEquals("text/html", result.contentType)
             assertEquals("UTF-8", result.charset)
-            assertTrue(content.contains("Hello"))
+            assertTrue(result.content.contains("Hello"))
         }
 
         @Test
@@ -82,10 +83,9 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch("http://localhost:$port/gzip")
+            val result = HttpContentFetcher().fetch("http://localhost:$port/gzip", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
-            assertTrue(content.contains("Compressed content"))
+            assertTrue(result.content.contains("Compressed content"))
         }
 
         @Test
@@ -98,7 +98,7 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch("http://localhost:$port/no-charset")
+            val result = HttpContentFetcher().fetch("http://localhost:$port/no-charset", readText())
 
             assertEquals("text/plain", result.contentType)
             assertEquals(null, result.charset)
@@ -116,7 +116,7 @@ class HttpContentFetcherTest {
             server.start()
 
             assertThrows<IOException> {
-                HttpContentFetcher().fetch("http://localhost:$port/error")
+                HttpContentFetcher().fetch("http://localhost:$port/error", readText())
             }
         }
     }
@@ -134,8 +134,8 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = fetcher.fetch("http://localhost:$port/timeout")
-            assertNotNull(result.inputStream)
+            val result = fetcher.fetch("http://localhost:$port/timeout", readText())
+            assertNotNull(result.content)
         }
     }
 
@@ -151,10 +151,9 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch("http://localhost:$port/no-content-type")
+            val result = HttpContentFetcher().fetch("http://localhost:$port/no-content-type", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
-            assertTrue(content.contains("raw data"))
+            assertTrue(result.content.contains("raw data"))
         }
 
         @Test
@@ -172,10 +171,9 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch("http://localhost:$port/deflate")
+            val result = HttpContentFetcher().fetch("http://localhost:$port/deflate", readText())
 
-            val content = result.inputStream.bufferedReader().readText()
-            assertTrue(content.contains("Deflate content"))
+            assertTrue(result.content.contains("Deflate content"))
         }
     }
 
@@ -185,12 +183,15 @@ class HttpContentFetcherTest {
         @Test
         fun `TikaHierarchicalContentReader uses injected ContentFetcher for HTTP URLs`() {
             val html = "<html><body><h1>Test</h1><p>Content from custom fetcher</p></body></html>"
-            val customFetcher = ContentFetcher { _ ->
-                FetchResult(
-                    inputStream = html.byteInputStream(),
-                    contentType = "text/html",
-                    charset = "UTF-8",
-                )
+            val customFetcher = object : ContentFetcher {
+                override fun <T> fetch(url: String, mapper: (java.io.InputStream) -> T): FetchResult<T> {
+                    val content = html.byteInputStream().use { mapper(it) }
+                    return FetchResult(
+                        content = content,
+                        contentType = "text/html",
+                        charset = "UTF-8",
+                    )
+                }
             }
 
             val reader = TikaHierarchicalContentReader(contentFetcher = customFetcher)

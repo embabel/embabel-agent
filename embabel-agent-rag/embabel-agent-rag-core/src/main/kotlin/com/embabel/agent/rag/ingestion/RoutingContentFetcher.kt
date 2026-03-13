@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.rag.ingestion
 
+import java.io.InputStream
 import org.slf4j.LoggerFactory
 
 /**
@@ -48,12 +49,12 @@ class RoutingContentFetcher(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    override fun fetch(url: String): FetchResult {
+    override fun <T> fetch(url: String, mapper: (InputStream) -> T): FetchResult<T> {
         val match = routes.firstOrNull { (pattern, _) -> url.contains(pattern) }
         val fetcher = match?.second ?: default
         if (match != null) {
             logger.debug("URL '{}' matched route '{}', using {}", url, match.first, fetcher.javaClass.simpleName)
         }
-        return fetcher.fetch(url)
+        return fetcher.fetch(url, mapper)
     }
 }
