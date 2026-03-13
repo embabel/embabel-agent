@@ -21,6 +21,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-test-common</artifactId>
             <scope>test</scope>

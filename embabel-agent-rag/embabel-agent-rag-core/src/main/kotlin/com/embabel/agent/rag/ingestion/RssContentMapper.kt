@@ -21,6 +21,7 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import javax.xml.parsers.DocumentBuilderFactory
 import org.slf4j.LoggerFactory
+import org.springframework.web.util.HtmlUtils
 import org.w3c.dom.Element
 import org.w3c.dom.NodeList
 
@@ -57,7 +58,8 @@ class RssContentMapper : ContentMapper {
             val link = item.getElementsByTagName("link").item(0)?.textContent.orEmpty()
             val guid = item.getElementsByTagName("guid").item(0)?.textContent.orEmpty()
             if (link.contains(articleSlug) || guid.contains(articleSlug)) {
-                val title = item.getElementsByTagName("title").item(0)?.textContent ?: "Untitled"
+                val rawTitle = item.getElementsByTagName("title").item(0)?.textContent ?: "Untitled"
+                val title = HtmlUtils.htmlEscape(rawTitle)
                 val html = getContentEncoded(item)
                     ?: item.getElementsByTagName("description").item(0)?.textContent
                 if (html != null) {

@@ -35,6 +35,17 @@ class HttpContentFetcherTest {
 
     private lateinit var server: HttpServer
     private var port: Int = 0
+    private val fetchersToClose = mutableListOf<HttpContentFetcher>()
+
+    private fun createFetcher(
+        connectTimeout: Duration = Duration.ofSeconds(30),
+        readTimeout: Duration = Duration.ofSeconds(30),
+        headers: Map<String, String> = emptyMap(),
+    ): HttpContentFetcher {
+        val fetcher = HttpContentFetcher(connectTimeout, readTimeout, headers)
+        fetchersToClose.add(fetcher)
+        return fetcher
+    }
 
     @BeforeEach
     fun setUp() {
@@ -45,6 +56,7 @@ class HttpContentFetcherTest {
     @AfterEach
     fun tearDown() {
         server.stop(0)
+        fetchersToClose.forEach { it.close() }
     }
 
     @Nested
@@ -61,7 +73,7 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch(URI("http://localhost:$port/page"))
+            val result = createFetcher().fetch(URI("http://localhost:$port/page"))
 
             assertEquals("text", result.contentType?.type)
             assertEquals("html", result.contentType?.subtype)
@@ -84,7 +96,7 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch(URI("http://localhost:$port/gzip"))
+            val result = createFetcher().fetch(URI("http://localhost:$port/gzip"))
 
             assertTrue(String(result.content).contains("Compressed content"))
         }
@@ -99,7 +111,7 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch(URI("http://localhost:$port/no-charset"))
+            val result = createFetcher().fetch(URI("http://localhost:$port/no-charset"))
 
             assertEquals("text", result.contentType?.type)
             assertEquals("plain", result.contentType?.subtype)
@@ -118,7 +130,7 @@ class HttpContentFetcherTest {
             server.start()
 
             assertThrows<IOException> {
-                HttpContentFetcher().fetch(URI("http://localhost:$port/error"))
+                createFetcher().fetch(URI("http://localhost:$port/error"))
             }
         }
     }
@@ -128,7 +140,7 @@ class HttpContentFetcherTest {
 
         @Test
         fun `uses custom timeouts`() {
-            val fetcher = HttpContentFetcher(
+            val fetcher = createFetcher(
                 connectTimeout = Duration.ofSeconds(5),
                 readTimeout = Duration.ofSeconds(5),
             )
@@ -156,7 +168,7 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val fetcher = HttpContentFetcher(
+            val fetcher = createFetcher(
                 headers = mapOf(
                     "User-Agent" to "CustomBot/1.0",
                     "X-Custom" to "test-value",
@@ -179,7 +191,7 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            HttpContentFetcher().fetch(URI("http://localhost:$port/default-headers"))
+            createFetcher().fetch(URI("http://localhost:$port/default-headers"))
 
             assertTrue(receivedUserAgent!!.contains("Mozilla"))
         }
@@ -197,7 +209,7 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch(URI("http://localhost:$port/no-content-type"))
+            val result = createFetcher().fetch(URI("http://localhost:$port/no-content-type"))
 
             assertTrue(String(result.content).contains("raw data"))
         }
@@ -217,7 +229,7 @@ class HttpContentFetcherTest {
             }
             server.start()
 
-            val result = HttpContentFetcher().fetch(URI("http://localhost:$port/deflate"))
+            val result = createFetcher().fetch(URI("http://localhost:$port/deflate"))
 
             assertTrue(String(result.content).contains("Deflate content"))
         }

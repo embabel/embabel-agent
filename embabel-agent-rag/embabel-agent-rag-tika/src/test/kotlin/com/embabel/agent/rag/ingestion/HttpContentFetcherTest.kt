@@ -15,7 +15,6 @@
  */
 package com.embabel.agent.rag.ingestion
 
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -49,9 +48,15 @@ class ContentFetcherInjectionTest {
         }
 
         @Test
-        fun `TikaHierarchicalContentReader defaults to HttpContentFetcher`() {
+        fun `TikaHierarchicalContentReader can parse content without HTTP fetcher`() {
+            val html = "<html><body><h1>Local</h1><p>Parsed without fetching</p></body></html>"
             val reader = TikaHierarchicalContentReader()
-            assertNotNull(reader)
+            val doc = reader.parseContent(html.byteInputStream(), "test://local")
+
+            val leaves = doc.leaves().toList()
+            assertTrue(leaves.isNotEmpty())
+            val allText = leaves.joinToString(" ") { it.text }
+            assertTrue(allText.contains("Parsed without fetching"))
         }
     }
 }

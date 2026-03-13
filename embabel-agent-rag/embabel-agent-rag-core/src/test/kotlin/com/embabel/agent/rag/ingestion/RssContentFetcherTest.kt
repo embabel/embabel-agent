@@ -38,7 +38,7 @@ class RssContentFetcherTest {
             val resolver = RssContentFetcher.templateResolver("https://medium.com/feed/{0}")
             val result = resolver.resolve(URI("https://medium.com/embabel/my-article"))
 
-            assertEquals("https://medium.com/feed/embabel", result)
+            assertEquals(URI("https://medium.com/feed/embabel"), result)
         }
 
         @Test
@@ -46,7 +46,7 @@ class RssContentFetcherTest {
             val resolver = RssContentFetcher.templateResolver("https://example.com/{0}/feed/{1}")
             val result = resolver.resolve(URI("https://example.com/blog/posts/article-slug"))
 
-            assertEquals("https://example.com/blog/feed/posts", result)
+            assertEquals(URI("https://example.com/blog/feed/posts"), result)
         }
 
         @Test
@@ -54,7 +54,7 @@ class RssContentFetcherTest {
             val resolver = RssContentFetcher.templateResolver("https://myblog.com/feed")
             val result = resolver.resolve(URI("https://myblog.com/2024/some-article"))
 
-            assertEquals("https://myblog.com/feed", result)
+            assertEquals(URI("https://myblog.com/feed"), result)
         }
 
         @Test
@@ -62,15 +62,16 @@ class RssContentFetcherTest {
             val resolver = RssContentFetcher.templateResolver("https://medium.com/feed/{0}")
             val result = resolver.resolve(URI("https://medium.com/my-publication/my-post"))
 
-            assertEquals("https://medium.com/feed/my-publication", result)
+            assertEquals(URI("https://medium.com/feed/my-publication"), result)
         }
 
         @Test
-        fun `placeholder beyond available segments is left as-is`() {
+        fun `placeholder beyond available segments causes URISyntaxException`() {
             val resolver = RssContentFetcher.templateResolver("https://example.com/{0}/{5}")
-            val result = resolver.resolve(URI("https://example.com/blog/post"))
 
-            assertEquals("https://example.com/blog/{5}", result)
+            assertThrows<java.net.URISyntaxException> {
+                resolver.resolve(URI("https://example.com/blog/post"))
+            }
         }
     }
 
@@ -97,7 +98,7 @@ class RssContentFetcherTest {
 
         private fun createFetcher(): RssContentFetcher {
             return RssContentFetcher(
-                feedResolver = FeedResolver { "https://blog.com/feed" },
+                feedResolver = FeedResolver { URI("https://blog.com/feed") },
                 delegate = delegate,
             )
         }
@@ -143,7 +144,7 @@ class RssContentFetcherTest {
 
         @Test
         fun `uses FeedResolver to determine feed URL`() {
-            val customResolver = FeedResolver { "https://custom.com/rss/${it.path.trimStart('/')}" }
+            val customResolver = FeedResolver { URI("https://custom.com/rss/${it.path.trimStart('/')}") }
             every { delegate.fetch(any()) } returns FetchResult(
                 content = feedWithContentEncoded.toByteArray(StandardCharsets.UTF_8),
             )

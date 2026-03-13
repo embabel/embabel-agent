@@ -26,9 +26,9 @@ import org.springframework.util.MimeType
 fun interface FeedResolver {
 
     /**
-     * Given an article URI, return the RSS feed URL that contains it.
+     * Given an article URI, return the RSS feed URI that contains it.
      */
-    fun resolve(articleUri: URI): String
+    fun resolve(articleUri: URI): URI
 }
 
 /**
@@ -52,9 +52,9 @@ class RssContentFetcher(
     private val rssMapper = RssContentMapper()
 
     override fun fetch(uri: URI): FetchResult {
-        val feedUrl = feedResolver.resolve(uri)
-        logger.info("Fetching RSS feed: {} (for article: {})", feedUrl, uri)
-        val feedResult = delegate.fetch(URI(feedUrl))
+        val feedUri = feedResolver.resolve(uri)
+        logger.info("Fetching RSS feed: {} (for article: {})", feedUri, uri)
+        val feedResult = delegate.fetch(feedUri)
         val articleHtml = rssMapper.map(feedResult.content, uri)
         return FetchResult(
             content = articleHtml,
@@ -75,7 +75,7 @@ class RssContentFetcher(
             segments.forEachIndexed { index, segment ->
                 result = result.replace("{$index}", segment)
             }
-            result
+            URI(result)
         }
     }
 }
