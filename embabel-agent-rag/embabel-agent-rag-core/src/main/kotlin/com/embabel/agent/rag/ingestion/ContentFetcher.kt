@@ -15,37 +15,72 @@
  */
 package com.embabel.agent.rag.ingestion
 
-import java.io.InputStream
+import java.net.URI
+import java.nio.charset.Charset
 
 /**
- * Result of fetching content from a URL.
- * @param T the type of the transformed content
- * @param content the content produced by the mapper function
+ * Result of fetching content from a URI.
+ * @param content the raw content bytes
  * @param contentType the MIME type of the content (e.g. "text/html"), or null if unknown
- * @param charset the charset of the content (e.g. "UTF-8"), or null if unknown
+ * @param charset the charset of the content, or null if unknown
  */
-data class FetchResult<T>(
-    val content: T,
+data class FetchResult(
+    val content: ByteArray,
     val contentType: String? = null,
-    val charset: String? = null,
-)
+    val charset: Charset? = null,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is FetchResult) return false
+        return content.contentEquals(other.content) &&
+            contentType == other.contentType &&
+            charset == other.charset
+    }
+
+    override fun hashCode(): Int {
+        var result = content.contentHashCode()
+        result = 31 * result + (contentType?.hashCode() ?: 0)
+        result = 31 * result + (charset?.hashCode() ?: 0)
+        return result
+    }
+}
 
 /**
- * Abstraction for fetching content from HTTP/HTTPS URLs.
+ * Abstraction for fetching raw content from HTTP/HTTPS URIs.
  * Implementations can use different strategies such as HttpURLConnection,
  * headless browsers (Selenium), or other HTTP clients.
- *
- * The [mapper] function is invoked while the underlying connection is still open,
- * ensuring the stream remains readable. The connection is closed after the mapper returns.
  */
 interface ContentFetcher {
 
     /**
-     * Fetch content from the given URL, transforming the response stream via [mapper].
-     * @param url the HTTP/HTTPS URL to fetch
-     * @param mapper transforms the response [InputStream] into the desired result type
-     * @return a [FetchResult] containing the mapped content and HTTP metadata
+     * Fetch raw content from the given URI.
+     * @param uri the HTTP/HTTPS URI to fetch
+     * @return a [FetchResult] containing the raw bytes and HTTP metadata
      * @throws java.io.IOException if the fetch fails
      */
-    fun <T> fetch(url: String, mapper: (InputStream) -> T): FetchResult<T>
+    fun fetch(uri: URI): FetchResult
+}
+
+/**
+ * Transforms fetched content bytes, e.g. extracting article HTML from an RSS feed,
+ * stripping ads, or normalizing encoding.
+ *
+ * Mappers are composable via [then], allowing pipelines such as
+ * `rssMapper.then(removeAds).then(removeProfanity)`.
+ */
+fun interface ContentMapper {
+
+    fun map(content: ByteArray, uri: URI): ByteArray
+
+    /**
+     * Compose this mapper with [next], producing a mapper that applies this first, then [next].
+     */
+    fun then(next: ContentMapper): ContentMapper = ContentMapper { content, uri ->
+        next.map(this.map(content, uri), uri)
+    }
+
+    companion object {
+        @JvmField
+        val IDENTITY: ContentMapper = ContentMapper { content, _ -> content }
+    }
 }

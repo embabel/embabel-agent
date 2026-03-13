@@ -50,6 +50,7 @@ import java.util.*
  */
 class TikaHierarchicalContentReader @JvmOverloads constructor(
     private val contentFetcher: ContentFetcher = HttpContentFetcher(),
+    private val contentMapper: ContentMapper = ContentMapper.IDENTITY,
 ) : HierarchicalContentReader {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -69,18 +70,19 @@ class TikaHierarchicalContentReader @JvmOverloads constructor(
         // Check if it's an HTTP/HTTPS URL — delegate to ContentFetcher
         if (url.startsWith("http://") || url.startsWith("https://")) {
             logger.debug("Fetching URL via {}: {}", contentFetcher.javaClass.simpleName, url)
-
-            val fetchResult = contentFetcher.fetch(url) { it.readBytes() }
+            val uri = java.net.URI(url)
+            val fetchResult = contentFetcher.fetch(uri)
+            val mappedContent = contentMapper.map(fetchResult.content, uri)
             val metadata = Metadata()
             if (fetchResult.contentType != null) {
                 metadata[TikaCoreProperties.CONTENT_TYPE_HINT] = fetchResult.contentType
             }
-            if (fetchResult.charset != null) {
-                metadata["charset"] = fetchResult.charset
+            val charset = fetchResult.charset
+            if (charset != null) {
+                metadata["charset"] = charset.name()
             }
-            return parseContent(java.io.ByteArrayInputStream(fetchResult.content), url, metadata)
+            return parseContent(java.io.ByteArrayInputStream(mappedContent), url, metadata)
         }
-
         // For non-HTTP URLs, delegate to parseResource
         return parseResource(url)
     }

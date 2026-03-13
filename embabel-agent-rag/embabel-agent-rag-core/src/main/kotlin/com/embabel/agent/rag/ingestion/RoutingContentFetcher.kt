@@ -15,26 +15,19 @@
  */
 package com.embabel.agent.rag.ingestion
 
-import java.io.InputStream
+import java.net.URI
 import org.slf4j.LoggerFactory
+import org.springframework.util.AntPathMatcher
 
 /**
- * A [ContentFetcher] that routes URLs to specific fetchers based on pattern matching,
- * falling back to a default fetcher for unmatched URLs.
+ * A [ContentFetcher] that routes URIs to specific fetchers based on Ant-style pattern matching,
+ * falling back to a default fetcher for unmatched URIs.
  *
- * Example usage:
- * ```
- * RoutingContentFetcher(
- *     default = HttpContentFetcher(),
- *     routes = listOf(
- *         "medium.com" to seleniumFetcher,
- *         "substack.com" to seleniumFetcher,
- *     )
- * )
- * ```
+ * Uses Spring's [AntPathMatcher] which supports `?`, `*`, and `**` wildcards.
+ * Patterns are matched against the full URI string.
  *
  * @param default the fetcher to use when no route matches
- * @param routes list of (substring pattern, fetcher) pairs checked in order
+ * @param routes list of (Ant-style pattern, fetcher) pairs checked in order
  */
 class RoutingContentFetcher(
     private val default: ContentFetcher,
@@ -48,13 +41,15 @@ class RoutingContentFetcher(
         this(default, routes.map { (k, v) -> k to v })
 
     private val logger = LoggerFactory.getLogger(javaClass)
+    private val pathMatcher = AntPathMatcher()
 
-    override fun <T> fetch(url: String, mapper: (InputStream) -> T): FetchResult<T> {
-        val match = routes.firstOrNull { (pattern, _) -> url.contains(pattern) }
+    override fun fetch(uri: URI): FetchResult {
+        val uriString = uri.toString()
+        val match = routes.firstOrNull { (pattern, _) -> pathMatcher.match(pattern, uriString) }
         val fetcher = match?.second ?: default
         if (match != null) {
-            logger.debug("URL '{}' matched route '{}', using {}", url, match.first, fetcher.javaClass.simpleName)
+            logger.debug("URI '{}' matched route '{}', using {}", uri, match.first, fetcher.javaClass.simpleName)
         }
-        return fetcher.fetch(url, mapper)
+        return fetcher.fetch(uri)
     }
 }
