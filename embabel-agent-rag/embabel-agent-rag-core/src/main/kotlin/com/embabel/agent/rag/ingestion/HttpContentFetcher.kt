@@ -39,18 +39,13 @@ class HttpContentFetcher @JvmOverloads constructor(
     private val connectTimeout: Duration = DEFAULT_TIMEOUT,
     private val readTimeout: Duration = DEFAULT_TIMEOUT,
     private val headers: Map<String, String> = emptyMap(),
-) : ContentFetcher, AutoCloseable {
-
-    private val logger = LoggerFactory.getLogger(javaClass)
-
     private val client: HttpClient = HttpClient.newBuilder()
         .connectTimeout(connectTimeout)
         .followRedirects(HttpClient.Redirect.NORMAL)
-        .build()
+        .build(),
+) : ContentFetcher, AutoCloseable by client {
 
-    override fun close() {
-        client.close()
-    }
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     override fun fetch(uri: URI): FetchResult {
         logger.debug("Fetching URI: {}", uri)

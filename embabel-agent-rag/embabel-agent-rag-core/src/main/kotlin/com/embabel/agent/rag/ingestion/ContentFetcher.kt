@@ -47,7 +47,7 @@ data class FetchResult(
  * Implementations can use different strategies such as HttpURLConnection,
  * headless browsers (Selenium), or other HTTP clients.
  */
-interface ContentFetcher {
+fun interface ContentFetcher {
 
     /**
      * Fetch raw content from the given URI.
