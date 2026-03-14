@@ -104,3 +104,12 @@ jobs:
     if: failure() && github.ref == 'refs/heads/main'
     uses: embabel/embabel-build/.github/workflows/discord-notify.yml@main
     secrets: inherit
+
+  # Build Recovery (if prior build failed) Notification
+  notify-recovery:
+    needs: [build]
+    if: success() && github.ref == 'refs/heads/main'
+    uses: embabel/embabel-build/.github/workflows/notify-recovery.yml@main
+    with:
+      branch: main
+    secrets: inherit
