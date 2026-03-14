@@ -22,6 +22,7 @@ import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
+import com.embabel.common.ai.model.LlmOptionsProperties
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
@@ -95,7 +96,7 @@ class OpenAiCustomProperties : RetryProperties {
  * to specify which model should be the default.
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(OpenAiCustomProperties::class)
+@EnableConfigurationProperties(OpenAiCustomProperties::class, LlmOptionsProperties::class)
 @ExcludeFromJacocoGeneratedReport(reason = "OpenAi Custom configuration can't be unit tested")
 class OpenAiCustomModelsConfig(
     @param:Value("\${OPENAI_CUSTOM_BASE_URL:#{null}}")
@@ -104,16 +105,19 @@ class OpenAiCustomModelsConfig(
     private val envApiKey: String?,
     @param:Value("\${OPENAI_CUSTOM_MODELS:#{null}}")
     private val envCustomModels: String?,
+    @param:Value("\${OPENAI_CUSTOM_COMPLETIONS_PATH:#{null}}")
+    private val envCompletionsPath: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: OpenAiCustomProperties,
+    private val llmOptionsProperties: LlmOptionsProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     requestFactory: ObjectProvider<ClientHttpRequestFactory>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
-    apiKey = envApiKey ?: properties.apiKey
-    ?: error("OpenAI Custom API key required: set OPENAI_CUSTOM_API_KEY env var or embabel.agent.platform.models.openai.custom.api-key"),
-    completionsPath = null,
+    apiKey = envApiKey ?: properties.apiKey,
+    completionsPath = envCompletionsPath,
     embeddingsPath = null,
+    httpHeaders = llmOptionsProperties.httpHeaders,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     requestFactory = requestFactory,
 ) {
