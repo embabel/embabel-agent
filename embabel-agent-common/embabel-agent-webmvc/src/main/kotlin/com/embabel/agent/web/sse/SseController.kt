@@ -28,6 +28,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.io.IOException
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 // MIGRATED: @ConfigurationProperties(prefix = "embabel.sse") → AgentPlatformProperties.sse
 // Properties now sourced from embabel.agent.platform.sse.* in agent-platform.properties
@@ -58,28 +61,25 @@ class SSEController(
     // Map from processId to a list of SseEmitters
     private val processEmitters = ConcurrentHashMap<String, MutableList<SseEmitter>>()
 
-    // Buffer recent events per process
-    private val eventBuffer = ConcurrentHashMap<String, MutableList<AgentProcessEvent>>()
+    // Buffer recent events per process with LRU eviction
+    // LinkedHashMap with accessOrder=true maintains access order for proper LRU
+    private val bufferLock = ReentrantReadWriteLock()
+    private val eventBuffer = LinkedHashMap<String, MutableList<AgentProcessEvent>>(16, 0.75f, true)
 
     override fun onProcessEvent(event: AgentProcessEvent) {
         val processId = event.processId
 
-        synchronized(eventBuffer) {
-            // Remove and re-add to move to end (most recently used)
-            val buffer = eventBuffer.remove(processId) ?: Collections.synchronizedList(mutableListOf())
+        bufferLock.write {
+            // Get or create buffer - LinkedHashMap with accessOrder=true moves accessed entries to end
+            val buffer = eventBuffer.getOrPut(processId) { mutableListOf() }
 
             // Add event to buffer
-            synchronized(buffer) {
-                buffer.add(event)
-                if (buffer.size > sseProperties.maxBufferSize) {
-                    buffer.removeAt(0) // Remove oldest event
-                }
+            buffer.add(event)
+            if (buffer.size > sseProperties.maxBufferSize) {
+                buffer.removeAt(0) // Remove oldest event
             }
 
-            // Put buffer back (now at end of LinkedHashMap)
-            eventBuffer[processId] = buffer
-
-            // Evict oldest process buffer if we exceed limit
+            // Evict oldest (first) process buffer if we exceed limit
             if (eventBuffer.size > sseProperties.maxProcessBuffers) {
                 val oldestProcessId = eventBuffer.keys.first()
                 eventBuffer.remove(oldestProcessId)
@@ -131,11 +131,12 @@ class SSEController(
 
         try {
             // Send any earlier events from the buffer
-            eventBuffer[processId]?.let { buffer ->
-                for (event in buffer) {
-                    logger.debug("Catchup: Sending buffered event for process {}: {}", processId, event)
-                    emitter.send(SseEmitter.event().name(SSE_EVENT_NAME).data(event))
-                }
+            val bufferedEvents = bufferLock.read {
+                eventBuffer[processId]?.toList() // Copy to avoid holding lock during send
+            }
+            bufferedEvents?.forEach { event ->
+                logger.debug("Catchup: Sending buffered event for process {}: {}", processId, event)
+                emitter.send(SseEmitter.event().name(SSE_EVENT_NAME).data(event))
             }
 
             emitter.send(

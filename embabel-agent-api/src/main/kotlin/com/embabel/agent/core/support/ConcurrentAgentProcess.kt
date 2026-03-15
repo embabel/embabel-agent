@@ -24,6 +24,7 @@ import com.embabel.plan.common.condition.ConditionWorldState
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking
 import java.time.Instant
+import javax.annotation.concurrent.ThreadSafe
 import kotlin.time.measureTime
 
 /**
@@ -31,6 +32,7 @@ import kotlin.time.measureTime
  * With each invocation of formulateAndExecutePlan(), it will attempt to execute all
  * actions that are currently achievable towards the plan.
  */
+@ThreadSafe
 open class ConcurrentAgentProcess(
     id: String,
     parentId: String?,

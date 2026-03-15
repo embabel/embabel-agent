@@ -15,13 +15,18 @@
  */
 package com.embabel.agent.tools.file
 
+import com.embabel.agent.spi.support.ExecutorAsyncer
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class PatternSearchTest {
 
@@ -65,6 +70,61 @@ class PatternSearchTest {
             val m1 = matches.first()
             assertEquals(m1.file.name, "file1.txt")
             assertEquals(1, m1.matchedLine)
+        }
+
+        @Test
+        fun `should find pattern without asyncer - sequential`() {
+            val matches = patternSearch.findPatternInProject(
+                pattern = Regex("content"),
+                globPattern = "**/*.txt",
+                asyncer = null,
+            )
+
+            assertEquals(4, matches.size)
+        }
+    }
+
+    @Nested
+    inner class ParallelSearch {
+
+        private val executor = Executors.newFixedThreadPool(2)
+        private val asyncer = ExecutorAsyncer(executor)
+
+        @AfterEach
+        fun cleanup() {
+            executor.shutdown()
+            executor.awaitTermination(5, TimeUnit.SECONDS)
+        }
+
+        @BeforeEach
+        fun setupManyFiles() {
+            // Create >100 files to trigger parallel path
+            repeat(150) { i ->
+                Files.writeString(tempDir.resolve("file$i.txt"), "searchable_content_$i")
+            }
+        }
+
+        @Test
+        fun `should find patterns in parallel with asyncer`() {
+            val matches = patternSearch.findPatternInProject(
+                pattern = Regex("searchable_content"),
+                globPattern = "**/*.txt",
+                asyncer = asyncer,
+            )
+
+            assertEquals(150, matches.size)
+        }
+
+        @Test
+        fun `should find specific pattern in parallel`() {
+            val matches = patternSearch.findPatternInProject(
+                pattern = Regex("searchable_content_42"),
+                globPattern = "**/*.txt",
+                asyncer = asyncer,
+            )
+
+            assertEquals(1, matches.size)
+            assertTrue(matches.first().file.name.contains("42"))
         }
     }
 }

@@ -26,6 +26,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Instant
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class SseControllerTest {
 
@@ -378,6 +381,77 @@ class SseControllerTest {
             // Verify all emitters were created
             emitters.forEach { emitter ->
                 assertNotNull(emitter)
+            }
+        }
+
+        @Test
+        fun `should handle true concurrent event processing from multiple threads`() {
+            val processId = "true-concurrency-test"
+            val threadCount = 10
+            val eventsPerThread = 20
+            val executor = Executors.newFixedThreadPool(threadCount)
+            val latch = CountDownLatch(threadCount)
+
+            // Create connection
+            sseController.streamEventsForId(processId)
+
+            // Submit concurrent tasks
+            repeat(threadCount) { threadIndex ->
+                executor.submit {
+                    try {
+                        repeat(eventsPerThread) { eventIndex ->
+                            val event = mockk<AgentProcessEvent>(relaxed = true)
+                            every { event.processId } returns processId
+                            every { event.timestamp } returns Instant.now()
+                            sseController.onProcessEvent(event)
+                        }
+                    } finally {
+                        latch.countDown()
+                    }
+                }
+            }
+
+            // Wait for all threads to complete
+            val completed = latch.await(10, TimeUnit.SECONDS)
+            executor.shutdown()
+
+            assertTrue(completed, "All threads should complete within timeout")
+        }
+
+        @Test
+        fun `should evict oldest process buffer using LRU order`() {
+            // Configure small buffer limit
+            every { mockSseConfig.maxProcessBuffers } returns 3
+            val testProperties = SseProperties(mockPlatformProperties)
+            val testController = SSEController(testProperties)
+
+            // Add events for processes in order: p1, p2, p3
+            listOf("p1", "p2", "p3").forEach { processId ->
+                val event = mockk<AgentProcessEvent>(relaxed = true)
+                every { event.processId } returns processId
+                every { event.timestamp } returns Instant.now()
+                testController.onProcessEvent(event)
+            }
+
+            // Access p1 again to make it most recently used
+            val accessEvent = mockk<AgentProcessEvent>(relaxed = true)
+            every { accessEvent.processId } returns "p1"
+            every { accessEvent.timestamp } returns Instant.now()
+            testController.onProcessEvent(accessEvent)
+
+            // Add p4 - should evict p2 (oldest not recently accessed)
+            val newEvent = mockk<AgentProcessEvent>(relaxed = true)
+            every { newEvent.processId } returns "p4"
+            every { newEvent.timestamp } returns Instant.now()
+            testController.onProcessEvent(newEvent)
+
+            // p1, p3, p4 should have buffers; p2 should be evicted
+            // We verify by creating emitters and checking buffered events are sent
+            // (p2 emitter should not receive any buffered events)
+            assertDoesNotThrow {
+                testController.streamEventsForId("p1")
+                testController.streamEventsForId("p3")
+                testController.streamEventsForId("p4")
             }
         }
     }

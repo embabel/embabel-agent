@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.core.AgentProcess
+import javax.annotation.concurrent.ThreadSafe
 
 /**
  * Accessor for AgentProcess ThreadLocal storage.
@@ -30,6 +31,7 @@ import com.embabel.agent.core.AgentProcess
  * 3. Worker thread: block executes with access to AgentProcess
  * 4. Worker thread: [reset] cleans up to prevent stale values
  */
+@ThreadSafe
 object AgentProcessAccessor {
 
     fun getValue(): AgentProcess? = AgentProcess.get()

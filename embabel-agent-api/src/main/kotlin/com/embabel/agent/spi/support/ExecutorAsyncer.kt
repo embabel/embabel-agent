@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.Asyncer
+import javax.annotation.concurrent.ThreadSafe
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import java.util.concurrent.Semaphore
@@ -24,6 +25,7 @@ import java.util.concurrent.Semaphore
  * Asyncer implementation that uses an Executor for async operations
  * with AgentProcess context propagation to worker threads.
  */
+@ThreadSafe
 class ExecutorAsyncer(
     private val executor: Executor,
 ) : Asyncer {

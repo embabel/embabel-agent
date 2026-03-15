@@ -54,6 +54,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
+import javax.annotation.concurrent.ThreadSafe
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.ChatClientCustomizer
 import org.springframework.ai.chat.client.ResponseEntity
@@ -92,6 +93,7 @@ private const val LLM_INTERRUPTED_MESSAGE = "LLM {}: attempt {} was interrupted"
  * @param templateRenderer TemplateRenderer to render templates
  * @param dataBindingProperties properties
  */
+@ThreadSafe
 @Service
 internal class ChatClientLlmOperations(
     modelProvider: ModelProvider,

@@ -55,6 +55,7 @@ import io.micrometer.observation.ObservationRegistry
 import jakarta.validation.Validator
 import java.time.Duration
 import java.time.Instant
+import javax.annotation.concurrent.ThreadSafe
 
 const val PROMPT_ELEMENT_SEPARATOR = "\n----\n"
 
@@ -95,6 +96,7 @@ interface OutputConverter<T> {
  * @param observationRegistry Registry for distributed tracing observations
  * @param templateRenderer TemplateRenderer for rendering prompt templates (default: NoOpTemplateRenderer)
  */
+@ThreadSafe
 open class ToolLoopLlmOperations(
     modelProvider: ModelProvider,
     toolDecorator: ToolDecorator,

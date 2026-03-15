@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import javax.annotation.concurrent.ThreadSafe
 
 /**
  * Experimental [com.embabel.agent.spi.loop.ToolLoop] implementation that executes
@@ -57,6 +58,7 @@ import java.util.concurrent.TimeoutException
  * @param asyncer Asyncer for parallel tool execution with context propagation
  * @param parallelConfig Configuration for parallel mode (timeouts, etc.)
  */
+@ThreadSafe
 @ApiStatus.Experimental
 internal class ParallelToolLoop(
     llmMessageSender: LlmMessageSender,

@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.domain.library.code
 
+import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.tools.file.PatternSearch
 
 /**
@@ -34,12 +35,12 @@ interface SymbolSearch : PatternSearch {
     fun findClassInProject(
         className: String,
         globPattern: String = "**/*.{kt,java}",
-        useParallelSearch: Boolean = true,
+        asyncer: Asyncer? = null,
     ): List<PatternSearch.PatternMatch> {
         return findPatternInProject(
             pattern = classPattern(className),
             globPattern = globPattern,
-            useParallelSearch = useParallelSearch
+            asyncer = asyncer,
         )
     }
 }

@@ -22,6 +22,7 @@
 
     <properties>
         <archunit.version>1.3.0</archunit.version>
+        <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
         <!-- Exclude test utilities from SonarQube analysis -->
         <sonar.coverage.exclusions>**/test/integration/**</sonar.coverage.exclusions>
         <sonar.cpd.exclusions>**/test/integration/**</sonar.cpd.exclusions>
@@ -124,6 +125,14 @@
             <groupId>io.github.a2asdk</groupId>
             <artifactId>a2a-java-sdk-spec</artifactId>
             <version>0.3.2.Final</version>
+        </dependency>
+
+        <!-- SpotBugs annotations for thread-safety documentation (@ThreadSafe, @GuardedBy) -->
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>${spotbugs-annotations.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Unit and Integration Testing -->
