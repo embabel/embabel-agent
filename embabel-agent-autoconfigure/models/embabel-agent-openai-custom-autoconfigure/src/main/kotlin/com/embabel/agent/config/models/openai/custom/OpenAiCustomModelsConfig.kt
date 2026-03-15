@@ -57,6 +57,18 @@ class OpenAiCustomProperties : RetryProperties {
     var models: String? = null
 
     /**
+     * Custom path for chat completions endpoint (e.g., "/chat/completions" or "/api/chat").
+     * If not set, Spring AI's default "/v1/chat/completions" will be used.
+     */
+    var completionsPath: String? = null
+
+    /**
+     * Custom path for embeddings endpoint.
+     * If not set, Spring AI's default "/v1/embeddings" will be used.
+     */
+    var embeddingsPath: String? = null
+
+    /**
      *  Maximum number of attempts.
      */
     override var maxAttempts: Int = 10
@@ -86,7 +98,7 @@ class OpenAiCustomProperties : RetryProperties {
  *
  * Example:
  * ```
- * OPENAI_CUSTOM_BASE_URL=https://api.groq.com/openai/v1
+ * OPENAI_CUSTOM_BASE_URL=https://api.groq.com/openai
  * OPENAI_CUSTOM_API_KEY=your-api-key
  * OPENAI_CUSTOM_MODELS=llama-3.3-70b-versatile,mixtral-8x7b-32768,gemma2-9b-it
  * EMBABEL_MODELS_DEFAULT_LLM=llama-3.3-70b-versatile
@@ -107,6 +119,8 @@ class OpenAiCustomModelsConfig(
     private val envCustomModels: String?,
     @param:Value("\${OPENAI_CUSTOM_COMPLETIONS_PATH:#{null}}")
     private val envCompletionsPath: String?,
+    @param:Value("\${OPENAI_CUSTOM_EMBEDDINGS_PATH:#{null}}")
+    private val envEmbeddingsPath: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: OpenAiCustomProperties,
     private val llmOptionsProperties: LlmOptionsProperties,
@@ -114,9 +128,10 @@ class OpenAiCustomModelsConfig(
     requestFactory: ObjectProvider<ClientHttpRequestFactory>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
-    apiKey = envApiKey ?: properties.apiKey,
-    completionsPath = envCompletionsPath,
-    embeddingsPath = null,
+    apiKey = envApiKey ?: properties.apiKey
+        ?: error("OpenAI Custom API key required: set OPENAI_CUSTOM_API_KEY env var or embabel.agent.platform.models.openai.custom.api-key"),
+    completionsPath = envCompletionsPath ?: properties.completionsPath,
+    embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
     httpHeaders = llmOptionsProperties.httpHeaders,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     requestFactory = requestFactory,
