@@ -19,14 +19,15 @@ import com.embabel.agent.api.common.Asyncer
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaField
 import com.tngtech.archunit.core.domain.JavaModifier
-import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
+import com.tngtech.archunit.junit.AnalyzeClasses
+import com.tngtech.archunit.junit.ArchTest
 import com.tngtech.archunit.lang.ArchCondition
+import com.tngtech.archunit.lang.ArchRule
 import com.tngtech.archunit.lang.ConditionEvents
 import com.tngtech.archunit.lang.SimpleConditionEvent
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import org.junit.jupiter.api.Tag
-import org.junit.jupiter.api.Test
 import javax.annotation.concurrent.GuardedBy
 import javax.annotation.concurrent.ThreadSafe
 
@@ -41,23 +42,21 @@ import javax.annotation.concurrent.ThreadSafe
  * mvn test -Dtest=ThreadSafetyRulesTest -Dsurefire.failIfNoSpecifiedTests=false
  */
 @Tag("architecture")
+@AnalyzeClasses(
+    packages = ["com.embabel.agent"],
+    importOptions = [ImportOption.DoNotIncludeTests::class]
+)
 class ThreadSafetyRulesTest {
-
-    private val importedClasses = ClassFileImporter()
-        .withImportOption(ImportOption.DoNotIncludeTests())
-        .importPackages("com.embabel.agent")
 
     /**
      * Asyncer implementations must be explicitly marked as thread-safe.
      * This ensures developers consciously design for concurrent execution.
      */
-    @Test
-    fun asyncerImplementationsShouldBeThreadSafe() {
+    @ArchTest
+    val asyncerImplementationsShouldBeThreadSafe: ArchRule =
         classes().that().implement(Asyncer::class.java)
             .should().beAnnotatedWith(ThreadSafe::class.java)
             .because("Asyncer implementations handle concurrent execution and must be thread-safe")
-            .check(importedClasses)
-    }
 
     /**
      * Classes annotated @ThreadSafe must not have mutable (non-final) fields
@@ -68,13 +67,11 @@ class ThreadSafetyRulesTest {
      * - val fields → PASS (final reference)
      * - var fields with @GuardedBy → PASS (documented synchronization)
      */
-    @Test
-    fun threadSafeClassesShouldNotHaveUnguardedMutableFields() {
+    @ArchTest
+    val threadSafeClassesShouldNotHaveUnguardedMutableFields: ArchRule =
         classes().that().areAnnotatedWith(ThreadSafe::class.java)
             .should(haveNoUnguardedMutableFields())
             .because("@ThreadSafe classes must not have mutable fields without @GuardedBy annotation")
-            .check(importedClasses)
-    }
 
     /**
      * ArchCondition that checks for non-final fields without @GuardedBy in @ThreadSafe classes.
