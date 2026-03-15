@@ -324,6 +324,8 @@ dependencies {
 * Optional:
 - `OPENAI_CUSTOM_BASE_URL`: base URL for the OpenAI-compatible API
 - `OPENAI_CUSTOM_MODELS`: comma-separated list of custom model names to register (useful for OpenAI-compatible providers like Groq, Together AI, etc.)
+- `OPENAI_CUSTOM_COMPLETIONS_PATH`: custom path for chat completions endpoint 
+- `OPENAI_CUSTOM_EMBEDDINGS_PATH`: custom path for embeddings endpoint
 
 When using `OPENAI_CUSTOM_MODELS`, set `EMBABEL_MODELS_DEFAULT_LLM` to specify which model to use as the default.
 
@@ -331,7 +333,7 @@ Example for using Groq:
 
 [source,bash]
 ----
-export OPENAI_CUSTOM_BASE_URL="https://api.groq.com/openai/v1"
+export OPENAI_CUSTOM_BASE_URL="https://api.groq.com/openai"
 export OPENAI_CUSTOM_API_KEY="your-groq-api-key"
 export OPENAI_CUSTOM_MODELS="llama-3.3-70b-versatile,mixtral-8x7b-32768"
 export EMBABEL_MODELS_DEFAULT_LLM="llama-3.3-70b-versatile"
@@ -348,8 +350,18 @@ embabel:
         openai:
           custom:
             api-key: ${OPENAI_CUSTOM_API_KEY:your-dev-key}
-            base-url: https://api.groq.com/openai/v1
+            base-url: https://api.groq.com/openai
             models: llama-3.3-70b-versatile,mixtral-8x7b-32768
+----
+
+For APIs with non-standard paths (e.g., Z.AI), use the completions path override:
+
+[source,bash]
+----
+export OPENAI_CUSTOM_BASE_URL="https://api.z.ai/api/coding/paas"
+export OPENAI_CUSTOM_API_KEY="your-api-key"
+export OPENAI_CUSTOM_COMPLETIONS_PATH="/v4/chat/completions"
+export OPENAI_CUSTOM_MODELS="your-model-name"
 ----
 
 You also need to add the `embabel-agent-starter-openai-custom` starter.
