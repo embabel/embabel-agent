@@ -22,5 +22,5 @@ package com.embabel.agent.spi.loop
  */
 class RequiredToolGroupException(
     val role: String,
-    override val message: String,
+    message: String,
 ) : RuntimeException(message)

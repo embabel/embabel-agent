@@ -103,7 +103,7 @@ interface ToolConsumer : ToolSpecConsumer,
                     if (requirement.requiredToolNames.isNotEmpty()) {
                         throw RequiredToolGroupException(
                             role = requirement.role,
-                            message = "Required tool group with role='${requirement.role}' has no tools",
+                            message = "Required tool group with role='${requirement.role}' has no tools; required: ${requirement.requiredToolNames}",
                         )
                     }
                     loggerFor<ToolConsumer>().warn(

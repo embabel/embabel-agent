@@ -42,10 +42,5 @@ class RequiredToolGroupExceptionTest {
             assertEquals("search", ex.role)
         }
 
-        @Test
-        fun `is a RuntimeException`() {
-            val ex = RequiredToolGroupException(role = "r", message = "m")
-            assertTrue(ex is RuntimeException)
-        }
     }
 }

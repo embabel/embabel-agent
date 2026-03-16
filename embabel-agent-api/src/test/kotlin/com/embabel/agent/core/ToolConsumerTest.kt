@@ -243,9 +243,11 @@ class ToolConsumerTest {
                 toolGroups = setOf(ToolGroupRequirement("missing-role", setOf("some-tool"))),
             )
 
-            assertThrows<RequiredToolGroupException> {
+            val ex = assertThrows<RequiredToolGroupException> {
                 consumer.resolveTools(resolver)
             }
+            assertEquals("missing-role", ex.role)
+            assertTrue(ex.message!!.contains("missing-role"))
         }
 
         @Test
@@ -258,9 +260,12 @@ class ToolConsumerTest {
                 toolGroups = setOf(ToolGroupRequirement("empty-role", setOf("some-tool"))),
             )
 
-            assertThrows<RequiredToolGroupException> {
+            val ex = assertThrows<RequiredToolGroupException> {
                 consumer.resolveTools(resolver)
             }
+            assertEquals("empty-role", ex.role)
+            assertTrue(ex.message!!.contains("empty-role"))
+            assertTrue(ex.message!!.contains("some-tool"))
         }
 
         @Test
@@ -274,9 +279,12 @@ class ToolConsumerTest {
                 toolGroups = setOf(ToolGroupRequirement("partial-role", setOf("present-tool", "absent-tool"))),
             )
 
-            assertThrows<RequiredToolGroupException> {
+            val ex = assertThrows<RequiredToolGroupException> {
                 consumer.resolveTools(resolver)
             }
+            assertEquals("partial-role", ex.role)
+            assertTrue(ex.message!!.contains("absent-tool"))
+            assertTrue(ex.message!!.contains("present-tool"))
         }
 
         @Test
