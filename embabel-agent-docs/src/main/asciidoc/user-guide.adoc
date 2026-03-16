@@ -7,13 +7,11 @@ include::overview/page.adoc[]
 
 include::getting-started/page.adoc[]
 
+include::shell/shell-guide.adoc[]
+
 include::modules/page.adoc[]
 
-
 include::reference/reference.adoc[]
-
-
-// include::shell/shell-guide.adoc[]
 
 // include::eval/eval-guide.adoc[]
 

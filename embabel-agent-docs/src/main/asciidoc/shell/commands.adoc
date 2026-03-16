@@ -1,6 +1,81 @@
 [[shell.commands]]
 === Shell Commands
 
+==== Agent Execution Commands
+
+[[shell.commands.execute]]
+===== execute (x)
+
+Run the most appropriate agent for the given natural-language input.
+Embabel uses <<reference.invoking__autonomy,Autonomy>> to rank all registered agents and selects the best match.
+
+----
+execute "Lynda is a Scorpio, find news for her"
+
+# Shorthand alias
+x "Lynda is a Scorpio, find news for her"
+----
+
+[cols="1,3"]
+|===
+|Option |Description
+
+|`-p`
+|Log LLM prompts during execution
+
+|`-r`
+|Log raw LLM responses during execution
+
+|`-o` / `--open`
+|Open mode: select the best _goal_ across all agents, then assemble a dynamic agent from any available actions to achieve it.
+Without this flag, closed mode is used: a single agent is selected and runs in isolation.
+
+|`-c key=val,...`
+|Per-execution tool call context entries, merged with any persistent context set via `set-context`.
+Per-execution entries win on conflict.
+|===
+
+Example combining flags:
+
+----
+# Verbose closed-mode run
+x "fact check: the Eiffel Tower is in Berlin" -p -r
+
+# Open mode with prompt logging
+x "Research the latest Go release" -o -p
+
+# Per-execution context override
+x "Find news for Alice" -c "tenantId=beta,correlationId=req-456"
+----
+
+===== chat
+
+Start an interactive back-and-forth conversation with the most appropriate agent.
+The agent responds to each message in turn, maintaining state across the session.
+
+----
+shell:> chat
+chat:> What does the document say about taxes?
+chat:> Summarise that in three bullet points.
+chat:> exit
+----
+
+Type `exit` to end the chat session and return to the main shell prompt.
+
+===== choose-goal
+
+Use the LLM to rank all available goals across all agents against the provided input, and display the rankings without executing anything.
+Useful for understanding which goal Embabel would select for a given input, and for tuning agent descriptions.
+
+----
+choose-goal "Find a horoscope for Alice who is a Scorpio"
+----
+
+The output shows each candidate goal, its score, and the agent it belongs to.
+If the top-ranked goal is not what you expected, revisit the `description` attribute on the relevant `@AchievesGoal` or `@Agent` annotation.
+
+See <<reference.invoking__autonomy>> for the confidence threshold configuration that controls when a goal is considered a strong enough match to execute.
+
 ==== Tool Call Context Commands
 
 The shell supports setting out-of-band metadata that is passed to all tools during agent execution.
@@ -44,3 +119,67 @@ x "Find news for Alice" -c "correlationId=req-456,tenantId=beta"
 
 In this example the effective context for that single execution is `{tenantId=beta, authToken=bearer-xyz123, correlationId=req-456}`.
 The persistent context remains `{tenantId=acme, authToken=bearer-xyz123}` for future invocations.
+
+[[shell.commands.custom]]
+==== Implementing Custom Shell Commands
+
+During development you may want to add your own shell commands to invoke specific agents or flows directly, bypassing the natural-language routing of `execute`.
+Because the Embabel Shell is a standard Spring Shell application, any `@ShellComponent` bean is discovered and registered automatically by Spring.
+
+Inject `AgentPlatform` and use `AgentInvocation` to call agents with strong typing:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@ShellComponent
+public record SupportAgentShellCommands(
+        AgentPlatform agentPlatform
+) {
+
+    @ShellMethod("Get bank support for a customer query")
+    public String bankSupport(
+            @ShellOption(value = "id", help = "customer id", defaultValue = "123") Long id,
+            @ShellOption(value = "query", help = "customer query", defaultValue = "What's my balance, including pending amounts?") String query
+    ) {
+        var supportInput = new SupportInput(id, query);
+        System.out.println("Support input: " + supportInput);
+        var invocation = AgentInvocation
+                .builder(agentPlatform)
+                .options(ProcessOptions.builder().verbosity(v -> v.showPrompts(true)).build())
+                .build(SupportOutput.class);
+        return invocation.invoke(supportInput).toString();
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@ShellComponent
+class SupportAgentShellCommands(
+    private val agentPlatform: AgentPlatform
+) {
+
+    @ShellMethod("Get bank support for a customer query")
+    fun bankSupport(
+        @ShellOption(value = ["id"], help = "customer id", defaultValue = "123") id: Long,
+        @ShellOption(value = ["query"], help = "customer query", defaultValue = "What's my balance, including pending amounts?") query: String
+    ): String {
+        val supportInput = SupportInput(id, query)
+        println("Support input: $supportInput")
+        val invocation = AgentInvocation
+            .builder(agentPlatform)
+            .options(ProcessOptions.builder().verbosity { it.showPrompts(true) }.build())
+            .build(SupportOutput::class.java)
+        return invocation.invoke(supportInput).toString()
+    }
+}
+----
+====
+
+TIP: Custom shell commands are particularly useful when you want to pre-populate inputs with test data or invoke a specific agent directly rather than relying on Autonomy's natural-language selection.
+For full `AgentInvocation` API details see <<reference.invoking>>.

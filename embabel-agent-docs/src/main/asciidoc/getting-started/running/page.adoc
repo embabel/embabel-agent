@@ -36,27 +36,16 @@ NOTE: For Google GenAI, you can use either `GOOGLE_API_KEY` (Google AI Studio) o
 
 Spring Shell is an easy way to interact with the Embabel agent framework, especially during development.
 
-Type `help` to see available commands.
-Use `execute` or `x` to run an agent:
+Type `help` to see available commands, or use `execute` / `x` to run an agent:
 
 ----
 execute "Lynda is a Scorpio, find news for her" -p -r
 ----
 
-This will look for an agent, choose the star finder agent and run the flow. `-p` will log prompts `-r` will log LLM responses.
-Omit these for less verbose logging.
+The `-p` and `-r` flags log prompts and LLM responses respectively; omit them for quiet output.
+Use `chat` for an interactive conversation, and `choose-goal` to inspect how Embabel ranks goals without running anything.
 
-Options:
-
-- `-p` logs prompts
-- `-r` logs LLM responses
-
-Use the `chat` command to enter an interactive chat with the agent.
-It will attempt to run the most appropriate agent for each command.
-
-TIP: Spring Shell supports history.
-Type `!!` to repeat the last command.
-This will survive restarts, so is handy when iterating on an agent.
+For a full description of every command, flags, tab completion, and history shortcuts, see <<shell.guide>>.
 
 ==== Example Commands
 
@@ -75,63 +64,6 @@ x "fact check the following: holden cars are still made in australia"
 
 ==== Implementing Your Own Shell Commands
 
-Particularly during development, you may want to implement your own shell commands to try agents or flows.
-Simply write a Spring Shell component and Spring will inject it and register it automatically.
-
-For example, you can inject the `AgentPlatform` and use it to invoke agents directly, as in this code from the examples repository:
-
-[tabs]
-====
-Java::
-+
-[source,java]
-----
-@ShellComponent
-public record SupportAgentShellCommands(
-        AgentPlatform agentPlatform
-) {
-
-    @ShellMethod("Get bank support for a customer query")
-    public String bankSupport(
-            @ShellOption(value = "id", help = "customer id", defaultValue = "123") Long id,
-            @ShellOption(value = "query", help = "customer query", defaultValue = "What's my balance, including pending amounts?") String query
-    ) {
-        var supportInput = new SupportInput(id, query);
-        System.out.println("Support input: " + supportInput);
-        var invocation = AgentInvocation
-                .builder(agentPlatform)
-                .options(ProcessOptions.builder().verbosity(v -> v.showPrompts(true)).build())
-                .build(SupportOutput.class);
-        var result = invocation.invoke(supportInput);
-        return result.toString();
-    }
-}
-----
-
-Kotlin::
-+
-[source,kotlin]
-----
-@ShellComponent
-class SupportAgentShellCommands(
-    private val agentPlatform: AgentPlatform
-) {
-
-    @ShellMethod("Get bank support for a customer query")
-    fun bankSupport(
-        @ShellOption(value = ["id"], help = "customer id", defaultValue = "123") id: Long,
-        @ShellOption(value = ["query"], help = "customer query", defaultValue = "What's my balance, including pending amounts?") query: String
-    ): String {
-        val supportInput = SupportInput(id, query)
-        println("Support input: $supportInput")
-        val invocation = AgentInvocation
-            .builder(agentPlatform)
-            .options(ProcessOptions.builder().verbosity { it.showPrompts(true) }.build())
-            .build(SupportOutput::class.java)
-        val result = invocation.invoke(supportInput)
-        return result.toString()
-    }
-}
-----
-====
+You can add custom shell commands to invoke specific agents directly during development.
+See <<shell.commands.custom>> for a full example and explanation.
 

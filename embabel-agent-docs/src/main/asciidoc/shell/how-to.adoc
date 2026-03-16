@@ -1,2 +1,66 @@
 [[shell.how-to]]
 === How to Use the Shell
+
+The Embabel Shell is built on https://spring.io/projects/spring-shell[Spring Shell] and provides an interactive command-line interface for running and developing agents.
+It is the fastest way to try agents, iterate on prompts, and observe agent behaviour in detail.
+
+==== Starting the Shell
+
+With the `embabel-agent-starter-shell` dependency and API keys configured, start your application normally.
+The shell prompt appears automatically:
+
+----
+shell:>
+----
+
+If you are using the Embabel example or template projects, use the provided convenience script:
+
+[source,bash]
+----
+./scripts/shell.sh
+----
+
+==== Navigating the Shell
+
+Type `help` to list all available commands with a short description of each:
+
+----
+shell:> help
+----
+
+Tab completion is supported for command names and, where applicable, for option values.
+Press `<Tab>` after typing a partial command or flag to see available completions.
+
+The shell maintains a persistent command history across restarts.
+Use the up/down arrow keys to navigate previous commands, or type `!!` to repeat the last command — especially handy when iterating on an agent prompt:
+
+----
+shell:> !!
+----
+
+==== How User Input Reaches an Agent
+
+When you run `execute "some text"`, the shell wraps the quoted string in a `UserInput` object and places it on the agent process blackboard.
+Agents declare a dependency on `UserInput` by accepting it as a parameter in their first `@Action` method.
+Embabel's planner sees that `UserInput` is available and selects the appropriate action automatically.
+
+This is the same mechanism used in web controllers and webhook handlers — only the source of `UserInput` changes (shell vs. HTTP request vs. event payload).
+See <<reference.invoking>> for programmatic invocation patterns.
+
+==== Logging Verbosity
+
+The `-p` and `-r` flags on `execute` control what gets logged during a run:
+
+[cols="1,3"]
+|===
+|Flag |Effect
+
+|`-p`
+|Log LLM prompts sent by the agent
+
+|`-r`
+|Log raw LLM responses received by the agent
+|===
+
+Omit both flags for quiet output showing only the final result.
+Use both together for maximum visibility when debugging a misbehaving agent.

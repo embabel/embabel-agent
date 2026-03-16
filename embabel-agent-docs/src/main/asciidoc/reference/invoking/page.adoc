@@ -1143,9 +1143,8 @@ val options = GoalSelectionOptions(
 
 ===== Shell Usage
 
-The Embabel Shell uses `Autonomy` for the `execute` (or `x`) command:
+The Embabel Shell uses `Autonomy` for the `execute` (`x`) and `choose-goal` commands:
 
-[source,bash]
 ----
 # Closed mode (default) - select best agent
 x "Find a horoscope for Alice who is a Scorpio"
@@ -1156,6 +1155,8 @@ x "Find a horoscope for Alice who is a Scorpio" -o
 # Show goal rankings without executing
 choose-goal "Find a horoscope for Alice"
 ----
+
+See <<shell.commands.execute>> and <<shell.commands>> for full command and flag documentation.
 
 ===== Handling Selection Failures
 
