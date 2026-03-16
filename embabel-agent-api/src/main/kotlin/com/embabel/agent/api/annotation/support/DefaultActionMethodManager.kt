@@ -257,7 +257,7 @@ internal class DefaultActionMethodManager(
         actionContext: TransformationActionContext<List<Any>, O>,
     ): O {
         logger.debug("Invoking action method {} with payload {}", method.name, actionContext.input)
-        val result = if (KotlinDetector.isKotlinReflectPresent()) {
+        val result = if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(instance.javaClass)) {
             val kFunction = method.kotlinFunction
             if (kFunction != null) invokeActionMethodKotlinReflect(method, kFunction, instance, actionContext)
             else invokeActionMethodJavaReflect(method, instance, actionContext)
@@ -337,6 +337,8 @@ internal class DefaultActionMethodManager(
         val result = try {
             method.trySetAccessible()
             ReflectionUtils.invokeMethod(method, instance, *args)
+        } catch (sre: SpecialReturnException) {
+            handleSpecial(sre, actionContext)
         } catch (awe: AwaitableResponseException) {
             handleAwaitableResponseException(instance.javaClass.name, method.name, awe)
         } catch (t: Throwable) {

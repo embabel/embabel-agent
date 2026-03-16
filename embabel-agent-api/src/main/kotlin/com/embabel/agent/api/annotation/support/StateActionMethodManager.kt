@@ -139,7 +139,9 @@ internal class StateActionMethodManager(
             stateInstance.javaClass.getMethod(method.name, *method.parameterTypes)
         }
 
-        val result = if (KotlinDetector.isKotlinReflectPresent()) {
+        val result = if (KotlinDetector.isKotlinReflectPresent() &&
+            KotlinDetector.isKotlinType(stateInstance.javaClass)
+        ) {
             val kFunction = actualMethod.kotlinFunction
             if (kFunction != null) invokeStateActionMethodKotlinReflect(
                 actualMethod,

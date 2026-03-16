@@ -16,10 +16,12 @@
 package com.embabel.agent.api.tool;
 
 import com.embabel.agent.api.annotation.LlmTool;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -368,6 +370,59 @@ class ToolFromInstanceJavaTest {
 
             assertInstanceOf(Tool.Result.Text.class, toolResult);
             assertEquals("ID: 42, Name: Test", ((Tool.Result.Text) toolResult).getContent());
+        }
+    }
+
+    public static class GreetingWithOptionalTitleTool {
+        @LlmTool(description = "Greet a person, optionally with a title")
+        public String greet(
+                @LlmTool.Param(description = "Person's name") String name,
+                @LlmTool.Param(description = "Optional title, e.g. Dr.", required = false) String title
+        ) {
+            if (title == null || title.isBlank()) {
+                return "Hello, " + name + "!";
+            }
+            return "Hello, " + title + " " + name + "!";
+        }
+    }
+
+    @Nested
+    class JavaOptionalParameters {
+
+        @Test
+        void javaToolWithOptionalParamCanBeCalledWithoutThatParam() {
+            var instance = new GreetingWithOptionalTitleTool();
+            var tool = Tool.fromInstance(instance).getFirst();
+
+            var result = tool.call("{\"name\":\"Alice\"}");
+
+            assertInstanceOf(Tool.Result.Text.class, result);
+            assertEquals("Hello, Alice!", ((Tool.Result.Text) result).getContent());
+        }
+
+        @Test
+        void javaToolWithOptionalParamCanBeCalledWithThatParam() {
+            var instance = new GreetingWithOptionalTitleTool();
+            var tool = Tool.fromInstance(instance).getFirst();
+
+            var result = tool.call("{\"name\":\"Smith\",\"title\":\"Dr.\"}");
+
+            assertInstanceOf(Tool.Result.Text.class, result);
+            assertEquals("Hello, Dr. Smith!", ((Tool.Result.Text) result).getContent());
+        }
+
+        @Test
+        void optionalParamIsNotInRequiredArrayOfSchema() throws Exception {
+            var instance = new GreetingWithOptionalTitleTool();
+            var tool = Tool.fromInstance(instance).getFirst();
+
+            var schema = tool.getDefinition().getInputSchema().toJsonSchema();
+            var schemaMap = new ObjectMapper().readValue(schema, Map.class);
+
+            var required = (List<?>) schemaMap.get("required");
+            assertNotNull(required, "Schema should have a 'required' array");
+            assertTrue(required.contains("name"), "'name' should be required");
+            assertFalse(required.contains("title"), "'title' must NOT be in required: " + required);
         }
     }
 }

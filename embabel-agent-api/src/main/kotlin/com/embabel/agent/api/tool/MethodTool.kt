@@ -233,7 +233,7 @@ internal class JavaMethodTool(
                 val paramAnnotation = param.getAnnotation(Param::class.java)
                 ParameterInfo(
                     name = param.name,
-                    type = param.type,
+                    type = param.parameterizedType,
                     description = paramAnnotation?.description ?: "",
                     required = paramAnnotation?.required ?: true,
                 )

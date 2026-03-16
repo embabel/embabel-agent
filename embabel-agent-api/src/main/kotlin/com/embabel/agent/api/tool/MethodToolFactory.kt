@@ -109,12 +109,12 @@ interface MethodToolFactory {
             return listOf(UnfoldingTool.fromInstance(instance, objectMapper))
         }
 
-        val tools = if (KotlinDetector.isKotlinReflectPresent()) {
+        val tools = if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(instance.javaClass)) {
             instance::class.functions
                 .filter { it.hasAnnotation<LlmTool>() }
                 .map { fromMethod(instance, it, objectMapper) }
         } else {
-            instance.javaClass.methods
+            instance.javaClass.declaredMethods
                 .filter { it.isAnnotationPresent(LlmTool::class.java) }
                 .map { fromMethod(instance, it, objectMapper) }
         }
