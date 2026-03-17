@@ -64,10 +64,8 @@ object OnnxModelLoader {
             restClient.get()
                 .uri(parsedUri)
                 .exchange { _, response ->
-                    if (response.statusCode.isError) {
-                        throw IllegalStateException(
-                            "Download failed: $uri returned ${response.statusCode}",
-                        )
+                    check(!response.statusCode.isError) {
+                        "Download failed: $uri returned ${response.statusCode}"
                     }
                     response.body.use { input ->
                         Files.copy(input, tempFile, StandardCopyOption.REPLACE_EXISTING)
