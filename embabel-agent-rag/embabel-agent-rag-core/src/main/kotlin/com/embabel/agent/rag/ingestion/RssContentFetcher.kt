@@ -34,7 +34,7 @@ fun interface FeedResolver {
 /**
  * [ContentFetcher] that retrieves article content from RSS feeds.
  *
- * Delegates HTTP fetching to [delegate] and RSS parsing to [RssContentMapper],
+ * Delegates HTTP fetching to [delegate] and RSS parsing to [RssArticleContentMapper],
  * cleanly separating transport from format concerns.
  *
  * Works with any site that publishes full content in RSS `content:encoded` or
@@ -49,7 +49,7 @@ class RssContentFetcher(
 ) : ContentFetcher {
 
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val rssMapper = RssContentMapper()
+    private val rssMapper = RssArticleContentMapper()
 
     override fun fetch(uri: URI): FetchResult {
         val feedUri = feedResolver.resolve(uri)

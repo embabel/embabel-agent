@@ -28,13 +28,16 @@ import org.w3c.dom.NodeList
 /**
  * [ContentMapper] that extracts a single article's HTML from RSS/Atom feed XML.
  *
+ * This mapper is specifically designed for article content (blog posts, news items, etc.)
+ * and is not intended for other RSS content types such as podcasts or video feeds.
+ *
  * Given the raw bytes of an RSS feed and the target article URI, this mapper
  * locates the matching `<item>` by slug and returns the article content
  * wrapped in a minimal HTML document.
  *
  * Prefers `content:encoded` (full HTML) over `description` (summary).
  */
-class RssContentMapper : ContentMapper {
+class RssArticleContentMapper : ContentMapper {
 
     private val logger = LoggerFactory.getLogger(javaClass)
     private val documentBuilderFactory = DocumentBuilderFactory.newInstance().apply {

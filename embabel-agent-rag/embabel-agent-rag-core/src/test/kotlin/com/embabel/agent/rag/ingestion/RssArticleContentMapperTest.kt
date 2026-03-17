@@ -23,9 +23,9 @@ import java.io.IOException
 import java.net.URI
 import java.nio.charset.StandardCharsets
 
-class RssContentMapperTest {
+class RssArticleContentMapperTest {
 
-    private val mapper = RssContentMapper()
+    private val mapper = RssArticleContentMapper()
 
     private val feedWithContentEncoded = """
         <?xml version="1.0" encoding="UTF-8"?>
