@@ -94,6 +94,7 @@ data class FakePromptRunner(
      */
     val interactionId: InteractionId? = null,
     private val guardRails: List<GuardRail> = emptyList(),
+    private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
 ) : PromptRunner {
 
     private val logger = LoggerFactory.getLogger(FakePromptRunner::class.java)
@@ -212,7 +213,10 @@ data class FakePromptRunner(
 
         override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate = this
 
-        override fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate = this
+        override fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate =
+            this@FakePromptRunner.copy(
+                toolCallContext = this@FakePromptRunner.toolCallContext.merge(context)
+            ).DelegateAdapter()
 
         override val domainToolSources: List<DomainToolSource<*>>
             get() = emptyList()
@@ -416,6 +420,7 @@ data class FakePromptRunner(
             },
             id = interactionId ?: InteractionId(MobyNameGenerator.generateName()),
             generateExamples = generateExamples,
+            toolCallContext = toolCallContext,
         )
 
     override fun rendering(templateName: String): PromptRunner.Rendering {
@@ -446,7 +451,8 @@ data class FakePromptRunner(
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner = this
 
-    override fun withToolCallContext(context: ToolCallContext): PromptRunner = this
+    override fun withToolCallContext(context: ToolCallContext): PromptRunner =
+        copy(toolCallContext = this.toolCallContext.merge(context))
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
