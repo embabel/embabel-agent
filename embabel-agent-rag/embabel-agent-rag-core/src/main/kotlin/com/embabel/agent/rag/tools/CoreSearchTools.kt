@@ -98,7 +98,19 @@ internal class VectorSearchTools @JvmOverloads constructor(
 }
 
 /**
- * Tools to expand chunks around an anchor chunk that has already been retrieved
+ * Tools to expand the context around a chunk that has already been retrieved via search.
+ *
+ * Delegates to a [ResultExpander] implementation, which determines how chunks are
+ * related and ordered. Provides two expansion strategies:
+ * - **Broaden**: retrieves adjacent sibling chunks, giving more context
+ *   from the same level of the content hierarchy (e.g., the paragraphs before and after).
+ * - **Zoom out**: navigates up the content hierarchy to the parent section that contains
+ *   the chunk. This is useful when a chunk matches a query but lacks the broader context
+ *   needed to fully answer it — for example, a chunk mentioning a term defined in the
+ *   enclosing section heading.
+ *
+ * Existing implementations (e.g., `embabel-agent-rag-neo-drivine`) apply sequence order
+ * based on the graph structure of ingested content.
  */
 internal class ResultExpanderTools @JvmOverloads constructor(
     private val resultExpander: ResultExpander,
