@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.*
 import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.tool.ArtifactSinkingTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolFactory
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
@@ -77,6 +78,7 @@ internal data class OperationContextDelegate(
     private val guardRails: List<GuardRail> = emptyList(),
     private val inspectors: List<ToolLoopInspector> = emptyList(),
     private val transformers: List<ToolLoopTransformer> = emptyList(),
+    private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
     override val autoDiscovery: Boolean = false,
     override val injectionStrategies: List<ToolInjectionStrategy> = emptyList(),
@@ -140,6 +142,9 @@ internal data class OperationContextDelegate(
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate =
         copy(transformers = this.transformers + transformers)
+
+    override fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate =
+        copy(toolCallContext = this.toolCallContext.merge(context))
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,
@@ -218,6 +223,7 @@ internal data class OperationContextDelegate(
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
                 inspectors = inspectors,
                 transformers = transformers,
+                toolCallContext = toolCallContext,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -250,6 +256,7 @@ internal data class OperationContextDelegate(
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
                 inspectors = inspectors,
                 transformers = transformers,
+                toolCallContext = toolCallContext,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -363,6 +370,7 @@ internal data class OperationContextDelegate(
             additionalInjectionStrategies = toolConfig.injectionStrategies,
             inspectors = inspectors,
             transformers = transformers,
+            toolCallContext = toolCallContext,
         )
     }
 
@@ -486,6 +494,7 @@ internal data class OperationContextDelegate(
             additionalInjectionStrategies = toolConfig.injectionStrategies,
             inspectors = inspectors,
             transformers = transformers,
+            toolCallContext = toolCallContext,
         )
     }
 

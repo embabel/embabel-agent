@@ -23,6 +23,7 @@ import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetecto
 import com.embabel.agent.api.common.support.streaming.StreamingImpl
 import com.embabel.agent.api.common.thinking.support.ThinkingPromptRunnerOperationsImpl
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -390,6 +391,9 @@ internal data class OperationContextPromptRunner(
         type: Class<T>,
         predicate: DomainToolPredicate<T>,
     ): PromptRunner = this
+
+    override fun withToolCallContext(context: ToolCallContext): PromptRunner =
+        copy() // toolCallContext not tracked in this legacy implementation
 
     override fun withToolChainingFromAny(): PromptRunner = this
 

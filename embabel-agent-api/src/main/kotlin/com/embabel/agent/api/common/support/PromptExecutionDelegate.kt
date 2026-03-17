@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.AgentImage
 import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
@@ -99,6 +100,8 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate
 
     fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate
+
+    fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate
 
     val domainToolSources: List<DomainToolSource<*>>
 

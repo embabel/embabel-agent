@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.support.DelegatingCreating
 import com.embabel.agent.api.common.support.DelegatingRendering
 import com.embabel.agent.api.common.support.PromptExecutionDelegate
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
@@ -210,6 +211,8 @@ data class FakePromptRunner(
         override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate = this
 
         override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate = this
+
+        override fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate = this
 
         override val domainToolSources: List<DomainToolSource<*>>
             get() = emptyList()
@@ -442,6 +445,8 @@ data class FakePromptRunner(
     override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner = this
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner = this
+
+    override fun withToolCallContext(context: ToolCallContext): PromptRunner = this
 
     override fun <T : Any> withToolChainingFrom(
         type: Class<T>,

@@ -18,6 +18,7 @@ package com.embabel.agent.api.common.thinking
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
@@ -268,6 +269,8 @@ class ThinkingPromptRunnerOperationsTest {
                 type: Class<T>,
                 predicate: com.embabel.agent.api.tool.agentic.DomainToolPredicate<T>,
             ): PromptRunner = this
+
+            override fun withToolCallContext(context: ToolCallContext): PromptRunner = this
 
             override fun withToolChainingFromAny(): PromptRunner = this
         }

@@ -18,6 +18,7 @@ package com.embabel.agent.api.common
 import com.embabel.agent.api.common.PromptRunner.Creating
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.ToolChaining
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
@@ -370,6 +371,39 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * @return PromptRunner instance with the added transformers
      */
     fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner
+
+    /**
+     * Set out-of-band metadata to pass to tools at call time.
+     *
+     * The context flows through the tool loop to every tool invoked during this
+     * interaction. For MCP tools, entries are forwarded as MCP `_meta` on the wire
+     * (subject to any [com.embabel.agent.tools.mcp.ToolCallContextMcpMetaConverter]
+     * bean configured in the application).
+     *
+     * This context is merged with any context set at the process level via
+     * [com.embabel.agent.core.ProcessOptions]. Interaction-level values win on conflict.
+     *
+     * Example:
+     * ```kotlin
+     * ai.promptRunner()
+     *   .withToolCallContext(ToolCallContext.of("tenantId" to "acme", "locale" to "en-AU"))
+     *   .withToolGroup(CoreToolGroups.WEB)
+     *   .createObject<NewsResult>(prompt)
+     * ```
+     *
+     * @param context the context entries to attach
+     * @return PromptRunner with the tool call context set
+     */
+    fun withToolCallContext(context: ToolCallContext): PromptRunner
+
+    /**
+     * Convenience overload accepting a plain map.
+     *
+     * @param entries the context entries to attach
+     * @return PromptRunner with the tool call context set
+     */
+    fun withToolCallContext(entries: Map<String, Any>): PromptRunner =
+        withToolCallContext(ToolCallContext.of(entries))
 
     /**
      * Returns a mode for creating strongly-typed objects.
