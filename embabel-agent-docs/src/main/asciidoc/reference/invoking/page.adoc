@@ -190,6 +190,56 @@ val plan = invocation.invoke(travelRequest)
 ----
 ====
 
+===== Passing Tool Call Context at Invocation Time
+
+Use `ProcessOptions.withToolCallContext()` to attach out-of-band metadata that flows through the entire agent run to every tool invoked — including remote MCP tools, where it becomes MCP `_meta` on the wire.
+This is the right place for cross-cutting infrastructure concerns such as auth tokens, tenant IDs, and correlation IDs that come from the incoming request.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// In a REST controller or event handler
+var processOptions = new ProcessOptions()
+    .withToolCallContext(Map.of(
+        "authToken",     request.getHeader("Authorization"),
+        "tenantId",      request.getHeader("X-Tenant-Id"),
+        "correlationId", UUID.randomUUID().toString()
+    ));
+
+var invocation = AgentInvocation.builder(agentPlatform)
+    .options(processOptions)
+    .build(CustomerReport.class);
+
+CustomerReport report = invocation.invoke(customerQuery);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// In a REST controller or event handler
+val processOptions = ProcessOptions()
+    .withToolCallContext(ToolCallContext.of(
+        "authToken"     to request.getHeader("Authorization"),
+        "tenantId"      to request.getHeader("X-Tenant-Id"),
+        "correlationId" to UUID.randomUUID().toString(),
+    ))
+
+val invocation = AgentInvocation.builder(agentPlatform)
+    .options(processOptions)
+    .build<CustomerReport>()
+
+val report = invocation.invoke(customerQuery)
+----
+====
+
+Context set here can be read by any `@LlmTool` method that declares a `ToolCallContext` parameter.
+It can also be supplemented per-interaction inside `@Action` methods using `PromptRunner.withToolCallContext()`; interaction-level values win on conflict.
+See <<reference.tools__tool-call-context>> for the full context pipeline.
+
 ===== Asynchronous Invocation
 
 For long-running operations, use async invocation:

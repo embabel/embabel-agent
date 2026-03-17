@@ -270,6 +270,179 @@ When no context is provided, the function receives `ToolCallContext.EMPTY`.
 TIP: Context is immutable and safe to read from any thread.
 If you need to pass context from a web request through to tool invocations, set it once on `ProcessOptions` and every tool in the process will receive it.
 
+===== Setting Context per Interaction via PromptRunner
+
+For context that is specific to one LLM call rather than the whole agent run, use `withToolCallContext()` on the `PromptRunner` directly inside an `@Action` method.
+This is the right place for domain-level metadata that belongs to a particular interaction — for example, which entity the action is working on.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+@Action
+public RelevantNewsStories findNewsStories(
+        StarPerson person, Horoscope horoscope, Ai ai) {
+
+    // Domain-specific context for this interaction only.
+    // Flows to all tools invoked during this createObject call,
+    // including remote MCP tools where it becomes MCP _meta.
+    var interactionContext = ToolCallContext.of(Map.of(
+            "personName", person.name(),
+            "starSign",   person.sign(),
+            "feature",    "star-news-finder"
+    ));
+
+    return ai
+            .withDefaultLlm()
+            .withToolGroup(CoreToolGroups.WEB)
+            .withToolCallContext(interactionContext)   // <1>
+            .createObject(prompt, RelevantNewsStories.class);
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+@Action
+fun findNewsStories(person: StarPerson, horoscope: Horoscope, ai: Ai): RelevantNewsStories {
+
+    val interactionContext = ToolCallContext.of(
+        "personName" to person.name,
+        "starSign"   to person.sign,
+        "feature"    to "star-news-finder",
+    )
+
+    return ai
+        .withDefaultLlm()
+        .withToolGroup(CoreToolGroups.WEB)
+        .withToolCallContext(interactionContext)   // <1>
+        .createObject(prompt, RelevantNewsStories::class.java)
+}
+----
+====
+
+<1> `withToolCallContext()` also accepts a plain `Map<String, Any>` for convenience.
+
+===== Context Merge Semantics
+
+Context from both sources is merged automatically in `ToolLoopLlmOperations.resolveToolCallContext()`.
+Interaction-level values win on conflict.
+
+|===
+|`ProcessOptions` |`PromptRunner` |Effective context
+
+|`tenantId=acme`
+|—
+|`{tenantId=acme}`
+
+|—
+|`authToken=xyz`
+|`{authToken=xyz}`
+
+|`tenantId=acme`
+|`authToken=xyz`
+|`{tenantId=acme, authToken=xyz}`
+
+|`tenantId=acme`
+|`tenantId=override`
+|`{tenantId=override}` — interaction wins
+|===
+
+This means `ProcessOptions` is the right place for cross-cutting infrastructure concerns (tenant routing, correlation IDs, credentials injected at the gateway), while `PromptRunner.withToolCallContext()` is the right place for domain-specific per-interaction concerns (which entity the action is working on).
+
+[[reference.tools__mcp-meta-converter]]
+===== Controlling What Crosses the MCP Boundary
+
+When Embabel calls a remote MCP server, the `ToolCallContext` entries are forwarded as MCP `_meta` on the wire.
+`_meta` is a first-class field in the MCP 2025-06-18 specification, and MCP server tools can receive it via `McpMeta` parameters (or Spring AI's `ToolContext`).
+
+By default **all** context entries are forwarded (`passThrough` behavior).
+For production deployments calling untrusted third-party MCP servers, register a `ToolCallContextMcpMetaConverter` bean to control what crosses the process boundary.
+
+Think of it like an HTTP header filter on a reverse proxy: the converter decides which entries are safe to propagate and which should stay local.
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Allowlist — recommended for production: only named keys cross the boundary
+@Bean
+public ToolCallContextMcpMetaConverter toolCallContextMcpMetaConverter() {
+    return ToolCallContextMcpMetaConverter.allowKeys("tenantId", "correlationId", "locale");
+}
+
+// Or denylist — forward everything except secrets
+@Bean
+public ToolCallContextMcpMetaConverter toolCallContextMcpMetaConverter() {
+    return ToolCallContextMcpMetaConverter.denyKeys("apiKey", "authToken");
+}
+
+// Or custom lambda for arbitrary logic
+@Bean
+public ToolCallContextMcpMetaConverter toolCallContextMcpMetaConverter() {
+    return context -> Map.of(
+        "tenantId",    context.get("tenantId"),
+        "requestedAt", Instant.now().toString()
+    );
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Allowlist — recommended for production
+@Bean
+fun toolCallContextMcpMetaConverter() =
+    ToolCallContextMcpMetaConverter.allowKeys("tenantId", "correlationId", "locale")
+
+// Or denylist
+@Bean
+fun toolCallContextMcpMetaConverter() =
+    ToolCallContextMcpMetaConverter.denyKeys("apiKey", "authToken")
+
+// Or custom lambda
+@Bean
+fun toolCallContextMcpMetaConverter() = ToolCallContextMcpMetaConverter { context ->
+    mapOf(
+        "tenantId"    to (context.get<String>("tenantId") ?: "unknown"),
+        "requestedAt" to Instant.now().toString(),
+    )
+}
+----
+====
+
+If no bean is defined, the framework defaults to `passThrough()` for backward compatibility.
+The available factory methods are:
+
+|===
+|Method |Behavior |Use Case
+
+|`passThrough()`
+|Forwards all entries
+|Fully trusted internal MCP servers (default)
+
+|`noOp()`
+|Forwards nothing
+|Zero-trust: block all metadata from crossing
+
+|`allowKeys(vararg keys)`
+|Forwards only named keys
+|Production (recommended): explicit allowlist
+
+|`denyKeys(vararg keys)`
+|Forwards all except named keys
+|When secrets are well-known and enumerable
+|===
+
+NOTE: The cleanest security approach is to put only safe values into `ToolCallContext` in the first place — secrets belong in `@Value` / Vault / environment variables, not in the context bag.
+`ToolCallContextMcpMetaConverter` is the secondary defence for cases where the context is populated at the infrastructure boundary and not all entries should reach third-party servers.
+
 [[reference.tools__tool-groups]]
 ==== Tool Groups
 

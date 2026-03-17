@@ -1,4 +1,45 @@
-[[guies.horoscope]]
+[[guides.horoscope]]
 === Horoscope Example
 
 The `StarNewsFinder` is a simple agent that finds a person's name and star sign from user input, retrieves their horoscope using an external API, retrieves relevant news stories using web tools, and writes up an amusing piece for them.
+
+The `findNewsStories` action demonstrates `withToolCallContext()` on the `PromptRunner`.
+The interaction-level context carries domain metadata — the person's name, star sign, and the feature identifier — to every tool invoked during that one LLM call, including remote MCP tools where it becomes MCP `_meta`:
+
+[source,java]
+----
+@Action
+public RelevantNewsStories findNewsStories(
+        StarPerson person, Horoscope horoscope, Ai ai) {
+
+    var interactionContext = ToolCallContext.of(Map.of(
+            "personName", person.name(),
+            "starSign",   person.sign(),
+            "feature",    "star-news-finder"
+    ));
+
+    return ai
+            .withDefaultLlm()
+            .withId("find_news_stories")
+            .withToolGroup(CoreToolGroups.WEB)
+            .withToolCallContext(interactionContext)   // <1>
+            .createObject(prompt, RelevantNewsStories.class);
+}
+----
+
+<1> Context merges with any process-level context set via `ProcessOptions.withToolCallContext()` at invocation time; interaction-level values win on conflict.
+
+You can verify end-to-end propagation from the shell:
+
+----
+sc tenantId=acme
+x "Natasha is Pisces. Find news for her" -d
+----
+
+The `check_tool_call_context` diagnostic tool (included in the WEB group for this example) logs the context entries it receives, confirming they arrived through the full pipeline:
+
+----
+[task-2] INFO ContextDiagnosticTools - ToolCallContext received: {personName=Alex, starSign=Cancer, feature=star-news-finder, tenantId=acme}
+----
+
+See <<reference.tools__tool-call-context>> for full documentation on `ToolCallContext`, including injection into `@LlmTool` methods and the `ToolCallContextMcpMetaConverter` for controlling what crosses the MCP process boundary.
