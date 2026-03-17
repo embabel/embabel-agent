@@ -17,6 +17,7 @@ package com.embabel.agent.test.unit
 
 import com.embabel.agent.api.common.CreationExample
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.common.ai.model.LlmOptions
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -744,6 +745,96 @@ class FakePromptRunnerTest {
                 runner.createObject("test", String::class.java)
                 context.llmInvocations[0].interaction.tools.isEmpty()
             })
+        }
+    }
+
+    @Nested
+    inner class ToolCallContextTests {
+
+        @Test
+        fun `withToolCallContext sets context on recorded LlmInteraction`() {
+            val context = FakeOperationContext.create()
+            context.expectResponse("result")
+
+            context.ai()
+                .withDefaultLlm()
+                .withToolCallContext(ToolCallContext.of("tenantId" to "acme", "locale" to "en-AU"))
+                .createObject("test", String::class.java)
+
+            val interaction = context.llmInvocations[0].interaction
+            assertEquals("acme", interaction.toolCallContext.get<String>("tenantId"))
+            assertEquals("en-AU", interaction.toolCallContext.get<String>("locale"))
+        }
+
+        @Test
+        fun `withToolCallContext map overload sets context`() {
+            // Exercises PromptRunner.withToolCallContext(Map) default method
+            val context = FakeOperationContext.create()
+            context.expectResponse("result")
+
+            context.ai()
+                .withDefaultLlm()
+                .withToolCallContext(mapOf("tenantId" to "beta"))
+                .createObject("test", String::class.java)
+
+            assertEquals("beta", context.llmInvocations[0].interaction.toolCallContext.get<String>("tenantId"))
+        }
+
+        @Test
+        fun `withToolCallContext accumulates across multiple calls`() {
+            val context = FakeOperationContext.create()
+            context.expectResponse("result")
+
+            context.ai()
+                .withDefaultLlm()
+                .withToolCallContext(ToolCallContext.of("tenantId" to "acme"))
+                .withToolCallContext(ToolCallContext.of("locale" to "en-AU"))
+                .createObject("test", String::class.java)
+
+            val interaction = context.llmInvocations[0].interaction
+            assertEquals("acme", interaction.toolCallContext.get<String>("tenantId"))
+            assertEquals("en-AU", interaction.toolCallContext.get<String>("locale"))
+        }
+
+        @Test
+        fun `withToolCallContext last value wins on conflict`() {
+            val context = FakeOperationContext.create()
+            context.expectResponse("result")
+
+            context.ai()
+                .withDefaultLlm()
+                .withToolCallContext(ToolCallContext.of("tenantId" to "first"))
+                .withToolCallContext(ToolCallContext.of("tenantId" to "override"))
+                .createObject("test", String::class.java)
+
+            assertEquals("override", context.llmInvocations[0].interaction.toolCallContext.get<String>("tenantId"))
+        }
+
+        @Test
+        fun `no context produces EMPTY toolCallContext`() {
+            val context = FakeOperationContext.create()
+            context.expectResponse("result")
+
+            context.ai()
+                .withDefaultLlm()
+                .createObject("test", String::class.java)
+
+            assertTrue(context.llmInvocations[0].interaction.toolCallContext.isEmpty)
+        }
+
+        @Test
+        fun `withToolCallContext flows through DelegateAdapter via creating()`() {
+            // creating() instantiates DelegateAdapter — this exercises the DelegateAdapter path
+            val context = FakeOperationContext.create()
+            context.expectResponse("result")
+
+            context.ai()
+                .withDefaultLlm()
+                .withToolCallContext(ToolCallContext.of("tenantId" to "via-delegate"))
+                .creating(String::class.java)
+                .fromPrompt("test")
+
+            assertEquals("via-delegate", context.llmInvocations[0].interaction.toolCallContext.get<String>("tenantId"))
         }
     }
 }

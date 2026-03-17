@@ -18,6 +18,7 @@ package com.embabel.agent.api.common.support
 import com.embabel.agent.api.common.AgentImage
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.core.ToolGroup
 import com.embabel.agent.core.ToolGroupRequirement
@@ -270,6 +271,21 @@ class DelegatingStreamingPromptRunnerTest {
 
             verify { mockDelegate.withGenerateExamples(true) }
             assertTrue(result is DelegatingStreamingPromptRunner)
+        }
+
+        @Test
+        fun `withToolCallContext should delegate and wrap result`() {
+            val updatedDelegate = mockk<PromptExecutionDelegate>()
+            val ctx = ToolCallContext.of("tenantId" to "acme")
+
+            every { mockDelegate.withToolCallContext(ctx) } returns updatedDelegate
+
+            val runner = createPromptRunner()
+            val result = runner.withToolCallContext(ctx)
+
+            verify { mockDelegate.withToolCallContext(ctx) }
+            assertTrue(result is DelegatingStreamingPromptRunner)
+            assertEquals(updatedDelegate, (result as DelegatingStreamingPromptRunner).delegate)
         }
     }
 
