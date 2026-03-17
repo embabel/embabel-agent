@@ -16,7 +16,16 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.tools.mcp.ToolCallContextMcpMetaConverter
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.modelcontextprotocol.client.McpSyncClient
+import io.modelcontextprotocol.spec.McpSchema
+import io.modelcontextprotocol.spec.McpSchema.CallToolRequest
+import org.mockito.ArgumentCaptor
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
+import org.springframework.ai.mcp.SyncMcpToolCallbackProvider
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -265,6 +274,110 @@ class SpringToolCallbackAdapterTest {
                     return callResult
                 }
             }
+        }
+    }
+
+    /**
+     * Proves that _meta actually reaches the MCP wire layer.
+     *
+     * Uses a real [SyncMcpToolCallbackProvider] + [SyncMcpToolCallback] (Spring AI's
+     * real implementation) backed by a mock [McpSyncClient] that captures the
+     * [CallToolRequest]. Asserting on [CallToolRequest.meta] is equivalent to
+     * asserting on what a real MCP server would receive in its McpMeta parameter.
+     */
+    @Nested
+    inner class McpMetaWireVerification {
+
+        @Test
+        fun `_meta is populated on the wire when ToolCallContext has entries`() {
+            val (tool, captor) = buildMcpToolWithCaptor()
+
+            val ctx = ToolCallContext.of("tenantId" to "acme", "locale" to "en-AU")
+            tool.call("{}", ctx)
+
+            val request = captor.value
+            assertEquals("acme", request.meta["tenantId"])
+            assertEquals("en-AU", request.meta["locale"])
+        }
+
+        @Test
+        fun `_meta is null on the wire when context is empty`() {
+            val (tool, captor) = buildMcpToolWithCaptor()
+
+            tool.call("{}", ToolCallContext.EMPTY)
+
+            // SpringToolCallbackWrapper skips the two-arg call when context is empty,
+            // so SyncMcpToolCallback.call(input) is invoked — meta is not set.
+            assertNull(captor.value.meta)
+        }
+
+        @Test
+        fun `allowKeys converter limits what appears in _meta`() {
+            val converter = ToolCallContextMcpMetaConverter.allowKeys("tenantId")
+            val (tool, captor) = buildMcpToolWithCaptor(converter)
+
+            val ctx = ToolCallContext.of(
+                "tenantId" to "acme",
+                "apiKey" to "secret",
+                "locale" to "en-AU",
+            )
+            tool.call("{}", ctx)
+
+            val meta = captor.value.meta
+            assertEquals("acme", meta["tenantId"])
+            assertNull(meta["apiKey"])     // blocked by allowKeys
+            assertNull(meta["locale"])     // blocked by allowKeys
+        }
+
+        @Test
+        fun `noOp converter produces empty _meta map on the wire`() {
+            val (tool, captor) = buildMcpToolWithCaptor(ToolCallContextMcpMetaConverter.noOp())
+
+            val ctx = ToolCallContext.of("tenantId" to "acme", "apiKey" to "secret")
+            tool.call("{}", ctx)
+
+            // noOp → empty map → SyncMcpToolCallback receives ToolContext({}) → meta={}
+            val meta = captor.value.meta
+            assertNotNull(meta)
+            assertTrue(meta!!.isEmpty())
+        }
+
+        /**
+         * Builds a real [SyncMcpToolCallback] (via [SyncMcpToolCallbackProvider]) backed
+         * by a mock [McpSyncClient], wrapped in a [SpringToolCallbackWrapper] with the
+         * given [converter]. Returns the Embabel [Tool] and the [ArgumentCaptor] that
+         * captures the [CallToolRequest] sent to the mock client.
+         */
+        private fun buildMcpToolWithCaptor(
+            converter: ToolCallContextMcpMetaConverter = ToolCallContextMcpMetaConverter.passThrough(),
+        ): Pair<Tool, ArgumentCaptor<CallToolRequest>> {
+            val captor = ArgumentCaptor.forClass(CallToolRequest::class.java)
+
+            // Use mock — McpSchema.Tool has no public builder (mirrors Spring AI test patterns)
+            val mcpTool = mock(McpSchema.Tool::class.java)
+            `when`(mcpTool.name()).thenReturn("test_tool")
+            `when`(mcpTool.description()).thenReturn("Test tool")
+
+            val listResult = mock(McpSchema.ListToolsResult::class.java)
+            `when`(listResult.tools()).thenReturn(listOf(mcpTool))
+
+            val callResult = mock(McpSchema.CallToolResult::class.java)
+            `when`(callResult.isError).thenReturn(false)
+            `when`(callResult.content()).thenReturn(listOf(McpSchema.TextContent("ok")))
+
+            val clientInfo = McpSchema.Implementation("test-client", "1.0.0")
+            val mcpClient = mock(McpSyncClient::class.java)
+            `when`(mcpClient.clientInfo).thenReturn(clientInfo)
+            `when`(mcpClient.listTools()).thenReturn(listResult)
+            `when`(mcpClient.callTool(captor.capture())).thenReturn(callResult)
+
+            // Use Spring AI's real SyncMcpToolCallbackProvider — same path as production
+            val callbacks = SyncMcpToolCallbackProvider(listOf(mcpClient)).toolCallbacks
+            assertEquals(1, callbacks.size)
+
+            // Wrap with Embabel's SpringToolCallbackWrapper + our converter
+            val tool = callbacks[0].toEmbabelTool(converter)
+            return tool to captor
         }
     }
 

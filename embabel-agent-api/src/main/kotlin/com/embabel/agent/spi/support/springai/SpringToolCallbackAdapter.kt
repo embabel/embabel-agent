@@ -17,6 +17,7 @@ package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.tools.mcp.ToolCallContextMcpMetaConverter
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ToolContext
 import org.springframework.ai.tool.ToolCallback
@@ -94,9 +95,15 @@ fun List<Tool>.toSpringToolCallbacks(): List<ToolCallback> = map { it.toSpringTo
  *
  * This reverse adapter allows existing Spring AI tools to be used
  * within the Embabel framework.
+ *
+ * @param callback the Spring AI [ToolCallback] to wrap
+ * @param metaConverter controls which [ToolCallContext] entries are forwarded
+ *   as MCP `_meta` when the underlying callback is an MCP tool.
+ *   Defaults to [ToolCallContextMcpMetaConverter.passThrough].
  */
 class SpringToolCallbackWrapper(
     private val callback: ToolCallback,
+    private val metaConverter: ToolCallContextMcpMetaConverter = ToolCallContextMcpMetaConverter.passThrough(),
 ) : Tool {
 
     override val definition: Tool.Definition = object : Tool.Definition {
@@ -123,7 +130,8 @@ class SpringToolCallbackWrapper(
             val result = if (context.isEmpty) {
                 callback.call(input)
             } else {
-                callback.call(input, ToolContext(context.toMap()))
+                val meta = metaConverter.convert(context)
+                callback.call(input, ToolContext(meta))
             }
             Tool.Result.text(result)
         } catch (e: Exception) {
@@ -148,9 +156,13 @@ private class SpringInputSchema(
 /**
  * Extension function to wrap a Spring AI ToolCallback as an Embabel Tool.
  */
-fun ToolCallback.toEmbabelTool(): Tool = SpringToolCallbackWrapper(this)
+fun ToolCallback.toEmbabelTool(
+    metaConverter: ToolCallContextMcpMetaConverter = ToolCallContextMcpMetaConverter.passThrough(),
+): Tool = SpringToolCallbackWrapper(this, metaConverter)
 
 /**
  * Extension function to wrap a list of Spring AI ToolCallbacks as Embabel Tools.
  */
-fun List<ToolCallback>.toEmbabelTools(): List<Tool> = map { it.toEmbabelTool() }
+fun List<ToolCallback>.toEmbabelTools(
+    metaConverter: ToolCallContextMcpMetaConverter = ToolCallContextMcpMetaConverter.passThrough(),
+): List<Tool> = map { it.toEmbabelTool(metaConverter) }

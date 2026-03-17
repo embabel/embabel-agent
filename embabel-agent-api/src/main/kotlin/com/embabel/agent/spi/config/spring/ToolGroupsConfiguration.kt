@@ -23,6 +23,7 @@ import com.embabel.agent.core.ToolGroupPermission
 import com.embabel.agent.spi.common.Constants.EMBABEL_PROVIDER
 import com.embabel.agent.tools.math.MathTools
 import com.embabel.agent.tools.mcp.McpToolGroup
+import com.embabel.agent.tools.mcp.ToolCallContextMcpMetaConverter
 import com.embabel.common.core.types.Semver
 import io.modelcontextprotocol.client.McpSyncClient
 import org.slf4j.LoggerFactory
@@ -30,6 +31,7 @@ import org.springframework.ai.tool.ToolCallback
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Condition
 import org.springframework.context.annotation.ConditionContext
@@ -160,7 +162,11 @@ class ToolGroupsProperties {
 class ToolGroupsConfiguration(
     private val mcpSyncClients: List<McpSyncClient>,
     private val properties: ToolGroupsProperties,
+    private val metaConverterProvider: ObjectProvider<ToolCallContextMcpMetaConverter>,
 ) {
+
+    private fun converter(): ToolCallContextMcpMetaConverter =
+        metaConverterProvider.getIfAvailable { ToolCallContextMcpMetaConverter.passThrough() }
 
     private val logger = LoggerFactory.getLogger(ToolGroupsConfiguration::class.java)
 
@@ -203,7 +209,8 @@ class ToolGroupsConfiguration(
                     gid.tools.joinToString(", ") { t -> "'$t'" }
                 )
                 included
-            }
+            },
+            metaConverter = converter(),
         )
     }
 
@@ -231,6 +238,7 @@ class ToolGroupsConfiguration(
                         wikipediaTools.any { wt -> it.toolDefinition.name().contains(wt) }) &&
                         !(it.toolDefinition.name().contains("brave_local_search"))
             },
+            metaConverter = converter(),
         )
     }
 
@@ -247,7 +255,8 @@ class ToolGroupsConfiguration(
             clients = mcpSyncClients,
             filter = {
                 it.toolDefinition.name().contains("maps_")
-            }
+            },
+            metaConverter = converter(),
         )
     }
 
@@ -263,6 +272,7 @@ class ToolGroupsConfiguration(
             ),
             clients = mcpSyncClients,
             filter = { it.toolDefinition.name().contains("puppeteer") },
+            metaConverter = converter(),
         )
     }
 
@@ -292,6 +302,7 @@ class ToolGroupsConfiguration(
                     it.toolDefinition.name().contains(ght)
                 }
             },
+            metaConverter = converter(),
         )
     }
 

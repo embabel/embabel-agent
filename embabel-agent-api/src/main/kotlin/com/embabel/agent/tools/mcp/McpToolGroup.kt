@@ -44,6 +44,7 @@ class McpToolGroup(
     permissions: Set<ToolGroupPermission>,
     private val clients: List<McpSyncClient>,
     filter: ((ToolCallback) -> Boolean),
+    private val metaConverter: ToolCallContextMcpMetaConverter = ToolCallContextMcpMetaConverter.passThrough(),
 ) : ToolGroup {
 
     override val metadata: ToolGroupMetadata = ToolGroupMetadata(
@@ -61,7 +62,7 @@ class McpToolGroup(
             )
             // Filter the raw callbacks, then convert to native Tool
             val filteredCallbacks = provider.toolCallbacks.filter(filter)
-            val nativeTools = filteredCallbacks.map { it.toEmbabelTool() }
+            val nativeTools = filteredCallbacks.map { it.toEmbabelTool(metaConverter) }
             loggerFor<McpToolGroup>().debug(
                 "ToolGroup role={}: {}",
                 description.role,
