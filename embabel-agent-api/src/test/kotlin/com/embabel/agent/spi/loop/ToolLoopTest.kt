@@ -140,14 +140,15 @@ class ToolLoopTest {
         }
 
         @Test
-        fun `execute throws ToolNotFoundException for unknown tool`() {
+        fun `unknown tool returns error as tool result`() {
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
                     MockLlmMessageSender.toolCallResponse(
                         toolCallId = "call_123",
                         toolName = "unknown_tool",
                         arguments = "{}"
-                    )
+                    ),
+                    MockLlmMessageSender.textResponse("Got it, no such tool."),
                 )
             )
 
@@ -156,16 +157,13 @@ class ToolLoopTest {
                 objectMapper = objectMapper,
             )
 
-            val exception = assertThrows<ToolNotFoundException> {
-                toolLoop.execute(
-                    initialMessages = listOf(UserMessage("Do something")),
-                    initialTools = emptyList(),
-                    outputParser = { it }
-                )
-            }
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Do something")),
+                initialTools = emptyList(),
+                outputParser = { it }
+            )
 
-            assertEquals("unknown_tool", exception.requestedTool)
-            assertTrue(exception.availableTools.isEmpty())
+            assertEquals("Got it, no such tool.", result.result)
         }
     }
 
@@ -902,13 +900,16 @@ class ToolLoopAdditionalTests {
     inner class ExceptionDetailsTest {
 
         @Test
-        fun `ToolNotFoundException includes available tools in message`() {
+        fun `missing tool returns error as tool result so LLM can self-correct`() {
             val tool1 = MockTool("available_tool_1", "First tool", { Tool.Result.text("{}") })
             val tool2 = MockTool("available_tool_2", "Second tool", { Tool.Result.text("{}") })
 
             val mockCaller = MockLlmMessageSender(
                 responses = listOf(
-                    MockLlmMessageSender.toolCallResponse("call_1", "nonexistent_tool", "{}")
+                    // LLM calls a nonexistent tool
+                    MockLlmMessageSender.toolCallResponse("call_1", "nonexistent_tool", "{}"),
+                    // LLM self-corrects after seeing the error
+                    MockLlmMessageSender.textResponse("OK, I see the available tools now."),
                 )
             )
 
@@ -917,19 +918,14 @@ class ToolLoopAdditionalTests {
                 objectMapper = objectMapper,
             )
 
-            val exception = assertThrows<ToolNotFoundException> {
-                toolLoop.execute(
-                    initialMessages = listOf(UserMessage("Use a tool")),
-                    initialTools = listOf(tool1, tool2),
-                    outputParser = { it }
-                )
-            }
+            // Should NOT throw — error is returned as tool result, LLM self-corrects
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Use a tool")),
+                initialTools = listOf(tool1, tool2),
+                outputParser = { it }
+            )
 
-            assertEquals("nonexistent_tool", exception.requestedTool)
-            assertEquals(listOf("available_tool_1", "available_tool_2"), exception.availableTools)
-            assertTrue(exception.message!!.contains("nonexistent_tool"))
-            assertTrue(exception.message!!.contains("available_tool_1"))
-            assertTrue(exception.message!!.contains("available_tool_2"))
+            assertEquals("OK, I see the available tools now.", result.result)
         }
 
         @Test

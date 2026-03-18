@@ -239,7 +239,15 @@ internal open class DefaultToolLoop(
         state: LoopState,
     ): Boolean {
         val tool = findTool(state.availableTools, toolCall.name)
-            ?: throw ToolNotFoundException(toolCall.name, state.availableTools.map { it.definition.name })
+        if (tool == null) {
+            // Return the error as a tool result so the LLM can self-correct
+            // instead of killing the entire tool loop with an exception.
+            val available = state.availableTools.map { it.definition.name }
+            val errorMsg = "Tool '${toolCall.name}' not found. Available tools: $available"
+            logger.warn(errorMsg)
+            addToolResultToHistory(toolCall, Tool.Result.error(errorMsg), errorMsg, state)
+            return true
+        }
 
         return try {
             val (result, resultContent) = executeToolCall(tool, toolCall)
