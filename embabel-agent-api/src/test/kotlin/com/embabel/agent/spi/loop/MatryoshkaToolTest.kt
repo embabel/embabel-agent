@@ -271,7 +271,7 @@ class MatryoshkaToolTest {
         }
 
         @Test
-        fun `strategy replaces MatryoshkaTool with inner tools`() {
+        fun `strategy replaces MatryoshkaTool with inner tools and guide`() {
             val innerTool = MockTool("inner", "Inner tool") { Tool.Result.text("inner") }
             val matryoshka = MatryoshkaTool.of(
                 name = "outer",
@@ -295,16 +295,20 @@ class MatryoshkaToolTest {
             val result = strategy.evaluate(context)
 
             assertTrue(result.hasChanges())
-            // Inner tool + context tool
+            // Inner tool + guide tool (same name as parent)
             assertEquals(2, result.toolsToAdd.size)
             assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
-            assertTrue(result.toolsToAdd.any { it.definition.name == "outer_context" })
+            // Guide tool has same name as parent
+            assertTrue(result.toolsToAdd.any {
+                it.definition.name == "outer" && it.definition.description.contains("Call a specific tool")
+            })
             assertEquals(1, result.toolsToRemove.size)
             assertEquals("outer", result.toolsToRemove[0].definition.name)
         }
 
+        @Suppress("DEPRECATION")
         @Test
-        fun `strategy keeps MatryoshkaTool when removeOnInvoke is false`() {
+        fun `strategy always replaces with guide even when removeOnInvoke is false`() {
             val innerTool = MockTool("inner", "Inner tool") { Tool.Result.text("inner") }
             val matryoshka = MatryoshkaTool.of(
                 name = "persistent",
@@ -329,11 +333,87 @@ class MatryoshkaToolTest {
             val result = strategy.evaluate(context)
 
             assertTrue(result.hasChanges())
-            // Inner tool + context tool
+            // removeOnInvoke is deprecated and ignored — always replaced with guide
             assertEquals(2, result.toolsToAdd.size)
             assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
-            assertTrue(result.toolsToAdd.any { it.definition.name == "persistent_context" })
-            assertTrue(result.toolsToRemove.isEmpty())
+            assertTrue(result.toolsToAdd.any {
+                it.definition.name == "persistent" && it.definition.description.contains("Call a specific tool")
+            })
+            assertEquals(1, result.toolsToRemove.size)
+        }
+
+        @Test
+        fun `guide tool lists sub-tools when called`() {
+            val tool1 = MockTool("search", "Search for items") { Tool.Result.text("results") }
+            val tool2 = MockTool("create", "Create an item") { Tool.Result.text("created") }
+            val matryoshka = MatryoshkaTool.of(
+                name = "items",
+                description = "Item operations",
+                innerTools = listOf(tool1, tool2),
+            )
+
+            val context = ToolInjectionContext(
+                conversationHistory = emptyList(),
+                currentTools = listOf(matryoshka),
+                lastToolCall = ToolCallResult(
+                    toolName = "items",
+                    toolInput = "{}",
+                    result = "Enabled 2 tools: search, create",
+                    resultObject = null,
+                ),
+                iterationCount = 1,
+            )
+
+            val strategy = UnfoldingToolInjectionStrategy()
+            val result = strategy.evaluate(context)
+
+            // Find the guide tool (same name as parent)
+            val guide = result.toolsToAdd.find {
+                it.definition.name == "items" && it.definition.description.contains("Call a specific tool")
+            }
+            assertNotNull(guide)
+
+            // Call the guide — should list sub-tools
+            val guideResult = guide!!.call("{}")
+            assertTrue(guideResult is Tool.Result.Text)
+            val text = (guideResult as Tool.Result.Text).content
+            assertTrue(text.contains("search"), "Guide should list search tool: $text")
+            assertTrue(text.contains("create"), "Guide should list create tool: $text")
+            assertTrue(text.contains("Search for items"), "Guide should include descriptions: $text")
+        }
+
+        @Test
+        fun `guide tool includes childToolUsageNotes`() {
+            val innerTool = MockTool("query", "Run a query") { Tool.Result.text("result") }
+            val matryoshka = MatryoshkaTool.of(
+                name = "db",
+                description = "Database tools",
+                innerTools = listOf(innerTool),
+                childToolUsageNotes = "Always use parameterized queries to prevent SQL injection.",
+            )
+
+            val context = ToolInjectionContext(
+                conversationHistory = emptyList(),
+                currentTools = listOf(matryoshka),
+                lastToolCall = ToolCallResult(
+                    toolName = "db",
+                    toolInput = "{}",
+                    result = "Enabled 1 tools: query",
+                    resultObject = null,
+                ),
+                iterationCount = 1,
+            )
+
+            val strategy = UnfoldingToolInjectionStrategy()
+            val result = strategy.evaluate(context)
+
+            val guide = result.toolsToAdd.find {
+                it.definition.name == "db" && it.definition.description.contains("Call a specific tool")
+            }
+            assertNotNull(guide)
+
+            val text = (guide!!.call("{}") as Tool.Result.Text).content
+            assertTrue(text.contains("parameterized queries"), "Guide should include usage notes: $text")
         }
 
         @Test
@@ -365,10 +445,9 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            // Selected tool + context tool
+            // Selected tool + guide tool
             assertEquals(2, result.toolsToAdd.size)
             assertTrue(result.toolsToAdd.any { it.definition.name == "tool1" })
-            assertTrue(result.toolsToAdd.any { it.definition.name == "selector_context" })
         }
 
         @Test
@@ -395,13 +474,12 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            // Should still remove the tool, just with no additions
-            assertTrue(result.toolsToRemove.isNotEmpty())
-            assertTrue(result.toolsToAdd.isEmpty())
+            // Empty selection — no changes (nothing to unfold into)
+            assertFalse(result.hasChanges())
         }
 
         @Test
-        fun `strategy injects context tool alongside inner tools`() {
+        fun `strategy injects guide tool alongside inner tools`() {
             val innerTool1 = MockTool("count", "Count records") { Tool.Result.text("5") }
             val innerTool2 = MockTool("getValues", "Get distinct values") { Tool.Result.text("[]") }
             val matryoshka = MatryoshkaTool.of(
@@ -425,15 +503,17 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            // Should inject inner tools + context tool
+            // Should inject inner tools + guide tool
             assertEquals(3, result.toolsToAdd.size)
 
-            val contextTool = result.toolsToAdd.find { it.definition.name == "composer_stats_context" }
-            assertNotNull(contextTool, "Context tool should be injected")
+            val guideTool = result.toolsToAdd.find {
+                it.definition.name == "composer_stats" && it.definition.description.contains("Call a specific tool")
+            }
+            assertNotNull(guideTool, "Guide tool should be injected")
         }
 
         @Test
-        fun `context tool description contains parent description and tool names`() {
+        fun `guide tool description contains tool names`() {
             val innerTool1 = MockTool("count", "Count records") { Tool.Result.text("5") }
             val innerTool2 = MockTool("getValues", "Get distinct values") { Tool.Result.text("[]") }
             val matryoshka = MatryoshkaTool.of(
@@ -457,21 +537,18 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            val contextTool = result.toolsToAdd.find { it.definition.name == "composer_stats_context" }!!
-            val description = contextTool.definition.description
+            val guideTool = result.toolsToAdd.find {
+                it.definition.name == "composer_stats" && it.definition.description.contains("Call a specific tool")
+            }!!
+            val description = guideTool.definition.description
 
-            // Should contain parent description
-            assertTrue(
-                description.contains("Use this to find stats about composers"),
-                "Context tool description should contain parent description"
-            )
             // Should list available tools
             assertTrue(description.contains("count"), "Description should list count tool")
             assertTrue(description.contains("getValues"), "Description should list getValues tool")
         }
 
         @Test
-        fun `context tool returns full details about child tools when called`() {
+        fun `guide tool returns full details about child tools when called`() {
             val innerTool1 = MockTool("count", "Count records matching criteria") { Tool.Result.text("5") }
             val innerTool2 = MockTool("getValues", "Get distinct values for a field") { Tool.Result.text("[]") }
             val matryoshka = MatryoshkaTool.of(
@@ -495,8 +572,10 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            val contextTool = result.toolsToAdd.find { it.definition.name == "composer_stats_context" }!!
-            val callResult = contextTool.call("{}")
+            val guideTool = result.toolsToAdd.find {
+                it.definition.name == "composer_stats" && it.definition.description.contains("Call a specific tool")
+            }!!
+            val callResult = guideTool.call("{}")
 
             assertTrue(callResult is Tool.Result.Text)
             val content = (callResult as Tool.Result.Text).content
@@ -515,7 +594,7 @@ class MatryoshkaToolTest {
         }
 
         @Test
-        fun `context tool not injected when no inner tools selected`() {
+        fun `no tools injected when no inner tools selected`() {
             val matryoshka = MatryoshkaTool.selectable(
                 name = "empty",
                 description = "Returns empty",
@@ -538,12 +617,12 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            // No context tool when no inner tools
+            // No tools when no inner tools
             assertTrue(result.toolsToAdd.isEmpty())
         }
 
         @Test
-        fun `context tool includes childToolUsageNotes in description`() {
+        fun `guide tool includes childToolUsageNotes when called`() {
             val vectorSearch = MockTool("vector_search", "Semantic search") { Tool.Result.text("[]") }
             val textSearch = MockTool("text_search", "Exact match search") { Tool.Result.text("[]") }
             val matryoshka = MatryoshkaTool.of(
@@ -568,24 +647,25 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            val contextTool = result.toolsToAdd.find { it.definition.name == "spotify_search_context" }!!
-            val description = contextTool.definition.description
+            val guideTool = result.toolsToAdd.find {
+                it.definition.name == "spotify_search" && it.definition.description.contains("Call a specific tool")
+            }!!
 
-            // Should contain parent description, tool list, and usage notes
+            // Call the guide — should list sub-tools with usage notes
+            val callResult = guideTool.call("{}")
+            assertTrue(callResult is Tool.Result.Text)
+            val content = (callResult as Tool.Result.Text).content
+
+            assertTrue(content.contains("vector_search"), "Should list vector_search")
+            assertTrue(content.contains("text_search"), "Should list text_search")
             assertTrue(
-                description.contains("Search Spotify for music data"),
-                "Context tool description should contain parent description"
-            )
-            assertTrue(description.contains("vector_search"), "Description should list vector_search")
-            assertTrue(description.contains("text_search"), "Description should list text_search")
-            assertTrue(
-                description.contains("Try vector search first"),
-                "Description should include childToolUsageNotes"
+                content.contains("Try vector search first"),
+                "Should include childToolUsageNotes"
             )
         }
 
         @Test
-        fun `context tool returns usage notes when called`() {
+        fun `guide tool returns tool details and usage notes when called`() {
             val vectorSearch = MockTool("vector_search", "Semantic search using embeddings") { Tool.Result.text("[]") }
             val textSearch = MockTool("text_search", "Exact match text search") { Tool.Result.text("[]") }
             val matryoshka = MatryoshkaTool.of(
@@ -610,8 +690,10 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            val contextTool = result.toolsToAdd.find { it.definition.name == "music_search_context" }!!
-            val callResult = contextTool.call("{}")
+            val guideTool = result.toolsToAdd.find {
+                it.definition.name == "music_search" && it.definition.description.contains("Call a specific tool")
+            }!!
+            val callResult = guideTool.call("{}")
 
             assertTrue(callResult is Tool.Result.Text)
             val content = (callResult as Tool.Result.Text).content
@@ -623,7 +705,7 @@ class MatryoshkaToolTest {
         }
 
         @Test
-        fun `context tool omits usage notes section when childToolUsageNotes is null`() {
+        fun `guide tool omits usage notes section when childToolUsageNotes is null`() {
             val tool1 = MockTool("tool1", "First tool") { Tool.Result.text("1") }
             val matryoshka = MatryoshkaTool.of(
                 name = "no_notes",
@@ -647,8 +729,10 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            val contextTool = result.toolsToAdd.find { it.definition.name == "no_notes_context" }!!
-            val callResult = contextTool.call("{}")
+            val guideTool = result.toolsToAdd.find {
+                it.definition.name == "no_notes" && it.definition.description.contains("Call a specific tool")
+            }!!
+            val callResult = guideTool.call("{}")
 
             assertTrue(callResult is Tool.Result.Text)
             val content = (callResult as Tool.Result.Text).content
@@ -718,10 +802,9 @@ class MatryoshkaToolTest {
 
             val result = chained.evaluate(context)
 
-            // Inner tool + context tool
+            // Inner tool + guide tool
             assertEquals(2, result.toolsToAdd.size)
             assertTrue(result.toolsToAdd.any { it.definition.name == "inner" })
-            assertTrue(result.toolsToAdd.any { it.definition.name == "outer_context" })
             assertEquals(1, result.toolsToRemove.size)
         }
     }
@@ -822,10 +905,12 @@ class MatryoshkaToolTest {
             )
 
             assertEquals("Found 5 rows in the database.", result.result)
-            // Inner tool + context tool
+            // Inner tool + guide tool
             assertEquals(2, result.injectedTools.size)
             assertTrue(result.injectedTools.any { it.definition.name == "query" })
-            assertTrue(result.injectedTools.any { it.definition.name == "database_context" })
+            assertTrue(result.injectedTools.any {
+                it.definition.name == "database" && it.definition.description.contains("Call a specific tool")
+            })
             assertEquals(1, result.removedTools.size)
             assertEquals("database", result.removedTools[0].definition.name)
         }
@@ -874,14 +959,12 @@ class MatryoshkaToolTest {
             )
 
             assertEquals("Got leaf result", result.result)
-            // Both matryoshkas inject their tools + context tools:
-            // outer injects: inner_category + outer_category_context
-            // inner injects: leaf + inner_category_context
+            // Both matryoshkas inject their tools + guide tools:
+            // outer injects: inner_category + outer_category guide
+            // inner injects: leaf + inner_category guide
             assertEquals(4, result.injectedTools.size)
             assertTrue(result.injectedTools.any { it.definition.name == "inner_category" })
-            assertTrue(result.injectedTools.any { it.definition.name == "outer_category_context" })
             assertTrue(result.injectedTools.any { it.definition.name == "leaf" })
-            assertTrue(result.injectedTools.any { it.definition.name == "inner_category_context" })
             // Both outer and inner matryoshkas were removed
             assertEquals(2, result.removedTools.size)
         }
@@ -942,7 +1025,7 @@ class MatryoshkaToolTest {
         }
 
         @Test
-        fun `childToolUsageNotes from annotation appears in injected context tool`() {
+        fun `childToolUsageNotes from annotation appears in injected guide tool`() {
             val matryoshka = MatryoshkaTool.fromInstance(MusicSearchTools())
 
             val context = ToolInjectionContext(
@@ -960,29 +1043,16 @@ class MatryoshkaToolTest {
             val strategy = UnfoldingToolInjectionStrategy()
             val result = strategy.evaluate(context)
 
-            val contextTool = result.toolsToAdd.find { it.definition.name == "music_search_context" }!!
-
-            // Description should include parent description and usage notes
-            val description = contextTool.definition.description
-            assertTrue(
-                description.contains("Search music database"),
-                "Description should include parent description"
-            )
-            assertTrue(
-                description.contains("Try vector search first"),
-                "Description should include childToolUsageNotes"
-            )
+            val guideTool = result.toolsToAdd.find {
+                it.definition.name == "music_search" && it.definition.description.contains("Call a specific tool")
+            }!!
 
             // When called, should return full details with usage notes
-            val callResult = contextTool.call("{}")
+            val callResult = guideTool.call("{}")
             val content = (callResult as Tool.Result.Text).content
             assertTrue(
-                content.contains("Usage notes:"),
-                "Call result should include usage notes section"
-            )
-            assertTrue(
                 content.contains("Try vector search first"),
-                "Call result should include the actual usage notes"
+                "Guide call result should include the actual usage notes"
             )
         }
 
@@ -1358,11 +1428,9 @@ class MatryoshkaToolTest {
             assertEquals("Traversed 5 levels to reach leaf", result.result)
             // 4 matryoshka tools removed (level1-4)
             assertEquals(4, result.removedTools.size)
-            // 8 injected: 4 inner tools (level2-4 + leaf) + 4 context tools
+            // 8 injected: 4 inner tools (level2-4 + leaf) + 4 guide tools
             assertEquals(8, result.injectedTools.size)
             assertTrue(result.injectedTools.any { it.definition.name == "leaf" })
-            assertTrue(result.injectedTools.any { it.definition.name == "level1_context" })
-            assertTrue(result.injectedTools.any { it.definition.name == "level4_context" })
         }
 
         @Test

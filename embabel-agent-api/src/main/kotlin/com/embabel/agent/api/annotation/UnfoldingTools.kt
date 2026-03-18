@@ -88,9 +88,10 @@ annotation class UnfoldingTools(
 
     /**
      * Whether to remove this tool after invocation.
-     * Default is true - the facade is replaced by its inner tools.
-     * Set to false to keep the facade available for re-invocation.
+     *
+     * @deprecated Always replaced by a guide tool after first invocation. This property is ignored.
      */
+    @Deprecated("Always replaced by guide tool after invocation. This property is ignored.")
     val removeOnInvoke: Boolean = true,
 
     /**
