@@ -131,8 +131,10 @@ class OpenAiCustomModelsConfig(
     apiKey = envApiKey?.trim()?.takeIf { it.isNotEmpty() }
         ?: properties.apiKey?.trim()?.takeIf { it.isNotEmpty() }
         ?: error("OpenAI Custom API key required: set OPENAI_CUSTOM_API_KEY env var or embabel.agent.platform.models.openai.custom.api-key"),
-    completionsPath = envCompletionsPath ?: properties.completionsPath,
-    embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
+    completionsPath = envCompletionsPath?.trim()?.takeIf { it.isNotEmpty() }
+        ?: properties.completionsPath?.trim()?.takeIf { it.isNotEmpty() },
+    embeddingsPath = envEmbeddingsPath?.trim()?.takeIf { it.isNotEmpty() }
+        ?: properties.embeddingsPath?.trim()?.takeIf { it.isNotEmpty() },
     httpHeaders = llmOptionsProperties.httpHeaders,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     requestFactory = requestFactory,
