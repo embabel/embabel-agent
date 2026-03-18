@@ -94,40 +94,10 @@ class UnfoldingToolInjectionStrategy : ToolInjectionStrategy {
             selectedTools.map { it.definition.name }
         )
 
-        // Always replace the parent with sub-tools + a guide tool that has the
-        // same name as the parent. If the LLM calls the parent name again on a
-        // subsequent turn (a common tool-calling mistake), the guide lists the
-        // available sub-tools instead of throwing ToolNotFoundException.
-        val guide = createGuideTool(invokedTool, selectedTools)
-        return ToolInjectionResult.replace(wrappedTool, selectedTools + guide)
-    }
-
-    /**
-     * Creates a guide tool with the same name as the parent.
-     * When called, it lists the available sub-tools and their descriptions,
-     * steering the LLM to call the correct one on the next turn.
-     * Prevents ToolNotFoundException loops when the LLM re-calls the parent.
-     */
-    private fun createGuideTool(parent: UnfoldingTool, childTools: List<Tool>): Tool {
-        val parentName = parent.definition.name
-        val childNames = childTools.map { it.definition.name }
-        val usageNotes = parent.childToolUsageNotes
-
-        return Tool.of(
-            name = parentName,
-            description = "Call a specific tool instead: ${childNames.joinToString(", ")}",
-        ) {
-            val details = buildString {
-                append("Use one of these tools directly:\n")
-                childTools.forEach { tool ->
-                    append("- ${tool.definition.name}: ${tool.definition.description}\n")
-                }
-                if (!usageNotes.isNullOrBlank()) {
-                    append("\n$usageNotes")
-                }
-            }
-            Tool.Result.text(details.trim())
-        }
+        // Replace the parent with just the sub-tools. If the LLM calls the
+        // parent name again, ToolNotFoundException will fire with a message
+        // listing all available tools — the LLM can self-correct from that.
+        return ToolInjectionResult.replace(wrappedTool, selectedTools)
     }
 
     /**
