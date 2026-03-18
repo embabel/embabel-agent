@@ -84,13 +84,7 @@ class UnfoldingToolInjectionStrategy : ToolInjectionStrategy {
                 invokedTool.definition.name,
                 context.lastToolCall.toolInput
             )
-            // Still remove the facade if configured, even with no tools selected
-            // Note: remove the wrappedTool (which may have decorators), not the unwrapped invokedTool
-            return if (invokedTool.removeOnInvoke) {
-                ToolInjectionResult.remove(listOf(wrappedTool))
-            } else {
-                ToolInjectionResult.noChange()
-            }
+            return ToolInjectionResult.noChange()
         }
 
         logger.debug(
@@ -100,57 +94,36 @@ class UnfoldingToolInjectionStrategy : ToolInjectionStrategy {
             selectedTools.map { it.definition.name }
         )
 
-        val toolsToInject = buildList {
-            addAll(selectedTools)
-            if (invokedTool.includeContextTool) {
-                add(createContextTool(invokedTool, selectedTools))
-            }
-        }
-
-        // Note: remove the wrappedTool (which may have decorators), not the unwrapped invokedTool
-        return if (invokedTool.removeOnInvoke) {
-            ToolInjectionResult.replace(wrappedTool, toolsToInject)
-        } else {
-            ToolInjectionResult.add(toolsToInject)
-        }
+        // Always replace the parent with sub-tools + a guide tool that has the
+        // same name as the parent. If the LLM calls the parent name again on a
+        // subsequent turn (a common tool-calling mistake), the guide lists the
+        // available sub-tools instead of throwing ToolNotFoundException.
+        val guide = createGuideTool(invokedTool, selectedTools)
+        return ToolInjectionResult.replace(wrappedTool, selectedTools + guide)
     }
 
     /**
-     * Creates a context tool that preserves the parent UnfoldingTool's description
-     * and provides information about the available child tools.
-     *
-     * This solves the problem where child tools would lose context about the parent's purpose.
-     * For example, a "spotify_search" tool containing vector_search, text_search, etc.
-     * Without the context tool, the LLM only sees generic search tools.
-     * With the context tool, it also sees "spotify_search_context" explaining these are
-     * Spotify music search tools, with optional usage notes on when to use each.
+     * Creates a guide tool with the same name as the parent.
+     * When called, it lists the available sub-tools and their descriptions,
+     * steering the LLM to call the correct one on the next turn.
+     * Prevents ToolNotFoundException loops when the LLM re-calls the parent.
      */
-    private fun createContextTool(parent: UnfoldingTool, childTools: List<Tool>): Tool {
+    private fun createGuideTool(parent: UnfoldingTool, childTools: List<Tool>): Tool {
         val parentName = parent.definition.name
-        val parentDescription = parent.definition.description
-        val toolNames = childTools.map { it.definition.name }
+        val childNames = childTools.map { it.definition.name }
         val usageNotes = parent.childToolUsageNotes
 
-        // Build description: parent description + tool list + optional usage notes
-        val descriptionBuilder = StringBuilder()
-        descriptionBuilder.append(parentDescription)
-        descriptionBuilder.append(". Available: ${toolNames.joinToString(", ")}")
-        if (!usageNotes.isNullOrBlank()) {
-            descriptionBuilder.append(". $usageNotes")
-        }
-
         return Tool.of(
-            name = "${parentName}_context",
-            description = descriptionBuilder.toString(),
+            name = parentName,
+            description = "Call a specific tool instead: ${childNames.joinToString(", ")}",
         ) {
-            // When called, return full details about each child tool
             val details = buildString {
-                append("Tools for $parentDescription:\n")
+                append("Use one of these tools directly:\n")
                 childTools.forEach { tool ->
                     append("- ${tool.definition.name}: ${tool.definition.description}\n")
                 }
                 if (!usageNotes.isNullOrBlank()) {
-                    append("\nUsage notes: $usageNotes")
+                    append("\n$usageNotes")
                 }
             }
             Tool.Result.text(details.trim())

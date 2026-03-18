@@ -86,23 +86,18 @@ interface UnfoldingTool : ProgressiveTool {
     /**
      * Whether to remove this tool after invocation.
      *
-     * When `true` (default), the facade is replaced by its contents.
-     * When `false`, the facade remains available for re-invocation
-     * (useful for category-based selection with different arguments).
+     * @deprecated Always replaced by a guide tool after first invocation.
+     * The guide lists available sub-tools if the LLM calls the parent again,
+     * preventing ToolNotFoundException loops. This property is ignored.
      */
+    @Deprecated("Always replaced by guide tool after invocation. This property is ignored.")
     val removeOnInvoke: Boolean get() = true
 
     /**
-     * Whether to include a context tool when this tool is unfolded.
-     *
-     * When `true` (default), a `{name}_context` tool is created that preserves
-     * the parent's description and lists available child tools.
-     * When `false`, no context tool is created — useful when the parent's
-     * [call] response and [childToolUsageNotes] provide sufficient guidance,
-     * or when the context tool confuses the LLM into calling it repeatedly
-     * instead of the actual child tools.
+     * @deprecated The guide tool replaces the context tool. This property is ignored.
      */
-    val includeContextTool: Boolean get() = true
+    @Deprecated("Guide tool replaces context tool. This property is ignored.", level = DeprecationLevel.HIDDEN)
+    val includeContextTool: Boolean get() = false
 
     /**
      * Select which inner tools to expose based on invocation input.
@@ -176,13 +171,13 @@ interface UnfoldingTool : ProgressiveTool {
          * @param removeOnInvoke Whether to remove this tool after invocation (default true)
          * @param childToolUsageNotes Optional notes to guide LLM on using the child tools
          */
+        @Suppress("DEPRECATION")
         open fun of(
             name: String,
             description: String,
             innerTools: List<Tool>,
             removeOnInvoke: Boolean = true,
             childToolUsageNotes: String? = null,
-            includeContextTool: Boolean = true,
         ): UnfoldingTool = SimpleUnfoldingTool(
             definition = Tool.Definition(
                 name = name,
@@ -192,7 +187,6 @@ interface UnfoldingTool : ProgressiveTool {
             innerTools = innerTools,
             removeOnInvoke = removeOnInvoke,
             childToolUsageNotes = childToolUsageNotes,
-            includeContextTool = includeContextTool,
         )
 
         /**
@@ -715,19 +709,20 @@ interface UnfoldingTool : ProgressiveTool {
 
     companion object : Factory() {
 
-        // Full-param overrides (all parameters required from Java)
+        // Full-param overrides for Java callers (all parameters required)
 
         @JvmStatic
+        @Suppress("DEPRECATION")
         override fun of(
             name: String,
             description: String,
             innerTools: List<Tool>,
             removeOnInvoke: Boolean,
             childToolUsageNotes: String?,
-            includeContextTool: Boolean,
-        ): UnfoldingTool = super.of(name, description, innerTools, removeOnInvoke, childToolUsageNotes, includeContextTool)
+        ): UnfoldingTool = super.of(name, description, innerTools, removeOnInvoke, childToolUsageNotes)
 
         @JvmStatic
+        @Suppress("DEPRECATION")
         override fun byCategory(
             name: String,
             description: String,
@@ -763,22 +758,15 @@ interface UnfoldingTool : ProgressiveTool {
         // Short-param convenience overloads for Java callers
 
         @JvmStatic
+        @Suppress("DEPRECATION")
         fun of(
             name: String,
             description: String,
             innerTools: List<Tool>,
-        ): UnfoldingTool = super.of(name, description, innerTools, true, null, true)
+        ): UnfoldingTool = super.of(name, description, innerTools, true, null)
 
         @JvmStatic
-        fun of(
-            name: String,
-            description: String,
-            innerTools: List<Tool>,
-            removeOnInvoke: Boolean,
-            childToolUsageNotes: String?,
-        ): UnfoldingTool = super.of(name, description, innerTools, removeOnInvoke, childToolUsageNotes, true)
-
-        @JvmStatic
+        @Suppress("DEPRECATION")
         fun byCategory(
             name: String,
             description: String,
@@ -806,12 +794,12 @@ interface UnfoldingTool : ProgressiveTool {
  * Simple implementation that exposes all inner tools.
  * Implements MatryoshkaTool for backward compatibility.
  */
+@Suppress("DEPRECATION")
 internal class SimpleUnfoldingTool(
     override val definition: Tool.Definition,
     override val innerTools: List<Tool>,
     override val removeOnInvoke: Boolean,
     override val childToolUsageNotes: String? = null,
-    override val includeContextTool: Boolean = true,
 ) : MatryoshkaTool {
 
     override fun call(input: String): Tool.Result {
@@ -826,12 +814,12 @@ internal class SimpleUnfoldingTool(
  * Implementation with custom tool selection logic.
  * Implements MatryoshkaTool for backward compatibility.
  */
+@Suppress("DEPRECATION")
 internal class SelectableUnfoldingTool(
     override val definition: Tool.Definition,
     override val innerTools: List<Tool>,
     override val removeOnInvoke: Boolean,
     override val childToolUsageNotes: String? = null,
-    override val includeContextTool: Boolean = true,
     private val selector: (String) -> List<Tool>,
 ) : MatryoshkaTool {
 

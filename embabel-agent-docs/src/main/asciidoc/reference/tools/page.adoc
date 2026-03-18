@@ -2882,7 +2882,7 @@ This is useful when:
 * **Adding ad-hoc tools**: Start with annotated tool classes and add programmatic tools
 * **Context-specific grouping**: Build different tool combinations for different invocation contexts
 
-The builder preserves all properties (`removeOnInvoke`, `childToolUsageNotes`) from the original UnfoldingTool.
+The builder preserves all properties (`childToolUsageNotes`, etc.) from the original UnfoldingTool.
 
 ===== Category-Based Tool Selection
 
@@ -3014,39 +3014,13 @@ val permissionBasedTool = UnfoldingTool.selectable(
 ----
 ====
 
-===== Keeping the Facade Available
+===== Guide Tool Behavior
 
-By default, a UnfoldingTool is removed after invocation (replaced by its inner tools).
-Set `removeOnInvoke = false` to keep the facade available for re-invocation with different arguments:
+When an UnfoldingTool is invoked, it is replaced by its inner tools plus a **guide tool** with the same name as the original facade.
+If the LLM calls the parent tool name again on a subsequent turn (a common tool-calling mistake), the guide tool returns a listing of the available sub-tools instead of failing with a `ToolNotFoundException`.
 
-[tabs]
-====
-Java::
-+
-[source,java]
-----
-// Facade stays available after invocation
-var persistentTool = UnfoldingTool.of(
-    "operations",
-    "Operations. Invoke multiple times with different needs.",
-    allTools,
-    false  // removeOnInvoke = false
-);
-----
+This behavior is automatic — no configuration needed. The `removeOnInvoke` property is deprecated and ignored; the guide tool replacement always applies.
 
-Kotlin::
-+
-[source,kotlin]
-----
-// Facade stays available after invocation
-val persistentTool = UnfoldingTool.of(
-    name = "operations",
-    description = "Operations. Invoke multiple times with different needs.",
-    innerTools = allTools,
-    removeOnInvoke = false
-)
-----
-====
 
 ===== Enabling UnfoldingTool in the Tool Loop
 
@@ -3084,7 +3058,7 @@ val combined = ChainedToolInjectionStrategy.withUnfolding(customStrategy1, custo
 1. **Initial state**: The LLM sees only the facade tool (e.g., "database_operations")
 2. **LLM invokes**: The LLM calls the facade with optional arguments
 3. **Strategy evaluates**: `UnfoldingToolInjectionStrategy` detects the invocation
-4. **Tools replaced**: The facade is removed (if `removeOnInvoke` is true) and inner tools are added
+4. **Tools replaced**: The facade is replaced by a guide tool and inner tools are added
 5. **Continue**: The LLM now sees and can use the specific inner tools
 
 This flow reduces the initial tool set complexity while allowing the LLM to access detailed tools when it needs them.
@@ -3368,9 +3342,9 @@ val tool = UnfoldingTool.fromInstance(FileTools())
 |Required
 |Description explaining the tool category
 
-|`removeOnInvoke`
+|`removeOnInvoke` _(deprecated)_
 |boolean
-|`true`
+|`true` (ignored — always replaced by guide tool)
 |Whether to remove the facade after invocation
 
 |`categoryParameter`
@@ -4489,8 +4463,8 @@ val webTool = mcpToolFactory.unfolding(
 
 ===== Controlling Facade Removal
 
-By default, `UnfoldingTool` facades created by `McpToolFactory` are removed after invocation (replaced by inner tools).
-Use `removeOnInvoke = false` to keep the facade:
+After invocation, `UnfoldingTool` facades created by `McpToolFactory` are replaced by a guide tool and their inner tools.
+The `removeOnInvoke` parameter is deprecated and ignored:
 
 [tabs]
 ====
@@ -4620,12 +4594,12 @@ This pattern:
 |`requiredToolByName(String)`
 |Get a single MCP tool by exact name. Throws `IllegalArgumentException` if not found, with a helpful error message listing available tools.
 
-|`unfoldingByName(name, description, toolNames, removeOnInvoke?)`
+|`unfoldingByName(name, description, toolNames)`
 |Create an `UnfoldingTool` containing tools with exact matching names.
 
-|`unfoldingMatching(name, description, patterns, removeOnInvoke?)`
+|`unfoldingMatching(name, description, patterns)`
 |Create an `UnfoldingTool` containing tools matching any of the regex patterns.
 
-|`unfolding(name, description, filter, removeOnInvoke?)`
+|`unfolding(name, description, filter)`
 |Create an `UnfoldingTool` with a custom filter predicate.
 |===
