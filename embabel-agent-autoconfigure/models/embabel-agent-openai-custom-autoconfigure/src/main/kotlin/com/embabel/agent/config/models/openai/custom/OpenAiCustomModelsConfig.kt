@@ -128,7 +128,8 @@ class OpenAiCustomModelsConfig(
     requestFactory: ObjectProvider<ClientHttpRequestFactory>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
-    apiKey = envApiKey ?: properties.apiKey
+    apiKey = envApiKey?.trim()?.takeIf { it.isNotEmpty() }
+        ?: properties.apiKey?.trim()?.takeIf { it.isNotEmpty() }
         ?: error("OpenAI Custom API key required: set OPENAI_CUSTOM_API_KEY env var or embabel.agent.platform.models.openai.custom.api-key"),
     completionsPath = envCompletionsPath ?: properties.completionsPath,
     embeddingsPath = envEmbeddingsPath ?: properties.embeddingsPath,
