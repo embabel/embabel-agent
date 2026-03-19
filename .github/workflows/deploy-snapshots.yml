@@ -1,9 +1,7 @@
-# This workflow will build a Java / Kotlin project with Maven
-
 name: Deploy Snapshots
 
 on:
-  workflow_dispatch:  # Enables manual triggering
+  workflow_dispatch:
   workflow_run:
     workflows: ["Build"]
     types:
@@ -13,7 +11,6 @@ on:
 
 jobs:
   build-and-deploy:
-
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
@@ -30,13 +27,34 @@ jobs:
           servers: ${{secrets.EMBABEL_ARTIFACTORY}}
       - name: Build and analyze
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
-        
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mvn -U -DskipTests=true clean deploy
 
-      - name: Trigger examples repo workflow
+  get-repos:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.list.outputs.repos }}
+    steps:
+      - name: List all repos
+        id: list
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          repos=$(gh api orgs/embabel/repos --paginate \
+            --jq '[.[].full_name]')
+          echo "repos=$repos" >> $GITHUB_OUTPUT
+
+  dispatch:
+    needs: get-repos
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repo: ${{ fromJson(needs.get-repos.outputs.repos) }}
+    steps:
+      - name: Trigger downstream workflow
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          repository: embabel/embabel-agent-examples
+          repository: ${{ matrix.repo }}
           event-type: agent-snapshots-deployed
