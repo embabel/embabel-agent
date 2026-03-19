@@ -30,13 +30,24 @@ jobs:
           servers: ${{secrets.EMBABEL_ARTIFACTORY}}
       - name: Build and analyze
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
-        
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
         run: mvn -U -DskipTests=true clean deploy
 
-      - name: Trigger examples repo workflow
+  dispatch:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repo:
+          - embabel/embabel-agent-examples
+          - embabel/embabel-agent-experimental
+          - embabel/guide
+          - embabel/tripper
+    steps:
+      - name: Trigger downstream workflow
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          repository: embabel/embabel-agent-examples
+          repository: ${{ matrix.repo }}
           event-type: agent-snapshots-deployed
