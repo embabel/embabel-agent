@@ -62,7 +62,7 @@ internal open class DefaultToolLoop(
     protected val inspectors: List<ToolLoopInspector> = emptyList(),
     protected val transformers: List<ToolLoopTransformer> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
-    private val toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
+    protected val toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
 ) : ToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)

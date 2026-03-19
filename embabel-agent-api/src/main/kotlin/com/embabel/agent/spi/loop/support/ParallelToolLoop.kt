@@ -27,7 +27,7 @@ import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
-import com.embabel.agent.spi.loop.ToolNotFoundException
+import com.embabel.agent.spi.loop.ToolNotFoundAction
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.ToolCall
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -184,11 +184,13 @@ internal class ParallelToolLoop(
         availableTools: List<Tool>,
     ): ParallelToolResult {
         val tool = findTool(availableTools, toolCall.name)
-            ?: return ParallelToolResult.Error(
-                toolCall,
-                ToolNotFoundException(toolCall.name, availableTools.map { it.definition.name }).message
-                    ?: "Tool not found: ${toolCall.name}",
-            )
+        if (tool == null) {
+            return when (val action = toolNotFoundPolicy.handle(toolCall.name, availableTools)) {
+                is ToolNotFoundAction.Throw -> throw action.exception
+                is ToolNotFoundAction.FeedbackToModel -> ParallelToolResult.Error(toolCall, action.message)
+            }
+        }
+        toolNotFoundPolicy.onToolFound()
 
         return try {
             val (result, resultContent) = executeToolCall(tool, toolCall)

@@ -22,8 +22,11 @@ import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.MockLlmMessageSender
 import com.embabel.agent.spi.loop.MockTool
+import com.embabel.agent.spi.loop.AutoCorrectionPolicy
+import com.embabel.agent.spi.loop.ImmediateThrowPolicy
 import com.embabel.agent.spi.loop.ToolInjectionContext
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
+import com.embabel.agent.spi.loop.ToolNotFoundException
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.Message
@@ -448,6 +451,83 @@ class ParallelToolLoopTest {
 
             assertTrue(toolResults[0].content.contains("Error:"))
             assertEquals("""{"status": "ok"}""", toolResults[1].content)
+        }
+    }
+
+    @Nested
+    inner class ToolNotFoundPolicyTest {
+
+        @Test
+        fun `unknown tool feeds error back via policy`() {
+            val knownTool = MockTool(
+                name = "known_tool",
+                description = "Known tool",
+                onCall = { Tool.Result.text("""{"status": "ok"}""") }
+            )
+
+            val mockCaller = multiToolCallSender(
+                listOf(
+                    ToolCall("1", "known_tool", "{}"),
+                    ToolCall("2", "nonexistent_tool", "{}"),
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+                toolNotFoundPolicy = AutoCorrectionPolicy(),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Run both")),
+                initialTools = listOf(knownTool),
+                outputParser = { it }
+            )
+
+            val toolResults = result.conversationHistory.filterIsInstance<ToolResultMessage>()
+            assertEquals(2, toolResults.size)
+            assertEquals("""{"status": "ok"}""", toolResults[0].content)
+            assertTrue(toolResults[1].content.contains("nonexistent_tool"))
+            assertTrue(toolResults[1].content.contains("does not exist"))
+        }
+
+        @Test
+        fun `immediate throw policy throws on unknown tool in parallel`() {
+            val knownTool = MockTool(
+                name = "known_tool",
+                description = "Known tool",
+                onCall = { Tool.Result.text("""{"status": "ok"}""") }
+            )
+
+            val mockCaller = multiToolCallSender(
+                listOf(
+                    ToolCall("1", "nonexistent_tool", "{}"),
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+                toolNotFoundPolicy = ImmediateThrowPolicy,
+            )
+
+            assertThrows(ToolNotFoundException::class.java) {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Run")),
+                    initialTools = listOf(knownTool),
+                    outputParser = { it }
+                )
+            }
         }
     }
 
