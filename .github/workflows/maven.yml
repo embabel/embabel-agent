@@ -6,6 +6,8 @@
 # documentation.
 name: Build
 on:
+  repository_dispatch:
+    types: [common-snapshots-deployed]
   push:
   pull_request:
     types: [ opened, synchronize, reopened ]

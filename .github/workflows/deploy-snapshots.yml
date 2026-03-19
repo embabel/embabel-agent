@@ -38,5 +38,5 @@ jobs:
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          repository: embabel/embabel-common
+          repository: embabel/embabel-agent-examples
           event-type: agent-snapshots-deployed
