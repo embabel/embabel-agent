@@ -40,10 +40,32 @@ jobs:
     strategy:
       matrix:
         repo:
-          - embabel/embabel-agent-examples
-          - embabel/embabel-agent-experimental
+          - embabel/embabel-agent
           - embabel/guide
+          - embabel/embabel-agent-examples
+          - embabel/vaadin-components
+          - embabel/dice
+          - embabel/embabel-agent-experimental
           - embabel/tripper
+          - embabel/code-index
+          - embabel/coding-agent
+          - embabel/decker
+          - embabel/prepper
+          - embabel/grouper
+          - embabel/langgraph-patterns
+          - embabel/shepherd
+          - embabel/embabel-llm-database
+          - embabel/impromptu
+          - embabel/flicker
+          - embabel/embabel-agent-rag-neo-drivine
+          - embabel/embabel-rag-pgvector
+          - embabel/embabel-chat-store
+          - embabel/embabel-air
+          - embabel/modernizer
+          - embabel/ragbot
+          - embabel/urbot
+          - embabel/stashbot
+          - embabel/embabel-agent-rag-neo-ogm
     steps:
       - name: Trigger downstream workflow
         uses: peter-evans/repository-dispatch@v3
