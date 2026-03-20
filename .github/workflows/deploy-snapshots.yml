@@ -40,7 +40,6 @@ jobs:
     strategy:
       matrix:
         repo:
-          - embabel/embabel-agent
           - embabel/guide
           - embabel/embabel-agent-examples
           - embabel/vaadin-components
@@ -64,8 +63,6 @@ jobs:
           - embabel/modernizer
           - embabel/ragbot
           - embabel/urbot
-          - embabel/stashbot
-          - embabel/embabel-agent-rag-neo-ogm
     steps:
       - name: Trigger downstream workflow
         uses: peter-evans/repository-dispatch@v3
