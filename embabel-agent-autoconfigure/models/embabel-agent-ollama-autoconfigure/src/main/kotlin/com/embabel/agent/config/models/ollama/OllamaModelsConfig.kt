@@ -52,7 +52,7 @@ import org.springframework.web.reactive.function.client.WebClient
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(OllamaNodeProperties::class)
 class OllamaModelsConfig(
-    @param:Value("\${spring.ai.ollama.base-url}")
+    @param:Value("\${embabel.agent.platform.models.ollama.base-url:\${spring.ai.ollama.base-url:}}")  // fallback to spring ai
     private val baseUrl: String,
     private val nodeProperties: OllamaNodeProperties?,
     private val configurableBeanFactory: ConfigurableBeanFactory,

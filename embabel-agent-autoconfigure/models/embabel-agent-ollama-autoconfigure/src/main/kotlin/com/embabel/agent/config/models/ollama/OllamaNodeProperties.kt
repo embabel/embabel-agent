@@ -21,12 +21,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * Configuration properties for Ollama multi-node setup.
  *
  * Supports application-driven configuration for multiple Ollama instances:
- * - spring.ai.ollama.nodes[0].name=main
- * - spring.ai.ollama.nodes[0].base-url=http://localhost:11434
- * - spring.ai.ollama.nodes[1].name=gpu-server
- * - spring.ai.ollama.nodes[1].base-url=http://localhost:11435
+ * - embabel.agent.platform.models.ollama.nodes[0].name=main
+ * - embabel.agent.platform.models.ollama.nodes[0].base-url=http://localhost:11434
+ * - embabel.agent.platform.models.ollama.nodes[1].name=gpu-server
+ * - embabel.agent.platform.models.ollama.nodes[1].base-url=http://localhost:11435
  */
-@ConfigurationProperties(prefix = "spring.ai.ollama")
+@ConfigurationProperties(prefix = "embabel.agent.platform.models.ollama")
 data class OllamaNodeProperties(
     /**
      * List of Ollama nodes for explicit multi-instance access.

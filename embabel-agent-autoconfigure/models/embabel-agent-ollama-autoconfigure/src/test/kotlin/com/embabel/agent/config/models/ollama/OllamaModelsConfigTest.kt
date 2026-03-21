@@ -365,6 +365,35 @@ class OllamaModelsConfigTest {
         verify(exactly = 0) { mockBeanFactory.registerSingleton(any(), any()) }
     }
 
+    @Test
+    fun `should work with primary namespace baseUrl`() {
+        // Given - primary namespace is set (simulates embabel.agent.platform.models.ollama.base-url)
+        val config = createConfig("http://primary:11434", null)
+
+        // When
+        config.ollamaModelsInitializer()
+
+        // Then - should use the provided baseUrl
+        verify { mockRestClient.get() }
+        verify { mockRequestHeadersUriSpec.uri("http://primary:11434/api/tags") }
+    }
+
+    @Test
+    fun `should work with legacy namespace baseUrl as fallback`() {
+        // Given - legacy namespace is set (simulates spring.ai.ollama.base-url fallback)
+        // Note: The SpEL fallback ${new:${legacy:}} is resolved by Spring at injection time.
+        // This test verifies the config works correctly with any baseUrl value,
+        // which covers both primary and fallback scenarios.
+        val config = createConfig("http://legacy:11434", null)
+
+        // When
+        config.ollamaModelsInitializer()
+
+        // Then - should use the provided baseUrl (legacy in this case)
+        verify { mockRestClient.get() }
+        verify { mockRequestHeadersUriSpec.uri("http://legacy:11434/api/tags") }
+    }
+
     // Helper methods
     private fun createConfig(baseUrl: String, nodeProperties: OllamaNodeProperties?) =
         OllamaModelsConfig(
