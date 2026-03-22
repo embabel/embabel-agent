@@ -16,6 +16,7 @@
 package com.embabel.agent.api.annotation.support
 
 import org.springframework.stereotype.Component
+import org.springframework.util.ClassUtils
 
 /**
  * Define names for operations defined in methods.
@@ -38,8 +39,9 @@ fun interface MethodDefinedOperationNameGenerator {
 @Component
 internal object FromClassAndMethodMethodDefinedOperationNameGenerator : MethodDefinedOperationNameGenerator {
     override fun generateName(instance: Any, name: String): String {
-        // Strip the $ suffix from Kotlin internal methods
-        return "${instance.javaClass.name}.${stripDollarSign(name)}"
+        // Unwrap CGLIB proxy to get the real class name for clean log output
+        val targetClass = ClassUtils.getUserClass(instance.javaClass)
+        return "${targetClass.name}.${stripDollarSign(name)}"
     }
 
     private fun stripDollarSign(input: String): String {
