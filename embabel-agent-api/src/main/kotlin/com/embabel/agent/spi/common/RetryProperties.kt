@@ -16,7 +16,7 @@
 package com.embabel.agent.spi.common
 
 import com.embabel.agent.api.tool.ToolControlFlowSignal
-import org.springframework.security.access.AccessDeniedException
+import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.isRateLimitError
 import com.embabel.agent.spi.support.springai.SpringAiRetryPolicy
 import com.embabel.common.util.loggerFor
@@ -59,10 +59,6 @@ interface RetryProperties : RetryTemplateProvider {
                     // ToolControlFlowSignal exceptions (ReplanRequestedException, UserInputRequiredException, etc.)
                     // are control flow signals, not errors to retry - rethrow to abort retry
                     if (throwable is ToolControlFlowSignal) {
-                        throw throwable
-                    }
-                    // Security denials are deterministic - retrying will never succeed
-                    if (throwable is AccessDeniedException) {
                         throw throwable
                     }
                     if (isRateLimitError(throwable)) {
