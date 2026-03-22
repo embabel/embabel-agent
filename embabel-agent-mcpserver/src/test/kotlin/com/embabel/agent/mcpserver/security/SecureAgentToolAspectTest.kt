@@ -28,24 +28,34 @@ import org.springframework.security.authentication.TestingAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 
-// Unit tests for SecureAgentToolAspect.
-//
-// Tests exercise the SpEL evaluation logic directly against a real
-// DefaultMethodSecurityExpressionHandler, without requiring a full Spring context.
-// The aspect is constructed manually and invoked via SecureAgentToolAspectInvoker,
-// a test-only bridge that mirrors what the aspect does internally without needing
-// AspectJ proxy weaving.
-//
-// What is NOT tested here (covered by SecureAgentToolAspectIntegrationTest):
-//   - That the aspect actually intercepts calls on a Spring-managed proxy
-//   - That @EnableAspectJAutoProxy wires the aspect correctly
+/**
+ * Unit tests for [SecureAgentToolAspect].
+ *
+ * Tests exercise the SpEL evaluation logic directly against a real
+ * [DefaultMethodSecurityExpressionHandler][org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler],
+ * without requiring a full Spring context. The aspect is constructed manually and invoked
+ * via [SecureAgentToolAspectInvoker], a test-only bridge that mirrors what the aspect does
+ * internally without needing AspectJ proxy weaving.
+ *
+ * > **Note:** The following are intentionally **not** tested here — they are covered by
+ * > [SecureAgentToolAspectIntegrationTest]:
+ * > - That the aspect actually intercepts calls on a Spring-managed proxy
+ * > - That `@EnableAspectJAutoProxy` wires the aspect correctly
+ *
+ * @see SecureAgentToolAspect
+ * @see SecureAgentToolAspectIntegrationTest
+ */
 @DisplayName("SecureAgentToolAspect")
 class SecureAgentToolAspectTest {
 
     private val expressionHandler = DefaultMethodSecurityExpressionHandler()
     private val aspect = SecureAgentToolAspect(expressionHandler)
 
-    // Minimal target with a representative set of @SecureAgentTool expressions
+    /**
+     * Minimal target exposing a representative set of [SecureAgentTool] SpEL expressions,
+     * one per supported built-in (`hasAuthority`, `hasAnyAuthority`, `hasRole`, `isAuthenticated`),
+     * plus one unannotated method to verify the aspect does not interfere with unprotected calls.
+     */
     @Suppress("unused")
     inner class TestAgent {
         @SecureAgentTool("hasAuthority('payments:write')")
@@ -60,7 +70,7 @@ class SecureAgentToolAspectTest {
         @SecureAgentTool("isAuthenticated()")
         fun authenticatedOperation(): String = "authenticated-result"
 
-        // No annotation - the aspect must not interfere with this method
+        /** No annotation — the aspect must not interfere with this method. */
         fun unprotectedOperation(): String = "unprotected-result"
     }
 
@@ -231,20 +241,101 @@ class SecureAgentToolAspectTest {
             assertThat(invokeAspect("unprotectedOperation")).isEqualTo("unprotected-result")
         }
     }
+
+    @Nested
+    @DisplayName("Class-level annotation")
+    inner class ClassLevelAnnotation {
+
+        /**
+         * Agent secured entirely at the class level — all methods inherit the
+         * `agent:read` constraint without needing individual [SecureAgentTool] annotations.
+         */
+        @SecureAgentTool("hasAuthority('agent:read')")
+        @Suppress("unused")
+        inner class FullySecuredAgent {
+            fun step1(): String = "step1-result"
+            fun step2(): String = "step2-result"
+            fun goalAction(): String = "goal-result"
+        }
+
+        /**
+         * Agent with a class-level default overridden on a single privileged method.
+         * Verifies that method-level [SecureAgentTool] takes precedence over the class-level one.
+         */
+        @SecureAgentTool("hasAuthority('agent:read')")
+        @Suppress("unused")
+        inner class AgentWithMethodOverride {
+            fun regularStep(): String = "regular-result"
+
+            @SecureAgentTool("hasAuthority('agent:admin')")
+            fun privilegedStep(): String = "privileged-result"
+        }
+
+        private fun invokeOn(instance: Any, methodName: String): Any? =
+            SecureAgentToolAspectInvoker(aspect, instance).invoke(methodName)
+
+        @Test
+        fun `all methods in class-annotated agent are protected`() {
+            val agent = FullySecuredAgent()
+            // None of the methods pass without auth
+            assertThatThrownBy { invokeOn(agent, "step1") }
+                .isInstanceOf(AccessDeniedException::class.java)
+            assertThatThrownBy { invokeOn(agent, "step2") }
+                .isInstanceOf(AccessDeniedException::class.java)
+            assertThatThrownBy { invokeOn(agent, "goalAction") }
+                .isInstanceOf(AccessDeniedException::class.java)
+        }
+
+        @Test
+        fun `all methods pass when principal has class-level authority`() {
+            authenticateWith("agent:read")
+            val agent = FullySecuredAgent()
+            assertThat(invokeOn(agent, "step1")).isEqualTo("step1-result")
+            assertThat(invokeOn(agent, "step2")).isEqualTo("step2-result")
+            assertThat(invokeOn(agent, "goalAction")).isEqualTo("goal-result")
+        }
+
+        @Test
+        fun `method-level annotation takes precedence over class-level`() {
+            val agent = AgentWithMethodOverride()
+            // agent:read satisfies class-level but NOT the method-level override
+            authenticateWith("agent:read")
+            assertThat(invokeOn(agent, "regularStep")).isEqualTo("regular-result")
+            assertThatThrownBy { invokeOn(agent, "privilegedStep") }
+                .isInstanceOf(AccessDeniedException::class.java)
+        }
+
+        @Test
+        fun `method-level override is satisfied by its own authority`() {
+            val agent = AgentWithMethodOverride()
+            authenticateWith("agent:read", "agent:admin")
+            assertThat(invokeOn(agent, "regularStep")).isEqualTo("regular-result")
+            assertThat(invokeOn(agent, "privilegedStep")).isEqualTo("privileged-result")
+        }
+    }
 }
 
-// Test-only bridge that mirrors the aspect's logic without AspectJ proxy weaving.
-// Reflectively calls the private evaluateExpression method on SecureAgentToolAspect,
-// then invokes the target method directly if access is granted.
-// The integration test (SecureAgentToolAspectIntegrationTest) verifies that the
-// aspect fires correctly on a real Spring-managed CGLIB proxy.
+/**
+ * Test-only bridge that mirrors [SecureAgentToolAspect]'s logic without AspectJ proxy weaving.
+ *
+ * Reflectively calls the private `evaluateExpression` method on [SecureAgentToolAspect],
+ * then invokes the target method directly if access is granted. Annotation resolution
+ * mirrors the aspect: method-level [SecureAgentTool] takes precedence over class-level.
+ *
+ * > **Note:** This invoker exercises SpEL evaluation in isolation. Proxy interception
+ * > is verified separately by [SecureAgentToolAspectIntegrationTest].
+ *
+ * @see SecureAgentToolAspectIntegrationTest
+ */
 private class SecureAgentToolAspectInvoker(
     private val aspect: SecureAgentToolAspect,
     private val target: Any,
 ) {
     fun invoke(methodName: String, vararg args: Any?): Any? {
         val method = target::class.java.declaredMethods.first { it.name == methodName }
+        // Mirror aspect resolution: method-level takes precedence over class-level
         val annotation = method.getAnnotation(SecureAgentTool::class.java)
+            ?: target::class.java.getAnnotation(SecureAgentTool::class.java)
 
         val authentication = SecurityContextHolder.getContext().authentication
 
@@ -253,7 +344,7 @@ private class SecureAgentToolAspectInvoker(
             if (authentication == null) {
                 throw AccessDeniedException(
                     "No Authentication present in SecurityContext. " +
-                        "Ensure Spring Security is configured and a Bearer token is supplied by the MCP client.",
+                            "Ensure Spring Security is configured and a Bearer token is supplied by the MCP client.",
                 )
             }
 
@@ -279,8 +370,8 @@ private class SecureAgentToolAspectInvoker(
             if (!granted) {
                 throw AccessDeniedException(
                     "Agent tool '${method.name}' on '${target::class.simpleName}' " +
-                        "denied for principal '${authentication.name}' " +
-                        "- expression: [${annotation.value}]",
+                            "denied for principal '${authentication.name}' " +
+                            "- expression: [${annotation.value}]",
                 )
             }
         }

@@ -25,29 +25,45 @@ import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.util.ClassUtils
 import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Method
 
-// AOP aspect that enforces SecureAgentTool security expressions on Embabel agent action methods.
-//
-// When an @Action method annotated with @SecureAgentTool is invoked by Embabel's
-// DefaultActionMethodManager, this aspect intercepts the call and evaluates the SpEL
-// expression in SecureAgentTool.value against the current Authentication using Spring
-// Security's MethodSecurityExpressionHandler, the same engine that powers @PreAuthorize.
-//
-// Invocation proceeds only if the expression evaluates to true.
-// Otherwise an AccessDeniedException is thrown, resulting in a 403 at the MCP transport layer.
-//
-// Invocation order:
-//   MCP Client request
-//   -> Spring Security FilterChain  (transport-level, rejects unauthenticated)
-//   -> Embabel GOAP planner         (selects goal/action)
-//   -> DefaultActionMethodManager   (resolves and invokes the @Action method)
-//   -> SecureAgentToolAspect        (evaluates @SecureAgentTool SpEL, this class)
-//   -> @Action method body          (executes only if SpEL passes)
-//
-// This aspect is stateless. SecurityContextHolder provides per-request authentication
-// in the default ThreadLocal strategy, so concurrent invocations are isolated.
+/**
+ * AOP aspect that enforces [SecureAgentTool] security expressions on Embabel agent action methods.
+ *
+ * When an [@Action] method annotated with [SecureAgentTool] is invoked by Embabel's
+ * [DefaultActionMethodManager], this aspect intercepts the call and evaluates the SpEL
+ * expression in [SecureAgentTool.value] against the current
+ * [Authentication][org.springframework.security.core.Authentication] using Spring Security's
+ * [MethodSecurityExpressionHandler][org.springframework.security.access.expression.method.MethodSecurityExpressionHandler]
+ * — the same engine that powers [@PreAuthorize][org.springframework.security.access.prepost.PreAuthorize].
+ *
+ * Invocation proceeds only if the expression evaluates to `true`. Otherwise an
+ * [AccessDeniedException][org.springframework.security.access.AccessDeniedException] is thrown,
+ * resulting in a `403` at the MCP transport layer.
+ *
+ * ### Invocation order
+ *
+ * ```
+ * MCP Client request
+ *   → Spring Security FilterChain       (transport-level, rejects unauthenticated)
+ *   → Embabel GOAP planner              (selects goal/action)
+ *   → DefaultActionMethodManager        (resolves and invokes the @Action method)
+ *   → SecureAgentToolAspect             (evaluates @SecureAgentTool SpEL — this class)
+ *   → @Action method body               (executes only if SpEL passes)
+ * ```
+ *
+ * ### Thread safety
+ *
+ * This aspect is stateless. [SecurityContextHolder][org.springframework.security.core.context.SecurityContextHolder]
+ * provides per-request authentication via its default [ThreadLocal] strategy,
+ * so concurrent invocations are isolated.
+ *
+ * @see SecureAgentTool
+ * @see DefaultActionMethodManager
+ * @see org.springframework.security.access.prepost.PreAuthorize
+ */
 @Aspect
 class SecureAgentToolAspect(
     private val expressionHandler: MethodSecurityExpressionHandler,
@@ -55,29 +71,43 @@ class SecureAgentToolAspect(
 
     private val logger = LoggerFactory.getLogger(SecureAgentToolAspect::class.java)
 
-    // Intercepts any method annotated with @SecureAgentTool and evaluates the declared
-    // SpEL expression before allowing the invocation to proceed.
-    // Throws AccessDeniedException if the expression evaluates to false or
-    // no Authentication is present in the SecurityContextHolder.
-    @Around("@annotation(secureAgentTool)")
-    fun enforceAgentToolSecurity(
-        joinPoint: ProceedingJoinPoint,
-        secureAgentTool: SecureAgentTool,
-    ): Any? {
+    /**
+     * Intercepts methods annotated with [SecureAgentTool] at method or class level,
+     * enforcing the declared SpEL expression before the action body executes.
+     *
+     * Method-level annotation takes precedence over class-level. `@within` matches
+     * all methods in a class carrying the annotation.
+     *
+     * @throws [AccessDeniedException][org.springframework.security.access.AccessDeniedException]
+     * if the expression evaluates to `false` or no [Authentication][org.springframework.security.core.Authentication]
+     * is present in the [SecurityContextHolder][org.springframework.security.core.context.SecurityContextHolder].
+     */
+    @Around(
+        "@annotation(com.embabel.agent.mcpserver.security.SecureAgentTool) || " +
+                "@within(com.embabel.agent.mcpserver.security.SecureAgentTool)"
+    )
+    fun enforceAgentToolSecurity(joinPoint: ProceedingJoinPoint): Any? {
+        val method = (joinPoint.signature as MethodSignature).method
+        val target = joinPoint.target
+        // Unwrap CGLIB proxy to read annotations from the actual class
+        val targetClass = ClassUtils.getUserClass(target.javaClass)
+
+        // Method-level annotation takes precedence over class-level
+        val secureAgentTool = method.getAnnotation(SecureAgentTool::class.java)
+            ?: targetClass.getAnnotation(SecureAgentTool::class.java)
+            ?: return joinPoint.proceed()
+
         val authentication = SecurityContextHolder.getContext().authentication
             ?: throw AccessDeniedException(
                 "No Authentication present in SecurityContext. " +
-                    "Ensure Spring Security is configured and a Bearer token is supplied by the MCP client.",
+                        "Ensure Spring Security is configured and a Bearer token is supplied by the MCP client.",
             )
-
-        val method = (joinPoint.signature as MethodSignature).method
-        val target = joinPoint.target
 
         logger.debug(
             "Evaluating @SecureAgentTool expression [{}] for principal '{}' on {}.{}",
             secureAgentTool.value,
             authentication.name,
-            target::class.simpleName,
+            targetClass.simpleName,
             method.name,
         )
 
@@ -90,9 +120,9 @@ class SecureAgentToolAspect(
         )
 
         if (!granted) {
-            val message = "Agent tool '${method.name}' on '${target::class.simpleName}' " +
-                "denied for principal '${authentication.name}' " +
-                "- expression: [${secureAgentTool.value}]"
+            val message = "Agent tool '${method.name}' on '${targetClass.simpleName}' " +
+                    "denied for principal '${authentication.name}' " +
+                    "- expression: [${secureAgentTool.value}]"
             logger.warn(message)
             throw AccessDeniedException(message)
         }
@@ -100,21 +130,33 @@ class SecureAgentToolAspect(
         logger.debug(
             "Access granted for principal '{}' on {}.{}",
             authentication.name,
-            target::class.simpleName,
+            targetClass.simpleName,
             method.name,
         )
 
         return joinPoint.proceed()
     }
 
-    // Evaluates a Spring Security SpEL expression using MethodSecurityExpressionHandler.
-    //
-    // Builds a MethodInvocation adapter so the expression handler can bind method
-    // parameters (e.g. #request) and the authentication root object, exactly as
-    // @PreAuthorize does internally.
-    //
-    // getStaticPart() must return AccessibleObject to satisfy the Joinpoint contract.
-    // Method is a subclass of AccessibleObject so returning the method reference is valid.
+    /**
+     * Evaluates a Spring Security SpEL expression using [MethodSecurityExpressionHandler][org.springframework.security.access.expression.method.MethodSecurityExpressionHandler].
+     *
+     * Builds a [MethodInvocation][org.aopalliance.intercept.MethodInvocation] adapter so the
+     * expression handler can bind method parameters (e.g. `#request`) and the authentication
+     * root object, exactly as [@PreAuthorize][org.springframework.security.access.prepost.PreAuthorize]
+     * does internally.
+     *
+     * > **Note:** `getStaticPart()` returns [AccessibleObject] to satisfy the
+     * > [Joinpoint][org.aopalliance.intercept.Joinpoint] contract. [Method] is a subclass
+     * > of [AccessibleObject], so returning the method reference is valid.
+     *
+     * @param expression the SpEL expression string from [SecureAgentTool.value]
+     * @param authentication the current [Authentication][org.springframework.security.core.Authentication]
+     * from [SecurityContextHolder][org.springframework.security.core.context.SecurityContextHolder]
+     * @param method the intercepted [Method]
+     * @param target the bean instance on which the method is being invoked
+     * @param args the runtime arguments passed to the intercepted method
+     * @return `true` if the expression grants access, `false` otherwise
+     */
     private fun evaluateExpression(
         expression: String,
         authentication: Authentication,

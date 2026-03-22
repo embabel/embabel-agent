@@ -34,21 +34,27 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig
 
-// Integration tests for SecureAgentToolAspect.
-//
-// Unlike SecureAgentToolAspectTest (which bypasses AspectJ weaving via reflection),
-// these tests load a real Spring context with @EnableAspectJAutoProxy and verify
-// that the aspect actually intercepts calls on a CGLIB-proxied bean.
-//
-// This is the test that catches the most common misconfiguration: the aspect beans
-// exist but @EnableAspectJAutoProxy is missing, so the @Around advice never fires.
-//
-// What is verified here:
-//   - Aspect fires on a real Spring CGLIB proxy (not a plain instance)
-//   - @EnableAspectJAutoProxy is in effect via SecureAgentToolConfiguration
-//   - SpEL expressions are evaluated against the live SecurityContext
-//   - Unannotated methods are NOT intercepted
-//   - AccessDeniedException propagates correctly through the proxy
+/**
+ * Integration tests for [SecureAgentToolAspect].
+ *
+ * Unlike `SecureAgentToolAspectTest` (which bypasses AspectJ weaving via reflection),
+ * these tests load a real Spring context with `@EnableAspectJAutoProxy` and verify
+ * that the aspect actually intercepts calls on a CGLIB-proxied bean.
+ *
+ * > **Note:** This is the test that catches the most common misconfiguration: the aspect
+ * > beans exist but `@EnableAspectJAutoProxy` is missing, so the `@Around` advice never fires.
+ *
+ * ### What is verified
+ *
+ * - Aspect fires on a real Spring CGLIB proxy (not a plain instance)
+ * - `@EnableAspectJAutoProxy` is in effect via [SecureAgentToolConfiguration]
+ * - SpEL expressions are evaluated against the live [SecurityContextHolder][org.springframework.security.core.context.SecurityContextHolder]
+ * - Unannotated methods are **not** intercepted
+ * - [AccessDeniedException][org.springframework.security.access.AccessDeniedException] propagates correctly through the proxy
+ *
+ * @see SecureAgentToolAspect
+ * @see SecureAgentToolConfiguration
+ */
 @SpringJUnitConfig
 @DisplayName("SecureAgentToolAspect - Integration")
 class SecureAgentToolAspectIntegrationTest {
@@ -200,10 +206,16 @@ class SecureAgentToolAspectIntegrationTest {
     }
 }
 
-// Must be open (not final) for CGLIB subclassing.
-// Kotlin classes are final by default - the kotlin-allopen plugin handles Spring
-// stereotype annotations (@Component, @Service etc.) but plain test fixtures must
-// be declared open explicitly.
+/**
+ * Test fixture representing a CGLIB-proxiable agent bean.
+ *
+ * Must be `open` (not `final`) for CGLIB subclassing. Kotlin classes are `final` by default —
+ * the `kotlin-allopen` plugin handles Spring stereotype annotations (`@Component`, `@Service`,
+ * etc.) but plain test fixtures must be declared `open` explicitly.
+ *
+ * Each method exercises a different [SecureAgentTool] SpEL variant to keep
+ * the integration assertions focused and independent.
+ */
 open class ProxiedTestAgent {
 
     @SecureAgentTool("hasAuthority('payments:write')")
