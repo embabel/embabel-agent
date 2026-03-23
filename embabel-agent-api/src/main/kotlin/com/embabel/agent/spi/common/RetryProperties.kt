@@ -16,7 +16,6 @@
 package com.embabel.agent.spi.common
 
 import com.embabel.agent.api.tool.ToolControlFlowSignal
-import org.springframework.security.access.AccessDeniedException
 import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.isRateLimitError
 import com.embabel.agent.spi.support.springai.SpringAiRetryPolicy
 import com.embabel.common.util.loggerFor
@@ -62,7 +61,7 @@ interface RetryProperties : RetryTemplateProvider {
                         throw throwable
                     }
                     // Security denials are deterministic - retrying will never succeed
-                    if (throwable is AccessDeniedException) {
+                    if (throwable.javaClass.name == "org.springframework.security.access.AccessDeniedException") {
                         throw throwable
                     }
                     if (isRateLimitError(throwable)) {
