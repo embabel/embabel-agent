@@ -821,3 +821,16 @@ class AgentWithNonReadOnlyAction {
         return PersonWithReverseTool(userInput.content)
     }
 }
+
+@Agent(description = "agent with duplicate action names via overloaded methods")
+class AgentWithDuplicateActionNames {
+
+    @Action
+    @AchievesGoal(description = "respond to user")
+    fun respond(userInput: UserInput): PersonWithReverseTool =
+        PersonWithReverseTool(userInput.content)
+
+    @Action
+    fun respond(userInput: UserInput, person: PersonWithReverseTool): PersonWithReverseTool =
+        PersonWithReverseTool(person.name + " " + userInput.content)
+}

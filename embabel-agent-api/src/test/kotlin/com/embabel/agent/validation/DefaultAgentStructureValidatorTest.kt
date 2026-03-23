@@ -15,34 +15,53 @@
  */
 package com.embabel.agent.validation
 
+import com.embabel.agent.api.annotation.support.AgentMetadataReader
+import com.embabel.agent.api.annotation.support.AgentWithDuplicateActionNames
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.spi.validation.DefaultAgentStructureValidator
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.context.support.GenericApplicationContext
 
 class DefaultAgentStructureValidatorTest {
 
+    private fun validator(): DefaultAgentStructureValidator {
+        val applicationContext = GenericApplicationContext()
+        applicationContext.refresh()
+        return DefaultAgentStructureValidator(applicationContext)
+    }
+
     @Nested
     inner class Valid {
 
         @Test
         fun `no agents`() {
-            val applicationContext = GenericApplicationContext()
-            applicationContext.refresh()
-            val validator = DefaultAgentStructureValidator(applicationContext)
-            validator.afterPropertiesSet()
+            validator().afterPropertiesSet()
         }
 
         @Test
         fun `evil wizard`() {
-            val applicationContext = GenericApplicationContext()
-            applicationContext.refresh()
-            val validator = DefaultAgentStructureValidator(applicationContext)
-            val result = validator.validate(evenMoreEvilWizard())
+            val result = validator().validate(evenMoreEvilWizard())
             assertEquals(0, result.errors.size, "Expected no validation errors for evenMoreEvilWizard")
         }
     }
 
+    @Nested
+    inner class DuplicateActionNames {
+
+        @Test
+        fun `duplicate action names from overloaded methods should produce a validation error`() {
+            val agentScope = AgentMetadataReader().createAgentMetadata(AgentWithDuplicateActionNames())
+                ?: error("Expected metadata for AgentWithDuplicateActionNames")
+
+            val result = validator().validate(agentScope)
+
+            assertTrue(
+                result.errors.any { it.code == "DUPLICATE_ACTION_NAME" },
+                "Expected a DUPLICATE_ACTION_NAME validation error, but got: ${result.errors}",
+            )
+        }
+    }
 }

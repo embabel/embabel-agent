@@ -112,6 +112,23 @@ class DefaultAgentStructureValidator(
             )
         }
 
+        // Check for duplicate action names
+        agentScope.actions.groupBy { it.name }.filter { it.value.size > 1 }.forEach { (name, _) ->
+            errors.add(
+                ValidationError(
+                    code = "DUPLICATE_ACTION_NAME",
+                    message = "Agent '${agentScope.name}' has more than one action named '$name'",
+                    severity = ValidationSeverity.ERROR,
+                    location = ValidationLocation(
+                        type = "Action",
+                        name = name,
+                        agentName = agentScope.name,
+                        component = agentScope.name
+                    )
+                )
+            )
+        }
+
         // Validate action signatures
         agentScope.actions.forEach { action ->
             // Check if the action has any preconditions that require multiple parameters
