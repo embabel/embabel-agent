@@ -29,7 +29,6 @@ import com.embabel.agent.tools.agent.PromptedTextCommunicator
 import com.embabel.common.util.indent
 import io.modelcontextprotocol.server.McpSyncServer
 import org.slf4j.LoggerFactory
-import org.springframework.security.access.AccessDeniedException
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -101,9 +100,13 @@ class McpAwareGoalTool<I : Any>(
         logger.debug("Calling MCP-aware goal tool {} with input: {}", definition.name, input)
         return try {
             delegateWithListener.call(input)
-        } catch (e: AccessDeniedException) {
-            logger.warn("Access denied for tool {}: {}", definition.name, e.message)
-            Tool.Result.error("Access denied: ${e.message}")
+        } catch (e: Exception) {
+            if (e.javaClass.name == "org.springframework.security.access.AccessDeniedException") {
+                logger.warn("Access denied for tool {}: {}", definition.name, e.message)
+                Tool.Result.error("Access denied: ${e.message}")
+            } else {
+                throw e
+            }
         }
     }
 }
