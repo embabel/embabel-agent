@@ -314,6 +314,12 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-secured-mcpserver</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-starter-mcpserver</artifactId>
                 <version>${project.version}</version>
             </dependency>
