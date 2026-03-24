@@ -1028,18 +1028,8 @@ The `@AchievesGoal` annotation can be added to an `@Action` method to indicate t
 
 `@SecureAgentTool` declares the security contract for an Embabel `@Action` method or `@Agent`
 class exposed as a remote MCP tool.
-It accepts any Spring Security SpEL expression — identical syntax to `@PreAuthorize` — evaluated
-against the current `Authentication` at the point of tool invocation, before Embabel's GOAP
-planner executes the action body.
-
-===== Why not `@PreAuthorize`?
-
-Spring's `@PreAuthorize` relies on AOP proxies that intercept calls across bean boundaries.
-Embabel's `DefaultActionMethodManager` invokes `@Action` methods via direct Java reflection on
-the underlying bean instance, bypassing those proxies silently — so `@PreAuthorize` would have
-no effect.
-`@SecureAgentTool` uses its own `@Aspect` with a pointcut that fires regardless of the caller,
-closing this gap.
+It accepts a Spring Security SpEL expression evaluated against the current `Authentication`
+at the point of tool invocation, before Embabel's GOAP planner executes the action body.
 
 ===== Placement
 
