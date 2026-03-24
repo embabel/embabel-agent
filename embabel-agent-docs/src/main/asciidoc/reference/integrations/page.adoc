@@ -503,6 +503,147 @@ Every MCP server includes a built-in `helloBanner` tool that displays server inf
 }
 ----
 
+[[reference.integrations__mcp_security]]
+===== Security
+
+Embabel MCP servers support two complementary layers of security that work together.
+Think of them like a building with a reception desk and locked office doors: the HTTP filter
+chain is the reception desk that turns away anyone without a badge, and `@SecureAgentTool`
+is the locked door on each individual office that checks what the badge actually permits.
+
+====== Layer 1 — HTTP transport (filter chain)
+
+All requests to MCP endpoints (`/sse/**`, `/mcp/**`, `/message/**`) must carry a valid JWT
+Bearer token or they are rejected with `401 Unauthorized` before the GOAP planner is invoked.
+
+Configure a `SecurityFilterChain` and a JWT resource server in your Spring Security setup:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Configuration
+@EnableWebSecurity
+class McpSecurityConfiguration {
+
+    @Bean
+    fun mcpFilterChain(http: HttpSecurity): SecurityFilterChain {
+        http
+            .securityMatcher("/sse/**", "/mcp/**", "/message/**")
+            .authorizeHttpRequests { it.anyRequest().authenticated() }
+            .sessionManagement {
+                it.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            }
+            .oauth2ResourceServer { oauth2 ->
+                oauth2.jwt { jwt ->
+                    jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())
+                }
+            }
+            .csrf { it.disable() }
+        return http.build()
+    }
+
+    @Bean
+    fun jwtAuthenticationConverter(): JwtAuthenticationConverter {
+        val authoritiesConverter = JwtGrantedAuthoritiesConverter().apply {
+            setAuthoritiesClaimName("authorities")
+            setAuthorityPrefix("")  // <1>
+        }
+        return JwtAuthenticationConverter().apply {
+            setJwtGrantedAuthoritiesConverter(authoritiesConverter)
+        }
+    }
+}
+----
+====
+<1> Empty prefix means JWT claim values like `news:read` map directly to Spring Security
+authorities, so `hasAuthority('news:read')` in a `@SecureAgentTool` expression works without
+any `SCOPE_` prefix.
+
+Configure JWT validation in `application.yml`:
+
+[source,yaml]
+----
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          public-key-location: classpath:keys/public.pem  # local dev
+          jws-algorithms: RS256
+          # For production, use issuer-uri or jwk-set-uri instead
+----
+
+====== Layer 2 — Method-level (`@SecureAgentTool`)
+
+Enforces per-action authorization inside the GOAP execution pipeline, after the HTTP layer
+has validated the token.
+Place `@SecureAgentTool` on the `@Agent` class to protect every `@Action` in that agent:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Curated news digest agent")
+@SecureAgentTool("hasAuthority('news:read')")  // <1>
+class NewsDigestAgent {
+
+    @Action
+    fun extractTopic(userInput: UserInput, context: OperationContext): NewsTopic { ... } // <2>
+
+    @AchievesGoal(description = "Produce news digest",
+                  export = Export(remote = true, name = "newsDigest",
+                                  startingInputTypes = [UserInput::class]))
+    @Action
+    fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest { ... }  // <2>
+}
+----
+
+Java::
++
+[source,java]
+----
+@Agent(description = "Curated news digest agent")
+@SecureAgentTool("hasAuthority('news:read')")  // <1>
+public class NewsDigestAgent {
+
+    @Action
+    public NewsTopic extractTopic(UserInput userInput, OperationContext context) { ... } // <2>
+
+    @AchievesGoal(description = "Produce news digest",
+                  export = @Export(remote = true, name = "newsDigest",
+                                   startingInputTypes = {UserInput.class}))
+    @Action
+    public NewsDigest produceDigest(NewsTopic topic, OperationContext context) { ... }  // <2>
+}
+----
+====
+<1> Class-level annotation applies to every `@Action` in this agent.
+<2> Both `extractTopic` (the intermediate step) and `produceDigest` (the goal action) require
+`news:read` — without class-level security, intermediate actions run freely before the goal
+action's check fires, potentially burning LLM tokens on an unauthorised request.
+
+See xref:reference.annotations_secure_agent_tool[`@SecureAgentTool`] for the full annotation
+reference including supported SpEL expressions and method-level override behaviour.
+
+====== Dependency
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-mcpserver-security</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+
+The starter auto-configures `SecureAgentToolAspect` and wires the Spring Security
+`MethodSecurityExpressionHandler`. No additional `@EnableMethodSecurity` is required.
+
 [[reference.integrations__mcp_consuming]]
 ===== Consuming
 

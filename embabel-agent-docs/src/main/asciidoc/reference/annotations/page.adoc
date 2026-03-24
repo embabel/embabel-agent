@@ -1023,6 +1023,175 @@ The only special thing about it is its ability to use the `OperationContext` par
 
 The `@AchievesGoal` annotation can be added to an `@Action` method to indicate that the completion of the action achieves a specific goal.
 
+[[reference.annotations_secure_agent_tool]]
+==== The `@SecureAgentTool` annotation
+
+`@SecureAgentTool` declares the security contract for an Embabel `@Action` method or `@Agent`
+class exposed as a remote MCP tool.
+It accepts any Spring Security SpEL expression — identical syntax to `@PreAuthorize` — evaluated
+against the current `Authentication` at the point of tool invocation, before Embabel's GOAP
+planner executes the action body.
+
+===== Why not `@PreAuthorize`?
+
+Spring's `@PreAuthorize` relies on AOP proxies that intercept calls across bean boundaries.
+Embabel's `DefaultActionMethodManager` invokes `@Action` methods via direct Java reflection on
+the underlying bean instance, bypassing those proxies silently — so `@PreAuthorize` would have
+no effect.
+`@SecureAgentTool` uses its own `@Aspect` with a pointcut that fires regardless of the caller,
+closing this gap.
+
+===== Placement
+
+`@SecureAgentTool` can be placed on the `@Agent` class to protect every `@Action` uniformly,
+or on individual methods for finer-grained control.
+Method-level annotation takes precedence over class-level when both are present.
+
+**Class-level** — one annotation secures all actions in the agent, including intermediate steps
+that run before the goal-achieving action:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Research a topic and return a news digest")
+@SecureAgentTool("hasAuthority('news:read')")  // <1>
+class NewsDigestAgent {
+
+    @Action
+    fun extractTopic(userInput: UserInput, context: OperationContext): NewsTopic { ... } // <2>
+
+    @AchievesGoal(description = "Produce a curated news digest",
+                  export = Export(remote = true, name = "newsDigest",
+                                  startingInputTypes = [UserInput::class]))
+    @Action
+    fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest { ... }  // <2>
+}
+----
+
+Java::
++
+[source,java]
+----
+@Agent(description = "Research a topic and return a news digest")
+@SecureAgentTool("hasAuthority('news:read')")  // <1>
+public class NewsDigestAgent {
+
+    @Action
+    public NewsTopic extractTopic(UserInput userInput, OperationContext context) { ... } // <2>
+
+    @AchievesGoal(description = "Produce a curated news digest",
+                  export = @Export(remote = true, name = "newsDigest",
+                                   startingInputTypes = {UserInput.class}))
+    @Action
+    public NewsDigest produceDigest(NewsTopic topic, OperationContext context) { ... }  // <2>
+}
+----
+====
+<1> One annotation on the class protects every `@Action` in the agent.
+<2> Both `extractTopic` and `produceDigest` require `news:read`.
+Without class-level protection, intermediate actions like `extractTopic` would run freely
+before the security check on the goal-achieving action fires.
+
+**Method-level override** — a method-level annotation takes precedence over the class-level
+expression, allowing one action to require elevated authority:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@Agent(description = "Market intelligence agent")
+@SecureAgentTool("hasAuthority('market:read')")         // <1>
+class MarketIntelligenceAgent {
+
+    @Action
+    fun gatherIntelligence(subject: AnalysisSubject, context: OperationContext): String { ... }
+
+    @SecureAgentTool("hasAuthority('market:admin')")     // <2>
+    @AchievesGoal(description = "Produce market report")
+    @Action
+    fun synthesiseReport(
+        subject: AnalysisSubject,
+        rawIntelligence: String,
+        context: OperationContext
+    ): MarketIntelligenceReport { ... }
+}
+----
+
+Java::
++
+[source,java]
+----
+@Agent(description = "Market intelligence agent")
+@SecureAgentTool("hasAuthority('market:read')")         // <1>
+public class MarketIntelligenceAgent {
+
+    @Action
+    public String gatherIntelligence(AnalysisSubject subject, OperationContext context) { ... }
+
+    @SecureAgentTool("hasAuthority('market:admin')")     // <2>
+    @AchievesGoal(description = "Produce market report")
+    @Action
+    public MarketIntelligenceReport synthesiseReport(
+            AnalysisSubject subject,
+            String rawIntelligence,
+            OperationContext context) { ... }
+}
+----
+====
+<1> All actions default to requiring `market:read`.
+<2> `synthesiseReport` requires `market:admin` — the method-level annotation overrides the class.
+
+===== Supported expressions
+
+Any Spring Security SpEL expression is valid:
+
+[cols="2,3",options="header"]
+|===
+|Expression |Meaning
+
+|`hasAuthority('finance:read')`
+|Principal must carry this exact authority
+
+|`hasAnyAuthority('finance:read', 'finance:admin')`
+|Principal must carry at least one of the listed authorities
+
+|`hasRole('ADMIN')`
+|Principal must carry `ROLE_ADMIN` (the `ROLE_` prefix is added automatically)
+
+|`isAuthenticated()`
+|Any authenticated principal, regardless of authorities
+
+|`hasAuthority('payments:write') and #request.amount < 10000`
+|Combines an authority check with a method parameter expression
+|===
+
+===== Setup
+
+Add the MCP security starter to your `pom.xml`:
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-mcpserver-security</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+
+The starter auto-configures `SecureAgentToolAspect` and the required Spring Security
+`MethodSecurityExpressionHandler`.
+No additional `@EnableMethodSecurity` annotation is required.
+
+NOTE: `@SecureAgentTool` is a method-level security control, not an HTTP-level one.
+For production use, combine it with a `SecurityFilterChain` that validates JWT Bearer tokens
+on MCP endpoints so unauthenticated requests are rejected before reaching the GOAP planner.
+See xref:reference.integrations__mcp_security[MCP Security] for the full two-layer setup.
+
 ==== Implementing the `StuckHandler` interface
 
 If an annotated agent class implements the `StuckHandler` interface, it can handle situations where an action is stuck itself.
