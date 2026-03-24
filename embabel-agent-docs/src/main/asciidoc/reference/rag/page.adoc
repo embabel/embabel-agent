@@ -1264,17 +1264,18 @@ Java::
 +
 [source,java]
 ----
+@DependsOn("onnxEmbeddingInitializer")  // <1>
 @Bean
 DrivineStore drivineStore(
         PersistenceManager persistenceManager,
         EmbeddingService embeddingService,
-        ChunkTransformer chunkTransformer,  // <1>
+        ChunkTransformer chunkTransformer,  // <2>
         MyProperties properties) {
     return new DrivineStore(
         persistenceManager,
         properties.neoRag(),
         properties.chunkerConfig(),
-        chunkTransformer,  // <2>
+        chunkTransformer,  // <3>
         embeddingService,
         platformTransactionManager,
         new DrivineCypherSearch(persistenceManager)
@@ -1286,18 +1287,19 @@ Kotlin::
 +
 [source,kotlin]
 ----
+@DependsOn("onnxEmbeddingInitializer")  // <1>
 @Bean
 fun drivineStore(
     persistenceManager: PersistenceManager,
     embeddingService: EmbeddingService,
-    chunkTransformer: ChunkTransformer,  // <1>
+    chunkTransformer: ChunkTransformer,  // <2>
     properties: MyProperties
 ): DrivineStore {
     return DrivineStore(
         persistenceManager,
         properties.neoRag(),
         properties.chunkerConfig(),
-        chunkTransformer,  // <2>
+        chunkTransformer,  // <3>
         embeddingService,
         platformTransactionManager,
         DrivineCypherSearch(persistenceManager)
@@ -1306,8 +1308,14 @@ fun drivineStore(
 ----
 ====
 
-<1> Inject the `ChunkTransformer` bean
-<2> Pass it to the store constructor
+<1> Ensure the `EmbeddingService` bean is registered before this configuration is wired (see note below)
+<2> Inject the `ChunkTransformer` bean
+<3> Pass it to the store constructor
+
+NOTE: `EmbeddingService` beans are registered dynamically by model provider auto-configurations via `registerSingleton`.
+If your `@Configuration` class injects `EmbeddingService` directly (as above), you should add `@DependsOn` on the provider's initializer bean — e.g. `@DependsOn("onnxEmbeddingInitializer")` for the ONNX provider.
+Without it, Spring may resolve the dependency before the initializer has run, resulting in a `NoSuchBeanDefinitionException`.
+This is only necessary when consuming model beans directly; framework beans like `ModelProvider` handle this internally.
 
 TIP: For most use cases, `AddTitlesChunkTransformer` is all you need.
 It adds essential context that significantly improves retrieval quality without adding complexity.

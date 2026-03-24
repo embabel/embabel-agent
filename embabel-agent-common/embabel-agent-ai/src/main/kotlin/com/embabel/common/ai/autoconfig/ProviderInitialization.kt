@@ -18,7 +18,26 @@ package com.embabel.common.ai.autoconfig
 import java.time.Instant
 
 /**
- * Result of LLM initialization process.
+ * Result of model provider initialization.
+ *
+ * Each provider auto-configuration returns a [ProviderInitialization] bean from its
+ * `@Bean` factory method. Inside that factory method, individual [LlmService] and
+ * [EmbeddingService][com.embabel.common.ai.model.EmbeddingService] instances are
+ * registered via [ConfigurableBeanFactory.registerSingleton][org.springframework.beans.factory.config.ConfigurableBeanFactory.registerSingleton],
+ * using the model name as the bean name. This allows dynamic registration of
+ * multiple models per provider, with names driven by configuration rather than
+ * compile-time `@Bean` definitions.
+ *
+ * **Note on direct consumption:** Beans registered via `registerSingleton` are not
+ * visible to Spring's dependency resolver at bean-definition time. This is transparent
+ * in most cases, since framework beans like [ModelProvider] already depend on the
+ * initializer beans and handle resolution internally. However, if application code
+ * outside the framework injects an [EmbeddingService] or [LlmService] directly
+ * (e.g. to wire a custom store), Spring may attempt to resolve the dependency before
+ * the initializer's factory method has run — resulting in a `NoSuchBeanDefinitionException`
+ * even though the bean would have been registered moments later. In this case, add
+ * `@DependsOn` on the corresponding initializer bean
+ * (e.g. `@DependsOn("onnxEmbeddingInitializer")`) to force ordering.
  */
 data class ProviderInitialization(
     val provider: String,
