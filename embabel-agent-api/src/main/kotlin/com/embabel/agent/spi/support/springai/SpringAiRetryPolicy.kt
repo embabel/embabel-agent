@@ -15,6 +15,9 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import com.embabel.agent.api.tool.TerminateActionException
+import com.embabel.agent.api.tool.TerminateAgentException
+import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.ReplanRequestedException
 import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.retry.TransientAiException
@@ -57,8 +60,11 @@ internal class SpringAiRetryPolicy(
         }
 
         return when (val lastException = context.lastThrowable) {
-            // ReplanRequestedException is a control flow signal, not an error to retry
+            // Control flow signals - not errors to retry
             is ReplanRequestedException -> false
+            is TerminateActionException -> false
+            is TerminateAgentException -> false
+            is ToolControlFlowSignal -> false  // Catch-all for other control flow signals
 
             is TransientAiException -> true
 

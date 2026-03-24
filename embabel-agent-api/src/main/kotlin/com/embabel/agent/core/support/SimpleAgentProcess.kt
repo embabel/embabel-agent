@@ -19,6 +19,8 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.event.AgentProcessPlanFormulatedEvent
 import com.embabel.agent.api.event.GoalAchievedEvent
 import com.embabel.agent.api.event.ReplanRequestedEvent
+import com.embabel.agent.api.tool.TerminateActionException
+import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentProcess
@@ -182,6 +184,23 @@ open class SimpleAgentProcess(
                 )
                 // Keep status as RUNNING to trigger replanning on next tick
                 setStatus(AgentProcessStatusCode.RUNNING)
+            } catch (e: TerminateActionException) {
+                // Action requested early termination - continue with next action
+                logger.info(
+                    "Action {} terminated early: {}",
+                    action.name,
+                    e.reason,
+                )
+                // Keep status as RUNNING to continue with next action
+                setStatus(AgentProcessStatusCode.RUNNING)
+            } catch (e: TerminateAgentException) {
+                // Agent termination requested - stop the entire process
+                logger.info(
+                    "Agent process terminated by action {}: {}",
+                    action.name,
+                    e.reason,
+                )
+                setStatus(AgentProcessStatusCode.TERMINATED)
             } catch (e: Exception) {
                 if (e is ToolControlFlowSignal) {
                     // Other control flow signals (e.g., UserInputRequiredException) must propagate

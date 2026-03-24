@@ -20,8 +20,12 @@ package com.embabel.agent.api.tool
  * rather than errors. These exceptions are allowed to propagate through
  * [TypedTool.call] without being caught and converted to error results.
  *
+ * Control flow signals are also excluded from retry policies.
+ *
  * Examples include:
  * - [com.embabel.agent.core.ReplanRequestedException]
  * - [com.embabel.agent.core.hitl.AwaitableResponseException]
+ * - [TerminateActionException]
+ * - [TerminateAgentException]
  */
 interface ToolControlFlowSignal

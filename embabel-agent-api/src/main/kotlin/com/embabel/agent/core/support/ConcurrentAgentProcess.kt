@@ -116,6 +116,12 @@ open class ConcurrentAgentProcess(
 
     protected fun actionStatusToAgentProcessStatus(actionStatuses: List<ActionStatus>): AgentProcessStatusCode =
         when {
+            // Agent termination takes highest priority - stop entire agent
+            actionStatuses.any { it.status == ActionStatusCode.AGENT_TERMINATED } -> {
+                logger.debug("Process {} action requested agent termination", id)
+                AgentProcessStatusCode.TERMINATED
+            }
+
             actionStatuses.any { it.status == ActionStatusCode.FAILED } -> {
                 logger.debug("❌ Process {} action {} failed", id, ActionStatusCode.FAILED)
                 AgentProcessStatusCode.FAILED
@@ -128,6 +134,12 @@ open class ConcurrentAgentProcess(
 
             actionStatuses.any { it.status == ActionStatusCode.SUCCEEDED } -> {
                 logger.debug("Process {} action {} is running", id, ActionStatusCode.SUCCEEDED)
+                AgentProcessStatusCode.RUNNING
+            }
+
+            // Action termination - agent continues (maps to RUNNING)
+            actionStatuses.any { it.status == ActionStatusCode.TERMINATED } -> {
+                logger.debug("Process {} action terminated early, continuing", id)
                 AgentProcessStatusCode.RUNNING
             }
 

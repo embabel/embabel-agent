@@ -71,6 +71,12 @@ enum class ActionStatusCode {
     WAITING,
 
     PAUSED,
+
+    /** The action was terminated early via [com.embabel.agent.api.tool.TerminateActionException]. Agent continues. */
+    TERMINATED,
+
+    /** The action requested agent termination via [com.embabel.agent.api.tool.TerminateAgentException]. Agent stops. */
+    AGENT_TERMINATED,
 }
 
 /**

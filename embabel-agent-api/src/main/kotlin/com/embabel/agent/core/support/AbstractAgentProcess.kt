@@ -15,6 +15,9 @@
  */
 package com.embabel.agent.core.support
 
+import com.embabel.agent.api.termination.TerminationSignalPolicy
+import com.embabel.agent.api.tool.TerminateActionException
+import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.StuckHandlingResultCode
 import com.embabel.agent.api.common.ToolsStats
@@ -231,6 +234,21 @@ abstract class AbstractAgentProcess(
      * Should this process be terminated early?
      */
     protected fun identifyEarlyTermination(): EarlyTermination? {
+        // Check for API-driven termination signal first
+        val signalTermination = TerminationSignalPolicy.shouldTerminate(this)
+        if (signalTermination != null) {
+            logger.debug(
+                "Process {} terminated by termination signal: {}",
+                this.id,
+                signalTermination.reason,
+            )
+            platformServices.eventListener.onProcessEvent(signalTermination)
+            _failureInfo = signalTermination
+            setStatus(AgentProcessStatusCode.TERMINATED)
+            return signalTermination
+        }
+
+        // Check configured early termination policies
         val earlyTermination = processOptions.processControl.earlyTerminationPolicy.shouldTerminate(this)
         if (earlyTermination != null) {
             logger.debug(
@@ -374,12 +392,20 @@ abstract class AbstractAgentProcess(
         val blackboardObjectsBefore = blackboard.objects.toList()
 
         val timestamp = Instant.now()
-        val actionStatus = withCurrent {
-            action.qos.retryTemplate("Action-${action.name}").execute<ActionStatus, Throwable> {
-                action.execute(
-                    processContext = processContext,
-                )
+        val actionStatus = try {
+            withCurrent {
+                action.qos.retryTemplate("Action-${action.name}").execute<ActionStatus, Throwable> {
+                    action.execute(
+                        processContext = processContext,
+                    )
+                }
             }
+        } catch (e: TerminateActionException) {
+            logger.info("Action {} terminated early: {}", action.name, e.reason)
+            ActionStatus(Duration.between(timestamp, Instant.now()), ActionStatusCode.TERMINATED)
+        } catch (e: TerminateAgentException) {
+            logger.info("Action {} requested agent termination: {}", action.name, e.reason)
+            ActionStatus(Duration.between(timestamp, Instant.now()), ActionStatusCode.AGENT_TERMINATED)
         }
         val runningTime = Duration.between(timestamp, Instant.now())
         _history += ActionInvocation(
@@ -397,8 +423,10 @@ abstract class AbstractAgentProcess(
         // For state-clearing actions, the blackboard reset naturally prevents re-runs
         // since inputs are gone. Setting hasRun on the NEW state's blackboard would
         // incorrectly block actions that haven't run in the new state.
+        // Don't set hasRun for TERMINATED actions - they should be retryable.
         val blackboardWasCleared = blackboard.objects.none { it in blackboardObjectsBefore }
-        if (!blackboardWasCleared) {
+        val actionWasTerminated = actionStatus.status == ActionStatusCode.TERMINATED
+        if (!blackboardWasCleared && !actionWasTerminated) {
             blackboard.setCondition(Rerun.hasRunCondition(action), true)
         }
 
@@ -435,6 +463,16 @@ abstract class AbstractAgentProcess(
             ActionStatusCode.PAUSED -> {
                 logger.debug("⏳ Process {} action {} paused", id, actionStatus.status)
                 AgentProcessStatusCode.PAUSED
+            }
+
+            ActionStatusCode.TERMINATED -> {
+                logger.debug("Process {} action terminated early, continuing", id)
+                AgentProcessStatusCode.RUNNING
+            }
+
+            ActionStatusCode.AGENT_TERMINATED -> {
+                logger.debug("Process {} action requested agent termination", id)
+                AgentProcessStatusCode.TERMINATED
             }
         }
     }

@@ -15,7 +15,14 @@
  */
 package com.embabel.agent.spi.loop.support
 
+import com.embabel.agent.api.common.TerminationScope
+import com.embabel.agent.api.common.TerminationSignal
+import com.embabel.agent.api.tool.TerminateActionException
+import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.core.AgentProcess
+import io.mockk.every
+import io.mockk.mockk
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModeProperties
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.loop.LlmMessageResponse
@@ -36,6 +43,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.Duration
@@ -44,6 +52,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import org.junit.jupiter.api.AfterEach
 
 /**
  * Unit tests for [ParallelToolLoop].
@@ -57,6 +66,22 @@ class ParallelToolLoopTest {
         perToolTimeout = Duration.ofSeconds(5),
         batchTimeout = Duration.ofSeconds(10),
     )
+
+    @AfterEach
+    fun cleanup() {
+        AgentProcess.remove()
+    }
+
+    /**
+     * Sets up a mock AgentProcess with blackboard storage for termination signals.
+     */
+    private fun setupMockAgentProcess() {
+        val storage = mutableMapOf<String, Any?>()
+        val mockProcess = mockk<AgentProcess>(relaxed = true)
+        every { mockProcess[any()] } answers { storage[firstArg()] }
+        every { mockProcess.set(any(), any()) } answers { storage[firstArg()] = secondArg() }
+        AgentProcess.set(mockProcess)
+    }
 
     @Nested
     inner class SingleToolDelegationTest {
@@ -586,6 +611,278 @@ class ParallelToolLoopTest {
             assertEquals(1, strategyCallCount)
             // Using last tool's context
             assertEquals("tool_b", lastToolName)
+        }
+    }
+
+    @Nested
+    inner class TerminationHandling {
+
+        /**
+         * When one tool throws TerminateAgentException, it should propagate
+         * after all parallel tools complete (most severe signal wins).
+         */
+        @Test
+        fun `agent termination propagates after all tools complete`() {
+            val toolCallOrder = ConcurrentHashMap<String, Int>()
+            val callIndex = AtomicInteger(0)
+
+            val toolA = MockTool(
+                name = "tool_a",
+                description = "Tool A - throws agent termination",
+                onCall = {
+                    toolCallOrder["tool_a"] = callIndex.incrementAndGet()
+                    throw TerminateAgentException("Critical failure in tool A")
+                }
+            )
+
+            val toolB = MockTool(
+                name = "tool_b",
+                description = "Tool B - completes normally",
+                onCall = {
+                    toolCallOrder["tool_b"] = callIndex.incrementAndGet()
+                    Tool.Result.text("""{"status": "ok"}""")
+                }
+            )
+
+            val mockCaller = multiToolCallSender(
+                listOf(
+                    ToolCall("1", "tool_a", "{}"),
+                    ToolCall("2", "tool_b", "{}"),
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+            )
+
+            val exception = assertThrows(TerminateAgentException::class.java) {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Run both")),
+                    initialTools = listOf(toolA, toolB),
+                    outputParser = { it }
+                )
+            }
+
+            assertEquals("Critical failure in tool A", exception.reason)
+            // Both tools were called (parallel execution completes before throwing)
+            assertEquals(2, toolCallOrder.size)
+        }
+
+        /**
+         * When one tool throws TerminateActionException, it should propagate
+         * after all parallel tools complete.
+         */
+        @Test
+        fun `action termination propagates after all tools complete`() {
+            val toolCallOrder = ConcurrentHashMap<String, Int>()
+            val callIndex = AtomicInteger(0)
+
+            val toolA = MockTool(
+                name = "tool_a",
+                description = "Tool A - throws action termination",
+                onCall = {
+                    toolCallOrder["tool_a"] = callIndex.incrementAndGet()
+                    throw TerminateActionException("Skip remaining work")
+                }
+            )
+
+            val toolB = MockTool(
+                name = "tool_b",
+                description = "Tool B - completes normally",
+                onCall = {
+                    toolCallOrder["tool_b"] = callIndex.incrementAndGet()
+                    Tool.Result.text("""{"status": "ok"}""")
+                }
+            )
+
+            val mockCaller = multiToolCallSender(
+                listOf(
+                    ToolCall("1", "tool_a", "{}"),
+                    ToolCall("2", "tool_b", "{}"),
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+            )
+
+            val exception = assertThrows(TerminateActionException::class.java) {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Run both")),
+                    initialTools = listOf(toolA, toolB),
+                    outputParser = { it }
+                )
+            }
+
+            assertEquals("Skip remaining work", exception.reason)
+            assertEquals(2, toolCallOrder.size)
+        }
+
+        /**
+         * Agent termination takes priority over action termination
+         * when both occur in parallel tools.
+         */
+        @Test
+        fun `agent termination has priority over action termination`() {
+            val toolA = MockTool(
+                name = "tool_a",
+                description = "Tool A - throws action termination",
+                onCall = { throw TerminateActionException("Action should stop") }
+            )
+
+            val toolB = MockTool(
+                name = "tool_b",
+                description = "Tool B - throws agent termination",
+                onCall = { throw TerminateAgentException("Agent must stop") }
+            )
+
+            val mockCaller = multiToolCallSender(
+                listOf(
+                    ToolCall("1", "tool_a", "{}"),
+                    ToolCall("2", "tool_b", "{}"),
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+            )
+
+            // Agent termination should win
+            val exception = assertThrows(TerminateAgentException::class.java) {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Run both")),
+                    initialTools = listOf(toolA, toolB),
+                    outputParser = { it }
+                )
+            }
+
+            assertEquals("Agent must stop", exception.reason)
+        }
+
+        /**
+         * Verifies that ACTION scope graceful signal throws TerminateActionException
+         * before the batch starts.
+         */
+        @Test
+        fun `graceful ACTION signal throws TerminateActionException before batch`() {
+            setupMockAgentProcess()
+
+            // Pre-set the termination signal before executing
+            val agentProcess = AgentProcess.get()!!
+            agentProcess[TerminationSignal.BLACKBOARD_KEY] = TerminationSignal(
+                TerminationScope.ACTION,
+                "Graceful action stop"
+            )
+
+            val toolCalled = AtomicInteger(0)
+            val tool = MockTool(
+                name = "test_tool",
+                description = "Should not be called",
+                onCall = {
+                    toolCalled.incrementAndGet()
+                    Tool.Result.text("done")
+                }
+            )
+
+            val mockCaller = multiToolCallSender(
+                listOf(
+                    ToolCall("1", "test_tool", "{}"),
+                    ToolCall("2", "test_tool", "{}"),
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+            )
+
+            val exception = assertThrows(TerminateActionException::class.java) {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("Run tools")),
+                    initialTools = listOf(tool),
+                    outputParser = { it }
+                )
+            }
+
+            assertEquals("Graceful action stop", exception.reason)
+            // No tools should be called - signal checked before batch
+            assertEquals(0, toolCalled.get())
+        }
+
+        /**
+         * Verifies that AGENT scope graceful signal allows tool loop to complete normally.
+         * The signal is handled at agent process level, not tool loop level.
+         */
+        @Test
+        fun `tool loop completes when AGENT signal is set`() {
+            setupMockAgentProcess()
+
+            // Pre-set the AGENT termination signal
+            val agentProcess = AgentProcess.get()!!
+            agentProcess[TerminationSignal.BLACKBOARD_KEY] = TerminationSignal(
+                TerminationScope.AGENT,
+                "Graceful agent stop"
+            )
+
+            val toolCalled = AtomicInteger(0)
+            val tool = MockTool(
+                name = "test_tool",
+                description = "Should be called",
+                onCall = {
+                    toolCalled.incrementAndGet()
+                    Tool.Result.text("done")
+                }
+            )
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse("1", "test_tool", "{}"),
+                    MockLlmMessageSender.textResponse("Complete")
+                )
+            )
+
+            val toolLoop = ParallelToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                injectionStrategy = ToolInjectionStrategy.NONE,
+                maxIterations = 20,
+                toolDecorator = null,
+                asyncer = asyncer,
+                parallelConfig = parallelConfig,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Run tool")),
+                initialTools = listOf(tool),
+                outputParser = { it }
+            )
+
+            assertEquals("Complete", result.result)
+            // Tool should be called - AGENT signal ignored by tool loop
+            assertEquals(1, toolCalled.get())
         }
     }
 

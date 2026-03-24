@@ -16,6 +16,8 @@
 package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.common.Asyncer
+import com.embabel.agent.api.tool.TerminateActionException
+import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
@@ -99,6 +101,9 @@ internal class ParallelToolLoop(
         toolCalls: List<ToolCall>,
         state: LoopState,
     ): Boolean {
+        // Check for graceful action termination before processing
+        checkForActionTerminationSignal()
+
         // Single tool - delegate to sequential execution
         if (toolCalls.size == 1) {
             return super.processToolCalls(toolCalls, state)
@@ -115,10 +120,23 @@ internal class ParallelToolLoop(
             asyncer.async { executeSingleToolCall(toolCall, availableToolsSnapshot) }
                 .orTimeout(perToolTimeoutMs, TimeUnit.MILLISECONDS)
                 .exceptionally { e ->
-                    when (e.cause ?: e) {
+                    when (val cause = e.cause ?: e) {
                         is TimeoutException -> {
                             logger.warn("Tool '{}' timed out after {}ms", toolCall.name, perToolTimeoutMs)
                             ParallelToolResult.Timeout(toolCall)
+                        }
+                        // Termination signals - capture for processing after all tools complete
+                        is TerminateActionException -> {
+                            logger.info("Tool '{}' requested action termination: {}", toolCall.name, cause.reason)
+                            ParallelToolResult.ActionTermination(toolCall, cause.reason)
+                        }
+                        is TerminateAgentException -> {
+                            logger.info("Tool '{}' requested agent termination: {}", toolCall.name, cause.reason)
+                            ParallelToolResult.AgentTermination(toolCall, cause.reason)
+                        }
+                        is ToolControlFlowSignal -> {
+                            logger.info("Tool '{}' raised control flow signal: {}", toolCall.name, cause::class.simpleName)
+                            ParallelToolResult.ControlFlowSignal(toolCall, cause)
                         }
                         else -> {
                             logger.error("Unexpected error for tool '{}'", toolCall.name, e)
@@ -142,7 +160,9 @@ internal class ParallelToolLoop(
         val duration = System.currentTimeMillis() - startTime
         logger.debug("All {} tools completed in {}ms", toolCalls.size, duration)
 
-        // 3. Check for replan request (first wins)
+        // 3. Check for control flow signals (priority: agent > action > unhandled > replan)
+        propagateControlFlowSignals(results)
+
         val replanRequest = results.filterIsInstance<ParallelToolResult.ReplanRequest>().firstOrNull()
         if (replanRequest != null) {
             logger.debug("Tool '{}' requested replan: {}", replanRequest.toolCall.name, replanRequest.reason)
@@ -164,9 +184,11 @@ internal class ParallelToolLoop(
                 is ParallelToolResult.Timeout ->
                     addToolResultToHistory(result.toolCall, Tool.Result.error("Tool execution timed out"), "Error: Tool execution timed out", state)
 
-                is ParallelToolResult.ReplanRequest -> {
-                    // Already handled above
-                }
+                // Control flow results don't add to history - they throw above
+                is ParallelToolResult.ReplanRequest,
+                is ParallelToolResult.ActionTermination,
+                is ParallelToolResult.AgentTermination,
+                is ParallelToolResult.ControlFlowSignal -> Unit
             }
         }
 
@@ -208,6 +230,28 @@ internal class ParallelToolLoop(
     }
 
     /**
+     * Checks results for control flow signals and throws if found.
+     * Priority: agent termination > action termination > unhandled control flow.
+     * Replan is handled separately after this method.
+     */
+    private fun propagateControlFlowSignals(results: List<ParallelToolResult>) {
+        // Agent termination - most severe, stops entire agent
+        results.filterIsInstance<ParallelToolResult.AgentTermination>().firstOrNull()?.let {
+            throw TerminateAgentException(it.reason)
+        }
+
+        // Action termination - stops current action
+        results.filterIsInstance<ParallelToolResult.ActionTermination>().firstOrNull()?.let {
+            throw TerminateActionException(it.reason)
+        }
+
+        // Unhandled control flow signals - propagate as-is
+        results.filterIsInstance<ParallelToolResult.ControlFlowSignal>().firstOrNull()?.let {
+            throw it.exception
+        }
+    }
+
+    /**
      * Result of a single tool execution in parallel mode.
      */
     private sealed class ParallelToolResult {
@@ -232,6 +276,22 @@ internal class ParallelToolLoop(
 
         data class Timeout(
             override val toolCall: ToolCall,
+        ) : ParallelToolResult()
+
+        data class ActionTermination(
+            override val toolCall: ToolCall,
+            val reason: String,
+        ) : ParallelToolResult()
+
+        data class AgentTermination(
+            override val toolCall: ToolCall,
+            val reason: String,
+        ) : ParallelToolResult()
+
+        /** Catch-all for unhandled [ToolControlFlowSignal] (e.g., AwaitableResponseException) */
+        data class ControlFlowSignal(
+            override val toolCall: ToolCall,
+            val exception: Throwable,
         ) : ParallelToolResult()
     }
 }
