@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.autoconfigure.mcpserver.secured;
+package com.embabel.agent.autoconfigure.mcpserver.security;
 
 import com.embabel.agent.config.mcpserver.security.SecureAgentToolConfiguration;
 import com.embabel.agent.config.mcpserver.security.SecuredAgentSecurityConfiguration;
