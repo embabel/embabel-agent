@@ -15,7 +15,9 @@
  */
 package com.embabel.common.ai.prompt
 
+import com.embabel.common.ai.model.TokenCounter
 import com.fasterxml.jackson.annotation.JsonIgnore
+import org.jetbrains.annotations.ApiStatus
 
 /**
  * Where should the prompt go?
@@ -36,6 +38,8 @@ data class PromptContribution(
     val content: String,
     val location: PromptContributionLocation = PromptContributionLocation.BEGINNING,
     val role: String? = null,
+    @ApiStatus.Experimental
+    val estimatedTokens: Int? = null,
 ) {
 
     companion object {
@@ -94,6 +98,29 @@ interface PromptContributor : PromptElement {
      * Return the string content of the contribution.
      */
     fun contribution(): String
+
+    /**
+     * Estimate the token count of this contributor's content.
+     * Override for more precise estimates when structural knowledge
+     * is available (e.g., pre-tokenized chunks from a RAG pipeline).
+     */
+    @ApiStatus.Experimental
+    fun estimateTokens(counter: TokenCounter<String>): Int =
+        counter.countTokens(contribution())
+
+    /**
+     * Produce a [PromptContribution] with [PromptContribution.estimatedTokens] populated.
+     */
+    @ApiStatus.Experimental
+    fun promptContribution(counter: TokenCounter<String>): PromptContribution {
+        val content = contribution()
+        return PromptContribution(
+            content = content,
+            location = promptContributionLocation,
+            role = role,
+            estimatedTokens = counter.countTokens(content),
+        )
+    }
 
     companion object {
 
