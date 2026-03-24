@@ -27,21 +27,21 @@ class TokenCounterTest {
     inner class Contract {
 
         @Test
-        fun `countTokens returns 0 for empty string`() {
+        fun `estimateTokens returns 0 for empty string`() {
             val counter: TokenCounter<String> = TokenCounter { it.length / 4 }
-            assertEquals(0, counter.countTokens(""))
+            assertEquals(0, counter.estimateTokens(""))
         }
 
         @Test
-        fun `countTokens returns non-negative for any input`() {
+        fun `estimateTokens returns non-negative for any input`() {
             val counter: TokenCounter<String> = TokenCounter { it.length / 4 }
-            assertTrue(counter.countTokens("hello world") >= 0)
+            assertTrue(counter.estimateTokens("hello world") >= 0)
         }
 
         @Test
-        fun `countTokens returns positive for non-empty text`() {
+        fun `estimateTokens returns positive for non-empty text`() {
             val counter: TokenCounter<String> = TokenCounter { maxOf(1, it.length / 4) }
-            assertTrue(counter.countTokens("hello world") > 0)
+            assertTrue(counter.estimateTokens("hello world") > 0)
         }
     }
 
@@ -66,7 +66,7 @@ class TokenCounterTest {
         @Test
         fun `fun interface supports lambda creation`() {
             val counter: TokenCounter<String> = TokenCounter { it.length / 3 }
-            assertEquals(3, counter.countTokens("123456789"))
+            assertEquals(3, counter.estimateTokens("123456789"))
         }
     }
 
@@ -78,16 +78,16 @@ class TokenCounterTest {
             val counter: TokenCounter<SimpleMessage> = TokenCounter { msg ->
                 msg.content.length / 4
             }
-            assertEquals(2, counter.countTokens(SimpleMessage("user", "abcdefgh")))
+            assertEquals(2, counter.estimateTokens(SimpleMessage("user", "abcdefgh")))
         }
 
         @Test
         fun `message counter can compose with string counter`() {
             val textCounter = TokenCounter.heuristic()
             val messageCounter: TokenCounter<SimpleMessage> = TokenCounter { msg ->
-                textCounter.countTokens(msg.content)
+                textCounter.estimateTokens(msg.content)
             }
-            assertEquals(2, messageCounter.countTokens(SimpleMessage("user", "abcdefgh")))
+            assertEquals(2, messageCounter.estimateTokens(SimpleMessage("user", "abcdefgh")))
         }
     }
 }

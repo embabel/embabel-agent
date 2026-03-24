@@ -29,7 +29,7 @@ public class TokenCounterJavaUsageTest {
         void heuristicIsCallableFromJava() {
             var counter = TokenCounter.heuristic();
             assertNotNull(counter);
-            assertEquals(2, counter.countTokens("abcdefgh"));
+            assertEquals(2, counter.estimateTokens("abcdefgh"));
         }
     }
 
@@ -39,7 +39,7 @@ public class TokenCounterJavaUsageTest {
         @Test
         void supportsJavaLambda() {
             TokenCounter<String> counter = text -> text.length() / 3;
-            assertEquals(3, counter.countTokens("123456789"));
+            assertEquals(3, counter.estimateTokens("123456789"));
         }
     }
 
@@ -48,20 +48,26 @@ public class TokenCounterJavaUsageTest {
 
         @Test
         void defaultInstanceIsAccessible() {
-            var result = CharacterHeuristicTokenCounter.DEFAULT.countTokens("abcdefgh");
+            var result = CharacterHeuristicTokenCounter.DEFAULT.estimateTokens("abcdefgh");
             assertEquals(2, result);
         }
 
         @Test
         void customRatioFromJava() {
             var counter = new CharacterHeuristicTokenCounter(2);
-            assertEquals(4, counter.countTokens("abcdefgh"));
+            assertEquals(4, counter.estimateTokens("abcdefgh"));
         }
 
         @Test
         void defaultConstructorFromJava() {
             var counter = new CharacterHeuristicTokenCounter();
             assertEquals(CharacterHeuristicTokenCounter.DEFAULT_CHARS_PER_TOKEN, counter.getCharsPerToken());
+        }
+
+        @Test
+        void rejectsNullFromJava() {
+            assertThrows(NullPointerException.class, () ->
+                CharacterHeuristicTokenCounter.DEFAULT.estimateTokens(null));
         }
     }
 }

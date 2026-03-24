@@ -106,7 +106,7 @@ interface PromptContributor : PromptElement {
      */
     @ApiStatus.Experimental
     fun estimateTokens(counter: TokenCounter<String>): Int =
-        counter.countTokens(contribution())
+        counter.estimateTokens(contribution())
 
     /**
      * Produce a [PromptContribution] with [PromptContribution.estimatedTokens] populated.
@@ -118,7 +118,7 @@ interface PromptContributor : PromptElement {
             content = content,
             location = promptContributionLocation,
             role = role,
-            estimatedTokens = counter.countTokens(content),
+            estimatedTokens = estimateTokens(counter),
         )
     }
 

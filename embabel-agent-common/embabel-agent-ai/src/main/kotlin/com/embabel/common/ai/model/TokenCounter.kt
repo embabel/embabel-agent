@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:Suppress("UNCHECKED_CAST", "PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+
 package com.embabel.common.ai.model
 
 import org.jetbrains.annotations.ApiStatus
@@ -29,7 +31,7 @@ import org.jetbrains.annotations.ApiStatus
 @ApiStatus.Experimental
 fun interface TokenCounter<T> {
 
-    fun countTokens(content: T): Int
+    fun estimateTokens(content: T): Int
 
     companion object {
 
@@ -54,9 +56,9 @@ class CharacterHeuristicTokenCounter @JvmOverloads constructor(
         require(charsPerToken > 0) { "charsPerToken must be positive" }
     }
 
-    override fun countTokens(content: String): Int {
+    override fun estimateTokens(content: String): Int {
         if (content.isBlank()) return 0
-        return content.length / charsPerToken
+        return ((content.length.toLong() + charsPerToken - 1) / charsPerToken).toInt()
     }
 
     companion object {

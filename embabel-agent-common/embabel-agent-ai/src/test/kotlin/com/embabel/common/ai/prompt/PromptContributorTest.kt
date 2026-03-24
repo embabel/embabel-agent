@@ -197,6 +197,16 @@ class PromptContributorTest {
         }
 
         @Test
+        fun `promptContribution with counter uses overridden token estimate`() {
+            val contributor = object : PromptContributor {
+                override fun contribution(): String = "abcdefgh"
+                override fun estimateTokens(counter: TokenCounter<String>): Int = 42
+            }
+            val contribution = contributor.promptContribution(counter)
+            assertEquals(42, contribution.estimatedTokens)
+        }
+
+        @Test
         fun `promptContribution with counter populates estimatedTokens`() {
             val contributor = PromptContributor.fixed("abcdefgh")
             val contribution = contributor.promptContribution(counter)
