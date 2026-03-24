@@ -28,6 +28,10 @@
             <groupId>com.embabel.agent</groupId>
             <artifactId>embabel-agent-onnx-autoconfigure</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.embabel.agent</groupId>
+            <artifactId>embabel-agent-netty-client-autoconfigure</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

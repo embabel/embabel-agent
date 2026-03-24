@@ -23,6 +23,7 @@ import jakarta.annotation.PreDestroy
 import java.nio.file.Path
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -55,6 +56,7 @@ import org.springframework.web.client.RestClient
 @EnableConfigurationProperties(OnnxEmbeddingProperties::class)
 class OnnxEmbeddingAutoConfiguration(
     private val configurableBeanFactory: ConfigurableBeanFactory,
+    @Qualifier("aiModelHttpRequestFactory")
     private val requestFactory: ObjectProvider<ClientHttpRequestFactory>,
 ) {
 
