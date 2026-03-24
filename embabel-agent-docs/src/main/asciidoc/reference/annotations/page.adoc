@@ -1179,8 +1179,9 @@ No additional `@EnableMethodSecurity` annotation is required.
 
 NOTE: `@SecureAgentTool` is a method-level security control, not an HTTP-level one.
 For production use, combine it with a `SecurityFilterChain` that validates JWT Bearer tokens
-on MCP endpoints so unauthenticated requests are rejected before reaching the GOAP planner.
-See xref:reference.integrations__mcp_security[MCP Security] for the full two-layer setup.
+so unauthenticated requests are rejected before reaching the GOAP planner.
+See the https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html[Spring Security JWT Resource Server documentation] for general setup,
+or xref:reference.integrations__mcp_security[MCP Security] for an MCP-specific example.
 
 ==== Implementing the `StuckHandler` interface
 
