@@ -18,6 +18,7 @@ package com.embabel.agent.spi.validation
 import com.embabel.agent.core.AgentScope
 import com.embabel.agent.core.support.Rerun.HAS_RUN_CONDITION_PREFIX
 import com.embabel.common.core.validation.ValidationError
+import com.embabel.common.core.validation.ValidationErrorCodes
 import com.embabel.common.core.validation.ValidationLocation
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.core.validation.ValidationSeverity
@@ -47,7 +48,13 @@ class GoapPathToCompletionValidator : PathToCompletionAgentValidator {
         }
 
         if (agentScope.actions.isEmpty()) {
-            errors.add(error("NO_ACTIONS_TO_GOALS", "Agent '${agentScope.name}' has no actions.", agentScope))
+            errors.add(
+                error(
+                    ValidationErrorCodes.NO_ACTIONS_TO_GOALS,
+                    "Agent '${agentScope.name}' has no actions.",
+                    agentScope
+                )
+            )
             return ValidationResult(false, errors)
         }
 

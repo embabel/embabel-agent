@@ -19,6 +19,7 @@ import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.annotation.support.AgentWithDuplicateActionNames
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.spi.validation.DefaultAgentStructureValidator
+import com.embabel.common.core.validation.ValidationErrorCodes
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
@@ -59,7 +60,7 @@ class DefaultAgentStructureValidatorTest {
             val result = validator().validate(agentScope)
 
             assertTrue(
-                result.errors.any { it.code == "DUPLICATE_ACTION_NAME" },
+                result.errors.any { it.code == ValidationErrorCodes.DUPLICATE_ACTION_NAME },
                 "Expected a DUPLICATE_ACTION_NAME validation error, but got: ${result.errors}",
             )
         }

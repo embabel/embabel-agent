@@ -20,6 +20,7 @@ import com.embabel.agent.api.annotation.Agent
 import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.core.AgentScope
 import com.embabel.common.core.validation.ValidationError
+import com.embabel.common.core.validation.ValidationErrorCodes
 import com.embabel.common.core.validation.ValidationLocation
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.core.validation.ValidationSeverity
@@ -60,7 +61,7 @@ class DefaultAgentStructureValidator(
 
             if (actionMethods.isEmpty() && conditionMethods.isEmpty() && !hasGoals) {
                 val error = ValidationError(
-                    code = "EMPTY_AGENT_STRUCTURE",
+                    code = ValidationErrorCodes.EMPTY_AGENT_STRUCTURE,
                     message = "Agent class '${clazz.name}' has no @Action or @Condition methods and no goals defined. This agent will NOT be registered!",
                     severity = ValidationSeverity.ERROR,
                     location = ValidationLocation(
@@ -82,7 +83,7 @@ class DefaultAgentStructureValidator(
         if (agentScope.actions.isEmpty() && agentScope.conditions.isEmpty() && agentScope.goals.isEmpty()) {
             errors.add(
                 ValidationError(
-                    code = "EMPTY_AGENT_STRUCTURE",
+                    code = ValidationErrorCodes.EMPTY_AGENT_STRUCTURE,
                     message = "Agent '${agentScope.name}' has no actions, conditions, or goals defined",
                     severity = ValidationSeverity.ERROR,
                     location = ValidationLocation(
@@ -99,7 +100,7 @@ class DefaultAgentStructureValidator(
         if (agentScope.goals.isEmpty()) {
             errors.add(
                 ValidationError(
-                    code = "MISSING_GOALS",
+                    code = ValidationErrorCodes.MISSING_GOALS,
                     message = "Agent '${agentScope.name}' must have at least one goal defined",
                     severity = ValidationSeverity.ERROR,
                     location = ValidationLocation(
@@ -116,7 +117,7 @@ class DefaultAgentStructureValidator(
         agentScope.actions.groupBy { it.name }.filter { it.value.size > 1 }.forEach { (name, _) ->
             errors.add(
                 ValidationError(
-                    code = "DUPLICATE_ACTION_NAME",
+                    code = ValidationErrorCodes.DUPLICATE_ACTION_NAME,
                     message = "Agent '${agentScope.name}' has more than one action named '$name'",
                     severity = ValidationSeverity.ERROR,
                     location = ValidationLocation(
@@ -141,7 +142,7 @@ class DefaultAgentStructureValidator(
             if (preconditionsWithMultipleParams) {
                 errors.add(
                     ValidationError(
-                        code = "INVALID_ACTION_SIGNATURE",
+                        code = ValidationErrorCodes.INVALID_ACTION_SIGNATURE,
                         message = "Action '${action.name}' has preconditions with multiple parameters",
                         severity = ValidationSeverity.ERROR,
                         location = ValidationLocation(
@@ -163,7 +164,7 @@ class DefaultAgentStructureValidator(
             if (method?.parameterCount ?: 0 > 1) {
                 errors.add(
                     ValidationError(
-                        code = "INVALID_CONDITION_SIGNATURE",
+                        code = ValidationErrorCodes.INVALID_CONDITION_SIGNATURE,
                         message = "Condition '${condition.name}' must have at most one parameter",
                         severity = ValidationSeverity.ERROR,
                         location = ValidationLocation(
