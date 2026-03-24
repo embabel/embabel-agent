@@ -38,7 +38,7 @@ import org.springframework.security.web.SecurityFilterChain
  */
 @Configuration
 @EnableWebSecurity
-class SecuredAgentSecurityConfiguration {
+class SecureAgentSecurityConfiguration {
 
     /**
      * Registers a [SecurityFilterChain] that protects all MCP-related endpoints.
