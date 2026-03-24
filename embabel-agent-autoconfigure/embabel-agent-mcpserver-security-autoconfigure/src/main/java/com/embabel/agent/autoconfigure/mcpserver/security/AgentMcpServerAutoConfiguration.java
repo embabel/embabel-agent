@@ -1,0 +1,37 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.agent.autoconfigure.mcpserver.secured;
+
+import com.embabel.agent.config.mcpserver.security.SecureAgentToolConfiguration;
+import com.embabel.agent.config.mcpserver.security.SecuredAgentSecurityConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Import;
+
+/**
+ * Auto-configuration class for Embabel Agent Secured MCP Server.
+ *
+ * <p>This class imports the configurations for both synchronous and asynchronous
+ * MCP server setups, enabling the necessary components and services for handling
+ * multi-channel processing in the agent.
+ *
+ * @since 3.5
+ */
+@AutoConfiguration
+@ComponentScan(basePackages = "com.embabel.agent.mcpserver")
+@Import({SecureAgentToolConfiguration.class, SecuredAgentSecurityConfiguration.class})
+public class AgentMcpServerAutoConfiguration {
+}

@@ -98,6 +98,12 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-mcpserver-security-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-netty-client-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -314,7 +320,7 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
-                <artifactId>embabel-agent-starter-secured-mcpserver</artifactId>
+                <artifactId>embabel-agent-starter-mcpserver-security</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

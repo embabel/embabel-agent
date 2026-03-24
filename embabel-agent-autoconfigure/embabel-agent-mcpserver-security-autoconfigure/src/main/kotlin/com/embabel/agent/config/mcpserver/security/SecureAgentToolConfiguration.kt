@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.mcpserver.security
+package com.embabel.agent.config.mcpserver.security
 
+import com.embabel.agent.mcpserver.security.SecureAgentToolAspect
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler
@@ -22,15 +23,15 @@ import org.springframework.security.access.expression.method.MethodSecurityExpre
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 
 /**
- * Spring configuration that wires [SecureAgentToolAspect] into the application context.
+ * Spring configuration that wires [com.embabel.agent.mcpserver.security.SecureAgentToolAspect] into the application context.
  *
  * Enables Spring method security via
  * [@EnableMethodSecurity][org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity],
  * making a [MethodSecurityExpressionHandler][org.springframework.security.access.expression.method.MethodSecurityExpressionHandler]
- * available for [SecureAgentToolAspect] to evaluate SpEL expressions using the same engine
+ * available for [com.embabel.agent.mcpserver.security.SecureAgentToolAspect] to evaluate SpEL expressions using the same engine
  * that powers [@PreAuthorize][org.springframework.security.access.prepost.PreAuthorize].
  *
- * Declares [SecureAgentToolAspect] as an explicit Spring bean rather than relying on
+ * Declares [com.embabel.agent.mcpserver.security.SecureAgentToolAspect] as an explicit Spring bean rather than relying on
  * `@Component` scanning, keeping lifecycle predictable when used as a library dependency.
  *
  * ### Usage
@@ -47,8 +48,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
  * > endpoint at the HTTP transport layer, add an `HttpSecurity` configuration that secures
  * > the `/sse` and `/mcp` paths with an OAuth2 resource server or equivalent.
  *
- * @see SecureAgentToolAspect
- * @see SecureAgentTool
+ * @see com.embabel.agent.mcpserver.security.SecureAgentToolAspect
+ * @see com.embabel.agent.mcpserver.security.SecureAgentTool
  */
 @Configuration
 @EnableMethodSecurity
@@ -56,7 +57,7 @@ class SecureAgentToolConfiguration {
 
     /**
      * Provides the [MethodSecurityExpressionHandler][org.springframework.security.access.expression.method.MethodSecurityExpressionHandler]
-     * used by [SecureAgentToolAspect] to evaluate [SecureAgentTool] SpEL expressions.
+     * used by [com.embabel.agent.mcpserver.security.SecureAgentToolAspect] to evaluate [com.embabel.agent.mcpserver.security.SecureAgentTool] SpEL expressions.
      *
      * [DefaultMethodSecurityExpressionHandler][org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler]
      * supports the full Spring Security SpEL vocabulary: `hasAuthority`, `hasRole`,
@@ -70,13 +71,13 @@ class SecureAgentToolConfiguration {
         DefaultMethodSecurityExpressionHandler()
 
     /**
-     * Registers [SecureAgentToolAspect] as a Spring-managed bean.
+     * Registers [com.embabel.agent.mcpserver.security.SecureAgentToolAspect] as a Spring-managed bean.
      *
      * Declared explicitly here rather than via `@Component` on the aspect class to avoid
      * auto-scan surprises when the module is used as a library without full classpath scanning.
      *
-     * @param expressionHandler the [MethodSecurityExpressionHandler][org.springframework.security.access.expression.method.MethodSecurityExpressionHandler]
-     * used to evaluate SpEL expressions declared in [SecureAgentTool.value]
+     * @param expressionHandler the [MethodSecurityExpressionHandler][MethodSecurityExpressionHandler]
+     * used to evaluate SpEL expressions declared in [com.embabel.agent.mcpserver.security.SecureAgentTool.value]
      */
     @Bean
     fun secureAgentToolAspect(

@@ -15,13 +15,9 @@
  */
 package com.embabel.agent.mcpserver.security
 
-import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
+import com.embabel.agent.config.mcpserver.security.SecureAgentToolConfiguration
+import org.assertj.core.api.Assertions
+import org.junit.jupiter.api.*
 import org.springframework.aop.framework.AopProxyUtils
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Bean
@@ -96,7 +92,7 @@ class SecureAgentToolAspectIntegrationTest {
     fun `agent bean is a Spring AOP proxy, not a plain instance`() {
         // Confirms CGLIB proxying is active - if this fails, no advice will fire
         val targetClass = AopProxyUtils.ultimateTargetClass(agent)
-        assertThat(agent.javaClass).isNotEqualTo(targetClass)
+        Assertions.assertThat(agent.javaClass).isNotEqualTo(targetClass)
     }
 
     @Nested
@@ -106,13 +102,13 @@ class SecureAgentToolAspectIntegrationTest {
         @Test
         fun `grants access when principal has required authority`() {
             authenticateWith("payments:write")
-            assertThat(agent.processPayment()).isEqualTo("payment-processed")
+            Assertions.assertThat(agent.processPayment()).isEqualTo("payment-processed")
         }
 
         @Test
         fun `denies access when principal has wrong authority`() {
             authenticateWith("payments:read")
-            assertThatThrownBy { agent.processPayment() }
+            Assertions.assertThatThrownBy { agent.processPayment() }
                 .isInstanceOf(AccessDeniedException::class.java)
                 .hasMessageContaining("processPayment")
                 .hasMessageContaining("integration-user")
@@ -121,7 +117,7 @@ class SecureAgentToolAspectIntegrationTest {
         @Test
         fun `denies access when SecurityContext is empty`() {
             // No authentication set at all
-            assertThatThrownBy { agent.processPayment() }
+            Assertions.assertThatThrownBy { agent.processPayment() }
                 .isInstanceOf(AccessDeniedException::class.java)
                 .hasMessageContaining("No Authentication present")
         }
@@ -134,19 +130,19 @@ class SecureAgentToolAspectIntegrationTest {
         @Test
         fun `grants access with first matching authority`() {
             authenticateWith("finance:read")
-            assertThat(agent.getBalance()).isEqualTo("balance-result")
+            Assertions.assertThat(agent.getBalance()).isEqualTo("balance-result")
         }
 
         @Test
         fun `grants access with second matching authority`() {
             authenticateWith("finance:admin")
-            assertThat(agent.getBalance()).isEqualTo("balance-result")
+            Assertions.assertThat(agent.getBalance()).isEqualTo("balance-result")
         }
 
         @Test
         fun `denies access with unrelated authority`() {
             authenticateWith("payments:write")
-            assertThatThrownBy { agent.getBalance() }
+            Assertions.assertThatThrownBy { agent.getBalance() }
                 .isInstanceOf(AccessDeniedException::class.java)
         }
     }
@@ -158,13 +154,13 @@ class SecureAgentToolAspectIntegrationTest {
         @Test
         fun `grants access when principal carries ROLE_ prefixed authority`() {
             authenticateWith("ROLE_ADMIN")
-            assertThat(agent.adminOperation()).isEqualTo("admin-result")
+            Assertions.assertThat(agent.adminOperation()).isEqualTo("admin-result")
         }
 
         @Test
         fun `denies access when ROLE_ prefix is missing`() {
             authenticateWith("ADMIN")
-            assertThatThrownBy { agent.adminOperation() }
+            Assertions.assertThatThrownBy { agent.adminOperation() }
                 .isInstanceOf(AccessDeniedException::class.java)
         }
     }
@@ -176,14 +172,14 @@ class SecureAgentToolAspectIntegrationTest {
         @Test
         fun `passes through with authentication present`() {
             authenticateWith("any:authority")
-            assertThat(agent.unprotectedOperation()).isEqualTo("unprotected-result")
+            Assertions.assertThat(agent.unprotectedOperation()).isEqualTo("unprotected-result")
         }
 
         @Test
         fun `passes through with no authentication - aspect must not fire`() {
             // Critical: if the aspect incorrectly intercepts unannotated methods
             // this call would throw AccessDeniedException
-            assertThat(agent.unprotectedOperation()).isEqualTo("unprotected-result")
+            Assertions.assertThat(agent.unprotectedOperation()).isEqualTo("unprotected-result")
         }
     }
 
@@ -194,13 +190,13 @@ class SecureAgentToolAspectIntegrationTest {
         @Test
         fun `grants access when one of multiple carried authorities matches`() {
             authenticateWith("payments:read", "payments:write", "finance:read")
-            assertThat(agent.processPayment()).isEqualTo("payment-processed")
+            Assertions.assertThat(agent.processPayment()).isEqualTo("payment-processed")
         }
 
         @Test
         fun `denies access when none of multiple carried authorities match`() {
             authenticateWith("reporting:read", "audit:read")
-            assertThatThrownBy { agent.processPayment() }
+            Assertions.assertThatThrownBy { agent.processPayment() }
                 .isInstanceOf(AccessDeniedException::class.java)
         }
     }
