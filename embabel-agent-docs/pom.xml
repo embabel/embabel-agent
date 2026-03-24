@@ -205,7 +205,8 @@
                                         <dir>${project.parent.basedir}/embabel-agent-autoconfigure/embabel-agent-platform-autoconfigure/src/main/java</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/java</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-autoconfigure/models/embabel-agent-bedrock-autoconfigure/src/main/kotlin</dir>
-                                        <dir>${project.parent.basedir}/embabel-agent-mcpserver/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-mcp/embabel-agent-mcpserver/src/main/kotlin</dir>
+                                        <dir>${project.parent.basedir}/embabel-agent-mcp/embabel-agent-mcp-security/src/main/kotlin</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-rag/embabel-agent-rag-lucene/src/main/kotlin</dir>
                                         <dir>${project.parent.basedir}/embabel-agent-shell/src/main/kotlin</dir>
                                     </sourceDirectories>
