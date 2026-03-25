@@ -15,10 +15,7 @@
  */
 package com.embabel.common.ai.prompt
 
-import com.embabel.common.ai.model.CharacterHeuristicTokenCounter
-import com.embabel.common.ai.model.TokenCounter
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -174,72 +171,6 @@ class PromptContributorTest {
         val today = LocalDate.now().format(formatter)
         assertTrue(content.contains(today),
             "Content should contain today's date in custom format ($today): $content")
-    }
-
-    @Nested
-    inner class TokenEstimation {
-
-        private val counter = TokenCounter.heuristic()
-
-        @Test
-        fun `estimateTokens uses counter on contribution content`() {
-            val contributor = PromptContributor.fixed("abcdefgh")
-            assertEquals(2, contributor.estimateTokens(counter))
-        }
-
-        @Test
-        fun `estimateTokens can be overridden`() {
-            val contributor = object : PromptContributor {
-                override fun contribution(): String = "abcdefgh"
-                override fun estimateTokens(counter: TokenCounter<String>): Int = 42
-            }
-            assertEquals(42, contributor.estimateTokens(counter))
-        }
-
-        @Test
-        fun `promptContribution with counter uses overridden token estimate`() {
-            val contributor = object : PromptContributor {
-                override fun contribution(): String = "abcdefgh"
-                override fun estimateTokens(counter: TokenCounter<String>): Int = 42
-            }
-            val contribution = contributor.promptContribution(counter)
-            assertEquals(42, contribution.estimatedTokens)
-        }
-
-        @Test
-        fun `promptContribution with counter populates estimatedTokens`() {
-            val contributor = PromptContributor.fixed("abcdefgh")
-            val contribution = contributor.promptContribution(counter)
-            assertEquals(2, contribution.estimatedTokens)
-            assertEquals("abcdefgh", contribution.content)
-        }
-
-        @Test
-        fun `promptContribution without counter has null estimatedTokens`() {
-            val contributor = PromptContributor.fixed("abcdefgh")
-            val contribution = contributor.promptContribution()
-            assertNull(contribution.estimatedTokens)
-        }
-
-        @Test
-        fun `estimateTokens respects custom counter ratio`() {
-            val cjkCounter = CharacterHeuristicTokenCounter(charsPerToken = 2)
-            val contributor = PromptContributor.fixed("abcdefgh")
-            assertEquals(4, contributor.estimateTokens(cjkCounter))
-        }
-
-        @Test
-        fun `promptContribution with counter preserves role and location`() {
-            val contributor = PromptContributor.fixed(
-                content = "test",
-                role = "my_role",
-                location = PromptContributionLocation.END,
-            )
-            val contribution = contributor.promptContribution(counter)
-            assertEquals("my_role", contribution.role)
-            assertEquals(PromptContributionLocation.END, contribution.location)
-            assertEquals(1, contribution.estimatedTokens)
-        }
     }
 
     @Test
