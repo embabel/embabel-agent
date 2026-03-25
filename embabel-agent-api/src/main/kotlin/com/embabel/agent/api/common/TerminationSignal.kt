@@ -32,7 +32,7 @@ enum class TerminationScope(val value: String) {
 }
 
 /**
- * Signal for graceful termination. When placed on the blackboard,
+ * Signal for graceful termination. When set on the agent process,
  * the agent or action will terminate at the next natural checkpoint.
  *
  * For agent termination: checked before each tick() in AbstractAgentProcess.

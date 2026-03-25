@@ -37,9 +37,10 @@ import com.embabel.agent.core.support.AbstractAgentProcess
  * @see com.embabel.agent.api.tool.TerminateAgentException for immediate termination
  */
 fun ProcessContext.terminateAgent(reason: String) {
-    (agentProcess as AbstractAgentProcess).setTerminationRequest(
-        TerminationSignal(TerminationScope.AGENT, reason)
-    )
+    check(agentProcess is AbstractAgentProcess) {
+        "Termination signals require AbstractAgentProcess (found: ${agentProcess::class.simpleName})"
+    }
+    agentProcess.setTerminationRequest(TerminationSignal(TerminationScope.AGENT, reason))
 }
 
 /**
@@ -58,9 +59,10 @@ fun ProcessContext.terminateAgent(reason: String) {
  * @see com.embabel.agent.api.tool.TerminateActionException for immediate termination
  */
 fun ProcessContext.terminateAction(reason: String) {
-    (agentProcess as AbstractAgentProcess).setTerminationRequest(
-        TerminationSignal(TerminationScope.ACTION, reason)
-    )
+    check(agentProcess is AbstractAgentProcess) {
+        "Termination signals require AbstractAgentProcess (found: ${agentProcess::class.simpleName})"
+    }
+    agentProcess.setTerminationRequest(TerminationSignal(TerminationScope.ACTION, reason))
 }
 
 /**
