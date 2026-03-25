@@ -20,10 +20,10 @@ package com.embabel.agent.api.termination
 import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.common.TerminationSignal
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.EarlyTermination
 import com.embabel.agent.core.EarlyTerminationPolicy
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.support.AbstractAgentProcess
 
 /**
  * Request graceful termination of the entire agent process.
@@ -37,7 +37,9 @@ import com.embabel.agent.core.ProcessContext
  * @see com.embabel.agent.api.tool.TerminateAgentException for immediate termination
  */
 fun ProcessContext.terminateAgent(reason: String) {
-    blackboard[TerminationSignal.BLACKBOARD_KEY] = TerminationSignal(TerminationScope.AGENT, reason)
+    (agentProcess as AbstractAgentProcess).setTerminationRequest(
+        TerminationSignal(TerminationScope.AGENT, reason)
+    )
 }
 
 /**
@@ -56,35 +58,21 @@ fun ProcessContext.terminateAgent(reason: String) {
  * @see com.embabel.agent.api.tool.TerminateActionException for immediate termination
  */
 fun ProcessContext.terminateAction(reason: String) {
-    blackboard[TerminationSignal.BLACKBOARD_KEY] = TerminationSignal(TerminationScope.ACTION, reason)
+    (agentProcess as AbstractAgentProcess).setTerminationRequest(
+        TerminationSignal(TerminationScope.ACTION, reason)
+    )
 }
 
 /**
- * Get the termination signal from the blackboard, if one has been set.
- *
- * @return The termination signal, or null if none has been requested
- */
-internal fun Blackboard.getTerminationSignal(): TerminationSignal? {
-    return this[TerminationSignal.BLACKBOARD_KEY] as? TerminationSignal
-}
-
-/**
- * Clear any pending termination signal from the blackboard.
- * Used after processing a termination signal to prevent re-triggering.
- */
-internal fun Blackboard.clearTerminationSignal() {
-    this[TerminationSignal.BLACKBOARD_KEY] = Unit
-}
-
-/**
- * Early termination policy that checks for API-driven termination signals on the blackboard.
+ * Early termination policy that checks for API-driven termination signals.
  * Terminates the agent process when a [TerminationSignal] with [TerminationScope.AGENT] scope is found.
  */
 internal object TerminationSignalPolicy : EarlyTerminationPolicy {
     override val name: String = "TerminationSignal"
 
     override fun shouldTerminate(agentProcess: AgentProcess): EarlyTermination? {
-        val signal = agentProcess.getTerminationSignal()
+        val process = agentProcess as? AbstractAgentProcess ?: return null
+        val signal = process.terminationRequest
         return if (signal != null && signal.scope == TerminationScope.AGENT) {
             EarlyTermination(
                 agentProcess = agentProcess,

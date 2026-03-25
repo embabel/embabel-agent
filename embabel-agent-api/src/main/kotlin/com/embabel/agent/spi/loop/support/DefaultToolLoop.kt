@@ -16,8 +16,8 @@
 package com.embabel.agent.spi.loop.support
 
 import com.embabel.agent.api.common.TerminationScope
-import com.embabel.agent.api.termination.getTerminationSignal
 import com.embabel.agent.api.tool.TerminateActionException
+import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
@@ -236,17 +236,22 @@ internal open class DefaultToolLoop(
             val shouldContinue = processToolCall(toolCall, state)
             if (!shouldContinue) return false
         }
+        // Check for signal set by last tool or its transformers
+        checkForActionTerminationSignal()
         return true
     }
 
     /**
-     * Check for graceful action termination signal on the blackboard.
+     * Check for graceful action termination signal.
      * Converts graceful signal to immediate termination via exception.
+     * Clears the signal before throwing to allow action retry.
      */
     protected fun checkForActionTerminationSignal() {
-        val signal = AgentProcess.get()?.getTerminationSignal()
+        val process = AgentProcess.get() as? AbstractAgentProcess ?: return
+        val signal = process.terminationRequest
         if (signal != null && signal.scope == TerminationScope.ACTION) {
             logger.info("Action termination signal detected: {}", signal.reason)
+            process.resetTerminationRequest()
             throw TerminateActionException(signal.reason)
         }
     }

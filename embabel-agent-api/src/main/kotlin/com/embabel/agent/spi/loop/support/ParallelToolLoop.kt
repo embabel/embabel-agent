@@ -192,7 +192,10 @@ internal class ParallelToolLoop(
             }
         }
 
-        // 5. Apply injection strategy once (using last successful result's context)
+        // 5. Check for signal set by tools or transformers
+        checkForActionTerminationSignal()
+
+        // 6. Apply injection strategy once (using last successful result's context)
         val lastSuccess = results.filterIsInstance<ParallelToolResult.Success>().lastOrNull()
         if (lastSuccess != null) {
             applyInjectionStrategy(lastSuccess.toolCall, lastSuccess.resultContent, state)

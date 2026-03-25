@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.support.AbstractAgentProcess
 import io.mockk.every
 import io.mockk.mockk
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModeProperties
@@ -73,14 +74,19 @@ class ParallelToolLoopTest {
     }
 
     /**
-     * Sets up a mock AgentProcess with blackboard storage for termination signals.
+     * Sets up a mock AbstractAgentProcess with termination request support.
      */
-    private fun setupMockAgentProcess() {
-        val storage = mutableMapOf<String, Any?>()
-        val mockProcess = mockk<AgentProcess>(relaxed = true)
-        every { mockProcess[any()] } answers { storage[firstArg()] }
-        every { mockProcess.set(any(), any()) } answers { storage[firstArg()] = secondArg() }
+    private fun setupMockAgentProcess(): AbstractAgentProcess {
+        var terminationRequest: TerminationSignal? = null
+
+        val mockProcess = mockk<AbstractAgentProcess>(relaxed = true)
+
+        every { mockProcess.terminationRequest } answers { terminationRequest }
+        every { mockProcess.setTerminationRequest(any()) } answers { terminationRequest = firstArg() }
+        every { mockProcess.resetTerminationRequest() } answers { terminationRequest = null }
+
         AgentProcess.set(mockProcess)
+        return mockProcess
     }
 
     @Nested
@@ -783,13 +789,11 @@ class ParallelToolLoopTest {
          */
         @Test
         fun `graceful ACTION signal throws TerminateActionException before batch`() {
-            setupMockAgentProcess()
+            val mockProcess = setupMockAgentProcess()
 
             // Pre-set the termination signal before executing
-            val agentProcess = AgentProcess.get()!!
-            agentProcess[TerminationSignal.BLACKBOARD_KEY] = TerminationSignal(
-                TerminationScope.ACTION,
-                "Graceful action stop"
+            mockProcess.setTerminationRequest(
+                TerminationSignal(TerminationScope.ACTION, "Graceful action stop")
             )
 
             val toolCalled = AtomicInteger(0)
@@ -838,13 +842,11 @@ class ParallelToolLoopTest {
          */
         @Test
         fun `tool loop completes when AGENT signal is set`() {
-            setupMockAgentProcess()
+            val mockProcess = setupMockAgentProcess()
 
             // Pre-set the AGENT termination signal
-            val agentProcess = AgentProcess.get()!!
-            agentProcess[TerminationSignal.BLACKBOARD_KEY] = TerminationSignal(
-                TerminationScope.AGENT,
-                "Graceful agent stop"
+            mockProcess.setTerminationRequest(
+                TerminationSignal(TerminationScope.AGENT, "Graceful agent stop")
             )
 
             val toolCalled = AtomicInteger(0)

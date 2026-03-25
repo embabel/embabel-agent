@@ -41,7 +41,7 @@ data class TestPerson(
  * On retry, the action completes normally showing the agent continued.
  */
 val ActionTerminatingAgent = agent("ActionTerminator", description = "Agent that terminates action early") {
-    transformation<UserInput, TestPerson>(name = "terminating_action") {
+    transformation<UserInput, TestPerson>(name = "terminating_action", canRerun = true) {
         val attemptCount = (it["attemptCount"] as? Int) ?: 0
         it["attemptCount"] = attemptCount + 1
         if (attemptCount == 0) {
@@ -67,6 +67,26 @@ val AgentTerminatingAgent = agent("AgentTerminator", description = "Agent that t
     }
 
     transformation<TestPerson, Frog>(name = "to_frog") {
+        Frog(it.input.name)
+    }
+
+    goal(name = "frog_goal", description = "Turn input into frog", satisfiedBy = Frog::class)
+}
+
+/**
+ * Agent that uses graceful ACTION termination via signal in first action.
+ * The signal should be cleared after the action completes, allowing the second action to run.
+ */
+val GracefulActionTerminatingAgent = agent("GracefulActionTerminator", description = "Agent with graceful action termination") {
+    transformation<UserInput, TestPerson>(name = "first_action_with_signal") {
+        it["firstActionRan"] = true
+        // Set ACTION termination signal - should be cleared after this action
+        it.processContext.terminateAction("Graceful action termination")
+        TestPerson(name = it.input.content)
+    }
+
+    transformation<TestPerson, Frog>(name = "second_action") {
+        it["secondActionRan"] = true
         Frog(it.input.name)
     }
 
@@ -118,6 +138,38 @@ class TerminationAgenticTest {
             assertThat(blackboard["attemptCount"]).isEqualTo(2)
             val frog = blackboard.lastResult() as Frog
             assertThat(frog.name).contains("Attempt 1")
+        }
+
+        /**
+         * Verifies that graceful ACTION termination signal is cleared after action completes.
+         * The second action should still execute because the signal was cleared.
+         */
+        @Test
+        fun `graceful ACTION signal is cleared allowing second action to execute`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("TestUser")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-graceful-action-clearing",
+                agent = GracefulActionTerminatingAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            val result = agentProcess.run()
+
+            // Both actions should have run
+            assertThat(blackboard["firstActionRan"]).isEqualTo(true)
+            assertThat(blackboard["secondActionRan"]).isEqualTo(true)
+            // Agent should complete successfully
+            assertThat(result.status).isEqualTo(AgentProcessStatusCode.COMPLETED)
+            // Final result should be a Frog
+            val frog = blackboard.lastResult() as Frog
+            assertThat(frog.name).isEqualTo("TestUser")
         }
     }
 
@@ -193,6 +245,38 @@ class TerminationAgenticTest {
             assertThat(blackboard["attemptCount"]).isEqualTo(2)
             val frog = blackboard.lastResult() as Frog
             assertThat(frog.name).contains("Attempt 1")
+        }
+
+        /**
+         * Verifies that graceful ACTION termination signal is cleared after action completes.
+         * The second action should still execute because the signal was cleared.
+         */
+        @Test
+        fun `graceful ACTION signal is cleared allowing second action to execute`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("TestUser")
+
+            val agentProcess = ConcurrentAgentProcess(
+                id = "test-concurrent-graceful-action-clearing",
+                agent = GracefulActionTerminatingAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            val result = agentProcess.run()
+
+            // Both actions should have run
+            assertThat(blackboard["firstActionRan"]).isEqualTo(true)
+            assertThat(blackboard["secondActionRan"]).isEqualTo(true)
+            // Agent should complete successfully
+            assertThat(result.status).isEqualTo(AgentProcessStatusCode.COMPLETED)
+            // Final result should be a Frog
+            val frog = blackboard.lastResult() as Frog
+            assertThat(frog.name).isEqualTo("TestUser")
         }
     }
 

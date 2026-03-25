@@ -118,6 +118,10 @@ open class ConcurrentAgentProcess(
         when {
             // Agent termination takes highest priority - stop entire agent
             actionStatuses.any { it.status == ActionStatusCode.AGENT_TERMINATED } -> {
+                val failedCount = actionStatuses.count { it.status == ActionStatusCode.FAILED }
+                if (failedCount > 0) {
+                    logger.warn("Process {} terminating with {} concurrent failure(s)", id, failedCount)
+                }
                 logger.debug("Process {} action requested agent termination", id)
                 AgentProcessStatusCode.TERMINATED
             }

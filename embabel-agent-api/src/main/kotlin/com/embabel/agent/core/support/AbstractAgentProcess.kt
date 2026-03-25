@@ -15,6 +15,8 @@
  */
 package com.embabel.agent.core.support
 
+import com.embabel.agent.api.common.TerminationScope
+import com.embabel.agent.api.common.TerminationSignal
 import com.embabel.agent.api.termination.TerminationSignalPolicy
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
@@ -65,6 +67,19 @@ abstract class AbstractAgentProcess(
 
     override val failureInfo: Any?
         get() = _failureInfo
+
+    private var _terminationRequest: TerminationSignal? = null
+
+    internal val terminationRequest: TerminationSignal?
+        get() = _terminationRequest
+
+    internal fun setTerminationRequest(signal: TerminationSignal) {
+        _terminationRequest = signal
+    }
+
+    internal fun resetTerminationRequest() {
+        _terminationRequest = null
+    }
 
     override val lastWorldState: WorldState?
         get() = _lastWorldState
@@ -232,11 +247,13 @@ abstract class AbstractAgentProcess(
 
     /**
      * Should this process be terminated early?
+     * Also clears any pending termination requests after processing.
      */
     protected fun identifyEarlyTermination(): EarlyTermination? {
         // Check for API-driven termination signal first
         val signalTermination = TerminationSignalPolicy.shouldTerminate(this)
         if (signalTermination != null) {
+            resetTerminationRequest()
             logger.debug(
                 "Process {} terminated by termination signal: {}",
                 this.id,
@@ -246,6 +263,14 @@ abstract class AbstractAgentProcess(
             _failureInfo = signalTermination
             setStatus(AgentProcessStatusCode.TERMINATED)
             return signalTermination
+        }
+
+        // Clear any stale ACTION signal that wasn't consumed by tool loop
+        // (e.g., set by a simple action without tool loop)
+        val staleSignal = terminationRequest
+        if (staleSignal != null && staleSignal.scope == TerminationScope.ACTION) {
+            logger.debug("Clearing stale ACTION termination signal: {}", staleSignal.reason)
+            resetTerminationRequest()
         }
 
         // Check configured early termination policies
@@ -423,10 +448,8 @@ abstract class AbstractAgentProcess(
         // For state-clearing actions, the blackboard reset naturally prevents re-runs
         // since inputs are gone. Setting hasRun on the NEW state's blackboard would
         // incorrectly block actions that haven't run in the new state.
-        // Don't set hasRun for TERMINATED actions - they should be retryable.
         val blackboardWasCleared = blackboard.objects.none { it in blackboardObjectsBefore }
-        val actionWasTerminated = actionStatus.status == ActionStatusCode.TERMINATED
-        if (!blackboardWasCleared && !actionWasTerminated) {
+        if (!blackboardWasCleared) {
             blackboard.setCondition(Rerun.hasRunCondition(action), true)
         }
 

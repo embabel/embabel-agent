@@ -44,11 +44,4 @@ enum class TerminationScope(val value: String) {
 data class TerminationSignal(
     val scope: TerminationScope,
     val reason: String,
-) {
-    companion object {
-        /**
-         * Blackboard key for storing termination signals.
-         */
-        internal const val BLACKBOARD_KEY = "__termination_signal__"
-    }
-}
+)

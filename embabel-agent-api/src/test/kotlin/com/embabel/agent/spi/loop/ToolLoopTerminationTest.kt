@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.UserMessage
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -63,6 +64,7 @@ class ToolLoopTerminationTest {
         @Test
         fun `ACTION scope signal throws TerminateActionException`() {
             val toolCallOrder = mutableListOf<String>()
+            val mockProcess = setupMockAgentProcess()
 
             val tool1 = MockTool(
                 name = "tool_one",
@@ -70,11 +72,8 @@ class ToolLoopTerminationTest {
                 onCall = {
                     toolCallOrder.add("tool_one")
                     // Set ACTION termination signal - tool loop should stop after this
-                    // AgentProcess delegates to Blackboard, so we can use it directly
-                    val agentProcess = AgentProcess.get()!!
-                    agentProcess[TerminationSignal.BLACKBOARD_KEY] = TerminationSignal(
-                        TerminationScope.ACTION,
-                        "Stop this action"
+                    mockProcess.setTerminationRequest(
+                        TerminationSignal(TerminationScope.ACTION, "Stop this action")
                     )
                     Tool.Result.text("Tool one done")
                 }
@@ -104,8 +103,6 @@ class ToolLoopTerminationTest {
                 objectMapper = objectMapper,
             )
 
-            setupMockAgentProcess()
-
             val exception = assertThrows<TerminateActionException> {
                 toolLoop.execute(
                     initialMessages = listOf(UserMessage("Do two things")),
@@ -131,6 +128,7 @@ class ToolLoopTerminationTest {
         @Test
         fun `tool loop completes when AGENT signal is set`() {
             val toolCallOrder = mutableListOf<String>()
+            val mockProcess = setupMockAgentProcess()
 
             val tool1 = MockTool(
                 name = "tool_one",
@@ -138,11 +136,8 @@ class ToolLoopTerminationTest {
                 onCall = {
                     toolCallOrder.add("tool_one")
                     // Set AGENT termination signal - tool loop should NOT stop
-                    // AgentProcess delegates to Blackboard, so we can use it directly
-                    val agentProcess = AgentProcess.get()!!
-                    agentProcess[TerminationSignal.BLACKBOARD_KEY] = TerminationSignal(
-                        TerminationScope.AGENT,
-                        "Stop the agent"
+                    mockProcess.setTerminationRequest(
+                        TerminationSignal(TerminationScope.AGENT, "Stop the agent")
                     )
                     Tool.Result.text("Tool one done")
                 }
@@ -171,8 +166,6 @@ class ToolLoopTerminationTest {
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
             )
-
-            setupMockAgentProcess()
 
             val result = toolLoop.execute(
                 initialMessages = listOf(UserMessage("Do two things")),
@@ -340,22 +333,18 @@ class ToolLoopTerminationTest {
     }
 
     /**
-     * Sets up a mock AgentProcess with blackboard storage for termination signals.
-     *
-     * AbstractAgentProcess uses "Blackboard by blackboard" delegation,
-     * so we must mock the get/set operators directly on AgentProcess.
+     * Sets up a mock AbstractAgentProcess with termination request support.
      */
-    private fun setupMockAgentProcess() {
-        // Shared storage for blackboard key-value pairs
-        val storage = mutableMapOf<String, Any?>()
+    private fun setupMockAgentProcess(): AbstractAgentProcess {
+        var terminationRequest: TerminationSignal? = null
 
-        val mockProcess = mockk<AgentProcess>(relaxed = true)
+        val mockProcess = mockk<AbstractAgentProcess>(relaxed = true)
 
-        // Mock the Blackboard delegation - AgentProcess[key] and AgentProcess.set(key, value)
-        // These are called by getTerminationSignal() extension: this[BLACKBOARD_KEY]
-        every { mockProcess[any()] } answers { storage[firstArg()] }
-        every { mockProcess.set(any(), any()) } answers { storage[firstArg()] = secondArg() }
+        every { mockProcess.terminationRequest } answers { terminationRequest }
+        every { mockProcess.setTerminationRequest(any()) } answers { terminationRequest = firstArg() }
+        every { mockProcess.resetTerminationRequest() } answers { terminationRequest = null }
 
         AgentProcess.set(mockProcess)
+        return mockProcess
     }
 }
