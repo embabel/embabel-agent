@@ -36,6 +36,7 @@
         <module>embabel-agent-starter-deepseek</module>
         <module>embabel-agent-starter-gemini</module>
         <module>embabel-agent-starter-google-genai</module>
+        <module>embabel-agent-starter-minimax</module>
         <module>embabel-agent-starter-mistral-ai</module>
         <module>embabel-agent-starter-a2a</module>
         <module>embabel-agent-starter-webmvc</module>

@@ -610,6 +610,7 @@ Required:
 Optional:
 
 - `ANTHROPIC_API_KEY`: For the Anthropic API. Necessary for the coding agent.
+- `MINIMAX_API_KEY`: For the [MiniMax](https://www.minimax.io) API. Supports MiniMax-M2.7 and MiniMax-M2.7-highspeed models.
 
 > We strongly recommend providing both an OpenAI and Anthropic key, as some examples require both. And it's important to
 > try to find the best LLM for a given task, rather than automatically choose a familiar provider.
