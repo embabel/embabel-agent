@@ -156,13 +156,7 @@ open class SimpleAgentProcess(
         } else {
             sendProcessRunningEvent(plan, worldState)
 
-            val action = agent.actions.singleOrNull { it.name == plan.actions.first().name }
-                ?: error(
-                    "No unique action found for ${plan.actions.first().name} in ${agent.actions.map { it.name }}: Actions are\n${
-                        agent.actions.joinToString(
-                            "\n"
-                        ) { it.name }
-                    }")
+            val action = resolveActionFromPlan(plan)
             try {
                 val actionStatus = executeAction(action)
                 setStatus(actionStatusToAgentProcessStatus(actionStatus))
@@ -211,4 +205,10 @@ open class SimpleAgentProcess(
         }
         return this
     }
+
+    private fun resolveActionFromPlan(plan: Plan): com.embabel.agent.core.Action =
+        agent.actions.singleOrNull { it.name == plan.actions.first().name }
+            ?: error(
+                "No unique action found for ${plan.actions.first().name} in ${agent.actions.map { it.name }}"
+            )
 }

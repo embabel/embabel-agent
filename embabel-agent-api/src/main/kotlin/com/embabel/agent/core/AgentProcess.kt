@@ -125,6 +125,25 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
     fun kill(): ProcessKilledEvent?
 
     /**
+     * Request graceful termination of the entire agent process.
+     * The agent will terminate at the next natural checkpoint (before next tick).
+     *
+     * @param reason Human-readable explanation for termination
+     * @see com.embabel.agent.api.tool.TerminateAgentException for immediate termination
+     */
+    fun terminateAgent(reason: String)
+
+    /**
+     * Request graceful termination of the current action only.
+     * The action will terminate at the next natural checkpoint (between tool calls),
+     * and the agent will continue with the next planned action.
+     *
+     * @param reason Human-readable explanation for termination
+     * @see com.embabel.agent.api.tool.TerminateActionException for immediate termination
+     */
+    fun terminateAction(reason: String)
+
+    /**
      * If we failed, this may contain the reason for the failure.
      */
     val failureInfo: Any?

@@ -27,43 +27,21 @@ import com.embabel.agent.core.support.AbstractAgentProcess
 
 /**
  * Request graceful termination of the entire agent process.
- * The agent will terminate at the next natural checkpoint (before next tick).
- *
- * This works for all action types (LLM-based and simple transformations).
- * For immediate termination without waiting for a checkpoint, use
- * [com.embabel.agent.api.tool.TerminateAgentException].
+ * Convenience extension that delegates to [AgentProcess.terminateAgent].
  *
  * @param reason Human-readable explanation for termination
- * @see com.embabel.agent.api.tool.TerminateAgentException for immediate termination
+ * @see AgentProcess.terminateAgent
  */
-fun ProcessContext.terminateAgent(reason: String) {
-    check(agentProcess is AbstractAgentProcess) {
-        "Termination signals require AbstractAgentProcess (found: ${agentProcess::class.simpleName})"
-    }
-    agentProcess.setTerminationRequest(TerminationSignal(TerminationScope.AGENT, reason))
-}
+fun ProcessContext.terminateAgent(reason: String) = agentProcess.terminateAgent(reason)
 
 /**
  * Request graceful termination of the current action only.
- * The action will terminate at the next natural checkpoint (between tool calls),
- * and the agent will continue with the next planned action.
- *
- * **Important:** This graceful termination mechanism only works for LLM-based actions
- * that use a tool loop. For simple agents actions (non-LLM), use
- * [com.embabel.agent.api.tool.TerminateActionException] instead:
- * ```
- * throw TerminateActionException("reason")
- * ```
+ * Convenience extension that delegates to [AgentProcess.terminateAction].
  *
  * @param reason Human-readable explanation for termination
- * @see com.embabel.agent.api.tool.TerminateActionException for immediate termination
+ * @see AgentProcess.terminateAction
  */
-fun ProcessContext.terminateAction(reason: String) {
-    check(agentProcess is AbstractAgentProcess) {
-        "Termination signals require AbstractAgentProcess (found: ${agentProcess::class.simpleName})"
-    }
-    agentProcess.setTerminationRequest(TerminationSignal(TerminationScope.ACTION, reason))
-}
+fun ProcessContext.terminateAction(reason: String) = agentProcess.terminateAction(reason)
 
 /**
  * Early termination policy that checks for API-driven termination signals.

@@ -82,7 +82,12 @@ class ParallelToolLoopTest {
         val mockProcess = mockk<AbstractAgentProcess>(relaxed = true)
 
         every { mockProcess.terminationRequest } answers { terminationRequest }
-        every { mockProcess.setTerminationRequest(any()) } answers { terminationRequest = firstArg() }
+        every { mockProcess.terminateAgent(any()) } answers {
+            terminationRequest = TerminationSignal(TerminationScope.AGENT, firstArg())
+        }
+        every { mockProcess.terminateAction(any()) } answers {
+            terminationRequest = TerminationSignal(TerminationScope.ACTION, firstArg())
+        }
         every { mockProcess.resetTerminationRequest() } answers { terminationRequest = null }
 
         AgentProcess.set(mockProcess)
@@ -792,9 +797,7 @@ class ParallelToolLoopTest {
             val mockProcess = setupMockAgentProcess()
 
             // Pre-set the termination signal before executing
-            mockProcess.setTerminationRequest(
-                TerminationSignal(TerminationScope.ACTION, "Graceful action stop")
-            )
+            mockProcess.terminateAction("Graceful action stop")
 
             val toolCalled = AtomicInteger(0)
             val tool = MockTool(
@@ -845,9 +848,7 @@ class ParallelToolLoopTest {
             val mockProcess = setupMockAgentProcess()
 
             // Pre-set the AGENT termination signal
-            mockProcess.setTerminationRequest(
-                TerminationSignal(TerminationScope.AGENT, "Graceful agent stop")
-            )
+            mockProcess.terminateAgent("Graceful agent stop")
 
             val toolCalled = AtomicInteger(0)
             val tool = MockTool(

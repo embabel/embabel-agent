@@ -73,12 +73,20 @@ abstract class AbstractAgentProcess(
     internal val terminationRequest: TerminationSignal?
         get() = _terminationRequest
 
-    internal fun setTerminationRequest(signal: TerminationSignal) {
+    private fun setTerminationRequest(signal: TerminationSignal) {
         _terminationRequest = signal
     }
 
     internal fun resetTerminationRequest() {
         _terminationRequest = null
+    }
+
+    override fun terminateAgent(reason: String) {
+        setTerminationRequest(TerminationSignal(TerminationScope.AGENT, reason))
+    }
+
+    override fun terminateAction(reason: String) {
+        setTerminationRequest(TerminationSignal(TerminationScope.ACTION, reason))
     }
 
     override val lastWorldState: WorldState?

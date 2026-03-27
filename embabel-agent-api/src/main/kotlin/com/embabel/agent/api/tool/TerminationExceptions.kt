@@ -16,14 +16,31 @@
 package com.embabel.agent.api.tool
 
 /**
+ * Base class for termination exceptions.
+ *
+ * Allows catching both agent and action termination in a single catch block:
+ * ```kotlin
+ * try {
+ *     // ... tool or action code
+ * } catch (e: TerminationException) {
+ *     logger.info("Terminated: ${e.reason}")
+ * }
+ * ```
+ *
+ * @param reason Human-readable explanation for termination
+ */
+sealed class TerminationException(
+    val reason: String,
+) : RuntimeException(reason), ToolControlFlowSignal
+
+/**
  * Exception thrown to immediately terminate the entire agent process.
  *
  * When thrown from a tool, this exception propagates through the tool loop
  * and action executor, causing the agent process to terminate immediately.
  *
  * Use this for immediate termination. For graceful termination that waits
- * for natural checkpoints, use [com.embabel.agent.api.common.TerminationSignal]
- * via the ProcessContext API.
+ * for natural checkpoints, use [com.embabel.agent.api.termination.terminateAgent].
  *
  * Example usage:
  * ```kotlin
@@ -36,8 +53,8 @@ package com.embabel.agent.api.tool
  * @param reason Human-readable explanation for termination
  */
 class TerminateAgentException(
-    val reason: String,
-) : RuntimeException(reason), ToolControlFlowSignal
+    reason: String,
+) : TerminationException(reason)
 
 /**
  * Exception thrown to immediately terminate the current action only.
@@ -46,8 +63,7 @@ class TerminateAgentException(
  * action's tool loop but allows the agent to continue with the next planned action.
  *
  * Use this for immediate action termination. For graceful termination that
- * waits for natural checkpoints, use [com.embabel.agent.api.common.TerminationSignal]
- * via the ProcessContext API.
+ * waits for natural checkpoints, use [com.embabel.agent.api.termination.terminateAction].
  *
  * Example usage:
  * ```kotlin
@@ -63,5 +79,5 @@ class TerminateAgentException(
  * @param reason Human-readable explanation for termination
  */
 class TerminateActionException(
-    val reason: String,
-) : RuntimeException(reason), ToolControlFlowSignal
+    reason: String,
+) : TerminationException(reason)

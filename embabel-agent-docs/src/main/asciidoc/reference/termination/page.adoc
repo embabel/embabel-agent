@@ -1,91 +1,196 @@
-= AsciiDoc Article Title
-Firstname Lastname <author@asciidoctor.org>
-3.0, July 29, 2022: AsciiDoc article template
-:toc:
-:icons: font
-:url-quickref: https://docs.asciidoctor.org/asciidoc/latest/syntax-quick-reference/
+[[reference.termination]]
 
-Content entered directly below the header but before the first section heading is called the preamble.
+=== Agent and Action Termination
 
-== First level heading
+Embabel provides mechanisms to terminate agents and actions early, either gracefully (at the next
+  checkpoint) or immediately.
+  This is useful for scenarios like user cancellation, timeout handling, resource limits, or ctitical error
+  handling.
 
-This is a paragraph with a *bold* word and an _italicized_ word.
+==== Choosing Between Signal and Exception
 
-.Image caption
-image::image-file-name.png[I am the image alt text.]
-
-This is another paragraph.footnote:[I am footnote text and will be displayed at the bottom of the article.]
-
-=== Second level heading
-
-.Unordered list title
-* list item 1
-** nested list item
-*** nested nested list item 1
-*** nested nested list item 2
-* list item 2
-
-This is a paragraph.
-
-.Example block title
-====
-Content in an example block is subject to normal substitutions.
-====
-
-.Sidebar title
-****
-Sidebars contain aside text and are subject to normal substitutions.
-****
-
-==== Third level heading
-
-[#id-for-listing-block]
-.Listing block title
-----
-Content in a listing block is subject to verbatim substitutions.
-Listing block content is commonly used to preserve code input.
-----
-
-===== Fourth level heading
-
-.Table title
+[cols="1,2,2"]
 |===
-|Column heading 1 |Column heading 2
+| Mechanism | When to Use | Behavior
 
-|Column 1, row 1
-|Column 2, row 1
+| **Graceful (Signal)**
+| "Let me finish my work, then stop" - side effects need to complete
+| Terminates at next checkpoint; current operation completes normally
 
-|Column 1, row 2
-|Column 2, row 2
+| **Immediate (Exception)**
+| "Stop now, nothing left to do" - no further processing needed
+| Terminates immediately; nothing executes after the exception being thrown
 |===
 
-====== Fifth level heading
+==== Agent Termination
 
-[quote,firstname lastname,movie title]
-____
-I am a block quote or a prose excerpt.
-I am subject to normal substitutions.
-____
+Agent termination stops the entire agent process. The process status becomes `TERMINATED`.
 
-[verse,firstname lastname,poem title and more]
-____
-I am a verse block.
-  Indents and endlines are preserved in verse blocks.
-____
+===== Graceful Agent Termination (Signal)
 
-== First level heading
+Use `terminateAgent()` when the current operation should complete before stopping.
+  The agent terminates before the next checkpoint tick.
 
-TIP: There are five admonition labels: Tip, Note, Important, Caution and Warning.
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+  // Signal: "Let me finish my work, then stop the agent"
+  @LlmTool(description = "Save all pending work and shutdown")
+  fun saveAndShutdown(ctx: ProcessContext): String {
+      repository.saveAll(pendingRecords)  // side effect completes
+      ctx.terminateAgent("All work saved, shutting down")
+      return "Saved ${pendingRecords.size} records"  // tool finishes normally
+  }
+----
+====
 
-// I am a comment and won't be rendered.
+===== Immediate Agent Termination (Exception)
 
-. ordered list item
-.. nested ordered list item
-. ordered list item
+Use `TerminateAgentException` when the agent must stop immediately.
+No further tool calls or actions execute.
 
-The text at the end of this sentence is cross referenced to <<_third_level_heading,the third level heading>>
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+  // Exception: "Stop now, nothing left to do"
+  @LlmTool(description = "Validate critical prerequisites")
+  fun validatePrerequisites(): String {
+      if (!authService.hasRequiredPermissions()) {
+          throw TerminateAgentException("Missing required permissions")
+          // nothing after this runs
+      }
+      return "Prerequisites validated"
+  }
+----
 
-== First level heading
+Java::
++
+[source,java]
+----
+@LlmTool(description = "Validate critical prerequisites")
+public String validatePrerequisites() {
+if (!authService.hasRequiredPermissions()) {
+throw new TerminateAgentException("Missing required permissions");
+// nothing after this runs
+}
+return "Prerequisites validated";
+}
+----
+====
 
-This is a link to the https://docs.asciidoctor.org/home/[Asciidoctor documentation].
-This is an attribute reference {url-quickref}[that links this text to the AsciiDoc Syntax Quick Reference].
+==== Action Termination
+
+Action termination stops only the current action. The agent continues with the next planned action.
+  This is useful for skipping problematic steps while allowing the overall goal to proceed.
+
+IMPORTANT: For action termination to allow retry, the action must be defined with `canRerun =
+  true`.
+
+===== Graceful Action Termination (Signal)
+
+Use `terminateAction()` when the current tool call should complete before stopping the action.
+  The action terminates between tool calls.
+
+NOTE: Graceful action termination only works for LLM-based actions that use a tool loop.
+  For simple transformation actions, use `TerminateActionException` instead.
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+  // Signal: "Let me finish my work, then stop"
+  @LlmTool(description = "Save and shutdown")
+  fun saveAndStop(ctx: ProcessContext): String {
+      customerRepository.save(record)  // side effect completes
+      ctx.terminateAction("Save complete, no more work needed")
+      return "Saved"  // tool finishes normally
+  }
+----
+====
+
+===== Immediate Action Termination (Exception)
+
+Use `TerminateActionException` when the action must stop immediately.
+Remaining tool calls in the current batch are skipped.
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+  // Exception: "Stop now, nothing left to do"
+  @LlmTool(description = "Check service health")
+  fun checkHealth(): String {
+      if (!mcpClient.isConnected("required_service")) {
+          throw TerminateActionException("Service unavailable")
+          // nothing after this runs
+      }
+      return "Healthy"
+  }
+----
+
+Java::
++
+[source,java]
+----
+@LlmTool(description = "Check service health")
+public String checkHealth() {
+if (!mcpClient.isConnected("required_service")) {
+throw new TerminateActionException("Service unavailable");
+// nothing after this runs
+}
+return "Healthy";
+}
+----
+====
+
+==== Catching Both Exception Types
+
+Both `TerminateAgentException` and `TerminateActionException` extend `TerminationException`,
+allowing you to catch them together:
+
+[source,kotlin]
+----
+  try {
+      tool.execute()
+  } catch (e: TerminationException) {
+      logger.info("Terminated: ${e.reason}")
+      // Handle both agent and action termination
+  }
+----
+
+==== Summary
+
+[cols="1,1,2,2"]
+|===
+| Scope | Mechanism | Method/Exception | Use Case
+
+| Agent
+| Graceful
+| `processContext.terminateAgent(reason)`
+| "Finish current work, then stop agent"
+
+| Agent
+| Immediate
+| `throw TerminateAgentException(reason)`
+| "Stop now - critical error, no recovery"
+
+| Action
+| Graceful
+| `processContext.terminateAction(reason)`
+| "Finish current tool, then stop action"
+
+| Action
+| Immediate
+| `throw TerminateActionException(reason)`
+| "Stop now - try different approach"
+|===

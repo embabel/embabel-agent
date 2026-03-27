@@ -72,9 +72,7 @@ class ToolLoopTerminationTest {
                 onCall = {
                     toolCallOrder.add("tool_one")
                     // Set ACTION termination signal - tool loop should stop after this
-                    mockProcess.setTerminationRequest(
-                        TerminationSignal(TerminationScope.ACTION, "Stop this action")
-                    )
+                    mockProcess.terminateAction("Stop this action")
                     Tool.Result.text("Tool one done")
                 }
             )
@@ -136,9 +134,7 @@ class ToolLoopTerminationTest {
                 onCall = {
                     toolCallOrder.add("tool_one")
                     // Set AGENT termination signal - tool loop should NOT stop
-                    mockProcess.setTerminationRequest(
-                        TerminationSignal(TerminationScope.AGENT, "Stop the agent")
-                    )
+                    mockProcess.terminateAgent("Stop the agent")
                     Tool.Result.text("Tool one done")
                 }
             )
@@ -341,7 +337,12 @@ class ToolLoopTerminationTest {
         val mockProcess = mockk<AbstractAgentProcess>(relaxed = true)
 
         every { mockProcess.terminationRequest } answers { terminationRequest }
-        every { mockProcess.setTerminationRequest(any()) } answers { terminationRequest = firstArg() }
+        every { mockProcess.terminateAgent(any()) } answers {
+            terminationRequest = TerminationSignal(TerminationScope.AGENT, firstArg())
+        }
+        every { mockProcess.terminateAction(any()) } answers {
+            terminationRequest = TerminationSignal(TerminationScope.ACTION, firstArg())
+        }
         every { mockProcess.resetTerminationRequest() } answers { terminationRequest = null }
 
         AgentProcess.set(mockProcess)

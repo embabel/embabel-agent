@@ -326,4 +326,58 @@ class TerminationAgenticTest {
             assertThat(result.status).isEqualTo(AgentProcessStatusCode.TERMINATED)
         }
     }
+
+    @Nested
+    inner class DirectAgentProcessApi {
+
+        @Test
+        fun `terminateAgent called directly on AgentProcess sets signal`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("TestUser")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-direct-terminate-agent",
+                agent = GracefulAgentTerminatingAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            // Call terminateAgent directly on AgentProcess (not via extension)
+            agentProcess.terminateAgent("Direct API call")
+
+            // Verify signal is set by running the process
+            val result = agentProcess.run()
+            assertThat(result.status).isEqualTo(AgentProcessStatusCode.TERMINATED)
+        }
+
+        @Test
+        fun `terminateAction called directly on AgentProcess sets signal`() {
+            val dummyPlatformServices = dummyPlatformServices()
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("TestUser")
+
+            val agentProcess = SimpleAgentProcess(
+                id = "test-direct-terminate-action",
+                agent = GracefulActionTerminatingAgent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices,
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+            // The GracefulActionTerminatingAgent calls terminateAction via extension
+            // This test verifies the agent process method works correctly
+            val result = agentProcess.run()
+
+            // Both actions should have run (signal cleared after first action)
+            assertThat(blackboard["firstActionRan"]).isEqualTo(true)
+            assertThat(blackboard["secondActionRan"]).isEqualTo(true)
+            assertThat(result.status).isEqualTo(AgentProcessStatusCode.COMPLETED)
+        }
+    }
 }

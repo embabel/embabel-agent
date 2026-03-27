@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.TerminationScope;
 import com.embabel.agent.api.common.TerminationSignal;
 import com.embabel.agent.api.tool.TerminateActionException;
 import com.embabel.agent.api.tool.TerminateAgentException;
+import com.embabel.agent.api.tool.TerminationException;
 import com.embabel.agent.api.tool.ToolControlFlowSignal;
 import org.junit.jupiter.api.Test;
 
@@ -73,7 +74,28 @@ class TerminationJavaTest {
         assertEquals("action", TerminationScope.ACTION.getValue());
     }
 
-    // Note: terminateAgent/terminateAction extension functions require a real AbstractAgentProcess
-    // instance (not a mock) because they use internal Kotlin methods. Java interop for these
-    // functions is tested via the agentic integration tests in TerminationAgenticTest.
+    @Test
+    void terminationExceptionBaseClassAllowsCatchingBoth() {
+        // Both exception types extend TerminationException
+        TerminateAgentException agentEx = new TerminateAgentException("agent reason");
+        TerminateActionException actionEx = new TerminateActionException("action reason");
+
+        assertInstanceOf(TerminationException.class, agentEx);
+        assertInstanceOf(TerminationException.class, actionEx);
+
+        // Can catch both with single catch block
+        int caughtCount = 0;
+        for (RuntimeException ex : new RuntimeException[]{agentEx, actionEx}) {
+            try {
+                throw ex;
+            } catch (TerminationException e) {
+                caughtCount++;
+                assertNotNull(e.getReason());
+            }
+        }
+        assertEquals(2, caughtCount);
+    }
+
+    // Note: terminateAgent/terminateAction methods are now on AgentProcess interface.
+    // Java interop for these is tested via the agentic integration tests in TerminationAgenticTest.
 }
