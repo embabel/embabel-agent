@@ -17,7 +17,7 @@
 
     <properties>
         <embabel-common.version>0.1.11-SNAPSHOT</embabel-common.version>
-        <netty.version>4.1.125.Final</netty.version>
+        <netty.version>4.1.132.Final</netty.version>
         <spotbugs-maven-plugin.version>4.9.8.2</spotbugs-maven-plugin.version>
         <sb-contrib.version>7.7.4</sb-contrib.version>
     </properties>
@@ -77,10 +77,8 @@
             <!-- Netty Version Upgrades - Security Vulnerability Fixes -->
             <!-- 
               Force safe netty versions to fix multiple CVEs:
-              - CVE-2025-58057 (GHSA-3p8m-j85q-pgmj): DoS via zip bomb in netty-codec
-              - CVE-2025-58056 (GHSA-fghv-69vj-qj49): Request smuggling in netty-codec-http  
-              - CVE-2025-59340 (GHSA-prj3-ccx8-p6x4): MadeYouReset HTTP/2 DDoS in netty-codec-http2
-              
+              https://github.com/advisories/GHSA-w9fj-cfpg-grvv
+              https://github.com/advisories/GHSA-pwqr-wmgm-9rr8
               Added to common parent to override all transitive netty dependencies across all modules.
             -->
             <dependency>
