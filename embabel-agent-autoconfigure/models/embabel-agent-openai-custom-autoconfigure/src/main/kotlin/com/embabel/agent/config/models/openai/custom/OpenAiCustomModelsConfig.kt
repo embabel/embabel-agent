@@ -32,7 +32,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.http.client.ClientHttpRequestFactory
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.web.client.RestClient
 
 /**
  * Configuration properties for OpenAI Custom model settings.
@@ -125,7 +126,8 @@ class OpenAiCustomModelsConfig(
     private val properties: OpenAiCustomProperties,
     private val llmOptionsProperties: LlmOptionsProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
-    requestFactory: ObjectProvider<ClientHttpRequestFactory>,
+    @Qualifier("aiModelRestClientBuilder")
+    restClientBuilder: ObjectProvider<RestClient.Builder>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
     apiKey = envApiKey?.trim()?.takeIf { it.isNotEmpty() }
@@ -137,7 +139,7 @@ class OpenAiCustomModelsConfig(
         ?: properties.embeddingsPath?.trim()?.takeIf { it.isNotEmpty() },
     httpHeaders = llmOptionsProperties.httpHeaders,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-    requestFactory = requestFactory,
+    restClientBuilder = restClientBuilder,
 ) {
 
     private val customModelList: List<String> = (envCustomModels ?: properties.models)

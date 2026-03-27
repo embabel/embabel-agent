@@ -31,7 +31,6 @@ import org.springframework.ai.anthropic.api.AnthropicApi
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.retry.RetryUtils
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.ClientHttpRequestFactory
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
@@ -68,7 +67,7 @@ open class AnthropicModelFactory(
     private val baseUrl: String? = null,
     private val validationModel: String = VALIDATION_MODEL,
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    private val requestFactory: ObjectProvider<ClientHttpRequestFactory> = ObjectProviders.empty(),
+    private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
 ) : ByokFactory {
 
     protected val logger = LoggerFactory.getLogger(javaClass)
@@ -95,13 +94,14 @@ open class AnthropicModelFactory(
             builder.baseUrl(baseUrl)
         }
         builder.restClientBuilder(
-            RestClient.builder()
-                .requestFactory(requestFactory.getIfAvailable {
-                    SimpleClientHttpRequestFactory().apply {
-                        setConnectTimeout(CONNECT_TIMEOUT_MS)
-                        setReadTimeout(READ_TIMEOUT_MS)
-                    }
-                })
+            restClientBuilder.getIfAvailable {
+                RestClient.builder()
+                    .requestFactory(
+                        SimpleClientHttpRequestFactory().apply {
+                            setConnectTimeout(CONNECT_TIMEOUT_MS)
+                            setReadTimeout(READ_TIMEOUT_MS)
+                        })
+            }
                 .observationRegistry(observationRegistry)
         )
         builder.webClientBuilder(

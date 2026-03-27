@@ -28,12 +28,14 @@ import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.client.ClientHttpRequestFactory
+import org.springframework.web.client.RestClient
 import java.time.LocalDate
 
 /**
@@ -100,7 +102,8 @@ class MiniMaxModelsConfig(
     private val envApiKey: String?,
     observationRegistry: ObjectProvider<ObservationRegistry>,
     private val properties: MiniMaxProperties,
-    requestFactory: ObjectProvider<ClientHttpRequestFactory>,
+    @Qualifier("aiModelRestClientBuilder")
+    restClientBuilder: ObjectProvider<RestClient.Builder>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
     apiKey = envApiKey?.trim()?.takeIf { it.isNotEmpty() }
@@ -109,7 +112,7 @@ class MiniMaxModelsConfig(
     completionsPath = null,
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-    requestFactory = requestFactory,
+    restClientBuilder = restClientBuilder,
 ) {
 
     init {

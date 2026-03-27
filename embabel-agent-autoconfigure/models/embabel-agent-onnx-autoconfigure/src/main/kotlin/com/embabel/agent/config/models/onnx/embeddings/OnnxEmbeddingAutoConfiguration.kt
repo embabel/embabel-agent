@@ -59,8 +59,8 @@ import org.springframework.web.client.RestClient
 @EnableConfigurationProperties(OnnxEmbeddingProperties::class)
 class OnnxEmbeddingAutoConfiguration(
     private val configurableBeanFactory: ConfigurableBeanFactory,
-    @Qualifier("aiModelHttpRequestFactory")
-    private val requestFactory: ObjectProvider<ClientHttpRequestFactory>,
+    @Qualifier("aiModelRestClientBuilder")
+    private val restClientBuilder: ObjectProvider<RestClient.Builder>,
 ) {
 
     private val logger = LoggerFactory.getLogger(OnnxEmbeddingAutoConfiguration::class.java)
@@ -70,17 +70,15 @@ class OnnxEmbeddingAutoConfiguration(
     @Bean
     fun onnxEmbeddingInitializer(properties: OnnxEmbeddingProperties): ProviderInitialization {
         val cacheDir = Path.of(properties.cacheDir, properties.modelName)
-        val restClient = RestClient.builder()
-            .requestFactory(
-                requestFactory.getIfAvailable {
-                    JdkClientHttpRequestFactory(
-                        HttpClient.newBuilder()
-                            .followRedirects(HttpClient.Redirect.NORMAL)
-                            .build()
-                    )
-                }
+        val restClient = restClientBuilder.getIfAvailable {
+            RestClient.builder().requestFactory(
+                JdkClientHttpRequestFactory(
+                    HttpClient.newBuilder()
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build()
+                )
             )
-            .build()
+        }.build()
         val modelPath = OnnxModelLoader.resolve(properties.modelUri, cacheDir, "model.onnx", restClient)
         val tokenizerPath = OnnxModelLoader.resolve(properties.tokenizerUri, cacheDir, "tokenizer.json", restClient)
         logger.info(

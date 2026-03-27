@@ -30,8 +30,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.ClientHttpRequestFactory
-import org.springframework.http.client.SimpleClientHttpRequestFactory
+import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
 import java.util.function.Supplier
 
@@ -40,8 +39,8 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
     private lateinit var server: HttpServer
     private var port: Int = 0
 
-    private val requestFactory = mockk<ObjectProvider<ClientHttpRequestFactory>> {
-        every { getIfAvailable(any<Supplier<ClientHttpRequestFactory>>()) } returns SimpleClientHttpRequestFactory()
+    private val restClientBuilder = mockk<ObjectProvider<RestClient.Builder>> {
+        every { getIfAvailable(any<Supplier<RestClient.Builder>>()) } returns RestClient.builder()
         every { ifAvailable(any()) } just Runs
     }
 
@@ -62,7 +61,7 @@ class OpenAiCompatibleModelFactoryBuildValidatedTest {
         completionsPath = null,
         embeddingsPath = null,
         observationRegistry = ObservationRegistry.NOOP,
-        requestFactory = requestFactory,
+        restClientBuilder = restClientBuilder,
     )
 
     @Test

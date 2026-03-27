@@ -26,14 +26,13 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.ClientHttpRequestFactory
-import org.springframework.http.client.SimpleClientHttpRequestFactory
+import org.springframework.web.client.RestClient
 import java.util.function.Supplier
 
 class OpenAiCompatibleModelFactoryTest {
 
-    private val requestFactory = mockk<ObjectProvider<ClientHttpRequestFactory>> {
-        every { getIfAvailable(any<Supplier<ClientHttpRequestFactory>>()) } returns SimpleClientHttpRequestFactory()
+    private val restClientBuilder = mockk<ObjectProvider<RestClient.Builder>> {
+        every { getIfAvailable(any<Supplier<RestClient.Builder>>()) } returns RestClient.builder()
         every { ifAvailable(any()) } just Runs
     }
 
@@ -46,7 +45,7 @@ class OpenAiCompatibleModelFactoryTest {
             completionsPath = null,
             embeddingsPath = null,
             observationRegistry = mockk(),
-            requestFactory = requestFactory,
+            restClientBuilder = restClientBuilder,
         )
         val llm = mf.openAiCompatibleLlm(
             model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,
@@ -66,7 +65,7 @@ class OpenAiCompatibleModelFactoryTest {
             completionsPath = null,
             embeddingsPath = null,
             observationRegistry = mockk(),
-            requestFactory = requestFactory,
+            restClientBuilder = restClientBuilder,
         )
         val llm = mf.openAiCompatibleLlm(
             model = "foo", pricingModel = PricingModel.ALL_YOU_CAN_EAT,

@@ -39,7 +39,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
-import org.springframework.http.client.ClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
 import org.springframework.web.reactive.function.client.WebClient
@@ -58,8 +57,8 @@ class OllamaModelsConfig(
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val properties: ConfigurableModelProviderProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
-    @Qualifier("aiModelHttpRequestFactory")
-    private val requestFactory: ObjectProvider<ClientHttpRequestFactory> = ObjectProviders.empty(),
+    @Qualifier("aiModelRestClientBuilder")
+    private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
 ) {
     private val logger = LoggerFactory.getLogger(OllamaModelsConfig::class.java)
 
@@ -87,9 +86,13 @@ class OllamaModelsConfig(
         registeredEmbeddings = emptyList()
     )
 
+    private fun restClientBuilder(): RestClient.Builder =
+        restClientBuilder.getIfAvailable { RestClient.builder() }
+            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+
     private fun loadModelsFromUrl(baseUrl: String): List<Model> =
         try {
-            val restClient = RestClient.create()
+            val restClient = restClientBuilder().build()
             val response = restClient.get()
                 .uri("$baseUrl/api/tags")
                 .accept(MediaType.APPLICATION_JSON)
@@ -150,11 +153,7 @@ class OllamaModelsConfig(
             .ollamaApi(
                 OllamaApi.builder()
                     .baseUrl(baseUrl)
-                    .restClientBuilder(
-                        RestClient.builder()
-                            .also { b -> requestFactory.ifAvailable { b.requestFactory(it) } }
-                            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-                    )
+                    .restClientBuilder(restClientBuilder())
                     .webClientBuilder(
                         WebClient.builder()
                             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
@@ -198,11 +197,7 @@ class OllamaModelsConfig(
             .ollamaApi(
                 OllamaApi.builder()
                     .baseUrl(baseUrl)
-                    .restClientBuilder(
-                        RestClient.builder()
-                            .also { b -> requestFactory.ifAvailable { b.requestFactory(it) } }
-                            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-                    )
+                    .restClientBuilder(restClientBuilder())
                     .webClientBuilder(
                         WebClient.builder()
                             .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })

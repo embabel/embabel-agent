@@ -42,7 +42,6 @@ import org.springframework.ai.openai.OpenAiEmbeddingOptions
 import org.springframework.ai.openai.api.OpenAiApi
 import org.springframework.ai.retry.RetryUtils
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.ClientHttpRequestFactory
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.web.client.RestClient
@@ -62,7 +61,7 @@ open class OpenAiCompatibleModelFactory(
     private val embeddingsPath: String?,
     private val httpHeaders: Map<String,String> = emptyMap(),
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    private val requestFactory: ObjectProvider<ClientHttpRequestFactory> = ObjectProviders.empty()
+    private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty()
 ) {
 
     companion object {
@@ -202,13 +201,14 @@ open class OpenAiCompatibleModelFactory(
         //add observation registry to rest and web client builders
         builder
             .restClientBuilder(
-                RestClient.builder()
-                    .requestFactory(requestFactory.getIfAvailable {
+                restClientBuilder.getIfAvailable {
+                    RestClient.builder().requestFactory(
                         SimpleClientHttpRequestFactory().apply {
                             setConnectTimeout(CONNECT_TIMEOUT_MS)
                             setReadTimeout(READ_TIMEOUT_MS)
                         }
-                    })
+                    )
+                }
                     .observationRegistry(observationRegistry)
             )
         builder

@@ -39,8 +39,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.http.client.ClientHttpRequestFactory
-import java.time.LocalDate
+import org.springframework.web.client.RestClient
 
 
 /**
@@ -100,8 +99,8 @@ class AnthropicModelsConfig(
     private val envApiKey: String?,
     private val properties: AnthropicProperties,
     observationRegistry: ObjectProvider<ObservationRegistry>,
-    @param:Qualifier("aiModelHttpRequestFactory")
-    requestFactory: ObjectProvider<ClientHttpRequestFactory>,
+    @Qualifier("aiModelRestClientBuilder")
+    restClientBuilder: ObjectProvider<RestClient.Builder>,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<AnthropicModelDefinitions> = AnthropicModelLoader(),
 ) : AnthropicModelFactory(
@@ -109,7 +108,7 @@ class AnthropicModelsConfig(
         ?: error("Anthropic API key required: set ANTHROPIC_API_KEY env var or embabel.agent.platform.models.anthropic.api-key"),
     baseUrl = envBaseUrl ?: properties.baseUrl,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
-    requestFactory = requestFactory,
+    restClientBuilder = restClientBuilder,
 ) {
 
     init {

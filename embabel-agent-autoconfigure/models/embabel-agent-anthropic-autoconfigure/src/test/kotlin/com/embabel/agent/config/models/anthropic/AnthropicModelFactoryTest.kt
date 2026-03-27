@@ -32,15 +32,14 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.http.client.ClientHttpRequestFactory
-import org.springframework.http.client.SimpleClientHttpRequestFactory
+import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
 import java.util.function.Supplier
 
 class AnthropicModelFactoryTest {
 
-    private val requestFactory = mockk<ObjectProvider<ClientHttpRequestFactory>> {
-        every { getIfAvailable(any<Supplier<ClientHttpRequestFactory>>()) } returns SimpleClientHttpRequestFactory()
+    private val restClientBuilder = mockk<ObjectProvider<RestClient.Builder>> {
+        every { getIfAvailable(any<Supplier<RestClient.Builder>>()) } returns RestClient.builder()
         every { ifAvailable(any()) } just Runs
     }
 
@@ -49,7 +48,7 @@ class AnthropicModelFactoryTest {
         val factory = AnthropicModelFactory(
             apiKey = "test-key",
             observationRegistry = ObservationRegistry.NOOP,
-            requestFactory = requestFactory,
+            restClientBuilder = restClientBuilder,
         )
         val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
         assertEquals(AnthropicModels.CLAUDE_HAIKU_4_5, service.name)
@@ -62,7 +61,7 @@ class AnthropicModelFactoryTest {
             apiKey = "test-key",
             baseUrl = "https://custom.anthropic.example.com",
             observationRegistry = ObservationRegistry.NOOP,
-            requestFactory = requestFactory,
+            restClientBuilder = restClientBuilder,
         )
         val service = factory.build(model = AnthropicModels.CLAUDE_HAIKU_4_5) as SpringAiLlmService
         assertTrue(service.name.isNotEmpty())
@@ -74,8 +73,8 @@ class AnthropicModelFactoryBuildValidatedTest {
     private lateinit var server: HttpServer
     private var port: Int = 0
 
-    private val requestFactory = mockk<ObjectProvider<ClientHttpRequestFactory>> {
-        every { getIfAvailable(any<Supplier<ClientHttpRequestFactory>>()) } returns SimpleClientHttpRequestFactory()
+    private val restClientBuilder = mockk<ObjectProvider<RestClient.Builder>> {
+        every { getIfAvailable(any<Supplier<RestClient.Builder>>()) } returns RestClient.builder()
         every { ifAvailable(any()) } just Runs
     }
 
@@ -94,7 +93,7 @@ class AnthropicModelFactoryBuildValidatedTest {
         apiKey = "test-key",
         baseUrl = "http://localhost:$port",
         observationRegistry = ObservationRegistry.NOOP,
-        requestFactory = requestFactory,
+        restClientBuilder = restClientBuilder,
     )
 
     @Test

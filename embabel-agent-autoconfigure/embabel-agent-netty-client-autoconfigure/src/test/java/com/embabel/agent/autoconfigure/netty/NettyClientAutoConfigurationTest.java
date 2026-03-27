@@ -19,9 +19,9 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
@@ -62,10 +62,8 @@ class NettyClientAutoConfigurationTest {
 
         var config = new NettyClientAutoConfiguration();
         var props = new NettyClientFactoryProperties(Duration.ofSeconds(5), Duration.ofSeconds(5));
-        ClientHttpRequestFactory factory = config.reactorClientHttpRequestFactory(props);
 
-        String result = RestClient.builder()
-                .requestFactory(factory)
+        String result = config.reactorRestClientBuilder(props)
                 .build()
                 .get()
                 .uri(URI.create("http://localhost:" + port + "/redirect"))
@@ -76,11 +74,16 @@ class NettyClientAutoConfigurationTest {
     }
 
     @Test
-    void factoryCreatesReactorClientHttpRequestFactory() {
+    void builderIsNettyBacked() throws NoSuchFieldException, IllegalAccessException {
         var config = new NettyClientAutoConfiguration();
         var props = new NettyClientFactoryProperties(null, null);
-        ClientHttpRequestFactory factory = config.reactorClientHttpRequestFactory(props);
+        var builder = config.reactorRestClientBuilder(props);
 
+        assertInstanceOf(RestClient.Builder.class, builder);
+        RestClient restClient = builder.build();
+        Field requestFactoryField = restClient.getClass().getDeclaredField("clientRequestFactory");
+        requestFactoryField.setAccessible(true);
+        Object factory = requestFactoryField.get(restClient);
         assertInstanceOf(
                 org.springframework.http.client.ReactorClientHttpRequestFactory.class,
                 factory
