@@ -27,7 +27,6 @@ import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
-import org.slf4j.LoggerFactory
 import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
 import org.springframework.ai.anthropic.api.AnthropicApi
@@ -41,8 +40,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.client.ClientHttpRequestFactory
-import org.springframework.web.client.RestClient
-import org.springframework.web.reactive.function.client.WebClient
 import java.time.LocalDate
 
 
@@ -88,8 +85,10 @@ class AnthropicProperties : RetryProperties {
 
 /**
  * Configuration class for Anthropic models.
- * This class provides beans for various Claude models (Opus, Sonnet, Haiku)
- * and handles the creation of Anthropic API clients with proper authentication.
+ * Extends [AnthropicModelFactory] so that the API client construction is shared
+ * with the BYOK path. This class adds the Spring autoconfigure wiring on top:
+ * loading model definitions from YAML, registering them as beans, and applying
+ * the retry policy from [AnthropicProperties].
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AnthropicProperties::class)
@@ -100,17 +99,18 @@ class AnthropicModelsConfig(
     @param:Value("\${ANTHROPIC_API_KEY:#{null}}")
     private val envApiKey: String?,
     private val properties: AnthropicProperties,
-    private val observationRegistry: ObjectProvider<ObservationRegistry>,
+    observationRegistry: ObjectProvider<ObservationRegistry>,
     @param:Qualifier("aiModelHttpRequestFactory")
-    private val requestFactory: ObjectProvider<ClientHttpRequestFactory>,
+    requestFactory: ObjectProvider<ClientHttpRequestFactory>,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<AnthropicModelDefinitions> = AnthropicModelLoader(),
+) : AnthropicModelFactory(
+    apiKey = envApiKey ?: properties.apiKey
+        ?: error("Anthropic API key required: set ANTHROPIC_API_KEY env var or embabel.agent.platform.models.anthropic.api-key"),
+    baseUrl = envBaseUrl ?: properties.baseUrl,
+    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
+    requestFactory = requestFactory,
 ) {
-    private val logger = LoggerFactory.getLogger(AnthropicModelsConfig::class.java)
-
-    private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
-    private val apiKey: String = envApiKey ?: properties.apiKey
-    ?: error("Anthropic API key required: set ANTHROPIC_API_KEY env var or embabel.agent.platform.models.anthropic.api-key")
 
     init {
         logger.info("Anthropic models are available: {}", properties)
@@ -150,7 +150,9 @@ class AnthropicModelsConfig(
     }
 
     /**
-     * Creates an individual Anthropic model from configuration.
+     * Creates an individual Anthropic model from configuration, applying full model
+     * definition settings (thinking mode, token budgets, pricing, etc.) that are not
+     * needed in the BYOK path.
      */
     private fun createAnthropicLlm(modelDef: AnthropicModelDefinition): LlmService<*> {
         val chatModel = AnthropicChatModel
@@ -159,11 +161,11 @@ class AnthropicModelsConfig(
             .anthropicApi(createAnthropicApi())
             .toolCallingManager(
                 ToolCallingManager.builder()
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+                    .observationRegistry(observationRegistry)
                     .build()
             )
             .retryTemplate(properties.retryTemplate("anthropic-${modelDef.modelId}"))
-            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
+            .observationRegistry(observationRegistry)
             .build()
 
         return SpringAiLlmService(
@@ -210,59 +212,6 @@ class AnthropicModelsConfig(
             }
             .build()
     }
-
-    private fun anthropicLlmOf(
-        name: String,
-        knowledgeCutoffDate: LocalDate?,
-    ): LlmService<*> {
-        val chatModel = AnthropicChatModel
-            .builder()
-            .defaultOptions(
-                AnthropicChatOptions.builder()
-                    .model(name)
-                    .build()
-            )
-            .anthropicApi(createAnthropicApi())
-            .toolCallingManager(
-                ToolCallingManager.builder()
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-                    .build()
-            )
-            .retryTemplate(properties.retryTemplate("anthropic-$name"))
-            .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            .build()
-
-        return SpringAiLlmService(
-            name = name,
-            chatModel = chatModel,
-            provider = AnthropicModels.PROVIDER,
-            optionsConverter = AnthropicOptionsConverter,
-            knowledgeCutoffDate = knowledgeCutoffDate,
-        )
-    }
-
-    private fun createAnthropicApi(): AnthropicApi {
-        val builder = AnthropicApi.builder().apiKey(apiKey)
-        if (!baseUrl.isNullOrBlank()) {
-            logger.info("Using custom Anthropic base URL: {}", baseUrl)
-            builder.baseUrl(baseUrl)
-        }
-        // add observation registry to rest and web client builders
-        builder
-            .restClientBuilder(
-                RestClient.builder()
-                    .also { b -> requestFactory.ifAvailable { b.requestFactory(it) } }
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            )
-        builder
-            .webClientBuilder(
-                WebClient.builder()
-                    .observationRegistry(observationRegistry.getIfUnique { ObservationRegistry.NOOP })
-            )
-
-        return builder.build()
-    }
-
 }
 
 object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {

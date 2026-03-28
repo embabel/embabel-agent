@@ -27,7 +27,14 @@ TIP: Trial and error is your friend.
 Embabel makes it easy to switch LLMs; try the cheapest thing that could work and switch if it doesn't.
 
 
+[[reference.llms.custom-integration]]
 ==== Advanced: Custom LLM Integration
+
+NOTE: If you want to use a standard provider (Anthropic, OpenAI, DeepSeek, Mistral) with a
+user-supplied key at runtime, see <<reference.customizing.byok>>.
+That is the recommended path for BYOK scenarios.
+This section covers implementing `LlmMessageSender` from scratch for providers not otherwise
+supported by Embabel.
 
 Embabel's tool loop is framework-agnostic, allowing you to integrate any LLM provider by implementing the `LlmMessageSender` interface.
 This is useful when:
