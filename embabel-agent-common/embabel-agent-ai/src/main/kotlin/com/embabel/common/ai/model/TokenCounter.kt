@@ -35,6 +35,13 @@ fun interface TokenCounter<T> {
 
     companion object {
 
+        /**
+         * A no-op counter that always returns 0.
+         * Use as a default when no real counter is configured.
+         */
+        @JvmField
+        val NOOP: TokenCounter<String> = TokenCounter { 0 }
+
         @JvmStatic
         fun heuristic(): TokenCounter<String> = CharacterHeuristicTokenCounter.DEFAULT
     }

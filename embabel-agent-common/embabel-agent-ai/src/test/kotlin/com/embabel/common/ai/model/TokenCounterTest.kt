@@ -24,35 +24,16 @@ class TokenCounterTest {
     data class SimpleMessage(val role: String, val content: String)
 
     @Nested
-    inner class Contract {
+    inner class Noop {
 
         @Test
-        fun `estimateTokens returns 0 for empty string`() {
-            val counter: TokenCounter<String> = TokenCounter { it.length / 4 }
-            assertEquals(0, counter.estimateTokens(""))
-        }
-
-        @Test
-        fun `estimateTokens returns non-negative for any input`() {
-            val counter: TokenCounter<String> = TokenCounter { it.length / 4 }
-            assertTrue(counter.estimateTokens("hello world") >= 0)
-        }
-
-        @Test
-        fun `estimateTokens returns positive for non-empty text`() {
-            val counter: TokenCounter<String> = TokenCounter { maxOf(1, it.length / 4) }
-            assertTrue(counter.estimateTokens("hello world") > 0)
+        fun `NOOP returns 0 for any input`() {
+            assertEquals(0, TokenCounter.NOOP.estimateTokens("hello world"))
         }
     }
 
     @Nested
     inner class HeuristicFactory {
-
-        @Test
-        fun `heuristic returns a TokenCounter`() {
-            val counter = TokenCounter.heuristic()
-            assertNotNull(counter)
-        }
 
         @Test
         fun `heuristic returns default CharacterHeuristicTokenCounter`() {
