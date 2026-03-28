@@ -64,14 +64,20 @@ class McpToolGroup(
     )
 
     /**
+     * Backing delegate kept as a named field so [isInitialized] can be checked
+     * directly — without reflection — in [toString] and any future diagnostics.
+     */
+    private val toolsDelegate: Lazy<List<Tool>> = lazy { loadTools() }
+
+    /**
      * Lazily loaded tool list. The first call to this property triggers the MCP
      * client handshake (listTools), which happens during action execution when
      * the user's security context — and therefore their OAuth token — is available.
      *
-     * The result is cached by [lazy]; subsequent accesses within the same JVM
-     * lifetime return the cached list without additional MCP traffic.
+     * The result is cached by [toolsDelegate]; subsequent accesses within the same
+     * JVM lifetime return the cached list without additional MCP traffic.
      */
-    override val tools: List<Tool> by lazy { loadTools() }
+    override val tools: List<Tool> get() = toolsDelegate.value
 
     private fun loadTools(): List<Tool> {
         return try {
@@ -96,5 +102,5 @@ class McpToolGroup(
     }
 
     override fun toString(): String =
-        "McpToolGroup(metadata=$metadata, toolsInitialized=${(::tools as kotlin.reflect.KProperty0<*>).let { (it.getDelegate() as? Lazy<*>)?.isInitialized() ?: false }})"
+        "McpToolGroup(metadata=$metadata, toolsInitialized=${toolsDelegate.isInitialized()})"
 }

@@ -37,9 +37,10 @@ class RegistryToolGroupResolver(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     init {
-        // Use verbose=false so the startup log only shows metadata (role, artifact, provider).
-        // verbose=true would access each ToolGroup's `tools` property, which for MCP-backed
-        // groups triggers the client handshake — defeating just-in-time initialization.
+        // Use verbose=false so the startup log only shows the resolver name, group count,
+        // and role names — without accessing each ToolGroup's `tools` property.
+        // verbose=true iterates tools, which for MCP-backed groups triggers the client
+        // handshake and defeats just-in-time initialization.
         logger.info(infoString(verbose = false))
     }
 
@@ -76,7 +77,7 @@ class RegistryToolGroupResolver(
     }
 
     override fun toString(): String {
-        return "RegistryToolGroupResolver(name='$name', ${toolGroups.size} toolGroups: ${toolGroups.joinToString(", ") { it.metadata.role }})"
+        return "RegistryToolGroupResolver(name='$name', ${toolGroups.size} toolGroups: ${toolGroups.map { it.metadata.role }.sorted().joinToString(", ")})"
     }
 
     override fun infoString(
@@ -84,7 +85,7 @@ class RegistryToolGroupResolver(
         indent: Int,
     ): String {
         if (verbose == false) {
-            return "RegistryToolGroupResolver(name='$name', ${toolGroups.size} tool groups: ${toolGroups.joinToString(", ") { it.metadata.role }})"
+            return "RegistryToolGroupResolver(name='$name', ${toolGroups.size} tool groups: ${toolGroups.map { it.metadata.role }.sorted().joinToString(", ")})"
         }
         return "RegistryToolGroupResolver: name='$name', ${toolGroups.size} available tool groups:\n\t${
             toolGroups.sortedBy { it.metadata.role }
