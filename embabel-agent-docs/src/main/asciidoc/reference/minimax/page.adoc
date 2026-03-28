@@ -1,0 +1,182 @@
+[[reference.minimax]]
+=== MiniMax Integration
+
+https://www.minimax.io[MiniMax] is a Chinese AI company offering high-performance LLMs via an OpenAI-compatible API.
+Embabel integrates MiniMax as a first-class provider using the same `OpenAiCompatibleModelFactory` pattern as other OpenAI-compatible providers.
+
+==== Add the Dependency
+
+[tabs]
+====
+Maven::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-minimax</artifactId>
+</dependency>
+----
+
+Gradle (Kotlin)::
++
+[source,kotlin]
+----
+implementation("com.embabel.agent:embabel-agent-starter-minimax")
+----
+
+Gradle (Groovy)::
++
+[source,groovy]
+----
+implementation 'com.embabel.agent:embabel-agent-starter-minimax'
+----
+====
+
+==== API Key Configuration
+
+Set your MiniMax API key via environment variable (recommended) or Spring property:
+
+[source,bash]
+----
+export MINIMAX_API_KEY=your-api-key
+----
+
+Or in `application.yml`:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        minimax:
+          api-key: your-api-key
+----
+
+TIP: The environment variable `MINIMAX_API_KEY` takes precedence over the property value.
+Use the property for local development and the environment variable in production deployments.
+
+==== Available Models
+
+[cols="2,3,1,1,1",options="header"]
+|===
+|Model Name |Model ID |Context Window |Input (per 1M tokens) |Output (per 1M tokens)
+
+|`MiniMax-M2.7`
+|`MiniMax-M2.7`
+|1M tokens
+|$1.10
+|$4.40
+
+|`MiniMax-M2.7-highspeed`
+|`MiniMax-M2.7-highspeed`
+|1M tokens
+|$0.55
+|$2.20
+
+|===
+
+`MiniMax-M2.7` is the flagship model, optimized for quality.
+`MiniMax-M2.7-highspeed` trades some quality for significantly lower latency and cost — a good choice for intermediate steps in a multi-action agent flow.
+
+TIP: Embabel's per-step LLM selection makes MiniMax models particularly well-suited to mixed strategies: use `MiniMax-M2.7-highspeed` for extraction and classification steps, and reserve `MiniMax-M2.7` (or a premium model) only for the final reasoning step.
+
+==== Using MiniMax Models
+
+Reference models by name in `@LlmCall` or programmatically via `ai.withLlm()`:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+// Declarative
+@LlmCall(llm = "MiniMax-M2.7")
+fun summarize(article: Article): Summary
+
+// Programmatic
+ai.withLlm("MiniMax-M2.7-highspeed")
+    .create<Classification>("Classify this input")
+----
+
+Java::
++
+[source,java]
+----
+// Declarative
+@LlmCall(llm = "MiniMax-M2.7")
+Summary summarize(Article article);
+
+// Programmatic
+ai.withLlm("MiniMax-M2.7-highspeed")
+    .create("Classify this input", Classification.class);
+----
+====
+
+Or map MiniMax models to roles in your configuration:
+
+[source,yaml]
+----
+embabel:
+  models:
+    llms:
+      cheapest: MiniMax-M2.7-highspeed
+      best: MiniMax-M2.7
+----
+
+Then reference by role with the `#` prefix:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+@LlmCall(llm = "#cheapest")
+fun extractEntities(text: String): EntityList
+----
+
+Java::
++
+[source,java]
+----
+@LlmCall(llm = "#cheapest")
+EntityList extractEntities(String text);
+----
+====
+
+==== Temperature Clamping
+
+MiniMax models require temperature in the range `(0.0, 1.0]` — a value of exactly `0.0` is not permitted.
+Embabel's `MiniMaxOptionsConverter` clamps temperature automatically:
+
+* Values `<= 0.0` are raised to `0.01`
+* Values `> 1.0` are lowered to `1.0`
+
+A `DEBUG` log message is emitted whenever clamping occurs.
+No action is required on your part — this is handled transparently.
+
+==== Configuration Reference
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        minimax:
+          api-key: your-api-key               # Alternative to MINIMAX_API_KEY env var
+          base-url: https://api.minimax.io/v1  # Default; override for proxies
+          max-attempts: 4                      # Retry attempts (default: 4)
+          backoff-millis: 1500                 # Initial backoff ms (default: 1500)
+          backoff-multiplier: 2.0              # Backoff multiplier (default: 2.0)
+          backoff-max-interval: 60000          # Max backoff ms (default: 60000)
+----
+
+==== See Also
+
+* <<reference.llms,Working with LLMs>>
+* <<reference.configuration,Configuration Reference>>
+* https://www.minimax.io/[MiniMax AI]
