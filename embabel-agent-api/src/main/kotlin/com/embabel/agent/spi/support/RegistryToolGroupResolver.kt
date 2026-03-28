@@ -37,7 +37,10 @@ class RegistryToolGroupResolver(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     init {
-        logger.info(infoString(verbose = true))
+        // Use verbose=false so the startup log only shows metadata (role, artifact, provider).
+        // verbose=true would access each ToolGroup's `tools` property, which for MCP-backed
+        // groups triggers the client handshake — defeating just-in-time initialization.
+        logger.info(infoString(verbose = false))
     }
 
     override fun availableToolGroups(): List<ToolGroupMetadata> = toolGroups.map { it.metadata }
@@ -81,7 +84,7 @@ class RegistryToolGroupResolver(
         indent: Int,
     ): String {
         if (verbose == false) {
-            return "RegistryToolGroupResolver(name='$name', ${toolGroups.size} tool groups)"
+            return "RegistryToolGroupResolver(name='$name', ${toolGroups.size} tool groups: ${toolGroups.joinToString(", ") { it.metadata.role }})"
         }
         return "RegistryToolGroupResolver: name='$name', ${toolGroups.size} available tool groups:\n\t${
             toolGroups.sortedBy { it.metadata.role }

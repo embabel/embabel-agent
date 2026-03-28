@@ -28,14 +28,22 @@ import org.springframework.ai.mcp.SyncMcpToolCallbackProvider
 import org.springframework.ai.tool.ToolCallback
 
 /**
- * ToolGroup backed by MCP
+ * ToolGroup backed by MCP.
+ *
+ * Tools are loaded **lazily** on first access rather than at construction time.
+ * This is required when MCP clients are configured with
+ * `spring.ai.mcp.client.initialized=false` so that the user's OAuth token
+ * is present in the security context when the MCP handshake occurs.
+ *
+ * Kotlin's [lazy] delegate uses [LazyThreadSafetyMode.SYNCHRONIZED] by default,
+ * so concurrent first-access across threads is safe without additional locking.
+ *
  * @param description Description of the tool group
  * @param provider Name of the provider of the tool group
  * @param name Name of the tool group
  * @param permissions Permissions the tools requires
  * @param clients List of MCP clients to use to load tools
  * @param filter predicate that returns true to include a tool
- *
  */
 class McpToolGroup(
     description: ToolGroupDescription,
@@ -43,7 +51,7 @@ class McpToolGroup(
     name: String,
     permissions: Set<ToolGroupPermission>,
     private val clients: List<McpSyncClient>,
-    filter: ((ToolCallback) -> Boolean),
+    private val filter: ((ToolCallback) -> Boolean),
     private val metaConverter: ToolCallContextMcpMetaConverter = ToolCallContextMcpMetaConverter.passThrough(),
 ) : ToolGroup {
 
@@ -55,23 +63,32 @@ class McpToolGroup(
         permissions = permissions,
     )
 
-    override val tools: List<Tool> = run {
-        try {
-            val provider = SyncMcpToolCallbackProvider(
-                clients,
-            )
+    /**
+     * Lazily loaded tool list. The first call to this property triggers the MCP
+     * client handshake (listTools), which happens during action execution when
+     * the user's security context — and therefore their OAuth token — is available.
+     *
+     * The result is cached by [lazy]; subsequent accesses within the same JVM
+     * lifetime return the cached list without additional MCP traffic.
+     */
+    override val tools: List<Tool> by lazy { loadTools() }
+
+    private fun loadTools(): List<Tool> {
+        return try {
+            val provider = SyncMcpToolCallbackProvider(clients)
             // Filter the raw callbacks, then convert to native Tool
             val filteredCallbacks = provider.toolCallbacks.filter(filter)
             val nativeTools = filteredCallbacks.map { it.toEmbabelTool(metaConverter) }
             loggerFor<McpToolGroup>().debug(
                 "ToolGroup role={}: {}",
-                description.role,
-                nativeTools.map { it.definition.name })
+                metadata.role,
+                nativeTools.map { it.definition.name },
+            )
             nativeTools
         } catch (e: Exception) {
             loggerFor<McpToolGroup>().error(
                 "Failed to load tools for role {}: {}",
-                description.role,
+                metadata.role,
                 e.message,
             )
             emptyList()
@@ -79,5 +96,5 @@ class McpToolGroup(
     }
 
     override fun toString(): String =
-        "McpToolGroup(metadata=$metadata, tools=${tools.map { it.definition.name }})"
+        "McpToolGroup(metadata=$metadata, toolsInitialized=${(::tools as kotlin.reflect.KProperty0<*>).let { (it.getDelegate() as? Lazy<*>)?.isInitialized() ?: false }})"
 }

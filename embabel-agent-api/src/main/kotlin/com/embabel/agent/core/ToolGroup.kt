@@ -191,18 +191,19 @@ interface ToolGroup : ToolPublisher, HasInfoString {
         verbose: Boolean?,
         indent: Int,
     ): String {
+        // Do NOT access `tools` unless verbose=true is explicitly requested.
+        // For MCP-backed groups, `tools` is a lazy property whose first access
+        // triggers the MCP client handshake. Accessing it unconditionally — even
+        // just to check isEmpty() — defeats just-in-time initialization.
+        if (verbose != true) {
+            return metadata.infoString(verbose = false)
+        }
         val allToolNames = tools.map { it.definition.name }
         if (allToolNames.isEmpty()) {
             return metadata.infoString(verbose = true, indent = 1) + "- No tools found".indent(1)
         }
-        return when (verbose) {
-            true -> metadata.infoString(verbose = true, indent = 1) + " - " +
-                    allToolNames.sorted().joinToString().indent(1)
-
-            else -> {
-                metadata.infoString(verbose = false)
-            }
-        }
+        return metadata.infoString(verbose = true, indent = 1) + " - " +
+                allToolNames.sorted().joinToString().indent(1)
     }
 }
 

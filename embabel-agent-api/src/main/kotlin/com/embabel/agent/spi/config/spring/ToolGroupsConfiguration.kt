@@ -134,24 +134,38 @@ class OnMcpConnectionCondition : Condition {
 }
 
 /**
- * Configuration for ToolGroups when MCP is available
+ * Configuration properties for tool groups exposed by the platform.
  */
 @ConfigurationProperties(prefix = "embabel.agent.platform.tools")
 class ToolGroupsProperties {
     /**
-     * Map of tool group names to list of tool names to include
+     * Map of tool group names to list of tool names to include.
      */
     var includes: Map<String, GroupConfig> = emptyMap()
 
     /**
-     * List of tool names to exclude from all tool groups
+     * List of tool names to exclude from all tool groups.
      */
     var excludes: List<String> = emptyList()
 
     /**
-     * The version of tool groups
+     * The version of tool groups.
      */
     var version: String = Semver().value
+
+    /**
+     * When `true`, MCP client server info is NOT accessed at startup.
+     *
+     * Set this to `true` in combination with
+     * `spring.ai.mcp.client.initialized=false` when user OAuth tokens must be
+     * present in the security context during the MCP client handshake.
+     * All [McpToolGroup] instances defer tool loading to first use regardless
+     * of this flag — this flag only controls whether server metadata is logged
+     * at startup (which itself requires an initialized client).
+     *
+     * Defaults to `false` to preserve backwards-compatible behaviour.
+     */
+    var lazyInit: Boolean = false
 }
 
 @Configuration
@@ -171,11 +185,21 @@ class ToolGroupsConfiguration(
     private val logger = LoggerFactory.getLogger(ToolGroupsConfiguration::class.java)
 
     init {
-        logger.info(
-            "MCP is available. Found {} clients: {}",
-            mcpSyncClients.size,
-            mcpSyncClients.map { it.serverInfo }.joinToString("\n"),
-        )
+        if (properties.lazyInit) {
+            // Accessing serverInfo on an un-initialized McpSyncClient triggers the
+            // MCP handshake, defeating lazy init. Log client count only.
+            logger.info(
+                "MCP is available (lazy-init mode). Found {} client(s). " +
+                    "Tool groups will be initialized on first use.",
+                mcpSyncClients.size,
+            )
+        } else {
+            logger.info(
+                "MCP is available. Found {} clients: {}",
+                mcpSyncClients.size,
+                mcpSyncClients.map { it.serverInfo }.joinToString("\n"),
+            )
+        }
     }
 
     @Bean
