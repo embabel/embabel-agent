@@ -16,7 +16,6 @@
 package com.embabel.common.ai.prompt
 
 import com.fasterxml.jackson.annotation.JsonIgnore
-import org.jetbrains.annotations.ApiStatus
 
 /**
  * Where should the prompt go?
@@ -37,8 +36,6 @@ data class PromptContribution(
     val content: String,
     val location: PromptContributionLocation = PromptContributionLocation.BEGINNING,
     val role: String? = null,
-    @ApiStatus.Experimental
-    val estimatedTokens: Int? = null,
 ) {
 
     companion object {
