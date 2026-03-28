@@ -34,7 +34,8 @@ class MiniMaxOptionsConverterTest : OptionsConverterTestSupport<OpenAiChatOption
     @Test
     fun `should clamp temperature below minimum to minimum`() {
         val options = optionsConverter.convertOptions(LlmOptions().withTemperature(0.0))
-        assertTrue(options.temperature >= 0.01, "Temperature should be clamped to at least 0.01")
+        val temperature = requireNotNull(options.temperature) { "Temperature should not be null after clamping" }
+        assertTrue(temperature >= 0.01, "Temperature should be clamped to at least 0.01")
     }
 
     @Test
