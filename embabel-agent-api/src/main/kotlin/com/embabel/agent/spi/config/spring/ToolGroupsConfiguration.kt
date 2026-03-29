@@ -159,9 +159,7 @@ class ToolGroupsProperties {
      * Set this to `true` in combination with
      * `spring.ai.mcp.client.initialized=false` when user OAuth tokens must be
      * present in the security context during the MCP client handshake.
-     * All [McpToolGroup] instances defer tool loading to first use regardless
-     * of this flag — this flag only controls whether server metadata is logged
-     * at startup (which itself requires an initialized client).
+     * All [McpToolGroup] instances defer tool loading to first use
      *
      * Defaults to `false` to preserve backwards-compatible behaviour.
      */
