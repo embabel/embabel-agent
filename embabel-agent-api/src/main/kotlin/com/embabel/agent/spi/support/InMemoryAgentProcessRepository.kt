@@ -35,38 +35,14 @@ class InMemoryAgentProcessRepository(
     private val map: ConcurrentHashMap<String, AgentProcess> = ConcurrentHashMap()
     private val accessOrder: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
     private val lock = ReentrantReadWriteLock()
+    private val evictionPolicy = HierarchyAwareEvictionPolicy(properties.windowSize)
 
     override fun findById(id: String): AgentProcess? = lock.read {
         map[id]
     }
 
     override fun findByParentId(parentId: String): List<AgentProcess> = lock.read {
-        findByParentIdInternal(parentId)
-    }
-
-    private fun findByParentIdInternal(parentId: String): List<AgentProcess> =
         map.values.filter { it.parentId == parentId }
-
-    /**
-     * Check if the entire process hierarchy (process + all descendants) is finished.
-     * Returns true only if the process AND all its children recursively are finished.
-     */
-    private fun isHierarchyFinished(processId: String): Boolean {
-        val process = map[processId] ?: return true
-        if (!process.finished) return false
-        return findByParentIdInternal(processId).all { isHierarchyFinished(it.id) }
-    }
-
-    /**
-     * Evict an entire process hierarchy (process + all descendants).
-     * Must only be called when [isHierarchyFinished] returns true.
-     */
-    private fun evictHierarchy(processId: String) {
-        findByParentIdInternal(processId).forEach { child ->
-            evictHierarchy(child.id)
-        }
-        map.remove(processId)
-        accessOrder.remove(processId)
     }
 
     override fun save(agentProcess: AgentProcess): AgentProcess = lock.write {
@@ -83,22 +59,7 @@ class InMemoryAgentProcessRepository(
         // Child processes are evicted together with their parent hierarchy.
         if (agentProcess.isRootProcess) {
             accessOrder.offer(processId)
-
-            // Eviction rules:
-            // 1. Only evict entire hierarchies (root + all descendants), never partial
-            // 2. Only evict if the entire hierarchy is finished (no running processes)
-            // This ensures findByParentId always finds active children for kill propagation.
-            while (accessOrder.size > properties.windowSize) {
-                val oldestRootId = accessOrder.peek() ?: break
-                if (isHierarchyFinished(oldestRootId)) {
-                    accessOrder.poll()
-                    evictHierarchy(oldestRootId)
-                } else {
-                    // Oldest hierarchy still running - stop eviction attempts
-                    // to preserve FIFO order and prevent skipping
-                    break
-                }
-            }
+            evictionPolicy.evictIfNeeded(accessOrder, map)
         }
 
         agentProcess
