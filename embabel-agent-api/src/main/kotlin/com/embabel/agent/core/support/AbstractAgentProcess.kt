@@ -133,6 +133,13 @@ abstract class AbstractAgentProcess(
     }
 
     override fun kill(): ProcessKilledEvent? {
+        // Kill child processes first (recursive)
+        val children = platformServices.agentProcessRepository.findByParentId(id)
+        children.forEach { child ->
+            logger.debug("Killing child process {} of {}", child.id, id)
+            child.kill()
+        }
+
         setStatus(AgentProcessStatusCode.KILLED)
         return ProcessKilledEvent(this)
     }

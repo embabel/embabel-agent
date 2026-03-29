@@ -272,4 +272,96 @@ class SubagentExecutionTest {
             testOuterAgentExecutesSteps(OuterAgentViaReifiedAgentSubagent())
         }
     }
+
+    @Nested
+    inner class SubagentKillTests {
+
+        @Test
+        fun `subagent has correct parentId set`() {
+            val agent = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+            val parentProcess = ap.createAgentProcess(
+                agent,
+                ProcessOptions(),
+                mapOf("it" to UserInput("test"))
+            )
+
+            // Run the process (this will create child subagent)
+            parentProcess.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, parentProcess.status)
+
+            // Find child processes via repository
+            val repository = parentProcess.processContext.platformServices.agentProcessRepository
+            val children = repository.findByParentId(parentProcess.id)
+
+            // Child process should exist and have parentId set
+            assertTrue(children.isNotEmpty(), "Should have at least one child process")
+            assertEquals(parentProcess.id, children.first().parentId, "Child should have parent's ID")
+        }
+
+        @Test
+        fun `killing parent should kill child subagents`() {
+            val agent = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+            val parentProcess = ap.createAgentProcess(
+                agent,
+                ProcessOptions(),
+                mapOf("it" to UserInput("test"))
+            )
+
+            // Run the process (this will create child subagent)
+            parentProcess.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, parentProcess.status)
+
+            // Get the repository to find child processes
+            val repository = parentProcess.processContext.platformServices.agentProcessRepository
+            val children = repository.findByParentId(parentProcess.id)
+            assertTrue(children.isNotEmpty(), "Should have at least one child process")
+
+            // Kill parent - should cascade to children
+            ap.killAgentProcess(parentProcess.id)
+
+            // Verify parent is killed
+            assertEquals(AgentProcessStatusCode.KILLED, parentProcess.status, "Parent should be killed")
+
+            // Verify all children are killed
+            children.forEach { child ->
+                assertEquals(
+                    AgentProcessStatusCode.KILLED,
+                    child.status,
+                    "Child ${child.id} should be killed when parent is killed"
+                )
+            }
+        }
+
+        @Test
+        fun `AgentProcess kill() directly cascades to children`() {
+            val agent = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+            val parentProcess = ap.createAgentProcess(
+                agent,
+                ProcessOptions(),
+                mapOf("it" to UserInput("test"))
+            )
+
+            parentProcess.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, parentProcess.status)
+
+            val repository = parentProcess.processContext.platformServices.agentProcessRepository
+            val children = repository.findByParentId(parentProcess.id)
+            assertTrue(children.isNotEmpty(), "Should have at least one child process")
+
+            // Kill directly via AgentProcess.kill() - should cascade
+            parentProcess.kill()
+
+            assertEquals(AgentProcessStatusCode.KILLED, parentProcess.status, "Parent should be killed")
+            children.forEach { child ->
+                assertEquals(
+                    AgentProcessStatusCode.KILLED,
+                    child.status,
+                    "Child ${child.id} should be killed via direct kill()"
+                )
+            }
+        }
+    }
 }

@@ -103,7 +103,9 @@ open class DefaultAgentPlatform(
             logger.warn("Agent process {} not found", id)
             return null
         }
+
         logger.info("Killing agent process {}", id)
+        // process.kill() cascades to children automatically
         val killEvent = process.kill()
         if (killEvent != null) {
             eventListener.onProcessEvent(killEvent)

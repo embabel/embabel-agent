@@ -23,6 +23,13 @@ interface AgentProcessRepository {
     fun findById(id: String): AgentProcess?
 
     /**
+     * Find all child processes for the given parent process ID.
+     * @param parentId the ID of the parent process
+     * @return list of child processes, empty if none found
+     */
+    fun findByParentId(parentId: String): List<AgentProcess>
+
+    /**
      * Save a new agent process.
      */
     fun save(agentProcess: AgentProcess): AgentProcess
