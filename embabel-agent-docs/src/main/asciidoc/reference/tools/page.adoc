@@ -4414,6 +4414,46 @@ If called outside of an agent execution, they return a soft acknowledgment and l
 
 TIP: The `OutputChannelHighlightingEventListener` automatically suppresses raw tool-call progress banners for `progress` and `communicate` tools, since these tools produce their own user-visible output.
 
+[[reference.tools__tool-groups-lazy-init]]
+==== Just-in-Time Tool Group Initialization
+
+By default, Embabel initializes MCP tool groups at application startup.
+This breaks deployments where MCP servers authenticate requests using the
+caller's OAuth token forwarded via the `Authorization` header, because no
+user token exists at startup time.
+
+To defer the MCP handshake until the first agent request, set these three
+properties together:
+
+[source,yaml]
+----
+spring:
+  ai:
+    mcp:
+      client:
+        initialized: false
+        toolcallback:
+          enabled: false
+
+embabel:
+  agent:
+    platform:
+      tools:
+        lazy-init: true
+----
+
+With lazy init enabled, the startup log confirms no MCP traffic occurred at startup:
+
+[source]
+----
+INFO ToolGroupsConfiguration - MCP is available (lazy-init mode). Found 1 client(s).
+     Tool groups will be initialized on first use.
+----
+
+The MCP handshake fires only when the first agent action that requires
+an MCP-backed tool group executes — at which point the user's OAuth token
+is already present in the security context.
+
 [[reference.tools__mcp-tool-factory]]
 ==== McpToolFactory: MCP Tool Integration
 
