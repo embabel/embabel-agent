@@ -82,7 +82,36 @@ abstract class AbstractAgentProcess(
     }
 
     override fun terminateAgent(reason: String) {
-        setTerminationRequest(TerminationSignal(TerminationScope.AGENT, reason))
+        // Cascade to children first
+        val children = platformServices.agentProcessRepository.findByParentId(id)
+        children.forEach { child ->
+            logger.debug("Terminating child process {} of {}", child.id, id)
+            child.terminateAgent(reason)
+        }
+
+        // Exhaustive when - compile error if new status added
+        @Suppress(names=["UNUSED_VARIABLE"])
+        val _forceExhaustiv = when (status) {
+            AgentProcessStatusCode.RUNNING,
+            AgentProcessStatusCode.NOT_STARTED -> {
+                // Will reach checkpoint - set signal for deferred termination
+                setTerminationRequest(TerminationSignal(TerminationScope.AGENT, reason))
+            }
+            AgentProcessStatusCode.KILLED,
+            AgentProcessStatusCode.FAILED,
+            AgentProcessStatusCode.TERMINATED -> {
+                // Already in terminal state - ignore
+                logger.info("Process {} already {}, ignoring terminate request", id, status)
+            }
+            AgentProcessStatusCode.COMPLETED,
+            AgentProcessStatusCode.STUCK,
+            AgentProcessStatusCode.WAITING,
+            AgentProcessStatusCode.PAUSED -> {
+                // No guaranteed next tick - set status immediately
+                logger.info("Terminating process {} (was {}): {}", id, status, reason)
+                setStatus(AgentProcessStatusCode.TERMINATED)
+            }
+        }
     }
 
     override fun terminateAction(reason: String) {

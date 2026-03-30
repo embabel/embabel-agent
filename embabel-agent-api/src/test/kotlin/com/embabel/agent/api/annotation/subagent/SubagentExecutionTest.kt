@@ -363,5 +363,35 @@ class SubagentExecutionTest {
                 )
             }
         }
+
+        @Test
+        fun `terminateAgent cascades to child subagents`() {
+            val agent = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+            val parentProcess = ap.createAgentProcess(
+                agent,
+                ProcessOptions(),
+                mapOf("it" to UserInput("test"))
+            )
+
+            parentProcess.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, parentProcess.status)
+
+            val repository = parentProcess.processContext.platformServices.agentProcessRepository
+            val children = repository.findByParentId(parentProcess.id)
+            assertTrue(children.isNotEmpty(), "Should have at least one child process")
+
+            // Terminate parent - should cascade to children immediately
+            parentProcess.terminateAgent("Test termination")
+
+            assertEquals(AgentProcessStatusCode.TERMINATED, parentProcess.status, "Parent should be terminated")
+            children.forEach { child ->
+                assertEquals(
+                    AgentProcessStatusCode.TERMINATED,
+                    child.status,
+                    "Child ${child.id} should be terminated when parent is terminated"
+                )
+            }
+        }
     }
 }
