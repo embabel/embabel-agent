@@ -91,7 +91,7 @@ abstract class AbstractAgentProcess(
 
         // Exhaustive when - compile error if new status added
         @Suppress(names=["UNUSED_VARIABLE"])
-        val _forceExhaustiv = when (status) {
+        val _forceExhaustive = when (status) {
             AgentProcessStatusCode.RUNNING,
             AgentProcessStatusCode.NOT_STARTED -> {
                 // Will reach checkpoint - set signal for deferred termination
