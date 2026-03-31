@@ -1,15 +1,39 @@
 # ============================================
 # anthropic-models.yml
 # ============================================
-# Updated with latest Anthropic models as of October 2025
+# Updated with latest Anthropic models as of March 2026
 # Using official Anthropic API aliases
 
 models:
   # ========================================
-  # CLAUDE 4.5 FAMILY (Latest Generation)
+  # CLAUDE 4.6 FAMILY (Latest Generation)
   # ========================================
 
-  # Claude Sonnet 4.5 - Best coding model, flagship for general use
+  # Claude Opus 4.6 - Flagship model, 1M context, best reasoning & coding
+  - name: "claude_opus_46"
+    model_id: "claude-opus-4-6"
+    display_name: "Claude Opus 4.6"
+    knowledge_cutoff_date: "2025-10-01"
+    max_tokens: 8192
+    pricing_model:
+      usd_per1m_input_tokens: 5.0
+      usd_per1m_output_tokens: 25.0
+
+  # Claude Sonnet 4.6 - Best balance of cost/performance, 1M context
+  - name: "claude_sonnet_46"
+    model_id: "claude-sonnet-4-6"
+    display_name: "Claude Sonnet 4.6"
+    knowledge_cutoff_date: "2025-10-01"
+    max_tokens: 8192
+    pricing_model:
+      usd_per1m_input_tokens: 3.0
+      usd_per1m_output_tokens: 15.0
+
+  # ========================================
+  # CLAUDE 4.5 FAMILY (Previous Generation)
+  # ========================================
+
+  # Claude Sonnet 4.5 - Strong coding & agent capabilities
   - name: "claude_sonnet_45"
     model_id: "claude-sonnet-4-5"
     display_name: "Claude Sonnet 4.5"
