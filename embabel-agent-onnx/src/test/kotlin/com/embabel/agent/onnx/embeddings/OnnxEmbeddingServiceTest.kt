@@ -27,6 +27,8 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.DisabledOnOs
+import org.junit.jupiter.api.condition.OS
 
 class OnnxEmbeddingServiceTest {
 
@@ -100,6 +102,7 @@ class OnnxEmbeddingServiceTest {
     }
 
     @Nested
+    @DisabledOnOs(OS.WINDOWS, disabledReason = "ONNX Runtime native DLL requires Visual C++ Redistributable; OrtEnvironment.<clinit> fires even in mock tests")
     inner class EmbedWithMocksTest {
 
         private val environment = OrtEnvironment.getEnvironment()
