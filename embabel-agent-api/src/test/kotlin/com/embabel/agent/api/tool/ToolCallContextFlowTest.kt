@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.model.ToolContext
 import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.definition.DefaultToolDefinition
+import org.springframework.ai.tool.definition.DefaultToolDefinition.*
 import org.springframework.ai.tool.metadata.DefaultToolMetadata
 
 /**
@@ -199,7 +200,7 @@ class ToolCallContextFlowTest {
         fun `wrapper bridges ToolCallContext to Spring AI ToolContext`() {
             var receivedToolContext: ToolContext? = null
             val springCallback = object : ToolCallback {
-                override fun getToolDefinition() = DefaultToolDefinition.builder()
+                override fun getToolDefinition() = builder()
                     .name("mcp_tool").description("MCP tool").inputSchema("{}").build()
                 override fun getToolMetadata() = DefaultToolMetadata.builder().build()
                 override fun call(toolInput: String) = "no-context"
@@ -222,7 +223,7 @@ class ToolCallContextFlowTest {
         fun `wrapper calls without ToolContext when context is empty`() {
             var calledWithContext = false
             val springCallback = object : ToolCallback {
-                override fun getToolDefinition() = DefaultToolDefinition.builder()
+                override fun getToolDefinition() = builder()
                     .name("test").description("").inputSchema("{}").build()
                 override fun getToolMetadata() = DefaultToolMetadata.builder().build()
                 override fun call(toolInput: String): String {
@@ -243,7 +244,7 @@ class ToolCallContextFlowTest {
         fun `single-arg call does not bridge context`() {
             var receivedToolContext: ToolContext? = null
             val springCallback = object : ToolCallback {
-                override fun getToolDefinition() = DefaultToolDefinition.builder()
+                override fun getToolDefinition() = builder()
                     .name("test").description("").inputSchema("{}").build()
                 override fun getToolMetadata() = DefaultToolMetadata.builder().build()
                 override fun call(toolInput: String): String {
@@ -303,7 +304,7 @@ class ToolCallContextFlowTest {
             var mcpReceivedContext: ToolContext? = null
             // Simulate an MCP ToolCallback that expects ToolContext (like McpMeta)
             val mcpCallback = object : ToolCallback {
-                override fun getToolDefinition() = DefaultToolDefinition.builder()
+                override fun getToolDefinition() = builder()
                     .name("mcp_search").description("MCP search").inputSchema("{}").build()
                 override fun getToolMetadata() = DefaultToolMetadata.builder().build()
                 override fun call(toolInput: String) = "no-context"
@@ -371,7 +372,7 @@ class ToolCallContextFlowTest {
         fun `observability callback forwards ToolContext to delegate`() {
             var receivedToolContext: ToolContext? = null
             val delegate = object : ToolCallback {
-                override fun getToolDefinition() = DefaultToolDefinition.builder()
+                override fun getToolDefinition() = builder()
                     .name("obs_tool").description("").inputSchema("{}").build()
                 override fun call(toolInput: String) = "no-context"
                 override fun call(toolInput: String, toolContext: ToolContext?): String {
@@ -395,7 +396,7 @@ class ToolCallContextFlowTest {
         fun `output transforming callback forwards ToolContext to delegate`() {
             var receivedToolContext: ToolContext? = null
             val delegate = object : ToolCallback {
-                override fun getToolDefinition() = DefaultToolDefinition.builder()
+                override fun getToolDefinition() = builder()
                     .name("xform_tool").description("").inputSchema("{}").build()
                 override fun call(toolInput: String) = "no-context"
                 override fun call(toolInput: String, toolContext: ToolContext?): String {

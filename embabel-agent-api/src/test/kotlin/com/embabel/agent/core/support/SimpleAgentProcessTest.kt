@@ -576,6 +576,120 @@ class SimpleAgentProcessTest {
     }
 
     @Nested
+    inner class TerminateAgent {
+
+        /**
+         * Test subclass that exposes setStatus for testing different status scenarios.
+         */
+        private inner class TestableAgentProcess(
+            platformServices: com.embabel.agent.api.common.PlatformServices,
+        ) : SimpleAgentProcess(
+            id = "test-terminate",
+            agent = SimpleTestAgent,
+            processOptions = ProcessOptions(),
+            blackboard = InMemoryBlackboard(),
+            platformServices = platformServices,
+            plannerFactory = DefaultPlannerFactory,
+            parentId = null,
+        ) {
+            fun setStatusForTest(status: AgentProcessStatusCode) {
+                setStatus(status)
+            }
+        }
+
+        private fun createProcess(
+            status: AgentProcessStatusCode = AgentProcessStatusCode.NOT_STARTED,
+        ): TestableAgentProcess {
+            val dummyPlatformServices = dummyPlatformServices()
+            val process = TestableAgentProcess(dummyPlatformServices)
+            if (status != AgentProcessStatusCode.NOT_STARTED) {
+                process.setStatusForTest(status)
+            }
+            return process
+        }
+
+        @Test
+        fun `RUNNING status sets signal for deferred termination`() {
+            val process = createProcess(AgentProcessStatusCode.RUNNING)
+            process.terminateAgent("test reason")
+
+            // Should remain RUNNING (signal is deferred)
+            assertEquals(AgentProcessStatusCode.RUNNING, process.status)
+            // Signal should be set (checked via terminationRequest internal property)
+            assertEquals("test reason", process.terminationRequest?.reason)
+        }
+
+        @Test
+        fun `NOT_STARTED status sets signal for deferred termination`() {
+            val process = createProcess(AgentProcessStatusCode.NOT_STARTED)
+            process.terminateAgent("test reason")
+
+            // Should remain NOT_STARTED (signal is deferred)
+            assertEquals(AgentProcessStatusCode.NOT_STARTED, process.status)
+            assertEquals("test reason", process.terminationRequest?.reason)
+        }
+
+        @Test
+        fun `COMPLETED status sets TERMINATED immediately`() {
+            val process = createProcess(AgentProcessStatusCode.COMPLETED)
+            process.terminateAgent("test reason")
+
+            assertEquals(AgentProcessStatusCode.TERMINATED, process.status)
+        }
+
+        @Test
+        fun `STUCK status sets TERMINATED immediately`() {
+            val process = createProcess(AgentProcessStatusCode.STUCK)
+            process.terminateAgent("test reason")
+
+            assertEquals(AgentProcessStatusCode.TERMINATED, process.status)
+        }
+
+        @Test
+        fun `WAITING status sets TERMINATED immediately`() {
+            val process = createProcess(AgentProcessStatusCode.WAITING)
+            process.terminateAgent("test reason")
+
+            assertEquals(AgentProcessStatusCode.TERMINATED, process.status)
+        }
+
+        @Test
+        fun `PAUSED status sets TERMINATED immediately`() {
+            val process = createProcess(AgentProcessStatusCode.PAUSED)
+            process.terminateAgent("test reason")
+
+            assertEquals(AgentProcessStatusCode.TERMINATED, process.status)
+        }
+
+        @Test
+        fun `KILLED status is ignored`() {
+            val process = createProcess(AgentProcessStatusCode.KILLED)
+            process.terminateAgent("test reason")
+
+            // Should remain KILLED
+            assertEquals(AgentProcessStatusCode.KILLED, process.status)
+        }
+
+        @Test
+        fun `FAILED status is ignored`() {
+            val process = createProcess(AgentProcessStatusCode.FAILED)
+            process.terminateAgent("test reason")
+
+            // Should remain FAILED
+            assertEquals(AgentProcessStatusCode.FAILED, process.status)
+        }
+
+        @Test
+        fun `TERMINATED status is ignored`() {
+            val process = createProcess(AgentProcessStatusCode.TERMINATED)
+            process.terminateAgent("test reason")
+
+            // Should remain TERMINATED
+            assertEquals(AgentProcessStatusCode.TERMINATED, process.status)
+        }
+    }
+
+    @Nested
     inner class ReplanRequestedExceptionHandling {
 
         @Test

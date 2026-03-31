@@ -78,6 +78,12 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
     val parentId: String?
 
     /**
+     * True if this is a root process (no parent).
+     */
+    val isRootProcess: Boolean
+        get() = parentId == null
+
+    /**
      * Options this process was started with
      */
     val processOptions: ProcessOptions

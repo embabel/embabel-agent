@@ -15,9 +15,15 @@
  */
 package com.embabel.agent.openai
 
+import com.embabel.agent.api.models.DeepSeekModels
+import com.embabel.agent.api.models.GoogleGenAiModels
+import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.spi.ByokFactory
+import com.embabel.agent.spi.InvalidApiKeyException
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ObjectProviders
 import com.embabel.common.util.loggerFor
@@ -62,6 +68,106 @@ open class OpenAiCompatibleModelFactory(
     companion object {
         private const val CONNECT_TIMEOUT_MS = 5000
         private const val READ_TIMEOUT_MS = 600000
+        private val PASS_THROUGH_RETRY_TEMPLATE: RetryTemplate = RetryTemplate.builder().maxAttempts(1).build()
+
+        /**
+         * Returns a [ByokSpec] for OpenAI.
+         * Validates against [OpenAiModels.GPT_41_MINI] by default.
+         */
+        fun openAi(apiKey: String): ByokSpec =
+            ByokSpec(null, apiKey, OpenAiModels.GPT_41_MINI, OpenAiModels.PROVIDER)
+
+        /**
+         * Returns a [ByokSpec] for DeepSeek (OpenAI-compatible endpoint).
+         * Validates against [DeepSeekModels.DEEPSEEK_CHAT] by default.
+         *
+         * Note: uses the OpenAI wire protocol, not the native Spring AI DeepSeek client.
+         */
+        fun deepSeek(apiKey: String): ByokSpec =
+            ByokSpec("https://api.deepseek.com", apiKey, DeepSeekModels.DEEPSEEK_CHAT, DeepSeekModels.PROVIDER)
+
+        /**
+         * Returns a [ByokSpec] for Mistral AI (OpenAI-compatible endpoint).
+         * Validates against [MistralAiModels.MINISTRAL_8B] by default.
+         *
+         * Note: uses the OpenAI wire protocol, not the native Spring AI Mistral client.
+         */
+        fun mistral(apiKey: String): ByokSpec =
+            ByokSpec("https://api.mistral.ai/v1", apiKey, MistralAiModels.MINISTRAL_8B, MistralAiModels.PROVIDER)
+
+        /**
+         * Returns a [ByokSpec] for Google Gemini (OpenAI-compatible endpoint).
+         * Validates against [GoogleGenAiModels.GEMINI_2_5_FLASH] by default.
+         */
+        fun gemini(apiKey: String): ByokSpec =
+            ByokSpec(
+                "https://generativelanguage.googleapis.com/v1beta/openai",
+                apiKey,
+                GoogleGenAiModels.GEMINI_2_5_FLASH,
+                GoogleGenAiModels.PROVIDER,
+            )
+
+        /**
+         * Returns a [ByokSpec] for a custom OpenAI-compatible provider.
+         *
+         * Both [validationModel] and [validationProvider] are required — there is no
+         * sensible default for an arbitrary endpoint.
+         *
+         * Use this as the basis for a provider-specific extension function:
+         * ```kotlin
+         * fun OpenAiCompatibleModelFactory.Companion.myProvider(apiKey: String) =
+         *     OpenAiCompatibleModelFactory.byok(
+         *         baseUrl = "https://api.myprovider.com/v1",
+         *         apiKey = apiKey,
+         *         validationModel = "my-model-small",
+         *         validationProvider = "MyProvider",
+         *     )
+         * ```
+         */
+        fun byok(
+            baseUrl: String?,
+            apiKey: String,
+            validationModel: String,
+            validationProvider: String,
+        ): ByokSpec = ByokSpec(baseUrl, apiKey, validationModel, validationProvider)
+    }
+
+    /**
+     * A self-contained BYOK spec for an OpenAI-compatible provider. Implements [ByokFactory]
+     * so it can be passed directly to [com.embabel.agent.spi.detectProvider].
+     *
+     * Obtained via the companion factory methods ([openAi], [deepSeek], [mistral], [gemini],
+     * or [byok] for custom providers). Use [validating] to override the default validation
+     * model and provider — for example if the key only grants access to a specific model tier.
+     */
+    class ByokSpec internal constructor(
+        private val baseUrl: String?,
+        private val apiKey: String,
+        private val validationModel: String,
+        private val validationProvider: String,
+        private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
+    ) : ByokFactory {
+
+        /**
+         * Returns a new [ByokSpec] with the given model and provider used for the
+         * key-validation probe.
+         *
+         * ```kotlin
+         * OpenAiCompatibleModelFactory.openAi(userKey)
+         *     .validating(OpenAiModels.GPT_41_NANO, OpenAiModels.PROVIDER)
+         * ```
+         */
+        fun validating(model: String, provider: String): ByokSpec =
+            ByokSpec(baseUrl, apiKey, model, provider, observationRegistry)
+
+        override fun buildValidated(): LlmService<*> =
+            OpenAiCompatibleModelFactory(baseUrl, apiKey, null, null, observationRegistry = observationRegistry)
+                .buildValidated(
+                    model = validationModel,
+                    pricingModel = PricingModel.ALL_YOU_CAN_EAT,
+                    provider = validationProvider,
+                    knowledgeCutoffDate = null,
+                )
     }
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
@@ -129,6 +235,40 @@ open class OpenAiCompatibleModelFactory(
             provider = provider,
             optionsConverter = optionsConverter,
             pricingModel = pricingModel,
+            knowledgeCutoffDate = knowledgeCutoffDate,
+        )
+    }
+
+    /**
+     * Validates the configured API key by making a probe call, then returns a production
+     * [LlmService] if successful.
+     *
+     * The probe uses a single-attempt retry template (no retries) so a 401 fails fast.
+     * On any exception the provider-specific error is translated to [InvalidApiKeyException],
+     * keeping Spring AI types out of the caller.
+     */
+    fun buildValidated(
+        model: String,
+        pricingModel: PricingModel,
+        provider: String,
+        knowledgeCutoffDate: LocalDate?,
+    ): LlmService<*> {
+        val probe = openAiCompatibleLlm(
+            model = model,
+            pricingModel = pricingModel,
+            provider = provider,
+            knowledgeCutoffDate = knowledgeCutoffDate,
+            retryTemplate = PASS_THROUGH_RETRY_TEMPLATE,
+        )
+        try {
+            probe.createMessageSender(LlmOptions()).call(listOf(UserMessage("Hi")), emptyList())
+        } catch (e: Exception) {
+            throw InvalidApiKeyException(e.message ?: "Invalid API key")
+        }
+        return openAiCompatibleLlm(
+            model = model,
+            pricingModel = pricingModel,
+            provider = provider,
             knowledgeCutoffDate = knowledgeCutoffDate,
         )
     }
