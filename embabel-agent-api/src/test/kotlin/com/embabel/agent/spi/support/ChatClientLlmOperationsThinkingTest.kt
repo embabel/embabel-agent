@@ -1180,7 +1180,7 @@ class ChatClientLlmOperationsThinkingTest {
     }
 
     @Test
-    fun `doTransformWithThinking should delegate to ToolLoop when useEmbabelToolLoop is true`() {
+    fun `doTransformWithThinking should delegate to ToolLoop`() {
         val responseWithThinking = """
             <think>Testing Embabel tool loop delegation</think>
             Hello from tool loop
@@ -1191,7 +1191,6 @@ class ChatClientLlmOperationsThinkingTest {
 
         val interaction = LlmInteraction(
             id = InteractionId("embabel-toolloop-switch"),
-            useEmbabelToolLoop = true,
         )
 
         val result = setup.llmOperations.doTransformWithThinking(
@@ -1207,7 +1206,7 @@ class ChatClientLlmOperationsThinkingTest {
     }
 
     @Test
-    fun `doTransformWithThinkingIfPossible should delegate to ToolLoop when useEmbabelToolLoop is true`() {
+    fun `doTransformWithThinkingIfPossible should delegate to ToolLoop`() {
         val responseWithThinking = """
             <think>Testing Embabel tool loop delegation for IfPossible</think>
             {"success": {"status": "success", "value": 456}}
@@ -1218,7 +1217,6 @@ class ChatClientLlmOperationsThinkingTest {
 
         val interaction = LlmInteraction(
             id = InteractionId("embabel-toolloop-switch-ifpossible"),
-            useEmbabelToolLoop = true,
         )
 
         val result = setup.llmOperations.doTransformWithThinkingIfPossible(

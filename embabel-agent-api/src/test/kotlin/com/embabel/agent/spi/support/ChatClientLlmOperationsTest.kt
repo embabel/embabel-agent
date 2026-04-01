@@ -622,42 +622,7 @@ class ChatClientLlmOperationsTest {
         }
 
         @Test
-        fun `Spring AI path should timeout when LLM call exceeds timeout`() {
-            // LLM takes 2000ms, but timeout is 200ms - should definitely timeout
-            val duke = Dog("Duke")
-            val delayingChatModel = DelayingFakeChatModel(
-                response = jacksonObjectMapper().writeValueAsString(duke),
-                delayMillis = 2000,
-            )
-
-            val setup = createChatClientLlmOperationsWithDelayingModel(delayingChatModel)
-
-            // Spring AI path (useEmbabelToolLoop=false) has timeout - should fail
-            val exception = assertThrows(RuntimeException::class.java) {
-                setup.llmOperations.createObject(
-                    messages = listOf(UserMessage("Give me a dog")),
-                    interaction = LlmInteraction(
-                        id = InteractionId("timeout-test-springai"),
-                        llm = LlmOptions().withTimeout(java.time.Duration.ofMillis(200)),
-                        useEmbabelToolLoop = false,
-                    ),
-                    outputClass = Dog::class.java,
-                    action = SimpleTestAgent.actions.first(),
-                    agentProcess = setup.mockAgentProcess,
-                )
-            }
-
-            assertTrue(
-                exception.message?.contains("timed out") == true ||
-                        exception.cause is java.util.concurrent.TimeoutException,
-                "Should have timed out, but got: ${exception.message}"
-            )
-        }
-
-        @Test
-        fun `Embabel tool loop path should timeout when LLM call exceeds timeout`() {
-            // LLM takes 500ms, but timeout is 100ms - should timeout
-            // THIS TEST CURRENTLY FAILS because Embabel tool loop has no timeout!
+        fun `should timeout when LLM call exceeds timeout`() {
             val duke = Dog("Duke")
             val delayingChatModel = DelayingFakeChatModel(
                 response = jacksonObjectMapper().writeValueAsString(duke),
@@ -666,14 +631,12 @@ class ChatClientLlmOperationsTest {
 
             val setup = createChatClientLlmOperationsWithDelayingModel(delayingChatModel)
 
-            // Embabel tool loop path (useEmbabelToolLoop=true) should also timeout
             val exception = assertThrows(RuntimeException::class.java) {
                 setup.llmOperations.createObject(
                     messages = listOf(UserMessage("Give me a dog")),
                     interaction = LlmInteraction(
-                        id = InteractionId("timeout-test-embabel"),
+                        id = InteractionId("timeout-test"),
                         llm = LlmOptions().withTimeout(java.time.Duration.ofMillis(100)),
-                        useEmbabelToolLoop = true,
                     ),
                     outputClass = Dog::class.java,
                     action = SimpleTestAgent.actions.first(),
@@ -742,10 +705,7 @@ class ChatClientLlmOperationsTest {
     inner class RetryOnInvalidJson {
 
         @Test
-        fun `should retry on invalid JSON and succeed with Embabel tool loop`() {
-            // This test demonstrates the bug: when useEmbabelToolLoop=true (default),
-            // InvalidLlmReturnFormatException is NOT retried, causing the operation to fail
-            // even when a subsequent attempt would succeed.
+        fun `should retry on invalid JSON and succeed`() {
             val duke = Dog("Duke")
 
             // First response is invalid JSON, second is valid
@@ -761,49 +721,11 @@ class ChatClientLlmOperationsTest {
                 LlmDataBindingProperties(maxAttempts = 3)
             )
 
-            // With useEmbabelToolLoop=true (default), this should retry and succeed
-            // Currently it fails because the Embabel tool loop path has no retry wrapper
             val result = setup.llmOperations.createObject(
                 messages = listOf(UserMessage("Give me a dog")),
                 interaction = LlmInteraction(
                     id = InteractionId("retry-test"),
                     llm = LlmOptions(),
-                    useEmbabelToolLoop = true,  // This is the default, making it explicit
-                ),
-                outputClass = Dog::class.java,
-                action = SimpleTestAgent.actions.first(),
-                agentProcess = setup.mockAgentProcess,
-            )
-
-            assertEquals(duke, result, "Should have retried and got valid response")
-            assertEquals(2, fakeChatModel.promptsPassed.size, "Should have made 2 attempts")
-        }
-
-        @Test
-        fun `should retry on invalid JSON and succeed with Spring AI tool loop`() {
-            // This test shows the Spring AI path DOES have retry logic
-            val duke = Dog("Duke")
-
-            // First response is invalid JSON, second is valid
-            val fakeChatModel = FakeChatModel(
-                responses = listOf(
-                    "This ain't no JSON - malformed response",
-                    jacksonObjectMapper().writeValueAsString(duke)
-                )
-            )
-
-            val setup = createChatClientLlmOperations(
-                fakeChatModel,
-                LlmDataBindingProperties(maxAttempts = 3)
-            )
-
-            // With useEmbabelToolLoop=false, this uses Spring AI's path which has retry
-            val result = setup.llmOperations.createObject(
-                messages = listOf(UserMessage("Give me a dog")),
-                interaction = LlmInteraction(
-                    id = InteractionId("retry-test-springai"),
-                    llm = LlmOptions(),
-                    useEmbabelToolLoop = false,  // Use Spring AI path which has retry
                 ),
                 outputClass = Dog::class.java,
                 action = SimpleTestAgent.actions.first(),
@@ -1076,7 +998,6 @@ class ChatClientLlmOperationsTest {
                     interaction = LlmInteraction(
                         id = InteractionId("api-error-test"),
                         llm = LlmOptions(),
-                        useEmbabelToolLoop = false,
                     ),
                     outputClass = String::class.java,
                     llmRequestEvent = null,
