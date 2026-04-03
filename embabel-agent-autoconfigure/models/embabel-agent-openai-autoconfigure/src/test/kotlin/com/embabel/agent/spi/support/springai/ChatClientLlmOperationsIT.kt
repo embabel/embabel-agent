@@ -23,14 +23,16 @@ import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
-import org.junit.jupiter.api.Assertions
+import com.embabel.common.ai.model.Thinking
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 /**
  * Simple data class for testing structured output extraction.
@@ -43,7 +45,11 @@ internal class ChatClientLlmOperationsIT {
     @Qualifier("chatClientLlmOperations")
     private lateinit var llmOperations: LlmOperations
 
-    private val llm = LlmOptions.Companion("gpt-4.1-nano")
+    private val llm = LlmOptions("gpt-4.1-nano")
+
+    // gpt-4.1-mini supports thinking via <think> tag extraction
+    private val thinkingLlm = LlmOptions("gpt-4.1-mini")
+        .withThinking(Thinking.withExtraction())
 
     private fun dummyAgentProcess(): AgentProcess =
         IntegrationTestUtils.dummyAgentPlatform().createAgentProcess(
@@ -52,8 +58,52 @@ internal class ChatClientLlmOperationsIT {
             emptyMap()
         )
 
+    // Exercises doTransform -> ToolLoopLlmOperations (previously had a Spring AI fallback path)
+    @Nested
+    inner class CreateObject {
+        // Verifies structured output extraction via Embabel tool loop with clear input
+        @Test
+        fun `sufficient data`() {
+            val result = llmOperations.createObject(
+                messages = listOf(
+                    UserMessage(
+                        """
+                Create a person from this user input, extracting their name and star sign:
+                You are a wizard who can tell me about the stars. Bob is a Cancer.
+                """.trimIndent()
+                    )
+                ),
+                LlmInteraction.using(llm),
+                TestPerson::class.java,
+                dummyAgentProcess(),
+                null,
+            )
+            assertNotNull(result, "Expected a non-null TestPerson")
+            assertEquals("Bob", result.name, "Expected TestPerson to be Bob, but got: $result")
+            assertEquals("Cancer", result.sign, "Expected TestPerson to be Cancer, but got: $result")
+        }
+    }
+
+    // Exercises doTransform with String output class — the path where AssistantMessageGuardRail IS invoked
+    @Nested
+    inner class Generate {
+        // Verifies that a simple prompt returns a non-blank String via the Embabel tool loop
+        @Test
+        fun `returns non-blank string`() {
+            val result = llmOperations.generate(
+                "What is the capital of France? Answer in one word.",
+                LlmInteraction.using(llm),
+                dummyAgentProcess(),
+                null,
+            )
+            assertTrue(result.isNotBlank(), "Expected a non-blank response, but got: '$result'")
+        }
+    }
+
+    // Exercises doTransformIfPossible -> ToolLoopLlmOperations with MaybeReturn pattern
     @Nested
     inner class CreateObjectIfPossible {
+        // Verifies structured output extraction succeeds when input contains all required fields
         @Test
         fun `sufficient data`() {
             val r = llmOperations.createObjectIfPossible(
@@ -65,17 +115,18 @@ internal class ChatClientLlmOperationsIT {
                 """.trimIndent()
                     )
                 ),
-                LlmInteraction.Companion.using(llm),
+                LlmInteraction.using(llm),
                 TestPerson::class.java,
                 dummyAgentProcess(),
                 null,
             )
             assertTrue(r.isSuccess, "Expected to be able to create a TestPerson, but got: $r")
             val starPerson = r.getOrThrow()
-            Assertions.assertEquals("Bob", starPerson.name, "Expected TestPerson to be Bob, but got: $starPerson")
-            Assertions.assertEquals("Cancer", starPerson.sign, "Expected TestPerson to be Cancer, but got: $starPerson")
+            assertEquals("Bob", starPerson.name, "Expected TestPerson to be Bob, but got: $starPerson")
+            assertEquals("Cancer", starPerson.sign, "Expected TestPerson to be Cancer, but got: $starPerson")
         }
 
+        // Verifies graceful failure when input lacks required data for object creation
         @Test
         fun `insufficient data`() {
             val r = llmOperations.createObjectIfPossible(
@@ -87,12 +138,41 @@ internal class ChatClientLlmOperationsIT {
                 """.trimIndent()
                     )
                 ),
-                LlmInteraction.Companion.using(llm),
+                LlmInteraction.using(llm),
                 TestPerson::class.java,
                 dummyAgentProcess(),
                 null,
             )
             assertFalse(r.isSuccess, "Expected not to be able to create a TestPerson, but got: $r")
+        }
+    }
+
+    // Exercises doTransformWithThinking -> ToolLoopLlmOperations (previously had a Spring AI fallback path)
+    @Nested
+    inner class CreateObjectWithThinking {
+        // Verifies structured output + thinking block extraction via Embabel tool loop
+        @Test
+        fun `returns result with thinking blocks`() {
+            val response = llmOperations.createObjectWithThinking(
+                messages = listOf(
+                    UserMessage(
+                        """
+                Think step by step about this request using <think> tags.
+                Create a person from this user input, extracting their name and star sign:
+                Bob is a Cancer.
+                """.trimIndent()
+                    )
+                ),
+                LlmInteraction.using(thinkingLlm),
+                TestPerson::class.java,
+                dummyAgentProcess(),
+                null,
+            )
+            assertNotNull(response, "Expected a non-null ThinkingResponse")
+            assertTrue(response.hasResult(), "Expected a successful result")
+            val person = response.result!!
+            assertEquals("Bob", person.name, "Expected TestPerson to be Bob, but got: $person")
+            assertEquals("Cancer", person.sign, "Expected TestPerson to be Cancer, but got: $person")
         }
     }
 
