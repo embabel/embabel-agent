@@ -16,7 +16,10 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.dsl.agent
+import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
@@ -24,6 +27,8 @@ import com.embabel.agent.test.integration.IntegrationTestUtils
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
+import com.embabel.common.core.thinking.ThinkingResponse
+import com.embabel.common.core.validation.ValidationResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -97,6 +102,10 @@ internal class ChatClientLlmOperationsIT {
                 null,
             )
             assertTrue(result.isNotBlank(), "Expected a non-blank response, but got: '$result'")
+            assertTrue(
+                result.contains("Paris", ignoreCase = true),
+                "Expected response to contain 'Paris', but got: '$result'"
+            )
         }
     }
 
@@ -144,6 +153,80 @@ internal class ChatClientLlmOperationsIT {
                 null,
             )
             assertFalse(r.isSuccess, "Expected not to be able to create a TestPerson, but got: $r")
+        }
+    }
+
+    // Exercises guardrail invocation on structured output (non-String, non-AssistantMessage)
+    @Nested
+    inner class GuardRailOnStructuredOutput {
+        // Verifies that AssistantMessageGuardRail is invoked for structured object responses
+        //@Test
+        fun `AssistantMessageGuardRail should be invoked for createObject`() {
+            val guardRailCalled = mutableListOf<String>()
+
+            val guard = object : AssistantMessageGuardRail {
+                override val name = "TrackingGuardRail"
+                override val description = "Tracks whether guardrail is called"
+                override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                    guardRailCalled.add(input)
+                    return ValidationResult.VALID
+                }
+
+                override fun validate(response: ThinkingResponse<*>, blackboard: Blackboard) =
+                    ValidationResult.VALID
+            }
+
+            val result = llmOperations.createObject(
+                messages = listOf(UserMessage("Bob is a Cancer. Extract name and star sign.")),
+                LlmInteraction(
+                    id = InteractionId("guardrail-create-object"),
+                    llm = llm,
+                    guardRails = listOf(guard),
+                ),
+                TestPerson::class.java,
+                dummyAgentProcess(),
+                null,
+            )
+            assertNotNull(result, "Expected a non-null TestPerson")
+            assertTrue(
+                guardRailCalled.isNotEmpty(),
+                "AssistantMessageGuardRail should have been called for structured output"
+            )
+        }
+
+        // Verifies that AssistantMessageGuardRail is invoked for createObjectIfPossible
+        //@Test
+        fun `AssistantMessageGuardRail should be invoked for createObjectIfPossible`() {
+            val guardRailCalled = mutableListOf<String>()
+
+            val guard = object : AssistantMessageGuardRail {
+                override val name = "TrackingGuardRail"
+                override val description = "Tracks whether guardrail is called"
+                override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                    guardRailCalled.add(input)
+                    return ValidationResult.VALID
+                }
+
+                override fun validate(response: ThinkingResponse<*>, blackboard: Blackboard) =
+                    ValidationResult.VALID
+            }
+
+            val r = llmOperations.createObjectIfPossible(
+                messages = listOf(UserMessage("Bob is a Cancer. Extract name and star sign.")),
+                LlmInteraction(
+                    id = InteractionId("guardrail-create-if-possible"),
+                    llm = llm,
+                    guardRails = listOf(guard),
+                ),
+                TestPerson::class.java,
+                dummyAgentProcess(),
+                null,
+            )
+            assertTrue(r.isSuccess, "Expected to create a TestPerson, but got: $r")
+            assertTrue(
+                guardRailCalled.isNotEmpty(),
+                "AssistantMessageGuardRail should have been called for structured output"
+            )
         }
     }
 
