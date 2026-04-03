@@ -62,6 +62,23 @@ models:
     special_handling:
       supports_temperature: false
 
+# ========================================
+# GPT-5.3 CHAT (March 2026)
+# Model details and cost verified:
+# https://developers.openai.com/api/docs/models/gpt-5.3-chat-latest
+# Cached input cost: $0.175
+# ========================================
+  - name: "gpt53chat"
+    model_id: "gpt-5.3-chat-latest"
+    display_name: "GPT-5.3 Chat"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 1.75
+      usd_per1m_output_tokens: 14.0
+    special_handling:
+      supports_temperature: false
+
   # ========================================
   # GPT-5.2 FAMILY (December 2025)
   # ========================================
