@@ -29,12 +29,12 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.validation.ValidationResult
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
@@ -84,8 +84,8 @@ internal class ChatClientLlmOperationsIT {
                 null,
             )
             assertNotNull(result, "Expected a non-null TestPerson")
-            assertEquals("Bob", result.name, "Expected TestPerson to be Bob, but got: $result")
-            assertEquals("Cancer", result.sign, "Expected TestPerson to be Cancer, but got: $result")
+            Assertions.assertEquals("Bob", result.name, "Expected TestPerson to be Bob, but got: $result")
+            Assertions.assertEquals("Cancer", result.sign, "Expected TestPerson to be Cancer, but got: $result")
         }
     }
 
@@ -131,8 +131,8 @@ internal class ChatClientLlmOperationsIT {
             )
             assertTrue(r.isSuccess, "Expected to be able to create a TestPerson, but got: $r")
             val starPerson = r.getOrThrow()
-            assertEquals("Bob", starPerson.name, "Expected TestPerson to be Bob, but got: $starPerson")
-            assertEquals("Cancer", starPerson.sign, "Expected TestPerson to be Cancer, but got: $starPerson")
+            Assertions.assertEquals("Bob", starPerson.name, "Expected TestPerson to be Bob, but got: $starPerson")
+            Assertions.assertEquals("Cancer", starPerson.sign, "Expected TestPerson to be Cancer, but got: $starPerson")
         }
 
         // Verifies graceful failure when input lacks required data for object creation
@@ -254,8 +254,8 @@ internal class ChatClientLlmOperationsIT {
             assertNotNull(response, "Expected a non-null ThinkingResponse")
             assertTrue(response.hasResult(), "Expected a successful result")
             val person = response.result!!
-            assertEquals("Bob", person.name, "Expected TestPerson to be Bob, but got: $person")
-            assertEquals("Cancer", person.sign, "Expected TestPerson to be Cancer, but got: $person")
+            Assertions.assertEquals("Bob", person.name, "Expected TestPerson to be Bob, but got: $person")
+            Assertions.assertEquals("Cancer", person.sign, "Expected TestPerson to be Cancer, but got: $person")
         }
     }
 
