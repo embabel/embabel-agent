@@ -49,6 +49,16 @@ models:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
 
+  # Claude Haiku 4.5 - US
+  - name: "us_claude_haiku_4_5"
+    model_id: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    display_name: "Claude Haiku 4.5 (US)"
+    region: "us"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 0.8
+      usd_per1m_output_tokens: 4.0
+
   # Claude Sonnet 4 - US
   - name: "us_claude_sonnet_4"
     model_id: "us.anthropic.claude-sonnet-4-20250514-v1:0"
@@ -113,6 +123,16 @@ models:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
 
+  # Claude Haiku 4.5 - EU
+  - name: "eu_claude_haiku_4_5"
+    model_id: "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+    display_name: "Claude Haiku 4.5 (EU)"
+    region: "eu"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 0.8
+      usd_per1m_output_tokens: 4.0
+
   # Claude Sonnet 4 - EU
   - name: "eu_claude_sonnet_4"
     model_id: "eu.anthropic.claude-sonnet-4-20250514-v1:0"
@@ -176,6 +196,16 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
+
+  # Claude Haiku 4.5 - APAC
+  - name: "apac_claude_haiku_4_5"
+    model_id: "apac.anthropic.claude-haiku-4-5-20251001-v1:0"
+    display_name: "Claude Haiku 4.5 (APAC)"
+    region: "apac"
+    knowledge_cutoff_date: "2025-03-01"
+    pricing_model:
+      usd_per1m_input_tokens: 0.8
+      usd_per1m_output_tokens: 4.0
 
   # Claude Sonnet 4 - APAC
   - name: "apac_claude_sonnet_4"
