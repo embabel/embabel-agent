@@ -103,8 +103,8 @@ models:
     max_output_tokens: 8192
     temperature: 0.7
     pricing_model:
-      usd_per1m_input_tokens: 0.15
-      usd_per1m_output_tokens: 0.60
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.40
 
   # Gemini 2.0 Flash Lite - Lightweight version
   - name: "gemini_20_flash_lite"
