@@ -1,0 +1,74 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.embabel.common.ai.model
+
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+
+class TokenCounterTest {
+
+    data class SimpleMessage(val role: String, val content: String)
+
+    @Nested
+    inner class Noop {
+
+        @Test
+        fun `NOOP returns 0 for any input`() {
+            assertEquals(0, TokenCounter.NOOP.estimateTokens("hello world"))
+        }
+    }
+
+    @Nested
+    inner class HeuristicFactory {
+
+        @Test
+        fun `heuristic returns default CharacterHeuristicTokenCounter`() {
+            assertSame(CharacterHeuristicTokenCounter.DEFAULT, TokenCounter.heuristic())
+        }
+    }
+
+    @Nested
+    inner class LambdaCreation {
+
+        @Test
+        fun `fun interface supports lambda creation`() {
+            val counter: TokenCounter<String> = TokenCounter { it.length / 3 }
+            assertEquals(3, counter.estimateTokens("123456789"))
+        }
+    }
+
+    @Nested
+    inner class GenericTypeParameter {
+
+        @Test
+        fun `supports non-String content types`() {
+            val counter: TokenCounter<SimpleMessage> = TokenCounter { msg ->
+                msg.content.length / 4
+            }
+            assertEquals(2, counter.estimateTokens(SimpleMessage("user", "abcdefgh")))
+        }
+
+        @Test
+        fun `message counter can compose with string counter`() {
+            val textCounter = TokenCounter.heuristic()
+            val messageCounter: TokenCounter<SimpleMessage> = TokenCounter { msg ->
+                textCounter.estimateTokens(msg.content)
+            }
+            assertEquals(2, messageCounter.estimateTokens(SimpleMessage("user", "abcdefgh")))
+        }
+    }
+}
