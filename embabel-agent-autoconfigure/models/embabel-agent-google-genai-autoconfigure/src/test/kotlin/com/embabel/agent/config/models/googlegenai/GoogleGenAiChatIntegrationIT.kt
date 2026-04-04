@@ -60,7 +60,7 @@ class GoogleGenAiChatTestConfig
 )
 @ActiveProfiles("google-genai-chat-test")
 @Import(GoogleGenAiChatTestConfig::class, AgentGoogleGenAiAutoConfiguration::class)
-@EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+", disabledReason = "Integration test requires GOOGLE_API_KEY or GEMINI_API_KEY")
+@EnabledIfEnvironmentVariable(named = "GEMINI_API_KEY", matches = ".+", disabledReason = "Integration test requires GOOGLE_API_KEY")
 class GoogleGenAiChatIntegrationIT(
     @param:Autowired private val ai: Ai,
     @param:Autowired private val llms: List<LlmService<*>>,
