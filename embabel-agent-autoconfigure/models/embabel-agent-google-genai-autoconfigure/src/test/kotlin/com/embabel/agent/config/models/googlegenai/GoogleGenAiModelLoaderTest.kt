@@ -376,7 +376,7 @@ class GoogleGenAiModelLoaderTest {
     }
 
     @Test
-    fun `should load all 10 expected Google GenAI models`() {
+    fun `should load all 9 expected Google GenAI models`() {
 
         // Arrange
         val loader = GoogleGenAiModelLoader()
