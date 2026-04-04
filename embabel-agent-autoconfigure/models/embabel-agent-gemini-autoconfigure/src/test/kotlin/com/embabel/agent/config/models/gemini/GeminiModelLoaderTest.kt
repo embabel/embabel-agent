@@ -82,7 +82,7 @@ class GeminiModelLoaderTest {
     }
 
     @Test
-    fun `should load all 8 expected Gemini models`() {
+    fun `should load all 9 expected Gemini models`() {
         // Arrange
         val loader = GeminiModelLoader()
 
@@ -90,12 +90,11 @@ class GeminiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(8, result.models.size, "Should load exactly 8 Gemini models")
+        assertEquals(9, result.models.size, "Should load exactly 9 Gemini models")
 
         val expectedModels = listOf(
             "gemini_3_1_pro_preview", "gemini_3_1_pro_preview_customtools",
-            "gemini_3_1_flash_lite_preview",
-            "gemini_25_pro", "gemini_25_flash",
+            "gemini_3_1_flash_lite_preview", "gemini_3_flash_preview", "gemini_25_pro", "gemini_25_flash",
             "gemini_25_flash_lite", "gemini_20_flash", "gemini_20_flash_lite"
         )
 

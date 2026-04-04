@@ -3,8 +3,8 @@
 # ============================================
 # OpenAI and compatible models configuration
 # Model IDs verified against GET /v1/models on 2026-03-29
-# GPT-5.4 pricing verified against openai.com/api/pricing on 2026-03-29
-# All other pricing sourced from web — verify at openai.com/api/pricing
+# Pricing verified against official OpenAI model pages and openai.com/api/pricing
+# on 2026-04-02.
 # Note: undated aliases (e.g. "gpt-5.4") resolve to OpenAI's current recommended
 #       pinned version and may change over time. Use dated model IDs in the
 #       OpenAiModels constants if reproducibility is required.
@@ -57,8 +57,25 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 15.0   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 60.0  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 30.0
+      usd_per1m_output_tokens: 180.0
+    special_handling:
+      supports_temperature: false
+
+# ========================================
+# GPT-5.3 CHAT (March 2026)
+# Model details and cost verified:
+# https://developers.openai.com/api/docs/models/gpt-5.3-chat-latest
+# Cached input cost: $0.175
+# ========================================
+  - name: "gpt53chat"
+    model_id: "gpt-5.3-chat-latest"
+    display_name: "GPT-5.3 Chat"
+    max_tokens: 16384
+    temperature: 1.0
+    pricing_model:
+      usd_per1m_input_tokens: 1.75
+      usd_per1m_output_tokens: 14.0
     special_handling:
       supports_temperature: false
 
@@ -72,8 +89,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 1.75   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 14.0  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 1.75
+      usd_per1m_output_tokens: 14.0
     special_handling:
       supports_temperature: false
 
@@ -83,8 +100,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 21.0   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 168.0 # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 21.0
+      usd_per1m_output_tokens: 168.0
     special_handling:
       supports_temperature: false
 
@@ -98,8 +115,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 1.50   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 12.0  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10.0
     special_handling:
       supports_temperature: false
 
@@ -113,8 +130,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 1.25   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 10.0  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10.0
     special_handling:
       supports_temperature: false
 
@@ -124,8 +141,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 0.25   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 2.0   # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 0.25
+      usd_per1m_output_tokens: 2.0
     special_handling:
       supports_temperature: false
 
@@ -135,8 +152,8 @@ models:
     max_tokens: 8192
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 0.05   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 0.40  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 0.05
+      usd_per1m_output_tokens: 0.40
     special_handling:
       supports_temperature: false
 
@@ -146,8 +163,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 15.0   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 60.0  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 15.0
+      usd_per1m_output_tokens: 120.0
     special_handling:
       supports_temperature: false
 
@@ -161,8 +178,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 2.0    # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 8.0   # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 2.0
+      usd_per1m_output_tokens: 8.0
 
   - name: "gpt41mini"
     model_id: "gpt-4.1-mini"
@@ -170,8 +187,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 0.40   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 1.60  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 0.40
+      usd_per1m_output_tokens: 1.60
 
   - name: "gpt41nano"
     model_id: "gpt-4.1-nano"
@@ -179,8 +196,8 @@ models:
     max_tokens: 8192
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 0.10   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 0.40  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.40
 
   # ========================================
   # GPT-4o FAMILY (retained for audio support only)
@@ -192,8 +209,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 2.50   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 10.0  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 2.50
+      usd_per1m_output_tokens: 10.0
 
   - name: "gpt4omini"
     model_id: "gpt-4o-mini"
@@ -201,8 +218,8 @@ models:
     max_tokens: 16384
     temperature: 1.0
     pricing_model:
-      usd_per1m_input_tokens: 0.15   # ESTIMATED - verify at openai.com/api/pricing
-      usd_per1m_output_tokens: 0.60  # ESTIMATED - verify at openai.com/api/pricing
+      usd_per1m_input_tokens: 0.15
+      usd_per1m_output_tokens: 0.60
 
 # ========================================
 # EMBEDDING MODELS

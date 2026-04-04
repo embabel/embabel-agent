@@ -40,5 +40,21 @@ class MistralAiModels {
         const val DEVSTRAL_SMALL_11 = "devstral-small-2507"
 
         const val MISTRAL_LARGE_21 = "mistral-large-2411"
+
+        const val MISTRAL_LARGE_3 = "mistral-large-2512"
+
+        const val MISTRAL_SMALL_4 = "mistral-small-2603"
+
+        const val MAGISTRAL_MEDIUM_12 = "magistral-medium-2509"
+
+        const val MAGISTRAL_SMALL_12 = "magistral-small-2509"
+
+        const val MINISTRAL_3_14B = "ministral-14b-2512"
+
+        const val MINISTRAL_3_8B = "ministral-8b-2512"
+
+        const val MINISTRAL_3_3B = "ministral-3b-2512"
+
+        const val DEVSTRAL_2 = "devstral-2512"
 	}
 }

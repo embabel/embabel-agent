@@ -1,8 +1,10 @@
 # ============================================
 # mistral-ai-models.yml
 # ============================================
-# Updated with latest Mistral AI models as of November 2025
-# Using official Mistral AI API aliases
+#
+# Verified against docs.mistral.ai on 2026-04-03
+#
+# Using official Mistral AI API aliases for supported chat/code/reasoning models
 
 models:
   - name: "mistral-medium-2508"
@@ -84,3 +86,67 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 2.0
       usd_per1m_output_tokens: 6.0
+
+  - name: "mistral-large-2512"
+    model_id: "mistral-large-2512"
+    display_name: "Mistral Large 3"
+    max_tokens: 262144
+    pricing_model:
+      usd_per1m_input_tokens: 0.5
+      usd_per1m_output_tokens: 1.5
+
+  - name: "mistral-small-2603"
+    model_id: "mistral-small-2603"
+    display_name: "Mistral Small 4"
+    max_tokens: 262144
+    pricing_model:
+      usd_per1m_input_tokens: 0.15
+      usd_per1m_output_tokens: 0.6
+
+  - name: "magistral-medium-2509"
+    model_id: "magistral-medium-2509"
+    display_name: "Magistral Medium 1.2"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 2.0
+      usd_per1m_output_tokens: 5.0
+
+  - name: "magistral-small-2509"
+    model_id: "magistral-small-2509"
+    display_name: "Magistral Small 1.2"
+    max_tokens: 131072
+    pricing_model:
+      usd_per1m_input_tokens: 0.5
+      usd_per1m_output_tokens: 1.5
+
+  - name: "ministral-14b-2512"
+    model_id: "ministral-14b-2512"
+    display_name: "Ministral 3 14B"
+    max_tokens: 262144
+    pricing_model:
+      usd_per1m_input_tokens: 0.2
+      usd_per1m_output_tokens: 0.2
+
+  - name: "ministral-8b-2512"
+    model_id: "ministral-8b-2512"
+    display_name: "Ministral 3 8B"
+    max_tokens: 262144
+    pricing_model:
+      usd_per1m_input_tokens: 0.15
+      usd_per1m_output_tokens: 0.15
+
+  - name: "ministral-3b-2512"
+    model_id: "ministral-3b-2512"
+    display_name: "Ministral 3 3B"
+    max_tokens: 262144
+    pricing_model:
+      usd_per1m_input_tokens: 0.1
+      usd_per1m_output_tokens: 0.1
+
+  - name: "devstral-2512"
+    model_id: "devstral-2512"
+    display_name: "Devstral 2"
+    max_tokens: 262144
+    pricing_model:
+      usd_per1m_input_tokens: 0.4
+      usd_per1m_output_tokens: 2.0
