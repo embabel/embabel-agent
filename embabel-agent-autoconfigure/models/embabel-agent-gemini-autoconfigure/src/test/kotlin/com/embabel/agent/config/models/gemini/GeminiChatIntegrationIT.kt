@@ -115,7 +115,7 @@ class GeminiChatIntegrationIT(
             GeminiModels.GEMINI_3_1_PRO_PREVIEW,
             GeminiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,
             GeminiModels.GEMINI_3_1_FLASH_LITE_PREVIEW,
-            "gemini-3-flash-preview",
+            GeminiModels.GEMINI_3_FLASH_PREVIEW,
             GeminiModels.GEMINI_2_5_PRO,
             GeminiModels.GEMINI_2_5_FLASH,
             GeminiModels.GEMINI_2_5_FLASH_LITE,
