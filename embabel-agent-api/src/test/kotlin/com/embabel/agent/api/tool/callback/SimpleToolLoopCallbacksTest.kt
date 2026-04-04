@@ -315,6 +315,84 @@ class SimpleToolLoopCallbacksTest {
                     )
                 }
         }
+
+        @Test
+        fun `drops orphans with preserveSystemMessages false`() {
+            // Test the preserveSystemMessages=false branch with orphaned ToolResults
+            val history = listOf(
+                SystemMessage("system"),
+                UserMessage("user"),
+                AssistantMessageWithToolCalls("", listOf(ToolCall("c1", "t1", "{}"))),
+                ToolResultMessage("c1", "t1", "r1"),
+                AssistantMessage("answer"),
+            )
+
+            // maxMessages=3, preserveSystemMessages=false -> takeLast(3) = [ToolResult, Assistant, ???]
+            // Wait, that's only 5 messages, takeLast(3) = [ToolResult, AssistantMessage, ???]
+            // Actually: takeLast(3) from [System, User, Assistant+Calls, ToolResult, Assistant]
+            // = [Assistant+Calls, ToolResult, Assistant] - no orphans here
+            // Let me create a scenario that creates orphans with preserveSystemMessages=false
+            val historyWithOrphans = listOf(
+                UserMessage("user1"),
+                AssistantMessageWithToolCalls("", listOf(ToolCall("c1", "t1", "{}"), ToolCall("c2", "t2", "{}"))),
+                ToolResultMessage("c1", "t1", "r1"),
+                ToolResultMessage("c2", "t2", "r2"),
+                AssistantMessageWithToolCalls("", listOf(ToolCall("c3", "t3", "{}"))),
+                ToolResultMessage("c3", "t3", "r3"),
+            )
+
+            // takeLast(3) = [ToolResult(c2), Assistant+Calls(c3), ToolResult(c3)]
+            // ToolResult(c2) is orphaned
+            SlidingWindowTransformer(maxMessages = 3, preserveSystemMessages = false)
+                .transformBeforeLlmCall(BeforeLlmCallContext(historyWithOrphans, 1, emptyList()))
+                .also { result ->
+                    val firstMsg = result.firstOrNull()
+                    Assertions.assertFalse(
+                        firstMsg is ToolResultMessage,
+                        "First message should not be orphaned ToolResultMessage, was: $firstMsg"
+                    )
+                    Assertions.assertTrue(
+                        result.first() is AssistantMessageWithToolCalls,
+                        "First message should be AssistantMessageWithToolCalls"
+                    )
+                }
+        }
+
+        @Test
+        fun `no orphans when first non-system message is valid`() {
+            // Test case where firstValidIndex == 0 (no orphans to drop)
+            // First non-system message is UserMessage, not ToolResultMessage
+            val history = listOf(
+                SystemMessage("system"),
+                UserMessage("user"),
+                AssistantMessageWithToolCalls("", listOf(ToolCall("c1", "t1", "{}"))),
+                ToolResultMessage("c1", "t1", "r1"),
+            )
+
+            SlidingWindowTransformer(maxMessages = 4, preserveSystemMessages = true)
+                .transformBeforeLlmCall(BeforeLlmCallContext(history, 1, emptyList()))
+                .also { result ->
+                    // No truncation needed, no orphans - should return unchanged
+                    Assertions.assertEquals(4, result.size)
+                    Assertions.assertEquals(history, result)
+                }
+        }
+
+        @Test
+        fun `no orphans when valid sequence starts with AssistantMessage`() {
+            // Another firstValidIndex == 0 case: starts with AssistantMessage
+            val history = listOf(
+                SystemMessage("system"),
+                AssistantMessage("greeting"),
+                UserMessage("question"),
+            )
+
+            SlidingWindowTransformer(maxMessages = 3, preserveSystemMessages = true)
+                .transformBeforeLlmCall(BeforeLlmCallContext(history, 1, emptyList()))
+                .also { result ->
+                    Assertions.assertEquals(history, result)
+                }
+        }
     }
 
     @Nested
