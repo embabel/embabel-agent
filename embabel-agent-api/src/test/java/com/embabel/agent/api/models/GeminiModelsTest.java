@@ -1,3 +1,18 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.embabel.agent.api.models;
 
 import org.junit.jupiter.api.DisplayName;
@@ -17,11 +32,14 @@ class GeminiModelsTest {
     @Test
     @DisplayName("Should have private constructor to prevent instantiation")
     void hasPrivateConstructor() throws Exception {
+        // Arrange
         Constructor<GeminiModels> constructor = GeminiModels.class.getDeclaredConstructor();
         
+        // Assert
         assertTrue(Modifier.isPrivate(constructor.getModifiers()), 
             "Constructor must be private to prevent instantiation");
         
+        // Act & Assert
         constructor.setAccessible(true);
         assertDoesNotThrow(() -> constructor.newInstance(), 
             "Private constructor should be callable via reflection");
@@ -30,6 +48,7 @@ class GeminiModelsTest {
     @Test
     @DisplayName("Should provide all Gemini 3.1 model constants")
     void providesGemini3_1Models() {
+        // Assert
         assertNotNull(GeminiModels.GEMINI_3_1_PRO_PREVIEW, 
             "GEMINI_3_1_PRO_PREVIEW constant should not be null");
         assertNotNull(GeminiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS, 
@@ -45,13 +64,7 @@ class GeminiModelsTest {
     @Test
     @DisplayName("Should provide all Gemini 2.5 model constants")
     void providesGemini2_5Models() {
-        assertNotNull(GeminiModels.GEMINI_2_5_PRO, 
-            "GEMINI_2_5_PRO constant should not be null");
-        assertNotNull(GeminiModels.GEMINI_2_5_FLASH, 
-            "GEMINI_2_5_FLASH constant should not be null");
-        assertNotNull(GeminiModels.GEMINI_2_5_FLASH_LITE, 
-            "GEMINI_2_5_FLASH_LITE constant should not be null");
-        
+        // Assert
         assertEquals("gemini-2.5-pro", GeminiModels.GEMINI_2_5_PRO);
         assertEquals("gemini-2.5-flash", GeminiModels.GEMINI_2_5_FLASH);
         assertEquals("gemini-2.5-flash-lite", GeminiModels.GEMINI_2_5_FLASH_LITE);
@@ -60,6 +73,7 @@ class GeminiModelsTest {
     @Test
     @DisplayName("Should provide all Gemini 2.0 model constants")
     void providesGemini2_0Models() {
+        // Assert
         assertNotNull(GeminiModels.GEMINI_2_0_FLASH, 
             "GEMINI_2_0_FLASH constant should not be null");
         assertNotNull(GeminiModels.GEMINI_2_0_FLASH_LITE, 
@@ -72,6 +86,7 @@ class GeminiModelsTest {
     @Test
     @DisplayName("Should provide correct provider name 'Google'")
     void providesCorrectProvider() {
+        // Assert
         assertNotNull(GeminiModels.PROVIDER, "PROVIDER constant should not be null");
         assertEquals("Google", GeminiModels.PROVIDER, 
             "Provider should be 'Google'");
@@ -80,6 +95,7 @@ class GeminiModelsTest {
     @Test
     @DisplayName("Should provide embedding model constants")
     void providesEmbeddingModels() {
+        // Assert
         assertNotNull(GeminiModels.TEXT_EMBEDDING_004, 
             "TEXT_EMBEDDING_004 constant should not be null");
         assertNotNull(GeminiModels.DEFAULT_TEXT_EMBEDDING_MODEL, 
@@ -93,6 +109,7 @@ class GeminiModelsTest {
     @Test
     @DisplayName("Should follow 'gemini-' naming convention for all models")
     void followsNamingConvention() {
+        // Assert
         assertTrue(GeminiModels.GEMINI_3_1_PRO_PREVIEW.startsWith("gemini-"), 
             "Model names should start with 'gemini-' prefix");
         assertTrue(GeminiModels.GEMINI_2_5_FLASH.startsWith("gemini-"), 

@@ -1,3 +1,18 @@
+/*
+ * Copyright 2024-2026 Embabel Pty Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.embabel.agent.observability.observation;
 
 import io.micrometer.observation.Observation;
@@ -35,44 +50,56 @@ class NonEmbabelTracingObservationHandlerTest {
     @Test
     @DisplayName("Handler should be created with tracer")
     void createsHandlerWithTracer() {
+        // Assert
         assertNotNull(handler);
     }
 
     @Test
     @DisplayName("Should support standard Observation.Context")
     void supportsStandardContext() {
+        // Arrange
         Observation.Context standardContext = new Observation.Context();
 
+        // Act
         boolean result = handler.supportsContext(standardContext);
 
+        // Assert
         assertTrue(result, "Handler should support standard Observation.Context");
     }
 
     @Test
     @DisplayName("Should NOT support EmbabelObservationContext")
     void doesNotSupportEmbabelContext() {
+        // Arrange
         EmbabelObservationContext embabelContext = mock(EmbabelObservationContext.class);
 
+        // Act
         boolean result = handler.supportsContext(embabelContext);
 
+        // Assert
         assertFalse(result, "Handler should NOT support EmbabelObservationContext");
     }
 
     @Test
     @DisplayName("Should support custom context that extends Observation.Context")
     void supportsCustomNonEmbabelContext() {
+        // Arrange
         CustomObservationContext customContext = new CustomObservationContext();
 
+        // Act
         boolean result = handler.supportsContext(customContext);
 
+        // Assert
         assertTrue(result, "Handler should support custom non-Embabel contexts");
     }
 
     @Test
     @DisplayName("Should accept null context (null instanceof returns false)")
     void acceptsNullContext() {
+        // Act
         boolean result = handler.supportsContext(null);
 
+        // Assert
         assertTrue(result, "Handler accepts null context because !(null instanceof EmbabelObservationContext) = true");
     }
 
