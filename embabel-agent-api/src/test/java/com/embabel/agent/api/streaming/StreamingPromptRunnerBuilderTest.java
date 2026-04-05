@@ -17,50 +17,108 @@ package com.embabel.agent.api.streaming;
 
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner;
+import com.embabel.common.ai.model.LlmOptions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+/**
+ * Unit tests for {@link StreamingPromptRunnerBuilder}.
+ */
 class StreamingPromptRunnerBuilderTest {
 
-    @Mock
-    private PromptRunner mockRunner;
-
-    @Mock
-    private StreamingPromptRunner.Streaming mockOperations;
+    private final PromptRunner mockRunner = mock(PromptRunner.class);
+    private final StreamingPromptRunner.Streaming mockStreaming = mock(StreamingPromptRunner.Streaming.class);
+    private final PromptRunner.StreamingCapability mockCapability = mock(PromptRunner.StreamingCapability.class);
+    private final LlmOptions mockLlm = new LlmOptions();
 
     @Test
-    void shouldCreateBuilderWithRunner() {
-        var builder = new StreamingPromptRunnerBuilder(mockRunner);
+    void createsRecordWithRunner() {
+        StreamingPromptRunnerBuilder builder = new StreamingPromptRunnerBuilder(mockRunner);
+
         assertNotNull(builder);
         assertEquals(mockRunner, builder.runner());
     }
 
     @Test
-    void shouldReturnStreamingOperationsWhenSupported() {
+    void streamingReturnsCapabilityWhenSupported() {
         when(mockRunner.supportsStreaming()).thenReturn(true);
-        when(mockRunner.streaming()).thenReturn(mockOperations);
+        when(mockRunner.streaming()).thenReturn(mockStreaming);
 
-        var builder = new StreamingPromptRunnerBuilder(mockRunner);
-        var result = builder.streaming();
+        StreamingPromptRunnerBuilder builder = new StreamingPromptRunnerBuilder(mockRunner);
+        StreamingPromptRunner.Streaming result = builder.streaming();
 
         assertNotNull(result);
-        assertEquals(mockOperations, result);
+        assertEquals(mockStreaming, result);
+        verify(mockRunner).supportsStreaming();
+        verify(mockRunner).streaming();
     }
 
     @Test
-    void shouldThrowWhenStreamingNotSupported() {
+    void streamingThrowsWhenNotSupported() {
         when(mockRunner.supportsStreaming()).thenReturn(false);
+        when(mockRunner.getLlm()).thenReturn(mockLlm);
 
-        var builder = new StreamingPromptRunnerBuilder(mockRunner);
+        StreamingPromptRunnerBuilder builder = new StreamingPromptRunnerBuilder(mockRunner);
 
-        // Just test that some exception is thrown - don't worry about exact type
-        assertThrows(Exception.class, builder::streaming);
+        UnsupportedOperationException exception = assertThrows(
+                UnsupportedOperationException.class,
+                builder::streaming);
+        assertTrue(exception.getMessage().contains("This LLM does not support streaming"));
+        verify(mockRunner).supportsStreaming();
+        verify(mockRunner).getLlm();
+        verify(mockRunner, never()).streaming();
+    }
 
+    @Test
+    void streamingThrowsNullPointerWhenLlmIsNull() {
+        when(mockRunner.supportsStreaming()).thenReturn(false);
+        when(mockRunner.getLlm()).thenReturn(null);
+
+        StreamingPromptRunnerBuilder builder = new StreamingPromptRunnerBuilder(mockRunner);
+
+        assertThrows(NullPointerException.class, builder::streaming);
+        verify(mockRunner).supportsStreaming();
+        verify(mockRunner).getLlm();
+        verify(mockRunner, never()).streaming();
+    }
+
+    @Test
+    void streamingThrowsWhenCapabilityIsUnexpectedType() {
+        when(mockRunner.supportsStreaming()).thenReturn(true);
+        when(mockRunner.streaming()).thenReturn(mockCapability);
+
+        StreamingPromptRunnerBuilder builder = new StreamingPromptRunnerBuilder(mockRunner);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                builder::streaming);
+
+        assertTrue(exception.getMessage().contains("Unexpected streaming capability implementation"));
+        verify(mockRunner).supportsStreaming();
+        verify(mockRunner).streaming();
+    }
+
+    @Test
+    void withStreamingDelegatesToStreaming() {
+        when(mockRunner.supportsStreaming()).thenReturn(true);
+        when(mockRunner.streaming()).thenReturn(mockStreaming);
+
+        StreamingPromptRunnerBuilder builder = new StreamingPromptRunnerBuilder(mockRunner);
+
+        @SuppressWarnings("deprecation")
+        StreamingPromptRunner.Streaming result = builder.withStreaming();
+
+        assertNotNull(result);
+        assertEquals(mockStreaming, result);
+        verify(mockRunner).supportsStreaming();
+        verify(mockRunner).streaming();
     }
 }
