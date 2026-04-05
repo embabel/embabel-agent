@@ -15,60 +15,106 @@
  */
 package com.embabel.agent.observability.observation;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+/**
+ * Unit tests for {@link ObservationKeys}.
+ */
 class ObservationKeysTest {
 
-    @Nested
-    @DisplayName("toolLoopSpanName")
-    class ToolLoopSpanName {
-
-        @Test
-        @DisplayName("should return constant name to avoid metric cardinality explosion")
-        void shouldReturnConstantName() {
-            // The span name must be the same regardless of interactionId,
-            // because Micrometer creates a new meter for each unique observation name.
-            // Using interactionId in the name causes unbounded metric cardinality (see #1449).
-            String name1 = ObservationKeys.toolLoopSpanName("Agent.respond-com.example.Response-1");
-            String name2 = ObservationKeys.toolLoopSpanName("Agent.respond-com.example.Response-2");
-            String name3 = ObservationKeys.toolLoopSpanName("Agent.respond-com.example.Response-1006");
-
-            assertThat(name1).isEqualTo(name2);
-            assertThat(name2).isEqualTo(name3);
-        }
-
-        @Test
-        @DisplayName("should not contain the interactionId in the name")
-        void shouldNotContainInteractionId() {
-            String interactionId = "Agent.respond-com.example.Response-42";
-            String name = ObservationKeys.toolLoopSpanName(interactionId);
-
-            assertThat(name).doesNotContain("42");
-            assertThat(name).doesNotContain("Agent.respond");
-            assertThat(name).doesNotContain("com.example");
-        }
+    @Test
+    void hasPrivateConstructor() throws Exception {
+        Constructor<ObservationKeys> constructor = ObservationKeys.class.getDeclaredConstructor();
+        
+        assertTrue(Modifier.isPrivate(constructor.getModifiers()),
+                "Constructor must be private to prevent instantiation");
+        
+        constructor.setAccessible(true);
+        constructor.newInstance();
     }
 
-    @Nested
-    @DisplayName("map keys should still use interactionId for uniqueness")
-    class MapKeys {
+    @Test
+    void agentKeyFormatsCorrectly() {
+        String result = ObservationKeys.agentKey("run123");
+        
+        assertEquals("agent:run123", result);
+    }
 
-        @Test
-        @DisplayName("toolLoopKey should contain interactionId for map lookups")
-        void toolLoopKeyShouldContainInteractionId() {
-            String key = ObservationKeys.toolLoopKey("run-1", "interaction-42");
-            assertThat(key).contains("interaction-42");
-        }
+    @Test
+    void actionKeyFormatsCorrectly() {
+        String result = ObservationKeys.actionKey("run123", "processOrder");
+        
+        assertEquals("action:run123:processOrder", result);
+    }
 
-        @Test
-        @DisplayName("llmKey should contain interactionId for map lookups")
-        void llmKeyShouldContainInteractionId() {
-            String key = ObservationKeys.llmKey("run-1", "interaction-42");
-            assertThat(key).contains("interaction-42");
-        }
+    @Test
+    void llmKeyFormatsCorrectly() {
+        String result = ObservationKeys.llmKey("run123", "inter456");
+        
+        assertEquals("llm:run123:inter456", result);
+    }
+
+    @Test
+    void toolLoopKeyFormatsCorrectly() {
+        String result = ObservationKeys.toolLoopKey("run123", "inter456");
+        
+        assertEquals("tool-loop:run123:inter456", result);
+    }
+
+    @Test
+    void toolKeyFormatsCorrectly() {
+        String result = ObservationKeys.toolKey("run123", "database");
+        
+        assertEquals("tool:run123:database", result);
+    }
+
+    @Test
+    void toolSpanNameFormatsCorrectly() {
+        String result = ObservationKeys.toolSpanName("http-client");
+        
+        assertEquals("tool:http-client", result);
+    }
+
+    @Test
+    void toolLoopSpanNameFormatsCorrectly() {
+        String result = ObservationKeys.toolLoopSpanName("inter456");
+        
+        assertEquals("tool-loop:", result);
+    }
+
+    @Test
+    void handlesEmptyStrings() {
+        assertEquals("agent:", ObservationKeys.agentKey(""));
+        assertEquals("action::", ObservationKeys.actionKey("", ""));
+        assertEquals("llm::", ObservationKeys.llmKey("", ""));
+        assertEquals("tool-loop::", ObservationKeys.toolLoopKey("", ""));
+        assertEquals("tool::", ObservationKeys.toolKey("", ""));
+        assertEquals("tool:", ObservationKeys.toolSpanName(""));
+    }
+
+    @Test
+    void handlesSpecialCharacters() {
+        String runId = "run-123_abc";
+        String actionName = "process:order";
+        
+        String result = ObservationKeys.actionKey(runId, actionName);
+        
+        assertEquals("action:run-123_abc:process:order", result);
+    }
+
+    @Test
+    void constantsHaveCorrectPrefixes() {
+        assertEquals("agent:", ObservationKeys.AGENT_PREFIX);
+        assertEquals("action:", ObservationKeys.ACTION_PREFIX);
+        assertEquals("llm:", ObservationKeys.LLM_PREFIX);
+        assertEquals("tool-loop:", ObservationKeys.TOOL_LOOP_PREFIX);
+        assertEquals("tool:", ObservationKeys.TOOL_PREFIX);
     }
 }
