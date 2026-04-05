@@ -15,10 +15,12 @@
  */
 package com.embabel.agent.onnx
 
+import java.net.http.HttpClient
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import org.slf4j.LoggerFactory
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 
 /**
@@ -30,6 +32,16 @@ import org.springframework.web.client.RestClient
 object OnnxModelLoader {
 
     private val logger = LoggerFactory.getLogger(OnnxModelLoader::class.java)
+
+    private val defaultRestClient: RestClient = RestClient.builder()
+        .requestFactory(
+            JdkClientHttpRequestFactory(
+                HttpClient.newBuilder()
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build()
+            )
+        )
+        .build()
 
     /**
      * Resolves a model resource, downloading and caching it if necessary.
@@ -44,7 +56,7 @@ object OnnxModelLoader {
         uri: String,
         cacheDir: Path,
         filename: String,
-        restClient: RestClient = RestClient.create(),
+        restClient: RestClient = defaultRestClient,
     ): Path {
         val cachedFile = cacheDir.resolve(filename)
         if (Files.exists(cachedFile)) {

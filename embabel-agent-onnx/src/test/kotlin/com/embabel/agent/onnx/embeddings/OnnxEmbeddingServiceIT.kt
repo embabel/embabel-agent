@@ -16,27 +16,52 @@
 package com.embabel.agent.onnx.embeddings
 
 import com.embabel.agent.onnx.OnnxModelLoader
+import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.system.measureTimeMillis
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 
 /**
  * IT test that downloads the real all-MiniLM-L6-v2 model and runs inference.
  * Excluded from surefire (CI) by naming convention (*IT).
- * Runs locally where the model is cached in ~/.embabel/models/ after first download (~80MB).
+ *
+ * Clears the cache and downloads fresh on each run to verify the full
+ * download-and-cache pipeline end to end, including HTTP redirect handling.
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OnnxEmbeddingServiceIT {
 
     companion object {
         private const val HF_BASE = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main"
         private const val MODEL_URI = "$HF_BASE/onnx/model.onnx"
         private const val TOKENIZER_URI = "$HF_BASE/tokenizer.json"
+        private val cacheDir = Path.of(System.getProperty("user.home"), ".embabel/models/all-MiniLM-L6-v2")
+    }
+
+    @BeforeAll
+    fun clearCache() {
+        if (Files.exists(cacheDir)) {
+            Files.walk(cacheDir).use { paths ->
+                paths.sorted(Comparator.reverseOrder())
+                    .forEach(Files::delete)
+            }
+        }
     }
 
     @Test
-    fun `embed produces 384-dimensional vector`() {
-        val cacheDir = Path.of(System.getProperty("user.home"), ".embabel/models/all-MiniLM-L6-v2")
-        val modelPath = OnnxModelLoader.resolve(MODEL_URI, cacheDir, "model.onnx")
+    fun `download, cache, and embed produces 384-dimensional vector`() {
+        val firstMs = measureTimeMillis {
+            OnnxModelLoader.resolve(MODEL_URI, cacheDir, "model.onnx")
+        }
+        val secondMs = measureTimeMillis {
+            OnnxModelLoader.resolve(MODEL_URI, cacheDir, "model.onnx")
+        }
+        assertTrue(secondMs < firstMs / 10, "Cached resolve ($secondMs ms) should be <10x faster than download ($firstMs ms)")
+
+        val modelPath = cacheDir.resolve("model.onnx")
         val tokenizerPath = OnnxModelLoader.resolve(TOKENIZER_URI, cacheDir, "tokenizer.json")
 
         OnnxEmbeddingService.create(modelPath, tokenizerPath).use { service ->
@@ -48,7 +73,6 @@ class OnnxEmbeddingServiceIT {
 
     @Test
     fun `similar texts produce similar embeddings`() {
-        val cacheDir = Path.of(System.getProperty("user.home"), ".embabel/models/all-MiniLM-L6-v2")
         val modelPath = OnnxModelLoader.resolve(MODEL_URI, cacheDir, "model.onnx")
         val tokenizerPath = OnnxModelLoader.resolve(TOKENIZER_URI, cacheDir, "tokenizer.json")
 
