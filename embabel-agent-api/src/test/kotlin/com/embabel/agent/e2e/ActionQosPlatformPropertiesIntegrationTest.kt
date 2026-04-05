@@ -18,9 +18,9 @@ package com.embabel.agent.e2e
 import com.embabel.agent.api.annotation.AchievesGoal
 import com.embabel.agent.api.annotation.Action
 import com.embabel.agent.api.annotation.Agent
+import com.embabel.agent.api.annotation.support.AgentMetadataReader
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.dsl.agent
-import com.embabel.agent.core.ActionQos
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.ProcessOptions
@@ -43,8 +43,8 @@ import kotlin.test.assertTrue
 data class Greeting(val text: String)
 
 // ---------------------------------------------------------------------------
-// Annotation-based agent used to verify the fix for the original issue path
-// (annotation path was already working; we just confirm it still works)
+// Annotation-based agent — verifies the fix doesn't break the path that was
+// already working before issue #1562.
 // ---------------------------------------------------------------------------
 
 @Agent(description = "Annotation-based greeting agent", scan = false)
@@ -73,10 +73,10 @@ val DslGreetingAgent = agent("DslGreeter", description = "DSL greeting agent") {
 
 // ---------------------------------------------------------------------------
 // Attempt-counting action: lets us assert how many retries actually happened.
-// We deliberately fail on the first N attempts so the retry policy kicks in.
+// Fails on the first N-1 attempts so the retry policy is exercised.
 // ---------------------------------------------------------------------------
 
-/** Thread-local attempt counter reset before each test run. */
+/** Shared mutable counter — reset before each test. */
 object AttemptCounter {
     var count = 0
     fun reset() { count = 0 }
@@ -95,44 +95,27 @@ val RetryCountingAgent = agent("RetryCounter", description = "Counts retry attem
 }
 
 // ---------------------------------------------------------------------------
-// Integration test
+// Main integration test — maxAttempts=3, confirms DSL actions succeed with
+// exactly 3 attempts when properties are honoured.
 // ---------------------------------------------------------------------------
 
 /**
- * End-to-end tests that prove `embabel.agent.platform.action-qos.default.*`
- * properties are honoured by every action construction path — both annotation-
- * based and DSL/workflow-built — after the fix applied in issue #1562.
+ * End-to-end tests proving that `embabel.agent.platform.action-qos.default.*`
+ * properties are honoured for every action construction path (annotation-based
+ * and DSL/workflow-built) after the fix for issue #1562.
  *
- * ## What is being tested
- *
- * Before the fix, `ActionQos` objects created without going through
- * `ActionQosProvider` (i.e. all DSL and workflow-builder actions) silently
- * ignored the `action-qos` platform properties.
- *
- * After the fix, `AbstractAgentProcess.executeAction()` calls
- * `action.withEffectiveQos(platformServices.actionQosProperties())` at the
- * single execution choke point, so every action respects the properties
- * regardless of how it was constructed.
- *
- * ## Properties set for each test
- *
- * - `embabel.agent.platform.action-qos.default.max-attempts=3`
- *   — the value validated by [RetryPolicyHonoured] (requires 3 attempts to succeed).
- * - `embabel.agent.platform.action-qos.default.backoff-millis=1`
- * - `embabel.agent.platform.action-qos.default.backoff-multiplier=1`
- * - `embabel.agent.platform.action-qos.default.backoff-max-interval=1`
- *   — all backoff intervals set to 1 ms so tests run at full speed.
+ * The falsification test (proving properties are *actively* read, not just
+ * accidentally compatible with defaults) lives in the companion top-level class
+ * [ActionQosSingleAttemptIntegrationTest], which runs under a separate Spring
+ * context with `max-attempts=1`.
  */
 @SpringBootTest
 @ActiveProfiles("test")
 @Import(FakeConfig::class)
 @TestPropertySource(
     properties = [
-        // maxAttempts=3 means: the RetryCountingAgent (fails twice, succeeds on 3rd) completes.
-        // If properties were ignored the default maxAttempts=5 would also work — but we verify
-        // that setting maxAttempts=1 makes the counting agent FAIL, proving properties are read.
         "embabel.agent.platform.action-qos.default.max-attempts=3",
-        // Keep backoff fast for tests. Multiplier must be > 1 (RetryTemplate constraint).
+        // Keep backoff fast. Multiplier must be > 1 (RetryTemplate constraint).
         "embabel.agent.platform.action-qos.default.backoff-millis=1",
         "embabel.agent.platform.action-qos.default.backoff-multiplier=1.1",
         "embabel.agent.platform.action-qos.default.backoff-max-interval=10",
@@ -143,18 +126,13 @@ class ActionQosPlatformPropertiesIntegrationTest(
 ) {
     private val agentPlatform: AgentPlatform = autonomy.agentPlatform
 
-    // ---------------------------------------------------------------------------
-    // Smoke: basic execution still works (no regression from the fix)
-    // ---------------------------------------------------------------------------
-
     @Nested
     inner class `Smoke — basic execution still works` {
 
         @Test
         fun `annotation-based agent completes successfully`() {
             val process = agentPlatform.runAgentFrom(
-                com.embabel.agent.api.annotation.support.AgentMetadataReader()
-                    .createAgentMetadata(AnnotationGreetingAgent()) as com.embabel.agent.core.Agent,
+                AgentMetadataReader().createAgentMetadata(AnnotationGreetingAgent()) as com.embabel.agent.core.Agent,
                 ProcessOptions(),
                 mapOf("userInput" to UserInput("World")),
             )
@@ -178,17 +156,13 @@ class ActionQosPlatformPropertiesIntegrationTest(
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Core: proves platform maxAttempts is honoured
-    // ---------------------------------------------------------------------------
-
     @Nested
     inner class `Platform maxAttempts is honoured` {
 
         @Test
         fun `DSL action retries according to platform maxAttempts and eventually succeeds`() {
-            // RetryCountingAgent fails on attempt 1 and 2, succeeds on attempt 3.
-            // With maxAttempts=3 (from properties) it must complete.
+            // RetryCountingAgent fails on attempts 1 and 2, succeeds on attempt 3.
+            // With maxAttempts=3 from properties it must complete.
             AttemptCounter.reset()
 
             val process = agentPlatform.runAgentFrom(
@@ -201,59 +175,63 @@ class ActionQosPlatformPropertiesIntegrationTest(
                 AgentProcessStatusCode.COMPLETED, process.status,
                 "Agent should complete — maxAttempts=3 from platform properties allows 3 attempts",
             )
-            assertEquals(3, AttemptCounter.count,
-                "Action must have been attempted exactly 3 times")
+            assertEquals(3, AttemptCounter.count, "Action must have been attempted exactly 3 times")
             val greeting = process.lastResult() as? Greeting
             assertNotNull(greeting)
             assertTrue(greeting.text.contains("attempt 3"))
         }
     }
+}
 
-    // ---------------------------------------------------------------------------
-    // Proof: maxAttempts=1 makes the counting agent FAIL
-    // (Validates that properties are actually read, not just accidentally correct)
-    // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Falsification test — separate top-level class with its own Spring context.
+// maxAttempts=1 must make the counting agent FAIL after a single attempt.
+// If properties were silently ignored, the default maxAttempts=5 would kick
+// in and the agent would complete — proving the test would catch a regression.
+// ---------------------------------------------------------------------------
 
-    /**
-     * A separate test class with maxAttempts=1 to prove the *absence* of retries
-     * when the platform property says so.  If the properties were being ignored,
-     * the default maxAttempts=5 would kick in and the agent would complete —
-     * but with maxAttempts=1 it must fail after the very first attempt.
-     */
-    @SpringBootTest
-    @ActiveProfiles("test")
-    @Import(FakeConfig::class)
-    @TestPropertySource(
-        properties = [
-            "embabel.agent.platform.action-qos.default.max-attempts=1",
-            "embabel.agent.platform.action-qos.default.backoff-millis=1",
-            "embabel.agent.platform.action-qos.default.backoff-multiplier=1.1",
-            "embabel.agent.platform.action-qos.default.backoff-max-interval=10",
-        ]
-    )
-    inner class `maxAttempts=1 causes failure` (
-        @param:Autowired private val innerAutonomy: Autonomy,
-    ) {
-        private val innerPlatform: AgentPlatform = innerAutonomy.agentPlatform
+/**
+ * Companion to [ActionQosPlatformPropertiesIntegrationTest].
+ *
+ * Runs under a separate Spring context with `max-attempts=1` to prove that
+ * platform properties are actively read. A separate top-level class is required
+ * because `@SpringBootTest` + `@TestPropertySource` cannot be meaningfully
+ * overridden in a `@Nested` inner class — each needs its own application context.
+ */
+@SpringBootTest
+@ActiveProfiles("test")
+@Import(FakeConfig::class)
+@TestPropertySource(
+    properties = [
+        "embabel.agent.platform.action-qos.default.max-attempts=1",
+        "embabel.agent.platform.action-qos.default.backoff-millis=1",
+        "embabel.agent.platform.action-qos.default.backoff-multiplier=1.1",
+        "embabel.agent.platform.action-qos.default.backoff-max-interval=10",
+    ]
+)
+class ActionQosSingleAttemptIntegrationTest(
+    @param:Autowired private val autonomy: Autonomy,
+) {
+    private val agentPlatform: AgentPlatform = autonomy.agentPlatform
 
-        @Test
-        fun `DSL action with maxAttempts=1 fails after first attempt`() {
-            // The counting agent fails on the first attempt.
-            // With maxAttempts=1 the retry template gives up immediately → FAILED.
-            AttemptCounter.reset()
+    @Test
+    fun `DSL action with maxAttempts=1 fails after first attempt`() {
+        // The counting agent throws on attempt 1.
+        // With maxAttempts=1 the retry template gives up immediately → FAILED.
+        // If properties were ignored (default maxAttempts=5), the agent would
+        // complete on attempt 3, making this test fail and catching the regression.
+        AttemptCounter.reset()
 
-            val process = innerPlatform.runAgentFrom(
-                RetryCountingAgent,
-                ProcessOptions(),
-                mapOf("userInput" to UserInput("single-attempt")),
-            )
+        val process = agentPlatform.runAgentFrom(
+            RetryCountingAgent,
+            ProcessOptions(),
+            mapOf("userInput" to UserInput("single-attempt")),
+        )
 
-            assertEquals(
-                AgentProcessStatusCode.FAILED, process.status,
-                "With maxAttempts=1 the agent must fail: it cannot survive the first attempt",
-            )
-            assertEquals(1, AttemptCounter.count,
-                "Action should only have been attempted once")
-        }
+        assertEquals(
+            AgentProcessStatusCode.FAILED, process.status,
+            "With maxAttempts=1 the agent must fail — it cannot survive the first attempt",
+        )
+        assertEquals(1, AttemptCounter.count, "Action should only have been attempted once")
     }
 }

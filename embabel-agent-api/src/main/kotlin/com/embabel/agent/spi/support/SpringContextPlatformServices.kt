@@ -99,11 +99,18 @@ data class SpringContextPlatformServices(
      * to avoid circular dependency issues at construction time.
      *
      * Falls back to a default (all-null) [AgentPlatformProperties.ActionQosProperties]
-     * when no application context is available (e.g. in unit tests)
+     * when no application context is available (e.g. in unit tests) or when
+     * [AgentPlatformProperties] is not registered in the context, which preserves
+     * pre-fix behaviour: actions receive [com.embabel.agent.core.ActionQos] defaults.
+     *
+     * Uses [getBeansOfType] rather than [getBean] so that a missing bean produces an
+     * empty map instead of throwing [org.springframework.beans.factory.NoSuchBeanDefinitionException].
      */
     override fun actionQosProperties(): AgentPlatformProperties.ActionQosProperties =
         applicationContext
-            ?.getBean(AgentPlatformProperties::class.java)
+            ?.getBeansOfType<AgentPlatformProperties>()
+            ?.values
+            ?.firstOrNull()
             ?.actionQos
             ?: AgentPlatformProperties.ActionQosProperties()
 

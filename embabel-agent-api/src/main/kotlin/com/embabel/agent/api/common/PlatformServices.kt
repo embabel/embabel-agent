@@ -88,6 +88,7 @@ interface PlatformServices {
      *
      * Implementations should return [AgentPlatformProperties.ActionQosProperties]
      * with all-null fields when no Spring context is available (e.g. in tests),
+     * which causes resolution to fall back to [com.embabel.agent.core.ActionQos] defaults.
      */
     fun actionQosProperties(): AgentPlatformProperties.ActionQosProperties
 }

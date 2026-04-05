@@ -38,10 +38,11 @@ import org.springframework.context.ApplicationContext
 /**
  * Unit tests for [SpringContextPlatformServices.actionQosProperties].
  *
- * [SpringContextPlatformServicesTest] covers:
- * - null application context (test/unit-test fallback)
- * - context present, properties bean found
- * - context present, properties bean not found (should not happen in practice but handled)
+ * Covers:
+ * - null application context (test/unit-test fallback — same path as [com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices])
+ * - context present, [com.embabel.agent.spi.config.spring.AgentPlatformProperties] bean found with QoS configured
+ * - context present, [com.embabel.agent.spi.config.spring.AgentPlatformProperties] bean found with no QoS override
+ * - context present, [com.embabel.agent.spi.config.spring.AgentPlatformProperties] bean not registered (safe fallback via [org.springframework.context.ApplicationContext.getBeansOfType])
  */
 class SpringContextPlatformServicesActionQosTest {
 
@@ -122,8 +123,8 @@ class SpringContextPlatformServicesActionQosTest {
                 }
             }
             every {
-                mockApplicationContext.getBean(AgentPlatformProperties::class.java)
-            } returns platformProperties
+                mockApplicationContext.getBeansOfType(AgentPlatformProperties::class.java, any(), any())
+            } returns mapOf("agentPlatformProperties" to platformProperties)
 
             val services = createServices(mockApplicationContext)
             val props = services.actionQosProperties()
@@ -137,13 +138,27 @@ class SpringContextPlatformServicesActionQosTest {
         fun `returns all-null properties when AgentPlatformProperties has no qos override`() {
             val platformProperties = AgentPlatformProperties()   // actionQos.default has all-null fields
             every {
-                mockApplicationContext.getBean(AgentPlatformProperties::class.java)
-            } returns platformProperties
+                mockApplicationContext.getBeansOfType(AgentPlatformProperties::class.java, any(), any())
+            } returns mapOf("agentPlatformProperties" to platformProperties)
 
             val services = createServices(mockApplicationContext)
             val props = services.actionQosProperties()
 
             // All fields null → withEffectiveQos() will treat it as no-op.
+            assertThat(props.default.maxAttempts).isNull()
+        }
+
+        @Test
+        fun `returns empty fallback when AgentPlatformProperties bean is not registered`() {
+            // getBeansOfType returns empty map instead of throwing NoSuchBeanDefinitionException.
+            every {
+                mockApplicationContext.getBeansOfType(AgentPlatformProperties::class.java, any(), any())
+            } returns emptyMap()
+
+            val services = createServices(mockApplicationContext)
+            val props = services.actionQosProperties()
+
+            // Safe fallback — same result as null context.
             assertThat(props.default.maxAttempts).isNull()
         }
     }

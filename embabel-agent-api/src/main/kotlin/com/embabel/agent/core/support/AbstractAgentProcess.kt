@@ -469,11 +469,11 @@ abstract class AbstractAgentProcess(
                 // Actions with explicitly-set QoS (annotation retry policy, FIRE_ONCE,
                 // or DSL qos = ActionQos(...)) are left unchanged.
                 // See ActionQosExtensions.kt for more details.
-                action.withEffectiveQos(platformServices.actionQosProperties())
-                    .qos
+                val effectiveAction = action.withEffectiveQos(platformServices.actionQosProperties())
+                effectiveAction.qos
                     .retryTemplate("Action-${action.name}")
                     .execute<ActionStatus, Throwable> {
-                        action.execute(
+                        effectiveAction.execute(
                             processContext = processContext,
                         )
                     }
