@@ -151,7 +151,7 @@
                           locale-sensitive tests produce consistent results regardless
                           of the developer's system locale (e.g., date formatting).
                         -->
-                        <argLine>-Duser.language=en -Duser.country=US</argLine>
+                        <argLine>@{argLine} -Duser.language=en -Duser.country=US</argLine>
                     </configuration>
                 </plugin>
             </plugins>
