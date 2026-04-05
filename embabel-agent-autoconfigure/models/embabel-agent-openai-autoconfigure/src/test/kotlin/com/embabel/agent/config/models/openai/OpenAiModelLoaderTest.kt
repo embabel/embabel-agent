@@ -75,6 +75,7 @@ class OpenAiModelLoaderTest {
         // Assert - verify some known OpenAI models are present
         val modelNames = result.models.map { it.name }
         assertTrue(modelNames.isNotEmpty(), "Should have loaded model names")
+        assertTrue(modelNames.contains("gpt53chat"), "Should include GPT-5.3 Chat")
 
         // Verify at least one model has pricing info
         assertTrue(result.models.any { it.pricingModel != null },

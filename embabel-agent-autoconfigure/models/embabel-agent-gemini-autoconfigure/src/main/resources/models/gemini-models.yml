@@ -40,6 +40,17 @@ models:
       usd_per1m_input_tokens: 0.25
       usd_per1m_output_tokens: 1.50
 
+  # Gemini 3 Flash Preview - High-speed latest generation model
+  - name: "gemini_3_flash_preview"
+    model_id: "gemini-3-flash-preview"
+    display_name: "Gemini 3 Flash Preview"
+    knowledge_cutoff_date: "2025-01-01"
+    max_tokens: 65536
+    temperature: 0.7
+    pricing_model:
+      usd_per1m_input_tokens: 0.50
+      usd_per1m_output_tokens: 3.00
+
   # ========================================
   # GEMINI 2.5 FAMILY (Stable - Current Generation)
   # ========================================
@@ -89,8 +100,8 @@ models:
     max_tokens: 8192
     temperature: 0.7
     pricing_model:
-      usd_per1m_input_tokens: 0.15
-      usd_per1m_output_tokens: 0.60
+      usd_per1m_input_tokens: 0.10
+      usd_per1m_output_tokens: 0.40
 
   # Gemini 2.0 Flash Lite - Lightweight version
   - name: "gemini_20_flash_lite"

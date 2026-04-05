@@ -376,6 +376,30 @@ class GoogleGenAiModelLoaderTest {
     }
 
     @Test
+    fun `should load all 9 expected Google GenAI models`() {
+
+        // Arrange
+        val loader = GoogleGenAiModelLoader()
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert
+        assertEquals(9, result.models.size, "Should load exactly 9 Google GenAI models")
+
+        val expectedModels = listOf(
+            "gemini_3_1_pro_preview", "gemini_3_1_pro_preview_customtools",
+            "gemini_3_flash_preview", "gemini_3_1_flash_lite_preview", "gemini_25_pro", "gemini_25_flash",
+            "gemini_25_flash_lite", "gemini_20_flash", "gemini_20_flash_lite"
+        )
+
+        expectedModels.forEach { expectedName ->
+            assertTrue(result.models.any { it.name == expectedName },
+                "Should have model: $expectedName")
+        }
+    }
+
+    @Test
     fun `should load Gemini 3_1 Pro preview model`() {
         // Arrange
         val loader = GoogleGenAiModelLoader()

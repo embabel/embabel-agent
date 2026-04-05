@@ -463,11 +463,14 @@ abstract class AbstractAgentProcess(
         val timestamp = Instant.now()
         val actionStatus = try {
             withCurrent {
-                action.qos.retryTemplate("Action-${action.name}").execute<ActionStatus, Throwable> {
-                    action.execute(
-                        processContext = processContext,
-                    )
-                }
+                val effectiveAction = action.withEffectiveQos(platformServices.actionQosProperties())
+                effectiveAction.qos
+                    .retryTemplate("Action-${action.name}")
+                    .execute<ActionStatus, Throwable> {
+                        effectiveAction.execute(
+                            processContext = processContext,
+                        )
+                    }
             }
         } catch (e: TerminateActionException) {
             logger.info("Action {} terminated early: {}", action.name, e.reason)

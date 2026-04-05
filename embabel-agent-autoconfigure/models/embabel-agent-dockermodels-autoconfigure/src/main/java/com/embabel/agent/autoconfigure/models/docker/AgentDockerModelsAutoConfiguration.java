@@ -40,6 +40,6 @@ public class AgentDockerModelsAutoConfiguration {
 
     @PostConstruct
     public void logEvent() {
-        logger.info("AgentOllamaAutoConfiguration about to proceed...");
+        logger.info("AgentDockerModelsAutoConfiguration about to proceed...");
     }
 }

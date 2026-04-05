@@ -25,6 +25,7 @@ import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
+import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.agent.spi.expression.spel.SpelLogicalExpressionParser
 import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
@@ -89,5 +90,28 @@ data class SpringContextPlatformServices(
             "Application context is not available, cannot retrieve ConversationFactoryProvider bean."
         }.getBean<ConversationFactoryProvider>()
     }
+
+    /**
+     * Looks up [AgentPlatformProperties] from the Spring context and returns its
+     * [AgentPlatformProperties.ActionQosProperties].
+     *
+     * This follows the same lazy-lookup pattern used by [autonomy] and [modelProvider]
+     * to avoid circular dependency issues at construction time.
+     *
+     * Falls back to a default (all-null) [AgentPlatformProperties.ActionQosProperties]
+     * when no application context is available (e.g. in unit tests) or when
+     * [AgentPlatformProperties] is not registered in the context, which preserves
+     * pre-fix behaviour: actions receive [com.embabel.agent.core.ActionQos] defaults.
+     *
+     * Uses [getBeansOfType] rather than [getBean] so that a missing bean produces an
+     * empty map instead of throwing [org.springframework.beans.factory.NoSuchBeanDefinitionException].
+     */
+    override fun actionQosProperties(): AgentPlatformProperties.ActionQosProperties =
+        applicationContext
+            ?.getBeansOfType<AgentPlatformProperties>()
+            ?.values
+            ?.firstOrNull()
+            ?.actionQos
+            ?: AgentPlatformProperties.ActionQosProperties()
 
 }

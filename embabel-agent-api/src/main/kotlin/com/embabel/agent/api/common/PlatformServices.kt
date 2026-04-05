@@ -23,6 +23,7 @@ import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.core.expression.LogicalExpressionParser
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.OperationScheduler
+import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.chat.ConversationFactoryProvider
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.TemplateRenderer
@@ -81,4 +82,13 @@ interface PlatformServices {
     fun conversationFactoryProvider(): ConversationFactoryProvider
 
     fun withEventListener(agenticEventListener: AgenticEventListener): PlatformServices
+
+    /**
+     * Returns the platform-level default QoS properties for actions.
+     *
+     * Implementations should return [AgentPlatformProperties.ActionQosProperties]
+     * with all-null fields when no Spring context is available (e.g. in tests),
+     * which causes resolution to fall back to [com.embabel.agent.core.ActionQos] defaults.
+     */
+    fun actionQosProperties(): AgentPlatformProperties.ActionQosProperties
 }
