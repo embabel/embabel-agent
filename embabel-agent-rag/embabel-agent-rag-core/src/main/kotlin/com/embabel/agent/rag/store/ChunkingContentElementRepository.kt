@@ -74,11 +74,12 @@ interface ChunkingContentElementRepository : ContentElementRepository {
      * Process new retrievables after they have been saved to the store.
      *
      * This method is called by [AbstractChunkingContentElementRepository.writeAndChunkDocument]
-     * after chunks are created and saved. The default implementation in
-     * [AbstractChunkingContentElementRepository]:
-     * 1. Filters to extract [com.embabel.agent.rag.model.Chunk] instances
-     * 2. Generates embeddings in batches (if an embedding service is configured)
-     * 3. Delegates to [AbstractChunkingContentElementRepository.persistChunksWithEmbeddings]
+     * after chunks are created and saved.
+     *
+     * [EmbeddingAwareChunkingContentElementRepository] provides a concrete implementation that
+     * generates embeddings in batches and delegates to `persistChunksWithEmbeddings`.
+     * Subclasses extending [AbstractChunkingContentElementRepository] directly must provide
+     * their own implementation (e.g., for text-only search without embeddings).
      *
      * @param retrievables List of retrievables to process; typically chunks from document ingestion
      */

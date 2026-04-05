@@ -42,6 +42,7 @@ import com.embabel.agent.rag.service.support.RagFacetProvider
 import com.embabel.agent.rag.service.support.RagFacetResults
 import com.embabel.agent.rag.store.AbstractChunkingContentElementRepository
 import com.embabel.agent.rag.store.DocumentDeletionResult
+import com.embabel.agent.rag.store.EmbeddingBatchGenerator
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.SimilarityResult
@@ -89,14 +90,14 @@ import java.util.concurrent.ConcurrentHashMap
 class LuceneSearchOperations @JvmOverloads constructor(
     override val name: String,
     override val enhancers: List<RetrievableEnhancer> = emptyList(),
-    embeddingService: EmbeddingService? = null,
+    private val embeddingService: EmbeddingService? = null,
     private val keywordExtractor: KeywordExtractor? = null,
     private val vectorWeight: Double = 0.5,
     chunkerConfig: ContentChunker.Config = ContentChunker.Config(),
     chunkTransformer: ChunkTransformer = ChunkTransformer.NO_OP,
     private val indexPath: Path? = null,
 ) : RagFacetProvider,
-    AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer, embeddingService),
+    AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer),
     HasInfoString,
     Closeable,
     CoreSearchOperations,
@@ -152,6 +153,26 @@ class LuceneSearchOperations @JvmOverloads constructor(
         logger.info("Manually triggering chunk loading from disk...")
         ensureChunksLoaded()
         return this
+    }
+
+    override fun onNewRetrievables(retrievables: List<Retrievable>) {
+        val chunks = retrievables.filterIsInstance<Chunk>()
+        if (chunks.isEmpty()) {
+            logger.debug("No chunks to process in {} retrievables", retrievables.size)
+            return
+        }
+
+        val embeddings = if (embeddingService != null) {
+            EmbeddingBatchGenerator.generateEmbeddingsInBatches(
+                embeddingService = embeddingService,
+                retrievables = chunks,
+                batchSize = chunkerConfig.embeddingBatchSize,
+                logger = logger,
+            )
+        } else {
+            emptyMap()
+        }
+        persistChunksWithEmbeddings(chunks, embeddings)
     }
 
     @Volatile
@@ -761,7 +782,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
         elementType: String?,
     ): ContentElement? = LuceneDocumentMapper.createContentElementFromLuceneDocument(luceneDocument, elementType)
 
-    override fun persistChunksWithEmbeddings(chunks: List<Chunk>, embeddings: Map<String, FloatArray>) {
+    private fun persistChunksWithEmbeddings(chunks: List<Chunk>, embeddings: Map<String, FloatArray>) {
         // Store all chunks in content storage
         chunks.forEach { chunk ->
             contentElementStorage[chunk.id] = chunk

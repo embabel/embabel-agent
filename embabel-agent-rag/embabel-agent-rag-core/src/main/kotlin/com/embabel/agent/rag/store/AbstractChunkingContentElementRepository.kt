@@ -17,156 +17,42 @@ package com.embabel.agent.rag.store
 
 import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
-import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.NavigableDocument
 import com.embabel.agent.rag.model.Retrievable
-import com.embabel.common.ai.model.EmbeddingService
-import com.embabel.common.util.VisualizableTask
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 /**
  * Convenience base class for [ChunkingContentElementRepository] implementations.
  *
- * This abstract class provides a template method pattern for handling new retrievables:
- * 1. Filters incoming retrievables to extract [Chunk] instances
- * 2. Generates embeddings in configurable batches using the [embeddingService] (if provided)
- * 3. Delegates persistence to subclasses via [persistChunksWithEmbeddings]
+ * This abstract class provides the [writeAndChunkDocument] template method for
+ * chunking documents and persisting their content elements. It delegates
+ * processing of new retrievables to subclasses via the abstract [onNewRetrievables] method.
  *
  * ## Subclass Contract
  *
  * Subclasses must implement the following abstract methods:
  *
- * - [persistChunksWithEmbeddings]: Store chunks with their pre-generated embeddings
+ * - [onNewRetrievables]: Process new retrievables (e.g., generate embeddings, index for search)
  * - [createInternalRelationships]: Create relationships between structural elements (e.g., in a graph database)
  * - [commit]: Commit changes after a write operation
  * - [save]: Persist individual content elements (inherited from [ContentElementRepository])
  *
- * ## Embedding Generation
+ * ## Embedding Support
  *
- * When an [embeddingService] is provided:
- * - Embeddings are generated in batches of [ContentChunker.Config.embeddingBatchSize]
- * - Batch processing reduces API calls and improves throughput
- * - Failed batches are logged but don't prevent other batches from processing
+ * For repositories that require embedding generation, extend
+ * [EmbeddingAwareChunkingContentElementRepository] instead, which provides a concrete
+ * [onNewRetrievables] implementation with batched embedding generation.
  *
- * When no embedding service is provided:
- * - [persistChunksWithEmbeddings] is called with an empty embeddings map
- * - Subclasses should handle this case (e.g., skip embedding storage, use text-only search)
- *
- * @param chunkerConfig Configuration for content chunking including [ContentChunker.Config.embeddingBatchSize]
- * @param embeddingService Optional embedding service for generating embeddings; if null, no embeddings are generated
- *                         and [persistChunksWithEmbeddings] receives an empty map
+ * @param chunkerConfig Configuration for content chunking
+ * @param chunkTransformer Transformer applied to chunks during chunking
  */
 abstract class AbstractChunkingContentElementRepository(
     protected val chunkerConfig: ContentChunker.Config,
     protected val chunkTransformer: ChunkTransformer,
-    protected val embeddingService: EmbeddingService?,
 ) : ChunkingContentElementRepository {
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
-
-    init {
-        if (embeddingService == null) {
-            logger.warn("No embedding service configured; only text search will be supported.")
-        }
-    }
-
-    /**
-     * Template method implementation that generates embeddings in batches
-     * and delegates persistence to subclasses.
-     *
-     * This method:
-     * 1. Filters retrievables to extract only [Chunk] instances (structural elements are handled separately)
-     * 2. Generates embeddings in batches using [embeddingService] if available
-     * 3. Calls [persistChunksWithEmbeddings] to let subclasses store the chunks
-     *
-     * @param retrievables List of retrievables to process; only [Chunk] instances are processed
-     */
-    override fun onNewRetrievables(retrievables: List<Retrievable>) {
-        val chunks = retrievables.filterIsInstance<Chunk>()
-        if (chunks.isEmpty()) {
-            logger.debug("No chunks to process in {} retrievables", retrievables.size)
-            return
-        }
-
-        val embeddings = generateEmbeddingsInBatches(chunks)
-        persistChunksWithEmbeddings(chunks, embeddings)
-    }
-
-    /**
-     * Persist chunks with their pre-generated embeddings to the underlying store.
-     *
-     * This method is called by [onNewRetrievables] after embedding generation is complete.
-     * Subclasses should:
-     * 1. Store each chunk in their backing storage (memory, database, index, etc.)
-     * 2. Associate the embedding with each chunk (if available in the map)
-     * 3. Handle the case where embeddings map is empty (no embedding service configured)
-     *
-     * ## Example Implementation
-     * ```kotlin
-     * override fun persistChunksWithEmbeddings(chunks: List<Chunk>, embeddings: Map<String, FloatArray>) {
-     *     chunks.forEach { chunk ->
-     *         storage[chunk.id] = chunk
-     *         embeddings[chunk.id]?.let { embedding ->
-     *             embeddingIndex.store(chunk.id, embedding)
-     *         }
-     *     }
-     * }
-     * ```
-     *
-     * @param chunks The chunks to persist; guaranteed to be non-empty when called
-     * @param embeddings Map of chunk ID to embedding vector; may be empty if no embedding service
-     *                   is configured, or if embedding generation failed for all chunks
-     */
-    protected abstract fun persistChunksWithEmbeddings(
-        chunks: List<Chunk>,
-        embeddings: Map<String, FloatArray>,
-    )
-
-    private fun generateEmbeddingsInBatches(
-        retrievables: List<Retrievable>,
-    ): Map<String, FloatArray> {
-        if (embeddingService == null) {
-            return emptyMap()
-        }
-
-        val embeddings = mutableMapOf<String, FloatArray>()
-        val batches = retrievables.chunked(chunkerConfig.embeddingBatchSize)
-        val totalBatches = batches.size
-
-        fun logProgress(current: Int) {
-            val progress = VisualizableTask(
-                name = "Generating embeddings",
-                current = current,
-                total = totalBatches
-            )
-            logger.info(progress.createProgressBar())
-        }
-
-        logProgress(0)
-
-        batches.forEachIndexed { index, batch ->
-            try {
-                val texts = batch.map { it.embeddableValue() }
-                val batchEmbeddings = embeddingService.embed(texts)
-
-                batch.zip(batchEmbeddings).forEach { (chunk, embedding) ->
-                    embeddings[chunk.id] = embedding
-                }
-
-                logProgress(index + 1)
-            } catch (e: Exception) {
-                logger.warn(
-                    "Failed to generate embeddings for batch of {} chunks: {}",
-                    batch.size,
-                    e.message,
-                    e
-                )
-            }
-        }
-
-        return embeddings
-    }
 
     /**
      * Will call save on the root and all descendants.

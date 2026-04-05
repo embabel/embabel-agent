@@ -22,16 +22,18 @@ import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.ContentElement
 import com.embabel.agent.rag.model.ContentRoot
 import com.embabel.agent.rag.model.NavigableDocument
+import com.embabel.agent.rag.model.Retrievable
 import com.embabel.common.ai.model.EmbeddingService
 
 /**
- * Test implementation of AbstractChunkingContentElementRepository
+ * Test implementation of [EmbeddingAwareChunkingContentElementRepository]
+ * for testing embedding-aware chunking behavior.
  */
 class TestChunkingRepository(
     chunkerConfig: ContentChunker.Config,
     chunkTransformer: ChunkTransformer,
-    embeddingService: EmbeddingService?,
-) : AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer, embeddingService) {
+    embeddingService: EmbeddingService,
+) : EmbeddingAwareChunkingContentElementRepository(chunkerConfig, chunkTransformer, embeddingService) {
 
     val persistedChunks = mutableListOf<Chunk>()
     val persistedEmbeddings = mutableMapOf<String, FloatArray>()
@@ -78,7 +80,64 @@ class TestChunkingRepository(
         override val documentCount: Int = 0
         override val chunkCount: Int = persistedChunks.size
         override val contentElementCount: Int = savedElements.size
-        override val hasEmbeddings: Boolean = embeddingService != null
+        override val hasEmbeddings: Boolean = true
+        override val isPersistent: Boolean = false
+    }
+}
+
+/**
+ * Test implementation of [AbstractChunkingContentElementRepository]
+ * for testing text-only (no embedding) chunking behavior.
+ */
+class TestTextOnlyChunkingRepository(
+    chunkerConfig: ContentChunker.Config,
+    chunkTransformer: ChunkTransformer,
+) : AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer) {
+
+    val persistedChunks = mutableListOf<Chunk>()
+    val savedElements = mutableMapOf<String, ContentElement>()
+
+    override val name: String = "test-text-only-repo"
+    override val enhancers: List<RetrievableEnhancer> = emptyList()
+
+    override fun onNewRetrievables(retrievables: List<Retrievable>) {
+        persistedChunks.addAll(retrievables.filterIsInstance<Chunk>())
+    }
+
+    override fun createInternalRelationships(root: NavigableDocument) {
+        // No-op for testing
+    }
+
+    override fun commit() {
+        // No-op for testing
+    }
+
+    override fun save(element: ContentElement): ContentElement {
+        savedElements[element.id] = element
+        return element
+    }
+
+    override fun findById(id: String): ContentElement? = savedElements[id]
+
+    override fun findChunksForEntity(entityId: String): List<Chunk> =
+        persistedChunks.filter { it.parentId == entityId }
+
+    override fun deleteRootAndDescendants(uri: String): DocumentDeletionResult? = null
+
+    override fun findContentRootByUri(uri: String): ContentRoot? = null
+
+    override fun findAllChunksById(chunkIds: List<String>): Iterable<Chunk> =
+        persistedChunks.filter { it.id in chunkIds }
+
+    override fun <C : ContentElement> findAll(clazz: Class<C>): Iterable<C> {
+        TODO("Not yet implemented")
+    }
+
+    override fun info(): ContentElementRepositoryInfo = object : ContentElementRepositoryInfo {
+        override val documentCount: Int = 0
+        override val chunkCount: Int = persistedChunks.size
+        override val contentElementCount: Int = savedElements.size
+        override val hasEmbeddings: Boolean = false
         override val isPersistent: Boolean = false
     }
 }
