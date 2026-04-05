@@ -379,13 +379,10 @@ class LLMOpenAiGuardRailsIntegrationIT {
         // When: create object with thinking
         // Expected GuardRailViolationException
         ThinkingResponse<MonthItem> response = null;
-        try {
-            response = runner
-                    .thinking()
-                    .createObject(prompt, MonthItem.class);
-        } catch (GuardRailViolationException gre) {
-            assertInstanceOf(GuardRailViolationException.class, gre);
-        }
+        // When / Then: thinking with guardrail-violating prompt should throw
+        assertThrows(GuardRailViolationException.class, () ->
+                runner.thinking().createObject(prompt, MonthItem.class)
+        );
 
     }
 
