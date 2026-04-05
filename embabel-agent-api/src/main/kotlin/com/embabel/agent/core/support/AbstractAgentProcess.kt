@@ -463,12 +463,6 @@ abstract class AbstractAgentProcess(
         val timestamp = Instant.now()
         val actionStatus = try {
             withCurrent {
-                // Resolve effective QoS: if the action carries a default-constructed
-                // ActionQos (i.e. was never explicitly configured), replace it with
-                // the platform defaults from embabel.agent.platform.action-qos.default.*.
-                // Actions with explicitly-set QoS (annotation retry policy, FIRE_ONCE,
-                // or DSL qos = ActionQos(...)) are left unchanged.
-                // See ActionQosExtensions.kt for more details.
                 val effectiveAction = action.withEffectiveQos(platformServices.actionQosProperties())
                 effectiveAction.qos
                     .retryTemplate("Action-${action.name}")
