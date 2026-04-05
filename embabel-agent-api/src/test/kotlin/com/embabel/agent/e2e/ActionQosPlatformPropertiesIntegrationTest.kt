@@ -27,6 +27,7 @@ import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.domain.io.UserInput
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
@@ -36,16 +37,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-// ---------------------------------------------------------------------------
-// Domain model
-// ---------------------------------------------------------------------------
-
 data class Greeting(val text: String)
-
-// ---------------------------------------------------------------------------
-// Annotation-based agent — verifies the fix doesn't break the path that was
-// already working before issue #1562.
-// ---------------------------------------------------------------------------
 
 @Agent(description = "Annotation-based greeting agent", scan = false)
 class AnnotationGreetingAgent {
@@ -58,23 +50,12 @@ class AnnotationGreetingAgent {
     fun echo(greeting: Greeting): Greeting = greeting
 }
 
-// ---------------------------------------------------------------------------
-// DSL agent — previously broken path.
-// No qos argument is passed, so qos == ActionQos() before the fix.
-// After the fix, platform properties must be honoured at execution time.
-// ---------------------------------------------------------------------------
-
 val DslGreetingAgent = agent("DslGreeter", description = "DSL greeting agent") {
     transformation<UserInput, Greeting>(name = "greet") {
         Greeting("Hello, ${it.input.content}!")
     }
     goal(name = "done", description = "produced a greeting", satisfiedBy = Greeting::class)
 }
-
-// ---------------------------------------------------------------------------
-// Attempt-counting action: lets us assert how many retries actually happened.
-// Fails on the first N-1 attempts so the retry policy is exercised.
-// ---------------------------------------------------------------------------
 
 /** Shared mutable counter — reset before each test. */
 object AttemptCounter {
@@ -93,11 +74,6 @@ val RetryCountingAgent = agent("RetryCounter", description = "Counts retry attem
     }
     goal(name = "done", description = "produced a greeting", satisfiedBy = Greeting::class)
 }
-
-// ---------------------------------------------------------------------------
-// Main integration test — maxAttempts=3, confirms DSL actions succeed with
-// exactly 3 attempts when properties are honoured.
-// ---------------------------------------------------------------------------
 
 /**
  * End-to-end tests proving that `embabel.agent.platform.action-qos.default.*`
@@ -183,13 +159,6 @@ class ActionQosPlatformPropertiesIntegrationTest(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Falsification test — separate top-level class with its own Spring context.
-// maxAttempts=1 must make the counting agent FAIL after a single attempt.
-// If properties were silently ignored, the default maxAttempts=5 would kick
-// in and the agent would complete — proving the test would catch a regression.
-// ---------------------------------------------------------------------------
-
 /**
  * Companion to [ActionQosPlatformPropertiesIntegrationTest].
  *
@@ -215,23 +184,18 @@ class ActionQosSingleAttemptIntegrationTest(
     private val agentPlatform: AgentPlatform = autonomy.agentPlatform
 
     @Test
-    fun `DSL action with maxAttempts=1 fails after first attempt`() {
-        // The counting agent throws on attempt 1.
-        // With maxAttempts=1 the retry template gives up immediately → FAILED.
-        // If properties were ignored (default maxAttempts=5), the agent would
-        // complete on attempt 3, making this test fail and catching the regression.
+    fun `DSL action with maxAttempts=1 throws after single attempt`() {
         AttemptCounter.reset()
 
-        val process = agentPlatform.runAgentFrom(
-            RetryCountingAgent,
-            ProcessOptions(),
-            mapOf("userInput" to UserInput("single-attempt")),
-        )
+        assertThrows<RuntimeException> {
+            agentPlatform.runAgentFrom(
+                RetryCountingAgent,
+                ProcessOptions(),
+                mapOf("userInput" to UserInput("single-attempt")),
+            )
+        }
 
-        assertEquals(
-            AgentProcessStatusCode.FAILED, process.status,
-            "With maxAttempts=1 the agent must fail — it cannot survive the first attempt",
-        )
-        assertEquals(1, AttemptCounter.count, "Action should only have been attempted once")
+        assertEquals(1, AttemptCounter.count,
+            "Action should only have been attempted once with maxAttempts=1")
     }
 }
