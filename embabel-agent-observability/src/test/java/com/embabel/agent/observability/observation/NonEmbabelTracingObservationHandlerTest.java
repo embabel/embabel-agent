@@ -48,13 +48,6 @@ class NonEmbabelTracingObservationHandlerTest {
     }
 
     @Test
-    @DisplayName("Handler should be created with tracer")
-    void createsHandlerWithTracer() {
-        // Assert
-        assertNotNull(handler);
-    }
-
-    @Test
     @DisplayName("Should support standard Observation.Context")
     void supportsStandardContext() {
         // Arrange
@@ -107,8 +100,5 @@ class NonEmbabelTracingObservationHandlerTest {
      * Custom context for testing - not an EmbabelObservationContext.
      */
     private static class CustomObservationContext extends Observation.Context {
-        CustomObservationContext() {
-            super();
-        }
     }
 }

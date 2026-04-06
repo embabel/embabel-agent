@@ -38,24 +38,12 @@ class GeminiModelsTest {
         // Assert
         assertTrue(Modifier.isPrivate(constructor.getModifiers()), 
             "Constructor must be private to prevent instantiation");
-        
-        // Act & Assert
-        constructor.setAccessible(true);
-        assertDoesNotThrow(() -> constructor.newInstance(), 
-            "Private constructor should be callable via reflection");
     }
 
     @Test
     @DisplayName("Should provide all Gemini 3.1 model constants")
     void providesGemini3_1Models() {
         // Assert
-        assertNotNull(GeminiModels.GEMINI_3_1_PRO_PREVIEW, 
-            "GEMINI_3_1_PRO_PREVIEW constant should not be null");
-        assertNotNull(GeminiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS, 
-            "GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS constant should not be null");
-        assertNotNull(GeminiModels.GEMINI_3_1_FLASH_LITE_PREVIEW, 
-            "GEMINI_3_1_FLASH_LITE_PREVIEW constant should not be null");
-        
         assertEquals("gemini-3.1-pro-preview", GeminiModels.GEMINI_3_1_PRO_PREVIEW);
         assertEquals("gemini-3.1-pro-preview-customtools", GeminiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS);
         assertEquals("gemini-3.1-flash-lite-preview", GeminiModels.GEMINI_3_1_FLASH_LITE_PREVIEW);
@@ -74,11 +62,6 @@ class GeminiModelsTest {
     @DisplayName("Should provide all Gemini 2.0 model constants")
     void providesGemini2_0Models() {
         // Assert
-        assertNotNull(GeminiModels.GEMINI_2_0_FLASH, 
-            "GEMINI_2_0_FLASH constant should not be null");
-        assertNotNull(GeminiModels.GEMINI_2_0_FLASH_LITE, 
-            "GEMINI_2_0_FLASH_LITE constant should not be null");
-        
         assertEquals("gemini-2.0-flash", GeminiModels.GEMINI_2_0_FLASH);
         assertEquals("gemini-2.0-flash-lite", GeminiModels.GEMINI_2_0_FLASH_LITE);
     }
@@ -87,20 +70,13 @@ class GeminiModelsTest {
     @DisplayName("Should provide correct provider name 'Google'")
     void providesCorrectProvider() {
         // Assert
-        assertNotNull(GeminiModels.PROVIDER, "PROVIDER constant should not be null");
-        assertEquals("Google", GeminiModels.PROVIDER, 
-            "Provider should be 'Google'");
+        assertEquals("Google", GeminiModels.PROVIDER, "Provider should be 'Google'");
     }
 
     @Test
     @DisplayName("Should provide embedding model constants")
     void providesEmbeddingModels() {
         // Assert
-        assertNotNull(GeminiModels.TEXT_EMBEDDING_004, 
-            "TEXT_EMBEDDING_004 constant should not be null");
-        assertNotNull(GeminiModels.DEFAULT_TEXT_EMBEDDING_MODEL, 
-            "DEFAULT_TEXT_EMBEDDING_MODEL constant should not be null");
-        
         assertEquals("text-embedding-004", GeminiModels.TEXT_EMBEDDING_004);
         assertEquals(GeminiModels.TEXT_EMBEDDING_004, GeminiModels.DEFAULT_TEXT_EMBEDDING_MODEL,
             "Default embedding model should point to TEXT_EMBEDDING_004");

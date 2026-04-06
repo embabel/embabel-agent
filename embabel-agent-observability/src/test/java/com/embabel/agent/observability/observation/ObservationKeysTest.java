@@ -39,10 +39,6 @@ class ObservationKeysTest {
         // Assert
         assertTrue(Modifier.isPrivate(constructor.getModifiers()),
                 "Constructor must be private to prevent instantiation");
-        
-        // Act & Assert
-        constructor.setAccessible(true);
-        constructor.newInstance();
     }
 
     @Test

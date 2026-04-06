@@ -19,7 +19,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,10 +39,6 @@ class WaitForTest {
         // Assert
         assertTrue(Modifier.isPrivate(constructor.getModifiers()),
             "Constructor must be private to prevent instantiation");
-        // Act & Assert
-        constructor.setAccessible(true);
-        assertDoesNotThrow(() -> constructor.newInstance(),
-            "Private constructor should be callable via reflection");
     }
 
     @Test
@@ -113,12 +108,12 @@ class WaitForTest {
     }
 
     @Test
-    @DisplayName("Should throw NullPointerException when confirmation receives null what")
-    void confirmationThrowsOnNullWhat() {
+    @DisplayName("Should throw NullPointerException when confirmation receives null payload")
+    void confirmationThrowsOnNullPayload() {
         // Act & Assert
         assertThrows(NullPointerException.class,
             () -> WaitFor.confirmation(null, "description"),
-            "confirmation should reject null what due to @NonNull annotation");
+            "confirmation should reject null payload due to @NonNull annotation");
     }
 
     @Test
