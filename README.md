@@ -904,14 +904,36 @@ cannot access it when running in a Docker container.
 
 ## Running Tests
 
-Run the tests via Maven.
+### Unit tests
+
+Run the unit tests via Maven. This will not require an internet connection or any external services.
 
 ```bash
 mvn test
 ```
 
-This will run both unit and integration tests
-but will not require an internet connection or any external services.
+### Integration tests
+
+Integration tests (`*IT`) hit real provider APIs and are excluded from the default `mvn test` run.
+To run them, ensure the following environment variables are set:
+
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `DEEPSEEK_API_KEY`
+- `MISTRAL_API_KEY`
+
+Then run:
+
+```bash
+mvn -Dtest='*IT,!LLMOllama*IT' -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+This runs all integration tests except Ollama (which requires a local Ollama server).
+To run a specific module's integration tests, add `-pl`:
+
+```bash
+mvn -Dtest='*IT,!LLMOllama*IT' -Dsurefire.failIfNoSpecifiedTests=false test -pl embabel-agent-openai
+```
 
 ## Spring profiles
 
