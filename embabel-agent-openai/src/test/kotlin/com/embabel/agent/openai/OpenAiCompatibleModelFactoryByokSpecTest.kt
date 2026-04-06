@@ -50,7 +50,7 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
         assertInstanceOf(
             ByokFactory::class.java,
             OpenAiCompatibleModelFactory.byok(
-                baseUrl = "https://api.example.com/v1",
+                baseUrl = "https://api.example.com",
                 apiKey = "key",
                 validationModel = "my-model",
                 validationProvider = "MyProvider",

@@ -71,7 +71,13 @@ class OpenAiModerationClient {
     private final OpenAIClient client;
 
     public OpenAiModerationClient() {
-        this.client = OpenAIOkHttpClient.fromEnv(); // Automatically uses OPENAI_API_KEY
+        // Build explicitly rather than fromEnv() because the openai-java SDK
+        // expects baseUrl to include /v1, but OPENAI_BASE_URL is set without it
+        // (Spring AI appends /v1 internally).
+        this.client = OpenAIOkHttpClient.builder()
+                .baseUrl(System.getenv().getOrDefault("OPENAI_BASE_URL", "https://api.openai.com") + "/v1")
+                .apiKey(System.getenv("OPENAI_API_KEY"))
+                .build();
     }
 
     public ModerationCreateResponse moderate(String inputText) {
