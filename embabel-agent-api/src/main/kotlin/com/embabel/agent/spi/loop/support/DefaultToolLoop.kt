@@ -209,6 +209,7 @@ internal open class DefaultToolLoop(
         state: LoopState,
     ): ToolLoopResult<O> = ToolLoopResult(
         result = outputParser(finalText),
+        rawResponseText = finalText,
         conversationHistory = state.conversationHistory,
         totalIterations = state.iterations,
         injectedTools = state.injectedTools,

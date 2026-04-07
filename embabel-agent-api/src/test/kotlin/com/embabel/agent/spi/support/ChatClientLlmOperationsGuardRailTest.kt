@@ -402,9 +402,114 @@ class ChatClientLlmOperationsGuardRailTest {
         assertEquals(Dog("Test Dog"), result.getOrThrow())
         assertEquals(1, inputValidationCalled.size)
         assertTrue(inputValidationCalled[0].contains("Test input for createObjectIfPossible"))
-        // Embabel tool loop only validates assistant response for String/AssistantMessage results,
-        // not for structured objects like Dog — see GitHub issue for tracking this limitation
-        assertEquals(0, responseValidationCalled.size)
+        // After fix: guardrail is now invoked for structured objects using raw response text
+        assertEquals(1, responseValidationCalled.size)
+    }
+
+    @Test
+    fun `should validate assistant response guardrail for structured object in createObject`() {
+        val responseValidationCalled = mutableListOf<String>()
+
+        val assistantGuard = object : AssistantMessageGuardRail {
+            override val name = "TestAssistantGuard"
+            override val description = "Test assistant response validation"
+            override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                responseValidationCalled.add(input)
+                return ValidationResult.VALID
+            }
+
+            override fun validate(
+                response: com.embabel.common.core.thinking.ThinkingResponse<*>,
+                blackboard: Blackboard,
+            ): ValidationResult {
+                return ValidationResult.VALID
+            }
+        }
+
+        val dogJson = jacksonObjectMapper().writeValueAsString(Dog("Buddy"))
+        val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel(dogJson))
+
+        val interaction = LlmInteraction(
+            id = InteractionId("test-structured-guardrail"),
+            llm = LlmOptions(),
+            tools = emptyList(),
+            promptContributors = emptyList(),
+            guardRails = listOf(assistantGuard),
+        )
+
+        val llmRequestEvent = mockk<LlmRequestEvent<Dog>>(relaxed = true)
+        every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
+
+        val result = setup.llmOperations.doTransform(
+            messages = listOf(UserMessage("Create a dog named Buddy")),
+            interaction = interaction,
+            outputClass = Dog::class.java,
+            llmRequestEvent = llmRequestEvent
+        )
+
+        assertEquals(Dog("Buddy"), result)
+        // Guardrail should be invoked with the raw response text for structured objects
+        assertEquals(1, responseValidationCalled.size)
+        assertEquals(dogJson, responseValidationCalled[0])
+    }
+
+    @Test
+    fun `should throw exception when assistant guardrail returns critical violation for structured object`() {
+        val criticalAssistantGuard = object : AssistantMessageGuardRail {
+            override val name = "CriticalStructuredGuard"
+            override val description = "Critical validation for structured output"
+            override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+                return ValidationResult(
+                    isValid = false,
+                    errors = listOf(
+                        ValidationError(
+                            code = "CRITICAL_STRUCTURED_VIOLATION",
+                            message = "Critical violation on structured output",
+                            severity = ValidationSeverity.CRITICAL,
+                            location = ValidationLocation(
+                                type = "GuardRail",
+                                name = "CriticalStructuredGuard",
+                                agentName = "test-agent",
+                                component = "ChatClientLlmOperations"
+                            )
+                        )
+                    )
+                )
+            }
+
+            override fun validate(
+                response: com.embabel.common.core.thinking.ThinkingResponse<*>,
+                blackboard: Blackboard,
+            ): ValidationResult {
+                return ValidationResult.VALID
+            }
+        }
+
+        val dogJson = jacksonObjectMapper().writeValueAsString(Dog("Bad Dog"))
+        val setup = createChatClientLlmOperations(GuardRailTestFakeChatModel(dogJson))
+
+        val interaction = LlmInteraction(
+            id = InteractionId("test-critical-structured"),
+            llm = LlmOptions(),
+            tools = emptyList(),
+            promptContributors = emptyList(),
+            guardRails = listOf(criticalAssistantGuard),
+        )
+
+        val llmRequestEvent = mockk<LlmRequestEvent<Dog>>(relaxed = true)
+        every { llmRequestEvent.agentProcess } returns setup.mockAgentProcess
+
+        val exception = assertThrows(GuardRailViolationException::class.java) {
+            setup.llmOperations.doTransform(
+                messages = listOf(UserMessage("Create a dog")),
+                interaction = interaction,
+                outputClass = Dog::class.java,
+                llmRequestEvent = llmRequestEvent
+            )
+        }
+
+        assertEquals("CriticalStructuredGuard", exception.guard)
+        assertEquals(ValidationSeverity.CRITICAL, exception.severity)
     }
 
     @Test

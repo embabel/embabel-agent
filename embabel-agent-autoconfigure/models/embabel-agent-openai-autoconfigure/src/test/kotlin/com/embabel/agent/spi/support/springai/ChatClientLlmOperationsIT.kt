@@ -160,7 +160,7 @@ internal class ChatClientLlmOperationsIT {
     @Nested
     inner class GuardRailOnStructuredOutput {
         // Verifies that AssistantMessageGuardRail is invoked for structured object responses
-        //@Test
+        @Test
         fun `AssistantMessageGuardRail should be invoked for createObject`() {
             val guardRailCalled = mutableListOf<String>()
 
@@ -195,7 +195,7 @@ internal class ChatClientLlmOperationsIT {
         }
 
         // Verifies that AssistantMessageGuardRail is invoked for createObjectIfPossible
-        //@Test
+        @Test
         fun `AssistantMessageGuardRail should be invoked for createObjectIfPossible`() {
             val guardRailCalled = mutableListOf<String>()
 

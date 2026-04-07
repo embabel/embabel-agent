@@ -590,4 +590,104 @@ class LLMOpenAiGuardRailsIntegrationIT {
         }
 
     }
+
+    /**
+     * Tests that AssistantMessageGuardRail is invoked for non-thinking structured output (createObject).
+     * This exercises the doTransform path with a structured object (MonthItem) — the path
+     * that previously skipped guardrail validation for non-String/non-AssistantMessage types.
+     */
+    @Test
+    void testGuardRailInvokedForStructuredCreateObject() {
+        logger.info("Starting guardrail structured createObject test");
+
+        List<String> guardRailCalled = Collections.synchronizedList(new ArrayList<>());
+
+        AssistantMessageGuardRail trackingGuard = new AssistantMessageGuardRail() {
+            @Override
+            public @NotNull String getName() {
+                return "StructuredOutputTrackingGuardRail";
+            }
+
+            @Override
+            public @NotNull String getDescription() {
+                return "Tracks guardrail invocation for structured output";
+            }
+
+            @Override
+            public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+                guardRailCalled.add(input);
+                logger.info("AssistantMessageGuardRail invoked for structured output: {}", input);
+                return new ValidationResult(true, Collections.emptyList());
+            }
+
+            @Override
+            public @NotNull ValidationResult validate(@NotNull ThinkingResponse<?> response, @NotNull Blackboard blackboard) {
+                return new ValidationResult(true, Collections.emptyList());
+            }
+        };
+
+        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
+                .withGuardRails(trackingGuard);
+
+        String prompt = """
+                What is the hottest month in Florida and provide its temperature.
+                The name should be the month name, temperature should be in Fahrenheit.
+                """;
+
+        MonthItem result = runner.createObject(prompt, MonthItem.class);
+
+        assertNotNull(result, "Result should not be null");
+        assertNotNull(result.getName(), "Month name should not be null");
+        assertFalse(guardRailCalled.isEmpty(),
+                "AssistantMessageGuardRail should have been called for structured output");
+        logger.info("GuardRail was invoked {} time(s) for structured createObject", guardRailCalled.size());
+    }
+
+    /**
+     * Tests that AssistantMessageGuardRail is invoked for non-thinking structured output (createObjectIfPossible).
+     * This exercises the doTransformIfPossible path with a structured object (MonthItem).
+     */
+    @Test
+    void testGuardRailInvokedForStructuredCreateObjectIfPossible() {
+        logger.info("Starting guardrail structured createObjectIfPossible test");
+
+        List<String> guardRailCalled = Collections.synchronizedList(new ArrayList<>());
+
+        AssistantMessageGuardRail trackingGuard = new AssistantMessageGuardRail() {
+            @Override
+            public @NotNull String getName() {
+                return "StructuredOutputTrackingGuardRail";
+            }
+
+            @Override
+            public @NotNull String getDescription() {
+                return "Tracks guardrail invocation for structured output";
+            }
+
+            @Override
+            public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+                guardRailCalled.add(input);
+                logger.info("AssistantMessageGuardRail invoked for structured output: {}", input);
+                return new ValidationResult(true, Collections.emptyList());
+            }
+
+            @Override
+            public @NotNull ValidationResult validate(@NotNull ThinkingResponse<?> response, @NotNull Blackboard blackboard) {
+                return new ValidationResult(true, Collections.emptyList());
+            }
+        };
+
+        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
+                .withGuardRails(trackingGuard);
+
+        String prompt = "What is the coldest month in Alaska and its temperature in Fahrenheit?";
+
+        MonthItem result = runner.createObjectIfPossible(prompt, MonthItem.class);
+
+        assertNotNull(result, "Result should not be null");
+        assertNotNull(result.getName(), "Month name should not be null");
+        assertFalse(guardRailCalled.isEmpty(),
+                "AssistantMessageGuardRail should have been called for structured output");
+        logger.info("GuardRail was invoked {} time(s) for structured createObjectIfPossible", guardRailCalled.size());
+    }
 }

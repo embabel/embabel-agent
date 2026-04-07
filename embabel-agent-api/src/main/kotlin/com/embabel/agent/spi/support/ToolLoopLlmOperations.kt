@@ -193,8 +193,11 @@ open class ToolLoopLlmOperations(
                 interaction,
                 llmRequestEvent?.agentProcess?.blackboard
             )
-            // For other object types, we don't have the raw response text to validate
-            // but guardrails could be extended to validate structured objects in the future
+            else -> validateAssistantResponse(
+                result.rawResponseText,
+                interaction,
+                llmRequestEvent?.agentProcess?.blackboard
+            )
         }
 
         return finalResult
@@ -319,7 +322,11 @@ open class ToolLoopLlmOperations(
         when (val successValue = maybeReturn.success) {
             is String -> validateAssistantResponse(successValue, interaction, llmRequestEvent.agentProcess.blackboard)
             is AssistantMessage -> validateAssistantResponse(successValue, interaction, llmRequestEvent.agentProcess.blackboard)
-            // For other object types, we don't have the raw response text to validate
+            else -> validateAssistantResponse(
+                result.rawResponseText,
+                interaction,
+                llmRequestEvent.agentProcess.blackboard
+            )
         }
 
         // Convert MaybeReturn<O> to Result<O>

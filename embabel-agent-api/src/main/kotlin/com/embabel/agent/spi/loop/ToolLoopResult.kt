@@ -25,6 +25,7 @@ import com.embabel.chat.Message
  *
  * @param O The output type
  * @param result The parsed result
+ * @param rawResponseText The raw LLM response text before parsing, preserved for guardrail validation
  * @param conversationHistory Full conversation history including tool calls
  * @param totalIterations Number of LLM inference iterations
  * @param injectedTools All tools added during the conversation via injection strategies
@@ -36,6 +37,7 @@ import com.embabel.chat.Message
  */
 data class ToolLoopResult<O>(
     val result: O,
+    val rawResponseText: String = "",
     val conversationHistory: List<Message>,
     val totalIterations: Int,
     val injectedTools: List<Tool>,
