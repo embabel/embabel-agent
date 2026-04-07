@@ -28,6 +28,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
@@ -477,5 +478,91 @@ class StreamingChatClientOperationsTest {
         every { mockRequestSpec.stream() } returns mockContentStreamSpec
         every { mockContentStreamSpec.content() } returns chunkFlux
 
+    }
+
+    /**
+     * Tests for useMessageStreamer=true (decoupled streaming path via LlmMessageStreamer).
+     */
+    @Nested
+    inner class MessageStreamerTests {
+
+        private lateinit var streamingOpsWithStreamer: StreamingChatClientOperations
+
+        @BeforeEach
+        fun setUpStreamer() {
+            streamingOpsWithStreamer = StreamingChatClientOperations(
+                mockChatClientLlmOperations,
+                useMessageStreamer = true
+            )
+        }
+
+        @Test
+        fun `should use LlmMessageStreamer when useMessageStreamer is true`() {
+            // Given
+            val chunkFlux = Flux.just("streamed ", "content")
+            mockChatClientForStreaming(chunkFlux)
+
+            // When
+            val result = streamingOpsWithStreamer.generateStream(
+                listOf(UserMessage("test")),
+                mockInteraction,
+                mockAgentProcess,
+                mockAction
+            )
+
+            // Then
+            StepVerifier.create(result)
+                .expectNext("streamed ")
+                .expectNext("content")
+                .verifyComplete()
+        }
+
+        @Test
+        fun `should prepend prompt contributions as system message`() {
+            // Given
+            val mockContributor = mockk<com.embabel.common.ai.prompt.PromptContributor>()
+            every { mockContributor.contribution() } returns "System contribution"
+            every { mockInteraction.promptContributors } returns listOf(mockContributor)
+
+            val chunkFlux = Flux.just("response")
+            mockChatClientForStreaming(chunkFlux)
+
+            // When
+            val result = streamingOpsWithStreamer.generateStream(
+                listOf(UserMessage("user message")),
+                mockInteraction,
+                mockAgentProcess,
+                mockAction
+            )
+
+            // Then
+            StepVerifier.create(result)
+                .expectNext("response")
+                .verifyComplete()
+        }
+
+        @Test
+        fun `should handle object streaming`() {
+            // Given
+            val chunkFlux = Flux.just("{\"name\":\"Test\",\"value\":42}\n")
+            mockChatClientForStreaming(chunkFlux)
+
+            // When
+            val result = streamingOpsWithStreamer.createObjectStreamWithThinking(
+                messages = listOf(UserMessage("test")),
+                interaction = mockInteraction,
+                outputClass = TestItem::class.java,
+                agentProcess = mockAgentProcess,
+                action = mockAction
+            )
+
+            // Then
+            StepVerifier.create(result)
+                .expectNextMatches {
+                    it.isObject() && it.getObject()?.name == "Test" && it.getObject()?.value == 42
+                }
+                .expectComplete()
+                .verify(Duration.ofSeconds(1))
+        }
     }
 }

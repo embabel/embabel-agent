@@ -20,6 +20,7 @@ import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
+import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.PROMPT_ELEMENT_SEPARATOR
 import com.embabel.agent.spi.support.guardrails.validateUserInput
@@ -56,6 +57,12 @@ import reactor.core.publisher.Mono
  */
 internal class StreamingChatClientOperations(
     private val chatClientLlmOperations: ChatClientLlmOperations,
+    /**
+     * When true, delegates raw streaming to [LlmMessageStreamer] instead of
+     * calling Spring AI ChatClient directly. This decouples streaming from
+     * Spring AI, enabling vendor-neutral implementations.
+     */
+    private val useMessageStreamer: Boolean = false,
 ) : StreamingLlmOperations {
 
     // once streaming feature gets stable set log level to TRACE
@@ -160,12 +167,14 @@ internal class StreamingChatClientOperations(
         // Resolve tool groups and decorate tools
         val tools = chatClientLlmOperations.resolveAndDecorateTools(interaction, agentProcess, action)
 
-        return chatClient
-            .prompt(springAiPrompt)
-            .toolCallbacks(tools.toSpringToolCallbacks())
-            .options(chatOptions)
-            .stream()
-            .content()
+        return createStreamInternal(
+            chatClient = chatClient,
+            messages = messages,
+            promptContributions = promptContributions,
+            tools = tools,
+            chatOptions = chatOptions,
+            springAiPrompt = springAiPrompt,
+        )
     }
 
     /**
@@ -351,13 +360,14 @@ internal class StreamingChatClientOperations(
         val tools = chatClientLlmOperations.resolveAndDecorateTools(interaction, agentProcess, action)
 
         // Step 1: Original raw chunk stream from LLM
-        val rawChunkFlux: Flux<String> = chatClient
-            .prompt(springAiPrompt)
-            .toolCallbacks(tools.toSpringToolCallbacks())
-            .options(chatOptions)
-            .stream()
-            .content()
-            .filter { it.isNotEmpty() }
+        val rawChunkFlux: Flux<String> = createStreamInternal(
+            chatClient = chatClient,
+            messages = messages,
+            promptContributions = fullPromptContributions,
+            tools = tools,
+            chatOptions = chatOptions,
+            springAiPrompt = springAiPrompt,
+        ).filter { it.isNotEmpty() }
             .doOnNext { chunk -> logger.trace("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
 
         // Step 2: Transform raw chunks to complete newline-delimited lines
@@ -409,5 +419,69 @@ internal class StreamingChatClientOperations(
         )
     }
 
+    /* -------------------------------------------------------------------------
+     * Streaming Abstraction Layer
+     *
+     * Supports decoupling streaming from Spring AI via LlmMessageStreamer interface.
+     * Controlled by useMessageStreamer flag:
+     *   - false (default): uses Spring AI ChatClient directly
+     *   - true: delegates to vendor-neutral LlmMessageStreamer
+     *
+     * Enables future support for non-Spring AI providers (e.g., LangChain4j).
+     * ------------------------------------------------------------------------ */
 
+    /**
+     * Build message list with prompt contributions prepended as system message.
+     *
+     * Mirrors [buildSpringAiPrompt] but returns Embabel messages instead of Spring AI Prompt.
+     * Used by the decoupled streaming path (when useMessageStreamer=true).
+     *
+     * @param messages Conversation messages
+     * @param promptContributions Prompt contributions to prepend
+     * @return Message list with contributions as first system message (if non-empty)
+     */
+    private fun buildMessagesWithContributions(
+        messages: List<Message>,
+        promptContributions: String,
+    ): List<Message> = buildList {
+        if (promptContributions.isNotEmpty()) {
+            add(com.embabel.chat.SystemMessage(promptContributions))
+        }
+        addAll(messages)
+    }
+
+    /**
+     * Create raw content stream from LLM.
+     *
+     * Switches between decoupled path (LlmMessageStreamer) and current path (Spring AI direct)
+     * based on [useMessageStreamer] flag.
+     *
+     * @param chatClient Spring AI ChatClient instance
+     * @param messages Embabel conversation messages
+     * @param promptContributions Prompt contributions string
+     * @param tools Embabel tools available for LLM
+     * @param chatOptions Spring AI chat options
+     * @param springAiPrompt Pre-built Spring AI prompt (used when useMessageStreamer=false)
+     * @return Flux of raw content chunks
+     */
+    private fun createStreamInternal(
+        chatClient: org.springframework.ai.chat.client.ChatClient,
+        messages: List<Message>,
+        promptContributions: String,
+        tools: List<com.embabel.agent.api.tool.Tool>,
+        chatOptions: org.springframework.ai.chat.prompt.ChatOptions,
+        springAiPrompt: Prompt,
+    ): Flux<String> {
+        return if (useMessageStreamer) {
+            val streamerMessages = buildMessagesWithContributions(messages, promptContributions)
+            SpringAiLlmMessageStreamer(chatClient, chatOptions).stream(streamerMessages, tools)
+        } else {
+            chatClient
+                .prompt(springAiPrompt)
+                .toolCallbacks(tools.toSpringToolCallbacks())
+                .options(chatOptions)
+                .stream()
+                .content()
+        }
+    }
 }
