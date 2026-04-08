@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -81,6 +82,8 @@ class LmStudioModelsConfig(
     private val lmStudioProperties: LmStudioProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     observationRegistry: ObjectProvider<ObservationRegistry>,
+    @Qualifier("aiModelRestClientBuilder")
+    restClientBuilder: ObjectProvider<RestClient.Builder>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = lmStudioProperties.baseUrl,
     apiKey = lmStudioProperties.apiKey,

@@ -33,6 +33,8 @@ class LmStudioModelsConfigTest {
     private val mockLmStudioProperties = mockk<LmStudioProperties>()
     private val mockBeanFactory = mockk<ConfigurableBeanFactory>(relaxed = true)
     private val mockObservationRegistry = mockk<ObjectProvider<ObservationRegistry>>()
+    private val mockRestClientBuilderProvider = mockk<ObjectProvider<RestClient.Builder>>()
+    private val mockRestClientBuilder = mockk<RestClient.Builder>()
     private val mockRestClient = mockk<RestClient>()
     private val mockRequestHeadersUriSpec = mockk<RestClient.RequestHeadersUriSpec<*>>()
     private val mockRequestHeadersSpec = mockk<RestClient.RequestHeadersSpec<*>>()
@@ -49,17 +51,20 @@ class LmStudioModelsConfigTest {
         every { mockBeanFactory.registerSingleton(any(), any()) } just Runs
         every { mockObservationRegistry.getIfUnique(any()) } returns ObservationRegistry.NOOP
 
-        // Mock RestClient.builder() static/chain
+        // Mock the ObjectProvider wrapping the builder (used by the constructor / parent class)
+        every { mockRestClientBuilderProvider.getIfAvailable(any()) } returns mockRestClientBuilder
+
+        // Mock RestClient.builder() static call (used by loadModelsFromUrl internally)
         mockkStatic("org.springframework.web.client.RestClient")
-        val builder = mockk<RestClient.Builder>()
-        every { RestClient.builder() } returns builder
-        every { builder.requestFactory(any()) } returns builder
-        every { builder.build() } returns mockRestClient
-        every { builder.observationRegistry(any()) } returns builder
-        every { builder.clone() } returns builder
-        every { builder.baseUrl(any<String>()) } returns builder
-        every { builder.defaultHeaders(any()) } returns builder
-        every { builder.defaultStatusHandler(any()) } returns builder
+        every { RestClient.builder() } returns mockRestClientBuilder
+
+        every { mockRestClientBuilder.requestFactory(any()) } returns mockRestClientBuilder
+        every { mockRestClientBuilder.build() } returns mockRestClient
+        every { mockRestClientBuilder.observationRegistry(any()) } returns mockRestClientBuilder
+        every { mockRestClientBuilder.clone() } returns mockRestClientBuilder
+        every { mockRestClientBuilder.baseUrl(any<String>()) } returns mockRestClientBuilder
+        every { mockRestClientBuilder.defaultHeaders(any()) } returns mockRestClientBuilder
+        every { mockRestClientBuilder.defaultStatusHandler(any()) } returns mockRestClientBuilder
 
         // Setup standard RestClient call chain
         every { mockRestClient.get() } returns mockRequestHeadersUriSpec
@@ -90,7 +95,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
-            observationRegistry = mockObservationRegistry
+            observationRegistry = mockObservationRegistry,
+            restClientBuilder = mockRestClientBuilderProvider
         )
 
         // When
@@ -112,7 +118,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
-            observationRegistry = mockObservationRegistry
+            observationRegistry = mockObservationRegistry,
+            restClientBuilder = mockRestClientBuilderProvider
         )
 
         // When
@@ -130,7 +137,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
-            observationRegistry = mockObservationRegistry
+            observationRegistry = mockObservationRegistry,
+            restClientBuilder = mockRestClientBuilderProvider
         )
 
         // When
@@ -156,7 +164,8 @@ class LmStudioModelsConfigTest {
         val config = LmStudioModelsConfig(
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
-            observationRegistry = mockObservationRegistry
+            observationRegistry = mockObservationRegistry,
+            restClientBuilder = mockRestClientBuilderProvider
         )
 
         // When

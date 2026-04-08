@@ -680,6 +680,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
         PromptRunner runner = ai.withLlm("gpt-4.1-mini")
                 .withGuardRails(trackingGuard);
 
+
         String prompt = "January has an average temperature of 50 degrees Fahrenheit. Extract the month name and temperature.";
 
         MonthItem result = runner.createObjectIfPossible(prompt, MonthItem.class);
