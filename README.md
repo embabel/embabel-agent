@@ -3,6 +3,7 @@
 <img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180">
 
 [![Docs](https://img.shields.io/badge/docs-live-brightgreen)](https://docs.embabel.com/embabel-agent/guide/0.1.2-SNAPSHOT/)
+[![MvnRepository](https://badges.mvnrepository.com/badge/com.embabel.agent/embabel-agent-api/badge.svg?label=MvnRepository)](https://mvnrepository.com/artifact/com.embabel.agent/embabel-agent-api)
 ![Build](https://github.com/embabel/embabel-agent/actions/workflows/maven.yml/badge.svg)
 [![YourKit](https://img.shields.io/badge/Profiling-YourKit-blue)](https://www.yourkit.com/)
 [![JProfiler](https://img.shields.io/badge/Profiled%20with-JProfiler-blue)](https://www.ej-technologies.com/products/jprofiler/overview.html)
