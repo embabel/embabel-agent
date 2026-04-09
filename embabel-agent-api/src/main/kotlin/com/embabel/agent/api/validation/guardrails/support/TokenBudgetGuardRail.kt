@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.support.guardrails
+package com.embabel.agent.api.validation.guardrails.support
 
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.Blackboard

@@ -13,9 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.chat
+package com.embabel.chat.support
 
-import com.embabel.chat.support.InMemoryConversation
+import com.embabel.chat.AssistantMessage
+import com.embabel.chat.Message
+import com.embabel.chat.MessageFormatter
+import com.embabel.chat.MessageRole
+import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.TokenCounter
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested

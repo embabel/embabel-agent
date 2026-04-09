@@ -13,8 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.chat
+package com.embabel.chat.support
 
+import com.embabel.chat.Conversation
+import com.embabel.chat.ConversationFormatter
+import com.embabel.chat.Message
+import com.embabel.chat.MessageFormatter
+import com.embabel.chat.SimpleMessageFormatter
 import com.embabel.common.ai.model.TokenCounter
 import org.jetbrains.annotations.ApiStatus
 

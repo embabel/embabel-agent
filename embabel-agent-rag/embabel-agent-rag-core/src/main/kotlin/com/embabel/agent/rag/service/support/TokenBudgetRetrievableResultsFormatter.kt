@@ -13,9 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.rag.service
+package com.embabel.agent.rag.service.support
 
 import com.embabel.agent.rag.model.Retrievable
+import com.embabel.agent.rag.service.RetrievableResultsFormatter
+import com.embabel.agent.rag.service.SimilarityResults
 import com.embabel.common.ai.model.TokenCounter
 import org.jetbrains.annotations.ApiStatus
 

@@ -15,11 +15,8 @@
  */
 package com.embabel.agent.rag.service
 
-import com.embabel.agent.rag.model.Chunk
-import com.embabel.agent.rag.model.Fact
-import com.embabel.agent.rag.model.NamedEntityData
 import com.embabel.agent.rag.model.Retrievable
-import com.embabel.common.core.types.SimilarityResult
+import com.embabel.agent.rag.service.support.formatRetrievableResult
 
 /**
  * Implemented by classes that can format SimilarityResults objects into a string
@@ -28,23 +25,6 @@ import com.embabel.common.core.types.SimilarityResult
 fun interface RetrievableResultsFormatter {
 
     fun formatResults(similarityResults: SimilarityResults<out Retrievable>): String
-}
-
-/**
- * Formats a single [SimilarityResult] of a [Retrievable] into a human-readable string.
- * Shared by [SimpleRetrievableResultsFormatter] and [TokenBudgetRetrievableResultsFormatter].
- */
-internal fun formatRetrievableResult(result: SimilarityResult<out Retrievable>): String {
-    val formattedScore = "%.2f".format(result.score)
-    return when (val match = result.match) {
-        is NamedEntityData -> "$formattedScore: ${match.embeddableValue()}"
-        is Chunk -> {
-            val urlHeader = match.uri?.let { "url: $it\n" } ?: ""
-            "chunkId: ${match.id} $urlHeader$formattedScore - ${match.text}"
-        }
-        is Fact -> "$formattedScore: fact - ${match.assertion}"
-        else -> "$formattedScore: ${match.javaClass.simpleName} - ${match.infoString(verbose = true)}"
-    }
 }
 
 /**

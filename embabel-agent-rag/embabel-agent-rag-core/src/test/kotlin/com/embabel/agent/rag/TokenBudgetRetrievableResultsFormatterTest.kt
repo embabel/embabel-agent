@@ -16,7 +16,7 @@
 package com.embabel.agent.rag
 
 import com.embabel.agent.rag.service.SimilarityResults
-import com.embabel.agent.rag.service.TokenBudgetRetrievableResultsFormatter
+import com.embabel.agent.rag.service.support.TokenBudgetRetrievableResultsFormatter
 import com.embabel.agent.rag.service.spring.DocumentSimilarityResult
 import com.embabel.common.ai.model.TokenCounter
 import org.junit.jupiter.api.Assertions.*
