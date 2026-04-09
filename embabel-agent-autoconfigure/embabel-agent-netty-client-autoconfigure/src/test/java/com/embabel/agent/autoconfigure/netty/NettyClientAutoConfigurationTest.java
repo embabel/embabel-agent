@@ -19,7 +19,9 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
@@ -88,5 +90,22 @@ class NettyClientAutoConfigurationTest {
                 org.springframework.http.client.ReactorClientHttpRequestFactory.class,
                 factory
         );
+    }
+
+    @Test
+    void webClientBuilderIsNettyBacked() throws NoSuchFieldException, IllegalAccessException {
+        var config = new NettyClientAutoConfiguration();
+        var props = new NettyClientFactoryProperties(null, null);
+        var builder = config.reactorWebClientBuilder(props);
+
+        assertInstanceOf(WebClient.Builder.class, builder);
+        WebClient webClient = builder.build();
+        Field exchangeFunctionField = webClient.getClass().getDeclaredField("exchangeFunction");
+        exchangeFunctionField.setAccessible(true);
+        Object exchangeFunction = exchangeFunctionField.get(webClient);
+        Field connectorField = exchangeFunction.getClass().getDeclaredField("connector");
+        connectorField.setAccessible(true);
+        Object connector = connectorField.get(exchangeFunction);
+        assertInstanceOf(ReactorClientHttpConnector.class, connector);
     }
 }

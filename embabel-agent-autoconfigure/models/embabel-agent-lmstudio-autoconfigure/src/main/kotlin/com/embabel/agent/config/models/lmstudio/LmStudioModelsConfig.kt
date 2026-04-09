@@ -36,6 +36,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
+import org.springframework.web.reactive.function.client.WebClient
 
 @ConfigurationProperties(prefix = "embabel.agent.platform.models.lmstudio")
 class LmStudioProperties : RetryProperties {
@@ -84,12 +85,16 @@ class LmStudioModelsConfig(
     observationRegistry: ObjectProvider<ObservationRegistry>,
     @Qualifier("aiModelRestClientBuilder")
     restClientBuilder: ObjectProvider<RestClient.Builder>,
+    @Qualifier("aiModelWebClientBuilder")
+    webClientBuilder: ObjectProvider<WebClient.Builder>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = lmStudioProperties.baseUrl,
     apiKey = lmStudioProperties.apiKey,
     completionsPath = null,
     embeddingsPath = null,
-    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP }
+    observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
+    restClientBuilder = restClientBuilder,
+    webClientBuilder = webClientBuilder,
 ) {
 
     private val log = LoggerFactory.getLogger(LmStudioModelsConfig::class.java)

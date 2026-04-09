@@ -24,6 +24,7 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
+import org.springframework.web.reactive.function.client.WebClient
 
 /**
  * Unit tests for LM Studio configuration and bean registration.
@@ -35,6 +36,8 @@ class LmStudioModelsConfigTest {
     private val mockObservationRegistry = mockk<ObjectProvider<ObservationRegistry>>()
     private val mockRestClientBuilderProvider = mockk<ObjectProvider<RestClient.Builder>>()
     private val mockRestClientBuilder = mockk<RestClient.Builder>()
+    private val mockWebClientBuilderProvider = mockk<ObjectProvider<WebClient.Builder>>()
+    private val mockWebClientBuilder = mockk<WebClient.Builder>(relaxed = true)
     private val mockRestClient = mockk<RestClient>()
     private val mockRequestHeadersUriSpec = mockk<RestClient.RequestHeadersUriSpec<*>>()
     private val mockRequestHeadersSpec = mockk<RestClient.RequestHeadersSpec<*>>()
@@ -51,12 +54,18 @@ class LmStudioModelsConfigTest {
         every { mockBeanFactory.registerSingleton(any(), any()) } just Runs
         every { mockObservationRegistry.getIfUnique(any()) } returns ObservationRegistry.NOOP
 
-        // Mock the ObjectProvider wrapping the builder (used by the constructor / parent class)
+        // Mock the ObjectProviders wrapping the builders (used by the constructor / parent class)
         every { mockRestClientBuilderProvider.getIfAvailable(any()) } returns mockRestClientBuilder
+        every { mockWebClientBuilderProvider.getIfAvailable(any()) } returns mockWebClientBuilder
 
         // Mock RestClient.builder() static call (used by loadModelsFromUrl internally)
         mockkStatic("org.springframework.web.client.RestClient")
         every { RestClient.builder() } returns mockRestClientBuilder
+
+        // Mock WebClient.Builder chain (used by parent class)
+        every { mockWebClientBuilder.observationRegistry(any()) } returns mockWebClientBuilder
+        every { mockWebClientBuilder.clone() } returns mockWebClientBuilder
+        every { mockWebClientBuilder.build() } returns mockk(relaxed = true)
 
         every { mockRestClientBuilder.requestFactory(any()) } returns mockRestClientBuilder
         every { mockRestClientBuilder.build() } returns mockRestClient
@@ -96,7 +105,8 @@ class LmStudioModelsConfigTest {
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
             observationRegistry = mockObservationRegistry,
-            restClientBuilder = mockRestClientBuilderProvider
+            restClientBuilder = mockRestClientBuilderProvider,
+            webClientBuilder = mockWebClientBuilderProvider
         )
 
         // When
@@ -119,7 +129,8 @@ class LmStudioModelsConfigTest {
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
             observationRegistry = mockObservationRegistry,
-            restClientBuilder = mockRestClientBuilderProvider
+            restClientBuilder = mockRestClientBuilderProvider,
+            webClientBuilder = mockWebClientBuilderProvider
         )
 
         // When
@@ -138,7 +149,8 @@ class LmStudioModelsConfigTest {
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
             observationRegistry = mockObservationRegistry,
-            restClientBuilder = mockRestClientBuilderProvider
+            restClientBuilder = mockRestClientBuilderProvider,
+            webClientBuilder = mockWebClientBuilderProvider
         )
 
         // When
@@ -165,7 +177,8 @@ class LmStudioModelsConfigTest {
             lmStudioProperties = mockLmStudioProperties,
             configurableBeanFactory = mockBeanFactory,
             observationRegistry = mockObservationRegistry,
-            restClientBuilder = mockRestClientBuilderProvider
+            restClientBuilder = mockRestClientBuilderProvider,
+            webClientBuilder = mockWebClientBuilderProvider
         )
 
         // When

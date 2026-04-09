@@ -32,13 +32,14 @@ import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.web.client.RestClient
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.web.client.RestClient
+import org.springframework.web.reactive.function.client.WebClient
 
 /**
  * Configuration properties for OpenAI model settings.
@@ -109,9 +110,11 @@ class OpenAiModelsConfig(
     @Qualifier("aiModelRestClientBuilder")
     restClientBuilder: ObjectProvider<RestClient.Builder>,
     private val properties: OpenAiProperties,
-    private val llmOptionsProperties: LlmOptionsProperties,
+    llmOptionsProperties: LlmOptionsProperties,
     private val configurableBeanFactory: ConfigurableBeanFactory,
     private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
+    @Qualifier("aiModelWebClientBuilder")
+    webClientBuilder: ObjectProvider<WebClient.Builder>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
     apiKey = envApiKey ?: properties.apiKey
@@ -121,6 +124,7 @@ class OpenAiModelsConfig(
     httpHeaders = llmOptionsProperties.httpHeaders,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     restClientBuilder = restClientBuilder,
+    webClientBuilder = webClientBuilder,
 ) {
 
     init {

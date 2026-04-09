@@ -36,6 +36,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
+import org.springframework.web.reactive.function.client.WebClient
 
 /**
  * Configuration properties for Gemini models.
@@ -98,6 +99,8 @@ class GeminiModelsConfig(
     private val modelLoader: LlmAutoConfigMetadataLoader<GeminiModelDefinitions> = GeminiModelLoader(),
     @Qualifier("aiModelRestClientBuilder")
     restClientBuilder: ObjectProvider<RestClient.Builder>,
+    @Qualifier("aiModelWebClientBuilder")
+    webClientBuilder: ObjectProvider<WebClient.Builder>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl ?: DEFAULT_BASE_URL,
     apiKey = envApiKey ?: properties.apiKey
@@ -106,6 +109,7 @@ class GeminiModelsConfig(
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     restClientBuilder = restClientBuilder,
+    webClientBuilder = webClientBuilder,
 ) {
 
     init {

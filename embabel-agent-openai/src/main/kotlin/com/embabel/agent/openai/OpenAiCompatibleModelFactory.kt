@@ -61,7 +61,8 @@ open class OpenAiCompatibleModelFactory(
     private val embeddingsPath: String?,
     private val httpHeaders: Map<String,String> = emptyMap(),
     private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty()
+    private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
+    private val webClientBuilder: ObjectProvider<WebClient.Builder> = ObjectProviders.empty(),
 ) {
 
     companion object {
@@ -213,7 +214,9 @@ open class OpenAiCompatibleModelFactory(
             )
         builder
             .webClientBuilder(
-                WebClient.builder()
+                webClientBuilder.getIfAvailable {
+                    WebClient.builder()
+                }
                     .observationRegistry(observationRegistry)
             )
 

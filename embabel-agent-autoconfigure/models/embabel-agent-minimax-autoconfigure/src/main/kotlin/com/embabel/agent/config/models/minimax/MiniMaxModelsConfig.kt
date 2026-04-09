@@ -19,7 +19,6 @@ import com.embabel.agent.api.models.MiniMaxModels
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
-import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
@@ -34,8 +33,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.http.client.ClientHttpRequestFactory
 import org.springframework.web.client.RestClient
+import org.springframework.web.reactive.function.client.WebClient
 import java.time.LocalDate
 
 /**
@@ -104,6 +103,8 @@ class MiniMaxModelsConfig(
     private val properties: MiniMaxProperties,
     @Qualifier("aiModelRestClientBuilder")
     restClientBuilder: ObjectProvider<RestClient.Builder>,
+    @Qualifier("aiModelWebClientBuilder")
+    webClientBuilder: ObjectProvider<WebClient.Builder>,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
     apiKey = envApiKey?.trim()?.takeIf { it.isNotEmpty() }
@@ -113,6 +114,7 @@ class MiniMaxModelsConfig(
     embeddingsPath = null,
     observationRegistry = observationRegistry.getIfUnique { ObservationRegistry.NOOP },
     restClientBuilder = restClientBuilder,
+    webClientBuilder = webClientBuilder,
 ) {
 
     init {

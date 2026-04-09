@@ -23,7 +23,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.ReactorClientHttpRequestFactory;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
@@ -48,14 +50,24 @@ public class NettyClientAutoConfiguration {
     @Bean("aiModelRestClientBuilder")
     @ConditionalOnProperty(value = "embabel.agent.platform.http-client.use-reactor-netty", havingValue = "true", matchIfMissing = true)
     RestClient.Builder reactorRestClientBuilder(NettyClientFactoryProperties httpClientProperties) {
-        var httpClient = HttpClient.create()
+        var httpClient = httpClient(httpClientProperties);
+        return RestClient.builder().requestFactory(new ReactorClientHttpRequestFactory(httpClient));
+    }
+
+    @Bean("aiModelWebClientBuilder")
+    @ConditionalOnProperty(value = "embabel.agent.platform.http-client.use-reactor-netty", havingValue = "true", matchIfMissing = true)
+    WebClient.Builder reactorWebClientBuilder(NettyClientFactoryProperties httpClientProperties) {
+        var httpClient = httpClient(httpClientProperties);
+        return WebClient.builder().clientConnector(new ReactorClientHttpConnector(httpClient));
+    }
+
+    private static HttpClient httpClient(NettyClientFactoryProperties httpClientProperties) {
+        return HttpClient.create()
                 .followRedirect(true)
                 .responseTimeout(httpClientProperties.readTimeout())
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) httpClientProperties
                         .connectTimeout()
                         .toMillis());
-
-        return RestClient.builder().requestFactory(new ReactorClientHttpRequestFactory(httpClient));
     }
 
 }
