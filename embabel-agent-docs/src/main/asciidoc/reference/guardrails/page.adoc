@@ -459,7 +459,7 @@ For more examples, see:
 
 ----
 embabel-agent-autoconfigure/models/embabel-agent-anthropic-autoconfigure/
-  src/test/kotlin/com/embabel/agent/config/models/anthropic/LLMAnthropicThinkingIT.java
+  src/test/java/com/embabel/agent/config/models/anthropic/LLMAnthropicThinkingIT.java
 ----
 ==== Relationship with Other Validation Mechanisms
 
