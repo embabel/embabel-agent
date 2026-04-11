@@ -17,6 +17,7 @@ package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.AgentImage
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
@@ -201,6 +202,26 @@ class DelegatingStreamingPromptRunnerTest {
             val result = runner.withToolGroup(groupRole)
 
             verify { mockDelegate.withToolGroup(match<ToolGroupRequirement> { it.role == groupRole }) }
+            assertTrue(result is DelegatingStreamingPromptRunner)
+        }
+
+        @Test
+        fun `withToolGroup with terminationScope should delegate with correct requirement`() {
+            val updatedDelegate = mockk<PromptExecutionDelegate>()
+            val groupRole = "test-group"
+
+            every { mockDelegate.withToolGroup(any<ToolGroupRequirement>()) } returns updatedDelegate
+
+            val runner = createPromptRunner()
+            val result = runner.withToolGroup(groupRole, TerminationScope.AGENT, "tool1", "tool2")
+
+            verify {
+                mockDelegate.withToolGroup(match<ToolGroupRequirement> {
+                    it.role == groupRole &&
+                        it.requiredToolNames == setOf("tool1", "tool2") &&
+                        it.terminationScope == TerminationScope.AGENT
+                })
+            }
             assertTrue(result is DelegatingStreamingPromptRunner)
         }
 

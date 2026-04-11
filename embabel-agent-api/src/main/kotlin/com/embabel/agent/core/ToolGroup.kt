@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.tool.Tool
 import com.embabel.common.core.types.AssetCoordinates
 import com.embabel.common.core.types.HasInfoString
@@ -129,13 +130,17 @@ interface ToolGroupMetadata : ToolGroupDescription, AssetCoordinates, HasInfoStr
 /**
  * Specifies a tool group that a tool consumer requires.
  * @param requiredToolNames optional set of tool names that must be present in the resolved group.
- * When non-empty, resolution throws [com.embabel.agent.spi.loop.RequiredToolGroupException]
- * if the group is not found or any required tool name is absent.
+ * When non-empty, resolution throws an exception if the group is not found or any required tool name is absent.
  * An empty set (default) preserves backward-compatible behavior: a missing group is logged and tolerated.
+ * @param terminationScope controls the exception type thrown when required tools are missing.
+ * When null (default), throws [com.embabel.agent.spi.loop.RequiredToolGroupException].
+ * When [TerminationScope.AGENT], throws [com.embabel.agent.api.tool.TerminateAgentException].
+ * When [TerminationScope.ACTION], throws [com.embabel.agent.api.tool.TerminateActionException].
  */
 data class ToolGroupRequirement(
     val role: String,
     val requiredToolNames: Set<String> = emptySet(),
+    val terminationScope: TerminationScope? = null,
 )
 
 interface ToolGroupConsumer {

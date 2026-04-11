@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.core
 
+import com.embabel.agent.api.common.TerminationScope
 import com.embabel.agent.api.tool.Tool
 import com.embabel.common.core.types.Semver
 import org.junit.jupiter.api.Assertions.*
@@ -164,6 +165,30 @@ class ToolGroupTest {
 
             assertEquals(req1, req2)
             assertNotEquals(req1, req3)
+        }
+
+        @Test
+        fun `ToolGroupRequirement defaults terminationScope to null`() {
+            val requirement = ToolGroupRequirement(role = "test-role")
+
+            assertNull(requirement.terminationScope)
+        }
+
+        @Test
+        fun `ToolGroupRequirement holds terminationScope correctly`() {
+            val agentReq = ToolGroupRequirement(
+                role = "agent-role",
+                requiredToolNames = setOf("tool"),
+                terminationScope = TerminationScope.AGENT,
+            )
+            val actionReq = ToolGroupRequirement(
+                role = "action-role",
+                requiredToolNames = setOf("tool"),
+                terminationScope = TerminationScope.ACTION,
+            )
+
+            assertEquals(TerminationScope.AGENT, agentReq.terminationScope)
+            assertEquals(TerminationScope.ACTION, actionReq.terminationScope)
         }
     }
 
