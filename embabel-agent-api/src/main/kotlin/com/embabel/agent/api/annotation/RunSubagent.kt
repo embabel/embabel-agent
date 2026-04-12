@@ -48,6 +48,21 @@ object RunSubagent {
      * Run the agent instance as a subagent and return the result.
      * @param agent The agent instance to run as a subagent.
      * @param type The expected return type.
+     *
+     * **IMPORTANT:** This method always throws [SubagentExecutionRequest] internally.
+     * The framework catches this exception and uses it to execute the subagent.
+     * Any code written after this call in your action method will **never execute**.
+     * Use this call as the final statement in your action method, treating it like a `return`.
+     *
+     * ```java
+     * // WRONG — log.info will never run
+     * Result r = RunSubagent.instance(myAgent, Result.class);
+     * log.info("result: {}", r);
+     * return r;
+     *
+     * // CORRECT — this is the last statement
+     * return RunSubagent.instance(myAgent, Result.class);
+     * ```
      */
     @JvmStatic
     @Throws(SubagentExecutionRequest::class)
@@ -64,6 +79,21 @@ object RunSubagent {
      * Run the @Agent annotated instance as a subagent and return the result.
      * @param instance The @Agent annotated instance to run as a subagent.
      * @param type The expected return type.
+     *
+     * **IMPORTANT:** This method always throws [SubagentExecutionRequest] internally.
+     * The framework catches this exception and uses it to execute the subagent.
+     * Any code written after this call in your action method will **never execute**.
+     * Use this call as the final statement in your action method, treating it like a `return`.
+     *
+     * ```java
+     * // WRONG — log.info will never run
+     * Result r = RunSubagent.fromAnnotatedInstance(myAgent, Result.class);
+     * log.info("result: {}", r);
+     * return r;
+     *
+     * // CORRECT — this is the last statement
+     * return RunSubagent.fromAnnotatedInstance(myAgent, Result.class);
+     * ```
      */
     @JvmStatic
     @Throws(SubagentExecutionRequest::class)
