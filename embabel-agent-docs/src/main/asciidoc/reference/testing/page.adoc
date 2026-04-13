@@ -795,15 +795,26 @@ class StoryWriterIntegrationTest : EmbabelMockitoIntegrationTest() {
 ===== Key Integration Testing Features
 
 **Base Class Benefits:**
-- `EmbabelMockitoIntegrationTest` handles Spring Boot setup and LLM mocking automatically - Provides `agentPlatform` and `llmOperations` pre-configured - Includes helper methods for common testing patterns
+
+- `EmbabelMockitoIntegrationTest` handles Spring Boot setup and LLM mocking automatically
+- Provides `agentPlatform` and `llmOperations` pre-configured
+- Includes helper methods for common testing patterns
 
 **Convenient Stubbing Methods:**
-- `whenCreateObject(prompt, outputClass)`: Mock object creation calls - `whenGenerateText(prompt)`: Mock text generation calls - Support for both exact prompts and `contains()` matching
+
+- `whenCreateObject(prompt, outputClass)`: Mock object creation calls
+- `whenGenerateText(prompt)`: Mock text generation calls
+- Support for both exact prompts and `contains()` matching
+- Supports streaming calls by calling `supportsStreaming(true)` in test setup.
 
 **Advanced Verification:**
-- `verifyCreateObjectMatching()`: Verify prompts with custom matchers - `verifyGenerateTextMatching()`: Verify text generation calls - `verifyNoMoreInteractions()`: Ensure no unexpected LLM calls
+
+- `verifyCreateObjectMatching()`: Verify prompts with custom matchers
+- `verifyGenerateTextMatching()`: Verify text generation calls
+- `verifyNoMoreInteractions()`: Ensure no unexpected LLM calls
 
 **LLM Configuration Testing:**
+
 - Verify temperature settings: `llm.getLlm().getTemperature() == 0.9`
 - Check tool groups: `llm.getToolGroups().isEmpty()`
 - Validate persona and other LLM options
