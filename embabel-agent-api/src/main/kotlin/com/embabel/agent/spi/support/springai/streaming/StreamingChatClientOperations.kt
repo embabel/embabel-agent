@@ -21,8 +21,10 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
-import com.embabel.agent.spi.streaming.StreamingLlmOperations
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.PROMPT_ELEMENT_SEPARATOR
+import com.embabel.agent.spi.support.buildConsolidatedPromptMessages
+import com.embabel.agent.spi.support.buildPromptContributionsString
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -54,7 +56,19 @@ import reactor.core.publisher.Mono
  * **Unified Architecture:**
  * All streaming methods are built on a single internal pipeline that emits `StreamingEvent<T>`,
  * allowing consistent behavior and the flexibility to filter events as needed by different use cases.
+ *
+ * @deprecated Use [com.embabel.agent.spi.support.streaming.StreamingLlmOperationsImpl] via
+ * [com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory.createStreamingOperations].
+ * This class will be removed once the new vendor-agnostic streaming implementation is fully validated.
  */
+@Deprecated(
+    message = "Use StreamingLlmOperationsImpl via StreamingLlmOperationsFactory.createStreamingOperations(). " +
+        "Will be removed once new streaming implementation is fully validated.",
+    replaceWith = ReplaceWith(
+        "StreamingLlmOperationsFactory.createStreamingOperations(options)",
+        "com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory"
+    )
+)
 internal class StreamingChatClientOperations(
     private val chatClientLlmOperations: ChatClientLlmOperations,
     /**
@@ -70,12 +84,9 @@ internal class StreamingChatClientOperations(
 
     /**
      * Build prompt contributions string from interaction and LLM contributors.
-     * Consider helper
      */
-    private fun buildPromptContributions(interaction: LlmInteraction, llm: LlmService<*>): String {
-        return (interaction.promptContributors + llm.promptContributors)
-            .joinToString(PROMPT_ELEMENT_SEPARATOR) { it.contribution() }
-    }
+    private fun buildPromptContributions(interaction: LlmInteraction, llm: LlmService<*>): String =
+        buildPromptContributionsString(interaction.promptContributors, llm.promptContributors)
 
     /**
      * Build Spring AI Prompt from messages and contributions.
@@ -443,12 +454,7 @@ internal class StreamingChatClientOperations(
     private fun buildMessagesWithContributions(
         messages: List<Message>,
         promptContributions: String,
-    ): List<Message> = buildList {
-        if (promptContributions.isNotEmpty()) {
-            add(com.embabel.chat.SystemMessage(promptContributions))
-        }
-        addAll(messages)
-    }
+    ): List<Message> = buildConsolidatedPromptMessages(messages, promptContributions)
 
     /**
      * Create raw content stream from LLM.

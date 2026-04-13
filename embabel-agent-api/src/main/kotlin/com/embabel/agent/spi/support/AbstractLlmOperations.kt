@@ -21,6 +21,9 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.internal.LlmOperations
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
+import com.embabel.agent.spi.support.streaming.StreamingLlmOperationsImpl
 import com.embabel.agent.core.support.InvalidLlmReturnTypeException
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.spi.AutoLlmSelectionCriteriaResolver
@@ -37,6 +40,7 @@ import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
+import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
 import java.lang.reflect.Field
@@ -67,7 +71,8 @@ abstract class AbstractLlmOperations(
     protected val dataBindingProperties: LlmDataBindingProperties,
     protected val promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
     protected val asyncer: Asyncer,
-) : LlmOperations {
+    internal open val objectMapper: ObjectMapper,
+) : LlmOperations, StreamingLlmOperationsFactory {
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -417,6 +422,17 @@ abstract class AbstractLlmOperations(
             return crit.resolved as LlmService<*>
         }
         return modelProvider.getLlm(crit)
+    }
+
+    override fun createStreamingOperations(options: LlmOptions): StreamingLlmOperations {
+        val llmService = chooseLlm(options)
+        val messageStreamer = llmService.createMessageStreamer(options)
+        return StreamingLlmOperationsImpl(
+            messageStreamer = messageStreamer,
+            objectMapper = objectMapper,
+            llmService = llmService,
+            toolDecorator = toolDecorator,
+        )
     }
 
     protected abstract fun <O> doTransformIfPossible(

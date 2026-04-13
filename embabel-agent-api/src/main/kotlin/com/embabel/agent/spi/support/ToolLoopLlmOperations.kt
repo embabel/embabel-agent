@@ -58,8 +58,6 @@ import java.time.Duration
 import java.time.Instant
 import javax.annotation.concurrent.ThreadSafe
 
-const val PROMPT_ELEMENT_SEPARATOR = "\n----\n"
-
 /**
  * Output converter abstraction for parsing LLM output.
  * Framework-agnostic interface that can be implemented by Spring AI converters or others.
@@ -106,7 +104,7 @@ open class ToolLoopLlmOperations(
     dataBindingProperties: LlmDataBindingProperties = LlmDataBindingProperties(),
     autoLlmSelectionCriteriaResolver: AutoLlmSelectionCriteriaResolver = AutoLlmSelectionCriteriaResolver.DEFAULT,
     promptsProperties: LlmOperationsPromptsProperties = LlmOperationsPromptsProperties(),
-    internal open val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
+    objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule()),
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     asyncer: Asyncer = ExecutorAsyncer(java.util.concurrent.Executors.newCachedThreadPool()),
     protected val toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
@@ -120,6 +118,7 @@ open class ToolLoopLlmOperations(
     autoLlmSelectionCriteriaResolver = autoLlmSelectionCriteriaResolver,
     promptsProperties = promptsProperties,
     asyncer = asyncer,
+    objectMapper = objectMapper,
 ) {
 
     override fun <O> doTransform(
@@ -631,10 +630,7 @@ open class ToolLoopLlmOperations(
     protected fun buildPromptContributions(
         interaction: LlmInteraction,
         llm: LlmService<*>,
-    ): String {
-        return (interaction.promptContributors + llm.promptContributors)
-            .joinToString(PROMPT_ELEMENT_SEPARATOR) { it.contribution() }
-    }
+    ): String = buildPromptContributionsString(interaction.promptContributors, llm.promptContributors)
 
     /**
      * Build initial messages for the tool loop, including system prompt contributions and schema.

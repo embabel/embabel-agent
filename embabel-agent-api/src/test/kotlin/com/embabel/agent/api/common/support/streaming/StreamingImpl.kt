@@ -19,7 +19,7 @@ import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
-import com.embabel.agent.spi.streaming.StreamingLlmOperations
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.streaming.StreamingEvent

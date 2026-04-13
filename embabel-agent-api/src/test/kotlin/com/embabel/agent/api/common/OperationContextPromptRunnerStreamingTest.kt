@@ -21,7 +21,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Operation
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
-import com.embabel.agent.spi.streaming.StreamingLlmOperations
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
 import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.agent.test.integration.DummyObjectCreatingLlmOperations
@@ -67,6 +67,9 @@ class OperationContextPromptRunnerStreamingTest {
 
         val mockLlm = mockk<SpringAiLlmService> {
             every { chatModel } returns mockStreamingChatModel
+            every { provider } returns "test-provider"
+            every { name } returns "test-model"
+            every { supportsStreaming() } returns true
         }
 
         val mockChatClientLlmOperations =

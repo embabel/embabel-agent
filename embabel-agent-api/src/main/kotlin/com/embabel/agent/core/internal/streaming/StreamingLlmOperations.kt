@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.streaming
+package com.embabel.agent.core.internal.streaming
 
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.core.Action
@@ -22,12 +22,13 @@ import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.core.streaming.StreamingEvent
+import org.jetbrains.annotations.ApiStatus
 import reactor.core.publisher.Flux
 
 /**
  * Streaming extension of LlmOperations for real-time LLM response processing.
  *
- * This SPI interface provides reactive streaming capabilities that support
+ * This internal interface provides reactive streaming capabilities that support
  * the API layer StreamingPromptRunner interfaces, enabling:
  * - Real-time processing of LLM responses as they arrive
  * - Streaming lists of objects from JSONL responses
@@ -37,6 +38,7 @@ import reactor.core.publisher.Flux
  * All streaming methods return Project Reactor Flux streams for integration
  * with Spring WebFlux and other reactive frameworks.
  */
+@ApiStatus.Internal
 interface StreamingLlmOperations {
 
     /**

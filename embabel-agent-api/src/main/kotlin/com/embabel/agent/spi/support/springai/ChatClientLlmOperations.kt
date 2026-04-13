@@ -20,6 +20,8 @@ import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.core.Action
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperations
+import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.toEmbabelUsage
@@ -35,6 +37,8 @@ import com.embabel.agent.spi.support.MaybeReturn
 import com.embabel.agent.spi.support.OutputConverter
 import com.embabel.agent.spi.support.ToolLoopLlmOperations
 import com.embabel.agent.spi.support.ToolResolutionHelper
+import com.embabel.agent.spi.support.buildConsolidatedSystemMessage
+import com.embabel.agent.spi.support.partitionMessages
 import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -55,6 +59,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.observation.ObservationRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.validation.Validator
+import org.springframework.beans.factory.annotation.Value
 import java.lang.reflect.ParameterizedType
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -111,6 +116,8 @@ internal class ChatClientLlmOperations(
     private val customizers: List<ChatClientCustomizer> = emptyList(),
     asyncer: Asyncer,
     toolLoopFactory: ToolLoopFactory = ToolLoopFactory.create(ToolLoopConfiguration(), asyncer, AutoCorrectionPolicy()),
+    @Value("\${embabel.agent.platform.streaming.use-legacy-streaming:false}")
+    private val useLegacyStreaming: Boolean = false,
 ) : ToolLoopLlmOperations(
     toolDecorator = toolDecorator,
     modelProvider = modelProvider,
@@ -737,32 +744,6 @@ internal class ChatClientLlmOperations(
         )
     }
 
-    /**
-     * Partitions messages into system messages (content only) and non-system messages.
-     * This enables consolidating all system content at the beginning of the prompt.
-     */
-    private fun partitionMessages(messages: List<Message>): Pair<List<String>, List<Message>> {
-        val systemContent = mutableListOf<String>()
-        val nonSystemMessages = mutableListOf<Message>()
-        for (message in messages) {
-            if (message is com.embabel.chat.SystemMessage) {
-                systemContent.add(message.content)
-            } else {
-                nonSystemMessages.add(message)
-            }
-        }
-        return systemContent to nonSystemMessages
-    }
-
-    /**
-     * Consolidates multiple system content strings into a single system message.
-     * This ensures a single system message at the beginning of the conversation,
-     * following OpenAI best practices and ensuring compatibility with models like DeepSeek
-     * that have strict message ordering requirements.
-     */
-    private fun buildConsolidatedSystemMessage(vararg contents: String): String =
-        contents.filter { it.isNotEmpty() }.joinToString("\n\n")
-
     // ====================================
     // EXCEPTION HANDLING
     // ====================================
@@ -896,6 +877,25 @@ internal class ChatClientLlmOperations(
         action = action,
         toolDecorator = toolDecorator,
     )
+
+    // ====================================
+    // STREAMING OPERATIONS FACTORY
+    // ====================================
+
+    /**
+     * Creates streaming operations with fallback to legacy Spring AI implementation.
+     *
+     * TODO: Remove this override, the [useLegacyStreaming] flag, and [StreamingChatClientOperations]
+     * once the new StreamingLlmOperationsImpl is fully validated. After removal,
+     * casts to ChatClientLlmOperations will no longer be needed anywhere in the codebase.
+     */
+    override fun createStreamingOperations(options: LlmOptions): StreamingLlmOperations {
+        return if (useLegacyStreaming) {
+            StreamingChatClientOperations(this)
+        } else {
+            super.createStreamingOperations(options)
+        }
+    }
 }
 
 /**
