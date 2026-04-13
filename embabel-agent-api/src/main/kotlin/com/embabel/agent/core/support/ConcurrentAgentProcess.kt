@@ -23,7 +23,9 @@ import com.embabel.plan.WorldState
 import com.embabel.plan.common.condition.ConditionWorldState
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking
+import java.time.Duration
 import java.time.Instant
+import java.util.Collections
 import javax.annotation.concurrent.ThreadSafe
 import kotlin.time.measureTime
 
@@ -54,10 +56,25 @@ open class ConcurrentAgentProcess(
     timestamp = timestamp,
 ) {
     override fun formulateAndExecutePlan(worldState: WorldState): AgentProcess {
-        val plan = planner.bestValuePlanToAnyGoal(system = agent.planningSystem)
+        // Mirror SimpleAgentProcess: exclude blacklisted actions, fall back without blacklist if needed
+        val plan = planner.bestValuePlanToAnyGoal(
+            system = agent.planningSystem,
+            excludedActionNames = replanBlacklist,
+        )
         if (plan == null) {
+            if (replanBlacklist.isNotEmpty()) {
+                logger.debug(
+                    "No plan found with blacklist {}, clearing and retrying",
+                    replanBlacklist,
+                )
+                replanBlacklist.clear()
+                return formulateAndExecutePlan(worldState)
+            }
             return handlePlanNotFound(worldState)
         }
+
+        // Clear blacklist after successful planning (matches SimpleAgentProcess behavior)
+        replanBlacklist.clear()
 
         _goal = plan.goal
 
@@ -88,6 +105,12 @@ open class ConcurrentAgentProcess(
                 }
             val process = this
             callbacks.forEach { it.beforeActionLaunched(process) }
+
+            // Collect replan requests from concurrent actions; thread-safe because multiple
+            // coroutines may add to this list simultaneously.
+            val replanRequests =
+                Collections.synchronizedList(mutableListOf<Pair<Action, ReplanRequestedException>>())
+
             val elapsed =
                 measureTime {
                     logger.info("Executing ${actions.size} actions concurrently: \n${actions.map { it.name }}")
@@ -98,6 +121,11 @@ open class ConcurrentAgentProcess(
                                     try {
                                         callbacks.forEach { it.onActionLaunched(process, action) }
                                         executeAction(action)
+                                    } catch (rpe: ReplanRequestedException) {
+                                        // Capture for post-execution handling; return TERMINATED so
+                                        // the status aggregation loop doesn't fail on a missing value.
+                                        replanRequests.add(action to rpe)
+                                        ActionStatus(Duration.ZERO, ActionStatusCode.TERMINATED)
                                     } finally {
                                         callbacks.forEach { it.onActionCompleted(process, action) }
                                     }
@@ -107,7 +135,16 @@ open class ConcurrentAgentProcess(
                                     deferred.await()
                                 }
                             }
-                    setStatus(actionStatusToAgentProcessStatus(agentStatuses))
+
+                    if (replanRequests.isNotEmpty()) {
+                        // If multiple actions requested replan concurrently, handle only the first.
+                        // The others' blackboard updates are intentionally dropped — they ran in a
+                        // context that is about to be replanned anyway.
+                        val (action, rpe) = replanRequests.first()
+                        handleReplanRequest(action, rpe)
+                    } else {
+                        setStatus(actionStatusToAgentProcessStatus(agentStatuses))
+                    }
                 }
             logger.info("Executed ${actions.size} actions in $elapsed")
         }

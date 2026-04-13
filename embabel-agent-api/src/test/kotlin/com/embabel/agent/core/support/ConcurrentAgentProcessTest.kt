@@ -332,4 +332,59 @@ class ConcurrentAgentProcessTest {
 
     }
 
+    @Nested
+    inner class ReplanRequestedExceptionHandling {
+
+        private fun makeProcess(agent: com.embabel.agent.core.Agent, blackboard: InMemoryBlackboard) =
+            ConcurrentAgentProcess(
+                id = "test-replan",
+                agent = agent,
+                processOptions = ProcessOptions(),
+                blackboard = blackboard,
+                platformServices = dummyPlatformServices(),
+                plannerFactory = DefaultPlannerFactory,
+                parentId = null,
+            )
+
+        @Test
+        fun `ReplanRequestedException applies blackboard updates and triggers replanning`() {
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("TestUser")
+
+            val result = makeProcess(ReplanningAgent, blackboard).run()
+
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.status)
+            assertEquals("alternate", blackboard["routedTo"])
+            val frog = blackboard.lastResult() as com.embabel.agent.api.dsl.Frog
+            assertEquals("Alternate: TestUser", frog.name)
+        }
+
+        @Test
+        fun `ReplanRequestedException handles multiple consecutive replans`() {
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("CountingUser")
+
+            val result = makeProcess(MultiReplanAgent, blackboard).run()
+
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.status)
+            assertEquals(3, blackboard["replanCount"])
+            val frog = blackboard.lastResult() as com.embabel.agent.api.dsl.Frog
+            assertTrue(frog.name.contains("CountingUser"))
+            assertTrue(frog.name.contains("3 replans"))
+        }
+
+        @Test
+        fun `replan blacklist prevents infinite loop by selecting alternate action`() {
+            val blackboard = InMemoryBlackboard()
+            blackboard += UserInput("BlacklistTest")
+
+            val result = makeProcess(BlacklistTestAgent, blackboard).run()
+
+            assertEquals(AgentProcessStatusCode.COMPLETED, result.status)
+            val frog = blackboard.lastResult() as com.embabel.agent.api.dsl.Frog
+            assertTrue(frog.name.contains("fallback"))
+            assertTrue((blackboard["replanAttempts"] as? Int ?: 0) >= 1)
+        }
+    }
+
 }
