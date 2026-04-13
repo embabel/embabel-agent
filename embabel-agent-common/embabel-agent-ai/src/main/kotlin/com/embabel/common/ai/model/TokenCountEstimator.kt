@@ -22,26 +22,30 @@ import org.jetbrains.annotations.ApiStatus
  * Implementations must be thread-safe, stateless, and never throw.
  * Always returns >= 0.
  *
- * Parameterized so that counters can operate on different content types
+ * Parameterized so that estimators can operate on different content types
  * (e.g., [String] for raw text, or message types for framing-aware estimation)
  * without coupling this SPI to higher-level abstractions.
+ *
+ * Named and shaped after Spring AI's `TokenCountEstimator` and Langchain4j's
+ * analogous abstractions so that users coming from those frameworks find a
+ * familiar API.
  */
 @ApiStatus.Experimental
-fun interface TokenCounter<T> {
+fun interface TokenCountEstimator<T> {
 
-    fun estimateTokens(content: T): Int
+    fun estimate(content: T): Int
 
     companion object {
 
         /**
-         * A no-op counter that always returns 0.
-         * Use as a default when no real counter is configured.
+         * A no-op estimator that always returns 0.
+         * Use as a default when no real estimator is configured.
          */
         @JvmField
-        val NOOP: TokenCounter<String> = TokenCounter { 0 }
+        val NOOP: TokenCountEstimator<String> = TokenCountEstimator { 0 }
 
         @JvmStatic
-        fun heuristic(): TokenCounter<String> = CharacterHeuristicTokenCounter.DEFAULT
+        fun heuristic(): TokenCountEstimator<String> = CharacterHeuristicTokenCountEstimator.DEFAULT
     }
 }
 
@@ -53,15 +57,15 @@ fun interface TokenCounter<T> {
  * different ratio.
  */
 @ApiStatus.Experimental
-class CharacterHeuristicTokenCounter @JvmOverloads constructor(
+class CharacterHeuristicTokenCountEstimator @JvmOverloads constructor(
     val charsPerToken: Int = DEFAULT_CHARS_PER_TOKEN,
-) : TokenCounter<String> {
+) : TokenCountEstimator<String> {
 
     init {
         require(charsPerToken > 0) { "charsPerToken must be positive" }
     }
 
-    override fun estimateTokens(content: String): Int {
+    override fun estimate(content: String): Int {
         if (content.isBlank()) return 0
         return ((content.length.toLong() + charsPerToken - 1) / charsPerToken).toInt()
     }
@@ -71,6 +75,6 @@ class CharacterHeuristicTokenCounter @JvmOverloads constructor(
         const val DEFAULT_CHARS_PER_TOKEN = 4
 
         @JvmField
-        val DEFAULT = CharacterHeuristicTokenCounter()
+        val DEFAULT = CharacterHeuristicTokenCountEstimator()
     }
 }

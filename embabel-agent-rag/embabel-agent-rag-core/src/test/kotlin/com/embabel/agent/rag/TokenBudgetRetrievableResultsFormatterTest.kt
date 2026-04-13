@@ -18,7 +18,7 @@ package com.embabel.agent.rag
 import com.embabel.agent.rag.service.SimilarityResults
 import com.embabel.agent.rag.service.support.TokenBudgetRetrievableResultsFormatter
 import com.embabel.agent.rag.service.spring.DocumentSimilarityResult
-import com.embabel.common.ai.model.TokenCounter
+import com.embabel.common.ai.model.TokenCountEstimator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -26,7 +26,7 @@ import org.springframework.ai.document.Document
 
 class TokenBudgetRetrievableResultsFormatterTest {
 
-    private val charCounter: TokenCounter<String> = TokenCounter { it.length }
+    private val charEstimator: TokenCountEstimator<String> = TokenCountEstimator { it.length }
 
     @Nested
     inner class BudgetFilteringTests {
@@ -46,7 +46,7 @@ class TokenBudgetRetrievableResultsFormatterTest {
 
             // Measure the full output for two results, then use that as the budget.
             // With the budget matching the two-result output exactly, the third should be excluded.
-            val largeFormatter = TokenBudgetRetrievableResultsFormatter(charCounter, tokenBudget = Int.MAX_VALUE)
+            val largeFormatter = TokenBudgetRetrievableResultsFormatter(charEstimator, tokenBudget = Int.MAX_VALUE)
             val twoResults = SimilarityResults.fromList(
                 listOf(
                     DocumentSimilarityResult(doc1, 0.99),
@@ -55,7 +55,7 @@ class TokenBudgetRetrievableResultsFormatterTest {
             )
             val twoOutputLength = largeFormatter.formatResults(twoResults).length
 
-            val budgetedFormatter = TokenBudgetRetrievableResultsFormatter(charCounter, tokenBudget = twoOutputLength)
+            val budgetedFormatter = TokenBudgetRetrievableResultsFormatter(charEstimator, tokenBudget = twoOutputLength)
             val output = budgetedFormatter.formatResults(results)
             assertTrue(output.contains("short text A"), "Should contain result A")
             assertTrue(output.contains("short text B"), "Should contain result B")
@@ -72,7 +72,7 @@ class TokenBudgetRetrievableResultsFormatterTest {
                     DocumentSimilarityResult(Document("gamma"), 0.75),
                 )
             )
-            val formatter = TokenBudgetRetrievableResultsFormatter(charCounter, tokenBudget = Int.MAX_VALUE)
+            val formatter = TokenBudgetRetrievableResultsFormatter(charEstimator, tokenBudget = Int.MAX_VALUE)
             val output = formatter.formatResults(results)
             assertTrue(output.startsWith("3 results:"), "Should include all 3 results")
             assertTrue(output.contains("alpha"))
@@ -91,7 +91,7 @@ class TokenBudgetRetrievableResultsFormatterTest {
                     DocumentSimilarityResult(Document("some text"), 0.90),
                 )
             )
-            val formatter = TokenBudgetRetrievableResultsFormatter(charCounter, tokenBudget = 0)
+            val formatter = TokenBudgetRetrievableResultsFormatter(charEstimator, tokenBudget = 0)
             val output = formatter.formatResults(results)
             assertEquals("0 results:", output)
         }
@@ -99,7 +99,7 @@ class TokenBudgetRetrievableResultsFormatterTest {
         @Test
         fun `empty results returns header`() {
             val results = SimilarityResults.fromList<com.embabel.agent.rag.model.Chunk>(emptyList())
-            val formatter = TokenBudgetRetrievableResultsFormatter(charCounter, tokenBudget = 1000)
+            val formatter = TokenBudgetRetrievableResultsFormatter(charEstimator, tokenBudget = 1000)
             val output = formatter.formatResults(results)
             assertEquals("0 results:", output)
         }
@@ -119,11 +119,11 @@ class TokenBudgetRetrievableResultsFormatterTest {
                 )
             )
             // Measure full output for just the high-similarity result, use as budget
-            val measureFormatter = TokenBudgetRetrievableResultsFormatter(charCounter, tokenBudget = Int.MAX_VALUE)
+            val measureFormatter = TokenBudgetRetrievableResultsFormatter(charEstimator, tokenBudget = Int.MAX_VALUE)
             val singleHigh = SimilarityResults.fromList(listOf(DocumentSimilarityResult(docHigh, 0.99)))
             val singleOutputLength = measureFormatter.formatResults(singleHigh).length
 
-            val formatter = TokenBudgetRetrievableResultsFormatter(charCounter, tokenBudget = singleOutputLength)
+            val formatter = TokenBudgetRetrievableResultsFormatter(charEstimator, tokenBudget = singleOutputLength)
             val output = formatter.formatResults(results)
             assertTrue(output.startsWith("1 results:"), "Should include exactly 1 result")
             assertTrue(output.contains("high similarity result"), "Should contain highest-similarity result")

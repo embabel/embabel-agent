@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-class TokenCounterTest {
+class TokenCountEstimatorTest {
 
     data class SimpleMessage(val role: String, val content: String)
 
@@ -28,7 +28,7 @@ class TokenCounterTest {
 
         @Test
         fun `NOOP returns 0 for any input`() {
-            assertEquals(0, TokenCounter.NOOP.estimateTokens("hello world"))
+            assertEquals(0, TokenCountEstimator.NOOP.estimate("hello world"))
         }
     }
 
@@ -36,8 +36,8 @@ class TokenCounterTest {
     inner class HeuristicFactory {
 
         @Test
-        fun `heuristic returns default CharacterHeuristicTokenCounter`() {
-            assertSame(CharacterHeuristicTokenCounter.DEFAULT, TokenCounter.heuristic())
+        fun `heuristic returns default CharacterHeuristicTokenCountEstimator`() {
+            assertSame(CharacterHeuristicTokenCountEstimator.DEFAULT, TokenCountEstimator.heuristic())
         }
     }
 
@@ -46,8 +46,8 @@ class TokenCounterTest {
 
         @Test
         fun `fun interface supports lambda creation`() {
-            val counter: TokenCounter<String> = TokenCounter { it.length / 3 }
-            assertEquals(3, counter.estimateTokens("123456789"))
+            val estimator: TokenCountEstimator<String> = TokenCountEstimator { it.length / 3 }
+            assertEquals(3, estimator.estimate("123456789"))
         }
     }
 
@@ -56,19 +56,19 @@ class TokenCounterTest {
 
         @Test
         fun `supports non-String content types`() {
-            val counter: TokenCounter<SimpleMessage> = TokenCounter { msg ->
+            val estimator: TokenCountEstimator<SimpleMessage> = TokenCountEstimator { msg ->
                 msg.content.length / 4
             }
-            assertEquals(2, counter.estimateTokens(SimpleMessage("user", "abcdefgh")))
+            assertEquals(2, estimator.estimate(SimpleMessage("user", "abcdefgh")))
         }
 
         @Test
-        fun `message counter can compose with string counter`() {
-            val textCounter = TokenCounter.heuristic()
-            val messageCounter: TokenCounter<SimpleMessage> = TokenCounter { msg ->
-                textCounter.estimateTokens(msg.content)
+        fun `message estimator can compose with string estimator`() {
+            val textEstimator = TokenCountEstimator.heuristic()
+            val messageEstimator: TokenCountEstimator<SimpleMessage> = TokenCountEstimator { msg ->
+                textEstimator.estimate(msg.content)
             }
-            assertEquals(2, messageCounter.estimateTokens(SimpleMessage("user", "abcdefgh")))
+            assertEquals(2, messageEstimator.estimate(SimpleMessage("user", "abcdefgh")))
         }
     }
 }

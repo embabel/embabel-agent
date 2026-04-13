@@ -20,14 +20,14 @@ import com.embabel.chat.Message
 import com.embabel.chat.MessageFormatter
 import com.embabel.chat.MessageRole
 import com.embabel.chat.UserMessage
-import com.embabel.common.ai.model.TokenCounter
+import com.embabel.common.ai.model.TokenCountEstimator
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class TokenBudgetConversationFormatterTest {
 
-    private val contentLengthCounter: TokenCounter<Message> = TokenCounter { it.content.length }
+    private val contentLengthEstimator: TokenCountEstimator<Message> = TokenCountEstimator { it.content.length }
 
     @Nested
     inner class MessageSelectionTests {
@@ -36,7 +36,7 @@ class TokenBudgetConversationFormatterTest {
         fun `includes most recent messages that fit within budget`() {
             // content lengths: "alpha" = 5, "beta" = 4, "gamma" = 5
             val formatter = TokenBudgetConversationFormatter(
-                tokenCounter = contentLengthCounter,
+                tokenCountEstimator = contentLengthEstimator,
                 tokenBudget = 10,
             )
             val conversation = InMemoryConversation()
@@ -53,7 +53,7 @@ class TokenBudgetConversationFormatterTest {
         @Test
         fun `includes all messages when budget is sufficient`() {
             val formatter = TokenBudgetConversationFormatter(
-                tokenCounter = contentLengthCounter,
+                tokenCountEstimator = contentLengthEstimator,
                 tokenBudget = 1000,
             )
             val conversation = InMemoryConversation()
@@ -67,13 +67,13 @@ class TokenBudgetConversationFormatterTest {
         }
 
         @Test
-        fun `tokenCounter receives Message allowing framing-aware estimation`() {
-            val framingAwareCounter: TokenCounter<Message> = TokenCounter { msg ->
+        fun `tokenCountEstimator receives Message allowing framing-aware estimation`() {
+            val framingAwareEstimator: TokenCountEstimator<Message> = TokenCountEstimator { msg ->
                 val overhead = if (msg.role == MessageRole.ASSISTANT) 10 else 5
                 msg.content.length + overhead
             }
             val formatter = TokenBudgetConversationFormatter(
-                tokenCounter = framingAwareCounter,
+                tokenCountEstimator = framingAwareEstimator,
                 tokenBudget = 20,
             )
             val conversation = InMemoryConversation()
@@ -92,7 +92,7 @@ class TokenBudgetConversationFormatterTest {
         @Test
         fun `returns empty when budget is zero`() {
             val formatter = TokenBudgetConversationFormatter(
-                tokenCounter = contentLengthCounter,
+                tokenCountEstimator = contentLengthEstimator,
                 tokenBudget = 0,
             )
             val conversation = InMemoryConversation()
@@ -104,7 +104,7 @@ class TokenBudgetConversationFormatterTest {
         @Test
         fun `returns empty for empty conversation`() {
             val formatter = TokenBudgetConversationFormatter(
-                tokenCounter = contentLengthCounter,
+                tokenCountEstimator = contentLengthEstimator,
                 tokenBudget = 1000,
             )
             val conversation = InMemoryConversation()
@@ -119,7 +119,7 @@ class TokenBudgetConversationFormatterTest {
         @Test
         fun `respects startIndex`() {
             val formatter = TokenBudgetConversationFormatter(
-                tokenCounter = contentLengthCounter,
+                tokenCountEstimator = contentLengthEstimator,
                 tokenBudget = 1000,
                 startIndex = 1,
             )
@@ -138,7 +138,7 @@ class TokenBudgetConversationFormatterTest {
             val customFormatter = MessageFormatter { msg -> ">> ${msg.content}" }
             val formatter = TokenBudgetConversationFormatter(
                 messageFormatter = customFormatter,
-                tokenCounter = contentLengthCounter,
+                tokenCountEstimator = contentLengthEstimator,
                 tokenBudget = 1000,
             )
             val conversation = InMemoryConversation()

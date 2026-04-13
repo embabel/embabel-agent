@@ -20,16 +20,16 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class TokenCounterJavaUsageTest {
+public class TokenCountEstimatorJavaUsageTest {
 
     @Nested
     class FactoryMethod {
 
         @Test
         void heuristicIsCallableFromJava() {
-            var counter = TokenCounter.heuristic();
-            assertNotNull(counter);
-            assertEquals(2, counter.estimateTokens("abcdefgh"));
+            var estimator = TokenCountEstimator.heuristic();
+            assertNotNull(estimator);
+            assertEquals(2, estimator.estimate("abcdefgh"));
         }
     }
 
@@ -38,8 +38,8 @@ public class TokenCounterJavaUsageTest {
 
         @Test
         void supportsJavaLambda() {
-            TokenCounter<String> counter = text -> text.length() / 3;
-            assertEquals(3, counter.estimateTokens("123456789"));
+            TokenCountEstimator<String> estimator = text -> text.length() / 3;
+            assertEquals(3, estimator.estimate("123456789"));
         }
     }
 
@@ -48,26 +48,26 @@ public class TokenCounterJavaUsageTest {
 
         @Test
         void defaultInstanceIsAccessible() {
-            var result = CharacterHeuristicTokenCounter.DEFAULT.estimateTokens("abcdefgh");
+            var result = CharacterHeuristicTokenCountEstimator.DEFAULT.estimate("abcdefgh");
             assertEquals(2, result);
         }
 
         @Test
         void customRatioFromJava() {
-            var counter = new CharacterHeuristicTokenCounter(2);
-            assertEquals(4, counter.estimateTokens("abcdefgh"));
+            var estimator = new CharacterHeuristicTokenCountEstimator(2);
+            assertEquals(4, estimator.estimate("abcdefgh"));
         }
 
         @Test
         void defaultConstructorFromJava() {
-            var counter = new CharacterHeuristicTokenCounter();
-            assertEquals(CharacterHeuristicTokenCounter.DEFAULT_CHARS_PER_TOKEN, counter.getCharsPerToken());
+            var estimator = new CharacterHeuristicTokenCountEstimator();
+            assertEquals(CharacterHeuristicTokenCountEstimator.DEFAULT_CHARS_PER_TOKEN, estimator.getCharsPerToken());
         }
 
         @Test
         void rejectsNullFromJava() {
             assertThrows(NullPointerException.class, () ->
-                CharacterHeuristicTokenCounter.DEFAULT.estimateTokens(null));
+                CharacterHeuristicTokenCountEstimator.DEFAULT.estimate(null));
         }
     }
 }

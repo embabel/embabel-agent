@@ -19,26 +19,26 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-class CharacterHeuristicTokenCounterTest {
+class CharacterHeuristicTokenCountEstimatorTest {
 
-    private val counter = CharacterHeuristicTokenCounter.DEFAULT
+    private val estimator = CharacterHeuristicTokenCountEstimator.DEFAULT
 
     @Nested
     inner class EmptyAndBlankInput {
 
         @Test
         fun `returns 0 for empty string`() {
-            assertEquals(0, counter.estimateTokens(""))
+            assertEquals(0, estimator.estimate(""))
         }
 
         @Test
         fun `returns 0 for blank string`() {
-            assertEquals(0, counter.estimateTokens("   "))
+            assertEquals(0, estimator.estimate("   "))
         }
 
         @Test
         fun `returns 0 for whitespace only`() {
-            assertEquals(0, counter.estimateTokens("\t\n "))
+            assertEquals(0, estimator.estimate("\t\n "))
         }
     }
 
@@ -47,31 +47,31 @@ class CharacterHeuristicTokenCounterTest {
 
         @Test
         fun `divides character count by 4`() {
-            assertEquals(1, counter.estimateTokens("abcd"))
-            assertEquals(2, counter.estimateTokens("abcdefgh"))
+            assertEquals(1, estimator.estimate("abcd"))
+            assertEquals(2, estimator.estimate("abcdefgh"))
         }
 
         @Test
         fun `rounds up result for non-divisible lengths`() {
-            assertEquals(2, counter.estimateTokens("abcde"))
-            assertEquals(2, counter.estimateTokens("abcdef"))
-            assertEquals(2, counter.estimateTokens("abcdefg"))
+            assertEquals(2, estimator.estimate("abcde"))
+            assertEquals(2, estimator.estimate("abcdef"))
+            assertEquals(2, estimator.estimate("abcdefg"))
         }
 
         @Test
         fun `single character returns 1`() {
-            assertEquals(1, counter.estimateTokens("a"))
+            assertEquals(1, estimator.estimate("a"))
         }
 
         @Test
         fun `three characters returns 1`() {
-            assertEquals(1, counter.estimateTokens("abc"))
+            assertEquals(1, estimator.estimate("abc"))
         }
 
         @Test
         fun `handles long text`() {
             val text = "a".repeat(400)
-            assertEquals(100, counter.estimateTokens(text))
+            assertEquals(100, estimator.estimate(text))
         }
     }
 
@@ -80,31 +80,31 @@ class CharacterHeuristicTokenCounterTest {
 
         @Test
         fun `uses custom chars per token`() {
-            val cjk = CharacterHeuristicTokenCounter(charsPerToken = 2)
-            assertEquals(4, cjk.estimateTokens("abcdefgh"))
+            val cjk = CharacterHeuristicTokenCountEstimator(charsPerToken = 2)
+            assertEquals(4, cjk.estimate("abcdefgh"))
         }
 
         @Test
         fun `ratio of 1 returns character count`() {
-            val exact = CharacterHeuristicTokenCounter(charsPerToken = 1)
-            assertEquals(5, exact.estimateTokens("hello"))
+            val exact = CharacterHeuristicTokenCountEstimator(charsPerToken = 1)
+            assertEquals(5, exact.estimate("hello"))
         }
 
         @Test
         fun `rejects non-positive ratio`() {
             assertThrows(IllegalArgumentException::class.java) {
-                CharacterHeuristicTokenCounter(charsPerToken = 0)
+                CharacterHeuristicTokenCountEstimator(charsPerToken = 0)
             }
             assertThrows(IllegalArgumentException::class.java) {
-                CharacterHeuristicTokenCounter(charsPerToken = -1)
+                CharacterHeuristicTokenCountEstimator(charsPerToken = -1)
             }
         }
 
         @Test
         fun `default uses 4 chars per token`() {
             assertEquals(
-                CharacterHeuristicTokenCounter.DEFAULT_CHARS_PER_TOKEN,
-                CharacterHeuristicTokenCounter.DEFAULT.charsPerToken,
+                CharacterHeuristicTokenCountEstimator.DEFAULT_CHARS_PER_TOKEN,
+                CharacterHeuristicTokenCountEstimator.DEFAULT.charsPerToken,
             )
         }
     }
@@ -114,7 +114,7 @@ class CharacterHeuristicTokenCounterTest {
 
         @Test
         fun `default instance is returned by heuristic factory`() {
-            assertSame(CharacterHeuristicTokenCounter.DEFAULT, TokenCounter.heuristic())
+            assertSame(CharacterHeuristicTokenCountEstimator.DEFAULT, TokenCountEstimator.heuristic())
         }
     }
 }

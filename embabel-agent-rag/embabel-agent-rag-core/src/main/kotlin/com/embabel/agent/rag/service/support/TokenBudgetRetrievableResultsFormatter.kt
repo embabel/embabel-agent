@@ -18,7 +18,7 @@ package com.embabel.agent.rag.service.support
 import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.RetrievableResultsFormatter
 import com.embabel.agent.rag.service.SimilarityResults
-import com.embabel.common.ai.model.TokenCounter
+import com.embabel.common.ai.model.TokenCountEstimator
 import org.jetbrains.annotations.ApiStatus
 
 /**
@@ -26,11 +26,11 @@ import org.jetbrains.annotations.ApiStatus
  * (highest similarity first) until the given [tokenBudget] is exhausted.
  *
  * Each result is formatted using the shared [formatRetrievableResult] function.
- * Token cost is estimated via [tokenCounter].
+ * Token cost is estimated via [tokenCountEstimator].
  */
 @ApiStatus.Experimental
 class TokenBudgetRetrievableResultsFormatter constructor(
-    private val tokenCounter: TokenCounter<String>,
+    private val tokenCountEstimator: TokenCountEstimator<String>,
     private val tokenBudget: Int,
 ) : RetrievableResultsFormatter {
 
@@ -41,13 +41,13 @@ class TokenBudgetRetrievableResultsFormatter constructor(
         // Uses total result count for the digit estimate, which may over-reserve slightly
         // when fewer results are selected (e.g., total=100 but selected=9). This is
         // intentionally conservative — better to under-fill than to exceed the budget.
-        val headerOverhead = tokenCounter.estimateTokens("${similarityResults.results.size} results:$headerSuffix")
+        val headerOverhead = tokenCountEstimator.estimate("${similarityResults.results.size} results:$headerSuffix")
         var remaining = maxOf(0, tokenBudget - headerOverhead)
         val selected = mutableListOf<String>()
         for (result in similarityResults.results) {
             val formatted = formatRetrievableResult(result)
-            val separatorCost = if (selected.isNotEmpty()) tokenCounter.estimateTokens(separator) else 0
-            val cost = tokenCounter.estimateTokens(formatted) + separatorCost
+            val separatorCost = if (selected.isNotEmpty()) tokenCountEstimator.estimate(separator) else 0
+            val cost = tokenCountEstimator.estimate(formatted) + separatorCost
             if (cost > remaining) break
             selected.add(formatted)
             remaining -= cost

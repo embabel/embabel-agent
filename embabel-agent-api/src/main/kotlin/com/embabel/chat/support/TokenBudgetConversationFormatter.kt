@@ -20,7 +20,7 @@ import com.embabel.chat.ConversationFormatter
 import com.embabel.chat.Message
 import com.embabel.chat.MessageFormatter
 import com.embabel.chat.SimpleMessageFormatter
-import com.embabel.common.ai.model.TokenCounter
+import com.embabel.common.ai.model.TokenCountEstimator
 import org.jetbrains.annotations.ApiStatus
 
 /**
@@ -28,18 +28,18 @@ import org.jetbrains.annotations.ApiStatus
  * that fit within a token budget. Accumulates messages from the end
  * backward until the budget is exhausted.
  *
- * Uses [TokenCounter]<[Message]> to estimate token cost at the message level,
- * allowing counters to account for per-message framing overhead (role markers,
+ * Uses [TokenCountEstimator]<[Message]> to estimate token cost at the message level,
+ * allowing estimators to account for per-message framing overhead (role markers,
  * special tokens) in addition to content length.
  *
- * @param tokenCounter estimates tokens per message
+ * @param tokenCountEstimator estimates tokens per message
  * @param tokenBudget maximum tokens to include
  * @param messageFormatter formats individual messages for output (default: [SimpleMessageFormatter])
  * @param startIndex number of messages to skip from the beginning (default: 0)
  */
 @ApiStatus.Experimental
 class TokenBudgetConversationFormatter @JvmOverloads constructor(
-    private val tokenCounter: TokenCounter<Message>,
+    private val tokenCountEstimator: TokenCountEstimator<Message>,
     private val tokenBudget: Int,
     private val messageFormatter: MessageFormatter = SimpleMessageFormatter,
     private val startIndex: Int = 0,
@@ -49,7 +49,7 @@ class TokenBudgetConversationFormatter @JvmOverloads constructor(
         var remaining = tokenBudget
         val selected = mutableListOf<Message>()
         for (message in conversation.messages.drop(startIndex).asReversed()) {
-            val cost = tokenCounter.estimateTokens(message)
+            val cost = tokenCountEstimator.estimate(message)
             if (cost > remaining) break
             selected.add(message)
             remaining -= cost

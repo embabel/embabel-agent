@@ -16,7 +16,7 @@
 package com.embabel.agent.api.validation.guardrails.support
 
 import com.embabel.agent.core.Blackboard
-import com.embabel.common.ai.model.TokenCounter
+import com.embabel.common.ai.model.TokenCountEstimator
 import com.embabel.common.core.validation.ValidationSeverity
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
@@ -27,14 +27,14 @@ class TokenBudgetGuardRailTest {
 
     private val blackboard = mockk<Blackboard>()
 
-    private val charCounter: TokenCounter<String> = TokenCounter { it.length }
+    private val charEstimator: TokenCountEstimator<String> = TokenCountEstimator { it.length }
 
     @Nested
     inner class ValidationTests {
 
         @Test
         fun `validates successfully when input is within budget`() {
-            val guardRail = TokenBudgetGuardRail(charCounter, maxTokens = 100)
+            val guardRail = TokenBudgetGuardRail(charEstimator, maxTokens = 100)
             val result = guardRail.validate("short input", blackboard)
             assertTrue(result.isValid)
             assertTrue(result.errors.isEmpty())
@@ -42,7 +42,7 @@ class TokenBudgetGuardRailTest {
 
         @Test
         fun `returns violation when input exceeds budget`() {
-            val guardRail = TokenBudgetGuardRail(charCounter, maxTokens = 5)
+            val guardRail = TokenBudgetGuardRail(charEstimator, maxTokens = 5)
             val result = guardRail.validate("this input is too long", blackboard)
             assertFalse(result.isValid)
             assertEquals(1, result.errors.size)
@@ -55,7 +55,7 @@ class TokenBudgetGuardRailTest {
 
         @Test
         fun `uses configured severity`() {
-            val guardRail = TokenBudgetGuardRail(charCounter, maxTokens = 5, severity = ValidationSeverity.CRITICAL)
+            val guardRail = TokenBudgetGuardRail(charEstimator, maxTokens = 5, severity = ValidationSeverity.CRITICAL)
             val result = guardRail.validate("this input is too long", blackboard)
             assertFalse(result.isValid)
             assertEquals(ValidationSeverity.CRITICAL, result.errors[0].severity)
@@ -67,7 +67,7 @@ class TokenBudgetGuardRailTest {
 
         @Test
         fun `validates at exact boundary`() {
-            val guardRail = TokenBudgetGuardRail(charCounter, maxTokens = 5)
+            val guardRail = TokenBudgetGuardRail(charEstimator, maxTokens = 5)
             val result = guardRail.validate("hello", blackboard) // length == 5 == maxTokens
             assertTrue(result.isValid)
             assertTrue(result.errors.isEmpty())

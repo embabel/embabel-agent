@@ -17,7 +17,7 @@ package com.embabel.agent.api.validation.guardrails.support
 
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.Blackboard
-import com.embabel.common.ai.model.TokenCounter
+import com.embabel.common.ai.model.TokenCountEstimator
 import com.embabel.common.core.validation.ValidationError
 import com.embabel.common.core.validation.ValidationResult
 import com.embabel.common.core.validation.ValidationSeverity
@@ -25,7 +25,7 @@ import org.jetbrains.annotations.ApiStatus
 
 @ApiStatus.Experimental
 class TokenBudgetGuardRail @JvmOverloads constructor(
-    private val tokenCounter: TokenCounter<String>,
+    private val tokenCountEstimator: TokenCountEstimator<String>,
     private val maxTokens: Int,
     private val severity: ValidationSeverity = ValidationSeverity.WARNING,
 ) : UserInputGuardRail {
@@ -35,7 +35,7 @@ class TokenBudgetGuardRail @JvmOverloads constructor(
     override val description: String = "Validates that user input does not exceed $maxTokens estimated tokens"
 
     override fun validate(input: String, blackboard: Blackboard): ValidationResult {
-        val estimated = tokenCounter.estimateTokens(input)
+        val estimated = tokenCountEstimator.estimate(input)
         if (estimated <= maxTokens) return ValidationResult.VALID
         return ValidationResult(
             isValid = false,
