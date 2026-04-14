@@ -82,27 +82,58 @@ interface Tool : ToolInfo {
         /** Schema describing the input parameters. */
         val inputSchema: InputSchema
 
+        /**
+         * Extensible key-value metadata for application-level concerns
+         * (routing, categorization, feature flags, etc.).
+         * Not sent to the LLM — used by the tool framework and hosting application.
+         */
+        val metadata: Map<String, Any> get() = emptyMap()
+
         fun withParameter(parameter: Parameter): Definition =
             SimpleDefinition(
                 name = name,
                 description = description,
                 inputSchema = inputSchema.withParameter(parameter),
+                metadata = metadata,
             )
+
+        /**
+         * Return a copy of this definition with the given metadata entries merged in.
+         * Existing keys are overwritten by the new values.
+         */
+        fun withMetadata(entries: Map<String, Any>): Definition =
+            SimpleDefinition(
+                name = name,
+                description = description,
+                inputSchema = inputSchema,
+                metadata = metadata + entries,
+            )
+
+        /**
+         * Return a copy of this definition with a single metadata entry added.
+         */
+        fun withMetadata(key: String, value: Any): Definition =
+            withMetadata(mapOf(key to value))
 
         companion object {
 
+            @JvmStatic
+            @JvmOverloads
             operator fun invoke(
                 name: String,
                 description: String,
                 inputSchema: InputSchema,
-            ): Definition = SimpleDefinition(name, description, inputSchema)
+                metadata: Map<String, Any> = emptyMap(),
+            ): Definition = SimpleDefinition(name, description, inputSchema, metadata)
 
             @JvmStatic
+            @JvmOverloads
             fun create(
                 name: String,
                 description: String,
                 inputSchema: InputSchema,
-            ): Definition = SimpleDefinition(name, description, inputSchema)
+                metadata: Map<String, Any> = emptyMap(),
+            ): Definition = SimpleDefinition(name, description, inputSchema, metadata)
         }
     }
 
@@ -603,6 +634,20 @@ interface Tool : ToolInfo {
      * @return A new Tool with the note appended to its description
      */
     fun withNote(note: String): Tool = DescribedTool(this, "${definition.description}. $note")
+
+    /**
+     * Create a new tool with additional definition metadata entries merged in.
+     * Existing keys are overwritten by the new values.
+     *
+     * @param entries metadata key-value pairs to merge
+     * @return A new Tool with the updated definition metadata
+     */
+    fun withDefinitionMetadata(entries: Map<String, Any>): Tool = MetadataTaggedTool(this, entries)
+
+    /**
+     * Create a new tool with a single definition metadata entry added.
+     */
+    fun withDefinitionMetadata(key: String, value: Any): Tool = withDefinitionMetadata(mapOf(key to value))
 }
 
 /**
@@ -618,6 +663,7 @@ private class RenamedTool(
         name = customName,
         description = delegate.definition.description,
         inputSchema = delegate.definition.inputSchema,
+        metadata = delegate.definition.metadata,
     )
 
     override val metadata: Tool.Metadata
@@ -637,7 +683,23 @@ private class DescribedTool(
         name = delegate.definition.name,
         description = customDescription,
         inputSchema = delegate.definition.inputSchema,
+        metadata = delegate.definition.metadata,
     )
+
+    override val metadata: Tool.Metadata
+        get() = delegate.metadata
+}
+
+/**
+ * A tool wrapper that merges additional definition metadata.
+ * Implements [DelegatingTool] to support unwrapping in injection strategies.
+ */
+private class MetadataTaggedTool(
+    override val delegate: Tool,
+    entries: Map<String, Any>,
+) : DelegatingTool {
+
+    override val definition: Tool.Definition = delegate.definition.withMetadata(entries)
 
     override val metadata: Tool.Metadata
         get() = delegate.metadata
@@ -649,6 +711,7 @@ private data class SimpleDefinition(
     override val name: String,
     override val description: String,
     override val inputSchema: Tool.InputSchema,
+    override val metadata: Map<String, Any> = emptyMap(),
 ) : Tool.Definition
 
 private data class SimpleInputSchema(

@@ -45,7 +45,22 @@ annotation class LlmTool(
      * Leave empty for tools that should always be exposed.
      */
     val category: String = "",
+
+    /**
+     * Application-level metadata entries merged into [com.embabel.agent.api.tool.Tool.Definition.metadata].
+     * Used for routing, categorization, feature flags, etc. — not sent to the LLM.
+     *
+     * Example: `@LlmTool(metadata = [LlmTool.Meta(key = "conversational", value = "true")])`
+     */
+    val metadata: Array<Meta> = [],
 ) {
+
+    /**
+     * A key-value metadata entry for use in [LlmTool.metadata].
+     */
+    @Target()
+    @Retention(AnnotationRetention.RUNTIME)
+    annotation class Meta(val key: String, val value: String)
 
     /**
      * Describes a tool parameter. Apply to method parameters.

@@ -48,6 +48,26 @@ class ToolTest {
         }
     }
 
+    class ToolsWithMetadata {
+        @LlmTool(
+            description = "A conversational tool",
+            metadata = [LlmTool.Meta(key = "conversational", value = "true")],
+        )
+        fun chatTool(): String = "hello"
+
+        @LlmTool(
+            description = "A tool with multiple metadata entries",
+            metadata = [
+                LlmTool.Meta(key = "tier", value = "premium"),
+                LlmTool.Meta(key = "category", value = "analytics"),
+            ],
+        )
+        fun analyticsTool(): String = "data"
+
+        @LlmTool(description = "A tool with no metadata")
+        fun plainTool(): String = "plain"
+    }
+
     class NumericTools {
         @LlmTool(description = "Multiply two longs")
         fun multiplyLongs(
@@ -944,6 +964,201 @@ class ToolTest {
             val result = sumTool.call("""{"a": "hello", "b": "3"}""")
 
             assertTrue(result is Tool.Result.Error)
+        }
+    }
+
+    @Nested
+    inner class DefinitionMetadata {
+
+        @Test
+        fun `default metadata is empty`() {
+            val definition = Tool.Definition("test", "desc", Tool.InputSchema.empty())
+            assertTrue(definition.metadata.isEmpty())
+        }
+
+        @Test
+        fun `metadata can be set via constructor`() {
+            val definition = Tool.Definition(
+                "test", "desc", Tool.InputSchema.empty(),
+                metadata = mapOf("conversational" to "true", "tier" to "premium"),
+            )
+            assertEquals("true", definition.metadata["conversational"])
+            assertEquals("premium", definition.metadata["tier"])
+        }
+
+        @Test
+        fun `withMetadata merges entries`() {
+            val original = Tool.Definition("test", "desc", Tool.InputSchema.empty())
+            val updated = original.withMetadata(mapOf("key1" to "val1", "key2" to "val2"))
+
+            assertTrue(original.metadata.isEmpty())
+            assertEquals("val1", updated.metadata["key1"])
+            assertEquals("val2", updated.metadata["key2"])
+        }
+
+        @Test
+        fun `withMetadata single key-value`() {
+            val definition = Tool.Definition("test", "desc", Tool.InputSchema.empty())
+                .withMetadata("conversational", "true")
+
+            assertEquals("true", definition.metadata["conversational"])
+            assertEquals(1, definition.metadata.size)
+        }
+
+        @Test
+        fun `withMetadata overwrites existing keys`() {
+            val original = Tool.Definition(
+                "test", "desc", Tool.InputSchema.empty(),
+                metadata = mapOf("key" to "old"),
+            )
+            val updated = original.withMetadata("key", "new")
+
+            assertEquals("old", original.metadata["key"])
+            assertEquals("new", updated.metadata["key"])
+        }
+
+        @Test
+        fun `withMetadata preserves name description and schema`() {
+            val schema = Tool.InputSchema.of(
+                Tool.Parameter.string("param1", "A parameter"),
+            )
+            val original = Tool.Definition("myTool", "My description", schema)
+            val updated = original.withMetadata("key", "value")
+
+            assertEquals("myTool", updated.name)
+            assertEquals("My description", updated.description)
+            assertEquals(1, updated.inputSchema.parameters.size)
+        }
+
+        @Test
+        fun `withParameter preserves metadata`() {
+            val original = Tool.Definition(
+                "test", "desc", Tool.InputSchema.empty(),
+                metadata = mapOf("tier" to "premium"),
+            )
+            val updated = original.withParameter(Tool.Parameter.string("city", "City name"))
+
+            assertEquals("premium", updated.metadata["tier"])
+            assertEquals(1, updated.inputSchema.parameters.size)
+        }
+    }
+
+    @Nested
+    inner class AnnotationMetadata {
+
+        @Test
+        fun `annotation metadata is captured on tool definition`() {
+            val tools = Tool.fromInstance(ToolsWithMetadata())
+            val chatTool = tools.find { it.definition.name == "chatTool" }!!
+
+            assertEquals("true", chatTool.definition.metadata["conversational"])
+        }
+
+        @Test
+        fun `multiple annotation metadata entries are captured`() {
+            val tools = Tool.fromInstance(ToolsWithMetadata())
+            val analyticsTool = tools.find { it.definition.name == "analyticsTool" }!!
+
+            assertEquals("premium", analyticsTool.definition.metadata["tier"])
+            assertEquals("analytics", analyticsTool.definition.metadata["category"])
+            assertEquals(2, analyticsTool.definition.metadata.size)
+        }
+
+        @Test
+        fun `tool with no annotation metadata has empty metadata`() {
+            val tools = Tool.fromInstance(ToolsWithMetadata())
+            val plainTool = tools.find { it.definition.name == "plainTool" }!!
+
+            assertTrue(plainTool.definition.metadata.isEmpty())
+        }
+
+        @Test
+        fun `existing tools without metadata annotation have empty metadata`() {
+            val tools = Tool.fromInstance(WeatherTools())
+            for (tool in tools) {
+                assertTrue(tool.definition.metadata.isEmpty())
+            }
+        }
+    }
+
+    @Nested
+    inner class ToolWithDefinitionMetadata {
+
+        private fun baseTool() = Tool.of(
+            name = "test_tool",
+            description = "A test tool",
+            inputSchema = Tool.InputSchema.of(
+                Tool.Parameter.string("param", "A param"),
+            ),
+            metadata = Tool.Metadata(returnDirect = true),
+        ) { Tool.Result.text("ok") }
+
+        @Test
+        fun `withDefinitionMetadata adds entries`() {
+            val tool = baseTool().withDefinitionMetadata("tier", "premium")
+
+            assertEquals("premium", tool.definition.metadata["tier"])
+            assertEquals("test_tool", tool.definition.name)
+            assertEquals("A test tool", tool.definition.description)
+        }
+
+        @Test
+        fun `withDefinitionMetadata map variant`() {
+            val tool = baseTool().withDefinitionMetadata(mapOf("a" to "1", "b" to "2"))
+
+            assertEquals("1", tool.definition.metadata["a"])
+            assertEquals("2", tool.definition.metadata["b"])
+        }
+
+        @Test
+        fun `withDefinitionMetadata preserves tool metadata`() {
+            val tool = baseTool().withDefinitionMetadata("key", "value")
+
+            assertTrue(tool.metadata.returnDirect)
+        }
+
+        @Test
+        fun `withDefinitionMetadata preserves input schema`() {
+            val tool = baseTool().withDefinitionMetadata("key", "value")
+
+            assertEquals(1, tool.definition.inputSchema.parameters.size)
+            assertEquals("param", tool.definition.inputSchema.parameters.first().name)
+        }
+
+        @Test
+        fun `withDefinitionMetadata tool is callable`() {
+            val tool = baseTool().withDefinitionMetadata("key", "value")
+            val result = tool.call("{}")
+
+            assertTrue(result is Tool.Result.Text)
+            assertEquals("ok", (result as Tool.Result.Text).content)
+        }
+
+        @Test
+        fun `withName preserves definition metadata`() {
+            val original = baseTool().withDefinitionMetadata("tier", "premium")
+            val renamed = original.withName("new_name")
+
+            assertEquals("new_name", renamed.definition.name)
+            assertEquals("premium", renamed.definition.metadata["tier"])
+        }
+
+        @Test
+        fun `withDescription preserves definition metadata`() {
+            val original = baseTool().withDefinitionMetadata("tier", "premium")
+            val described = original.withDescription("New description")
+
+            assertEquals("New description", described.definition.description)
+            assertEquals("premium", described.definition.metadata["tier"])
+        }
+
+        @Test
+        fun `withNote preserves definition metadata`() {
+            val original = baseTool().withDefinitionMetadata("tier", "premium")
+            val noted = original.withNote("extra info")
+
+            assertTrue(noted.definition.description.contains("extra info"))
+            assertEquals("premium", noted.definition.metadata["tier"])
         }
     }
 }

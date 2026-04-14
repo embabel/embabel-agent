@@ -48,6 +48,10 @@ internal sealed class MethodTool(
 
     override val metadata: Tool.Metadata = Tool.Metadata(returnDirect = annotation.returnDirect)
 
+    /** Annotation metadata entries parsed into a map for [Tool.Definition.metadata]. */
+    protected val annotationMetadata: Map<String, Any> =
+        annotation.metadata.associate { it.key to it.value }
+
     override fun call(input: String): Tool.Result =
         callWithContext(input, ToolCallContext.EMPTY)
 
@@ -172,6 +176,7 @@ internal class KotlinMethodTool(
             name = name,
             description = annotation.description,
             inputSchema = MethodInputSchema(parameterInfos),
+            metadata = annotationMetadata,
         )
     }
 
@@ -248,6 +253,7 @@ internal class JavaMethodTool(
             name = name,
             description = annotation.description,
             inputSchema = MethodInputSchema(parameterInfos),
+            metadata = annotationMetadata,
         )
     }
 

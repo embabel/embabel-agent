@@ -425,4 +425,63 @@ class ToolFromInstanceJavaTest {
             assertFalse(required.contains("title"), "'title' must NOT be in required: " + required);
         }
     }
+
+    // --- Java annotation metadata fixtures ---
+
+    static class JavaToolWithMetadata {
+        @LlmTool(description = "A tagged tool", metadata = {
+                @LlmTool.Meta(key = "conversational", value = "true"),
+                @LlmTool.Meta(key = "tier", value = "premium"),
+        })
+        String taggedTool() {
+            return "tagged";
+        }
+    }
+
+    static class JavaToolWithoutMetadata {
+        @LlmTool(description = "A plain tool")
+        String plainTool() {
+            return "plain";
+        }
+    }
+
+    @Nested
+    class JavaAnnotationMetadata {
+
+        @Test
+        void javaAnnotationMetadataIsCapturedOnDefinition() {
+            var tools = Tool.fromInstance(new JavaToolWithMetadata());
+            var tool = tools.getFirst();
+
+            assertEquals("true", tool.getDefinition().getMetadata().get("conversational"));
+            assertEquals("premium", tool.getDefinition().getMetadata().get("tier"));
+            assertEquals(2, tool.getDefinition().getMetadata().size());
+        }
+
+        @Test
+        void javaToolWithNoMetadataHasEmptyMap() {
+            var tools = Tool.fromInstance(new JavaToolWithoutMetadata());
+            var tool = tools.getFirst();
+
+            assertTrue(tool.getDefinition().getMetadata().isEmpty());
+        }
+
+        @Test
+        void withMetadataSingleEntryFromJava() {
+            var def = Tool.Definition.create("test", "desc", Tool.InputSchema.empty());
+            var updated = def.withMetadata("key", "value");
+
+            assertTrue(def.getMetadata().isEmpty());
+            assertEquals("value", updated.getMetadata().get("key"));
+        }
+
+        @Test
+        void withMetadataMapFromJava() {
+            var def = Tool.Definition.create("test", "desc", Tool.InputSchema.empty());
+            var updated = def.withMetadata(java.util.Map.of("a", "1", "b", "2"));
+
+            assertEquals(2, updated.getMetadata().size());
+            assertEquals("1", updated.getMetadata().get("a"));
+        }
+    }
 }
