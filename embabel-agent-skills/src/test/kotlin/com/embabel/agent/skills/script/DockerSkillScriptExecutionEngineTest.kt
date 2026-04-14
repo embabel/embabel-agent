@@ -41,6 +41,7 @@ class DockerSkillScriptExecutionEngineTest {
 
         @JvmStatic
         fun isDockerAvailable(): Boolean {
+            if (System.getProperty("os.name").lowercase().contains("win")) return false
             return try {
                 val process = ProcessBuilder("docker", "version")
                     .redirectErrorStream(true)
