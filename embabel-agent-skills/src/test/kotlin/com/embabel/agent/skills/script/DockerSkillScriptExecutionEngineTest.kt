@@ -18,7 +18,9 @@ package com.embabel.agent.skills.script
 import com.embabel.agent.tools.file.FileTools
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.DisabledOnOs
 import org.junit.jupiter.api.condition.EnabledIf
+import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
@@ -30,6 +32,7 @@ import kotlin.time.Duration.Companion.seconds
  * These tests require Docker to be installed and running.
  * They use the standard ubuntu:22.04 image which should be widely available.
  */
+@DisabledOnOs(OS.WINDOWS)
 class DockerSkillScriptExecutionEngineTest {
 
     @TempDir
@@ -41,7 +44,6 @@ class DockerSkillScriptExecutionEngineTest {
 
         @JvmStatic
         fun isDockerAvailable(): Boolean {
-            if (System.getProperty("os.name").lowercase().contains("win")) return false
             return try {
                 val process = ProcessBuilder("docker", "version")
                     .redirectErrorStream(true)
