@@ -25,7 +25,7 @@ import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking
 import java.time.Duration
 import java.time.Instant
-import java.util.Collections
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.annotation.concurrent.ThreadSafe
 import kotlin.time.measureTime
 
@@ -109,7 +109,7 @@ open class ConcurrentAgentProcess(
             // Collect replan requests from concurrent actions; thread-safe because multiple
             // coroutines may add to this list simultaneously.
             val replanRequests =
-                Collections.synchronizedList(mutableListOf<Pair<Action, ReplanRequestedException>>())
+                CopyOnWriteArrayList<Pair<Action, ReplanRequestedException>>()
 
             val elapsed =
                 measureTime {
