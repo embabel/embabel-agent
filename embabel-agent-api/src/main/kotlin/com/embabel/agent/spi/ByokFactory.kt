@@ -16,11 +16,14 @@
 package com.embabel.agent.spi
 
 /**
- * A self-contained spec that can validate an API key and return a ready [LlmService].
+ * A self-contained spec that can validate an API key and return a ready service of type [T].
  *
  * Each instance encapsulates the provider endpoint, credentials, and the model to use for
  * the validation probe. Implementations throw [InvalidApiKeyException] on failure so callers
  * never need to unwrap provider-specific error types.
+ *
+ * The type parameter [T] allows the same pattern to be reused for any BYOK-validated service
+ * (e.g. `ByokFactory<LlmService<*>>` for chat models, or other validated provider services).
  *
  * Implementations are provided by:
  * - [com.embabel.agent.config.models.anthropic.AnthropicModelFactory] — Anthropic
@@ -29,12 +32,12 @@ package com.embabel.agent.spi
  *
  * Pass one or more instances to [detectProvider] to race them concurrently.
  */
-fun interface ByokFactory {
+fun interface ByokFactory<out T> {
     /**
      * Validates the configured API key with a single probe call and returns a production
-     * [LlmService] on success.
+     * service of type [T] on success.
      *
      * @throws InvalidApiKeyException if the key is invalid or the provider is unreachable.
      */
-    fun buildValidated(): LlmService<*>
+    fun buildValidated(): T
 }

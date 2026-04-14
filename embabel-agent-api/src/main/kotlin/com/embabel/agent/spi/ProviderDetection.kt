@@ -20,7 +20,7 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 
 /**
- * Concurrently attempts each candidate [ByokFactory] and returns the first [LlmService]
+ * Concurrently attempts each candidate [ByokFactory] and returns the first service of type [T]
  * that validates successfully. Remaining tasks are cancelled on first success.
  *
  * Typical usage — sign-up flow (fan-out across all supported BYOK providers):
@@ -41,11 +41,10 @@ import java.util.concurrent.Executors
  * ```
  *
  * @param candidates One or more [ByokFactory] instances to race.
- * @return The [LlmService] returned by the first successful factory.
- *   Call [LlmService.provider] on the result to retrieve the detected provider name.
+ * @return The service returned by the first successful factory.
  * @throws InvalidApiKeyException if all candidates fail or no candidates are supplied.
  */
-fun detectProvider(vararg candidates: ByokFactory): LlmService<*> {
+fun <T> detectProvider(vararg candidates: ByokFactory<T>): T {
     if (candidates.isEmpty()) {
         throw InvalidApiKeyException("Key not valid for any supported provider")
     }

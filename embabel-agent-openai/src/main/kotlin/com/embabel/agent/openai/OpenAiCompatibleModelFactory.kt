@@ -146,7 +146,7 @@ open class OpenAiCompatibleModelFactory(
         private val validationModel: String,
         private val validationProvider: String,
         private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
-    ) : ByokFactory {
+    ) : ByokFactory<LlmService<*>> {
 
         /**
          * Returns a new [ByokSpec] with the given model and provider used for the

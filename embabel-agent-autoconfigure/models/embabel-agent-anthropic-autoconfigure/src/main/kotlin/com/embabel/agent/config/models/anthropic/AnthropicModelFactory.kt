@@ -68,7 +68,7 @@ open class AnthropicModelFactory(
     private val validationModel: String = VALIDATION_MODEL,
     protected val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
     private val restClientBuilder: ObjectProvider<RestClient.Builder> = ObjectProviders.empty(),
-) : ByokFactory {
+) : ByokFactory<LlmService<*>> {
 
     protected val logger = LoggerFactory.getLogger(javaClass)
 

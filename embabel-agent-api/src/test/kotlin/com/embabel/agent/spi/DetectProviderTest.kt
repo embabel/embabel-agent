@@ -27,8 +27,8 @@ class DetectProviderTest {
     @Test
     fun `only successful candidate is returned`() {
         val result = detectProvider(
-            ByokFactory { throw InvalidApiKeyException("bad key") },
-            ByokFactory { mockService },
+            ByokFactory<LlmService<*>> { throw InvalidApiKeyException("bad key") },
+            ByokFactory<LlmService<*>> { mockService },
         )
         assertSame(mockService, result)
     }
@@ -37,17 +37,17 @@ class DetectProviderTest {
     fun `all candidates fail throws InvalidApiKeyException`() {
         assertThrows<InvalidApiKeyException> {
             detectProvider(
-                ByokFactory { throw InvalidApiKeyException("bad") },
-                ByokFactory { throw InvalidApiKeyException("bad") },
-                ByokFactory { throw InvalidApiKeyException("bad") },
-                ByokFactory { throw InvalidApiKeyException("bad") },
+                ByokFactory<LlmService<*>> { throw InvalidApiKeyException("bad") },
+                ByokFactory<LlmService<*>> { throw InvalidApiKeyException("bad") },
+                ByokFactory<LlmService<*>> { throw InvalidApiKeyException("bad") },
+                ByokFactory<LlmService<*>> { throw InvalidApiKeyException("bad") },
             )
         }
     }
 
     @Test
     fun `single candidate returns service - settings flow`() {
-        val result = detectProvider(ByokFactory { mockService })
+        val result = detectProvider(ByokFactory<LlmService<*>> { mockService })
         assertSame(mockService, result)
     }
 
@@ -62,9 +62,19 @@ class DetectProviderTest {
     fun `returned service is the one from the winning factory`() {
         val anthropicService = mockk<LlmService<*>>()
         val result = detectProvider(
-            ByokFactory { anthropicService },
-            ByokFactory { throw InvalidApiKeyException("bad") },
+            ByokFactory<LlmService<*>> { anthropicService },
+            ByokFactory<LlmService<*>> { throw InvalidApiKeyException("bad") },
         )
         assertSame(anthropicService, result)
+    }
+
+    @Test
+    fun `generic parameter supports non-LlmService types`() {
+        val expected = "image-service-instance"
+        val result: String = detectProvider(
+            ByokFactory<String> { throw InvalidApiKeyException("bad") },
+            ByokFactory<String> { expected },
+        )
+        assertSame(expected, result)
     }
 }
