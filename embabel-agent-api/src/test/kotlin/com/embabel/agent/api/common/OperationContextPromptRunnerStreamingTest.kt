@@ -75,6 +75,7 @@ class OperationContextPromptRunnerStreamingTest {
         val mockChatClientLlmOperations =
             mockk<ChatClientLlmOperations>(moreInterfaces = arrayOf(StreamingLlmOperations::class), relaxed = true) {
                 every { getLlm(any<LlmInteraction>()) } returns mockLlm
+                every { supportsStreaming(any()) } returns true
             }
 
         val mockAgentPlatform = mockk<AgentPlatform>()

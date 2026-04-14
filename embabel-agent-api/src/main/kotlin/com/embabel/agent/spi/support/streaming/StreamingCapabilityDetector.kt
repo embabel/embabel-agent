@@ -15,12 +15,8 @@
  */
 package com.embabel.agent.spi.support.streaming
 
-import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
-import com.embabel.agent.core.support.LlmInteraction
-import com.embabel.agent.spi.LlmService
-import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
 import java.util.concurrent.ConcurrentHashMap
@@ -32,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
  * UnsupportedOperationException, return empty Flux, or provide stub implementations.
  *
  * This detector caches the results of streaming capability tests (delegated to
- * [LlmService.supportsStreaming]) using the provider and model name as cache key.
+ * [StreamingLlmOperationsFactory.supportsStreaming]) using the model as cache key.
  */
 internal object StreamingCapabilityDetector {
     private val logger = loggerFor<StreamingCapabilityDetector>()
@@ -43,7 +39,7 @@ internal object StreamingCapabilityDetector {
     /**
      * Tests whether the LLM resolved from the given operations and options supports streaming.
      *
-     * Results are cached by provider:name to avoid repeated tests.
+     * Results are cached by model to avoid repeated tests.
      *
      * @param llmOperations The LLM operations instance
      * @param llmOptions Options used to resolve the LLM
@@ -53,26 +49,11 @@ internal object StreamingCapabilityDetector {
         // Must be a StreamingLlmOperationsFactory to support streaming
         if (llmOperations !is StreamingLlmOperationsFactory) return false
 
-        // Resolve the LLM service
-        val llmService = resolveLlmService(llmOperations, llmOptions) ?: return false
-
-        // Cache by provider:name
-        val cacheKey = "${llmService.provider}:${llmService.name}"
+        // Cache by model (or criteria string)
+        val cacheKey = llmOptions.model ?: llmOptions.criteria?.toString() ?: "default"
         return capabilityCache.computeIfAbsent(cacheKey) {
             logger.debug(CACHE_MISS_LOG_MESSAGE, cacheKey)
-            llmService.supportsStreaming()
+            llmOperations.supportsStreaming(llmOptions)
         }
-    }
-
-    private fun resolveLlmService(llmOperations: LlmOperations, llmOptions: LlmOptions): LlmService<*>? {
-        // Currently only ChatClientLlmOperations can resolve LLM services
-        if (llmOperations !is ChatClientLlmOperations) return null
-
-        return llmOperations.getLlm(
-            LlmInteraction(
-                id = InteractionId("capability-check"),
-                llm = llmOptions
-            )
-        )
     }
 }

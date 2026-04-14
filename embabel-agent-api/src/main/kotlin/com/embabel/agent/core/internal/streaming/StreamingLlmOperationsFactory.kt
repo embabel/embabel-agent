@@ -32,6 +32,17 @@ import org.jetbrains.annotations.ApiStatus
 interface StreamingLlmOperationsFactory {
 
     /**
+     * Check if streaming is supported for the given LLM options.
+     *
+     * This method allows capability detection without resolving specific
+     * implementation details, enabling proper mocking in tests.
+     *
+     * @param options LLM options including model selection criteria
+     * @return true if streaming is supported for the resolved LLM
+     */
+    fun supportsStreaming(options: LlmOptions): Boolean
+
+    /**
      * Create a [StreamingLlmOperations] instance configured with the given options.
      *
      * @param options LLM options including model selection criteria
