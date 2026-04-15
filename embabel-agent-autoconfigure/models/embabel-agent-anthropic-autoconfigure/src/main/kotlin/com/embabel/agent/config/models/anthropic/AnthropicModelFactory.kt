@@ -19,9 +19,9 @@ import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
-import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.ObjectProviders
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.LoggerFactory
