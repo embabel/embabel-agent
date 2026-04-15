@@ -22,9 +22,9 @@ import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.model.*
 import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
-import com.embabel.common.ai.model.*
 import com.embabel.common.util.ObjectProviders
 import com.embabel.common.util.loggerFor
 import io.micrometer.observation.ObservationRegistry
