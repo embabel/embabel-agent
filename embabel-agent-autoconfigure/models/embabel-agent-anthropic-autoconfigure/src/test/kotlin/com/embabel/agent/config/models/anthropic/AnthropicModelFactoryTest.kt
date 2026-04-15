@@ -17,7 +17,7 @@ package com.embabel.agent.config.models.anthropic
 
 import com.embabel.agent.api.models.AnthropicModels
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
-import com.embabel.common.ai.byok.InvalidApiKeyException
+import com.embabel.common.byok.InvalidApiKeyException
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.Runs

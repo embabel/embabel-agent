@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.byok
+package com.embabel.common.byok
 
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test

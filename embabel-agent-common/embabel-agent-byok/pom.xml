@@ -3,13 +3,13 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.embabel.agent</groupId>
-        <artifactId>embabel-agent-parent</artifactId>
+        <artifactId>embabel-agent-common</artifactId>
         <version>0.4.0-SNAPSHOT</version>
     </parent>
-    <artifactId>embabel-agent-openai</artifactId>
+    <artifactId>embabel-agent-byok</artifactId>
     <packaging>jar</packaging>
-    <name>Embabel Agent OpenAI</name>
-    <description>Embabel Agent Open AI Utilities</description>
+    <name>Embabel Agent BYOK</name>
+    <description>Bring Your Own Key — provider-neutral API key validation SPI</description>
     <url>https://github.com/embabel/embabel-agent</url>
 
     <scm>
@@ -21,23 +21,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-byok</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-openai</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.embabel.agent</groupId>
-            <artifactId>embabel-agent-test-internal</artifactId>
-            <scope>test</scope>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
         </dependency>
     </dependencies>
 
@@ -46,13 +31,12 @@
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
+                <configuration>
+                    <args>
+                        <arg>-Xjvm-default=all</arg>
+                    </args>
+                </configuration>
             </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-            </plugin>
-
         </plugins>
     </build>
 

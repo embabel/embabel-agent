@@ -22,8 +22,8 @@ import com.embabel.agent.api.models.OpenAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
-import com.embabel.common.ai.byok.ByokFactory
-import com.embabel.common.ai.byok.InvalidApiKeyException
+import com.embabel.common.byok.ByokFactory
+import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.ai.model.*
 import com.embabel.common.util.ObjectProviders
 import com.embabel.common.util.loggerFor
@@ -134,7 +134,7 @@ open class OpenAiCompatibleModelFactory(
 
     /**
      * A self-contained BYOK spec for an OpenAI-compatible provider. Implements [ByokFactory]
-     * so it can be passed directly to [com.embabel.common.ai.byok.detectProvider].
+     * so it can be passed directly to [com.embabel.common.byok.detectProvider].
      *
      * Obtained via the companion factory methods ([openAi], [deepSeek], [mistral], [gemini],
      * or [byok] for custom providers). Use [validating] to override the default validation

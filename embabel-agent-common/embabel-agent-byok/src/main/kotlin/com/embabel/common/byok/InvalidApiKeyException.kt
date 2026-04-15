@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.byok
+package com.embabel.common.byok
 
 /**
  * Thrown when an API key is invalid or not recognised by any supported provider.

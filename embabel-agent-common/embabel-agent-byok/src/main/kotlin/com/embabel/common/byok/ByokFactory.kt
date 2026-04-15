@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.common.ai.byok
+package com.embabel.common.byok
 
 /**
  * A self-contained spec that can validate an API key and return a ready service of type [T].
