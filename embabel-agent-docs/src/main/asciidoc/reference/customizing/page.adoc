@@ -356,7 +356,7 @@ try {
 }
 ----
 
-`InvalidApiKeyException` is in `com.embabel.agent.spi` and carries no provider-specific
+`InvalidApiKeyException` is in `com.embabel.common.ai.byok` and carries no provider-specific
 implementation details.
 
 ===== Security considerations
