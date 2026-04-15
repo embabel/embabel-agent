@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi
+package com.embabel.common.ai.byok
 
 /**
  * Thrown when an API key is invalid or not recognised by any supported provider.
- * Surfaces through [detectProvider] and the factory [buildValidated] methods without
- * leaking any provider-specific (e.g. Spring AI) exception types to callers.
+ * Surfaces through [detectProvider] and the factory [ByokFactory.buildValidated] methods
+ * without leaking any provider-specific (e.g. Spring AI) exception types to callers.
  */
 class InvalidApiKeyException(message: String) : RuntimeException(message)

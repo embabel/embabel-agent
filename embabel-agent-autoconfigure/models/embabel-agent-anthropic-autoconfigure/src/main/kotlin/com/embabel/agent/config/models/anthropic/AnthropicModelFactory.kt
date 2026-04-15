@@ -16,11 +16,11 @@
 package com.embabel.agent.config.models.anthropic
 
 import com.embabel.agent.api.models.AnthropicModels
-import com.embabel.agent.spi.ByokFactory
-import com.embabel.agent.spi.InvalidApiKeyException
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
+import com.embabel.common.ai.byok.ByokFactory
+import com.embabel.common.ai.byok.InvalidApiKeyException
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.ObjectProviders
 import io.micrometer.observation.ObservationRegistry
@@ -42,7 +42,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * Intended as the BYOK entry point for Anthropic: no Spring context required.
  * [AnthropicModelsConfig] extends this class and delegates API client construction to it.
  *
- * Implements [ByokFactory] so instances can be passed directly to [com.embabel.agent.spi.detectProvider]:
+ * Implements [ByokFactory] so instances can be passed directly to [com.embabel.common.ai.byok.detectProvider]:
  * ```kotlin
  * detectProvider(
  *     AnthropicModelFactory(apiKey = userKey),
@@ -140,7 +140,7 @@ open class AnthropicModelFactory(
 
     /**
      * Validates the API key using [validationModel] (set at construction time), then returns
-     * a production [LlmService]. Satisfies [ByokFactory] for use with [com.embabel.agent.spi.detectProvider].
+     * a production [LlmService]. Satisfies [ByokFactory] for use with [com.embabel.common.ai.byok.detectProvider].
      *
      * @throws InvalidApiKeyException if the key is invalid.
      */

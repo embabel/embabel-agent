@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi
+package com.embabel.common.ai.byok
 
 /**
  * A self-contained spec that can validate an API key and return a ready service of type [T].
@@ -24,11 +24,6 @@ package com.embabel.agent.spi
  *
  * The type parameter [T] allows the same pattern to be reused for any BYOK-validated service
  * (e.g. `ByokFactory<LlmService<*>>` for chat models, or other validated provider services).
- *
- * Implementations are provided by:
- * - [com.embabel.agent.config.models.anthropic.AnthropicModelFactory] — Anthropic
- * - [com.embabel.agent.openai.OpenAiCompatibleModelFactory.ByokSpec] — OpenAI-compatible providers
- *   (OpenAI, DeepSeek, Mistral, Gemini, and custom providers)
  *
  * Pass one or more instances to [detectProvider] to race them concurrently.
  */

@@ -16,7 +16,7 @@
 package com.embabel.agent.openai
 
 import com.embabel.agent.api.models.OpenAiModels
-import com.embabel.agent.spi.InvalidApiKeyException
+import com.embabel.common.ai.byok.InvalidApiKeyException
 import com.embabel.common.ai.model.PricingModel
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.observation.ObservationRegistry

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi
+package com.embabel.common.ai.byok
 
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
@@ -42,12 +42,11 @@ import java.util.concurrent.Executors
  *
  * @param candidates One or more [ByokFactory] instances to race.
  * @return The service returned by the first successful factory.
- * @throws InvalidApiKeyException if all candidates fail or no candidates are supplied.
+ * @throws IllegalArgumentException if no candidates are supplied.
+ * @throws InvalidApiKeyException if all candidates fail validation.
  */
 fun <T> detectProvider(vararg candidates: ByokFactory<T>): T {
-    if (candidates.isEmpty()) {
-        throw InvalidApiKeyException("Key not valid for any supported provider")
-    }
+    require(candidates.isNotEmpty()) { "At least one ByokFactory candidate is required" }
     val exec = Executors.newVirtualThreadPerTaskExecutor()
     try {
         return exec.invokeAny(
