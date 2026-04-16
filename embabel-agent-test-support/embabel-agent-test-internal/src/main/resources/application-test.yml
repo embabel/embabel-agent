@@ -1,0 +1,26 @@
+spring:
+  ai:
+    mcp:
+      client:
+        enabled: false
+
+embabel:
+  agent-platform:
+    scanning:
+      auto: false
+
+  models:
+    default-llm: test-llm
+    default-embedding-model: test
+    embedding-services:
+      best: test
+      cheapest: test
+    llms:
+      best: test-llm
+      cheapest: test-llm
+
+logging:
+  pattern:
+    console: "%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level) %clr(%logger{0}){cyan} %clr(-){faint} %msg%n"
+  level:
+    org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
