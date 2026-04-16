@@ -16,6 +16,7 @@
 package com.embabel.agent.a2a.server.support
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.beans.factory.annotation.Qualifier
 import io.a2a.spec.Message
 import io.a2a.spec.SendStreamingMessageResponse
 import io.a2a.spec.StreamingEventKind
@@ -36,6 +37,7 @@ import java.util.concurrent.TimeUnit
  */
 @Service
 class A2AStreamingHandler(
+    @Qualifier("embabelJacksonObjectMapper")
     private val objectMapper: ObjectMapper,
     private val taskStateManager: TaskStateManager
 ) {
