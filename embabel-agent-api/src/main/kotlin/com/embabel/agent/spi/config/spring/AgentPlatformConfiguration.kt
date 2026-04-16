@@ -105,7 +105,7 @@ class AgentPlatformConfiguration(
     @ConditionalOnMissingBean(ColorPalette::class)
     fun defaultColorPalette(): ColorPalette = DefaultColorPalette()
 
-    @Bean
+    @Bean(defaultCandidate = false)
     @ConditionalOnMissingBean(name = ["embabelJacksonObjectMapper"])
     fun embabelJacksonObjectMapper(builder: Jackson2ObjectMapperBuilder): ObjectMapper {
         return builder.createXmlMapper(false).build()
