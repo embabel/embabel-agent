@@ -57,6 +57,9 @@ internal class SpelLogicalExpression(
             // Prefix variables with # in SpEL, so convert expression
             // Only replace the first identifier if it's a variable we know about
             // For example: "elephant.age > 20" becomes "#elephant.age > 20"
+            // Track whether any referenced variable is missing from the model —
+            // if so, the condition cannot be satisfied and is FALSE.
+            var hasMissingVariable = false
             val spelExpression = if (!expression.startsWith("#")) {
                 // Find variable references that are not preceded by a dot (property access)
                 expression.replace(Regex("(?<![.#])\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\.|\\s|[><=!])")) { matchResult ->
@@ -65,11 +68,25 @@ internal class SpelLogicalExpression(
                     if (model.containsKey(varName)) {
                         "#$varName"
                     } else {
+                        hasMissingVariable = true
                         varName
                     }
                 }
             } else {
                 expression
+            }
+
+            // If the expression references variables not on the blackboard,
+            // the condition is definitively FALSE — the object doesn't exist,
+            // so the condition can't be satisfied. This avoids UNKNOWN results
+            // that confuse the GOAP planner when unrelated actions have SpEL
+            // preconditions referencing objects not relevant to the current goal.
+            if (hasMissingVariable) {
+                logger.debug(
+                    "SpEL expression '{}' references variable(s) not on blackboard — evaluating as FALSE",
+                    expression,
+                )
+                return ConditionDetermination.FALSE
             }
 
             when (val result = parser.parseExpression(spelExpression).getValue(context)) {
