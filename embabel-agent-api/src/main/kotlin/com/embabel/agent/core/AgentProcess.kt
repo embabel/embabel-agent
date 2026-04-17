@@ -171,6 +171,29 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
     fun recordLlmInvocation(llmInvocation: LlmInvocation)
 
     /**
+     * Cost of this process's own LLM invocations, excluding any child processes.
+     * See [cost] for the aggregate across the entire process subtree.
+     */
+    fun ownCost(): Double = llmInvocations.sumOf { it.cost() }
+
+    /**
+     * Token usage of this process's own LLM invocations, excluding any child processes.
+     * See [usage] for the aggregate across the entire process subtree.
+     */
+    fun ownUsage(): Usage {
+        val promptTokens = llmInvocations.sumOf { it.usage.promptTokens ?: 0 }
+        val completionTokens = llmInvocations.sumOf { it.usage.completionTokens ?: 0 }
+        return Usage(promptTokens, completionTokens, null)
+    }
+
+    /**
+     * Distinct LLMs used by this process's own invocations, excluding any child processes.
+     * See [modelsUsed] for the aggregate across the entire process subtree.
+     */
+    fun ownModelsUsed(): List<com.embabel.common.ai.model.LlmMetadata> =
+        llmInvocations.map { it.llmMetadata }.distinctBy { it.name }.sortedBy { it.name }
+
+    /**
      * Perform the next step only.
      * Return when an action has been completed and the process is ready to plan,
      * regardless of the result of the action.

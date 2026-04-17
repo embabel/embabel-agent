@@ -148,6 +148,82 @@ abstract class AbstractAgentProcess(
         _llmInvocations.add(llmInvocation)
     }
 
+    // --- Subtree aggregation (fix #368) ----------------------------------------
+    //
+    // When an AgentProcess spawns child processes, cost/usage/models reporting
+    // must reflect the *entire* subtree, not just this process's own LLM calls.
+    // Each override below follows the same pattern:
+    //     result = <own contribution> + Σ child.<same method>()
+    // The recursion walks the tree via `childProcesses()`, which resolves
+    // direct children at call time through the AgentProcess repository.
+
+    /**
+     * Direct children of this process (non-recursive).
+     * Resolved on every call — not cached — so children spawned later are picked up.
+     */
+    private fun childProcesses(): List<AgentProcess> =
+        platformServices.agentProcessRepository.findByParentId(id)
+
+    /** Total cost = own cost + sum of each child's total cost (recursive). */
+    override fun cost(): Double =
+        ownCost() + childProcesses().sumOf { it.cost() }
+
+    /**
+     * Total token usage aggregated across the whole subtree.
+     * Nulls from children with no invocations are coerced to 0.
+     */
+    override fun usage(): Usage {
+        val own = ownUsage()
+        val children = childProcesses()
+        return Usage(
+            (own.promptTokens ?: 0) + children.sumOf { it.usage().promptTokens ?: 0 },
+            (own.completionTokens ?: 0) + children.sumOf { it.usage().completionTokens ?: 0 },
+            null,
+        )
+    }
+
+    /**
+     * Distinct LLMs used anywhere in the subtree, sorted by name.
+     * `distinctBy { it.name }` removes duplicates when the same model is used
+     * at multiple levels.
+     */
+    override fun modelsUsed(): List<com.embabel.common.ai.model.LlmMetadata> =
+        (ownModelsUsed() + childProcesses().flatMap { it.modelsUsed() })
+            .distinctBy { it.name }.sortedBy { it.name }
+
+    /**
+     * Human-readable cost/usage summary. All figures come from the subtree-aware
+     * methods above, so the report reflects every nested child process.
+     */
+    override fun costInfoString(verbose: Boolean): String {
+        val totalUsage = usage()
+        val totalCalls = totalLlmInvocationCount()
+        return if (verbose)
+            """|LLMs used: ${modelsUsed().map { it.name }} across $totalCalls calls
+               |Prompt tokens: ${"%,d".format(totalUsage.promptTokens)},
+               |Completion tokens: ${"%,d".format(totalUsage.completionTokens)}
+               |Cost: $${"%.4f".format(cost())}
+               |""".trimMargin()
+        else "LLMs: ${modelsUsed().map { it.name }} across $totalCalls calls; " +
+                "prompt tokens: ${"%,d".format(totalUsage.promptTokens)}; completion tokens: ${
+                    "%,d".format(
+                        totalUsage.completionTokens
+                    )
+                }; cost: $${"%.4f".format(cost())}"
+    }
+
+    /**
+     * Total number of LLM invocations in the subtree.
+     * The `as? AbstractAgentProcess` cast lets the recursion continue for
+     * children that also inherit from this class. Other AgentProcess
+     * implementations fall back to their local `llmInvocations.size` — the
+     * deeper subtree (if any) is not counted, but reporting still works.
+     */
+    private fun totalLlmInvocationCount(): Int =
+        llmInvocations.size + childProcesses().sumOf { child ->
+            (child as? AbstractAgentProcess)?.totalLlmInvocationCount() ?: child.llmInvocations.size
+        }
+
     override val status: AgentProcessStatusCode
         get() = _status.get()
 
