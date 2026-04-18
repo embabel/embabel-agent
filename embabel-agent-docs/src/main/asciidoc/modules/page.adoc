@@ -294,6 +294,19 @@ The following are modules intended for direct use (versus supporting infrastruct
 | Stable
 |===
 
+===== Developer Tooling
+
+[cols="2,1,3,2,1",options="header"]
+|===
+| Name | Location | Purpose | Notes | Status
+
+| `embabel-agent-intellij`
+| `embabel/embabel-agent-intellij`
+| IntelliJ IDEA plugin
+| IDE support for Embabel Agent development. See xref:reference.tooling_intellij[IntelliJ Plugin].
+| Stable
+|===
+
 ==== Experimental APIs
 
 While the status of modules may change over time, any module may contain clearly identified experimental functionality.

@@ -57,13 +57,26 @@ class SpelLogicalExpressionTest {
     }
 
     @Test
-    fun `evaluate with missing object returns UNKNOWN`() {
+    fun `evaluate with missing object returns FALSE`() {
         val blackboard = InMemoryBlackboard()
 
         val expression = SpelLogicalExpression("person.age > 20")
         val result = expression.evaluate(blackboard)
 
-        assertEquals(ConditionDetermination.UNKNOWN, result)
+        // Missing variables mean the condition can't be satisfied
+        assertEquals(ConditionDetermination.FALSE, result)
+    }
+
+    @Test
+    fun `evaluate with one variable present and one missing returns FALSE`() {
+        val blackboard = InMemoryBlackboard()
+        blackboard += Person("Alice", 30)
+
+        val expression = SpelLogicalExpression("person.age > 20 && car.year > 2020")
+        val result = expression.evaluate(blackboard)
+
+        // car is missing — condition cannot be satisfied
+        assertEquals(ConditionDetermination.FALSE, result)
     }
 
     @Test
