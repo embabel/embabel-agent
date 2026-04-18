@@ -170,6 +170,8 @@ class AgentMetadataReader(
             )
             return null
         }
+        rejectOperationContextConstructorInjection(targetType)
+
         val getterGoals = findGoalGetters(targetType).map { getGoal(it, instance) }
         val actionMethods = findActionMethods(targetType)
         val conditionMethods = findConditionMethods(targetType)
@@ -703,6 +705,46 @@ class AgentMetadataReader(
                 name = goalAnnotation.export.name.ifBlank { null },
                 startingInputTypes = goalAnnotation.export.startingInputTypes.map { it.java }.toSet(),
             )
+        )
+    }
+}
+
+/**
+ * Throws [IllegalStateException] if the @Agent class injects [OperationContext] or any
+ * subtype (e.g. [ExecutingOperationContext]) via a constructor parameter.
+ *
+ * [OperationContext] is action-scoped: it carries the context of a specific running
+ * operation and must be declared as an @Action method parameter so the framework can
+ * supply the correct per-invocation instance. Injecting it into a Spring bean
+ * constructor binds it permanently to a placeholder process created at wiring time,
+ * causing LLM invocations and cost tracking to be attributed to the wrong process.
+ *
+ * Correct pattern (Kotlin):
+ * ```
+ * @Action
+ * fun greet(input: UserInput, ai: Ai): String { ... }
+ * ```
+ *
+ * Correct pattern (Java):
+ * ```java
+ * @Action
+ * public String greet(UserInput userInput, Ai ai) { ... }
+ * ```
+ */
+private fun rejectOperationContextConstructorInjection(agentClass: Class<*>) {
+    val illegalParams = agentClass.constructors
+        .flatMap { it.parameters.toList() }
+        .filter { OperationContext::class.java.isAssignableFrom(it.type) }
+
+    if (illegalParams.isNotEmpty()) {
+        val paramDescriptions = illegalParams.joinToString { "'${it.type.simpleName}'" }
+        throw IllegalStateException(
+            "@Agent class '${agentClass.simpleName}' injects $paramDescriptions via its constructor. " +
+                "OperationContext is action-scoped and cannot be constructor-injected: it would be " +
+                "permanently bound to a placeholder process created at Spring wiring time, not the " +
+                "process actually executing the action. " +
+                "Declare it as an @Action method parameter instead, or use Ai directly: " +
+                "fun myAction(input: UserInput, ai: Ai): MyOutput"
         )
     }
 }
