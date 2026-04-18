@@ -834,3 +834,25 @@ class AgentWithDuplicateActionNames {
     fun respond(userInput: UserInput, person: PersonWithReverseTool): PersonWithReverseTool =
         PersonWithReverseTool(person.name + " " + userInput.content)
 }
+
+// ---------------------------------------------------------------------------
+// Agents used to verify that OperationContext constructor injection is prohibited
+// ---------------------------------------------------------------------------
+
+@Agent(description = "illegally injects ExecutingOperationContext via constructor")
+class AgentWithExecutingOperationContextConstructorInjection(
+    @Suppress("UNUSED_PARAMETER") context: com.embabel.agent.api.common.ExecutingOperationContext,
+) {
+    @AchievesGoal(description = "goal")
+    @Action
+    fun act(input: UserInput): PersonWithReverseTool = PersonWithReverseTool(input.content)
+}
+
+@Agent(description = "illegally injects OperationContext via constructor")
+class AgentWithOperationContextConstructorInjection(
+    @Suppress("UNUSED_PARAMETER") context: OperationContext,
+) {
+    @AchievesGoal(description = "goal")
+    @Action
+    fun act(input: UserInput): PersonWithReverseTool = PersonWithReverseTool(input.content)
+}
