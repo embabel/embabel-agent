@@ -450,6 +450,78 @@ class ToolLoopAdditionalTests {
     private val objectMapper = jacksonObjectMapper()
 
     @Nested
+    inner class ReturnDirectTest {
+
+        @Test
+        fun `tool with returnDirect short-circuits the loop`() {
+            val tool = Tool.of(
+                name = "async_task",
+                description = "Starts a background task",
+                metadata = Tool.Metadata(returnDirect = true),
+            ) { Tool.Result.text("Task started in background") }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse(
+                        toolCallId = "call_1",
+                        toolName = "async_task",
+                        arguments = "{}",
+                    ),
+                    // This response should never be reached
+                    MockLlmMessageSender.textResponse("LLM elaboration that should be skipped"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Start task")),
+                initialTools = listOf(tool),
+                outputParser = { it },
+            )
+
+            assertEquals("Task started in background", result.result)
+            // Only 1 iteration — the loop didn't go back to the LLM
+            assertEquals(1, result.totalIterations)
+        }
+
+        @Test
+        fun `tool without returnDirect continues the loop normally`() {
+            val tool = MockTool("normal_tool", "A normal tool") {
+                Tool.Result.text("Tool result")
+            }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse(
+                        toolCallId = "call_1",
+                        toolName = "normal_tool",
+                        arguments = "{}",
+                    ),
+                    MockLlmMessageSender.textResponse("LLM processed the tool result"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Do something")),
+                initialTools = listOf(tool),
+                outputParser = { it },
+            )
+
+            assertEquals("LLM processed the tool result", result.result)
+            assertEquals(2, result.totalIterations)
+        }
+    }
+
+    @Nested
     inner class UsageAccumulationTest {
 
         @Test

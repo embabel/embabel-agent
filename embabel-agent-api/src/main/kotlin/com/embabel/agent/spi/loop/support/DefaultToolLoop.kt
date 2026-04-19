@@ -162,6 +162,12 @@ internal open class DefaultToolLoop(
                 logger.info("Tool loop terminated for replan after {} iterations", state.iterations)
                 return buildResult("", outputParser, state)
             }
+            // returnDirect: a tool requested its result be returned without
+            // further LLM processing. Exit the loop with the tool's content.
+            state.returnDirectContent?.let { content ->
+                logger.info("Tool loop returning direct content after {} iterations", state.iterations)
+                return buildResult(content, outputParser, state)
+            }
 
             /* -------------------------------------------------
              * Apply afterIteration callbacks - START
@@ -273,6 +279,12 @@ internal open class DefaultToolLoop(
             val (result, resultContent) = executeToolCall(tool, toolCall)
             applyInjectionStrategy(toolCall, resultContent, state)
             addToolResultToHistory(toolCall, result, resultContent, state)
+            // returnDirect: tool result goes straight to the caller,
+            // bypassing further LLM processing.
+            if (tool.metadata.returnDirect) {
+                logger.info("Tool '{}' has returnDirect=true — short-circuiting loop", toolCall.name)
+                state.returnDirectContent = resultContent
+            }
             true
         } catch (e: ReplanRequestedException) {
             logger.info("Tool '{}' requested replan: {}", toolCall.name, e.reason)
@@ -413,6 +425,8 @@ internal open class DefaultToolLoop(
         var replanRequested: Boolean = false,
         var replanReason: String? = null,
         var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
+        /** When set, the tool loop returns this content directly without sending it back to the LLM. */
+        var returnDirectContent: String? = null,
     )
 
     /**
