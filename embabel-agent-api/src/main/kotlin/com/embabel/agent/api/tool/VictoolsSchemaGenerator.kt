@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.tool
 
+import com.embabel.agent.api.tool.Tool.InputSchema
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
@@ -23,6 +24,8 @@ import com.github.victools.jsonschema.generator.OptionPreset
 import com.github.victools.jsonschema.generator.SchemaGenerator
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import com.github.victools.jsonschema.generator.SchemaVersion
+import org.jetbrains.annotations.ApiStatus
+import java.lang.reflect.Method
 import java.lang.reflect.Type
 
 /**
@@ -110,7 +113,7 @@ internal object VictoolsSchemaGenerator {
  * This schema generates proper JSON Schema with `items` property for arrays,
  * which is required by OpenAI and other LLM providers.
  */
-internal class MethodInputSchema(
+class MethodInputSchema internal constructor(
     private val parameterInfos: List<VictoolsSchemaGenerator.ParameterInfo>,
 ) : Tool.InputSchema {
 
@@ -159,5 +162,27 @@ internal class MethodInputSchema(
 
             else -> Tool.ParameterType.OBJECT
         }
+    }
+
+    companion object {
+
+        /**
+         * Creates an [InputSchema] from all parameters of [method].
+         */
+        @ApiStatus.Internal
+        fun fromMethod(
+            method: Method,
+        ): InputSchema {
+            val parameterInfos = method.parameters.map { param ->
+                VictoolsSchemaGenerator.ParameterInfo(
+                    name = param.name,
+                    type = param.parameterizedType,
+                    description = param.name,
+                    required = true,
+                )
+            }
+            return MethodInputSchema(parameterInfos)
+        }
+
     }
 }

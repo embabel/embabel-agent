@@ -78,70 +78,16 @@ internal sealed class MethodTool(
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun parseArguments(input: String): Map<String, Any?> {
-        if (input.isBlank()) return emptyMap()
-        return try {
-            objectMapper.readValue(input, Map::class.java) as Map<String, Any?>
-        } catch (e: Exception) {
-            logger.warn("Failed to parse tool input as JSON: {}", e.message)
-            emptyMap()
-        }
-    }
+    private fun parseArguments(input: String): Map<String, Any?> =
+        ToolCallSupport.parseArguments(input, objectMapper, logger)
 
     protected abstract fun invokeMethod(args: Map<String, Any?>, context: ToolCallContext): Any?
 
-    private fun convertResult(result: Any?): Tool.Result {
-        return when (result) {
-            null -> Tool.Result.text("")
-            is String -> Tool.Result.text(result)
-            is Tool.Result -> result
-            else -> {
-                // Convert to JSON string and preserve the original object as an artifact
-                // so that ArtifactSinkingTool can capture it for tool chaining
-                try {
-                    Tool.Result.withArtifact(objectMapper.writeValueAsString(result), result)
-                } catch (_: Exception) {
-                    Tool.Result.withArtifact(result.toString(), result)
-                }
-            }
-        }
-    }
+    private fun convertResult(result: Any?): Tool.Result =
+        ToolCallSupport.convertResult(result, objectMapper)
 
-    protected fun convertToExpectedType(
-        value: Any,
-        targetType: Type,
-    ): Any {
-        // If already correct type, return as-is
-        if (targetType is Class<*> && targetType.isInstance(value)) {
-            return value
-        }
-
-        // Handle numeric conversions from JSON.
-        // Jackson often returns Int/Double, but LLMs may also send numbers as strings
-        // (e.g. "5" instead of 5), so we coerce string-wrapped numbers too.
-        return when (targetType) {
-            Int::class.java, Integer::class.java ->
-                (value as? Number)?.toInt() ?: (value as? String)?.toIntOrNull() ?: value
-            Long::class.java, java.lang.Long::class.java ->
-                (value as? Number)?.toLong() ?: (value as? String)?.toLongOrNull() ?: value
-            Double::class.java, java.lang.Double::class.java ->
-                (value as? Number)?.toDouble() ?: (value as? String)?.toDoubleOrNull() ?: value
-            Float::class.java, java.lang.Float::class.java ->
-                (value as? Number)?.toFloat() ?: (value as? String)?.toFloatOrNull() ?: value
-            Boolean::class.java, java.lang.Boolean::class.java -> value as? Boolean ?: value.toString().toBoolean()
-            String::class.java -> value.toString()
-            else -> {
-                // For complex types, try to convert via ObjectMapper
-                try {
-                    objectMapper.convertValue(value, objectMapper.constructType(targetType))
-                } catch (e: Exception) {
-                    logger.warn("Failed to convert {} to {}: {}", value, targetType, e.message)
-                    value
-                }
-            }
-        }
-    }
+    protected fun convertToExpectedType(value: Any, targetType: Type): Any =
+        ToolCallSupport.convertToType(value, targetType, objectMapper, logger)
 }
 
 
