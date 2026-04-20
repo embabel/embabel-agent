@@ -37,6 +37,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -59,7 +60,7 @@ abstract class AbstractAgentProcess(
 
     protected var _goal: com.embabel.plan.Goal? = null
 
-    private val _history: MutableList<ActionInvocation> = mutableListOf()
+    private val _history: MutableList<ActionInvocation> = CopyOnWriteArrayList()
 
     private val _status = AtomicReference(AgentProcessStatusCode.NOT_STARTED)
 
@@ -139,7 +140,7 @@ abstract class AbstractAgentProcess(
      */
     protected abstract val worldStateDeterminer: WorldStateDeterminer
 
-    private val _llmInvocations = mutableListOf<LlmInvocation>()
+    private val _llmInvocations: MutableList<LlmInvocation> = CopyOnWriteArrayList()
 
     override val llmInvocations: List<LlmInvocation>
         get() = _llmInvocations.toList()
