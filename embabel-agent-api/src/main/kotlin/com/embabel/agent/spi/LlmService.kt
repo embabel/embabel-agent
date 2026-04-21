@@ -16,6 +16,7 @@
 package com.embabel.agent.spi
 
 import com.embabel.agent.spi.loop.LlmMessageSender
+import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.prompt.PromptContributor
@@ -47,6 +48,27 @@ interface LlmService<THIS : LlmService<THIS>> : LlmMetadata, PromptContributorCo
      * @return A message sender configured for this LLM
      */
     fun createMessageSender(options: LlmOptions): LlmMessageSender
+
+    /**
+     * Create a message streamer for this LLM configured with the given options.
+     *
+     * The message streamer handles streaming LLM API calls. Tool execution is
+     * handled internally by the underlying LLM framework during streaming.
+     *
+     * @param options Configuration options for the LLM call (temperature, max tokens, etc.)
+     * @return A message streamer configured for this LLM
+     */
+    fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer
+
+    /**
+     * Check if this LLM service supports streaming operations.
+     *
+     * Each LlmService instance is bound to a specific model, so this checks
+     * whether that particular model supports streaming.
+     *
+     * @return true if the underlying model supports streaming, false otherwise
+     */
+    fun supportsStreaming(): Boolean
 
     /**
      * Returns a copy of this LLM service with the specified knowledge cutoff date.

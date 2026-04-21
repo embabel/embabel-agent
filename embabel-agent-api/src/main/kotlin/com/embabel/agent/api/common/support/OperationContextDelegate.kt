@@ -16,7 +16,7 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
+import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.tool.ArtifactSinkingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
@@ -35,11 +35,10 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
-import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
@@ -325,8 +324,7 @@ internal data class OperationContextDelegate(
     }
 
     override fun generateStream(): Flux<String> {
-        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
-        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+        val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
 
         return streamingLlmOperations.generateStream(
             messages = messages,
@@ -337,8 +335,7 @@ internal data class OperationContextDelegate(
     }
 
     override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
-        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
-        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+        val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
 
         return streamingLlmOperations.createObjectStream(
             messages = messages,
@@ -350,8 +347,7 @@ internal data class OperationContextDelegate(
     }
 
     override fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>> {
-        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
-        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+        val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
         return streamingLlmOperations.createObjectStreamWithThinking(
             messages = messages,
             interaction = streamingInteraction(),
@@ -379,6 +375,15 @@ internal data class OperationContextDelegate(
             transformers = transformers,
             toolCallContext = toolCallContext,
         )
+    }
+
+    private fun streamingFactory(): StreamingLlmOperationsFactory {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+        return llmOperations as? StreamingLlmOperationsFactory
+            ?: throw UnsupportedOperationException(
+                "Streaming not supported: LlmOperations (${llmOperations::class.simpleName}) " +
+                    "does not implement StreamingLlmOperationsFactory"
+            )
     }
 
     override fun supportsThinking(): Boolean = true
