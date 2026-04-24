@@ -255,12 +255,14 @@ internal open class DefaultToolLoop(
      */
     protected fun checkForActionTerminationSignal() {
         val process = AgentProcess.get() as? AbstractAgentProcess ?: return
-        val signal = process.terminationRequest
-        if (signal != null && signal.scope == TerminationScope.ACTION) {
+        val signal = process.terminationRequest ?: return
+        if (signal.scope != TerminationScope.ACTION) return
+        if (process.compareAndResetTerminationRequest(signal)) {
             logger.info("Action termination signal detected: {}", signal.reason)
-            process.resetTerminationRequest()
             throw TerminateActionException(signal.reason)
         }
+        // CAS failed — slot was mutated concurrently. The new signal stays
+        // in place for the next consumer; we do not act on the stale observation.
     }
 
     /**
