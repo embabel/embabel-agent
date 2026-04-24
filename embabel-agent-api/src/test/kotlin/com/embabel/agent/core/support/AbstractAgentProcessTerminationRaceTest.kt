@@ -50,6 +50,36 @@ class AbstractAgentProcessTerminationRaceTest {
     )
 
     /**
+     * Happy path: no concurrent writer between the read and the CAS.
+     * The observed signal is still in the slot, so CAS succeeds, the slot
+     * is cleared to null, and the caller takes the termination path.
+     */
+    @Test
+    fun `happy path - CAS succeeds when slot still holds the observed signal`() {
+        val process = newProcess()
+
+        // Post signal-A
+        process.terminateAction("signal-A")
+        val observed = process.terminationRequest!!
+        assertEquals("signal-A", observed.reason)
+
+        // No concurrent writer: slot still holds signal-A.
+        // CAS must succeed and clear the slot to null.
+        val wasReset = process.compareAndResetTerminationRequest(observed)
+        assertTrue(wasReset, "CAS must succeed: slot still holds the observed signal-A")
+
+        assertEquals(
+            null,
+            process.terminationRequest,
+            "After a successful CAS, the slot must be null — the signal is consumed.",
+        )
+
+        // A second CAS with the same observed signal must now fail (slot is null).
+        val secondReset = process.compareAndResetTerminationRequest(observed)
+        assertFalse(secondReset, "CAS must fail on an already-consumed slot")
+    }
+
+    /**
      * Sequential interleave: consumer reads A, another writer posts B,
      * consumer unconditionally resets → B is silently dropped.
      */
