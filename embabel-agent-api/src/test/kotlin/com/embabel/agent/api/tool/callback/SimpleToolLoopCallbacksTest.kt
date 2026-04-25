@@ -457,4 +457,87 @@ class SimpleToolLoopCallbacksTest {
                 }
         }
     }
+
+    @Nested
+    inner class ToolCallLoggingInspectorTest {
+
+        @Test
+        fun `beforeToolCall logs without exception`() {
+            ToolCallLoggingInspector().beforeToolCall(
+                BeforeToolCallContext(
+                    toolCall = ToolCall(id = "1", name = "testTool", arguments = "{\"input\":\"value\"}"),
+                )
+            )
+        }
+
+        @Test
+        fun `afterToolCall logs without exception for text result`() {
+            ToolCallLoggingInspector().afterToolCall(
+                AfterToolCallContext(
+                    toolCall = ToolCall(id = "1", name = "testTool", arguments = "{}"),
+                    result = Tool.Result.text("success result"),
+                    resultAsString = "success result",
+                    durationMs = 150,
+                )
+            )
+        }
+
+        @Test
+        fun `afterToolCall logs without exception for error result`() {
+            ToolCallLoggingInspector().afterToolCall(
+                AfterToolCallContext(
+                    toolCall = ToolCall(id = "1", name = "testTool", arguments = "{}"),
+                    result = Tool.Result.error("tool failed", RuntimeException("error")),
+                    resultAsString = "ERROR: tool failed",
+                    durationMs = 50,
+                )
+            )
+        }
+
+        @Test
+        fun `afterToolCall logs without exception for withArtifact result`() {
+            ToolCallLoggingInspector().afterToolCall(
+                AfterToolCallContext(
+                    toolCall = ToolCall(id = "1", name = "testTool", arguments = "{}"),
+                    result = Tool.Result.withArtifact("result text", mapOf("key" to "value")),
+                    resultAsString = "result text",
+                    durationMs = 200,
+                )
+            )
+        }
+
+        @Test
+        fun `supports all log levels`() {
+            ToolLoopLoggingInspector.LogLevel.entries.forEach { level ->
+                ToolCallLoggingInspector(logLevel = level).beforeToolCall(
+                    BeforeToolCallContext(
+                        toolCall = ToolCall(id = "1", name = "testTool", arguments = "{}"),
+                    )
+                )
+            }
+        }
+
+        @Test
+        fun `handles large argument strings`() {
+            val largeArgs = "x".repeat(10000)
+            ToolCallLoggingInspector().beforeToolCall(
+                BeforeToolCallContext(
+                    toolCall = ToolCall(id = "1", name = "testTool", arguments = largeArgs),
+                )
+            )
+        }
+
+        @Test
+        fun `handles large result strings`() {
+            val largeResult = "x".repeat(10000)
+            ToolCallLoggingInspector().afterToolCall(
+                AfterToolCallContext(
+                    toolCall = ToolCall(id = "1", name = "testTool", arguments = "{}"),
+                    result = Tool.Result.text(largeResult),
+                    resultAsString = largeResult,
+                    durationMs = 100,
+                )
+            )
+        }
+    }
 }

@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.loop.streaming
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolLoop
 import com.embabel.chat.Message
@@ -32,11 +33,12 @@ import reactor.core.publisher.Flux
  * - Returns `Flux<String>` instead of `LlmMessageResponse`
  * - Tool execution is managed by the underlying framework (e.g., Spring AI)
  *   since the streaming API is opaque - we cannot inject a custom [ToolLoop]
- * - Only observation of tool execution is possible (via callbacks in Phase 2)
+ * - Only observation of tool execution is possible via [ToolCallInspector]
  *
  * @see LlmMessageSender for non-streaming equivalent
+ * @see ToolCallInspector for tool execution observation
  */
-fun interface LlmMessageStreamer {
+interface LlmMessageStreamer {
 
     /**
      * Stream raw content chunks from the LLM.
@@ -46,10 +48,12 @@ fun interface LlmMessageStreamer {
      *
      * @param messages The conversation history
      * @param tools Available tools for the LLM to invoke during streaming
+     * @param toolCallInspectors Inspectors to observe tool call events
      * @return Flux of raw content chunks
      */
     fun stream(
         messages: List<Message>,
         tools: List<Tool>,
+        toolCallInspectors: List<ToolCallInspector>,
     ): Flux<String>
 }

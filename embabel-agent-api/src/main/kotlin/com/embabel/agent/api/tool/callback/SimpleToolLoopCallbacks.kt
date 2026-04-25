@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.api.tool.callback
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.Message
 import com.embabel.chat.SystemMessage
@@ -255,6 +256,44 @@ class ToolResultTruncatingTransformer(
             ToolLoopLoggingInspector.LogLevel.DEBUG -> logger.debug(message)
             ToolLoopLoggingInspector.LogLevel.INFO -> logger.info(message)
             null -> Unit // logging disabled
+        }
+    }
+}
+
+/**
+ * Inspector that logs individual tool call events.
+ *
+ * Provides lightweight logging of tool execution with timing information.
+ * Works in both streaming and non-streaming modes.
+ *
+ * @param logLevel The level at which to log events
+ * @param logger The logger to use (defaults to ToolCallLoggingInspector's logger)
+ */
+class ToolCallLoggingInspector(
+    private val logLevel: ToolLoopLoggingInspector.LogLevel = ToolLoopLoggingInspector.LogLevel.DEBUG,
+    private val logger: Logger = LoggerFactory.getLogger(ToolCallLoggingInspector::class.java),
+) : ToolCallInspector {
+
+    override fun beforeToolCall(context: BeforeToolCallContext) {
+        val argsLength = context.toolCall.arguments.length
+        log("beforeToolCall: tool=${context.toolCall.name}, argsLength=$argsLength")
+    }
+
+    override fun afterToolCall(context: AfterToolCallContext) {
+        val status = when (context.result) {
+            is Tool.Result.Text -> context.result::class.simpleName
+            is Tool.Result.WithArtifact -> context.result::class.simpleName
+            is Tool.Result.Error -> context.result::class.simpleName
+        }
+        val resultLength = context.resultAsString.length
+        log("afterToolCall: tool=${context.toolCall.name}, status=$status, resultLength=$resultLength, durationMs=${context.durationMs}")
+    }
+
+    private fun log(message: String) {
+        when (logLevel) {
+            ToolLoopLoggingInspector.LogLevel.TRACE -> logger.trace(message)
+            ToolLoopLoggingInspector.LogLevel.DEBUG -> logger.debug(message)
+            ToolLoopLoggingInspector.LogLevel.INFO -> logger.info(message)
         }
     }
 }

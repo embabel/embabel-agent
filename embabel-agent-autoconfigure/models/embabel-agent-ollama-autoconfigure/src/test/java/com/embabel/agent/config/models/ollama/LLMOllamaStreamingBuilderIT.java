@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
                 "spring.main.allow-bean-definition-overriding=true",
 
                 // Streaming Infrastructure logging
-                "logging.level.com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations=TRACE",
+                "logging.level.com.embabel.agent.spi.support.streaming.StreamingLlmOperationsImpli=TRACE",
 
                 // Spring AI Debug Logging
                 "logging.level.org.springframework.ai=DEBUG",
@@ -168,7 +168,7 @@ class LLMOllamaStreamingBuilderIT {
 
         // Given: Use the existing streaming test LLM (configured as "best")
         PromptRunner runner = ai.withLlm("qwen3:latest")
-                                .withToolObject(Tooling.class);
+                                .withToolObject(new Tooling());
         assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");
 
         // When: Subscribe with real reactive callbacks using builder pattern

@@ -19,8 +19,11 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
 import com.embabel.agent.api.tool.callback.AfterIterationContext
 import com.embabel.agent.api.tool.callback.AfterLlmCallContext
+import com.embabel.agent.api.tool.callback.AfterToolCallContext
 import com.embabel.agent.api.tool.callback.AfterToolResultContext
 import com.embabel.agent.api.tool.callback.BeforeLlmCallContext
+import com.embabel.agent.api.tool.callback.BeforeToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
@@ -48,6 +51,18 @@ internal fun List<ToolLoopInspector>.notifyAfterToolResult(context: AfterToolRes
 
 internal fun List<ToolLoopInspector>.notifyAfterIteration(context: AfterIterationContext) {
     forEach { it.afterIteration(context) }
+}
+
+// =============================================================================
+// Tool Call Inspector Extensions (context without history/iteration)
+// =============================================================================
+
+internal fun List<ToolCallInspector>.notifyBeforeToolCall(context: BeforeToolCallContext) {
+    forEach { it.beforeToolCall(context) }
+}
+
+internal fun List<ToolCallInspector>.notifyAfterToolCall(context: AfterToolCallContext) {
+    forEach { it.afterToolCall(context) }
 }
 
 // =============================================================================
@@ -136,4 +151,26 @@ internal fun createAfterIterationContext(
     history = history,
     iteration = iteration,
     toolCallsInIteration = toolCallsInIteration,
+)
+
+// =============================================================================
+// Tool Call Context Factory Functions (no history/iteration)
+// =============================================================================
+
+internal fun createBeforeToolCallContext(
+    toolCall: ToolCall,
+) = BeforeToolCallContext(
+    toolCall = toolCall,
+)
+
+internal fun createAfterToolCallContext(
+    toolCall: ToolCall,
+    result: Tool.Result,
+    resultAsString: String,
+    durationMs: Long,
+) = AfterToolCallContext(
+    toolCall = toolCall,
+    result = result,
+    resultAsString = resultAsString,
+    durationMs = durationMs,
 )

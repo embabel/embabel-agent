@@ -24,6 +24,7 @@ import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -213,6 +214,8 @@ data class FakePromptRunner(
         override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate = this
 
         override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate = this
+
+        override fun withToolCallInspectors(vararg inspectors: ToolCallInspector): PromptExecutionDelegate = this
 
         override fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate =
             this@FakePromptRunner.copy(
@@ -453,6 +456,8 @@ data class FakePromptRunner(
     override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner = this
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner = this
+
+    override fun withToolCallInspectors(vararg inspectors: ToolCallInspector): PromptRunner = this
 
     override fun withToolCallContext(context: ToolCallContext): PromptRunner =
         copy(toolCallContext = this.toolCallContext.merge(context))

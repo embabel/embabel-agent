@@ -21,6 +21,7 @@ import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.core.AgentProcess
@@ -54,8 +55,9 @@ import org.slf4j.LoggerFactory
  * @param toolDecorator Optional decorator applied to tools when they are dynamically injected.
  * This ensures injected tools (e.g., from MatryoshkaTool) receive the same decoration
  * as initial tools, including event publication, observability, and error handling.
- * @param inspectors Read-only observers for tool loop lifecycle events
- * @param transformers Transformers for history compression, summarization, etc.
+ * @param toolLoopInspectors Read-only observers for tool loop lifecycle events
+ * @param toolLoopTransformers Transformers for history compression, summarization, etc.
+ * @param toolCallInspectors Read-only observers for individual tool call events
  */
 internal open class DefaultToolLoop(
     private val llmMessageSender: LlmMessageSender,
@@ -63,8 +65,9 @@ internal open class DefaultToolLoop(
     private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
     private val maxIterations: Int = 20,
     private val toolDecorator: ((Tool) -> Tool)? = null,
-    protected val inspectors: List<ToolLoopInspector> = emptyList(),
-    protected val transformers: List<ToolLoopTransformer> = emptyList(),
+    protected val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
+    protected val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
+    protected val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     protected val toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
 ) : ToolLoop {
@@ -93,8 +96,8 @@ internal open class DefaultToolLoop(
                 iteration = state.iterations,
                 tools = state.availableTools.toList(),
             )
-            inspectors.notifyBeforeLlmCall(beforeContext)
-            val transformedHistory = transformers.applyBeforeLlmCall(beforeContext)
+            toolLoopInspectors.notifyBeforeLlmCall(beforeContext)
+            val transformedHistory = toolLoopTransformers.applyBeforeLlmCall(beforeContext)
             if (transformedHistory != state.conversationHistory) {
                 state.conversationHistory.clear()
                 state.conversationHistory.addAll(transformedHistory)
@@ -115,8 +118,8 @@ internal open class DefaultToolLoop(
                 response = callResult.message,
                 usage = callResult.usage,
             )
-            inspectors.notifyAfterLlmCall(afterLlmContext)
-            val transformedResponse = transformers.applyAfterLlmCall(afterLlmContext)
+            toolLoopInspectors.notifyAfterLlmCall(afterLlmContext)
+            val transformedResponse = toolLoopTransformers.applyAfterLlmCall(afterLlmContext)
             /* -------------------------------------------------
              * Apply afterLlmCall callbacks - END
              * ------------------------------------------------- */
@@ -142,8 +145,8 @@ internal open class DefaultToolLoop(
                     iteration = state.iterations,
                     toolCallsInIteration = emptyList(),
                 )
-                inspectors.notifyAfterIteration(earlyExitContext)
-                val historyAfterEarlyExit = transformers.applyAfterIteration(earlyExitContext)
+                toolLoopInspectors.notifyAfterIteration(earlyExitContext)
+                val historyAfterEarlyExit = toolLoopTransformers.applyAfterIteration(earlyExitContext)
                 if (historyAfterEarlyExit != state.conversationHistory) {
                     state.conversationHistory.clear()
                     state.conversationHistory.addAll(historyAfterEarlyExit)
@@ -177,8 +180,8 @@ internal open class DefaultToolLoop(
                 iteration = state.iterations,
                 toolCallsInIteration = assistantMessage.toolCalls,
             )
-            inspectors.notifyAfterIteration(afterIterContext)
-            val historyAfterIteration = transformers.applyAfterIteration(afterIterContext)
+            toolLoopInspectors.notifyAfterIteration(afterIterContext)
+            val historyAfterIteration = toolLoopTransformers.applyAfterIteration(afterIterContext)
             if (historyAfterIteration != state.conversationHistory) {
                 state.conversationHistory.clear()
                 state.conversationHistory.addAll(historyAfterIteration)
@@ -306,12 +309,31 @@ internal open class DefaultToolLoop(
         toolCall: ToolCall,
     ): Pair<Tool.Result, String> {
         logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
+
+        // Notify tool call inspectors BEFORE execution
+        val beforeContext = createBeforeToolCallContext(toolCall)
+        toolCallInspectors.notifyBeforeToolCall(beforeContext)
+
+        // Measure execution time
+        val startTime = System.currentTimeMillis()
         val result = tool.call(toolCall.arguments, toolCallContext)
+        val durationMs = System.currentTimeMillis() - startTime
+
         val content = when (result) {
             is Tool.Result.Text -> result.content
             is Tool.Result.WithArtifact -> result.content
             is Tool.Result.Error -> "Error: ${result.message}"
         }
+
+        // Notify tool call inspectors AFTER execution
+        val afterContext = createAfterToolCallContext(
+            toolCall = toolCall,
+            result = result,
+            resultAsString = content,
+            durationMs = durationMs,
+        )
+        toolCallInspectors.notifyAfterToolCall(afterContext)
+
         return result to content
     }
 
@@ -400,8 +422,8 @@ internal open class DefaultToolLoop(
             result = result,
             resultAsString = resultContent,
         )
-        inspectors.notifyAfterToolResult(afterToolContext)
-        val transformedResult = transformers.applyAfterToolResult(afterToolContext)
+        toolLoopInspectors.notifyAfterToolResult(afterToolContext)
+        val transformedResult = toolLoopTransformers.applyAfterToolResult(afterToolContext)
         /* -------------------------------------------------
          * Apply afterToolResult callbacks - END
          * ------------------------------------------------- */
