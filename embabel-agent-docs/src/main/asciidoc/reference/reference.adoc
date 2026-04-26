@@ -39,6 +39,8 @@ include::streaming/page.adoc[]
 
 include::thinking/page.adoc[]
 
+include::interceptors/page.adoc[]
+
 include::guardrails/page.adoc[]
 
 include::termination/page.adoc[]
