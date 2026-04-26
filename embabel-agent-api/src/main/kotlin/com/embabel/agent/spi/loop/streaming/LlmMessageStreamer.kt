@@ -38,7 +38,7 @@ import reactor.core.publisher.Flux
  * @see LlmMessageSender for non-streaming equivalent
  * @see ToolCallInspector for tool execution observation
  */
-interface LlmMessageStreamer {
+fun interface LlmMessageStreamer {
 
     /**
      * Stream raw content chunks from the LLM.

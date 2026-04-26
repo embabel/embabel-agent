@@ -21,6 +21,8 @@ import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.callback.AfterToolCallContext
+import com.embabel.agent.api.tool.callback.BeforeToolCallContext
 import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
@@ -311,8 +313,7 @@ internal open class DefaultToolLoop(
         logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
 
         // Notify tool call inspectors BEFORE execution
-        val beforeContext = createBeforeToolCallContext(toolCall)
-        toolCallInspectors.notifyBeforeToolCall(beforeContext)
+        toolCallInspectors.notifyBeforeToolCall(BeforeToolCallContext(toolCall))
 
         // Measure execution time
         val startTime = System.currentTimeMillis()
@@ -326,13 +327,14 @@ internal open class DefaultToolLoop(
         }
 
         // Notify tool call inspectors AFTER execution
-        val afterContext = createAfterToolCallContext(
-            toolCall = toolCall,
-            result = result,
-            resultAsString = content,
-            durationMs = durationMs,
+        toolCallInspectors.notifyAfterToolCall(
+            AfterToolCallContext(
+                toolCall = toolCall,
+                result = result,
+                resultAsString = content,
+                durationMs = durationMs,
+            )
         )
-        toolCallInspectors.notifyAfterToolCall(afterContext)
 
         return result to content
     }

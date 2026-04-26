@@ -49,6 +49,11 @@ interface ToolCallInspector {
  * Lightweight context without conversation history or iteration state.
  * Used in both streaming and non-streaming modes.
  *
+ * **Note:** In streaming mode (Spring AI), `toolCall.id` is a generated UUID
+ * because the underlying framework does not expose LLM-assigned call IDs during
+ * tool execution. The ID is unique per call and can be used to correlate
+ * before/after events for the same tool execution.
+ *
  * @property toolCall The tool call about to be executed
  */
 data class BeforeToolCallContext(

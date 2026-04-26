@@ -365,12 +365,20 @@ internal data class OperationContextDelegate(
     }
 
     private fun streamingInteraction(): LlmInteraction {
-        // Warn if ToolLoopInspectors are configured (they will be ignored in streaming)
+        // Warn if ToolLoopInspectors or ToolLoopTransformers are configured (they will be ignored in streaming)
         if (toolLoopInspectors.isNotEmpty()) {
             loggerFor<OperationContextDelegate>().warn(
                 """
                 ToolLoopInspectors are ignored in streaming mode.
                 Use withToolCallInspectors() instead for streaming-compatible observation.
+                """.trimIndent()
+            )
+        }
+        if (toolLoopTransformers.isNotEmpty()) {
+            loggerFor<OperationContextDelegate>().warn(
+                """
+                ToolLoopTransformers are ignored in streaming mode.
+                The framework manages the tool loop internally during streaming.
                 """.trimIndent()
             )
         }
@@ -388,8 +396,8 @@ internal data class OperationContextDelegate(
             fieldFilter = fieldFilter,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
-            toolLoopInspectors = toolLoopInspectors,
-            toolLoopTransformers = toolLoopTransformers,
+            toolLoopInspectors = emptyList(),
+            toolLoopTransformers = emptyList(),
             toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
         )

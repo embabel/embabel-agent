@@ -20,8 +20,8 @@ import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.streaming.StreamingPromptRunnerBuilder;
+import com.embabel.agent.api.tool.callback.LogLevel;
 import com.embabel.agent.api.tool.callback.ToolCallLoggingInspector;
-import com.embabel.agent.api.tool.callback.ToolLoopLoggingInspector;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.common.core.streaming.StreamingEvent;
@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
                 "spring.main.allow-bean-definition-overriding=true",
 
                 // Streaming Infrastructure logging
-                "logging.level.com.embabel.agent.spi.support.streaming.StreamingLlmOperationsImpli=TRACE",
+                "logging.level.com.embabel.agent.spi.support.streaming.StreamingLlmOperationsImpl=TRACE",
 
                 // Spring AI Debug Logging
                 "logging.level.org.springframework.ai=DEBUG",
@@ -175,7 +175,7 @@ class LLMAnthropicStreamingBuilderIT {
         // Given: Use the existing streaming test LLM (configured as "best")
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
                 .withToolObject(new Tooling((short) 0))
-                .withToolCallInspectors(new ToolCallLoggingInspector(ToolLoopLoggingInspector.LogLevel.INFO, logger));
+                .withToolCallInspectors(new ToolCallLoggingInspector(LogLevel.INFO, logger));
         assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");
 
         // When: Subscribe with real reactive callbacks using builder pattern

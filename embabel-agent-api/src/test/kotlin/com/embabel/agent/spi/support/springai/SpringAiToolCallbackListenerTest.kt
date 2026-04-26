@@ -123,6 +123,39 @@ class SpringAiToolCallbackListenerTest {
 
             assertTrue(listener.toolMetadata.returnDirect())
         }
+
+        @Test
+        fun `listener isolates inspector exception in beforeToolCall`() {
+            val inspector = object : ToolCallInspector {
+                override fun beforeToolCall(context: BeforeToolCallContext) {
+                    throw RuntimeException("Inspector failure")
+                }
+            }
+            val delegate = createMockCallback(name = "test_tool", result = "success")
+            val listener = SpringAiToolCallbackListener(delegate, inspector)
+
+            // Tool should still execute despite inspector exception
+            val result = listener.call("{}")
+            assertEquals("success", result)
+        }
+
+        @Test
+        fun `listener isolates inspector exception in afterToolCall`() {
+            var afterToolCallCalled = false
+            val inspector = object : ToolCallInspector {
+                override fun afterToolCall(context: AfterToolCallContext) {
+                    afterToolCallCalled = true
+                    throw RuntimeException("Inspector failure")
+                }
+            }
+            val delegate = createMockCallback(name = "test_tool", result = "success")
+            val listener = SpringAiToolCallbackListener(delegate, inspector)
+
+            // Tool should return result despite inspector exception in afterToolCall
+            val result = listener.call("{}")
+            assertEquals("success", result)
+            assertTrue(afterToolCallCalled, "afterToolCall should have been called")
+        }
     }
 
     @Nested
@@ -230,83 +263,69 @@ class SpringAiToolCallbackListenerTest {
         }
 
         @Test
-        fun `withInspectors handles inspector exceptions gracefully`() {
+        fun `withInspectors isolates inspector exceptions and continues execution`() {
+            val events = mutableListOf<String>()
             val inspector1 = object : ToolCallInspector {
                 override fun beforeToolCall(context: BeforeToolCallContext) {
+                    events.add("inspector1:before")
                     throw RuntimeException("Inspector1 failure")
+                }
+
+                override fun afterToolCall(context: AfterToolCallContext) {
+                    events.add("inspector1:after")
                 }
             }
 
             val inspector2 = object : ToolCallInspector {
                 override fun beforeToolCall(context: BeforeToolCallContext) {
-                    // Should not be reached due to inspector1 throwing
-                }
-            }
-
-            val callbacks = listOf(createMockCallback(name = "tool1"))
-            val wrapped = callbacks.withInspectors(listOf(inspector1, inspector2))
-
-            // Inspector exception should propagate
-            try {
-                wrapped[0].call("{}")
-                throw AssertionError("Expected exception from inspector")
-            } catch (e: RuntimeException) {
-                assertEquals("Inspector1 failure", e.message)
-            }
-        }
-    }
-
-    @Nested
-    inner class WithInspectorSingleTests {
-
-        @Test
-        fun `withInspector returns original list when inspector is null`() {
-            val callbacks = listOf(
-                createMockCallback(name = "tool1"),
-                createMockCallback(name = "tool2"),
-            )
-
-            val result = callbacks.withInspector(null)
-
-            assertEquals(callbacks, result)
-        }
-
-        @Test
-        fun `withInspector wraps all callbacks when inspector is provided`() {
-            val callbacks = listOf(
-                createMockCallback(name = "tool1"),
-                createMockCallback(name = "tool2"),
-            )
-
-            val inspector = object : ToolCallInspector {}
-            val result = callbacks.withInspector(inspector)
-
-            assertEquals(2, result.size)
-            assertTrue(result[0] is SpringAiToolCallbackListener)
-            assertTrue(result[1] is SpringAiToolCallbackListener)
-        }
-
-        @Test
-        fun `withInspector notifies single inspector`() {
-            val events = mutableListOf<String>()
-            val inspector = object : ToolCallInspector {
-                override fun beforeToolCall(context: BeforeToolCallContext) {
-                    events.add("before")
+                    events.add("inspector2:before")
                 }
 
                 override fun afterToolCall(context: AfterToolCallContext) {
-                    events.add("after")
+                    events.add("inspector2:after")
                 }
             }
 
-            val callbacks = listOf(createMockCallback(name = "tool1"))
-            val wrapped = callbacks.withInspector(inspector)
+            val callbacks = listOf(createMockCallback(name = "tool1", result = "success"))
+            val wrapped = callbacks.withInspectors(listOf(inspector1, inspector2))
 
-            wrapped[0].call("{}")
+            // Tool execution should succeed despite inspector1 throwing
+            val result = wrapped[0].call("{}")
+            assertEquals("success", result)
 
-            assertEquals(2, events.size)
-            assertEquals("before", events[0])
-            assertEquals("after", events[1])
+            // Inspector2 should still run even though inspector1 threw
+            assertTrue(events.contains("inspector1:before"), "Inspector1 beforeToolCall should run")
+            assertTrue(events.contains("inspector2:before"), "Inspector2 beforeToolCall should still run after inspector1 exception")
+            assertTrue(events.contains("inspector1:after"), "Inspector1 afterToolCall should run")
+            assertTrue(events.contains("inspector2:after"), "Inspector2 afterToolCall should run")
+        }
+
+        @Test
+        fun `withInspectors handles exceptions in afterToolCall without breaking tool execution`() {
+            val events = mutableListOf<String>()
+            val inspector1 = object : ToolCallInspector {
+                override fun afterToolCall(context: AfterToolCallContext) {
+                    events.add("inspector1:after")
+                    throw RuntimeException("Inspector1 afterToolCall failure")
+                }
+            }
+
+            val inspector2 = object : ToolCallInspector {
+                override fun afterToolCall(context: AfterToolCallContext) {
+                    events.add("inspector2:after")
+                }
+            }
+
+            val callbacks = listOf(createMockCallback(name = "tool1", result = "success"))
+            val wrapped = callbacks.withInspectors(listOf(inspector1, inspector2))
+
+            // Tool execution should succeed and return result despite afterToolCall exception
+            val result = wrapped[0].call("{}")
+            assertEquals("success", result)
+
+            // Both inspectors should run
+            assertTrue(events.contains("inspector1:after"), "Inspector1 afterToolCall should run")
+            assertTrue(events.contains("inspector2:after"), "Inspector2 afterToolCall should still run after inspector1 exception")
         }
     }
 

@@ -28,29 +28,59 @@ import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
+import org.slf4j.LoggerFactory
 
 /**
  * Extension functions for applying [ToolLoopInspector] and [ToolLoopTransformer] callbacks.
+ *
+ * All inspector and transformer calls are wrapped in try-catch to ensure that exceptions
+ * from observability code do not break tool loop execution.
  */
+
+private val logger = LoggerFactory.getLogger("ToolCallbackSupport")
 
 // =============================================================================
 // Inspector Extensions (read-only notifications)
 // =============================================================================
 
 internal fun List<ToolLoopInspector>.notifyBeforeLlmCall(context: BeforeLlmCallContext) {
-    forEach { it.beforeLlmCall(context) }
+    forEach { inspector ->
+        try {
+            inspector.beforeLlmCall(context)
+        } catch (e: Exception) {
+            logger.warn("ToolLoopInspector ${inspector::class.simpleName} failed in beforeLlmCall (iteration ${context.iteration}): ${e.message}", e)
+        }
+    }
 }
 
 internal fun List<ToolLoopInspector>.notifyAfterLlmCall(context: AfterLlmCallContext) {
-    forEach { it.afterLlmCall(context) }
+    forEach { inspector ->
+        try {
+            inspector.afterLlmCall(context)
+        } catch (e: Exception) {
+            logger.warn("ToolLoopInspector ${inspector::class.simpleName} failed in afterLlmCall (iteration ${context.iteration}): ${e.message}", e)
+        }
+    }
 }
 
 internal fun List<ToolLoopInspector>.notifyAfterToolResult(context: AfterToolResultContext) {
-    forEach { it.afterToolResult(context) }
+    forEach { inspector ->
+        try {
+            inspector.afterToolResult(context)
+        } catch (e: Exception) {
+            logger.warn("ToolLoopInspector ${inspector::class.simpleName} failed in afterToolResult for tool '${context.toolCall.name}' (iteration ${context.iteration}): ${e.message}", e)
+        }
+    }
 }
 
 internal fun List<ToolLoopInspector>.notifyAfterIteration(context: AfterIterationContext) {
-    forEach { it.afterIteration(context) }
+    forEach { inspector ->
+        try {
+            inspector.afterIteration(context)
+        } catch (e: Exception) {
+            logger.warn("ToolLoopInspector ${inspector::class.simpleName} failed in afterIteration (iteration ${context.iteration}): ${e.message}", e)
+        }
+    }
 }
 
 // =============================================================================
@@ -58,11 +88,23 @@ internal fun List<ToolLoopInspector>.notifyAfterIteration(context: AfterIteratio
 // =============================================================================
 
 internal fun List<ToolCallInspector>.notifyBeforeToolCall(context: BeforeToolCallContext) {
-    forEach { it.beforeToolCall(context) }
+    forEach { inspector ->
+        try {
+            inspector.beforeToolCall(context)
+        } catch (e: Exception) {
+            logger.warn("ToolCallInspector ${inspector::class.simpleName} failed in beforeToolCall for tool '${context.toolCall.name}': ${e.message}", e)
+        }
+    }
 }
 
 internal fun List<ToolCallInspector>.notifyAfterToolCall(context: AfterToolCallContext) {
-    forEach { it.afterToolCall(context) }
+    forEach { inspector ->
+        try {
+            inspector.afterToolCall(context)
+        } catch (e: Exception) {
+            logger.warn("ToolCallInspector ${inspector::class.simpleName} failed in afterToolCall for tool '${context.toolCall.name}': ${e.message}", e)
+        }
+    }
 }
 
 // =============================================================================
@@ -151,26 +193,4 @@ internal fun createAfterIterationContext(
     history = history,
     iteration = iteration,
     toolCallsInIteration = toolCallsInIteration,
-)
-
-// =============================================================================
-// Tool Call Context Factory Functions (no history/iteration)
-// =============================================================================
-
-internal fun createBeforeToolCallContext(
-    toolCall: ToolCall,
-) = BeforeToolCallContext(
-    toolCall = toolCall,
-)
-
-internal fun createAfterToolCallContext(
-    toolCall: ToolCall,
-    result: Tool.Result,
-    resultAsString: String,
-    durationMs: Long,
-) = AfterToolCallContext(
-    toolCall = toolCall,
-    result = result,
-    resultAsString = resultAsString,
-    durationMs = durationMs,
 )

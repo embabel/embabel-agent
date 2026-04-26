@@ -99,7 +99,7 @@ class SimpleToolLoopCallbacksTest {
 
         @Test
         fun `supports all log levels`() {
-            ToolLoopLoggingInspector.LogLevel.entries.forEach { level ->
+            LogLevel.entries.forEach { level ->
                 ToolLoopLoggingInspector(logLevel = level).beforeLlmCall(
                     BeforeLlmCallContext(
                         history = emptyList(),
@@ -508,7 +508,7 @@ class SimpleToolLoopCallbacksTest {
 
         @Test
         fun `supports all log levels`() {
-            ToolLoopLoggingInspector.LogLevel.entries.forEach { level ->
+            LogLevel.entries.forEach { level ->
                 ToolCallLoggingInspector(logLevel = level).beforeToolCall(
                     BeforeToolCallContext(
                         toolCall = ToolCall(id = "1", name = "testTool", arguments = "{}"),
