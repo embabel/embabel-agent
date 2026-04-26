@@ -69,18 +69,23 @@ abstract class AbstractAgentProcess(
     override val failureInfo: Any?
         get() = _failureInfo
 
-    private var _terminationRequest: TerminationSignal? = null
+    private val _terminationRequest = AtomicReference<TerminationSignal?>(null)
 
     internal val terminationRequest: TerminationSignal?
-        get() = _terminationRequest
+        get() = _terminationRequest.get()
 
     private fun setTerminationRequest(signal: TerminationSignal) {
-        _terminationRequest = signal
+        _terminationRequest.set(signal)
     }
 
-    internal fun resetTerminationRequest() {
-        _terminationRequest = null
-    }
+    /**
+     * Atomically clear the slot only if its current value is exactly [expected].
+     * Returns true if the caller successfully consumed the observed signal.
+     * Returns false if the slot was mutated concurrently — the newer value
+     * is preserved and will be visible to the next consumer.
+     */
+    internal fun compareAndResetTerminationRequest(expected: TerminationSignal): Boolean =
+        _terminationRequest.compareAndSet(expected, null)
 
     override fun terminateAgent(reason: String) {
         // Cascade to children first
@@ -374,7 +379,8 @@ abstract class AbstractAgentProcess(
         // Check for API-driven termination signal first
         val signalTermination = TerminationSignalPolicy.shouldTerminate(this)
         if (signalTermination != null) {
-            resetTerminationRequest()
+            val observed = terminationRequest
+            if (observed != null) compareAndResetTerminationRequest(observed)
             logger.debug(
                 "Process {} terminated by termination signal: {}",
                 this.id,
@@ -390,8 +396,9 @@ abstract class AbstractAgentProcess(
         // (e.g., set by a simple action without tool loop)
         val staleSignal = terminationRequest
         if (staleSignal != null && staleSignal.scope == TerminationScope.ACTION) {
-            logger.debug("Clearing stale ACTION termination signal: {}", staleSignal.reason)
-            resetTerminationRequest()
+            if (compareAndResetTerminationRequest(staleSignal)) {
+                logger.debug("Clearing stale ACTION termination signal: {}", staleSignal.reason)
+            }
         }
 
         // Check configured early termination policies
