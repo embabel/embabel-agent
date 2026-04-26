@@ -442,14 +442,42 @@ class PlaybookToolTest {
         }
 
         @Test
-        fun `should add prerequisite note to description`() {
+        fun `description names missing prerequisite while locked`() {
             val delegate = createTestTool("analyze")
             val state = PlaybookState(mockBlackboard())
             val condition = UnlockCondition.AfterTools("search")
             val conditionalTool = ConditionalTool(delegate, condition, state)
 
+            // When locked, the description must tell the LLM exactly what to
+            // do — the previous static "may require prerequisites" suffix
+            // was vague enough that weak instruction-following models read it
+            // as "give up". Naming the missing tool ("search") in the
+            // description gives the model a concrete next action.
             assertThat(conditionalTool.definition.description)
-                .contains("prerequisites")
+                .contains("not yet available")
+                .contains("search")
+        }
+
+        @Test
+        fun `description has no lock note once condition is satisfied`() {
+            val delegate = createTestTool("analyze")
+            val state = PlaybookState(mockBlackboard())
+            val condition = UnlockCondition.AfterTools("search")
+            val conditionalTool = ConditionalTool(delegate, condition, state)
+
+            // Before satisfaction the description warns about missing prereq.
+            assertThat(conditionalTool.definition.description).contains("not yet available")
+
+            // After satisfaction the description must match the underlying
+            // delegate's description verbatim — no stale "may require
+            // prerequisites" suffix that misleads weak models into thinking
+            // the tool is still locked. This is the bug the description
+            // getter was made dynamic to fix.
+            state.recordToolCall("search")
+            assertThat(conditionalTool.definition.description)
+                .isEqualTo(delegate.definition.description)
+                .doesNotContain("not yet available")
+                .doesNotContain("prerequisites")
         }
 
         @Test
