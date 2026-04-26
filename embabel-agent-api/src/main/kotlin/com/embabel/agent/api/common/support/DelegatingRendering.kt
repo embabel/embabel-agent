@@ -18,6 +18,7 @@ package com.embabel.agent.api.common.support
 import com.embabel.agent.api.common.PromptRunner
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.Conversation
+import com.embabel.chat.EmptyLlmResponseException
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.textio.template.TemplateRenderer
@@ -69,7 +70,7 @@ internal data class DelegatingRendering(
             ) + conversation.messages,
             outputClass = String::class.java,
         )
-        return AssistantMessage(response)
+        return assistantMessageOrThrow(response)
     }
 
     override fun respondWithTrigger(
@@ -83,6 +84,22 @@ internal data class DelegatingRendering(
             ) + conversation.messages + listOf(UserMessage(triggerPrompt)),
             outputClass = String::class.java,
         )
+        return assistantMessageOrThrow(response)
+    }
+
+    /**
+     * Wrap the LLM's text in an [AssistantMessage], throwing
+     * [EmptyLlmResponseException] when the LLM returned blank or null.
+     * Without this guard, [AssistantMessage]'s [com.embabel.chat.TextPart]
+     * invariant would surface as a vague `IllegalArgumentException` and
+     * callers would have to pattern-match on the message string. A typed
+     * exception lets callers handle the empty case cleanly — typically by
+     * substituting a "could you rephrase?" prompt for the user.
+     */
+    private fun assistantMessageOrThrow(response: String?): AssistantMessage {
+        if (response.isNullOrBlank()) {
+            throw EmptyLlmResponseException()
+        }
         return AssistantMessage(response)
     }
 }
