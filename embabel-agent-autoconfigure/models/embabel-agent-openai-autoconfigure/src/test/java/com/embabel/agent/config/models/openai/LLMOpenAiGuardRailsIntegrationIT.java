@@ -369,7 +369,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("gpt-4.1-mini")
-                .withToolObject(Tooling.class)
+                .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(openAiGuardRail, new ThinkingBlocksGuardRail());
 
@@ -398,7 +398,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("gpt-4.1-mini")
-                .withToolObject(Tooling.class)
+                .withToolObject(new Tooling())
                 .withGuardRails(springAiGuardRail)
                 .withGuardRails(new ThinkingBlocksGuardRail());
 

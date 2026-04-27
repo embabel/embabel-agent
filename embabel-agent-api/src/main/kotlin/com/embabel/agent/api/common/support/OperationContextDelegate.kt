@@ -26,6 +26,7 @@ import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.api.tool.agentic.simple.DomainAwareSink
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -76,8 +77,9 @@ internal data class OperationContextDelegate(
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
-    private val inspectors: List<ToolLoopInspector> = emptyList(),
-    private val transformers: List<ToolLoopTransformer> = emptyList(),
+    private val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
+    private val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
+    private val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     private val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
     override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
@@ -139,10 +141,13 @@ internal data class OperationContextDelegate(
         copy(guardRails = this.guardRails + guards)
 
     override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate =
-        copy(inspectors = this.inspectors + inspectors)
+        copy(toolLoopInspectors = this.toolLoopInspectors + inspectors)
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate =
-        copy(transformers = this.transformers + transformers)
+        copy(toolLoopTransformers = this.toolLoopTransformers + transformers)
+
+    override fun withToolCallInspectors(vararg inspectors: ToolCallInspector): PromptExecutionDelegate =
+        copy(toolCallInspectors = this.toolCallInspectors + inspectors)
 
     override fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate =
         copy(toolCallContext = this.toolCallContext.merge(context))
@@ -225,8 +230,9 @@ internal data class OperationContextDelegate(
                 validation = validation,
                 guardRails = guardRails,
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
+                toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
                 toolNotFoundPolicy = toolNotFoundPolicy,
             ),
@@ -259,8 +265,9 @@ internal data class OperationContextDelegate(
                 validation = validation,
                 guardRails = guardRails,
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
+                toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
                 toolNotFoundPolicy = toolNotFoundPolicy,
             ),
@@ -358,6 +365,24 @@ internal data class OperationContextDelegate(
     }
 
     private fun streamingInteraction(): LlmInteraction {
+        // Warn if ToolLoopInspectors or ToolLoopTransformers are configured (they will be ignored in streaming)
+        if (toolLoopInspectors.isNotEmpty()) {
+            loggerFor<OperationContextDelegate>().warn(
+                """
+                ToolLoopInspectors are ignored in streaming mode.
+                Use withToolCallInspectors() instead for streaming-compatible observation.
+                """.trimIndent()
+            )
+        }
+        if (toolLoopTransformers.isNotEmpty()) {
+            loggerFor<OperationContextDelegate>().warn(
+                """
+                ToolLoopTransformers are ignored in streaming mode.
+                The framework manages the tool loop internally during streaming.
+                """.trimIndent()
+            )
+        }
+
         val toolConfig = resolveToolConfig()
         return LlmInteraction(
             llm = llm,
@@ -371,8 +396,9 @@ internal data class OperationContextDelegate(
             fieldFilter = fieldFilter,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
-            inspectors = inspectors,
-            transformers = transformers,
+            toolLoopInspectors = emptyList(),
+            toolLoopTransformers = emptyList(),
+            toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
         )
     }
@@ -504,8 +530,9 @@ internal data class OperationContextDelegate(
             validation = this.validation,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
-            inspectors = inspectors,
-            transformers = transformers,
+            toolLoopInspectors = toolLoopInspectors,
+            toolLoopTransformers = toolLoopTransformers,
+            toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
         )
     }

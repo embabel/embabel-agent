@@ -18,6 +18,7 @@ package com.embabel.agent.spi.loop
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
@@ -52,8 +53,9 @@ interface ToolLoopFactory {
      * @param injectionStrategy strategy for dynamic tool injection
      * @param maxIterations maximum loop iterations
      * @param toolDecorator optional decorator for injected tools
-     * @param inspectors read-only observers for tool loop lifecycle events
-     * @param transformers transformers for modifying conversation history or tool results
+     * @param toolLoopInspectors read-only observers for tool loop lifecycle events
+     * @param toolLoopTransformers transformers for modifying conversation history or tool results
+     * @param toolCallInspectors read-only observers for individual tool call events
      * @param toolCallContext context propagated to tool invocations
      */
     fun create(
@@ -62,8 +64,9 @@ interface ToolLoopFactory {
         injectionStrategy: ToolInjectionStrategy,
         maxIterations: Int,
         toolDecorator: ((Tool) -> Tool)?,
-        inspectors: List<ToolLoopInspector>,
-        transformers: List<ToolLoopTransformer>,
+        toolLoopInspectors: List<ToolLoopInspector>,
+        toolLoopTransformers: List<ToolLoopTransformer>,
+        toolCallInspectors: List<ToolCallInspector>,
         toolCallContext: ToolCallContext,
         toolNotFoundPolicy: ToolNotFoundPolicy? = null,
     ): ToolLoop
@@ -102,8 +105,9 @@ internal class ConfigurableToolLoopFactory(
         injectionStrategy: ToolInjectionStrategy,
         maxIterations: Int,
         toolDecorator: ((Tool) -> Tool)?,
-        inspectors: List<ToolLoopInspector>,
-        transformers: List<ToolLoopTransformer>,
+        toolLoopInspectors: List<ToolLoopInspector>,
+        toolLoopTransformers: List<ToolLoopTransformer>,
+        toolCallInspectors: List<ToolCallInspector>,
         toolCallContext: ToolCallContext,
         toolNotFoundPolicy: ToolNotFoundPolicy?,
     ): ToolLoop {
@@ -115,8 +119,9 @@ internal class ConfigurableToolLoopFactory(
                 injectionStrategy = injectionStrategy,
                 maxIterations = maxIterations,
                 toolDecorator = toolDecorator,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
+                toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
                 toolNotFoundPolicy = policy,
             )
@@ -126,8 +131,9 @@ internal class ConfigurableToolLoopFactory(
                 injectionStrategy = injectionStrategy,
                 maxIterations = maxIterations,
                 toolDecorator = toolDecorator,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
+                toolCallInspectors = toolCallInspectors,
                 asyncer = asyncer,
                 parallelConfig = config.parallel,
                 toolCallContext = toolCallContext,

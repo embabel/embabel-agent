@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.springai.streaming
 
 import com.embabel.agent.api.event.LlmRequestEvent
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
@@ -183,6 +184,7 @@ internal class StreamingChatClientOperations(
             messages = messages,
             promptContributions = promptContributions,
             tools = tools,
+            toolCallInspectors = interaction.toolCallInspectors,
             chatOptions = chatOptions,
             springAiPrompt = springAiPrompt,
         )
@@ -376,6 +378,7 @@ internal class StreamingChatClientOperations(
             messages = messages,
             promptContributions = fullPromptContributions,
             tools = tools,
+            toolCallInspectors = interaction.toolCallInspectors,
             chatOptions = chatOptions,
             springAiPrompt = springAiPrompt,
         ).filter { it.isNotEmpty() }
@@ -466,6 +469,7 @@ internal class StreamingChatClientOperations(
      * @param messages Embabel conversation messages
      * @param promptContributions Prompt contributions string
      * @param tools Embabel tools available for LLM
+     * @param toolCallInspectors Inspectors to observe tool call events
      * @param chatOptions Spring AI chat options
      * @param springAiPrompt Pre-built Spring AI prompt (used when useMessageStreamer=false)
      * @return Flux of raw content chunks
@@ -475,12 +479,13 @@ internal class StreamingChatClientOperations(
         messages: List<Message>,
         promptContributions: String,
         tools: List<com.embabel.agent.api.tool.Tool>,
+        toolCallInspectors: List<ToolCallInspector>,
         chatOptions: org.springframework.ai.chat.prompt.ChatOptions,
         springAiPrompt: Prompt,
     ): Flux<String> {
         return if (useMessageStreamer) {
             val streamerMessages = buildMessagesWithContributions(messages, promptContributions)
-            SpringAiLlmMessageStreamer(chatClient, chatOptions).stream(streamerMessages, tools)
+            SpringAiLlmMessageStreamer(chatClient, chatOptions).stream(streamerMessages, tools, toolCallInspectors)
         } else {
             chatClient
                 .prompt(springAiPrompt)

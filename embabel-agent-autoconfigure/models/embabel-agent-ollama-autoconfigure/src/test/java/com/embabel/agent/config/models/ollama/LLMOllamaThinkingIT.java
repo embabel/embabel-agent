@@ -165,7 +165,7 @@ class LLMOllamaThinkingIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("qwen3:latest")
-                .withToolObject(Tooling.class);
+                .withToolObject(new Tooling());
 
         String prompt = """
                 What is the hottest month in Florida and provide the temperature.
@@ -203,7 +203,7 @@ class LLMOllamaThinkingIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("qwen3:latest")
-                .withToolObject(Tooling.class);
+                .withToolObject(new Tooling());
 
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis. " + "And return Month with temperature";
 
@@ -239,7 +239,7 @@ class LLMOllamaThinkingIT {
 
         // Given: Use the LLM with a complex reasoning prompt
         PromptRunner runner = ai.withLlm("qwen3:latest")
-                .withToolObject(Tooling.class);
+                .withToolObject(new Tooling());
 
         String prompt = """
                 <think>

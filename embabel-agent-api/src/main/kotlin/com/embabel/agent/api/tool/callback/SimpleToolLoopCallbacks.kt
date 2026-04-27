@@ -15,12 +15,27 @@
  */
 package com.embabel.agent.api.tool.callback
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.chat.AssistantMessageWithToolCalls
 import com.embabel.chat.Message
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.ToolResultMessage
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+
+/**
+ * Log level for tool loop callbacks and inspectors.
+ *
+ * Used by:
+ * - [ToolLoopLoggingInspector]
+ * - [ToolCallLoggingInspector]
+ * - [ToolResultTruncatingTransformer]
+ */
+enum class LogLevel {
+    TRACE,
+    DEBUG,
+    INFO
+}
 
 /**
  * Inspector that logs tool loop lifecycle events.
@@ -32,8 +47,6 @@ class ToolLoopLoggingInspector(
     private val logLevel: LogLevel = LogLevel.DEBUG,
     private val logger: Logger = LoggerFactory.getLogger(ToolLoopLoggingInspector::class.java),
 ) : ToolLoopInspector {
-
-    enum class LogLevel { TRACE, DEBUG, INFO }
 
     override fun beforeLlmCall(context: BeforeLlmCallContext) {
         log("beforeLlmCall: iteration=${context.iteration}, historySize=${context.history.size}, tools=${context.tools.size}")
@@ -234,7 +247,7 @@ class SlidingWindowTransformer(
 class ToolResultTruncatingTransformer(
     private val maxLength: Int = 10_000,
     private val truncationMarker: String? = null,
-    private val logLevel: ToolLoopLoggingInspector.LogLevel? = null,
+    private val logLevel: LogLevel? = null,
     private val logger: Logger = LoggerFactory.getLogger(ToolResultTruncatingTransformer::class.java),
 ) : ToolLoopTransformer {
 
@@ -251,10 +264,48 @@ class ToolResultTruncatingTransformer(
     private fun logTruncation(toolName: String, originalLength: Int) {
         val message = "Truncated '$toolName' result: $originalLength -> $maxLength chars"
         when (logLevel) {
-            ToolLoopLoggingInspector.LogLevel.TRACE -> logger.trace(message)
-            ToolLoopLoggingInspector.LogLevel.DEBUG -> logger.debug(message)
-            ToolLoopLoggingInspector.LogLevel.INFO -> logger.info(message)
+            LogLevel.TRACE -> logger.trace(message)
+            LogLevel.DEBUG -> logger.debug(message)
+            LogLevel.INFO -> logger.info(message)
             null -> Unit // logging disabled
+        }
+    }
+}
+
+/**
+ * Inspector that logs individual tool call events.
+ *
+ * Provides lightweight logging of tool execution with timing information.
+ * Works in both streaming and non-streaming modes.
+ *
+ * @param logLevel The level at which to log events
+ * @param logger The logger to use (defaults to ToolCallLoggingInspector's logger)
+ */
+class ToolCallLoggingInspector(
+    private val logLevel: LogLevel = LogLevel.DEBUG,
+    private val logger: Logger = LoggerFactory.getLogger(ToolCallLoggingInspector::class.java),
+) : ToolCallInspector {
+
+    override fun beforeToolCall(context: BeforeToolCallContext) {
+        val argsLength = context.toolCall.arguments.length
+        log("beforeToolCall: tool=${context.toolCall.name}, argsLength=$argsLength")
+    }
+
+    override fun afterToolCall(context: AfterToolCallContext) {
+        val status = when (context.result) {
+            is Tool.Result.Text -> context.result::class.simpleName
+            is Tool.Result.WithArtifact -> context.result::class.simpleName
+            is Tool.Result.Error -> context.result::class.simpleName
+        }
+        val resultLength = context.resultAsString.length
+        log("afterToolCall: tool=${context.toolCall.name}, status=$status, resultLength=$resultLength, durationMs=${context.durationMs}")
+    }
+
+    private fun log(message: String) {
+        when (logLevel) {
+            LogLevel.TRACE -> logger.trace(message)
+            LogLevel.DEBUG -> logger.debug(message)
+            LogLevel.INFO -> logger.info(message)
         }
     }
 }

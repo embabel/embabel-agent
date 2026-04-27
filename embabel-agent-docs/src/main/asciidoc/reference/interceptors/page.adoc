@@ -1,0 +1,154 @@
+[[reference.interceptors]]
+
+=== Working with Callbacks (Interceptors)
+
+==== Tool Loop Callbacks
+
+LLM invocations in Embabel take place inside `ToolLoop` (see <<reference.llms.custom-integration>>).
+Embabel Tool Loop is highly customizable, offering clear extension points with a separation between observation (inspectors) and transformation (transformers).
+
+Inspectors observe the loop without modifying it. Implement any callback:
+
+- `beforeLlmCall`,
+- `afterLlmCall`,
+- `afterToolResult`,
+- `afterIteration`.
+
+Inspectors are perfect for logging, collecting metrics, debugging, and are read-only by design.
+
+Transformers modify data flowing through the loop. Use them to truncate large tool results, apply sliding window to conversation history, redact sensitive content. They change what the LLM sees.
+
+===== Tool Loop Callbacks Interfaces
+
+Below are callbacks interfaces (in Kotlin):
+
+[source,kotlin]
+----
+/**
+ * Read-only observer for tool loop lifecycle events.
+ * Use for logging, metrics, debugging - does not modify state.
+ */
+interface ToolLoopInspector : ToolLoopCallback {
+
+    /** Called before each LLM invocation. Default no-op. */
+    fun beforeLlmCall(context: BeforeLlmCallContext) = Unit
+
+    /** Called after LLM returns a response, before processing tool calls. Default no-op. */
+    fun afterLlmCall(context: AfterLlmCallContext) = Unit
+
+    /** Called after each tool produces a result. Default no-op. */
+    fun afterToolResult(context: AfterToolResultContext) = Unit
+
+    /** Called after each complete iteration (all tool calls processed). Default no-op. */
+    fun afterIteration(context: AfterIterationContext) = Unit
+}
+
+/**
+ * Transforms message history or tool results during tool loop execution.
+ * Use for compression, summarization, windowing.
+ */
+interface ToolLoopTransformer : ToolLoopCallback {
+
+    /** Transform history before sending to LLM. Return modified list. */
+    fun transformBeforeLlmCall(context: BeforeLlmCallContext): List<Message> = context.history
+
+    /** Transform LLM response before adding to history. Return modified message. */
+    fun transformAfterLlmCall(context: AfterLlmCallContext): Message = context.response
+
+    /** Transform tool result before adding to history. Return modified string. */
+    fun transformAfterToolResult(context: AfterToolResultContext): String = context.resultAsString
+
+    /** Transform history after iteration completes. Return modified list. */
+    fun transformAfterIteration(context: AfterIterationContext): List<Message> = context.history
+}
+----
+
+===== Simple Out-of-Box Tool Loop Callbacks
+
+Framework provides with simple out-of-box callbacks:
+
+- `ToolLoopLoggingInspector` — logs calls details before and after LLM invocations, after Tool Execution, and after Tool Loop Iteration
+- `ToolResultTruncatingTransformer` — truncates tool call results
+- `SlidingWindowTransformer` — maintains a sliding window of messages to manage context size, while preserving conversation context system messages
+
+
+===== Usage: Tool Loop Callbacks
+
+[source, java]
+----
+
+// Execute with tools and callbacks
+var result = ai.withDefaultLlm()
+                .withTools(tools)
+                .withToolLoopInspectors(callbackTracker, loggingInspector)
+                .withToolLoopTransformers(truncatingTransformer, slidingWindowTransformer)
+                .creating(RestaurantRecommendation.class)
+                .fromPrompt("""
+                        I'm looking for an Italian restaurant near the Upper East Side in NYC.
+
+                        You have access to these tools to fetch restaurant menus:
+                        %s
+
+                        Please fetch the menus and recommend the best restaurant for a romantic dinner.
+                        """.formatted(String.join(", ", toolNames)));
+
+----
+
+==== Tool Call Interceptors
+
+While tool loop callbacks provide with powerful features for observing LLM invocations, conversation history and Tools execution, there is also a practical need for the trimmed version of inspector callbacks.
+
+===== Motivation: streaming mode
+
+Streaming is event-driven, see <<reference.streaming>>. Streaming model provides with callbacks for getting thinking blocks and structured object.
+
+Framework also provides with additional type of streaming callbacks - Tool Call callbacks.
+
+Tool Call callback includes info about tool definition, tool result, and tool execution duration.
+
+===== Tool Call Interface
+
+[source, kotlin]
+----
+
+/**
+ * Read-only observer for individual tool call events.
+ *
+ * Provides observation of tool execution without access to conversation history
+ * or iteration state. Works in both streaming mode (where the framework manages
+ * the tool loop internally) and non-streaming mode (as a lightweight alternative
+ * to [ToolLoopInspector] when history/iteration context is not needed).
+ *
+ * @see ToolLoopInspector for tool loop-level inspection with full conversation context
+ */
+interface ToolCallInspector {
+
+    /**
+     * Called before tool execution starts.
+     * Default no-op.
+     */
+    fun beforeToolCall(context: BeforeToolCallContext) = Unit
+
+    /**
+     * Called after tool execution completes (success or failure).
+     * Default no-op.
+     */
+    fun afterToolCall(context: AfterToolCallContext) = Unit
+}
+----
+
+===== Simple Out-of-Box Tool Call Interceptor
+
+Please refer to `ToolCallLoggingInspector` for collecting tool call metrics.
+
+===== Usage: Tool Call Interceptors
+
+[source, java]
+----
+ PromptRunner runner = ai.withDefaultLlm()
+                .withToolObject(new Tooling())
+                .withToolCallInspectors(new ToolCallLoggingInspector(ToolLoopLoggingInspector.LogLevel.INFO, logger));
+
+----
+
+NOTE: Tool Call Interceptors are applicable to both streaming and non-streaming modes.
