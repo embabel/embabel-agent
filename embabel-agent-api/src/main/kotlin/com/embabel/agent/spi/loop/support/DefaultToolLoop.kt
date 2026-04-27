@@ -31,6 +31,9 @@ import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
+import com.embabel.agent.spi.loop.EmptyResponseAction
+import com.embabel.agent.spi.loop.EmptyResponsePolicy
+import com.embabel.agent.spi.loop.ExitOnEmptyPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.MaxIterationsExceededException
 import com.embabel.agent.spi.loop.ToolCallResult
@@ -41,9 +44,11 @@ import com.embabel.agent.spi.loop.ToolLoopResult
 import com.embabel.agent.spi.loop.ToolNotFoundAction
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessageWithToolCalls
+import com.embabel.chat.EmptyLlmResponseException
 import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
+import com.embabel.chat.UserMessage
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
@@ -72,6 +77,7 @@ internal open class DefaultToolLoop(
     protected val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     protected val toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
+    protected val emptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
 ) : ToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -136,6 +142,33 @@ internal open class DefaultToolLoop(
 
             if (!hasToolCalls(transformedResponse)) {
                 /* -------------------------------------------------
+                 * Empty-response policy — give weak models one more
+                 * chance before exiting the loop with blank content.
+                 * Failure mode common to gpt-oss-20b / qwen after a
+                 * tool call: model returns blank text with no further
+                 * tool calls. Default policy is [ExitOnEmptyPolicy]
+                 * which preserves prior behaviour; opt-in policies
+                 * like [RetryWithFeedbackPolicy] feed a synthetic
+                 * nudge into the conversation and re-loop.
+                 * ------------------------------------------------- */
+                if (transformedResponse.content.isBlank()) {
+                    when (val action = emptyResponsePolicy.handle()) {
+                        is EmptyResponseAction.FeedbackToModel -> {
+                            logger.info(
+                                "Empty LLM response at iteration {} — feeding back to model",
+                                state.iterations,
+                            )
+                            state.conversationHistory.add(UserMessage(action.message))
+                            continue
+                        }
+                        EmptyResponseAction.Throw -> throw EmptyLlmResponseException()
+                        EmptyResponseAction.Exit -> { /* fall through */ }
+                    }
+                } else {
+                    emptyResponsePolicy.onNonEmpty()
+                }
+
+                /* -------------------------------------------------
                  * Apply afterIteration callbacks for early exit - START
                  * LLM returned final answer without tool calls.
                  * Call afterIteration with empty toolCalls for consistency,
@@ -160,6 +193,9 @@ internal open class DefaultToolLoop(
                 logCompletion(state.iterations)
                 return buildResult(transformedResponse.content, outputParser, state)
             }
+
+            // Tool calls present — model is making progress; reset empty-response counter.
+            emptyResponsePolicy.onNonEmpty()
 
             val assistantMessage = transformedResponse as AssistantMessageWithToolCalls
             val shouldContinue = processToolCalls(assistantMessage.toolCalls, state)

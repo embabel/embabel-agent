@@ -18,6 +18,9 @@ package com.embabel.agent.spi.config.spring
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
+import com.embabel.agent.spi.loop.EmptyResponsePolicy
+import com.embabel.agent.spi.loop.ExitOnEmptyPolicy
+import com.embabel.agent.spi.loop.RetryWithFeedbackPolicy
 import com.embabel.agent.spi.loop.ToolLoopFactory
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import org.slf4j.LoggerFactory
@@ -51,8 +54,24 @@ class ToolLoopFactoryConfiguration(
     )
 
     @Bean
-    fun toolLoopFactory(asyncer: Asyncer, toolNotFoundPolicy: ToolNotFoundPolicy): ToolLoopFactory {
+    @ConditionalOnMissingBean
+    fun emptyResponsePolicy(): EmptyResponsePolicy =
+        if (config.emptyResponse.maxRetries > 0) {
+            RetryWithFeedbackPolicy(
+                maxRetries = config.emptyResponse.maxRetries,
+                message = config.emptyResponse.nudgeMessage,
+            )
+        } else {
+            ExitOnEmptyPolicy
+        }
+
+    @Bean
+    fun toolLoopFactory(
+        asyncer: Asyncer,
+        toolNotFoundPolicy: ToolNotFoundPolicy,
+        emptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
+    ): ToolLoopFactory {
         logger.info("Creating ToolLoopFactory with type: {}, using injected Asyncer", config.type)
-        return ToolLoopFactory.create(config, asyncer, toolNotFoundPolicy)
+        return ToolLoopFactory.create(config, asyncer, toolNotFoundPolicy, emptyResponsePolicy)
     }
 }
