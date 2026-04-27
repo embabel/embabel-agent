@@ -489,7 +489,6 @@ class LLMAnthropicThinkingIT {
 
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
-        // assertFalse(thinkingBlocks.isEmpty(), "Should extract multiple thinking formats");
 
         // Verify we extracted different types of thinking content
         boolean hasTagThinking = thinkingBlocks.stream()
