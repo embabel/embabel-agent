@@ -294,7 +294,20 @@ data class Skills @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Match by canonical form: case-insensitive, hyphens and underscores
+     * treated as equivalent. Tool surfaces commonly sanitize hyphens to
+     * underscores when exposing skills as top-level tools (e.g. via
+     * `withUnfolding`), so the model sees `github_workflows` for a skill
+     * named `github-workflows` and naturally calls `activate` with the
+     * sanitized form. Accepting either separator removes a wasted
+     * iteration that small models in particular pay for.
+     */
     private fun findSkill(name: String): LoadedSkill? {
-        return skills.find { it.name.equals(name, ignoreCase = true) }
+        val target = canonicalize(name)
+        return skills.find { canonicalize(it.name) == target }
     }
+
+    private fun canonicalize(name: String): String =
+        name.replace('_', '-').lowercase()
 }

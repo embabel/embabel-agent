@@ -97,6 +97,81 @@ class SkillsTest {
     }
 
     @Test
+    fun `activate accepts underscore for a hyphenated skill name`() {
+        // Tool surfaces sanitize hyphens to underscores when exposing skills
+        // as top-level tools (e.g. via withUnfolding). The model sees
+        // 'github_workflows' in its tool list and naturally passes that
+        // string back to activate. We must accept it.
+        val skillDir = createSkillDirectory("github-workflows")
+        val skill = LoadedSkill(
+            skillMetadata = SkillDefinition(
+                name = "github-workflows",
+                description = "GitHub workflow knowledge",
+                instructions = "Pagination tips here",
+            ),
+            basePath = skillDir,
+        )
+        val skills = Skills(
+            name = "test",
+            description = "test",
+            skills = listOf(skill),
+        )
+
+        val result = skills.activate("github_workflows")
+
+        assertTrue(result.contains("# Skill: github-workflows"))
+        assertTrue(result.contains("Pagination tips here"))
+    }
+
+    @Test
+    fun `activate accepts hyphen for an underscored skill name`() {
+        // Reverse direction — symmetry. A skill authored with underscores
+        // must still resolve when the model passes the hyphenated form.
+        val skillDir = createSkillDirectory("my_helper")
+        val skill = LoadedSkill(
+            skillMetadata = SkillDefinition(
+                name = "my_helper",
+                description = "A helper",
+                instructions = "Helper instructions",
+            ),
+            basePath = skillDir,
+        )
+        val skills = Skills(
+            name = "test",
+            description = "test",
+            skills = listOf(skill),
+        )
+
+        val result = skills.activate("my-helper")
+
+        assertTrue(result.contains("# Skill: my_helper"))
+        assertTrue(result.contains("Helper instructions"))
+    }
+
+    @Test
+    fun `activate combines separator tolerance with case insensitivity`() {
+        val skillDir = createSkillDirectory("my-mixed-skill")
+        val skill = LoadedSkill(
+            skillMetadata = SkillDefinition(
+                name = "my-mixed-skill",
+                description = "Mixed skill",
+                instructions = "Mixed instructions",
+            ),
+            basePath = skillDir,
+        )
+        val skills = Skills(
+            name = "test",
+            description = "test",
+            skills = listOf(skill),
+        )
+
+        val result = skills.activate("MY_Mixed_Skill")
+
+        assertTrue(result.contains("# Skill: my-mixed-skill"))
+        assertTrue(result.contains("Mixed instructions"))
+    }
+
+    @Test
     fun `activate handles skill without instructions`() {
         val skillDir = createSkillDirectory("no-instructions")
         val skill = LoadedSkill(
