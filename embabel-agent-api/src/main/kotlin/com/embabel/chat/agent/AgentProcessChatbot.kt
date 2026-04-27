@@ -75,6 +75,7 @@ class AgentProcessChatbot(
         outputChannel: OutputChannel,
         contextId: String?,
         conversationId: String?,
+        budget: Budget?,
     ): ChatSession {
         // Try to load existing conversation if ID provided
         val existingConversation = conversationId?.let { conversationFactory.load(it) }
@@ -91,6 +92,7 @@ class AgentProcessChatbot(
                 ),
                 verbosity = verbosity,
                 plannerType = plannerType,
+                budget = budget ?: Budget(),
             ),
             bindings = emptyMap(),
         )

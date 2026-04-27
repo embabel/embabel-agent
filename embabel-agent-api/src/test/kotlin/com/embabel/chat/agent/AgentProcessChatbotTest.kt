@@ -21,6 +21,9 @@ import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcessStatusCode
+import com.embabel.agent.core.Budget
+import com.embabel.agent.core.ProcessOptions
+import io.mockk.slot
 import com.embabel.chat.Conversation
 import com.embabel.chat.ConversationFactory
 import com.embabel.chat.ConversationStoreType
@@ -316,5 +319,83 @@ class AgentProcessChatbotTest {
         val session = chatbot.findSession("conv-123")
 
         assertNotNull(session)
+    }
+
+    @Test
+    fun `createSession uses default Budget when no budget is passed`() {
+        val agentPlatform = mockk<AgentPlatform>()
+        val agentProcess = mockk<AgentProcess>(relaxed = true)
+        val processOptionsSlot = slot<ProcessOptions>()
+
+        every { agentPlatform.createAgentProcess(any(), capture(processOptionsSlot), any()) } returns agentProcess
+        every { agentProcess[any()] } returns null
+        every { agentProcess.run() } returns agentProcess
+
+        val chatbot = AgentProcessChatbot(
+            agentPlatform = agentPlatform,
+            agentSource = { mockk<Agent>(relaxed = true) },
+        )
+
+        chatbot.createSession(
+            user = null,
+            outputChannel = DevNullOutputChannel,
+            contextId = null,
+            conversationId = null,
+        )
+
+        assertEquals(Budget(), processOptionsSlot.captured.budget)
+    }
+
+    @Test
+    fun `createSession uses default Budget when null budget is passed`() {
+        val agentPlatform = mockk<AgentPlatform>()
+        val agentProcess = mockk<AgentProcess>(relaxed = true)
+        val processOptionsSlot = slot<ProcessOptions>()
+
+        every { agentPlatform.createAgentProcess(any(), capture(processOptionsSlot), any()) } returns agentProcess
+        every { agentProcess[any()] } returns null
+        every { agentProcess.run() } returns agentProcess
+
+        val chatbot = AgentProcessChatbot(
+            agentPlatform = agentPlatform,
+            agentSource = { mockk<Agent>(relaxed = true) },
+        )
+
+        chatbot.createSession(
+            user = null,
+            outputChannel = DevNullOutputChannel,
+            contextId = null,
+            conversationId = null,
+            budget = null,
+        )
+
+        assertEquals(Budget(), processOptionsSlot.captured.budget)
+    }
+
+    @Test
+    fun `createSession uses provided Budget when budget is passed`() {
+        val agentPlatform = mockk<AgentPlatform>()
+        val agentProcess = mockk<AgentProcess>(relaxed = true)
+        val processOptionsSlot = slot<ProcessOptions>()
+        val customBudget = Budget(cost = 1.23, actions = 7, tokens = 500)
+
+        every { agentPlatform.createAgentProcess(any(), capture(processOptionsSlot), any()) } returns agentProcess
+        every { agentProcess[any()] } returns null
+        every { agentProcess.run() } returns agentProcess
+
+        val chatbot = AgentProcessChatbot(
+            agentPlatform = agentPlatform,
+            agentSource = { mockk<Agent>(relaxed = true) },
+        )
+
+        chatbot.createSession(
+            user = null,
+            outputChannel = DevNullOutputChannel,
+            contextId = null,
+            conversationId = null,
+            budget = customBudget,
+        )
+
+        assertEquals(customBudget, processOptionsSlot.captured.budget)
     }
 }
