@@ -18,6 +18,7 @@ package com.embabel.chat;
 import com.embabel.agent.api.channel.DevNullOutputChannel;
 import com.embabel.agent.api.channel.OutputChannel;
 import com.embabel.agent.api.identity.User;
+import com.embabel.agent.core.Budget;
 import com.embabel.chat.support.InMemoryConversation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -90,6 +91,22 @@ class ChatbotJavaTest {
         assertEquals(session, found);
     }
 
+    @Test
+    void canPassBudget() {
+        SimpleChatbot chatbot = new SimpleChatbot();
+        Budget customBudget = new Budget(1.23, 7, 500);
+
+        ChatSession session = chatbot.createSession(
+            null,
+            DevNullOutputChannel.INSTANCE,
+            null,
+            null,
+            customBudget
+        );
+
+        assertNotNull(session);
+    }
+
     /**
      * Simple Chatbot implementation in Java for testing.
      */
@@ -103,7 +120,8 @@ class ChatbotJavaTest {
             @Nullable User user,
             @NotNull OutputChannel outputChannel,
             @Nullable String contextId,
-            @Nullable String conversationId
+            @Nullable String conversationId,
+            @Nullable Budget budget
         ) {
             lastSession = new SimpleChatSession(user, outputChannel);
             return lastSession;
