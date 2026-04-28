@@ -31,7 +31,7 @@ import com.embabel.agent.core.AgentProcess
  *
  * @see UnfoldingTool for a fixed set of inner tools
  */
-interface ProgressiveTool : Tool {
+interface ProgressiveTool : NestedTool {
 
     /**
      * The inner tools available in this context.
