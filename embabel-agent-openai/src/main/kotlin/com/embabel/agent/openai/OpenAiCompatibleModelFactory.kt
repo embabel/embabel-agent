@@ -19,6 +19,7 @@ import com.embabel.agent.api.models.DeepSeekModels
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.api.models.MistralAiModels
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.api.models.PerplexityAiModels
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.chat.UserMessage
@@ -106,6 +107,15 @@ open class OpenAiCompatibleModelFactory(
                 GoogleGenAiModels.GEMINI_2_5_FLASH,
                 GoogleGenAiModels.PROVIDER,
             )
+
+        /**
+         * Returns a [ByokSpec] for Perplexity AI (OpenAI-compatible endpoint).
+         * Validates against [PerplexityAiModels.SONAR] by default.
+         *
+         * Note: uses the OpenAI wire protocol, not the native Spring AI Perplexity client.
+         */
+        fun perplexity(apiKey: String): ByokSpec =
+            ByokSpec("https://api.perplexity.ai", apiKey, PerplexityAiModels.SONAR, PerplexityAiModels.PROVIDER)
 
         /**
          * Returns a [ByokSpec] for a custom OpenAI-compatible provider.

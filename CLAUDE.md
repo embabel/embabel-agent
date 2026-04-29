@@ -36,7 +36,7 @@ When asked to edit a particular .adoc file, look for a parallel file with a name
 
 For example, if you are asked to edit `tools.adoc`, look for `.tools.adoc` for specific instructions about how to go
 about it.
-Thus you will be given a combination of user instructions such as ("edit tools.adoc to cover the FooBar tool in
+Thus, you will be given a combination of user instructions such as ("edit tools.adoc to cover the FooBar tool in
 FooBar.kt").
 You will follow the user instruction but bear in mind the instructions in any .tools.adoc file.
 If there is no .<filename>.adoc file, follow the general instructions in this document.
