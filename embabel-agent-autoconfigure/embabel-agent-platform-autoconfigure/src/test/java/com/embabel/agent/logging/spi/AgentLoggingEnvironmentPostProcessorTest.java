@@ -192,4 +192,20 @@ class AgentLoggingEnvironmentPostProcessorTest {
         assertEquals(initialSourceCount + 1, finalSourceCount,
                 "Should add exactly one new property source");
     }
+
+    @Test
+    void shouldCheckForLogbackSpringXml() {
+        // This test verifies the resourceExists method is called
+        // In our test environment, logback-spring.xml doesn't exist,
+        // so the processor should continue and set logging.config
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then - should set config because logback-spring.xml doesn't exist
+        String loggingConfig = environment.getProperty("logging.config");
+        assertNotNull(loggingConfig, "Should set logging.config when logback-spring.xml doesn't exist");
+        assertEquals("classpath:logback-embabel.xml", loggingConfig);
+    }
+
 }
