@@ -1,0 +1,16 @@
+# ============================================
+# perplexity-ai-models.yml
+# ============================================
+#
+# Verified against docs.perplexity.ai on 2026-04-12
+#
+# Using official Perplexity AI API aliases for supported chat/code/reasoning models
+
+models:
+  - name: "sonar"
+    model_id: "sonar"
+    display_name: "Sonar"
+    max_tokens: 127072
+    pricing_model:
+      usd_per1m_input_tokens: 1
+      usd_per1m_output_tokens: 1
