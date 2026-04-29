@@ -4147,7 +4147,7 @@ When to use `AgentProcessTools`:
 |Budget limits (cost, tokens, actions) and remaining capacity
 
 |`process_cost`
-|Total cost, LLM invocation count, and detailed token usage
+|Total cost (LLM and embedding invocations), invocation counts, and detailed token usage
 
 |`process_history`
 |List of actions taken so far with execution times
@@ -4156,7 +4156,7 @@ When to use `AgentProcessTools`:
 |Tool usage statistics (call counts per tool)
 
 |`process_models`
-|LLM models that have been invoked
+|All models (LLM and embedding) that have been invoked
 |===
 
 [tabs]

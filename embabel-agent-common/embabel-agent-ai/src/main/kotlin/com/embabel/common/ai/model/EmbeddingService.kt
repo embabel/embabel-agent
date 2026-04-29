@@ -25,25 +25,34 @@ interface EmbeddingServiceMetadata : ModelMetadata {
 
     override val type: ModelType get() = ModelType.EMBEDDING
 
+    /**
+     * The pricing model for the embedding service, if known.
+     * Null for local models (Ollama, ONNX) where the cost is zero.
+     */
+    val pricingModel: PricingModel?
+
     companion object {
         /**
          * Creates a new instance of [EmbeddingServiceMetadata].
          *
-         * @param name Name of the LLM.
+         * @param name Name of the embedding service.
          * @param provider Name of the provider, such as OpenAI.
+         * @param pricingModel Pricing model for the embedding service, if known.
          */
         operator fun invoke(
             name: String,
             provider: String,
             knowledgeCutoffDate: LocalDate? = null,
-            pricingModel: PricingModel? = null
-        ): EmbeddingServiceMetadata = EmbeddingServiceMetadataImpl(name, provider)
+            pricingModel: PricingModel? = null,
+        ): EmbeddingServiceMetadata = EmbeddingServiceMetadataImpl(name, provider, pricingModel)
 
         @JvmStatic
+        @JvmOverloads
         fun create(
             name: String,
             provider: String,
-        ): EmbeddingServiceMetadata = EmbeddingServiceMetadataImpl(name, provider)
+            pricingModel: PricingModel? = null,
+        ): EmbeddingServiceMetadata = EmbeddingServiceMetadataImpl(name, provider, pricingModel)
     }
 }
 
@@ -77,4 +86,5 @@ interface EmbeddingService : EmbeddingServiceMetadata, HasInfoString {
 data class EmbeddingServiceMetadataImpl(
     override val name: String,
     override val provider: String,
+    override val pricingModel: PricingModel? = null,
 ) : EmbeddingServiceMetadata
