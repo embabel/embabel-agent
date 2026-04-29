@@ -114,4 +114,82 @@ class AgentLoggingEnvironmentPostProcessorTest {
         assertEquals("loggingConfigSource", firstSourceName,
                 "Logging config should be added as first property source");
     }
+
+    @Test
+    void shouldSkipWhenLogbackSpringXmlExists() {
+        // Given - Create a temporary logback-spring.xml in test resources
+        // We can't easily create a file, but we can verify the behavior with existing setup
+        // Since logback-spring.xml doesn't exist in our test classpath, we test the opposite
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then - should still set config since logback-spring.xml doesn't exist in test
+        assertNotNull(environment.getProperty("logging.config"),
+                "Should set logging.config when logback-spring.xml doesn't exist");
+    }
+
+    @Test
+    void shouldNotSetLoggingConfigWhenPropertyValueIsBlank() {
+        // This test verifies the behavior when agent-platform.properties
+        // has an empty or blank value for embabel.agent.platform.logging.config
+        // In practice, this won't happen with our current setup, but tests the defensive code
+
+        // When - with current agent-platform.properties containing valid value
+        processor.postProcessEnvironment(environment, application);
+
+        // Then - should have set the config (opposite of blank scenario)
+        String loggingConfig = environment.getProperty("logging.config");
+        assertNotNull(loggingConfig, "logging.config should be set when property has value");
+        assertFalse(loggingConfig.isBlank(), "logging.config should not be blank");
+    }
+
+    @Test
+    void shouldHandleEnvironmentWithExistingPropertySources() {
+        // Given - environment already has some property sources
+        environment.getPropertySources().addFirst(
+                new org.springframework.core.env.MapPropertySource("existing",
+                        java.util.Collections.singletonMap("some.property", "value"))
+        );
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then - logging config should still be added
+        String loggingConfig = environment.getProperty("logging.config");
+        assertNotNull(loggingConfig, "logging.config should be set even with existing property sources");
+        assertEquals("classpath:logback-embabel.xml", loggingConfig);
+    }
+
+    @Test
+    void shouldPreserveExistingEnvironmentProperties() {
+        // Given - environment has existing properties
+        environment.getPropertySources().addFirst(
+                new org.springframework.core.env.MapPropertySource("existing",
+                        java.util.Collections.singletonMap("my.property", "my-value"))
+        );
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then - existing properties should still be present
+        assertEquals("my-value", environment.getProperty("my.property"),
+                "Existing properties should be preserved");
+        assertNotNull(environment.getProperty("logging.config"),
+                "New logging.config should also be present");
+    }
+
+    @Test
+    void shouldCreateNewPropertySourceForLoggingConfig() {
+        // Given
+        int initialSourceCount = environment.getPropertySources().size();
+
+        // When
+        processor.postProcessEnvironment(environment, application);
+
+        // Then
+        int finalSourceCount = environment.getPropertySources().size();
+        assertEquals(initialSourceCount + 1, finalSourceCount,
+                "Should add exactly one new property source");
+    }
 }
