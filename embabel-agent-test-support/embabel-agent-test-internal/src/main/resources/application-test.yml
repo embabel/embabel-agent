@@ -20,7 +20,11 @@ embabel:
       cheapest: test-llm
 
 logging:
-  pattern:
-    console: "%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level) %clr(%logger{0}){cyan} %clr(-){faint} %msg%n"
+  # Pattern is commented out to use the default from logback-embabel.xml (which includes thread name [%t])
+  # The <springProperty> tag in logback-embabel.xml reads logging.pattern.console, so setting it here
+  # would override the library's default pattern and remove thread names from log output.
+  # Only uncomment if you need to customize the pattern for specific tests.
+  #pattern:
+  #  console: "%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level) %clr(%logger{0}){cyan} %clr(-){faint} %msg%n"
   level:
     org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
