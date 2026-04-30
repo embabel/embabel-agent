@@ -13,41 +13,45 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.test.integration.example;
+package com.embabel.agent.test.integration;
 
 import com.embabel.agent.api.invocation.AgentInvocation;
 import com.embabel.agent.domain.io.UserInput;
-import com.embabel.agent.test.integration.EmbabelMockitoIntegrationTest;
-import com.embabel.agent.test.integration.example.WriteAndReviewAgent.ReviewedStory;
+import com.embabel.agent.test.integration.StreamingWriteAndReviewAgent.StreamingReviewedStory;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Flux;
 
-import static com.embabel.agent.test.integration.example.WriteAndReviewAgent.Story;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.embabel.agent.test.integration.StreamingWriteAndReviewAgent.StreamingStory;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Use framework superclass to test the complete workflow of writing and reviewing a story.
  * This will run under Spring Boot against an AgentPlatform instance
  * that has loaded all our agents.
  */
-class WriteAndReviewAgentIntegrationTest extends EmbabelMockitoIntegrationTest {
+class StreamingWriteAndReviewAgentIntegrationTest extends EmbabelMockitoIntegrationTest {
+
+    @BeforeEach
+    void enableStreaming(){
+        supportsStreaming(true);
+    }
 
     @Test
     void shouldExecuteCompleteWorkflow() {
         var input = new UserInput("Write about artificial intelligence");
 
-        var story = new Story("AI will transform our world...");
-        var reviewedStory = new ReviewedStory(story, "Excellent exploration of AI themes.", Personas.REVIEWER);
+        var story = new StreamingStory("AI will transform our world...");
+        var reviewedStory = new StreamingReviewedStory(story, "Excellent exploration of AI themes.", Personas.REVIEWER);
 
-        whenCreateObject(s -> s.contains("Craft a short story"), Story.class)
-                .thenReturn(story);
+        whenCreateObjectStream(s -> s.contains("Craft a short story"), StreamingStory.class)
+                .thenReturn(Flux.just(story));
 
         // The second call uses generateText
-        whenGenerateText(s -> s.contains("You will be given a short story to review"))
-                .thenReturn(reviewedStory.review());
+        whenGenerateStream(s -> s.contains("You will be given a short story to review"))
+                .thenReturn(Flux.just(reviewedStory.review()));
 
-        var invocation = AgentInvocation.create(agentPlatform, ReviewedStory.class);
+        var invocation = AgentInvocation.create(agentPlatform, StreamingReviewedStory.class);
         var reviewedStoryResult = invocation.invoke(input);
 
         assertNotNull(reviewedStoryResult);
@@ -56,9 +60,9 @@ class WriteAndReviewAgentIntegrationTest extends EmbabelMockitoIntegrationTest {
         assertEquals(reviewedStory, reviewedStoryResult,
                 "Expected review to match: " + reviewedStoryResult);
 
-        verifyCreateObjectMatching(prompt -> prompt.contains("Craft a short story"), Story.class,
+        verifyCreateObjectStreamMatching(prompt -> prompt.contains("Craft a short story"), StreamingStory.class,
                 llm -> llm.getLlm().getTemperature() != null && llm.getLlm().getTemperature() == 0.9 && llm.getToolGroups().isEmpty());
-        verifyGenerateTextMatching(prompt -> prompt.contains("You will be given a short story to review"));
+        verifyGenerateStreamMatching(prompt -> prompt.contains("You will be given a short story to review"));
         verifyNoMoreInteractions();
     }
 }
