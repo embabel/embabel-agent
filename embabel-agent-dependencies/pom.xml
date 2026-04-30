@@ -396,6 +396,35 @@
                 <artifactId>opentelemetry-semconv</artifactId>
                 <version>1.29.0-alpha</version>
             </dependency>
+
+            <!--
+                Bouncy Castle pin: workaround for CVE-2025-14813 (issue #1638).
+                tika-parsers-standard-package 3.3.0 pulls in bcprov-jdk18on 1.83 transitively
+                via tika-parser-crypto-module. Tika main has moved to BC 1.84 but no patch
+                release is out yet. Pinning all four BC artifacts together to avoid mixing
+                1.83/1.84 on the classpath.
+                REMOVE this block once we upgrade to a Tika release that ships BC >= 1.84.
+            -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>1.84</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>1.84</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcutil-jdk18on</artifactId>
+                <version>1.84</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcjmail-jdk18on</artifactId>
+                <version>1.84</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
