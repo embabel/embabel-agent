@@ -135,7 +135,7 @@ internal class StreamingLlmOperationsImpl(
         val messagesWithContributions = buildMessagesWithContributions(messages, promptContributions)
 
         // Stream raw chunks from LLM
-        return messageStreamer.stream(messagesWithContributions, tools)
+        return messageStreamer.stream(messagesWithContributions, tools, interaction.toolCallInspectors)
     }
 
     override fun <O> doTransformObjectStream(
@@ -225,7 +225,7 @@ internal class StreamingLlmOperationsImpl(
         val messagesWithContributions = buildMessagesWithContributions(messages, fullPromptContributions)
 
         // Step 1: Raw chunk stream from LLM
-        val rawChunkFlux: Flux<String> = messageStreamer.stream(messagesWithContributions, tools)
+        val rawChunkFlux: Flux<String> = messageStreamer.stream(messagesWithContributions, tools, interaction.toolCallInspectors)
             .filter { it.isNotEmpty() }
             .doOnNext { chunk -> logger.trace("RAW CHUNK: '${chunk.replace("\n", "\\n")}'") }
 

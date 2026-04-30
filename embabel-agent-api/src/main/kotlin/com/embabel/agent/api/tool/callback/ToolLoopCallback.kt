@@ -113,21 +113,37 @@ data class AfterLlmCallContext(
 ) : CallbackContext(history, iteration)
 
 /**
+ * Common interface for tool result context, shared between streaming and non-streaming callbacks.
+ *
+ * Provides access to the tool call details and result without loop-specific context
+ * (history, iteration) that is only available in non-streaming mode.
+ *
+ * @property toolCall The tool call that was executed
+ * @property result The typed tool result (may be [Tool.Result.Error] on failure)
+ * @property resultAsString String representation of the result
+ */
+interface ToolResultContext {
+    val toolCall: ToolCall
+    val result: Tool.Result
+    val resultAsString: String
+}
+
+/**
  * Context provided after each tool execution in the tool loop.
  *
  * @property history Current conversation history (before this result is added)
  * @property iteration Current iteration number (1-based)
  * @property toolCall The tool call that was executed
- * @property result The typed tool result
+ * @property result The typed tool result (may be [Tool.Result.Error] on failure)
  * @property resultAsString String representation of the result
  */
 data class AfterToolResultContext(
     override val history: List<Message>,
     override val iteration: Int,
-    val toolCall: ToolCall,
-    val result: Tool.Result,
-    val resultAsString: String,
-) : CallbackContext(history, iteration)
+    override val toolCall: ToolCall,
+    override val result: Tool.Result,
+    override val resultAsString: String,
+) : CallbackContext(history, iteration), ToolResultContext
 
 /**
  * Context provided after each complete iteration in the tool loop.

@@ -20,7 +20,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.system.measureTimeMillis
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 
@@ -41,8 +40,7 @@ class OnnxEmbeddingServiceIT {
         private val cacheDir = Path.of(System.getProperty("user.home"), ".embabel/models/all-MiniLM-L6-v2")
     }
 
-    @BeforeAll
-    fun clearCache() {
+    private fun clearCache() {
         if (Files.exists(cacheDir)) {
             Files.walk(cacheDir).use { paths ->
                 paths.sorted(Comparator.reverseOrder())
@@ -53,12 +51,17 @@ class OnnxEmbeddingServiceIT {
 
     @Test
     fun `download, cache, and embed produces 384-dimensional vector`() {
+        clearCache()
         val firstMs = measureTimeMillis {
             OnnxModelLoader.resolve(MODEL_URI, cacheDir, "model.onnx")
         }
         val secondMs = measureTimeMillis {
             OnnxModelLoader.resolve(MODEL_URI, cacheDir, "model.onnx")
         }
+        assertTrue(
+            firstMs > 100,
+            "First resolve should be a real download ($firstMs ms), not a cache hit — was the cache cleared?"
+        )
         assertTrue(secondMs < firstMs / 10, "Cached resolve ($secondMs ms) should be <10x faster than download ($firstMs ms)")
 
         val modelPath = cacheDir.resolve("model.onnx")

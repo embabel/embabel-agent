@@ -20,8 +20,8 @@ import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -32,10 +32,10 @@ import java.util.concurrent.TimeUnit
 /**
  * Documents a read-modify-write race on `AbstractAgentProcess._terminationRequest`.
  *
- * All tests are `@Disabled` — this file is documentation for the follow-up issue.
- * Each test was run without `@Disabled` and verified to fail deterministically on
- * current code; the observed failure is recorded in the `@Disabled` reason.
- * Remove `@Disabled` once the fix lands.
+ * These tests fail deterministically against the current unconditional-reset
+ * implementation: a consumer reads signal-A, a concurrent writer posts signal-B,
+ * then the consumer's unconditional `resetTerminationRequest()` silently clobbers B.
+ * They pass once the reset becomes CAS-based (compare-and-reset against the observed signal).
  */
 class AbstractAgentProcessTerminationRaceTest {
 
@@ -50,11 +50,40 @@ class AbstractAgentProcessTerminationRaceTest {
     )
 
     /**
+     * Happy path: no concurrent writer between the read and the CAS.
+     * The observed signal is still in the slot, so CAS succeeds, the slot
+     * is cleared to null, and the caller takes the termination path.
+     */
+    @Test
+    fun `happy path - CAS succeeds when slot still holds the observed signal`() {
+        val process = newProcess()
+
+        // Post signal-A
+        process.terminateAction("signal-A")
+        val observed = process.terminationRequest!!
+        assertEquals("signal-A", observed.reason)
+
+        // No concurrent writer: slot still holds signal-A.
+        // CAS must succeed and clear the slot to null.
+        val wasReset = process.compareAndResetTerminationRequest(observed)
+        assertTrue(wasReset, "CAS must succeed: slot still holds the observed signal-A")
+
+        assertEquals(
+            null,
+            process.terminationRequest,
+            "After a successful CAS, the slot must be null — the signal is consumed.",
+        )
+
+        // A second CAS with the same observed signal must now fail (slot is null).
+        val secondReset = process.compareAndResetTerminationRequest(observed)
+        assertFalse(secondReset, "CAS must fail on an already-consumed slot")
+    }
+
+    /**
      * Sequential interleave: consumer reads A, another writer posts B,
      * consumer unconditionally resets → B is silently dropped.
      */
     @Test
-    @Disabled("Outstanding race on _terminationRequest. Verified failure: expected <signal-B> but was <null>.")
     fun `sequential - unconditional reset clobbers concurrent termination signal`() {
         val process = newProcess()
 
@@ -66,16 +95,15 @@ class AbstractAgentProcessTerminationRaceTest {
         // t=1 — another writer overwrites with signal-B
         process.terminateAction("signal-B")
 
-        // t=2 — consumer unconditionally clears the slot
-        process.resetTerminationRequest()
+        // t=2 — consumer attempts a CAS reset against the signal it observed (A).
+        //       Slot now holds B, so CAS must fail and leave B untouched.
+        val wasReset = process.compareAndResetTerminationRequest(observedByConsumer)
+        assertFalse(wasReset, "CAS must fail because slot now holds signal-B, not signal-A")
 
-        // With a CAS-based consumer: signal-B stays.
-        // With the current unconditional reset: signal-B is dropped.
         assertEquals(
             "signal-B",
             process.terminationRequest?.reason,
-            "signal-B must survive the consumer's reset. Fix: replace the " +
-                "unconditional reset with compareAndResetTerminationRequest(observedByConsumer).",
+            "signal-B set after the consumer's read must survive the CAS reset.",
         )
     }
 
@@ -84,7 +112,6 @@ class AbstractAgentProcessTerminationRaceTest {
      * consumer reads A → barrier #1 → writer posts B → barrier #2 → consumer resets.
      */
     @Test
-    @Disabled("Outstanding race on _terminationRequest. Verified failure: expected <signal-B> but was <null>.")
     fun `multi-thread - unconditional reset across threads clobbers concurrent signal`() {
         val process = newProcess()
         // Seed the slot: both threads will start from slot = signal-A.
@@ -117,9 +144,10 @@ class AbstractAgentProcessTerminationRaceTest {
                 // (C) Wait until the writer has posted signal-B. At this point the slot = B.
                 afterExternalWrite.await(5, TimeUnit.SECONDS)
 
-                // (D) Buggy step: unconditional reset → clobbers signal-B.
-                //     With a CAS-based implementation (expected=A), this would be a no-op.
-                process.resetTerminationRequest()
+                // (D) CAS reset against the observed signal (A). Slot holds B,
+                //     so CAS must fail and preserve B.
+                val wasReset = process.compareAndResetTerminationRequest(observed)
+                assertFalse(wasReset, "CAS must fail because slot was overwritten to signal-B")
             } catch (t: Throwable) {
                 errors.add(t)
             } finally {
@@ -154,15 +182,13 @@ class AbstractAgentProcessTerminationRaceTest {
         // Surface any error that happened inside the workers.
         assertTrue(errors.isEmpty(), "errors: $errors")
 
-        // Expected (correct) behaviour: the consumer's stale reset must NOT erase
-        // signal-B — the consumer only ever observed signal-A, and signal-B was
-        // posted after that. A CAS-based reset would leave B untouched.
-        // On buggy code: slot is null → message says "was <null>".
+        // Expected behaviour: the consumer's CAS reset fails (slot holds B, not A),
+        // so signal-B survives and is still observable.
         assertEquals(
             "signal-B",
             process.terminationRequest?.reason,
             "signal-B set by the external writer after the consumer's read must " +
-                "not be dropped by the consumer's stale reset.",
+                "not be dropped by the consumer's CAS reset.",
         )
     }
 }

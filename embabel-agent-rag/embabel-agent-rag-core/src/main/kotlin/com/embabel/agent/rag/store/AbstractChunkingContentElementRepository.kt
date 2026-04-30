@@ -70,7 +70,7 @@ abstract class AbstractChunkingContentElementRepository(
         val chunker = ContentChunker(chunkerConfig, chunkTransformer)
         val rootMetadata = root.metadata
         val chunks = chunker.chunk(root)
-            .map { it.withAdditionalMetadata(rootMetadata + it.metadata) }
+            .map { it.withAdditionalMetadata(rootMetadata) }
             .map { enhance(it) }
         logger.info(
             "Chunked document {} into {} chunks",

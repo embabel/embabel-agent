@@ -79,8 +79,9 @@ class DockerConnectionProperties {
 
 /**
  * Docker local models
- * This class will always be loaded, but models won't be loaded
- * from the Docker endpoint unless the "docker" profile is set.
+ * This class will always be loaded and models will be auto-discovered
+ * from the Docker endpoint on startup. If the endpoint is unreachable,
+ * discovery fails silently and no models are registered.
  * Model names will be precisely as reported from
  * http://localhost:12434/engines/v1/models (assuming default port).
  */

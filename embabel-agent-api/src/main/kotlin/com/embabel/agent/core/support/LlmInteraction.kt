@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.ContextualPromptElement
 import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.core.ToolConsumer
@@ -127,8 +128,9 @@ data class LlmInteraction(
     val maxToolIterations: Int = 20,
     val guardRails: List<com.embabel.agent.api.validation.guardrails.GuardRail> = emptyList(),
     val additionalInjectionStrategies: List<ToolInjectionStrategy> = emptyList(),
-    val inspectors: List<ToolLoopInspector> = emptyList(),
-    val transformers: List<ToolLoopTransformer> = emptyList(),
+    val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
+    val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
+    val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
 ) : LlmCall {

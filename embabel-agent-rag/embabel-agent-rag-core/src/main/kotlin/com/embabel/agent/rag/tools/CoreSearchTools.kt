@@ -109,7 +109,7 @@ internal class VectorSearchTools @JvmOverloads constructor(
  *   needed to fully answer it — for example, a chunk mentioning a term defined in the
  *   enclosing section heading.
  *
- * Existing implementations (e.g., `embabel-agent-rag-neo-drivine`) apply sequence order
+ * Existing implementations (e.g., `embabel-agent-rag-graph`) apply sequence order
  * based on the graph structure of ingested content.
  */
 internal class ResultExpanderTools @JvmOverloads constructor(

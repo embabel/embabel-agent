@@ -150,7 +150,7 @@ class AgentDockerModelsAutoConfigurationTest {
    @Test
    void providerInitializationHasEmptyModelListWhenDockerUnavailable() {
 
-      contextRunner.run(context -> {
+      contextRunner.withPropertyValues("embabel.agent.models.docker.base-url=http://localhost:1").run(context -> {
          final ProviderInitialization initialization = context.getBean(ProviderInitialization.class);
          assertThat(initialization.getRegisteredLlms()).isEmpty();
          assertThat(initialization.getRegisteredEmbeddings()).isEmpty();

@@ -569,7 +569,7 @@ class ContentChunkerTest {
         val countingTransformer = object : ChunkTransformer {
             override fun transform(chunk: Chunk, context: ChunkTransformationContext): Chunk {
                 transformCallCount.add(chunk.id)
-                return chunk.withAdditionalMetadata(chunk.metadata + mapOf("transformed" to true))
+                return chunk.withAdditionalMetadata(mapOf("transformed" to true))
             }
         }
 

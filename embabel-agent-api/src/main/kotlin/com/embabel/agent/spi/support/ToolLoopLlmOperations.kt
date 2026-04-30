@@ -157,8 +157,9 @@ open class ToolLoopLlmOperations(
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
             toolDecorator = injectedToolDecorator,
-            inspectors = interaction.inspectors,
-            transformers = interaction.transformers,
+            toolLoopInspectors = interaction.toolLoopInspectors,
+            toolLoopTransformers = interaction.toolLoopTransformers,
+            toolCallInspectors = interaction.toolCallInspectors,
             toolCallContext = effectiveContext,
             toolNotFoundPolicy = interaction.toolNotFoundPolicy,
         )
@@ -248,8 +249,9 @@ open class ToolLoopLlmOperations(
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
             toolDecorator = injectedToolDecorator,
-            inspectors = interaction.inspectors,
-            transformers = interaction.transformers,
+            toolLoopInspectors = interaction.toolLoopInspectors,
+            toolLoopTransformers = interaction.toolLoopTransformers,
+            toolCallInspectors = interaction.toolCallInspectors,
             toolCallContext = effectiveContext,
             toolNotFoundPolicy = interaction.toolNotFoundPolicy,
         )
@@ -382,8 +384,9 @@ open class ToolLoopLlmOperations(
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
             toolDecorator = injectedToolDecorator,
-            inspectors = interaction.inspectors,
-            transformers = interaction.transformers,
+            toolLoopInspectors = interaction.toolLoopInspectors,
+            toolLoopTransformers = interaction.toolLoopTransformers,
+            toolCallInspectors = interaction.toolCallInspectors,
             toolCallContext = effectiveContext,
             toolNotFoundPolicy = interaction.toolNotFoundPolicy,
         )
@@ -485,9 +488,11 @@ open class ToolLoopLlmOperations(
                 injectionStrategy = injectionStrategy,
                 maxIterations = interaction.maxToolIterations,
                 toolDecorator = injectedToolDecorator,
-                inspectors = interaction.inspectors,
-                transformers = interaction.transformers,
+                toolLoopInspectors = interaction.toolLoopInspectors,
+                toolLoopTransformers = interaction.toolLoopTransformers,
+                toolCallInspectors = interaction.toolCallInspectors,
                 toolCallContext = effectiveContext,
+                toolNotFoundPolicy = interaction.toolNotFoundPolicy,
             )
 
             // Build MaybeReturn prompt contribution

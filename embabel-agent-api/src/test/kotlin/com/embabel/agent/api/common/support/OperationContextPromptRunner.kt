@@ -26,6 +26,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -67,8 +68,8 @@ internal data class OperationContextPromptRunner(
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
-    private val inspectors: List<ToolLoopInspector> = emptyList(),
-    private val transformers: List<ToolLoopTransformer> = emptyList(),
+    private val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
+    private val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
 ) : StreamingPromptRunner {
 
     val action = (context as? ActionContext)?.action
@@ -142,8 +143,8 @@ internal data class OperationContextPromptRunner(
                 fieldFilter = fieldFilter,
                 validation = validation,
                 guardRails = guardRails,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -172,8 +173,8 @@ internal data class OperationContextPromptRunner(
                 fieldFilter = fieldFilter,
                 validation = validation,
                 guardRails = guardRails,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
             ),
             outputClass = outputClass,
             agentProcess = context.processContext.agentProcess,
@@ -311,8 +312,8 @@ internal data class OperationContextPromptRunner(
                 generateExamples = generateExamples,
                 fieldFilter = fieldFilter,
                 guardRails = guardRails,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
             ),
             messages = messages,
             agentProcess = context.processContext.agentProcess,
@@ -360,8 +361,8 @@ internal data class OperationContextPromptRunner(
                 generateExamples = generateExamples,
                 fieldFilter = fieldFilter,
                 guardRails = guardRails,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
             ),
             messages = messages,
             agentProcess = context.processContext.agentProcess,
@@ -380,15 +381,17 @@ internal data class OperationContextPromptRunner(
 
     override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner {
         return copy(
-            inspectors = this.inspectors + inspectors
+            toolLoopInspectors = this.toolLoopInspectors + inspectors
         )
     }
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner {
         return copy(
-            transformers = this.transformers + transformers
+            toolLoopTransformers = this.toolLoopTransformers + transformers
         )
     }
+
+    override fun withToolCallInspectors(vararg inspectors: ToolCallInspector): PromptRunner = this
 
     override fun withToolNotFoundPolicy(policy: ToolNotFoundPolicy): PromptRunner = this
 

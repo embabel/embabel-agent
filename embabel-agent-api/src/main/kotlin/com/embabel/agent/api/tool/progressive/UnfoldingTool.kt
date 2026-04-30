@@ -71,7 +71,7 @@ interface UnfoldingTool : ProgressiveTool {
      * The inner tools that will be exposed when this tool is invoked.
      * This is a fixed set that does not vary by context.
      */
-    val innerTools: List<Tool>
+    override val innerTools: List<Tool>
 
     /**
      * Returns the fixed [innerTools] regardless of process context.
