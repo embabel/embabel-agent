@@ -20,7 +20,6 @@ import com.embabel.agent.core.Action
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.chat.Message
-import com.embabel.chat.UserMessage
 import com.embabel.common.core.streaming.StreamingEvent
 import org.jetbrains.annotations.ApiStatus
 import reactor.core.publisher.Flux
@@ -40,28 +39,6 @@ import reactor.core.publisher.Flux
  */
 @ApiStatus.Internal
 interface StreamingLlmOperations {
-
-    /**
-     * Generate streaming text in the context of an AgentProcess.
-     * Returns a Flux that emits text chunks as they arrive from the LLM.
-     *
-     * @param prompt Prompt to generate text from
-     * @param interaction Llm options and tool callbacks to use, plus unique identifier
-     * @param agentProcess Agent process we are running within
-     * @param action Action we are running within if we are running within an action
-     * @return Flux of text chunks as they arrive from the LLM
-     */
-    fun generateStream(
-        prompt: String,
-        interaction: LlmInteraction,
-        agentProcess: AgentProcess,
-        action: Action?,
-    ): Flux<String> = generateStream(
-        messages = listOf(UserMessage(prompt)),
-        interaction = interaction,
-        agentProcess = agentProcess,
-        action = action,
-    )
 
     /**
      * Generate streaming text from messages in the context of an AgentProcess.
