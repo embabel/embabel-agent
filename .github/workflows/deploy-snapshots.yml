@@ -56,7 +56,7 @@ jobs:
           - embabel/embabel-llm-database
           - embabel/impromptu
           - embabel/flicker
-          - embabel/embabel-agent-rag-neo-drivine
+          - embabel/embabel-agent-rag-graph
           - embabel/embabel-rag-pgvector
           - embabel/embabel-chat-store
           - embabel/embabel-air
