@@ -25,6 +25,10 @@ import java.time.Instant
 
 /**
  * History of LLM invocations made during an agent process.
+ *
+ * Methods on this interface report LLM-only figures.
+ * For the aggregate including other invocation types (e.g. embeddings),
+ * see [AgentProcess.totalCost], [AgentProcess.totalUsage], etc.
  */
 interface LlmInvocationHistory {
 
@@ -37,7 +41,7 @@ interface LlmInvocationHistory {
     }
 
     /**
-     * Distinct list of LLMs use, sorted by name.
+     * Distinct list of LLMs used, sorted by name.
      */
     fun modelsUsed(): List<LlmMetadata> {
         return llmInvocations.map { it.llmMetadata }
@@ -57,23 +61,19 @@ interface LlmInvocationHistory {
         return Usage(promptTokens, completionTokens, null)
     }
 
-    fun costInfoString(verbose: Boolean): String {
-        val usage = usage()
-        return if (verbose)
-            """|LLMs used: ${modelsUsed().map { it.name }} across ${llmInvocations.size} calls
-               |Prompt tokens: ${"%,d".format(usage.promptTokens)},
-               |Completion tokens: ${"%,d".format(usage.completionTokens)}
-               |Cost: $${"%.4f".format(cost())}
-               |"""
-                .trimMargin()
-        else "LLMs: ${modelsUsed().map { it.name }} across ${llmInvocations.size} calls; " +
-                "prompt tokens: ${"%,d".format(usage.promptTokens)}; completion tokens: ${
-                    "%,d".format(
-                        usage.completionTokens
-                    )
-                }; cost: $${"%.4f".format(cost())}"
-    }
+    /** Total LLM call count. Default = own; overridable for subtree aggregation. */
+    fun llmInvocationCount(): Int = llmInvocations.size
 
+    fun costInfoString(verbose: Boolean): String =
+        formatInvocationSummary(
+            label = "LLMs",
+            modelNames = modelsUsed().map { it.name },
+            callCount = llmInvocationCount(),
+            promptTokens = usage().promptTokens ?: 0,
+            completionTokens = usage().completionTokens,
+            cost = cost(),
+            verbose = verbose,
+        )
 }
 
 /**

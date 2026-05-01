@@ -53,7 +53,7 @@ class EarlyTerminationPolicyTest {
         )
         val agentProcess: AgentProcess = mockk()
         every { agentProcess.history.size } returns 3
-        every { agentProcess.cost() } returns 0.25
+        every { agentProcess.totalCost() } returns 0.25
         val termination = policy.shouldTerminate(agentProcess)
         assert(termination != null)
     }
@@ -66,7 +66,7 @@ class EarlyTerminationPolicyTest {
         )
         val agentProcess: AgentProcess = mockk()
         every { agentProcess.history.size } returns 3
-        every { agentProcess.cost() } returns 0.25
+        every { agentProcess.totalCost() } returns 0.25
         val termination = policy.shouldTerminate(agentProcess)
         assertNull(termination)
     }

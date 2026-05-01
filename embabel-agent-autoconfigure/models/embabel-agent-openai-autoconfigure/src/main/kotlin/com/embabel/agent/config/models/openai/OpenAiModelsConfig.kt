@@ -28,6 +28,7 @@ import com.embabel.common.ai.autoconfig.RegisteredModel
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptionsProperties
 import com.embabel.common.ai.model.PerTokenPricingModel
+import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import io.micrometer.observation.ObservationRegistry
 import org.springframework.beans.factory.ObjectProvider
@@ -219,10 +220,14 @@ class OpenAiModelsConfig(
      * Creates an embedding service from configuration.
      */
     private fun createOpenAiEmbedding(embeddingDef: OpenAiEmbeddingModelDefinition): EmbeddingService {
+        val pricing = embeddingDef.pricingModel?.let {
+            PricingModel.usdPer1MTokens(it.usdPer1mTokens, 0.0)
+        }
         return openAiCompatibleEmbeddingService(
             model = embeddingDef.modelId,
             provider = OpenAiModels.PROVIDER,
             configuredDimensions = embeddingDef.dimensions,
+            pricingModel = pricing,
         )
     }
 }

@@ -16,6 +16,8 @@
 package com.embabel.agent.core
 
 import com.embabel.agent.api.event.ProcessKilledEvent
+import com.embabel.common.ai.model.LlmMetadata
+import com.embabel.common.ai.model.ModelMetadata
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
@@ -58,7 +60,7 @@ data class AgentProcessStatusReport(
  */
 @JsonSerialize(using = ComputerSaysNoSerializer::class)
 interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentProcessStatusCode>,
-    LlmInvocationHistory {
+    LlmInvocationHistory, EmbeddingInvocationHistory {
 
     /**
      * Unique id of this process. Set on creation.
@@ -171,14 +173,24 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
     fun recordLlmInvocation(llmInvocation: LlmInvocation)
 
     /**
+     * Record an embedding invocation against this process.
+     * Default implementation is a no-op for [AgentProcess] implementations
+     * that don't track embeddings; [com.embabel.agent.core.support.AbstractAgentProcess]
+     * provides a thread-safe storage.
+     */
+    fun recordEmbeddingInvocation(invocation: EmbeddingInvocation) {}
+
+    /**
      * Cost of this process's own LLM invocations, excluding any child processes.
-     * See [cost] for the aggregate across the entire process subtree.
+     * See [cost] for the LLM cost aggregate across the entire process subtree,
+     * and [totalCost] for the cost including embeddings.
      */
     fun ownCost(): Double = llmInvocations.sumOf { it.cost() }
 
     /**
      * Token usage of this process's own LLM invocations, excluding any child processes.
-     * See [usage] for the aggregate across the entire process subtree.
+     * See [usage] for the LLM usage aggregate across the entire process subtree,
+     * and [totalUsage] for the usage including embeddings.
      */
     fun ownUsage(): Usage {
         val promptTokens = llmInvocations.sumOf { it.usage.promptTokens ?: 0 }
@@ -190,8 +202,46 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
      * Distinct LLMs used by this process's own invocations, excluding any child processes.
      * See [modelsUsed] for the aggregate across the entire process subtree.
      */
-    fun ownModelsUsed(): List<com.embabel.common.ai.model.LlmMetadata> =
+    fun ownModelsUsed(): List<LlmMetadata> =
         llmInvocations.map { it.llmMetadata }.distinctBy { it.name }.sortedBy { it.name }
+
+    /**
+     * Total cost in dollars combining LLM and embedding invocations, including any
+     * child processes when the implementation supports subtree aggregation.
+     * Use this when you want the full cost of the process; use [cost] for LLM-only.
+     */
+    fun totalCost(): Double = cost() + embeddingCost()
+
+    /**
+     * Total token usage combining LLM and embedding invocations, including any
+     * child processes when the implementation supports subtree aggregation.
+     * Use this when you want the full token usage; use [usage] for LLM-only.
+     */
+    fun totalUsage(): Usage = usage() + embeddingUsage()
+
+    /**
+     * Distinct models used (LLM and embedding), including any child processes when
+     * the implementation supports subtree aggregation.
+     * Use this when you want all models; use [modelsUsed] for LLM-only.
+     */
+    fun totalModelsUsed(): List<ModelMetadata> =
+        (modelsUsed() + embeddingModelsUsed())
+            .distinctBy { it.name }
+            .sortedBy { it.name }
+
+    /**
+     * Combined cost/usage info across LLM and embedding invocations.
+     * Use this for a full report; use [costInfoString] for LLM-only.
+     */
+    fun totalCostInfoString(verbose: Boolean): String {
+        val llmInfo = costInfoString(verbose)
+        val embeddingInfo = embeddingCostInfoString(verbose)
+        val totalLine = "Total cost: $${"%.4f".format(totalCost())}"
+        return if (verbose)
+            "$llmInfo$embeddingInfo$totalLine\n"
+        else
+            "$llmInfo\n$embeddingInfo\n$totalLine"
+    }
 
     /**
      * Perform the next step only.

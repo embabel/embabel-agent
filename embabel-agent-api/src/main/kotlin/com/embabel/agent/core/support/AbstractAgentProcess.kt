@@ -30,6 +30,8 @@ import com.embabel.agent.spi.DelayedActionExecutionSchedule
 import com.embabel.agent.spi.ProntoActionExecutionSchedule
 import com.embabel.agent.spi.ScheduledActionExecutionSchedule
 import com.embabel.agent.spi.support.AgenticEventListenerToolsStats
+import com.embabel.common.ai.model.EmbeddingServiceMetadata
+import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.plan.WorldState
 import com.embabel.plan.common.condition.WorldStateDeterminer
 import com.fasterxml.jackson.annotation.JsonIgnore
@@ -154,6 +156,15 @@ abstract class AbstractAgentProcess(
         _llmInvocations.add(llmInvocation)
     }
 
+    private val _embeddingInvocations: MutableList<EmbeddingInvocation> = CopyOnWriteArrayList()
+
+    override val embeddingInvocations: List<EmbeddingInvocation>
+        get() = _embeddingInvocations.toList()
+
+    override fun recordEmbeddingInvocation(invocation: EmbeddingInvocation) {
+        _embeddingInvocations.add(invocation)
+    }
+
     // --- Subtree aggregation (fix #368) ----------------------------------------
     //
     // When an AgentProcess spawns child processes, cost/usage/models reporting
@@ -170,12 +181,12 @@ abstract class AbstractAgentProcess(
     private fun childProcesses(): List<AgentProcess> =
         platformServices.agentProcessRepository.findByParentId(id)
 
-    /** Total cost = own cost + sum of each child's total cost (recursive). */
+    /** LLM cost = own LLM cost + sum of each child's LLM cost (recursive). */
     override fun cost(): Double =
         ownCost() + childProcesses().sumOf { it.cost() }
 
     /**
-     * Total token usage aggregated across the whole subtree.
+     * LLM token usage aggregated across the whole subtree.
      * Nulls from children with no invocations are coerced to 0.
      */
     override fun usage(): Usage {
@@ -193,42 +204,38 @@ abstract class AbstractAgentProcess(
      * `distinctBy { it.name }` removes duplicates when the same model is used
      * at multiple levels.
      */
-    override fun modelsUsed(): List<com.embabel.common.ai.model.LlmMetadata> =
+    override fun modelsUsed(): List<LlmMetadata> =
         (ownModelsUsed() + childProcesses().flatMap { it.modelsUsed() })
             .distinctBy { it.name }.sortedBy { it.name }
 
-    /**
-     * Human-readable cost/usage summary. All figures come from the subtree-aware
-     * methods above, so the report reflects every nested child process.
-     */
-    override fun costInfoString(verbose: Boolean): String {
-        val totalUsage = usage()
-        val totalCalls = totalLlmInvocationCount()
-        return if (verbose)
-            """|LLMs used: ${modelsUsed().map { it.name }} across $totalCalls calls
-               |Prompt tokens: ${"%,d".format(totalUsage.promptTokens)},
-               |Completion tokens: ${"%,d".format(totalUsage.completionTokens)}
-               |Cost: $${"%.4f".format(cost())}
-               |""".trimMargin()
-        else "LLMs: ${modelsUsed().map { it.name }} across $totalCalls calls; " +
-                "prompt tokens: ${"%,d".format(totalUsage.promptTokens)}; completion tokens: ${
-                    "%,d".format(
-                        totalUsage.completionTokens
-                    )
-                }; cost: $${"%.4f".format(cost())}"
+    /** Embedding cost = own + sum of each child's embedding cost (recursive). */
+    override fun embeddingCost(): Double =
+        embeddingInvocations.sumOf { it.cost() } + childProcesses().sumOf { it.embeddingCost() }
+
+    /** Embedding usage aggregated across the whole subtree. */
+    override fun embeddingUsage(): Usage {
+        val ownPrompt = embeddingInvocations.sumOf { it.usage.promptTokens ?: 0 }
+        val children = childProcesses()
+        return Usage(
+            ownPrompt + children.sumOf { it.embeddingUsage().promptTokens ?: 0 },
+            null,
+            null,
+        )
     }
 
-    /**
-     * Total number of LLM invocations in the subtree.
-     * The `as? AbstractAgentProcess` cast lets the recursion continue for
-     * children that also inherit from this class. Other AgentProcess
-     * implementations fall back to their local `llmInvocations.size` — the
-     * deeper subtree (if any) is not counted, but reporting still works.
-     */
-    private fun totalLlmInvocationCount(): Int =
-        llmInvocations.size + childProcesses().sumOf { child ->
-            (child as? AbstractAgentProcess)?.totalLlmInvocationCount() ?: child.llmInvocations.size
-        }
+    /** Distinct embedding services used anywhere in the subtree, sorted by name. */
+    override fun embeddingModelsUsed(): List<EmbeddingServiceMetadata> =
+        (embeddingInvocations.map { it.embeddingMetadata } +
+                childProcesses().flatMap { it.embeddingModelsUsed() })
+            .distinctBy { it.name }.sortedBy { it.name }
+
+    /** Total LLM call count across the whole subtree. */
+    override fun llmInvocationCount(): Int =
+        llmInvocations.size + childProcesses().sumOf { it.llmInvocationCount() }
+
+    /** Total embedding call count across the whole subtree. */
+    override fun embeddingInvocationCount(): Int =
+        embeddingInvocations.size + childProcesses().sumOf { it.embeddingInvocationCount() }
 
     override val status: AgentProcessStatusCode
         get() = _status.get()
