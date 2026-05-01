@@ -598,7 +598,11 @@ class SkillsTest {
         // would produce for a wrapper, keeping prompts/tests stable.
         assertEquals(1, tools.size)
         assertEquals("github_workflows", tools[0].definition.name)
-        assertEquals("GitHub workflows", tools[0].definition.description)
+        // Description leads with the skill's frontmatter description, then
+        // appends a "Skill activator: takes NO arguments..." cue so the LLM
+        // doesn't misread it as a parameterised gateway.
+        assertTrue(tools[0].definition.description.startsWith("GitHub workflows"))
+        assertTrue(tools[0].definition.description.contains("NO arguments"))
     }
 
     @Test
@@ -625,6 +629,73 @@ class SkillsTest {
         val text = (result as Tool.Result.Text).content
         assertTrue(text.contains("# Skill: my-skill"), "Body should include the skill header")
         assertTrue(text.contains("Do the thing."), "Body should include the instructions")
+    }
+
+    @Test
+    fun `activation tool short-circuits a second call within the same loop`() {
+        val skillDir = createSkillDirectory("github-workflows")
+        val skills = Skills(
+            name = "test",
+            description = "test",
+            skills = listOf(
+                LoadedSkill(
+                    skillMetadata = SkillDefinition(
+                        name = "github-workflows",
+                        description = "GitHub workflows",
+                        instructions = "Use gateway.gh.* via execute_javascript.",
+                    ),
+                    basePath = skillDir,
+                ),
+            ),
+        )
+        val tool = skills.asIndividualReferences()[0].tools()[0]
+        val ctx = com.embabel.agent.api.tool.ToolCallContext.of(com.embabel.agent.api.tool.ToolCallContext.LOOP_ID_KEY to "loop-A")
+
+        val first = (tool.call("{}", ctx) as Tool.Result.Text).content
+        val second = (tool.call("{}", ctx) as Tool.Result.Text).content
+
+        // First call → full body. Second call (same loop) → short-circuit
+        // message that explicitly redirects to execute_javascript.
+        assertTrue(first.contains("Use gateway.gh.*"), "First call should return body")
+        assertTrue(
+            second.contains("already activated this turn"),
+            "Second call same loop should short-circuit, was: $second",
+        )
+        assertTrue(second.contains("execute_javascript"))
+    }
+
+    @Test
+    fun `activation tool emits body again for a different loop id`() {
+        val skillDir = createSkillDirectory("github-workflows")
+        val skills = Skills(
+            name = "test",
+            description = "test",
+            skills = listOf(
+                LoadedSkill(
+                    skillMetadata = SkillDefinition(
+                        name = "github-workflows",
+                        description = "GitHub workflows",
+                        instructions = "Use gateway.gh.* via execute_javascript.",
+                    ),
+                    basePath = skillDir,
+                ),
+            ),
+        )
+        val tool = skills.asIndividualReferences()[0].tools()[0]
+
+        val first = (tool.call(
+            "{}",
+            com.embabel.agent.api.tool.ToolCallContext.of(com.embabel.agent.api.tool.ToolCallContext.LOOP_ID_KEY to "loop-A"),
+        ) as Tool.Result.Text).content
+        val second = (tool.call(
+            "{}",
+            com.embabel.agent.api.tool.ToolCallContext.of(com.embabel.agent.api.tool.ToolCallContext.LOOP_ID_KEY to "loop-B"),
+        ) as Tool.Result.Text).content
+
+        // Different loop ids ⇒ both calls emit the body. Per-loop dedup
+        // is intentionally per-loop, not per-conversation-forever.
+        assertTrue(first.contains("Use gateway.gh.*"))
+        assertTrue(second.contains("Use gateway.gh.*"), "Different loop should re-emit body, was: $second")
     }
 
     @Test

@@ -17,7 +17,9 @@ package com.embabel.agent.skills
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.reference.LlmReference
+import com.embabel.agent.api.tool.LoopMemo
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.skills.script.NoOpExecutionEngine
 import com.embabel.agent.skills.script.SkillScriptExecutionEngine
 import com.embabel.agent.skills.support.*
@@ -318,17 +320,62 @@ data class Skills @JvmOverloads constructor(
      * LLM sees in its catalog. Calling the tool returns the skill body
      * (instructions + resource manifest + script-tool names) as the tool
      * result. No unfold, no preamble, no swap.
+     *
+     * **Loop-scoped repeat suppression.** A naive persistent activation tool
+     * (no swap, no removal) creates a loop trap: the LLM treats it as a
+     * gateway, calls it repeatedly with API-shaped args
+     * (`{"owner":"x","repo":"y"}`) and gets the same body each time, hoping
+     * a different shape will produce data. The fix is two-pronged:
+     *
+     * 1. The `description` carries an explicit "no args, one call" cue
+     *    so the LLM doesn't see this as a parameterised gateway.
+     * 2. On the second+ call within a single agentic loop (per
+     *    [ToolCallContext.LOOP_ID_KEY]) the tool returns a stern
+     *    short-circuit message instead of re-emitting the body — explicitly
+     *    redirecting the LLM to call `execute_javascript` / etc per the
+     *    body it already received in the prior tool result.
+     *
+     * The body remains in the LLM's conversation history from the first
+     * call, so re-emitting on every repeat would just waste tokens AND
+     * reinforce the wrong mental model.
      */
     private inner class SkillActivationTool(private val skill: LoadedSkill) : Tool {
 
+        /**
+         * Per-loop dedup: if the LLM calls this activation tool a second
+         * time within the same agentic loop, return a stern short-circuit
+         * instead of re-emitting the body. See [LoopMemo].
+         */
+        private val activations = LoopMemo()
+
         override val definition = Tool.Definition(
             name = sanitizeToolName(skill.name),
-            description = skill.description,
+            description = """
+                ${skill.description}
+
+                (Skill activator: takes NO arguments. Returns instructions only — call
+                ONCE per turn, then follow the body's guidance to call execute_javascript
+                / execute_python / a script tool.)
+            """.trimIndent(),
             inputSchema = Tool.InputSchema.empty(),
         )
 
-        override fun call(input: String): Tool.Result {
+        override fun call(input: String): Tool.Result =
+            call(input, ToolCallContext.EMPTY)
+
+        override fun call(input: String, context: ToolCallContext): Tool.Result {
             activatedSkillNames.add(skill.name)
+            if (!activations.firstTimeIn(context)) {
+                return Tool.Result.text(
+                    """
+                        Skill '${skill.name}' was already activated this turn — its
+                        instructions are in your previous tool result. To actually
+                        perform the operation the user asked for, call execute_javascript
+                        (or execute_python / a script tool) per those instructions.
+                        Do NOT call this tool again.
+                    """.trimIndent()
+                )
+            }
             return Tool.Result.text(skillBody(skill))
         }
     }
