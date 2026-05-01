@@ -18,6 +18,8 @@ package com.embabel.agent.skills
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
+import com.embabel.agent.api.tool.progressive.buildUnfoldedMessage
 import com.embabel.agent.skills.script.NoOpExecutionEngine
 import com.embabel.agent.skills.script.SkillScriptExecutionEngine
 import com.embabel.agent.skills.support.*
@@ -42,6 +44,34 @@ fun interface SkillFilter {
  *
  * See the [Agent Skills Specification](https://agentskills.io/specification)
  * for the layout of skills.
+ *
+ * ## Two consumer surfaces
+ *
+ * `Skills` implements both [LlmReference] and [UnfoldingTool]. Pick the surface
+ * based on whether you want the LLM to see each loaded skill as its own
+ * top-level tool, or one consolidated entry point with the catalog deferred:
+ *
+ * ### Per-skill (recommended for typical N): use [asIndividualReferences]
+ *
+ * Returns one [LlmReference] per loaded skill. Each one shows up in the LLM's
+ * tool catalog with **its own name and description visible up front**, so the
+ * LLM can pick the right skill in one shot. Catalog cost: O(N) lines in the
+ * system prompt — fine for small/medium N.
+ *
+ * ### Consolidated (single skills entry point): use this instance directly as a [Tool]
+ *
+ * `Skills` implementing [UnfoldingTool] gives you **one top-level tool** in the
+ * catalog (carrying just `name` + the container's generic `description`). The
+ * names and descriptions of individual loaded skills are NOT visible until the
+ * LLM invokes this tool — they are delivered via [childToolUsageNotes] in the
+ * unfold response.
+ *
+ * **Only use this form when you genuinely want a single consolidated skills
+ * tool.** It costs the LLM an extra round-trip (unfold to discover the catalog,
+ * then call activate) and removes per-skill discoverability from the catalog.
+ * Pick it when N is large enough that listing every skill in the system prompt
+ * would dominate it, or when skills are a peripheral capability you don't want
+ * cluttering the top-level tool list. Otherwise prefer [asIndividualReferences].
  */
 data class Skills @JvmOverloads constructor(
     override val name: String,
@@ -54,7 +84,7 @@ data class Skills @JvmOverloads constructor(
     private val frontMatterFormatter: SkillFrontMatterFormatter = ClaudeFrontMatterFormatter,
     private val filter: SkillFilter = SkillFilter { true },
     private val scriptExecutionEngine: SkillScriptExecutionEngine = NoOpExecutionEngine,
-) : LlmReference {
+) : LlmReference, UnfoldingTool {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -182,6 +212,47 @@ data class Skills @JvmOverloads constructor(
             using the "listResources" and "readResource" tools.
         """.trimIndent()
     }
+
+    // ---- UnfoldingTool surface ----------------------------------------------
+    //
+    // Consuming `Skills` as a single [UnfoldingTool] gives one consolidated
+    // top-level tool whose `description` is generic. The catalog of loaded
+    // skills (name + description per skill) is delivered via
+    // [childToolUsageNotes] only AFTER the LLM invokes this tool — i.e. it is
+    // hidden from the system prompt's tool catalog. See class KDoc for when
+    // to use this form vs. [asIndividualReferences].
+
+    override val definition: Tool.Definition = Tool.Definition(
+        name = name,
+        description = description,
+        inputSchema = Tool.InputSchema.empty(),
+    )
+
+    /**
+     * Inner tools revealed when this `Skills` is invoked as an [UnfoldingTool]:
+     * the same tools surfaced via [tools] (activate, listResources, readResource,
+     * plus every loaded skill's script tools).
+     */
+    override val innerTools: List<Tool> get() = tools()
+
+    /**
+     * Catalog of every loaded skill (name + description), formatted via
+     * [frontMatterFormatter]. Delivered as the progressively-disclosed payload
+     * of the unfold response so the LLM can choose which skill to activate.
+     * Null when no skills are loaded.
+     */
+    override val childToolUsageNotes: String?
+        get() = if (skills.isEmpty()) null else """
+            Available skills:
+
+            ${frontMatterFormatter.format(skills)}
+
+            Call activate(name=…) with the skill's name to load its full
+            instructions. Use listResources and readResource for bundled files.
+        """.trimIndent()
+
+    override fun call(input: String): Tool.Result =
+        Tool.Result.text(buildUnfoldedMessage(innerTools, childToolUsageNotes))
 
     /**
      * Activate a skill by name, returning its full instructions.

@@ -41,15 +41,30 @@ import org.springframework.core.KotlinDetector
  * - Grouping related tools under a category facade
  * - Progressive disclosure based on LLM intent
  *
+ * ## Progressive disclosure: parent description + childToolUsageNotes
+ *
+ * Information about an UnfoldingTool reaches the LLM in **two stages**:
+ *
+ * 1. **Up front**, the parent tool's `description` is in the catalog. It
+ *    advertises the capability so the LLM can decide whether to descend.
+ *    Keep this short — every loaded UnfoldingTool pays for it on every turn.
+ *
+ * 2. **On invocation**, the unfolded message returned by [call] lists the
+ *    revealed inner tools and then appends [childToolUsageNotes] verbatim.
+ *    Only the LLM that just chose to descend pays for this text. It can
+ *    therefore be as long as needed: workflow guidance, the body of an
+ *    agent skill, "use X for Y, Z for W" routing rules between siblings,
+ *    background context the inner tools need to be used correctly.
+ *
+ * The split is deliberate. Putting the same content in `description` would
+ * tax every turn, even ones that have nothing to do with this tool. Putting
+ * it in `childToolUsageNotes` defers the cost until the LLM has committed.
+ *
  * ## Context Preservation
  *
  * When an UnfoldingTool is expanded, a context tool can be created that
  * preserves the parent's description and optional usage notes. This solves
  * the problem where child tools would lose context about the parent's purpose.
- *
- * The [childToolUsageNotes] field provides additional guidance on how to
- * use the child tools, included only once in the context tool rather than
- * duplicated in each child tool's description.
  *
  * Example:
  * ```kotlin
@@ -79,7 +94,20 @@ interface UnfoldingTool : ProgressiveTool {
     override fun innerTools(process: AgentProcess): List<Tool> = innerTools
 
     /**
-     * Optional usage notes to guide the LLM on when to invoke the child tools.
+     * Detail that is **progressively disclosed**: hidden until the LLM invokes
+     * this tool, then appended verbatim to the unfolded message returned by
+     * [call] (after the "Tools now available: …" preamble).
+     *
+     * Because only the LLM that just descended into this tool pays for it,
+     * `childToolUsageNotes` is the right home for content that would be
+     * wasteful in the parent `description` — workflow guidance, when-to-use
+     * routing between siblings, an agent skill's full body, or any other
+     * detail the LLM needs *only after committing to use this tool*.
+     *
+     * Keep the parent `description` short (it costs every turn);
+     * put long-form context here (it costs only on use).
+     *
+     * Null or blank ⇒ unfolded message is just the preamble.
      */
     val childToolUsageNotes: String? get() = null
 
@@ -836,7 +864,7 @@ internal class SimpleUnfoldingTool(
         val shortcutResult = tryShortcutDispatch(input, innerTools)
         if (shortcutResult != null) return shortcutResult
 
-        return Tool.Result.text(buildUnfoldedMessage(innerTools))
+        return Tool.Result.text(buildUnfoldedMessage(innerTools, childToolUsageNotes))
     }
 }
 
@@ -861,21 +889,34 @@ internal class SelectableUnfoldingTool(
         if (shortcutResult != null) return shortcutResult
 
         val selected = selectTools(input)
-        return Tool.Result.text(buildUnfoldedMessage(selected))
+        return Tool.Result.text(buildUnfoldedMessage(selected, childToolUsageNotes))
     }
 }
 
 /**
  * Build the message returned when an UnfoldingTool is invoked.
- * This message appears as a tool result in the conversation history and
- * strongly directs the LLM to call one of the revealed inner tools
- * rather than generating a text response.
+ *
+ * This message appears as a tool result in the conversation history and is
+ * the **second half of progressive disclosure**: the parent tool's description
+ * advertised the capability up front, and now — after the LLM has chosen to
+ * descend — `childToolUsageNotes` delivers the previously-hidden detail
+ * (workflow, body of an agent skill, when-to-use guidance, etc.) at the
+ * moment it becomes relevant. The "Tools now available: …" preamble redirects
+ * the LLM to the revealed inner tools; the appended notes are the payload.
+ *
+ * Public so that [UnfoldingTool] implementations defined outside this module
+ * (e.g. agent-skills' `Skills`) can produce the canonical unfolded-message
+ * format from their own `call(input)` overrides without duplicating it.
+ *
+ * @see UnfoldingTool.childToolUsageNotes for the field-level contract.
  */
-private fun buildUnfoldedMessage(tools: List<Tool>): String {
+fun buildUnfoldedMessage(tools: List<Tool>, childToolUsageNotes: String?): String {
     val toolNames = tools.map { it.definition.name }
-    return "Tools now available: ${toolNames.joinToString(", ")}. " +
+    val preamble = "Tools now available: ${toolNames.joinToString(", ")}. " +
             "You MUST call one of these tools to complete the user's request. " +
             "Do NOT respond with text — call a tool."
+    return if (childToolUsageNotes.isNullOrBlank()) preamble
+    else "$preamble\n\n$childToolUsageNotes"
 }
 
 private val shortcutLogger: Logger = LoggerFactory.getLogger("com.embabel.agent.api.tool.progressive.UnfoldingShortcut")
