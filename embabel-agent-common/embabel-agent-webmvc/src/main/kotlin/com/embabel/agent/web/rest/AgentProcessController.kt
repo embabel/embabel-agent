@@ -19,6 +19,7 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.AgentProcessStatusReport
 import com.embabel.agent.core.OperationStatus
+import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
 import io.swagger.v3.oas.annotations.Operation
@@ -58,6 +59,7 @@ data class AgentProcessStatus(
 )
 class AgentProcessController(
     private val agentPlatform: AgentPlatform,
+    private val platformProperties: AgentPlatformProperties,
 ) {
 
     private val logger = LoggerFactory.getLogger(AgentProcessController::class.java)
@@ -74,6 +76,10 @@ class AgentProcessController(
     )
     @GetMapping("/{processId}")
     fun checkProcessStatus(@PathVariable processId: String): AgentProcessStatus {
+        if (!platformProperties.rest.processStatusEnabled) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND)
+        }
+
         val agentProcess = agentPlatform.getAgentProcess(processId)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Process not found")
 
@@ -98,6 +104,10 @@ class AgentProcessController(
         ]
     )
     fun killAgentProcess(@PathVariable id: String): AgentProcessStatusReport {
+        if (!platformProperties.rest.processKillEnabled) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND)
+        }
+
         val killedProcess = agentPlatform.killAgentProcess(id)
             ?: throw ResponseStatusException(
                 HttpStatus.NOT_FOUND,
