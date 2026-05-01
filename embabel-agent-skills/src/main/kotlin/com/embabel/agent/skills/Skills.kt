@@ -18,8 +18,6 @@ package com.embabel.agent.skills
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.api.tool.progressive.UnfoldingTool
-import com.embabel.agent.api.tool.progressive.buildUnfoldedMessage
 import com.embabel.agent.skills.script.NoOpExecutionEngine
 import com.embabel.agent.skills.script.SkillScriptExecutionEngine
 import com.embabel.agent.skills.support.*
@@ -44,34 +42,6 @@ fun interface SkillFilter {
  *
  * See the [Agent Skills Specification](https://agentskills.io/specification)
  * for the layout of skills.
- *
- * ## Two consumer surfaces
- *
- * `Skills` implements both [LlmReference] and [UnfoldingTool]. Pick the surface
- * based on whether you want the LLM to see each loaded skill as its own
- * top-level tool, or one consolidated entry point with the catalog deferred:
- *
- * ### Per-skill (recommended for typical N): use [asIndividualReferences]
- *
- * Returns one [LlmReference] per loaded skill. Each one shows up in the LLM's
- * tool catalog with **its own name and description visible up front**, so the
- * LLM can pick the right skill in one shot. Catalog cost: O(N) lines in the
- * system prompt — fine for small/medium N.
- *
- * ### Consolidated (single skills entry point): use this instance directly as a [Tool]
- *
- * `Skills` implementing [UnfoldingTool] gives you **one top-level tool** in the
- * catalog (carrying just `name` + the container's generic `description`). The
- * names and descriptions of individual loaded skills are NOT visible until the
- * LLM invokes this tool — they are delivered via [childToolUsageNotes] in the
- * unfold response.
- *
- * **Only use this form when you genuinely want a single consolidated skills
- * tool.** It costs the LLM an extra round-trip (unfold to discover the catalog,
- * then call activate) and removes per-skill discoverability from the catalog.
- * Pick it when N is large enough that listing every skill in the system prompt
- * would dominate it, or when skills are a peripheral capability you don't want
- * cluttering the top-level tool list. Otherwise prefer [asIndividualReferences].
  */
 data class Skills @JvmOverloads constructor(
     override val name: String,
@@ -84,7 +54,7 @@ data class Skills @JvmOverloads constructor(
     private val frontMatterFormatter: SkillFrontMatterFormatter = ClaudeFrontMatterFormatter,
     private val filter: SkillFilter = SkillFilter { true },
     private val scriptExecutionEngine: SkillScriptExecutionEngine = NoOpExecutionEngine,
-) : LlmReference, UnfoldingTool {
+) : LlmReference {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -213,47 +183,6 @@ data class Skills @JvmOverloads constructor(
         """.trimIndent()
     }
 
-    // ---- UnfoldingTool surface ----------------------------------------------
-    //
-    // Consuming `Skills` as a single [UnfoldingTool] gives one consolidated
-    // top-level tool whose `description` is generic. The catalog of loaded
-    // skills (name + description per skill) is delivered via
-    // [childToolUsageNotes] only AFTER the LLM invokes this tool — i.e. it is
-    // hidden from the system prompt's tool catalog. See class KDoc for when
-    // to use this form vs. [asIndividualReferences].
-
-    override val definition: Tool.Definition = Tool.Definition(
-        name = name,
-        description = description,
-        inputSchema = Tool.InputSchema.empty(),
-    )
-
-    /**
-     * Inner tools revealed when this `Skills` is invoked as an [UnfoldingTool]:
-     * the same tools surfaced via [tools] (activate, listResources, readResource,
-     * plus every loaded skill's script tools).
-     */
-    override val innerTools: List<Tool> get() = tools()
-
-    /**
-     * Catalog of every loaded skill (name + description), formatted via
-     * [frontMatterFormatter]. Delivered as the progressively-disclosed payload
-     * of the unfold response so the LLM can choose which skill to activate.
-     * Null when no skills are loaded.
-     */
-    override val childToolUsageNotes: String?
-        get() = if (skills.isEmpty()) null else """
-            Available skills:
-
-            ${frontMatterFormatter.format(skills)}
-
-            Call activate(name=…) with the skill's name to load its full
-            instructions. Use listResources and readResource for bundled files.
-        """.trimIndent()
-
-    override fun call(input: String): Tool.Result =
-        Tool.Result.text(buildUnfoldedMessage(innerTools, childToolUsageNotes))
-
     /**
      * Activate a skill by name, returning its full instructions.
      * This is the "lazy loading" mechanism - minimal metadata is shown in the system prompt,
@@ -331,38 +260,52 @@ data class Skills @JvmOverloads constructor(
     }
 
     /**
-     * Return each loaded skill as its own [LlmReference], each wrapping
-     * with [withUnfolding] so the LLM sees one top-level tool per skill
-     * that unfolds into that skill's tools (activate, listResources, readResource, scripts).
+     * Return each loaded skill as its own [LlmReference]. The LLM sees one
+     * top-level tool per skill in its catalog with that skill's name and
+     * description visible up front. Invoking the per-skill wrapper unfolds
+     * to reveal `listResources`, `readResource`, and that skill's script
+     * tools — and the unfold response delivers the skill's full body
+     * (instructions + resource manifest) via `childToolUsageNotes`.
      *
-     * This gives the LLM a clear per-skill entry point instead of a single
-     * monolithic "skills" tool containing everything.
-     *
-     * The returned references share this [Skills] instance for tool execution
-     * (activate, listResources, readResource) so all state is consistent.
+     * **One round-trip per skill use**: the LLM picks the wrapper, gets the
+     * body and child tools in the same response, and proceeds. There is no
+     * separate `activate` step — the act of choosing the wrapper IS the
+     * activation. (`activate` is still available as a top-level tool when
+     * `Skills` is consumed directly as an [LlmReference] for the rare case
+     * a caller wants to re-fetch a body without re-unfolding the wrapper.)
      */
     fun asIndividualReferences(): List<LlmReference> {
         if (skills.isEmpty()) return emptyList()
+        val sharedResourceTools = Tool.fromInstance(this@Skills)
+            .filter { it.definition.name != "activate" }
         return skills.map { skill ->
-            val perSkillTools = buildList {
-                // The shared activate/listResources/readResource tools (bound to this Skills instance)
-                addAll(Tool.fromInstance(this@Skills))
-                // Script tools specific to this skill
-                addAll(skill.getScriptTools(scriptExecutionEngine))
-            }
+            val perSkillTools = sharedResourceTools + skill.getScriptTools(scriptExecutionEngine)
             LlmReference.of(
                 name = skill.name,
                 description = skill.description,
                 tools = perSkillTools,
-                notes = """
-                    Skill: ${skill.name}
-                    ${skill.description}
-
-                    To use this skill, call activate with name "${skill.name}" to get full instructions.
-                    Use listResources and readResource to access the skill's bundled resources.
-                """.trimIndent(),
-            ).withUnfolding()
+                notes = "",
+            ).withUnfolding(childToolUsageNotes = skillUnfoldBody(skill))
         }
+    }
+
+    /**
+     * Build the body delivered via `childToolUsageNotes` when the LLM unfolds
+     * a per-skill wrapper. Mirrors what [activate] returns, but as a pure
+     * function (no `activatedSkillNames` side effect — this is constructed
+     * eagerly per reference, not per LLM call).
+     */
+    private fun skillUnfoldBody(skill: LoadedSkill): String {
+        val activationText = skill.getActivationText()
+        val scriptTools = skill.getScriptTools(scriptExecutionEngine)
+        if (scriptTools.isEmpty()) return activationText
+        return """
+            |$activationText
+            |
+            |## Available Script Tools
+            |The following script tools can be used for this skill:
+            |${scriptTools.joinToString("\n") { "- ${it.definition.name}" }}
+        """.trimMargin()
     }
 
     /**

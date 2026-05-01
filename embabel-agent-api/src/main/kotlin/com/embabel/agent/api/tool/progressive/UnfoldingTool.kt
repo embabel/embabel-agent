@@ -904,13 +904,9 @@ internal class SelectableUnfoldingTool(
  * moment it becomes relevant. The "Tools now available: …" preamble redirects
  * the LLM to the revealed inner tools; the appended notes are the payload.
  *
- * Public so that [UnfoldingTool] implementations defined outside this module
- * (e.g. agent-skills' `Skills`) can produce the canonical unfolded-message
- * format from their own `call(input)` overrides without duplicating it.
- *
  * @see UnfoldingTool.childToolUsageNotes for the field-level contract.
  */
-fun buildUnfoldedMessage(tools: List<Tool>, childToolUsageNotes: String?): String {
+private fun buildUnfoldedMessage(tools: List<Tool>, childToolUsageNotes: String?): String {
     val toolNames = tools.map { it.definition.name }
     val preamble = "Tools now available: ${toolNames.joinToString(", ")}. " +
             "You MUST call one of these tools to complete the user's request. " +
