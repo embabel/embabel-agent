@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.skills
 
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.skills.script.ScriptExecutionResult
 import com.embabel.agent.skills.script.ScriptLanguage
 import com.embabel.agent.skills.script.SkillScript
@@ -532,7 +533,7 @@ class SkillsTest {
     // asIndividualReferences() tests
 
     @Test
-    fun `asIndividualReferences returns one reference per skill`() {
+    fun `asIndividualReferences returns one per-skill reference plus a shared resource reference`() {
         val skillDir1 = createSkillDirectory("skill-a")
         val skillDir2 = createSkillDirectory("skill-b")
         val skills = Skills(
@@ -552,11 +553,13 @@ class SkillsTest {
 
         val refs = skills.asIndividualReferences()
 
-        assertEquals(2, refs.size)
+        // N per-skill refs + 1 shared resource ref
+        assertEquals(3, refs.size)
         assertEquals("skill-a", refs[0].name)
         assertEquals("First skill", refs[0].description)
         assertEquals("skill-b", refs[1].name)
         assertEquals("Second skill", refs[1].description)
+        assertEquals("skill_resources", refs[2].name)
     }
 
     @Test
@@ -569,24 +572,85 @@ class SkillsTest {
     }
 
     @Test
-    fun `asIndividualReferences each reference has tools`() {
-        val skillDir = createSkillDirectory("my-skill")
+    fun `asIndividualReferences each per-skill reference exposes a single activation tool with the skill name`() {
+        val skillDir = createSkillDirectory("github-workflows")
         val skills = Skills(
             name = "test",
             description = "test",
             skills = listOf(
                 LoadedSkill(
-                    skillMetadata = SkillDefinition(name = "my-skill", description = "A skill"),
+                    skillMetadata = SkillDefinition(
+                        name = "github-workflows",
+                        description = "GitHub workflows",
+                        instructions = "Use gateway.gh.* via execute_javascript.",
+                    ),
                     basePath = skillDir,
                 ),
             ),
         )
 
         val refs = skills.asIndividualReferences()
-        val tools = refs[0].tools()
+        val perSkillRef = refs[0]
+        val tools = perSkillRef.tools()
 
-        // Should have tools (at minimum the unfolding wrapper)
-        assertTrue(tools.isNotEmpty(), "Each skill reference should have tools")
+        // Skill with no scripts → exactly one activation tool. Its name is
+        // sanitized (hyphens → underscores) so it matches what the framework
+        // would produce for a wrapper, keeping prompts/tests stable.
+        assertEquals(1, tools.size)
+        assertEquals("github_workflows", tools[0].definition.name)
+        assertEquals("GitHub workflows", tools[0].definition.description)
+    }
+
+    @Test
+    fun `activation tool returns the skill body when called`() {
+        val skillDir = createSkillDirectory("my-skill")
+        val skills = Skills(
+            name = "test",
+            description = "test",
+            skills = listOf(
+                LoadedSkill(
+                    skillMetadata = SkillDefinition(
+                        name = "my-skill",
+                        description = "A skill",
+                        instructions = "# Instructions\n\nDo the thing.",
+                    ),
+                    basePath = skillDir,
+                ),
+            ),
+        )
+
+        val activationTool = skills.asIndividualReferences()[0].tools()[0]
+        val result = activationTool.call("{}")
+
+        val text = (result as Tool.Result.Text).content
+        assertTrue(text.contains("# Skill: my-skill"), "Body should include the skill header")
+        assertTrue(text.contains("Do the thing."), "Body should include the instructions")
+    }
+
+    @Test
+    fun `shared resource reference exposes listResources and readResource`() {
+        val skillDir = createSkillDirectory("any-skill")
+        val skills = Skills(
+            name = "test",
+            description = "test",
+            skills = listOf(
+                LoadedSkill(
+                    skillMetadata = SkillDefinition(name = "any-skill", description = "x"),
+                    basePath = skillDir,
+                ),
+            ),
+        )
+
+        val refs = skills.asIndividualReferences()
+        val sharedRef = refs.last()
+        val toolNames = sharedRef.tools().map { it.definition.name }.toSet()
+
+        assertEquals("skill_resources", sharedRef.name)
+        assertTrue("listResources" in toolNames, "listResources should be in shared ref, was $toolNames")
+        assertTrue("readResource" in toolNames, "readResource should be in shared ref, was $toolNames")
+        // activate is intentionally NOT exposed — body delivery happens via
+        // the per-skill activation tool.
+        assertTrue("activate" !in toolNames, "activate should not be in shared ref, was $toolNames")
     }
 
     // Helper methods

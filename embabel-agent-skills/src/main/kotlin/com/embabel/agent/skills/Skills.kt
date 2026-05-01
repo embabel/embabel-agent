@@ -260,42 +260,85 @@ data class Skills @JvmOverloads constructor(
     }
 
     /**
-     * Return each loaded skill as its own [LlmReference]. The LLM sees one
-     * top-level tool per skill in its catalog with that skill's name and
-     * description visible up front. Invoking the per-skill wrapper unfolds
-     * to reveal `listResources`, `readResource`, and that skill's script
-     * tools — and the unfold response delivers the skill's full body
-     * (instructions + resource manifest) via `childToolUsageNotes`.
+     * Return each loaded skill as its own [LlmReference] PLUS one shared
+     * reference for the bundled-resource helpers (`listResources` /
+     * `readResource`). The LLM sees one top-level tool per skill in its
+     * catalog — a [SkillActivationTool] whose name and description match
+     * the skill — and invoking it returns the skill body directly as the
+     * tool result.
      *
-     * **One round-trip per skill use**: the LLM picks the wrapper, gets the
-     * body and child tools in the same response, and proceeds. There is no
-     * separate `activate` step — the act of choosing the wrapper IS the
-     * activation. (`activate` is still available as a top-level tool when
-     * `Skills` is consumed directly as an [LlmReference] for the rare case
-     * a caller wants to re-fetch a body without re-unfolding the wrapper.)
+     * This is a **plain Tool**, not an [com.embabel.agent.api.tool.progressive.UnfoldingTool]:
+     * no preamble, no inner-tool swap, no removal-from-catalog after
+     * invocation. Why: the unfolding pattern's "Tools now available: X. You
+     * MUST call one of these tools." preamble fits a tool-grouping facade,
+     * but a skill's operative path is `execute_javascript` (already in the
+     * catalog at the top level). The unfold preamble was misdirecting
+     * models into calling auxiliary tools (`listResources`/`readResource`)
+     * instead of following the body's guidance to call `execute_*`. Removed
+     * the unfold layer; the body is now the lead, not a footnote.
+     *
+     * Activation cost: 1 round-trip — the LLM calls the per-skill tool,
+     * gets the body, and proceeds. The tool persists in the catalog so
+     * re-activation is a no-op re-call rather than a "tool no longer
+     * exists" surprise.
      */
     fun asIndividualReferences(): List<LlmReference> {
         if (skills.isEmpty()) return emptyList()
-        val sharedResourceTools = Tool.fromInstance(this@Skills)
-            .filter { it.definition.name != "activate" }
-        return skills.map { skill ->
-            val perSkillTools = sharedResourceTools + skill.getScriptTools(scriptExecutionEngine)
+
+        val perSkill = skills.map { skill ->
             LlmReference.of(
                 name = skill.name,
                 description = skill.description,
-                tools = perSkillTools,
+                tools = listOf<Tool>(SkillActivationTool(skill)) +
+                    skill.getScriptTools(scriptExecutionEngine),
                 notes = "",
-            ).withUnfolding(childToolUsageNotes = skillUnfoldBody(skill))
+            )
+        }
+
+        // Single shared reference holding listResources / readResource —
+        // both take the skill name as a parameter, so one set covers every
+        // loaded skill and we avoid N copies of the same two tools in the
+        // catalog. `activate` is excluded because per-skill activation is
+        // now done via the per-skill tool above.
+        val sharedResourceTools = Tool.fromInstance(this@Skills)
+            .filter { it.definition.name != "activate" }
+        val sharedRef = LlmReference.of(
+            name = "skill_resources",
+            description = "Inspect bundled files (references, scripts, assets) for any loaded skill.",
+            tools = sharedResourceTools,
+            notes = "",
+        )
+
+        return perSkill + sharedRef
+    }
+
+    /**
+     * Plain [Tool] returned for each loaded skill. The tool's `name` and
+     * `description` come from the skill's frontmatter — this is what the
+     * LLM sees in its catalog. Calling the tool returns the skill body
+     * (instructions + resource manifest + script-tool names) as the tool
+     * result. No unfold, no preamble, no swap.
+     */
+    private inner class SkillActivationTool(private val skill: LoadedSkill) : Tool {
+
+        override val definition = Tool.Definition(
+            name = sanitizeToolName(skill.name),
+            description = skill.description,
+            inputSchema = Tool.InputSchema.empty(),
+        )
+
+        override fun call(input: String): Tool.Result {
+            activatedSkillNames.add(skill.name)
+            return Tool.Result.text(skillBody(skill))
         }
     }
 
     /**
-     * Build the body delivered via `childToolUsageNotes` when the LLM unfolds
-     * a per-skill wrapper. Mirrors what [activate] returns, but as a pure
-     * function (no `activatedSkillNames` side effect — this is constructed
-     * eagerly per reference, not per LLM call).
+     * Build the body returned when the LLM activates a skill. Mirrors what
+     * [activate] returns, but as a pure function (no `activatedSkillNames`
+     * side effect — that's tracked at the call site).
      */
-    private fun skillUnfoldBody(skill: LoadedSkill): String {
+    private fun skillBody(skill: LoadedSkill): String {
         val activationText = skill.getActivationText()
         val scriptTools = skill.getScriptTools(scriptExecutionEngine)
         if (scriptTools.isEmpty()) return activationText
@@ -307,6 +350,15 @@ data class Skills @JvmOverloads constructor(
             |${scriptTools.joinToString("\n") { "- ${it.definition.name}" }}
         """.trimMargin()
     }
+
+    /**
+     * Lower-case + replace `-` with `_`. Mirrors the sanitization the
+     * framework applies when wrapping a skill in an [com.embabel.agent.api.tool.progressive.UnfoldingTool]
+     * via [LlmReference.toolPrefix], so existing prompts and acceptance
+     * tests that reference e.g. `github_workflows` keep matching.
+     */
+    private fun sanitizeToolName(name: String): String =
+        name.replace('-', '_').lowercase()
 
     /**
      * Match by canonical form: case-insensitive, hyphens and underscores
