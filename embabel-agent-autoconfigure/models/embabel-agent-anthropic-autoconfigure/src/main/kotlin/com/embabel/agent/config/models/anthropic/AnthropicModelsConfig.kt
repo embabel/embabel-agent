@@ -30,6 +30,8 @@ import io.micrometer.observation.ObservationRegistry
 import org.springframework.ai.anthropic.AnthropicChatModel
 import org.springframework.ai.anthropic.AnthropicChatOptions
 import org.springframework.ai.anthropic.api.AnthropicApi
+import org.springframework.ai.anthropic.api.AnthropicCacheOptions
+import org.springframework.ai.anthropic.api.AnthropicCacheStrategy
 import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
@@ -220,8 +222,8 @@ object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
      */
     const val DEFAULT_MAX_TOKENS = 8192
 
-    override fun convertOptions(options: LlmOptions): AnthropicChatOptions =
-        AnthropicChatOptions.builder()
+    override fun convertOptions(options: LlmOptions): AnthropicChatOptions {
+        val builder = AnthropicChatOptions.builder()
             .temperature(options.temperature)
             .topP(options.topP)
             .maxTokens(options.maxTokens ?: DEFAULT_MAX_TOKENS)
@@ -235,5 +237,36 @@ object AnthropicOptionsConverter : OptionsConverter<AnthropicChatOptions> {
                 )
             )
             .topK(options.topK)
-            .build()
+
+        // Apply Anthropic caching if configured
+        options.getAnthropicCaching()?.let { caching ->
+            builder.cacheOptions(
+                AnthropicCacheOptions.builder()
+                    .strategy(resolveStrategy(caching))
+                    .build()
+            )
+        }
+
+        return builder.build()
+    }
+
+    /**
+     * Resolve Anthropic cache strategy from caching configuration.
+     *
+     * Strategy selection follows this priority:
+     * 1. CONVERSATION_HISTORY - if conversation caching enabled
+     * 2. SYSTEM_AND_TOOLS - if both system and tools enabled
+     * 3. SYSTEM_ONLY - if only system enabled
+     * 4. TOOLS_ONLY - if only tools enabled
+     * 5. NONE - if nothing enabled
+     */
+    private fun resolveStrategy(config: AnthropicCachingConfig): AnthropicCacheStrategy {
+        return when {
+            config.conversationHistory -> AnthropicCacheStrategy.CONVERSATION_HISTORY
+            config.systemPrompt && config.tools -> AnthropicCacheStrategy.SYSTEM_AND_TOOLS
+            config.systemPrompt -> AnthropicCacheStrategy.SYSTEM_ONLY
+            config.tools -> AnthropicCacheStrategy.TOOLS_ONLY
+            else -> AnthropicCacheStrategy.NONE
+        }
+    }
 }
