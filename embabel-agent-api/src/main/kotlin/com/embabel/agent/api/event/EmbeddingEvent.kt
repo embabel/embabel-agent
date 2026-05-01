@@ -73,10 +73,12 @@ class EmbeddingRequestEvent(
 /**
  * Emitted after an embedding service call.
  *
- * Carries `usage` directly — embedding responses have no body to expose to listeners
- * (raw vectors are large, leak-prone, useless), only token usage matters.
+ * Carries token `usage` only — raw vectors are intentionally excluded
+ * from the event payload (large, potentially sensitive, irrelevant to
+ * observability consumers). Use the service response directly to get
+ * the vectors.
  */
-class EmbeddingResponseEvent internal constructor(
+class EmbeddingResponseEvent(
     val request: EmbeddingRequestEvent,
     val usage: Usage,
     override val runningTime: Duration,

@@ -17,7 +17,7 @@ package com.embabel.agent.spi.config.spring
 
 import com.embabel.agent.api.event.EmbeddingEvent
 import com.embabel.agent.api.event.EmbeddingEventListener
-import com.embabel.agent.spi.support.EmbeddingOperations
+import com.embabel.agent.spi.support.embedding.EmbeddingOperations
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.PricingModel
 import org.junit.jupiter.api.Assertions.assertEquals

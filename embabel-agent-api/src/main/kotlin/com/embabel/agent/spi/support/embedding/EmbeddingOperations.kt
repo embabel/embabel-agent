@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.spi.support
+package com.embabel.agent.spi.support.embedding
 
 import com.embabel.agent.api.event.AgentProcessEmbeddingEvent
 import com.embabel.agent.api.event.EmbeddingEvent
@@ -63,7 +63,7 @@ import java.util.UUID
  *   2. Otherwise, or if the provider does not surface usage metadata, we fall back to
  *      [TokenCountEstimator] (default: character-heuristic ≈ 4 chars per token).
  */
-class EmbeddingOperations @JvmOverloads constructor(
+internal class EmbeddingOperations(
     private val delegate: EmbeddingService,
     private val tokenCountEstimator: TokenCountEstimator<String> = TokenCountEstimator.heuristic(),
     private val listener: EmbeddingEventListener = EmbeddingEventListener.NOOP,

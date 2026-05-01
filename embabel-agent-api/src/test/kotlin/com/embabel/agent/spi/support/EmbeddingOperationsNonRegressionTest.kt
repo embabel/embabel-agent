@@ -20,6 +20,7 @@ import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.support.InMemoryBlackboard
 import com.embabel.agent.core.support.SimpleAgentProcess
+import com.embabel.agent.spi.support.embedding.EmbeddingOperations
 import com.embabel.agent.support.SimpleTestAgent
 import com.embabel.agent.test.integration.IntegrationTestUtils.dummyPlatformServices
 import com.embabel.common.ai.model.AiModel

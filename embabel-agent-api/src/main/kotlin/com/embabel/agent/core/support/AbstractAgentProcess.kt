@@ -30,6 +30,8 @@ import com.embabel.agent.spi.DelayedActionExecutionSchedule
 import com.embabel.agent.spi.ProntoActionExecutionSchedule
 import com.embabel.agent.spi.ScheduledActionExecutionSchedule
 import com.embabel.agent.spi.support.AgenticEventListenerToolsStats
+import com.embabel.common.ai.model.EmbeddingServiceMetadata
+import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.plan.WorldState
 import com.embabel.plan.common.condition.WorldStateDeterminer
 import com.fasterxml.jackson.annotation.JsonIgnore
@@ -202,7 +204,7 @@ abstract class AbstractAgentProcess(
      * `distinctBy { it.name }` removes duplicates when the same model is used
      * at multiple levels.
      */
-    override fun modelsUsed(): List<com.embabel.common.ai.model.LlmMetadata> =
+    override fun modelsUsed(): List<LlmMetadata> =
         (ownModelsUsed() + childProcesses().flatMap { it.modelsUsed() })
             .distinctBy { it.name }.sortedBy { it.name }
 
@@ -222,7 +224,7 @@ abstract class AbstractAgentProcess(
     }
 
     /** Distinct embedding services used anywhere in the subtree, sorted by name. */
-    override fun embeddingModelsUsed(): List<com.embabel.common.ai.model.EmbeddingServiceMetadata> =
+    override fun embeddingModelsUsed(): List<EmbeddingServiceMetadata> =
         (embeddingInvocations.map { it.embeddingMetadata } +
                 childProcesses().flatMap { it.embeddingModelsUsed() })
             .distinctBy { it.name }.sortedBy { it.name }

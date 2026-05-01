@@ -21,7 +21,7 @@ import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent
 import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.spi.support.AgentProcessAccessor
-import com.embabel.agent.spi.support.EmbeddingOperations
+import com.embabel.agent.spi.support.embedding.EmbeddingOperations
 import com.embabel.agent.spi.support.ExecutorAsyncer
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.PricingModel

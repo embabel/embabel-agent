@@ -16,7 +16,7 @@
 package com.embabel.agent.spi.config.spring
 
 import com.embabel.agent.api.event.EmbeddingEventListener
-import com.embabel.agent.spi.support.EmbeddingOperations
+import com.embabel.agent.spi.support.embedding.EmbeddingOperations
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.TokenCountEstimator
 import org.springframework.beans.factory.ObjectProvider

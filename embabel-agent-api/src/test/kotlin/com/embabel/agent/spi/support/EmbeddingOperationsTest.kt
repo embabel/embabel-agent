@@ -20,6 +20,7 @@ import com.embabel.agent.api.event.EmbeddingEvent
 import com.embabel.agent.api.event.EmbeddingEventListener
 import com.embabel.agent.api.event.EmbeddingRequestEvent
 import com.embabel.agent.api.event.EmbeddingResponseEvent
+import com.embabel.agent.spi.support.embedding.EmbeddingOperations
 import com.embabel.agent.spi.support.springai.EmbeddingModelCallEvent
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.AgentProcess.Companion.withCurrent

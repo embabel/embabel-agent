@@ -16,6 +16,8 @@
 package com.embabel.agent.core
 
 import com.embabel.agent.api.event.ProcessKilledEvent
+import com.embabel.common.ai.model.LlmMetadata
+import com.embabel.common.ai.model.ModelMetadata
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
@@ -200,7 +202,7 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
      * Distinct LLMs used by this process's own invocations, excluding any child processes.
      * See [modelsUsed] for the aggregate across the entire process subtree.
      */
-    fun ownModelsUsed(): List<com.embabel.common.ai.model.LlmMetadata> =
+    fun ownModelsUsed(): List<LlmMetadata> =
         llmInvocations.map { it.llmMetadata }.distinctBy { it.name }.sortedBy { it.name }
 
     /**
@@ -222,7 +224,7 @@ interface AgentProcess : Blackboard, Timestamped, Timed, OperationStatus<AgentPr
      * the implementation supports subtree aggregation.
      * Use this when you want all models; use [modelsUsed] for LLM-only.
      */
-    fun totalModelsUsed(): List<com.embabel.common.ai.model.ModelMetadata> =
+    fun totalModelsUsed(): List<ModelMetadata> =
         (modelsUsed() + embeddingModelsUsed())
             .distinctBy { it.name }
             .sortedBy { it.name }
