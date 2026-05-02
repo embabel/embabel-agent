@@ -171,18 +171,6 @@ sealed interface PropertyDefinition {
 }
 
 /**
- * Simple value property, such as string, int, boolean, etc.
- * Not necessarily a scalar, as cardinality may be LIST or SET.
- */
-data class ValuePropertyDefinition @JvmOverloads constructor(
-    override val name: String,
-    val type: String = "string",
-    override val cardinality: Cardinality = Cardinality.ONE,
-    override val description: String = name,
-    override val metadata: Map<String, String> = emptyMap(),
-) : PropertyDefinition
-
-/**
  * Property that holds a nested DomainType
  * Represents a relationship to another domain object
  */
@@ -193,6 +181,27 @@ data class DomainTypePropertyDefinition @JvmOverloads constructor(
     override val description: String = name,
     override val metadata: Map<String, String> = emptyMap(),
 ) : PropertyDefinition
+
+
+/**
+ * Property definition that refers to a named type, usually a simple type.
+ */
+interface NamedPropertyDefinition : PropertyDefinition {
+
+    val type: String
+}
+
+/**
+ * Simple value property, such as string, int, boolean, etc.
+ * Not necessarily a scalar, as cardinality may be LIST or SET.
+ */
+data class ValuePropertyDefinition @JvmOverloads constructor(
+    override val name: String,
+    override val type: String = "string",
+    override val cardinality: Cardinality = Cardinality.ONE,
+    override val description: String = name,
+    override val metadata: Map<String, String> = emptyMap(),
+) : NamedPropertyDefinition
 
 /**
  * Value property with type-safe validation rules.
@@ -213,12 +222,12 @@ data class DomainTypePropertyDefinition @JvmOverloads constructor(
  */
 data class ValidatedPropertyDefinition @JvmOverloads constructor(
     override val name: String,
-    val type: String = "string",
+    override val type: String = "string",
     override val cardinality: Cardinality = Cardinality.ONE,
     override val description: String = name,
     override val metadata: Map<String, String> = emptyMap(),
     val validationRules: List<PropertyValidationRule> = emptyList(),
-) : PropertyDefinition {
+) : NamedPropertyDefinition {
 
     /**
      * Validate a mention against all rules defined for this property.
