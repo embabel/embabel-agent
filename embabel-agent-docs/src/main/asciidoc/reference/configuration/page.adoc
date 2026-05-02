@@ -545,6 +545,33 @@ From `AgentPlatformProperties.SseConfig` - server-sent events configuration.
 
 |===
 
+===== REST Endpoints
+
+From `AgentPlatformProperties.RestConfig` - toggles for the platform's built-in REST endpoints.
+Each flag controls whether the corresponding endpoint is exposed.
+Disabled endpoints respond with HTTP 404.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.rest.process-status-enabled`
+|Boolean
+|`true`
+|Whether `GET /api/v1/process/{id}` (process status) is exposed
+
+|`embabel.agent.platform.rest.process-kill-enabled`
+|Boolean
+|`true`
+|Whether `DELETE /api/v1/process/{id}` (terminate process) is exposed
+
+|`embabel.agent.platform.rest.process-events-enabled`
+|Boolean
+|`true`
+|Whether `GET /events/process/{id}` (SSE event stream) is exposed. When disabled, the SSE controller is not registered.
+
+|===
+
 ===== Test Configuration
 
 From `AgentPlatformProperties.TestConfig` - test configuration.
