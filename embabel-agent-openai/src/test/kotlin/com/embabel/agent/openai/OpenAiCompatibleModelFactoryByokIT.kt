@@ -56,4 +56,13 @@ class OpenAiCompatibleModelFactoryByokIT {
             .buildValidated()
         assertNotNull(service)
     }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "PERPLEXITY_API_KEY", matches = ".+")
+    fun `perplexity buildValidated succeeds with valid key`() {
+        val service = OpenAiCompatibleModelFactory.perplexity(System.getenv("PERPLEXITY_API_KEY"))
+            .buildValidated()
+        assertNotNull(service)
+    }
+
 }
