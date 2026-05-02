@@ -227,6 +227,67 @@ val report = invocation.invoke(customerQuery)
 Any tool implementing `DelegatingTool` forwards the context to its delegate by default.
 Built-in decorators like `ArtifactSinkingTool` and `ReplanningTool` follow this pattern, so context reaches the underlying tool without any extra wiring.
 
+===== Per-Loop One-Shot Tools (`OneShotPerLoopTool`)
+
+Some tools are meant to fire **at most once per agentic loop iteration** — typically because the call returns content that, once delivered, lives in the LLM's conversation history for the rest of the turn.
+The canonical example is a *skill activator*: calling it returns the skill body so the LLM can use it; calling it again returns the same body and accomplishes nothing except wasting tokens and a round-trip.
+
+Stronger models follow a system-prompt rule like "call each activator once" reliably.
+Weaker models (qwen, gpt-oss, smaller open models) reflexively re-call the same tool turn after turn even when the body is already in conversation history.
+The system-prompt rule isn't enforceable purely with words — `OneShotPerLoopTool` makes the constraint mechanical.
+
+Wrap the underlying tool with `OneShotPerLoopTool`, supplying an `advice` string that tells the LLM what to do *instead* of calling again:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+Tool gated = new OneShotPerLoopTool(
+    githubWorkflowsActivator,
+    "Write your script now using the skill body above."
+);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val gated = OneShotPerLoopTool(
+    delegate = githubWorkflowsActivator,
+    advice = "Write your script now using the skill body above.",
+)
+----
+====
+
+The first call within a given loop delegates to the underlying tool as normal.
+Every subsequent call within the same loop short-circuits with:
+
+----
+ALREADY LOADED. The body of '<tool name>' was returned earlier in this turn —
+read it from your conversation history above. Do not call this tool again.
+<advice>
+----
+
+Loop scoping is provided by `LoopMemo` reading `ToolCallContext.loopId()`, so the orchestrator must stamp a fresh loop id per turn:
+
+[source,kotlin]
+----
+val loopId = java.util.UUID.randomUUID().toString()
+context.ai()
+    .withLlm(myLlm)
+    .withToolCallContext(mapOf(ToolCallContext.LOOP_ID_KEY to loopId))
+    .withTools(gatedTools)
+    .respond(messages)
+----
+
+If no loop id is stamped, `LoopMemo`'s documented fallback is "always emit" — every call is treated as the first, so the wrapper degrades to a passthrough rather than silently locking.
+
+Implements `DelegatingTool`, so the underlying tool is reachable via `delegate` and the canonical two-arg `call` overload is the only one a subclass would override.
+
+For the underlying memoisation primitive in isolation (e.g. for "first describe per loop emits the rules block once" inside a tool's own `call`), see `LoopMemo`.
+
 ===== Using Context in Framework-Agnostic Tools
 
 For programmatically created tools, use `Tool.ContextAwareFunction` to receive context in the handler.

@@ -22,16 +22,28 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.skills.script.NoOpExecutionEngine
 import com.embabel.agent.skills.script.SkillScriptExecutionEngine
-import com.embabel.agent.skills.support.*
+import com.embabel.agent.skills.support.ClaudeFrontMatterFormatter
+import com.embabel.agent.skills.support.DefaultDirectorySkillDefinitionLoader
+import com.embabel.agent.skills.support.DirectorySkillDefinitionLoader
+import com.embabel.agent.skills.support.GitHubSkillDefinitionLoader
+import com.embabel.agent.skills.support.LoadedSkill
+import com.embabel.agent.skills.support.ResourceType
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Convenient filter that allows loading many skills and filtering
+ * out those we don't want.
+ */
 fun interface SkillFilter {
 
     fun accept(skill: LoadedSkill): Boolean
 
     companion object {
 
+        /**
+         * Return skills that don't have scripts
+         */
         val WITHOUT_SCRIPTS = SkillFilter { skill ->
             skill.listResources(ResourceType.SCRIPTS).isEmpty()
         }
@@ -292,7 +304,7 @@ data class Skills @JvmOverloads constructor(
                 name = skill.name,
                 description = skill.description,
                 tools = listOf<Tool>(SkillActivationTool(skill)) +
-                    skill.getScriptTools(scriptExecutionEngine),
+                        skill.getScriptTools(scriptExecutionEngine),
                 notes = "",
             )
         }
