@@ -100,6 +100,15 @@ data class ToolishRag @JvmOverloads constructor(
     val metadataFilter: PropertyFilter? = null,
     val entityFilter: EntityFilter? = null,
     val maxZoomOutChars: Int = ResultExpanderTools.DEFAULT_MAX_ZOOM_OUT_CHARS,
+    /**
+     * Progressively-disclosed guidance appended to the unfold response when
+     * the LLM invokes this tool. Right home for search-strategy notes
+     * (vector vs text, retry-with-synonyms, result-shape) that don't need
+     * to pay the system-prompt tax every turn — they only matter once the
+     * LLM has decided to descend.
+     * See [com.embabel.agent.api.tool.progressive.UnfoldingTool.childToolUsageNotes].
+     */
+    val childToolUsageNotes: String? = null,
 ) : LlmReference, DelegatingTool, EagerSearch<ToolishRag> {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -236,6 +245,7 @@ data class ToolishRag @JvmOverloads constructor(
             name = name,
             description = description,
             innerTools = tools(),
+            childToolUsageNotes = childToolUsageNotes,
         )
     }
 
