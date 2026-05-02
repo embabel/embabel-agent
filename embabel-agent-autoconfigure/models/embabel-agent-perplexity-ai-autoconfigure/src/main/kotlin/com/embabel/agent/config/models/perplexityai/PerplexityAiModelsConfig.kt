@@ -58,6 +58,11 @@ class PerplexityAiProperties : RetryProperties {
     var apiKey: String? = null
 
     /**
+     * Path for chat completions endpoint.
+     */
+    var completionsPath: String? = null
+
+    /**
      * Maximum number of attempts.
      */
     override var maxAttempts: Int = 10
@@ -90,6 +95,8 @@ class PerplexityAiModelsConfig(
     private val envBaseUrl: String?,
     @param:Value("\${PERPLEXITY_API_KEY:#{null}}")
     private val envApiKey: String?,
+    @param:Value("\${PERPLEXITY_COMPLETION_PATH:#{null}}")
+    private val envCompletionsPath: String?,
     private val properties: PerplexityAiProperties,
     private val observationRegistry: ObjectProvider<ObservationRegistry>,
     private val configurableBeanFactory: ConfigurableBeanFactory,
@@ -98,6 +105,7 @@ class PerplexityAiModelsConfig(
     private val logger = LoggerFactory.getLogger(PerplexityAiModelsConfig::class.java)
 
     private val baseUrl: String? = envBaseUrl ?: properties.baseUrl
+    private val completionsPath: String? = envCompletionsPath ?: properties.completionsPath
     private val apiKey: String = envApiKey ?: properties.apiKey
     ?: error("Perplexity AI API key required: set PERPLEXITY_API_KEY env var or embabel.agent.platform.models.perplexityai.api-key")
 
@@ -191,6 +199,14 @@ class PerplexityAiModelsConfig(
         if (!baseUrl.isNullOrBlank()) {
             logger.info("Using custom Perplexity AI base URL: {}", baseUrl)
             builder.baseUrl(baseUrl)
+        } else {
+            builder.baseUrl("https://api.perplexity.ai")
+        }
+        if (!completionsPath.isNullOrBlank()) {
+            logger.info("Using custom Perplexity AI chat completions path : {}", completionsPath)
+            builder.completionsPath(baseUrl)
+        } else {
+            builder.completionsPath("/v1/sonar")
         }
         // add observation registry to rest and web client builders
         builder

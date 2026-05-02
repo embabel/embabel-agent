@@ -76,7 +76,7 @@ open class OpenAiCompatibleModelFactory(
          * Validates against [OpenAiModels.GPT_41_MINI] by default.
          */
         fun openAi(apiKey: String): ByokSpec =
-            ByokSpec(null, apiKey, OpenAiModels.GPT_41_MINI, OpenAiModels.PROVIDER)
+            ByokSpec(null, apiKey,  null,OpenAiModels.GPT_41_MINI, OpenAiModels.PROVIDER)
 
         /**
          * Returns a [ByokSpec] for DeepSeek (OpenAI-compatible endpoint).
@@ -85,7 +85,7 @@ open class OpenAiCompatibleModelFactory(
          * Note: uses the OpenAI wire protocol, not the native Spring AI DeepSeek client.
          */
         fun deepSeek(apiKey: String): ByokSpec =
-            ByokSpec("https://api.deepseek.com", apiKey, DeepSeekModels.DEEPSEEK_CHAT, DeepSeekModels.PROVIDER)
+            ByokSpec("https://api.deepseek.com", apiKey, null, DeepSeekModels.DEEPSEEK_CHAT, DeepSeekModels.PROVIDER)
 
         /**
          * Returns a [ByokSpec] for Mistral AI (OpenAI-compatible endpoint).
@@ -94,7 +94,7 @@ open class OpenAiCompatibleModelFactory(
          * Note: uses the OpenAI wire protocol, not the native Spring AI Mistral client.
          */
         fun mistral(apiKey: String): ByokSpec =
-            ByokSpec("https://api.mistral.ai", apiKey, MistralAiModels.MINISTRAL_8B, MistralAiModels.PROVIDER)
+            ByokSpec("https://api.mistral.ai", apiKey, null, MistralAiModels.MINISTRAL_8B, MistralAiModels.PROVIDER)
 
         /**
          * Returns a [ByokSpec] for Google Gemini (OpenAI-compatible endpoint).
@@ -104,6 +104,7 @@ open class OpenAiCompatibleModelFactory(
             ByokSpec(
                 "https://generativelanguage.googleapis.com/v1beta/openai",
                 apiKey,
+                null,
                 GoogleGenAiModels.GEMINI_2_5_FLASH,
                 GoogleGenAiModels.PROVIDER,
             )
@@ -115,7 +116,7 @@ open class OpenAiCompatibleModelFactory(
          * Note: uses the OpenAI wire protocol, not the native Spring AI Perplexity client.
          */
         fun perplexity(apiKey: String): ByokSpec =
-            ByokSpec("https://api.perplexity.ai", apiKey, PerplexityAiModels.SONAR, PerplexityAiModels.PROVIDER)
+            ByokSpec("https://api.perplexity.ai", apiKey, "/v1/sonar", PerplexityAiModels.SONAR, PerplexityAiModels.PROVIDER)
 
         /**
          * Returns a [ByokSpec] for a custom OpenAI-compatible provider.
@@ -129,6 +130,7 @@ open class OpenAiCompatibleModelFactory(
          *     OpenAiCompatibleModelFactory.byok(
          *         baseUrl = "https://api.myprovider.com",
          *         apiKey = apiKey,
+         *         completionsPath = "mypath",
          *         validationModel = "my-model-small",
          *         validationProvider = "MyProvider",
          *     )
@@ -137,9 +139,10 @@ open class OpenAiCompatibleModelFactory(
         fun byok(
             baseUrl: String?,
             apiKey: String,
+            completionsPath: String?,
             validationModel: String,
             validationProvider: String,
-        ): ByokSpec = ByokSpec(baseUrl, apiKey, validationModel, validationProvider)
+        ): ByokSpec = ByokSpec(baseUrl, apiKey, completionsPath, validationModel, validationProvider)
     }
 
     /**
@@ -153,6 +156,7 @@ open class OpenAiCompatibleModelFactory(
     class ByokSpec internal constructor(
         private val baseUrl: String?,
         private val apiKey: String,
+        private val completionsPath: String?,
         private val validationModel: String,
         private val validationProvider: String,
         private val observationRegistry: ObservationRegistry = ObservationRegistry.NOOP,
@@ -168,10 +172,10 @@ open class OpenAiCompatibleModelFactory(
          * ```
          */
         fun validating(model: String, provider: String): ByokSpec =
-            ByokSpec(baseUrl, apiKey, model, provider, observationRegistry)
+            ByokSpec(baseUrl, apiKey, completionsPath,model, provider, observationRegistry)
 
         override fun buildValidated(): LlmService<*> =
-            OpenAiCompatibleModelFactory(baseUrl, apiKey, null, null, observationRegistry = observationRegistry)
+            OpenAiCompatibleModelFactory(baseUrl, apiKey, completionsPath, null, observationRegistry = observationRegistry)
                 .buildValidated(
                     model = validationModel,
                     pricingModel = PricingModel.ALL_YOU_CAN_EAT,
