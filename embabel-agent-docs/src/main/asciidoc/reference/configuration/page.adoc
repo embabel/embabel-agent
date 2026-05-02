@@ -274,7 +274,45 @@ From `ToolLoopConfiguration` - configuration for tool loop execution.
 |`60s`
 |Timeout for entire batch of parallel tools
 
+|`embabel.agent.platform.toolloop.empty-response.max-retries`
+|Int
+|`0`
+|Maximum consecutive empty-response retries before throwing `EmptyLlmResponseException`. `0` (default) preserves existing behaviour — the loop exits with blank content. Any value `> 0` activates `RetryWithFeedbackPolicy`.
+
+|`embabel.agent.platform.toolloop.empty-response.nudge-message`
+|String
+|_(see below)_
+|Message appended to the conversation as a synthetic `UserMessage` when the LLM goes silent. Only used when `max-retries > 0`. Default nudges the model to take one concrete action.
+
 |===
+
+[[reference.configuration.empty-response]]
+====== Empty-Response Handling
+
+Weak open-weights chat models (such as `gpt-oss-20b` or some Qwen variants) occasionally return blank text with no further tool calls after a tool result, when the model has run out of ideas about what to do next.
+Without intervention the tool loop exits with empty content, which the rendering layer surfaces as `EmptyLlmResponseException`.
+
+The `empty-response` configuration controls whether the loop gives the model a second chance.
+Setting `max-retries: 1` activates `RetryWithFeedbackPolicy`: when an empty response is detected the loop appends the configured nudge message as a synthetic `UserMessage` and re-invokes the LLM in the same loop iteration.
+The retry counter is reset on any non-empty response, so retries are bounded per consecutive failure rather than cumulative across the whole loop.
+
+Example for a deployment running a smaller chat model:
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      toolloop:
+        max-iterations: 30        # raise to give retries headroom
+        empty-response:
+          max-retries: 1          # one nudge before throwing
+----
+
+For most deployments using strong frontier models the default (`max-retries: 0`) is correct — empty responses are rare, and the typed exception lets callers handle the case explicitly.
+This setting is provided to make small / local model deployments more robust without forcing every caller to wrap LLM invocations in their own retry logic.
+
+For programmatic configuration (custom retry counts or messages), inject your own `EmptyResponsePolicy` bean — the auto-configuration honours `@ConditionalOnMissingBean`.
 
 ===== Process ID Generation
 

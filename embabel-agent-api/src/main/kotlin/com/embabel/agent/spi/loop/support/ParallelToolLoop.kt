@@ -28,6 +28,8 @@ import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModePrope
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
+import com.embabel.agent.spi.loop.EmptyResponsePolicy
+import com.embabel.agent.spi.loop.ExitOnEmptyPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundAction
@@ -78,6 +80,7 @@ internal class ParallelToolLoop(
     private val parallelConfig: ParallelModeProperties,
     toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
+    emptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
 ) : DefaultToolLoop(
     llmMessageSender = llmMessageSender,
     objectMapper = objectMapper,
@@ -89,6 +92,7 @@ internal class ParallelToolLoop(
     toolCallInspectors = toolCallInspectors,
     toolCallContext = toolCallContext,
     toolNotFoundPolicy = toolNotFoundPolicy,
+    emptyResponsePolicy = emptyResponsePolicy,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)

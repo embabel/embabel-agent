@@ -69,6 +69,7 @@ interface ToolLoopFactory {
         toolCallInspectors: List<ToolCallInspector>,
         toolCallContext: ToolCallContext,
         toolNotFoundPolicy: ToolNotFoundPolicy? = null,
+        emptyResponsePolicy: EmptyResponsePolicy? = null,
     ): ToolLoop
 
     companion object {
@@ -82,8 +83,9 @@ interface ToolLoopFactory {
             config: ToolLoopConfiguration,
             asyncer: Asyncer,
             defaultToolNotFoundPolicy: ToolNotFoundPolicy,
+            defaultEmptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
         ): ToolLoopFactory =
-            ConfigurableToolLoopFactory(config, asyncer, defaultToolNotFoundPolicy)
+            ConfigurableToolLoopFactory(config, asyncer, defaultToolNotFoundPolicy, defaultEmptyResponsePolicy)
     }
 }
 
@@ -97,6 +99,7 @@ internal class ConfigurableToolLoopFactory(
     private val config: ToolLoopConfiguration,
     private val asyncer: Asyncer,
     private val defaultToolNotFoundPolicy: ToolNotFoundPolicy,
+    private val defaultEmptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
 ) : ToolLoopFactory {
 
     override fun create(
@@ -110,8 +113,10 @@ internal class ConfigurableToolLoopFactory(
         toolCallInspectors: List<ToolCallInspector>,
         toolCallContext: ToolCallContext,
         toolNotFoundPolicy: ToolNotFoundPolicy?,
+        emptyResponsePolicy: EmptyResponsePolicy?,
     ): ToolLoop {
-        val policy = toolNotFoundPolicy ?: defaultToolNotFoundPolicy
+        val tnfPolicy = toolNotFoundPolicy ?: defaultToolNotFoundPolicy
+        val erPolicy = emptyResponsePolicy ?: defaultEmptyResponsePolicy
         return when (config.type) {
             ToolLoopType.DEFAULT -> DefaultToolLoop(
                 llmMessageSender = llmMessageSender,
@@ -123,7 +128,8 @@ internal class ConfigurableToolLoopFactory(
                 toolLoopTransformers = toolLoopTransformers,
                 toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
-                toolNotFoundPolicy = policy,
+                toolNotFoundPolicy = tnfPolicy,
+                emptyResponsePolicy = erPolicy,
             )
             ToolLoopType.PARALLEL -> ParallelToolLoop(
                 llmMessageSender = llmMessageSender,
@@ -137,7 +143,8 @@ internal class ConfigurableToolLoopFactory(
                 asyncer = asyncer,
                 parallelConfig = config.parallel,
                 toolCallContext = toolCallContext,
-                toolNotFoundPolicy = policy,
+                toolNotFoundPolicy = tnfPolicy,
+                emptyResponsePolicy = erPolicy,
             )
         }
     }

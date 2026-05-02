@@ -26,6 +26,19 @@ Simple tool calls are fine, but complex orchestration is another indicator you'l
 TIP: Trial and error is your friend.
 Embabel makes it easy to switch LLMs; try the cheapest thing that could work and switch if it doesn't.
 
+[[reference.llms.smaller-models]]
+==== Tuning for Smaller and Local Models
+
+A core goal of Embabel is to make agentic flows work well across the full range of LLMs, so you can choose the cheapest, smallest, or most private model that does the job — rather than always reaching for a frontier model.
+Smaller chat models behave differently from frontier models in ways that the framework can compensate for:
+
+- **Silent failures after tool calls.** Weaker open-weights models (e.g. `gpt-oss-20b`, some Qwen variants) sometimes return blank text with no further tool calls when they don't know how to proceed. Without intervention the tool loop exits with empty content. Activate `embabel.agent.platform.toolloop.empty-response.max-retries: 1` to feed a synthetic nudge back to the model and give it one more chance — see <<reference.configuration.empty-response>>.
+- **Tool-name confusion.** Smaller models more frequently call tools by approximate names. The default `AutoCorrectionPolicy` handles this by feeding back a "did you mean X?" suggestion; tune `embabel.agent.platform.toolloop.tool-not-found.max-retries` if your model needs more attempts.
+- **Iteration headroom.** Recovery costs LLM calls. If you enable retry policies, raise `embabel.agent.platform.toolloop.max-iterations` so a turn that needs an extra round trip doesn't run out of budget.
+
+These settings are off-by-default so existing deployments using strong models behave exactly as before.
+Turn them on per-deployment when the model you've picked benefits from them.
+
 
 [[reference.llms.custom-integration]]
 ==== Advanced: Custom LLM Integration
