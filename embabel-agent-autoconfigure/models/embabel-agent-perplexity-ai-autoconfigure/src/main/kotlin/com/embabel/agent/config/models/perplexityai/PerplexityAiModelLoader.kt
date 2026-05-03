@@ -87,7 +87,7 @@ class PerplexityAiModelLoader(
 
 	companion object {
 		/**
-		 * Default path to the Anthropic models YAML configuration file.
+		 * Default path to the Perplexity models YAML configuration file.
 		 */
 		private const val DEFAULT_CONFIG_PATH = "classpath:models/perplexity-ai-models.yml"
 	}
