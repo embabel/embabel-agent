@@ -204,7 +204,7 @@ class PerplexityAiModelsConfig(
         }
         if (!completionsPath.isNullOrBlank()) {
             logger.info("Using custom Perplexity AI chat completions path : {}", completionsPath)
-            builder.completionsPath(baseUrl)
+            builder.completionsPath(completionsPath)
         } else {
             builder.completionsPath("/v1/sonar")
         }
