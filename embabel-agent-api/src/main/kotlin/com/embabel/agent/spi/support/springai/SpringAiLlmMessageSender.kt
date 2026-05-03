@@ -25,6 +25,7 @@ import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.tool.ToolCallback
 
 /**
@@ -142,15 +143,29 @@ internal class SpringAiLlmMessageSender(
      * Build ChatOptions with tool definitions.
      * Tools are passed to the LLM so it knows what's available,
      * but we don't use Spring AI's automatic tool execution.
+     *
+     * This method preserves provider-specific options (like Anthropic's cache settings)
+     * by using the provider's copy() method when the options already implement ToolCallingChatOptions.
      */
     private fun buildChatOptionsWithTools(toolCallbacks: List<ToolCallback>): ChatOptions {
         if (toolCallbacks.isEmpty()) {
             return chatOptions
         }
 
-        // Use ToolCallingChatOptions to pass tool definitions
+        // If chatOptions already implements ToolCallingChatOptions (e.g., AnthropicChatOptions,
+        // OpenAiChatOptions, etc.), use its copy() method to preserve all provider-specific settings
+        if (chatOptions is ToolCallingChatOptions) {
+            val copied: ChatOptions = chatOptions.copy()
+            if (copied is ToolCallingChatOptions) {
+                copied.toolCallbacks = toolCallbacks
+                copied.internalToolExecutionEnabled = false
+            }
+            return copied
+        }
+
+        // Fallback: Create generic ToolCallingChatOptions
         // IMPORTANT: Disable internal tool execution - we handle tools ourselves in DefaultToolLoop
-        return org.springframework.ai.model.tool.ToolCallingChatOptions.builder()
+        return ToolCallingChatOptions.builder()
             .model(chatOptions.model)
             .temperature(chatOptions.temperature)
             .maxTokens(chatOptions.maxTokens)

@@ -15,8 +15,10 @@
  */
 package com.embabel.agent.config.models.anthropic
 
+import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.spi.InternalExtensionApi
+import org.springframework.ai.anthropic.api.AnthropicCacheTtl
 
 /**
  * Extension key for Anthropic caching configuration in LlmOptions.extensions.
@@ -30,11 +32,10 @@ const val ANTHROPIC_CACHING_EXTENSION = "anthropic.caching"
  * (system prompts, tool definitions, conversation history) to reduce costs and latency.
  *
  * Key points:
- * - Cache TTL is fixed at 5 minutes (not user-configurable)
+ * - Cache TTL can be 5 minutes (default) or 1 hour (premium, 2x base input cost)
  * - Cache reads cost 10% of regular input tokens
- * - Cache writes cost the same as regular input tokens
- * - Minimum cacheable content: 1024 tokens
- * - Minimum cache lifetime: 5 minutes
+ * - Cache writes have a 25% premium for 5-minute TTL or higher for 1-hour TTL
+ * - Minimum cacheable content: 1024 tokens (4096 for newer models like Claude Sonnet 4.5)
  *
  * See: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
  *
@@ -44,12 +45,35 @@ const val ANTHROPIC_CACHING_EXTENSION = "anthropic.caching"
  *              with large schemas.
  * @param conversationHistory Cache conversation history. Useful for long multi-turn
  *                            conversations where earlier context is reused.
+ * @param messageTypeMinContentLengths Minimum content length (in characters) required
+ *                                     for each message type to be eligible for caching.
+ *                                     Messages shorter than this won't be cached.
+ * @param messageTypeTtls Cache TTL (Time-To-Live) per message type.
+ *                        Defaults to FIVE_MINUTES if not specified.
  */
 data class AnthropicCachingConfig(
     var systemPrompt: Boolean = false,
     var tools: Boolean = false,
     var conversationHistory: Boolean = false,
-)
+    var messageTypeMinContentLengths: MutableMap<MessageRole, Int> = mutableMapOf(),
+    var messageTypeTtls: MutableMap<MessageRole, AnthropicCacheTtl> = mutableMapOf(),
+) {
+    /**
+     * Set minimum content length for a message type to be eligible for caching.
+     */
+    fun messageTypeMinContentLength(type: MessageRole, minLength: Int): AnthropicCachingConfig {
+        messageTypeMinContentLengths[type] = minLength
+        return this
+    }
+
+    /**
+     * Set cache TTL for a message type.
+     */
+    fun messageTypeTtl(type: MessageRole, ttl: AnthropicCacheTtl): AnthropicCachingConfig {
+        messageTypeTtls[type] = ttl
+        return this
+    }
+}
 
 /**
  * Add Anthropic caching configuration to LlmOptions.

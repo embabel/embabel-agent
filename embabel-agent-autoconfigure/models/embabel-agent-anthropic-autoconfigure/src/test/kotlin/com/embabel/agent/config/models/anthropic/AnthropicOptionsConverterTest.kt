@@ -16,14 +16,17 @@
 package com.embabel.agent.config.models.anthropic
 
 import com.embabel.agent.test.models.OptionsConverterTestSupport
+import com.embabel.chat.MessageRole
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.anthropic.AnthropicChatOptions
 import org.springframework.ai.anthropic.api.AnthropicApi
 import org.springframework.ai.anthropic.api.AnthropicCacheStrategy
+import org.springframework.ai.anthropic.api.AnthropicCacheTtl
 
 class AnthropicOptionsConverterTest : OptionsConverterTestSupport<AnthropicChatOptions>(
     optionsConverter = AnthropicOptionsConverter
@@ -54,68 +57,114 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport<AnthropicChatO
         assertEquals(200, options.maxTokens)
     }
 
-    @Test
-    fun `should default to no caching`() {
-        val options = optionsConverter.convertOptions(LlmOptions())
-        // Spring AI returns NONE strategy instead of null when no caching configured
-        assertEquals(AnthropicCacheStrategy.NONE, options.cacheOptions?.strategy)
-    }
+    @Nested
+    inner class CachingTests {
 
-    @Test
-    fun `should set system-only caching`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions().withAnthropicCaching(systemPrompt = true)
-        )
-        assertEquals(AnthropicCacheStrategy.SYSTEM_ONLY, options.cacheOptions?.strategy)
-    }
+        @Test
+        fun `should default to no caching`() {
+            val options = optionsConverter.convertOptions(LlmOptions())
+            // Spring AI returns NONE strategy instead of null when no caching configured
+            assertEquals(AnthropicCacheStrategy.NONE, options.cacheOptions?.strategy)
+        }
 
-    @Test
-    fun `should set tools-only caching`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions().withAnthropicCaching(tools = true)
-        )
-        assertEquals(AnthropicCacheStrategy.TOOLS_ONLY, options.cacheOptions?.strategy)
-    }
-
-    @Test
-    fun `should set system and tools caching`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions().withAnthropicCaching(systemPrompt = true, tools = true)
-        )
-        assertEquals(AnthropicCacheStrategy.SYSTEM_AND_TOOLS, options.cacheOptions?.strategy)
-    }
-
-    @Test
-    fun `should set conversation history caching`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions().withAnthropicCaching(conversationHistory = true)
-        )
-        assertEquals(AnthropicCacheStrategy.CONVERSATION_HISTORY, options.cacheOptions?.strategy)
-    }
-
-    @Test
-    fun `conversation history caching takes precedence`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions().withAnthropicCaching(
-                systemPrompt = true,
-                tools = true,
-                conversationHistory = true
+        @Test
+        fun `should set system-only caching`() {
+            val options = optionsConverter.convertOptions(
+                LlmOptions().withAnthropicCaching(systemPrompt = true)
             )
-        )
-        assertEquals(AnthropicCacheStrategy.CONVERSATION_HISTORY, options.cacheOptions?.strategy)
-    }
+            assertEquals(AnthropicCacheStrategy.SYSTEM_ONLY, options.cacheOptions?.strategy)
+        }
 
-    @Test
-    fun `should preserve caching when chaining other options`() {
-        val options = optionsConverter.convertOptions(
-            LlmOptions()
-                .withAnthropicCaching(systemPrompt = true)
-                .withTemperature(0.7)
-                .withMaxTokens(1000)
-        )
-        assertEquals(AnthropicCacheStrategy.SYSTEM_ONLY, options.cacheOptions?.strategy)
-        assertEquals(0.7, options.temperature)
-        assertEquals(1000, options.maxTokens)
+        @Test
+        fun `should set tools-only caching`() {
+            val options = optionsConverter.convertOptions(
+                LlmOptions().withAnthropicCaching(tools = true)
+            )
+            assertEquals(AnthropicCacheStrategy.TOOLS_ONLY, options.cacheOptions?.strategy)
+        }
+
+        @Test
+        fun `should set system and tools caching`() {
+            val options = optionsConverter.convertOptions(
+                LlmOptions().withAnthropicCaching(systemPrompt = true, tools = true)
+            )
+            assertEquals(AnthropicCacheStrategy.SYSTEM_AND_TOOLS, options.cacheOptions?.strategy)
+        }
+
+        @Test
+        fun `should set conversation history caching`() {
+            val options = optionsConverter.convertOptions(
+                LlmOptions().withAnthropicCaching(conversationHistory = true)
+            )
+            assertEquals(AnthropicCacheStrategy.CONVERSATION_HISTORY, options.cacheOptions?.strategy)
+        }
+
+        @Test
+        fun `conversation history caching takes precedence`() {
+            val options = optionsConverter.convertOptions(
+                LlmOptions().withAnthropicCaching(
+                    systemPrompt = true,
+                    tools = true,
+                    conversationHistory = true
+                )
+            )
+            assertEquals(AnthropicCacheStrategy.CONVERSATION_HISTORY, options.cacheOptions?.strategy)
+        }
+
+        @Test
+        fun `should preserve caching when chaining other options`() {
+            val options = optionsConverter.convertOptions(
+                LlmOptions()
+                    .withAnthropicCaching(systemPrompt = true)
+                    .withTemperature(0.7)
+                    .withMaxTokens(1000)
+            )
+            assertEquals(AnthropicCacheStrategy.SYSTEM_ONLY, options.cacheOptions?.strategy)
+            assertEquals(0.7, options.temperature)
+            assertEquals(1000, options.maxTokens)
+        }
+
+        @Test
+        fun `should set message type minimum content length`() {
+            val config = AnthropicCachingConfig(systemPrompt = true)
+                .messageTypeMinContentLength(MessageRole.SYSTEM, 1024)
+                .messageTypeMinContentLength(MessageRole.USER, 512)
+                .messageTypeMinContentLength(MessageRole.ASSISTANT, 512)
+
+            assertEquals(1024, config.messageTypeMinContentLengths[MessageRole.SYSTEM])
+            assertEquals(512, config.messageTypeMinContentLengths[MessageRole.USER])
+            assertEquals(512, config.messageTypeMinContentLengths[MessageRole.ASSISTANT])
+        }
+
+        @Test
+        fun `should set message type TTL`() {
+            val config = AnthropicCachingConfig(systemPrompt = true)
+                .messageTypeTtl(MessageRole.SYSTEM, AnthropicCacheTtl.ONE_HOUR)
+                .messageTypeTtl(MessageRole.USER, AnthropicCacheTtl.FIVE_MINUTES)
+
+            assertEquals(AnthropicCacheTtl.ONE_HOUR, config.messageTypeTtls[MessageRole.SYSTEM])
+            assertEquals(AnthropicCacheTtl.FIVE_MINUTES, config.messageTypeTtls[MessageRole.USER])
+        }
+
+        @Test
+        fun `should configure caching with message type controls`() {
+            val llmOptions = LlmOptions().withAnthropicCaching(
+                AnthropicCachingConfig(
+                    systemPrompt = true,
+                    conversationHistory = true
+                )
+                    .messageTypeMinContentLength(MessageRole.SYSTEM, 1024)
+                    .messageTypeMinContentLength(MessageRole.USER, 512)
+                    .messageTypeTtl(MessageRole.SYSTEM, AnthropicCacheTtl.ONE_HOUR)
+            )
+
+            val cachingConfig = llmOptions.getAnthropicCaching()
+            assertEquals(true, cachingConfig?.systemPrompt)
+            assertEquals(true, cachingConfig?.conversationHistory)
+            assertEquals(1024, cachingConfig?.messageTypeMinContentLengths?.get(MessageRole.SYSTEM))
+            assertEquals(512, cachingConfig?.messageTypeMinContentLengths?.get(MessageRole.USER))
+            assertEquals(AnthropicCacheTtl.ONE_HOUR, cachingConfig?.messageTypeTtls?.get(MessageRole.SYSTEM))
+        }
     }
 
 }
