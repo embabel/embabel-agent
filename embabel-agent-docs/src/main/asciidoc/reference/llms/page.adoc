@@ -899,3 +899,272 @@ embabel:
 <1> Sets the default embedding service
 <2> Maps the `cheapest` role to your custom embedding service
 
+
+[[reference.llms.anthropic-caching]]
+==== Advanced Caching with Anthropic
+
+While many providers have implicit caching managed internally, Anthropic exposes public APIs for explicit prompt caching control.
+This allows you to optimize costs and latency for applications with long prompts, many tools, or extended conversations.
+
+===== Motivation
+
+Anthropic's prompt caching feature provides significant benefits:
+
+- **Cost savings**: Cache reads cost 90% less than regular input tokens
+- **Latency improvements**: Cached content is processed faster
+- **Ideal for**: Long system prompts, extensive tool definitions, multi-turn conversations
+
+Without caching, every API call processes the entire prompt from scratch.
+With caching, repeated content (system prompts, tools, conversation history) can be cached and reused across requests.
+
+===== How It Works
+
+Anthropic caches the trailing portion of your prompt context.
+The cache is identified by an exact match of the content hashcode.
+Any change to the cached portion invalidates the cache.
+
+**Key concepts:**
+
+- **Cache creation**: First time content is seen, it's written to cache with a 25% premium over regular input tokens (for 5-minute TTL)
+- **Cache reads**: Subsequent requests with matching content read from cache at 10% of regular input token cost
+- **Cache TTL**: 5 minutes (default) or 1 hour (premium, higher creation cost)
+- **Minimum size**: 1024 tokens for older models, 4096 tokens for Claude Sonnet 4.5 and newer.
+
+===== Cache Strategies
+
+Embabel provides several caching strategies through `AnthropicCachingConfig`:
+
+**System Prompt Caching**
+
+Cache the system prompt for reuse across multiple requests:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+AnthropicCachingConfig cachingConfig = new AnthropicCachingConfig();
+cachingConfig.setSystemPrompt(true);
+
+LlmOptions options = LlmOptions.withDefaultLlm();
+options = withAnthropicCaching(options, cachingConfig);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val options = LlmOptions.withDefaultLlm()
+    .withAnthropicCaching(systemPrompt = true)
+----
+====
+
+**Tools Caching**
+
+Cache tool definitions when using many tools or tools with large schemas:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+AnthropicCachingConfig cachingConfig = new AnthropicCachingConfig();
+cachingConfig.setTools(true);
+
+LlmOptions options = LlmOptions.withDefaultLlm();
+options = withAnthropicCaching(options, cachingConfig);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val options = LlmOptions.withDefaultLlm()
+    .withAnthropicCaching(tools = true)
+----
+====
+
+**System + Tools Caching**
+
+Combine both strategies:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+AnthropicCachingConfig cachingConfig = new AnthropicCachingConfig();
+cachingConfig.setSystemPrompt(true);
+cachingConfig.setTools(true);
+
+LlmOptions options = LlmOptions.withDefaultLlm();
+options = withAnthropicCaching(options, cachingConfig);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val options = LlmOptions.withDefaultLlm()
+    .withAnthropicCaching(
+        systemPrompt = true,
+        tools = true
+    )
+----
+====
+
+**Conversation History Caching**
+
+Cache conversation history for long multi-turn conversations:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+AnthropicCachingConfig cachingConfig = new AnthropicCachingConfig();
+cachingConfig.setConversationHistory(true);
+
+LlmOptions options = LlmOptions.withDefaultLlm();
+options = withAnthropicCaching(options, cachingConfig);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val options = LlmOptions.withDefaultLlm()
+    .withAnthropicCaching(conversationHistory = true)
+----
+====
+
+===== Advanced Configuration
+
+**Message Type Minimum Content Length**
+
+Control which messages are eligible for caching based on their content length:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+AnthropicCachingConfig cachingConfig = new AnthropicCachingConfig();
+cachingConfig.setSystemPrompt(true);
+cachingConfig.messageTypeMinContentLength(MessageRole.SYSTEM, 1024);
+cachingConfig.messageTypeMinContentLength(MessageRole.USER, 512);
+
+LlmOptions options = LlmOptions.withDefaultLlm();
+options = withAnthropicCaching(options, cachingConfig);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val options = LlmOptions.withDefaultLlm()
+    .withAnthropicCaching(
+        AnthropicCachingConfig(systemPrompt = true)
+            .messageTypeMinContentLength(MessageRole.SYSTEM, 1024)
+            .messageTypeMinContentLength(MessageRole.USER, 512)
+    )
+----
+====
+
+**Message Type TTL**
+
+Set cache TTL per message type (default is 5 minutes):
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+AnthropicCachingConfig cachingConfig = new AnthropicCachingConfig();
+cachingConfig.setSystemPrompt(true);
+cachingConfig.messageTypeTtl(MessageRole.SYSTEM, AnthropicCacheTtl.ONE_HOUR);
+
+LlmOptions options = LlmOptions.withDefaultLlm();
+options = withAnthropicCaching(options, cachingConfig);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val options = LlmOptions.withDefaultLlm()
+    .withAnthropicCaching(
+        AnthropicCachingConfig(systemPrompt = true)
+            .messageTypeTtl(MessageRole.SYSTEM, AnthropicCacheTtl.ONE_HOUR)
+    )
+----
+====
+
+===== Accessing Cache Metrics
+
+Embabel provides extension methods to access Anthropic-specific cache metrics from the `Usage` object:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+import static com.embabel.agent.config.models.anthropic.AnthropicUsage.*;
+
+AssistantMessage response = promptRunner.respond(messages);
+Usage usage = response.getUsage();
+
+// Check if cache was created or read
+boolean cacheCreated = hasAnthropicCacheCreation(usage);
+boolean cacheRead = hasAnthropicCacheRead(usage);
+
+// Get token counts
+Integer creationTokens = anthropicCacheCreationTokens(usage);
+Integer readTokens = anthropicCacheReadTokens(usage);
+
+// Get summary string for logging
+String summary = anthropicCacheSummary(usage);
+// Example output: "cache[creation=1061, read=0]"
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val response = promptRunner.respond(messages)
+val usage = response.usage
+
+// Check if cache was created or read
+val cacheCreated = usage.hasAnthropicCacheCreation()
+val cacheRead = usage.hasAnthropicCacheRead()
+
+// Get token counts
+val creationTokens = usage.anthropicCacheCreationTokens()
+val readTokens = usage.anthropicCacheReadTokens()
+
+// Get summary string for logging
+val summary = usage.anthropicCacheSummary()
+// Example output: "cache[creation=1061, read=0]"
+----
+====
+
+===== Best Practices
+
+1. **Cache long, stable content**: System prompts and tool definitions that don't change frequently are ideal candidates
+2. **Mind the minimum size**: Content must meet the minimum token requirement (1024 or 4096 depending on model)
+3. **Monitor cache metrics**: Use the cache extension methods to track cache hit rates and validate savings
+4. **Consider TTL vs cost**: 1-hour TTL has higher creation cost but better for longer sessions
+5. **Test before deploying**: Cache behavior can vary based on prompt structure and usage patterns
+
+===== Reference
+
+For complete details on Anthropic's prompt caching, see:
+https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+
