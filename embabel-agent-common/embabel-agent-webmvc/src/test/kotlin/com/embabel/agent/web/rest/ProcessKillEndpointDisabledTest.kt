@@ -24,12 +24,14 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Import
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import kotlin.test.assertFalse
 
 @SpringBootTest(properties = ["embabel.agent.platform.rest.process-kill-enabled=false"])
 @ActiveProfiles("test")
@@ -39,12 +41,18 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 class ProcessKillEndpointDisabledTest(
     @param:Autowired private val mockMvc: MockMvc,
     @param:Autowired private val agentPlatform: AgentPlatform,
+    @param:Autowired private val applicationContext: ApplicationContext,
 ) {
     @Test
     fun `DELETE process kill is disabled`() {
         val process = agentPlatform.createAgentProcess(evenMoreEvilWizard(), ProcessOptions(), emptyMap())
         mockMvc.delete("/api/v1/process/${process.id}")
-            .andExpect { status().isNotFound() }
+            .andExpect { status().isMethodNotAllowed() }
+    }
+
+    @Test
+    fun `AgentProcessKillController bean is not registered`() {
+        assertFalse(applicationContext.getBeansOfType(AgentProcessKillController::class.java).isNotEmpty())
     }
 
     @Test

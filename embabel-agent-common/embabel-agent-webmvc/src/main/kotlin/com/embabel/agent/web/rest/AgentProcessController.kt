@@ -19,14 +19,13 @@ import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcessStatusCode
 import com.embabel.agent.core.AgentProcessStatusReport
 import com.embabel.agent.core.OperationStatus
-import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import com.embabel.common.core.types.Timed
 import com.embabel.common.core.types.Timestamped
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
@@ -54,15 +53,17 @@ data class AgentProcessStatus(
 @RestController
 @RequestMapping("/api/v1/process")
 @Tag(
-    name = "AgentProcess information and control",
-    description = "Endpoints for retrieving AgentProcess information, including status and results."
+    name = "AgentProcess status",
+    description = "Endpoint for retrieving AgentProcess status and last result."
 )
-class AgentProcessController(
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.rest.process-status-enabled"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
+class AgentProcessStatusController(
     private val agentPlatform: AgentPlatform,
-    private val platformProperties: AgentPlatformProperties,
 ) {
-
-    private val logger = LoggerFactory.getLogger(AgentProcessController::class.java)
 
     @Operation(
         summary = "Get the status of a process",
@@ -76,10 +77,6 @@ class AgentProcessController(
     )
     @GetMapping("/{processId}")
     fun checkProcessStatus(@PathVariable processId: String): AgentProcessStatus {
-        if (!platformProperties.rest.processStatusEnabled) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND)
-        }
-
         val agentProcess = agentPlatform.getAgentProcess(processId)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Process not found")
 
@@ -91,6 +88,22 @@ class AgentProcessController(
             result = agentProcess.lastResult(),
         )
     }
+}
+
+@RestController
+@RequestMapping("/api/v1/process")
+@Tag(
+    name = "AgentProcess control",
+    description = "Endpoint for terminating an AgentProcess."
+)
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.rest.process-kill-enabled"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
+class AgentProcessKillController(
+    private val agentPlatform: AgentPlatform,
+) {
 
     @DeleteMapping("/{id}")
     @Operation(
@@ -104,10 +117,6 @@ class AgentProcessController(
         ]
     )
     fun killAgentProcess(@PathVariable id: String): AgentProcessStatusReport {
-        if (!platformProperties.rest.processKillEnabled) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND)
-        }
-
         val killedProcess = agentPlatform.killAgentProcess(id)
             ?: throw ResponseStatusException(
                 HttpStatus.NOT_FOUND,
