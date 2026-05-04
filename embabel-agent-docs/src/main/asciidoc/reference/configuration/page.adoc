@@ -549,7 +549,9 @@ From `AgentPlatformProperties.SseConfig` - server-sent events configuration.
 
 From `AgentPlatformProperties.RestConfig` - toggles for the platform's built-in REST endpoints.
 Each flag controls whether the corresponding endpoint is exposed.
-Disabled endpoints respond with HTTP 404.
+When disabled, the corresponding controller bean is not registered, so the endpoint is absent from
+Swagger/OpenAPI documentation and routing rejects calls (HTTP 404, or HTTP 405 if another method
+remains mapped at the same path).
 
 [cols="3,2,1,4",options="header"]
 |===
