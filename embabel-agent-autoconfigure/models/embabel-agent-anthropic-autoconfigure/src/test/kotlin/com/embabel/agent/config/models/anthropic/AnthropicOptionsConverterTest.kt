@@ -165,6 +165,63 @@ class AnthropicOptionsConverterTest : OptionsConverterTestSupport<AnthropicChatO
             assertEquals(512, cachingConfig?.messageTypeMinContentLengths?.get(MessageRole.USER))
             assertEquals(AnthropicCacheTtl.ONE_HOUR, cachingConfig?.messageTypeTtls?.get(MessageRole.SYSTEM))
         }
+
+        @Test
+        fun `should apply messageTypeMinContentLength to Spring AI options`() {
+            val llmOptions = LlmOptions().withAnthropicCaching(
+                AnthropicCachingConfig(systemPrompt = true)
+                    .messageTypeMinContentLength(MessageRole.SYSTEM, 1024)
+                    .messageTypeMinContentLength(MessageRole.USER, 512)
+            )
+
+            val options = optionsConverter.convertOptions(llmOptions)
+            val cacheOptions = options.cacheOptions
+
+            assertEquals(AnthropicCacheStrategy.SYSTEM_ONLY, cacheOptions?.strategy)
+        }
+
+        @Test
+        fun `should apply messageTypeTtl to Spring AI options`() {
+            val llmOptions = LlmOptions().withAnthropicCaching(
+                AnthropicCachingConfig(systemPrompt = true)
+                    .messageTypeTtl(MessageRole.SYSTEM, AnthropicCacheTtl.ONE_HOUR)
+                    .messageTypeTtl(MessageRole.USER, AnthropicCacheTtl.FIVE_MINUTES)
+            )
+
+            val options = optionsConverter.convertOptions(llmOptions)
+            val cacheOptions = options.cacheOptions
+
+            assertEquals(AnthropicCacheStrategy.SYSTEM_ONLY, cacheOptions?.strategy)
+        }
+
+        @Test
+        fun `should apply both messageTypeMinContentLength and messageTypeTtl`() {
+            val llmOptions = LlmOptions().withAnthropicCaching(
+                AnthropicCachingConfig(systemPrompt = true, tools = true)
+                    .messageTypeMinContentLength(MessageRole.SYSTEM, 2048)
+                    .messageTypeTtl(MessageRole.SYSTEM, AnthropicCacheTtl.ONE_HOUR)
+            )
+
+            val options = optionsConverter.convertOptions(llmOptions)
+            val cacheOptions = options.cacheOptions
+
+            assertEquals(AnthropicCacheStrategy.SYSTEM_AND_TOOLS, cacheOptions?.strategy)
+        }
+
+        @Test
+        fun `getAnthropicCaching should return null when not configured`() {
+            val llmOptions = LlmOptions()
+            assertNull(llmOptions.getAnthropicCaching())
+        }
+
+        @Test
+        fun `getAnthropicCaching should return config when configured`() {
+            val config = AnthropicCachingConfig(systemPrompt = true)
+            val llmOptions = LlmOptions().withAnthropicCaching(config)
+
+            val retrieved = llmOptions.getAnthropicCaching()
+            assertEquals(true, retrieved?.systemPrompt)
+        }
     }
 
 }
