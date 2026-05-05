@@ -68,6 +68,15 @@ data class Skills @JvmOverloads constructor(
     private val frontMatterFormatter: SkillFrontMatterFormatter = ClaudeFrontMatterFormatter,
     private val filter: SkillFilter = SkillFilter { true },
     private val scriptExecutionEngine: SkillScriptExecutionEngine = NoOpExecutionEngine,
+    /**
+     * Boilerplate text appended to each [SkillActivationTool]'s
+     * description after the skill's frontmatter description. Generic
+     * parameter so consumers can supply a host-appropriate cue
+     * (e.g. one that reflects how the host actually invokes scripts);
+     * the default keeps the historical wording for backward
+     * compatibility. See [DEFAULT_ACTIVATOR_DESCRIPTION_TAIL].
+     */
+    private val activatorDescriptionTail: String = DEFAULT_ACTIVATOR_DESCRIPTION_TAIL,
 ) : LlmReference {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -80,6 +89,18 @@ data class Skills @JvmOverloads constructor(
 
     fun withFrontMatterFormatter(formatter: SkillFrontMatterFormatter): Skills {
         return copy(frontMatterFormatter = formatter)
+    }
+
+    /**
+     * Override the boilerplate appended to each activator tool's
+     * description. Use when the host's invocation surface differs from
+     * the historical default (e.g. a host that doesn't expose
+     * `execute_javascript` / `execute_python` and emits scripts
+     * differently). Keeps Skills agnostic of any particular host —
+     * caller supplies whatever wording fits its surface.
+     */
+    fun withActivatorDescriptionTail(tail: String): Skills {
+        return copy(activatorDescriptionTail = tail)
     }
 
     fun withFilter(filter: SkillFilter): Skills {
@@ -365,9 +386,7 @@ data class Skills @JvmOverloads constructor(
             description = """
                 ${skill.description}
 
-                (Skill activator: takes NO arguments. Returns instructions only — call
-                ONCE per turn, then follow the body's guidance to call execute_javascript
-                / execute_python / a script tool.)
+                $activatorDescriptionTail
             """.trimIndent(),
             inputSchema = Tool.InputSchema.empty(),
         )
@@ -435,4 +454,18 @@ data class Skills @JvmOverloads constructor(
 
     private fun canonicalize(name: String): String =
         name.replace('_', '-').lowercase()
+
+    companion object {
+        /**
+         * Default boilerplate appended to each activator tool's
+         * description. Documents how the historical conventional code-mode
+         * host invokes scripts (`execute_javascript` / `execute_python`).
+         * Hosts that invoke scripts differently override this via
+         * [withActivatorDescriptionTail].
+         */
+        const val DEFAULT_ACTIVATOR_DESCRIPTION_TAIL: String =
+            "(Skill activator: takes NO arguments. Returns instructions only — call " +
+                "ONCE per turn, then follow the body's guidance to call execute_javascript " +
+                "/ execute_python / a script tool.)"
+    }
 }
