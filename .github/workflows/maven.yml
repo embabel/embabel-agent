@@ -7,7 +7,7 @@
 name: Build
 on:
   repository_dispatch:
-    types: [common-snapshots-deployed]
+    types: [agent-snapshots-deployed]
   push:
   pull_request:
     types: [ opened, synchronize, reopened ]
