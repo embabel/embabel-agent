@@ -16,7 +16,9 @@
 package com.embabel.agent.rag.tools
 
 import com.embabel.agent.api.annotation.LlmTool
+import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.filter.PropertyFilter
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.model.Chunk
 import com.embabel.agent.rag.model.Embeddable
@@ -153,7 +155,19 @@ internal class ResultExpanderTools @JvmOverloads constructor(
 }
 
 /**
- * Tools to perform text search operations with Lucene syntax
+ * Tools to perform text search operations with the syntax supported by
+ * the backing [TextSearch] store.
+ *
+ * Implements [Tool] directly (rather than exposing an `@LlmTool`-annotated
+ * method) so the LLM-visible description can be **composed at construction
+ * time from [TextSearch.luceneSyntaxNotes]**. The previous `@LlmTool`-driven
+ * path hardcoded a Lucene-syntax description that contradicted stores like
+ * `PgVectorStore` ("PostgreSQL substring matching only") or
+ * `DirectoryTextSearch` ("Not supported"); see
+ * [embabel/embabel-agent#1298](https://github.com/embabel/embabel-agent/issues/1298).
+ *
+ * One source of truth: the tool's own description carries the syntax notes.
+ * [com.embabel.agent.rag.tools.ToolishRag.notes] no longer duplicates them.
  */
 internal class TextSearchTools @JvmOverloads constructor(
     private val textSearch: TextSearch,
@@ -161,27 +175,59 @@ internal class TextSearchTools @JvmOverloads constructor(
     private val metadataFilter: PropertyFilter? = null,
     private val entityFilter: EntityFilter? = null,
     private val resultsListener: ResultsListener? = null,
-) : SearchTools {
-    private val logger: Logger = LoggerFactory.getLogger(javaClass)
+) : SearchTools, Tool {
 
-    @LlmTool(
-        description = """
-        Perform BMI25 search. Specify topK and similarity threshold from 0-1
-        Query follows Lucene syntax, e.g. +term for required terms, -term for negative terms,
-        "quoted phrases", wildcards (*), fuzzy (~).
-    """
-    )
-    fun textSearch(
-        @LlmTool.Param(
-            description = """"
-            Query in Lucene syntax,
-            e.g. +term for required terms, -term for negative terms,
-            quoted phrases", wildcards (*), fuzzy (~).
-        """
+    private val logger: Logger = LoggerFactory.getLogger(javaClass)
+    private val objectMapper = jacksonObjectMapper()
+
+    // Deferred so just constructing [TextSearchTools] with a (non-relaxed)
+    // mock doesn't trigger `luceneSyntaxNotes` access. Tests that exercise
+    // search behaviour can keep their existing minimal mocks; only tests
+    // that actually inspect the description need to stub the property.
+    override val definition: Tool.Definition by lazy {
+        Tool.Definition(
+            name = "textSearch",
+            description = buildDescription(textSearch.luceneSyntaxNotes),
+            inputSchema = Tool.InputSchema.of(
+                Tool.Parameter.string(
+                    name = "query",
+                    description = buildQueryParamDescription(textSearch.luceneSyntaxNotes),
+                ),
+                Tool.Parameter.integer(
+                    name = "topK",
+                    description = "Maximum number of results to return.",
+                ),
+                Tool.Parameter.double(
+                    name = "threshold",
+                    description = "Similarity threshold from 0 to 1.",
+                ),
+            ),
         )
+    }
+
+    override fun call(input: String): Tool.Result = try {
+        @Suppress("UNCHECKED_CAST")
+        val params = objectMapper.readValue(input, Map::class.java) as Map<String, Any?>
+        val query = (params["query"] as? String)
+            ?: return Tool.Result.error("'query' parameter is required")
+        val topK = (params["topK"] as? Number)?.toInt()
+            ?: return Tool.Result.error("'topK' parameter is required")
+        val threshold = (params["threshold"] as? Number)?.toDouble()
+            ?: return Tool.Result.error("'threshold' parameter is required")
+        Tool.Result.text(textSearch(query, topK, threshold))
+    } catch (e: Exception) {
+        Tool.Result.error("textSearch failed: ${e.message}")
+    }
+
+    /**
+     * Public so unit tests can drive the search without going through the
+     * JSON [call] entry point. Same shape as the previous `@LlmTool` method
+     * — preserved on purpose so existing tests at this surface still work.
+     */
+    fun textSearch(
         query: String,
         topK: Int,
-        @LlmTool.Param(description = "similarity threshold from 0-1") threshold: ZeroToOne,
+        threshold: ZeroToOne,
     ): String {
         logger.info(
             "Performing text search with query='{}', topK={}, threshold={}, types={}, metadataFilter={}, entityFilter={}",
@@ -226,6 +272,29 @@ internal class TextSearchTools @JvmOverloads constructor(
         ) { inflatedRequest ->
             textSearch.textSearch(inflatedRequest, clazz)
         } as List<SimilarityResult<T>>
+    }
+
+    companion object {
+        /**
+         * Compose the tool's top-level description from the store's
+         * [TextSearch.luceneSyntaxNotes]. When the store reports nothing,
+         * the syntax line is omitted entirely so the LLM doesn't see a
+         * trailing "Query syntax: " with empty contents.
+         */
+        internal fun buildDescription(syntaxNotes: String): String {
+            val base = "Perform BM25 text search. Specify topK and similarity threshold from 0-1."
+            return if (syntaxNotes.isBlank()) base
+            else "$base\n\nQuery syntax: ${syntaxNotes.trim()}"
+        }
+
+        /**
+         * Compose the `query` parameter description from the store's
+         * [TextSearch.luceneSyntaxNotes]. Falls back to a generic line
+         * when nothing is reported.
+         */
+        internal fun buildQueryParamDescription(syntaxNotes: String): String =
+            if (syntaxNotes.isBlank()) "The search query."
+            else "The search query. Syntax: ${syntaxNotes.trim()}"
     }
 }
 
