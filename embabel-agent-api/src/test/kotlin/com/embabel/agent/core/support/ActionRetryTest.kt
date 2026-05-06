@@ -60,7 +60,7 @@ class ActionRetryTest {
         }
 
         @Test
-        fun `RetryableException enables retry`() {
+        fun `Retryable exception enables retry`() {
             val instance = RetryableSuccessAgent()
             val agent = fastReader.createAgentMetadata(instance) as CoreAgent
 
@@ -77,7 +77,7 @@ class ActionRetryTest {
         }
 
         @Test
-        fun `NonRetryableException stops immediately`() {
+        fun `NonRetryable exception stops immediately`() {
             val instance = NonRetryableAgent()
             val agent = fastReader.createAgentMetadata(instance) as CoreAgent
 
@@ -87,10 +87,10 @@ class ActionRetryTest {
                 mapOf("input" to TestInput("test"))
             )
 
-            // NonRetryableException should be re-thrown without retry
+            // NonRetryable exception should be re-thrown without retry
             try {
                 agentProcess.run()
-            } catch (e: ActionException.NonRetryable) {
+            } catch (e: ActionException.Permanent) {
                 // Expected - exception should propagate after first failure
             }
 
@@ -159,7 +159,7 @@ class ActionRetryTest {
             val attempt = attempts.incrementAndGet()
 
             if (attempt == 1) {
-                throw ActionException.Retryable("First attempt fails")
+                throw ActionException.Transient("First attempt fails")
             }
 
             return TestOutput("Success on attempt $attempt")
@@ -177,7 +177,7 @@ class ActionRetryTest {
         @AchievesGoal(description = "Process")
         fun process(input: TestInput): TestOutput {
             attempts.incrementAndGet()
-            throw ActionException.NonRetryable("Validation error")
+            throw ActionException.Permanent("Validation error")
         }
     }
 
@@ -200,7 +200,7 @@ class ActionRetryTest {
                 // First attempt sets both conditions then fails
                 context.setCondition("dataProcessed", true)
                 context.setCondition("otherCondition", true)
-                throw ActionException.Retryable("First attempt fails")
+                throw ActionException.Transient("First attempt fails")
             }
 
             // On retry, only effect condition (in post) should be cleared

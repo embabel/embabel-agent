@@ -16,11 +16,11 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.TerminateActionException
+import com.embabel.agent.core.NonRetryable
+import com.embabel.agent.core.Retryable
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.core.ActionException
-import com.embabel.agent.core.NonRetryableException
 import com.embabel.agent.core.ReplanRequestedException
-import com.embabel.agent.core.RetryableException
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
@@ -83,22 +83,22 @@ class SpringAiRetryPolicyTest {
     inner class ExplicitMarkersTests {
 
         @Test
-        fun `NonRetryableException does not retry`() {
-            val exception = ActionException.NonRetryable("validation error")
+        fun `NonRetryable does not retry`() {
+            val exception = ActionException.Permanent("validation error")
             val context = createContext(1, exception)
             assertFalse(policy.canRetry(context))
         }
 
         @Test
-        fun `RetryableException retries`() {
-            val exception = ActionException.Retryable("timeout")
+        fun `Retryable retries`() {
+            val exception = ActionException.Transient("timeout")
             val context = createContext(1, exception)
             assertTrue(policy.canRetry(context))
         }
 
         @Test
-        fun `custom NonRetryableException implementation does not retry`() {
-            class CustomNonRetryable(message: String) : RuntimeException(message), NonRetryableException
+        fun `custom NonRetryable implementation does not retry`() {
+            class CustomNonRetryable(message: String) : RuntimeException(message), NonRetryable
 
             val exception = CustomNonRetryable("custom error")
             val context = createContext(1, exception)
@@ -106,8 +106,8 @@ class SpringAiRetryPolicyTest {
         }
 
         @Test
-        fun `custom RetryableException implementation retries`() {
-            class CustomRetryable(message: String) : RuntimeException(message), RetryableException
+        fun `custom Retryable implementation retries`() {
+            class CustomRetryable(message: String) : RuntimeException(message), Retryable
 
             val exception = CustomRetryable("custom error")
             val context = createContext(1, exception)
@@ -115,29 +115,29 @@ class SpringAiRetryPolicyTest {
         }
 
         @Test
-        fun `wrapped NonRetryableException in cause chain does not retry`() {
-            val rootCause = ActionException.NonRetryable("validation error")
+        fun `wrapped NonRetryable in cause chain does not retry`() {
+            val rootCause = ActionException.Permanent("validation error")
             val wrapped = RuntimeException("wrapped", rootCause)
             val context = createContext(1, wrapped)
-            assertFalse(policy.canRetry(context), "Wrapped NonRetryableException should be detected in cause chain")
+            assertFalse(policy.canRetry(context), "Wrapped NonRetryable should be detected in cause chain")
         }
 
         @Test
-        fun `wrapped RetryableException in cause chain retries`() {
-            val rootCause = ActionException.Retryable("timeout")
+        fun `wrapped Retryable in cause chain retries`() {
+            val rootCause = ActionException.Transient("timeout")
             val wrapped = RuntimeException("wrapped", rootCause)
             val context = createContext(1, wrapped)
-            assertTrue(policy.canRetry(context), "Wrapped RetryableException should be detected in cause chain")
+            assertTrue(policy.canRetry(context), "Wrapped Retryable should be detected in cause chain")
         }
 
         @Test
-        fun `deeply nested NonRetryableException in cause chain does not retry`() {
-            val rootCause = ActionException.NonRetryable("validation error")
+        fun `deeply nested NonRetryable in cause chain does not retry`() {
+            val rootCause = ActionException.Permanent("validation error")
             val wrapped1 = RuntimeException("level 1", rootCause)
             val wrapped2 = IllegalStateException("level 2", wrapped1)
             val wrapped3 = RuntimeException("level 3", wrapped2)
             val context = createContext(1, wrapped3)
-            assertFalse(policy.canRetry(context), "Deeply nested NonRetryableException should be detected")
+            assertFalse(policy.canRetry(context), "Deeply nested NonRetryable should be detected")
         }
     }
 
@@ -243,21 +243,21 @@ class SpringAiRetryPolicyTest {
     inner class PriorityTests {
 
         @Test
-        fun `explicit NonRetryableException marker takes precedence over default retry`() {
+        fun `explicit NonRetryable marker takes precedence over default retry`() {
             // Even though RuntimeException normally retries, the marker should take precedence
-            val exception = ActionException.NonRetryable("should not retry")
+            val exception = ActionException.Permanent("should not retry")
             val context = createContext(1, exception)
             assertFalse(policy.canRetry(context))
         }
 
         @Test
-        fun `explicit RetryableException marker takes precedence over programming error check`() {
+        fun `explicit Retryable marker takes precedence over programming error check`() {
             // Create a retryable exception that extends IllegalArgumentException
-            class RetryableIllegalArg(message: String) : IllegalArgumentException(message), RetryableException
+            class RetryableIllegalArg(message: String) : IllegalArgumentException(message), Retryable
 
             val exception = RetryableIllegalArg("should retry despite being IllegalArgument")
             val context = createContext(1, exception)
-            assertTrue(policy.canRetry(context), "Explicit RetryableException marker should take precedence")
+            assertTrue(policy.canRetry(context), "Explicit Retryable marker should take precedence")
         }
     }
 }

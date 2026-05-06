@@ -16,80 +16,57 @@
 package com.embabel.agent.core
 
 /**
- * Marker interface for exceptions that should trigger action retry.
- *
- * Exceptions implementing this interface are considered transient/recoverable
- * and will be retried according to the action's QoS retry policy.
- *
- * Use this for temporary failures that may succeed on retry:
- * - Network timeouts
- * - Temporary service unavailability
- * - Rate limiting
- * - Transient database connection errors
- *
- * Example:
- * ```kotlin
- * class TemporaryApiFailureException(message: String)
- *     : RuntimeException(message), RetryableException
- * ```
- *
- * @see NonRetryableException
- * @see ActionException
- */
-interface RetryableException
-
-/**
- * Marker interface for exceptions that should NOT trigger action retry.
- *
- * Exceptions implementing this interface are considered permanent/non-recoverable
- * and will cause the action to fail immediately without retry attempts.
- *
- * Use this for deterministic failures that won't change on retry:
- * - Validation errors
- * - Business rule violations
- * - Invalid input that won't change on retry
- * - Resource not found errors (404)
- * - Authentication failures (401)
- *
- * Example:
- * ```kotlin
- * class InvalidInputException(message: String)
- *     : RuntimeException(message), NonRetryableException
- * ```
- *
- * @see RetryableException
- * @see ActionException
- */
-interface NonRetryableException
-
-/**
  * Base class for action execution exceptions with built-in retry classification.
  *
  * Provides convenient base classes for retryable and non-retryable exceptions
  * without requiring users to implement marker interfaces directly.
  *
+ * This class is open to allow users to create domain-specific exception hierarchies:
+ * ```kotlin
+ * import com.embabel.agent.core.ActionException
+ *
+ * // Extend ActionException for domain-specific exceptions
+ * class ValidationException(message: String)
+ *     : ActionException.Permanent(message)
+ *
+ * class ApiTimeoutException(message: String, cause: Throwable? = null)
+ *     : ActionException.Transient(message, cause)
+ *
+ * // Or implement marker interfaces directly
+ * import com.embabel.agent.core.NonRetryable
+ * import com.embabel.agent.core.Retryable
+ *
+ * class CustomValidationError(message: String)
+ *     : RuntimeException(message), NonRetryable
+ *
+ * class CustomTimeoutError(message: String)
+ *     : RuntimeException(message), Retryable
+ * ```
+ *
  * Example usage:
  * ```java
+ * import com.embabel.agent.core.ActionException;
+ *
  * @Action
  * public Result processOrder(Order order) {
  *     if (!order.isValid()) {
  *         // Won't be retried
- *         throw new ActionException.NonRetryable("Invalid order: " + order.id);
+ *         throw new ActionException.Permanent("Invalid order: " + order.id);
  *     }
  *
  *     try {
  *         return externalApi.submit(order);
  *     } catch (TimeoutException e) {
  *         // Will be retried
- *         throw new ActionException.Retryable("API timeout", e);
+ *         throw new ActionException.Transient("API timeout", e);
  *     }
  * }
  * ```
  *
- * @see RetryableException
- * @see NonRetryableException
+ * @see Retryable
+ * @see NonRetryable
  */
-sealed class ActionException(
+open class ActionException(
     message: String,
     cause: Throwable? = null
 ) : RuntimeException(message, cause) {
@@ -107,8 +84,8 @@ sealed class ActionException(
      * @param message Human-readable error description
      * @param cause Optional underlying exception
      */
-    class Retryable(message: String, cause: Throwable? = null)
-        : ActionException(message, cause), RetryableException
+    open class Transient(message: String, cause: Throwable? = null)
+        : ActionException(message, cause), Retryable
 
     /**
      * Permanent failure that should not be retried.
@@ -124,6 +101,6 @@ sealed class ActionException(
      * @param message Human-readable error description
      * @param cause Optional underlying exception
      */
-    class NonRetryable(message: String, cause: Throwable? = null)
-        : ActionException(message, cause), NonRetryableException
+    open class Permanent(message: String, cause: Throwable? = null)
+        : ActionException(message, cause), NonRetryable
 }

@@ -18,9 +18,9 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.ToolControlFlowSignal
-import com.embabel.agent.core.NonRetryableException
+import com.embabel.agent.core.NonRetryable
 import com.embabel.agent.core.ReplanRequestedException
-import com.embabel.agent.core.RetryableException
+import com.embabel.agent.core.Retryable
 import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.retry.TransientAiException
 import org.springframework.retry.RetryContext
@@ -62,10 +62,10 @@ internal class SpringAiRetryPolicy(
         // Check entire exception cause chain for markers
         var current: Throwable? = lastException
         while (current != null) {
-            if (current is NonRetryableException) {
+            if (current is NonRetryable) {
                 return false
             }
-            if (current is RetryableException) {
+            if (current is Retryable) {
                 return true
             }
             current = current.cause

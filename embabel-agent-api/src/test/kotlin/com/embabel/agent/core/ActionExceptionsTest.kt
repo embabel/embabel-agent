@@ -29,93 +29,93 @@ import org.junit.jupiter.api.Test
 class ActionExceptionsTest {
 
     @Nested
-    inner class RetryableExceptionTests {
+    inner class TransientTests {
 
         @Test
-        fun `ActionException Retryable implements RetryableException`() {
-            val exception = ActionException.Retryable("test message")
-            assertTrue(exception is RetryableException)
+        fun `ActionException Transient implements Retryable`() {
+            val exception = ActionException.Transient("test message")
+            assertTrue(exception is Retryable)
         }
 
         @Test
-        fun `ActionException Retryable extends RuntimeException`() {
-            val exception = ActionException.Retryable("test message")
+        fun `ActionException Transient extends RuntimeException`() {
+            val exception = ActionException.Transient("test message")
             assertTrue(exception is RuntimeException)
         }
 
         @Test
-        fun `ActionException Retryable preserves message`() {
+        fun `ActionException Transient preserves message`() {
             val message = "timeout error"
-            val exception = ActionException.Retryable(message)
+            val exception = ActionException.Transient(message)
             assertEquals(message, exception.message)
         }
 
         @Test
-        fun `ActionException Retryable without cause`() {
-            val exception = ActionException.Retryable("error")
+        fun `ActionException Transient without cause`() {
+            val exception = ActionException.Transient("error")
             assertNull(exception.cause)
         }
 
         @Test
-        fun `ActionException Retryable with cause`() {
+        fun `ActionException Transient with cause`() {
             val cause = RuntimeException("root cause")
-            val exception = ActionException.Retryable("wrapped error", cause)
+            val exception = ActionException.Transient("wrapped error", cause)
             assertSame(cause, exception.cause)
             assertEquals("wrapped error", exception.message)
         }
 
         @Test
-        fun `custom RetryableException implementation`() {
-            class CustomRetryable(message: String) : RuntimeException(message), RetryableException
+        fun `custom Retryable implementation`() {
+            class CustomRetryable(message: String) : RuntimeException(message), Retryable
 
             val exception = CustomRetryable("custom")
-            assertTrue(exception is RetryableException)
+            assertTrue(exception is Retryable)
             assertTrue(exception is RuntimeException)
         }
     }
 
     @Nested
-    inner class NonRetryableExceptionTests {
+    inner class PermanentTests {
 
         @Test
-        fun `ActionException NonRetryable implements NonRetryableException`() {
-            val exception = ActionException.NonRetryable("test message")
-            assertTrue(exception is NonRetryableException)
+        fun `ActionException Permanent implements NonRetryable`() {
+            val exception = ActionException.Permanent("test message")
+            assertTrue(exception is NonRetryable)
         }
 
         @Test
-        fun `ActionException NonRetryable extends RuntimeException`() {
-            val exception = ActionException.NonRetryable("test message")
+        fun `ActionException Permanent extends RuntimeException`() {
+            val exception = ActionException.Permanent("test message")
             assertTrue(exception is RuntimeException)
         }
 
         @Test
-        fun `ActionException NonRetryable preserves message`() {
+        fun `ActionException Permanent preserves message`() {
             val message = "validation error"
-            val exception = ActionException.NonRetryable(message)
+            val exception = ActionException.Permanent(message)
             assertEquals(message, exception.message)
         }
 
         @Test
-        fun `ActionException NonRetryable without cause`() {
-            val exception = ActionException.NonRetryable("error")
+        fun `ActionException Permanent without cause`() {
+            val exception = ActionException.Permanent("error")
             assertNull(exception.cause)
         }
 
         @Test
-        fun `ActionException NonRetryable with cause`() {
+        fun `ActionException Permanent with cause`() {
             val cause = IllegalArgumentException("invalid input")
-            val exception = ActionException.NonRetryable("wrapped error", cause)
+            val exception = ActionException.Permanent("wrapped error", cause)
             assertSame(cause, exception.cause)
             assertEquals("wrapped error", exception.message)
         }
 
         @Test
-        fun `custom NonRetryableException implementation`() {
-            class CustomNonRetryable(message: String) : RuntimeException(message), NonRetryableException
+        fun `custom NonRetryable implementation`() {
+            class CustomNonRetryable(message: String) : RuntimeException(message), NonRetryable
 
             val exception = CustomNonRetryable("custom")
-            assertTrue(exception is NonRetryableException)
+            assertTrue(exception is NonRetryable)
             assertTrue(exception is RuntimeException)
         }
     }
@@ -124,26 +124,25 @@ class ActionExceptionsTest {
     inner class ActionExceptionHierarchyTests {
 
         @Test
-        fun `ActionException Retryable is subclass of ActionException`() {
-            val exception = ActionException.Retryable("test")
+        fun `ActionException Transient is subclass of ActionException`() {
+            val exception = ActionException.Transient("test")
             assertInstanceOf(ActionException::class.java, exception)
         }
 
         @Test
-        fun `ActionException NonRetryable is subclass of ActionException`() {
-            val exception = ActionException.NonRetryable("test")
+        fun `ActionException Permanent is subclass of ActionException`() {
+            val exception = ActionException.Permanent("test")
             assertInstanceOf(ActionException::class.java, exception)
         }
 
         @Test
-        fun `ActionException is sealed class`() {
-            // Verify we can't create other subclasses outside the package
-            // This is enforced by Kotlin's sealed class mechanism
-            val retryable = ActionException.Retryable("test")
-            val nonRetryable = ActionException.NonRetryable("test")
+        fun `ActionException is open class allowing extension`() {
+            // ActionException is open to allow users to create domain-specific hierarchies
+            val transient = ActionException.Transient("test")
+            val permanent = ActionException.Permanent("test")
 
-            assertTrue(retryable is ActionException)
-            assertTrue(nonRetryable is ActionException)
+            assertTrue(transient is ActionException)
+            assertTrue(permanent is ActionException)
         }
     }
 
@@ -151,32 +150,32 @@ class ActionExceptionsTest {
     inner class JavaInteropTests {
 
         @Test
-        fun `ActionException Retryable works from Java`() {
+        fun `ActionException Transient works from Java`() {
             // Simulating Java usage pattern
-            val exception = ActionException.Retryable("message")
+            val exception = ActionException.Transient("message")
             assertTrue(exception.message == "message")
             assertNull(exception.cause)
         }
 
         @Test
-        fun `ActionException Retryable with cause works from Java`() {
+        fun `ActionException Transient with cause works from Java`() {
             val cause = RuntimeException("cause")
-            val exception = ActionException.Retryable("message", cause)
+            val exception = ActionException.Transient("message", cause)
             assertEquals("message", exception.message)
             assertSame(cause, exception.cause)
         }
 
         @Test
-        fun `ActionException NonRetryable works from Java`() {
-            val exception = ActionException.NonRetryable("message")
+        fun `ActionException Permanent works from Java`() {
+            val exception = ActionException.Permanent("message")
             assertEquals("message", exception.message)
             assertNull(exception.cause)
         }
 
         @Test
-        fun `ActionException NonRetryable with cause works from Java`() {
+        fun `ActionException Permanent with cause works from Java`() {
             val cause = IllegalArgumentException("cause")
-            val exception = ActionException.NonRetryable("message", cause)
+            val exception = ActionException.Permanent("message", cause)
             assertEquals("message", exception.message)
             assertSame(cause, exception.cause)
         }
