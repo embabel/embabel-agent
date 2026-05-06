@@ -664,6 +664,16 @@ The platform provides built-in REST endpoints for status checking:
 - `DELETE /api/v1/process/{processId}` - Terminates a running process
 - `GET /events/process/{processId}` - SSE stream of process events
 
+Each endpoint can be individually disabled via configuration (see <<reference.configuration>>).
+Set the corresponding property to `false` to have the endpoint respond with HTTP 404:
+
+[source,properties]
+----
+embabel.agent.platform.rest.process-status-enabled=false
+embabel.agent.platform.rest.process-kill-enabled=false
+embabel.agent.platform.rest.process-events-enabled=false
+----
+
 A simple status polling controller can check completion and redirect to results:
 
 [tabs]
