@@ -18,7 +18,9 @@ package com.embabel.agent.spi.support.springai
 import com.embabel.agent.api.tool.TerminateActionException
 import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.core.NonRetryable
 import com.embabel.agent.core.ReplanRequestedException
+import com.embabel.agent.core.Retryable
 import org.springframework.ai.retry.NonTransientAiException
 import org.springframework.ai.retry.TransientAiException
 import org.springframework.retry.RetryContext
@@ -51,21 +53,32 @@ internal class SpringAiRetryPolicy(
     }
 
     override fun canRetry(context: RetryContext): Boolean {
-        if (context.retryCount == 0) {
-            // First attempt, always retry
-            return true
-        }
         if (context.retryCount >= maxAttempts) {
             return false
         }
 
-        return when (val lastException = context.lastThrowable) {
+        val lastException = context.lastThrowable ?: return true
+
+        // Check entire exception cause chain for markers
+        var current: Throwable? = lastException
+        while (current != null) {
+            if (current is NonRetryable) {
+                return false
+            }
+            if (current is Retryable) {
+                return true
+            }
+            current = current.cause
+        }
+
+        return when (lastException) {
             // Control flow signals - not errors to retry
             is ReplanRequestedException -> false
             is TerminateActionException -> false
             is TerminateAgentException -> false
             is ToolControlFlowSignal -> false  // Catch-all for other control flow signals
 
+            // Spring AI markers
             is TransientAiException -> true
 
             is NonTransientAiException -> {
@@ -75,12 +88,14 @@ internal class SpringAiRetryPolicy(
                 }
             }
 
+            // Common programming errors that should never be retried
             is IllegalArgumentException -> false
-
             is IllegalStateException -> false
-
             is UnsupportedOperationException -> false
+            is NullPointerException -> false
+            is ClassCastException -> false
 
+            // Default: retry unknown exceptions (backward compatible)
             else -> true
         }
     }
