@@ -1636,3 +1636,151 @@ Both `RunSubagent` and `ActionContext.asSubProcess` achieve the same result, but
 
 TIP: Use `RunSubagent` when your action method only needs to delegate to a subagent.
 Use `ActionContext.asSubProcess()` when you need additional context operations.
+
+==== Action Exception Handling
+
+Exception handling within Action is governed by Retry Policy.
+
+All exceptions below, except `TransientAiException` are considered as non-retryable.
+More specifically, policy categorises non-retryable exception in the order:
+
+- ReplanRequestedException
+- TerminateActionException
+- TerminateAgentException
+- ToolControlFlowSignal
+- NonTransientAiException
+- IllegalArgumentException
+- IllegalStateException
+- UnsupportedOperationException
+- ClassCastException
+
+If exception does not belong to any of the exceptions from the list above - it gets mapped to retryable exception.
+
+Framework allows creating custom Retryable / NonRetryable exception in order for developers to exercise complete control over Action Retry.
+
+Embabel provides with two approaches for defining custom retryable and non-retryable exceptions:
+
+1. **Extend ActionException** - Convenient base classes with built-in retry classification
+2. **Implement marker interfaces** - Maximum flexibility for existing exception hierarchies
+
+===== Approach 1: Extending ActionException
+
+The recommended approach is to extend `ActionException.Transient` for retryable failures or `ActionException.Permanent` for non-retryable failures:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+  import com.embabel.agent.core.ActionException
+
+  // Transient failure - will be retried
+  class ApiTimeoutException(message: String, cause: Throwable? = null)
+      : ActionException.Transient(message, cause)
+
+  // Permanent failure - will not be retried
+  class ValidationException(message: String, cause: Throwable? = null)
+      : ActionException.Permanent(message, cause)
+----
+
+Java::
+ +
+[source,java]
+----
+import com.embabel.agent.core.ActionException;
+
+  // Transient failure - will be retried
+  public class ApiTimeoutException extends ActionException.Transient {
+      public ApiTimeoutException(String message) {
+          super(message);
+      }
+
+      public ApiTimeoutException(String message, Throwable cause) {
+          super(message, cause);
+      }
+  }
+
+  // Permanent failure - will not be retried
+  public class ValidationException extends ActionException.Permanent {
+      public ValidationException(String message) {
+          super(message);
+      }
+
+      public ValidationException(String message, Throwable cause) {
+          super(message, cause);
+      }
+  }
+----
+====
+
+===== Approach 2: Implementing Marker Interfaces
+
+  For existing exception hierarchies or when you need more control, implement the `Retryable` or `NonRetryable` marker interfaces directly:
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+  import com.embabel.agent.core.Retryable
+  import com.embabel.agent.core.NonRetryable
+
+  // Transient failure - will be retried
+  class NetworkException(message: String, cause: Throwable? = null)
+      : RuntimeException(message, cause), Retryable
+
+  // Permanent failure - will not be retried
+  class InvalidOrderException(message: String)
+      : RuntimeException(message), NonRetryable
+----
+
+Java::
+ +
+[source,java]
+----
+import com.embabel.agent.core.Retryable;
+import com.embabel.agent.core.NonRetryable;
+
+  // Transient failure - will be retried
+  public class NetworkException extends RuntimeException implements Retryable {
+      public NetworkException(String message) {
+          super(message);
+      }
+
+      public NetworkException(String message, Throwable cause) {
+          super(message, cause);
+      }
+  }
+
+  // Permanent failure - will not be retried
+  public class InvalidOrderException extends RuntimeException implements NonRetryable {
+      public InvalidOrderException(String message) {
+          super(message);
+      }
+  }
+----
+====
+
+===== Common Use Cases
+
+**Transient Failures** (use `ActionException.Transient` or `Retryable`):
+
+- Network timeouts
+- Rate limiting (429 errors)
+- Temporary resource unavailability
+- Connection failures
+- Database deadlocks
+
+**Permanent Failures** (use `ActionException.Permanent` or `NonRetryable`):
+
+- Validation errors
+- Business rule violations
+- Invalid parameters
+- Resource not found (404 errors)
+- Authentication failures (401 errors)
+- Authorization failures (403 errors)
+
+
+
