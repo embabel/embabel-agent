@@ -39,6 +39,22 @@ object InstructionFileReferenceExtractor {
         RegexOption.MULTILINE
     )
 
+    // Matches a CommonMark fenced code block — opening fence at line start
+    // (allowing up to three leading spaces of indent) using ``` or ~~~,
+    // through to the matching closing fence on its own line, OR end of
+    // input if the fence is never closed (CommonMark allows this and
+    // implicitly closes at EOF).
+    //
+    // Why this exists: skill bodies routinely embed code samples that
+    // contain `[label](path)`-shaped strings (JS template literals,
+    // markdown rendered as a string in code, etc.) and resource-dir-
+    // prefixed strings ("scripts/legacy.py"). Those are illustrations,
+    // not real file references, and validating them as files turns any
+    // skill teaching code into a footgun.
+    private val FENCED_CODE_BLOCK = Regex(
+        """(?ms)^[ \t]{0,3}(`{3,}|~{3,})[^\n]*(?:\n|$)(?:.*?(?:\n[ \t]{0,3}\1[ \t]*(?:\n|$)|\z))?"""
+    )
+
     /**
      * Extract all file references from instruction text.
      *
@@ -50,10 +66,14 @@ object InstructionFileReferenceExtractor {
             return emptySet()
         }
 
+        // Strip fenced code blocks BEFORE running the extractors so that
+        // illustrative code samples don't pollute the reference set.
+        val withoutCode = FENCED_CODE_BLOCK.replace(instructions, "")
+
         val references = mutableSetOf<String>()
 
         // Extract markdown link targets that are local paths
-        MARKDOWN_LINK_PATTERN.findAll(instructions).forEach { match ->
+        MARKDOWN_LINK_PATTERN.findAll(withoutCode).forEach { match ->
             val path = match.groupValues[2]
             if (isLocalPath(path)) {
                 references.add(normalizePath(path))
@@ -61,7 +81,7 @@ object InstructionFileReferenceExtractor {
         }
 
         // Extract inline resource paths
-        RESOURCE_PATH_PATTERN.findAll(instructions).forEach { match ->
+        RESOURCE_PATH_PATTERN.findAll(withoutCode).forEach { match ->
             val path = match.groupValues[1]
             references.add(normalizePath(path))
         }
