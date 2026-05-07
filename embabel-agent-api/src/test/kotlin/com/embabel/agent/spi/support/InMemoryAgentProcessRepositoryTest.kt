@@ -17,6 +17,7 @@ package com.embabel.agent.spi.support
 
 import com.embabel.agent.spi.config.spring.ProcessRepositoryProperties
 import com.embabel.agent.core.AgentProcess
+import com.embabel.agent.core.ProcessOptions
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.*
@@ -44,6 +45,7 @@ class InMemoryAgentProcessRepositoryTest {
         every { parentId } returns null
         every { isRootProcess } returns true
         every { this@mockk.finished } returns finished
+        every { processOptions } returns ProcessOptions.DEFAULT
     }
 
     /**
@@ -58,6 +60,7 @@ class InMemoryAgentProcessRepositoryTest {
         every { this@mockk.parentId } returns parentId
         every { isRootProcess } returns false
         every { this@mockk.finished } returns finished
+        every { processOptions } returns ProcessOptions.DEFAULT
     }
 
     @Test
@@ -383,6 +386,79 @@ class InMemoryAgentProcessRepositoryTest {
             assertNotNull(repository.findById("child"))
             assertNotNull(repository.findById("grandchild"))
             assertNotNull(repository.findById("new-root"))
+        }
+    }
+
+    @Nested
+    inner class EphemeralProcessTests {
+
+        /**
+         * Create a mock ephemeral root process.
+         */
+        private fun mockEphemeralProcess(
+            id: String,
+            finished: Boolean = true,
+        ): AgentProcess = mockk {
+            every { this@mockk.id } returns id
+            every { parentId } returns null
+            every { isRootProcess } returns true
+            every { this@mockk.finished } returns finished
+            every { processOptions } returns ProcessOptions.DEFAULT.withEphemeral(true)
+        }
+
+        @Test
+        fun `ephemeral process is not saved to repository`() {
+            val ephemeralProcess = mockEphemeralProcess("ephemeral-1")
+
+            // Attempt to save ephemeral process
+            val result = repository.save(ephemeralProcess)
+
+            // Should return the process unchanged
+            assertEquals(ephemeralProcess, result)
+
+            // But should NOT be in the repository
+            assertEquals(0, repository.size())
+            assertNull(repository.findById("ephemeral-1"))
+        }
+
+        @Test
+        fun `ephemeral process update is ignored`() {
+            val ephemeralProcess = mockEphemeralProcess("ephemeral-1")
+
+            // Attempt to update ephemeral process
+            repository.update(ephemeralProcess)
+
+            // Should not be in the repository
+            assertEquals(0, repository.size())
+            assertNull(repository.findById("ephemeral-1"))
+        }
+
+        @Test
+        fun `non-ephemeral process is saved normally`() {
+            val normalProcess = mockRootProcess("normal-1")
+
+            val result = repository.save(normalProcess)
+
+            assertEquals(normalProcess, result)
+            assertEquals(1, repository.size())
+            assertNotNull(repository.findById("normal-1"))
+        }
+
+        @Test
+        fun `mix of ephemeral and non-ephemeral processes`() {
+            val ephemeralProcess = mockEphemeralProcess("ephemeral-1")
+            val normalProcess1 = mockRootProcess("normal-1")
+            val normalProcess2 = mockRootProcess("normal-2")
+
+            repository.save(ephemeralProcess)
+            repository.save(normalProcess1)
+            repository.save(normalProcess2)
+
+            // Only non-ephemeral processes should be stored
+            assertEquals(2, repository.size())
+            assertNull(repository.findById("ephemeral-1"))
+            assertNotNull(repository.findById("normal-1"))
+            assertNotNull(repository.findById("normal-2"))
         }
     }
 }

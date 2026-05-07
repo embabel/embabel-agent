@@ -394,4 +394,58 @@ class SubagentExecutionTest {
             }
         }
     }
+
+    @Nested
+    inner class EphemeralProcessTests {
+
+        @Test
+        fun `ephemeral process cannot spawn child process`() {
+            val agent = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+
+            // Create ephemeral parent process
+            val ephemeralProcess = ap.createAgentProcess(
+                agent,
+                ProcessOptions().withEphemeral(true),
+                mapOf("it" to UserInput("test"))
+            )
+
+            // Attempt to run should fail when trying to spawn child
+            val exception = assertThrows(IllegalArgumentException::class.java) {
+                ephemeralProcess.run()
+            }
+
+            // Verify exception message
+            assertTrue(
+                exception.message?.contains("Ephemeral AgentProcess") == true,
+                "Exception should mention ephemeral process: ${exception.message}"
+            )
+            assertTrue(
+                exception.message?.contains("cannot spawn child processes") == true,
+                "Exception should mention child spawn restriction: ${exception.message}"
+            )
+        }
+
+        @Test
+        fun `non-ephemeral process can spawn child normally`() {
+            val agent = reader.createAgentMetadata(OuterAgentViaSubprocessInvocation()) as CoreAgent
+            val ap = IntegrationTestUtils.dummyAgentPlatform()
+
+            // Create normal (non-ephemeral) parent process
+            val normalProcess = ap.createAgentProcess(
+                agent,
+                ProcessOptions().withEphemeral(false),
+                mapOf("it" to UserInput("test"))
+            )
+
+            // Should complete successfully
+            normalProcess.run()
+            assertEquals(AgentProcessStatusCode.COMPLETED, normalProcess.status)
+
+            // Verify child was created
+            val repository = normalProcess.processContext.platformServices.agentProcessRepository
+            val children = repository.findByParentId(normalProcess.id)
+            assertTrue(children.isNotEmpty(), "Should have child process")
+        }
+    }
 }

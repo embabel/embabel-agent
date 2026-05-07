@@ -41,3 +41,69 @@ interface AgentProcessRepository {
 
     fun delete(agentProcess: AgentProcess)
 }
+
+/**
+ * Abstract base class for AgentProcessRepository implementations that enforces
+ * ephemeral process handling.
+ *
+ * Ephemeral processes (marked with `processOptions.ephemeral = true`) are not persisted
+ * and cannot spawn child processes. This class uses the template method pattern to
+ * prevent persistence of ephemeral processes while allowing implementations to
+ * customize actual persistence logic.
+ *
+ * Implementations should:
+ * - Extend this class instead of implementing AgentProcessRepository directly
+ * - Override [doSave] and [doUpdate] instead of [save] and [update]
+ * - The final [save] and [update] methods will handle ephemeral checks automatically
+ */
+abstract class AbstractAgentProcessRepository : AgentProcessRepository {
+
+    private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
+
+    /**
+     * Save a new agent process.
+     * This method checks if the process is ephemeral and logs an error if persistence
+     * is attempted. Non-ephemeral processes are delegated to [doSave].
+     */
+    final override fun save(agentProcess: AgentProcess): AgentProcess {
+        if (agentProcess.processOptions.ephemeral) {
+            logger.error(
+                "Attempted to save ephemeral AgentProcess [id={}]. " +
+                "Ephemeral processes are not persisted and do not support wait states. " +
+                "Operation skipped.",
+                agentProcess.id
+            )
+            return agentProcess
+        }
+        return doSave(agentProcess)
+    }
+
+    /**
+     * Update an existing agent process.
+     * This method checks if the process is ephemeral and logs an error if persistence
+     * is attempted. Non-ephemeral processes are delegated to [doUpdate].
+     */
+    final override fun update(agentProcess: AgentProcess) {
+        if (agentProcess.processOptions.ephemeral) {
+            logger.error(
+                "Attempted to update ephemeral AgentProcess [id={}]. " +
+                "Ephemeral processes are not persisted. Operation skipped.",
+                agentProcess.id
+            )
+            return
+        }
+        doUpdate(agentProcess)
+    }
+
+    /**
+     * Perform the actual save operation for non-ephemeral processes.
+     * Implementations should override this method instead of [save].
+     */
+    protected abstract fun doSave(agentProcess: AgentProcess): AgentProcess
+
+    /**
+     * Perform the actual update operation for non-ephemeral processes.
+     * Implementations should override this method instead of [update].
+     */
+    protected abstract fun doUpdate(agentProcess: AgentProcess)
+}

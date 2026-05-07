@@ -29,18 +29,44 @@ import com.embabel.agent.core.support.AbstractAgentProcess
  * Request graceful termination of the entire agent process.
  * Convenience extension that delegates to [AgentProcess.terminateAgent].
  *
+ * Kotlin usage:
+ * ```kotlin
+ * processContext.terminateAgent("reason")
+ * ```
+ *
+ * Java usage:
+ * ```java
+ * import static com.embabel.agent.api.termination.Termination.terminateAgent;
+ *
+ * terminateAgent(processContext, "reason");
+ * ```
+ *
  * @param reason Human-readable explanation for termination
  * @see AgentProcess.terminateAgent
  */
+@JvmName("terminateAgent")
 fun ProcessContext.terminateAgent(reason: String) = agentProcess.terminateAgent(reason)
 
 /**
  * Request graceful termination of the current action only.
  * Convenience extension that delegates to [AgentProcess.terminateAction].
  *
+ * Kotlin usage:
+ * ```kotlin
+ * processContext.terminateAction("reason")
+ * ```
+ *
+ * Java usage:
+ * ```java
+ * import static com.embabel.agent.api.termination.Termination.terminateAction;
+ *
+ * terminateAction(processContext, "reason");
+ * ```
+ *
  * @param reason Human-readable explanation for termination
  * @see AgentProcess.terminateAction
  */
+@JvmName("terminateAction")
 fun ProcessContext.terminateAction(reason: String) = agentProcess.terminateAction(reason)
 
 /**
