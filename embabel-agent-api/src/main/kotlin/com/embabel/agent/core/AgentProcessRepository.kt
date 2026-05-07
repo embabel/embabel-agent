@@ -68,9 +68,11 @@ abstract class AbstractAgentProcessRepository : AgentProcessRepository {
     final override fun save(agentProcess: AgentProcess): AgentProcess {
         if (agentProcess.processOptions.ephemeral) {
             logger.error(
-                "Attempted to save ephemeral AgentProcess [id={}]. " +
-                "Ephemeral processes are not persisted and do not support wait states. " +
-                "Operation skipped.",
+                """
+                Attempted to save ephemeral AgentProcess [id={}].
+                Ephemeral processes are not persisted and do not support wait states.
+                Operation skipped.
+                """.trimIndent(),
                 agentProcess.id
             )
             return agentProcess
@@ -86,8 +88,11 @@ abstract class AbstractAgentProcessRepository : AgentProcessRepository {
     final override fun update(agentProcess: AgentProcess) {
         if (agentProcess.processOptions.ephemeral) {
             logger.error(
-                "Attempted to update ephemeral AgentProcess [id={}]. " +
-                "Ephemeral processes are not persisted. Operation skipped.",
+                """
+                Attempted to update ephemeral AgentProcess [id={}].
+                Ephemeral processes are not persisted.
+                Operation skipped.
+                """.trimIndent(),
                 agentProcess.id
             )
             return
