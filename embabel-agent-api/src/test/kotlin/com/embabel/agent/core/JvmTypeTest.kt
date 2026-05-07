@@ -875,4 +875,34 @@ class JvmTypeTest {
             )
         }
     }
+
+    @Test
+    fun `isAssignableFrom should use thread context classloader`() {
+        val loadedClasses = mutableListOf<String>()
+
+        val customClassLoader = object : ClassLoader(JvmTypeTest::class.java.classLoader) {
+            override fun loadClass(name: String, resolve: Boolean): Class<*> {
+                loadedClasses.add(name)
+                return super.loadClass(name, resolve)
+            }
+        }
+
+        val originalClassLoader = Thread.currentThread().contextClassLoader
+        try {
+            Thread.currentThread().contextClassLoader = customClassLoader
+
+            // Construct from class name so clazz lazy init uses the context classloader
+            val carType = JvmType(TestCar::class.java.name)
+            val vehicleType = JvmType(TestVehicle::class.java.name)
+
+            assertTrue(vehicleType.isAssignableFrom(carType),
+                "TestVehicle should be assignable from TestCar")
+            assertTrue(loadedClasses.contains(TestCar::class.java.name),
+                "Context classloader should have been used to load TestCar")
+            assertTrue(loadedClasses.contains(TestVehicle::class.java.name),
+                "Context classloader should have been used to load TestVehicle")
+        } finally {
+            Thread.currentThread().contextClassLoader = originalClassLoader
+        }
+    }
 }
