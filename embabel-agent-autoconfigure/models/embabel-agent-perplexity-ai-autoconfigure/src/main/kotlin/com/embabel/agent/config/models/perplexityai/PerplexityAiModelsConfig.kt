@@ -206,7 +206,7 @@ class PerplexityAiModelsConfig(
             logger.info("Using custom Perplexity AI chat completions path : {}", completionsPath)
             builder.completionsPath(completionsPath)
         } else {
-            builder.completionsPath("/v1/sonar")
+            builder.completionsPath("/v1/agent")
         }
         // add observation registry to rest and web client builders
         builder

@@ -116,7 +116,7 @@ open class OpenAiCompatibleModelFactory(
          * Note: uses the OpenAI wire protocol, not the native Spring AI Perplexity client.
          */
         fun perplexity(apiKey: String): ByokSpec =
-            ByokSpec("https://api.perplexity.ai", apiKey, "/v1/sonar", PerplexityAiModels.SONAR, PerplexityAiModels.PROVIDER)
+            ByokSpec("https://api.perplexity.ai", apiKey, "/v1/agent", PerplexityAiModels.SONAR, PerplexityAiModels.PROVIDER)
 
         /**
          * Returns a [ByokSpec] for a custom OpenAI-compatible provider.

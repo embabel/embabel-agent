@@ -74,10 +74,32 @@ class PerplexityAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(1, result.models.size, "Should load exactly 1 Perplexity AI models")
+        assertEquals(24, result.models.size, "Should load exactly 24 Perplexity AI models")
 
         val expectedModels = listOf(
-            "sonar"
+            "perplexity/sonar",
+            "anthropic/claude-opus-4-7",
+            "anthropic/claude-opus-4-6",
+            "anthropic/claude-opus-4-5",
+            "anthropic/claude-sonnet-4-6",
+            "anthropic/claude-sonnet-4-5",
+            "anthropic/claude-haiku-4-5",
+            "openai/gpt-5.5",
+            "openai/gpt-5.4",
+            "openai/gpt-5.4-mini",
+            "openai/gpt-5.4-nano",
+            "openai/gpt-5.2",
+            "openai/gpt-5.1",
+            "openai/gpt-5",
+            "openai/gpt-5-mini",
+            "google/gemini-3.1-pro-preview",
+            "google/gemini-3-flash-preview",
+            "nvidia/nemotron-3-super-120b-a12b",
+            "xai/grok-4.3",
+            "xai/grok-4.20-reasoning",
+            "xai/grok-4.20-non-reasoning",
+            "xai/grok-4.20-multi-agent",
+            "xai/grok-4-1-fast-non-reasoning"
         )
         expectedModels.forEach { expectedName ->
             assertTrue(result.models.any { it.name == expectedName }, "Should have model: $expectedName")
@@ -306,7 +328,7 @@ class PerplexityAiModelLoaderTest {
         assertEquals("minimal-model", model.name)
         assertEquals("sonar-minimal", model.modelId)
         assertNull(model.displayName)
-        assertEquals(32768, model.maxTokens) // Default value
+        assertEquals(16384, model.maxTokens) // Default value
         assertEquals(1.0, model.temperature) // Default value
         assertNull(model.topP)
         assertNull(model.pricingModel)

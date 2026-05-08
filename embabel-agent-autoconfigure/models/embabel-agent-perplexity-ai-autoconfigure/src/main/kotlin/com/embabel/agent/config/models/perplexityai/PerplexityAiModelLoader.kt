@@ -46,7 +46,7 @@ data class PerplexityAiModelDefinitions(
  * @property displayName optional human-readable name
  * @property knowledgeCutoffDate optional knowledge cutoff date
  * @property pricingModel optional per-token pricing information
- * @property maxTokens maximum tokens for completion (default 8192)
+ * @property maxTokens maximum tokens for completion (default 16384)
  * @property temperature sampling temperature (default 1.0)
  * @property topP nucleus sampling parameter
  */
@@ -56,7 +56,9 @@ data class PerplexityAiModelDefinition(
 	override val displayName: String? = null,
 	override val knowledgeCutoffDate: LocalDate? = null,
 	override val pricingModel: PerTokenPricingModel? = null,
-	val maxTokens: Int = 32768,
+	/* No default value is specified in the doc https://docs.perplexity.ai/docs/agent-api/models.
+	* Hence, reused the value from openai models.*/
+	val maxTokens: Int = 16384,
 	val temperature: Double = 1.0,
 	val topP: Double? = null,
 ) : LlmAutoConfigMetadata
