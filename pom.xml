@@ -17,7 +17,7 @@
     <properties>
         <argLine/>
         <embabel-common.version>0.1.12-SNAPSHOT</embabel-common.version>
-        <netty.version>4.1.132.Final</netty.version>
+        <netty.version>4.2.13.Final</netty.version>
         <spotbugs-maven-plugin.version>4.9.8.2</spotbugs-maven-plugin.version>
         <sb-contrib.version>7.7.4</sb-contrib.version>
     </properties>
