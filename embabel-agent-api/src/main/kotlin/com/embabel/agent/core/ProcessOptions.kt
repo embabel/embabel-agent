@@ -204,6 +204,9 @@ constructor(
  * to the budget.
  * @param verbosity detailed verbosity settings for logging etc.
  * @param prune whether to prune the agent to only relevant actions
+ * @param ephemeral whether this process is ephemeral (not persisted). Ephemeral processes
+ * do not support wait states, cannot spawn child processes, and will not be saved to the repository.
+ * This is useful when the Ai interface is injected into non-agent classes that don't need persistence.
  * @param listeners additional listeners (beyond platform event listeners) to receive events from this process.
  * @param outputChannel custom output channel to use for this process.
  * @param plannerType the type of planner to use for this process. Defaults to GOAP planner.
@@ -223,6 +226,7 @@ data class ProcessOptions @JvmOverloads constructor(
         earlyTerminationPolicy = budget.earlyTerminationPolicy(),
     ),
     val prune: Boolean = false,
+    val ephemeral: Boolean = false,
     val listeners: List<AgenticEventListener> = emptyList(),
     val outputChannel: OutputChannel = DevNullOutputChannel,
     val plannerType: PlannerType = PlannerType.GOAP,
@@ -267,6 +271,9 @@ data class ProcessOptions @JvmOverloads constructor(
 
     fun withPrune(prune: Boolean): ProcessOptions =
         this.copy(prune = prune)
+
+    fun withEphemeral(ephemeral: Boolean): ProcessOptions =
+        this.copy(ephemeral = ephemeral)
 
     /**
      * Add additional listeners to this process.

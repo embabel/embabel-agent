@@ -209,6 +209,14 @@ open class DefaultAgentPlatform(
         agent: Agent,
         parentAgentProcess: AgentProcess,
     ): AgentProcess {
+        // Ephemeral processes cannot spawn child processes
+        require(!parentAgentProcess.processOptions.ephemeral) {
+            """
+            Ephemeral AgentProcess [id=${parentAgentProcess.id}] cannot spawn child processes.
+            Ephemeral processes do not support wait states or persistence.
+            """.trimIndent()
+        }
+
         val childBlackboard = parentAgentProcess.processContext.blackboard.spawn()
         val processOptions = parentAgentProcess.processContext.processOptions
         val childAgentProcess = SimpleAgentProcess(
