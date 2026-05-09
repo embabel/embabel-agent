@@ -33,7 +33,7 @@ Java::
 [source,java]
 ----
 // Configure the PromptRunner with an LLM and optional tools
-PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+PromptRunner runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
                         .withToolObject(Tooling.class);
 
 String prompt = """
@@ -65,7 +65,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Configure the PromptRunner with an LLM and optional tools
-val runner = ai.withLlm("claude-sonnet-4-5")
+val runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
                 .withToolObject(Tooling::class.java)
 
 val prompt = """
