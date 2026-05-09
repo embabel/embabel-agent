@@ -74,7 +74,7 @@ class PerplexityAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(24, result.models.size, "Should load exactly 24 Perplexity AI models")
+        assertEquals(23, result.models.size, "Should load exactly 23 Perplexity AI models")
 
         val expectedModels = listOf(
             "perplexity/sonar",

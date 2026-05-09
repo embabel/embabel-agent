@@ -185,13 +185,6 @@ models:
       usd_per1m_input_tokens: 1.25
       usd_per1m_output_tokens: 2.5
 
-  - name: "xai/grok-4.20-reasoning"
-    model_id: "xai/grok-4.20-reasoning"
-    display_name: "xAI Grok 4.2 Reasoning"
-    pricing_model:
-      usd_per1m_input_tokens: 1.25
-      usd_per1m_output_tokens: 2.5
-
   - name: "xai/grok-4-1-fast-non-reasoning"
     model_id: "xai/grok-4-1-fast-non-reasoning"
     display_name: "xAI Grok 4.1 Fat Non Reasoning"
