@@ -31,6 +31,5 @@ class EmbeddingInvocationEvent(
 ) : AbstractAgentProcessEvent(agentProcess) {
 
     override fun toString(): String =
-        "EmbeddingInvocationEvent(model=${invocation.embeddingMetadata.name}, " +
-                "interactionId=$interactionId, usage=${invocation.usage}, cost=${invocation.cost()})"
+        """EmbeddingInvocationEvent(model=${invocation.embeddingMetadata.name}, interactionId=$interactionId, usage=${invocation.usage}, cost=${invocation.cost()})"""
 }

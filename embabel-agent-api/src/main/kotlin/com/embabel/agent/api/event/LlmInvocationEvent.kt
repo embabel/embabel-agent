@@ -38,6 +38,5 @@ class LlmInvocationEvent(
 ) : AbstractAgentProcessEvent(agentProcess) {
 
     override fun toString(): String =
-        "LlmInvocationEvent(model=${invocation.llmMetadata.name}, " +
-                "interactionId=$interactionId, usage=${invocation.usage}, cost=${invocation.cost()})"
+        """LlmInvocationEvent(model=${invocation.llmMetadata.name}, interactionId=$interactionId, usage=${invocation.usage}, cost=${invocation.cost()})"""
 }
