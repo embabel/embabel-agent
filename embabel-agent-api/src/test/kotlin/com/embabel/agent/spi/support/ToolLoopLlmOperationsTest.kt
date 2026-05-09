@@ -16,11 +16,13 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.InteractionId
+import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.core.ProcessOptions
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
 import com.embabel.agent.core.support.LlmInteraction
@@ -92,8 +94,10 @@ class ToolLoopLlmOperationsTest {
         }
         every { mockProcessContext.onProcessEvent(any()) } answers { eventListener.onProcessEvent(firstArg()) }
         every { mockProcessContext.agentProcess } returns mockAgentProcess
+        every { mockProcessContext.processOptions } returns ProcessOptions()
         every { mockAgentProcess.agent } returns SimpleTestAgent
         every { mockAgentProcess.processContext } returns mockProcessContext
+        every { mockAgentProcess.blackboard } returns mockk(relaxed = true)
 
         mockModelProvider = mockk<ModelProvider>()
     }
@@ -1082,6 +1086,443 @@ class ToolLoopLlmOperationsTest {
         }
     }
 
+    /**
+     * Tests that the per-call billing inspector emits one LlmInvocationEvent per LLM call
+     * (not one aggregate per tool-loop) and records one LlmInvocation per call on the
+     * agent process. Covers the 4 doTransform* sites where the inspector is registered.
+     */
+    @Nested
+    inner class BillingInspectorTests {
+
+        private val interactionIdValue = "test-interaction"
+
+        private fun mockLlmRequestEvent(): LlmRequestEvent<String> {
+            val event = mockk<LlmRequestEvent<String>>(relaxed = true)
+            every { event.agentProcess } returns mockAgentProcess
+            every { event.interaction } returns createInteraction()
+            return event
+        }
+
+
+        @Test
+        fun `doTransform with N tool iterations emits N LlmInvocationEvents (per-call, not aggregate)`() {
+            val tool = TestTool("t", "t") { Tool.Result.text("ok") }
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        AssistantMessageWithToolCalls(" ", listOf(ToolCall("c1", "t", "{}"))),
+                        textContent = "",
+                        usage = Usage(10, 5, null),
+                    ),
+                    LlmMessageResponse(
+                        AssistantMessageWithToolCalls(" ", listOf(ToolCall("c2", "t", "{}"))),
+                        textContent = "",
+                        usage = Usage(20, 10, null),
+                    ),
+                    LlmMessageResponse(
+                        AssistantMessage("done"),
+                        textContent = "done",
+                        usage = Usage(30, 15, null),
+                    ),
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            operations.testDoTransformWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(tools = listOf(tool)),
+                outputClass = String::class.java,
+                llmRequestEvent = mockLlmRequestEvent(),
+            )
+
+            // 3 LLM calls → 3 events, 3 recorded invocations (no aggregate post-loop)
+            val billingEvents = eventListener.processEvents.filterIsInstance<LlmInvocationEvent>()
+            assertEquals(3, billingEvents.size, "Expected one event per LLM call")
+            assertEquals(3, mutableLlmInvocationHistory.invocations.size,
+                "Expected one recordLlmInvocation per call (no aggregate)")
+
+            // All events share the parent interactionId
+            assertTrue(billingEvents.all { it.interactionId == interactionIdValue })
+
+            // Each event's invocation usage matches the LLM call's usage (per-call, not summed)
+            val perCallPromptTokens = billingEvents.map { it.invocation.usage.promptTokens }
+            assertEquals(listOf(10, 20, 30), perCallPromptTokens)
+        }
+
+        @Test
+        fun `doTransformIfPossible emits LlmInvocationEvent per call`() {
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        AssistantMessage("""{"success": "ok"}"""),
+                        textContent = """{"success": "ok"}""",
+                        usage = Usage(42, 0, null),
+                    )
+                )
+            )
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            operations.testDoTransformIfPossibleWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+                llmRequestEvent = mockLlmRequestEvent(),
+            )
+
+            val billingEvents = eventListener.processEvents.filterIsInstance<LlmInvocationEvent>()
+            assertEquals(1, billingEvents.size)
+            assertEquals(interactionIdValue, billingEvents.single().interactionId)
+            assertEquals(42, billingEvents.single().invocation.usage.promptTokens)
+            assertEquals(1, mutableLlmInvocationHistory.invocations.size)
+        }
+
+        @Test
+        fun `doTransformWithThinking emits LlmInvocationEvent per call`() {
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        AssistantMessage("hello"),
+                        textContent = "hello",
+                        usage = Usage(7, 3, null),
+                    )
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            operations.testDoTransformWithThinkingWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+                llmRequestEvent = mockLlmRequestEvent(),
+            )
+
+            val billingEvents = eventListener.processEvents.filterIsInstance<LlmInvocationEvent>()
+            assertEquals(1, billingEvents.size)
+            assertEquals(7, billingEvents.single().invocation.usage.promptTokens)
+            assertEquals(1, mutableLlmInvocationHistory.invocations.size)
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible emits LlmInvocationEvent per call`() {
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        AssistantMessage("""{"success": "ok"}"""),
+                        textContent = """{"success": "ok"}""",
+                        usage = Usage(11, 4, null),
+                    )
+                )
+            )
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            operations.testDoTransformWithThinkingIfPossibleWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(),
+                outputClass = String::class.java,
+                llmRequestEvent = mockLlmRequestEvent(),
+            )
+
+            val billingEvents = eventListener.processEvents.filterIsInstance<LlmInvocationEvent>()
+            assertEquals(1, billingEvents.size)
+            assertEquals(11, billingEvents.single().invocation.usage.promptTokens)
+            assertEquals(1, mutableLlmInvocationHistory.invocations.size)
+        }
+
+        /**
+         * Integration-style test: a real listener subscribes to LlmInvocationEvent and
+         * accumulates cost. Verifies the end-to-end use case from #1604 — an organization
+         * tracking total cost across multiple LLM calls.
+         */
+        @Test
+        fun `cost-tracking listener accumulates per-call cost across a multi-iteration loop`() {
+            // 3 LLM calls with different token usage. Pricing: $1 per 1M input + $2 per 1M output.
+            // Per-call costs (USD):
+            //   call 1: 1_000_000 in × $1/1M + 500_000 out × $2/1M = $1 + $1   = $2
+            //   call 2: 2_000_000 in × $1/1M + 500_000 out × $2/1M = $2 + $1   = $3
+            //   call 3: 3_000_000 in × $1/1M +   0       × $2/1M = $3         = $3
+            // Expected total: $8
+            val tool = TestTool("t", "t") { Tool.Result.text("ok") }
+
+            // Override the LLM with one that has a pricing model.
+            val fakeChatModel = FakeChatModel("unused")
+            val pricedLlm = SpringAiLlmService(
+                name = "priced-test",
+                provider = "test",
+                chatModel = fakeChatModel,
+                optionsConverter = DefaultOptionsConverter,
+                pricingModel = com.embabel.common.ai.model.PricingModel.usdPer1MTokens(1.0, 2.0),
+            )
+            every { mockModelProvider.getLlm(any()) } returns pricedLlm
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        AssistantMessageWithToolCalls(" ", listOf(ToolCall("c1", "t", "{}"))),
+                        textContent = "",
+                        usage = Usage(1_000_000, 500_000, null),
+                    ),
+                    LlmMessageResponse(
+                        AssistantMessageWithToolCalls(" ", listOf(ToolCall("c2", "t", "{}"))),
+                        textContent = "",
+                        usage = Usage(2_000_000, 500_000, null),
+                    ),
+                    LlmMessageResponse(
+                        AssistantMessage("done"),
+                        textContent = "done",
+                        usage = Usage(3_000_000, 0, null),
+                    ),
+                )
+            )
+            val operations = TestableToolLoopLlmOperations(
+                modelProvider = mockModelProvider,
+                toolDecorator = DefaultToolDecorator(),
+                objectMapper = objectMapper,
+                messageSender = messageSender,
+                outputConverter = null,
+            )
+
+            // The listener under test — what an organization-level cost tracker would look like.
+            val totalCost = java.util.concurrent.atomic.DoubleAdder()
+            val callCount = java.util.concurrent.atomic.AtomicInteger(0)
+            val costListener = object : com.embabel.agent.api.event.AgenticEventListener {
+                override fun onProcessEvent(event: com.embabel.agent.api.event.AgentProcessEvent) {
+                    if (event is LlmInvocationEvent) {
+                        totalCost.add(event.invocation.cost())
+                        callCount.incrementAndGet()
+                    }
+                }
+            }
+            // Plug the listener into the existing process-event pipeline.
+            every { mockProcessContext.onProcessEvent(any()) } answers {
+                eventListener.onProcessEvent(firstArg())
+                costListener.onProcessEvent(firstArg())
+            }
+
+            operations.testDoTransformWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(tools = listOf(tool)),
+                outputClass = String::class.java,
+                llmRequestEvent = mockLlmRequestEvent(),
+            )
+
+            assertEquals(3, callCount.get(), "Listener should receive one event per LLM call")
+            assertEquals(8.0, totalCost.sum(), 1e-9, "Listener should accumulate cost from each per-call event")
+
+            // And the same total reachable from the agent process aggregate (sanity check).
+            val aggregateCost = mutableLlmInvocationHistory.invocations.sumOf { it.cost() }
+            assertEquals(8.0, aggregateCost, 1e-9, "Process-level cost() must match the listener's sum")
+        }
+
+        /**
+         * The PR claim is: in CONCURRENT mode, N parallel LLM calls produce N distinct
+         * events — each one carrying its own interactionId, with no cross-thread bleed.
+         *
+         * Each thread runs its own doTransform with a unique interactionId. A shared,
+         * thread-safe listener accumulates events. We verify:
+         *  - N events fired (no loss, no duplication)
+         *  - All N interactionIds reach the listener distinctly (no captured state shared
+         *    across the per-call billing inspectors)
+         *  - Total cost matches the sum of per-call costs (no double-count, no skipped call)
+         *  - One recordLlmInvocation per call survives concurrency
+         *  - No exception leaks out of any thread
+         */
+        @Test
+        fun `concurrent doTransform calls each emit a distinct LlmInvocationEvent`() {
+            // Priced LLM so cost() is non-zero and easy to sum: $1 per 1M input tokens.
+            val pricedLlm = SpringAiLlmService(
+                name = "priced-test",
+                provider = "test",
+                chatModel = FakeChatModel("unused"),
+                optionsConverter = DefaultOptionsConverter,
+                pricingModel = com.embabel.common.ai.model.PricingModel.usdPer1MTokens(1.0, 0.0),
+            )
+            every { mockModelProvider.getLlm(any()) } returns pricedLlm
+
+            // Replace the @BeforeEach stubs that mutate non-thread-safe fixture collections
+            // (eventListener._processEvents, mutableLlmInvocationHistory.invocations).
+            // For this test we route into thread-safe collectors only.
+            val callCount = java.util.concurrent.atomic.AtomicInteger()
+            val recordedInvocations = java.util.concurrent.atomic.AtomicInteger()
+            val seenInteractionIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+            val totalCost = java.util.concurrent.atomic.DoubleAdder()
+            every { mockProcessContext.onProcessEvent(any()) } answers {
+                val ev = firstArg<com.embabel.agent.api.event.AgentProcessEvent>()
+                if (ev is LlmInvocationEvent) {
+                    callCount.incrementAndGet()
+                    seenInteractionIds.add(ev.interactionId)
+                    totalCost.add(ev.invocation.cost())
+                }
+            }
+            every { mockAgentProcess.recordLlmInvocation(any()) } answers {
+                recordedInvocations.incrementAndGet()
+            }
+
+            val threadCount = 16
+            val executor = java.util.concurrent.Executors.newFixedThreadPool(threadCount)
+            val startGate = java.util.concurrent.CountDownLatch(1)
+            val finished = java.util.concurrent.CountDownLatch(threadCount)
+            val errors = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
+
+            try {
+                repeat(threadCount) { i ->
+                    executor.submit {
+                        try {
+                            startGate.await()
+
+                            // Fresh sender per thread — TestLlmMessageSender's callIndex is
+                            // a non-atomic Int and would race if shared.
+                            val sender = TestLlmMessageSender(
+                                responses = listOf(
+                                    LlmMessageResponse(
+                                        AssistantMessage("done $i"),
+                                        textContent = "done $i",
+                                        usage = Usage(1_000_000, 0, null), // exactly $1 per call
+                                    )
+                                )
+                            )
+                            val operations = TestableToolLoopLlmOperations(
+                                modelProvider = mockModelProvider,
+                                toolDecorator = DefaultToolDecorator(),
+                                objectMapper = objectMapper,
+                                messageSender = sender,
+                                outputConverter = null,
+                            )
+
+                            // Unique interactionId per thread — this is the value the
+                            // billing inspector captures via closure. The test fails if
+                            // any of those captures bleed across threads.
+                            val perThreadInteractionId = "interaction-$i"
+                            val interaction = LlmInteraction(
+                                id = InteractionId(perThreadInteractionId),
+                                tools = emptyList(),
+                                llm = LlmOptions(),
+                            )
+                            val event = mockk<LlmRequestEvent<String>>(relaxed = true)
+                            every { event.agentProcess } returns mockAgentProcess
+                            every { event.interaction } returns interaction
+
+                            operations.testDoTransformWithEvent(
+                                messages = listOf(UserMessage("go")),
+                                interaction = interaction,
+                                outputClass = String::class.java,
+                                llmRequestEvent = event,
+                            )
+                        } catch (t: Throwable) {
+                            errors.add(t)
+                        } finally {
+                            finished.countDown()
+                        }
+                    }
+                }
+
+                startGate.countDown() // release all threads simultaneously
+                assertTrue(
+                    finished.await(30, java.util.concurrent.TimeUnit.SECONDS),
+                    "Concurrent doTransform calls timed out"
+                )
+            } finally {
+                executor.shutdownNow()
+            }
+
+            assertTrue(errors.isEmpty(), "Concurrent execution raised exceptions: $errors")
+            assertEquals(
+                threadCount, callCount.get(),
+                "Each parallel LLM call must produce exactly one LlmInvocationEvent"
+            )
+            assertEquals(
+                (0 until threadCount).map { "interaction-$it" }.toSet(),
+                seenInteractionIds.toSet(),
+                "Each event must carry its caller's interactionId — no cross-thread bleed in the inspector closure"
+            )
+            assertEquals(
+                threadCount.toDouble(), totalCost.sum(), 1e-9,
+                "Each event must contribute its own cost — no double-counting, no missed call"
+            )
+            assertEquals(
+                threadCount, recordedInvocations.get(),
+                "Each parallel LLM call must record one invocation on the agent process"
+            )
+        }
+
+        /**
+         * The PR's KDoc on [LlmInvocationEvent] claims:
+         *   "Listener exceptions are isolated by the underlying notifyAfterLlmCall
+         *    try/catch, so a misbehaving listener cannot break the tool loop."
+         *
+         * Existing low-level coverage in `ToolLoopCallbackSupportTest` proves the
+         * try/catch isolates ANY inspector failure. This test exercises the
+         * specific PR chain end-to-end: a user listener subscribed to
+         * LlmInvocationEvent throws on every call → the billing inspector's
+         * onProcessEvent therefore throws → the loop must still terminate
+         * normally and keep emitting on subsequent iterations.
+         */
+        @Test
+        fun `tool loop survives a listener that throws on every LlmInvocationEvent`() {
+            val tool = TestTool("t", "t") { Tool.Result.text("ok") }
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    LlmMessageResponse(
+                        AssistantMessageWithToolCalls(" ", listOf(ToolCall("c1", "t", "{}"))),
+                        textContent = "",
+                        usage = Usage(10, 5, null),
+                    ),
+                    LlmMessageResponse(
+                        AssistantMessageWithToolCalls(" ", listOf(ToolCall("c2", "t", "{}"))),
+                        textContent = "",
+                        usage = Usage(20, 10, null),
+                    ),
+                    LlmMessageResponse(
+                        AssistantMessage("done"),
+                        textContent = "done",
+                        usage = Usage(30, 15, null),
+                    ),
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            // Model a misbehaving cost listener: every LlmInvocationEvent dispatch throws.
+            // Other event types pass through normally.
+            val attemptedDispatches = java.util.concurrent.atomic.AtomicInteger()
+            every { mockProcessContext.onProcessEvent(any()) } answers {
+                val ev = firstArg<com.embabel.agent.api.event.AgentProcessEvent>()
+                if (ev is LlmInvocationEvent) {
+                    attemptedDispatches.incrementAndGet()
+                    throw RuntimeException("simulated misbehaving cost listener")
+                }
+                eventListener.onProcessEvent(ev)
+            }
+
+            // The loop must complete despite the listener throwing on every iteration.
+            val result = operations.testDoTransformWithEvent(
+                messages = listOf(UserMessage("go")),
+                interaction = createInteraction(tools = listOf(tool)),
+                outputClass = String::class.java,
+                llmRequestEvent = mockLlmRequestEvent(),
+            )
+
+            assertEquals(
+                "done", result,
+                "doTransform must complete even when the listener throws on every LLM call"
+            )
+            assertEquals(
+                3, attemptedDispatches.get(),
+                "Inspector must keep emitting on every LLM call, despite the listener throwing each time"
+            )
+            // recordLlmInvocation runs BEFORE onProcessEvent in the inspector,
+            // so per-call recording is unaffected by the listener failure.
+            assertEquals(
+                3, mutableLlmInvocationHistory.invocations.size,
+                "Per-call recording must succeed for every LLM call, untouched by the listener failure"
+            )
+        }
+    }
+
     // Helper methods
 
     private fun createInteraction(
@@ -1245,6 +1686,37 @@ internal open class TestableToolLoopLlmOperations(
             llmRequestEvent = null,
         )
     }
+
+    // ===== Variants that pass a real LlmRequestEvent so the billing inspector fires =====
+
+    fun <O> testDoTransformWithEvent(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>,
+    ): O = doTransform(messages, interaction, outputClass, llmRequestEvent)
+
+    fun <O> testDoTransformIfPossibleWithEvent(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>,
+    ): Result<O> = doTransformIfPossible(messages, interaction, outputClass, llmRequestEvent)
+
+    fun <O> testDoTransformWithThinkingWithEvent(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>,
+    ): ThinkingResponse<O> = doTransformWithThinking(messages, interaction, outputClass, llmRequestEvent)
+
+    fun <O> testDoTransformWithThinkingIfPossibleWithEvent(
+        messages: List<Message>,
+        interaction: LlmInteraction,
+        outputClass: Class<O>,
+        llmRequestEvent: LlmRequestEvent<O>,
+    ): Result<ThinkingResponse<O>> =
+        doTransformWithThinkingIfPossible(messages, interaction, outputClass, llmRequestEvent)
 }
 
 /**
