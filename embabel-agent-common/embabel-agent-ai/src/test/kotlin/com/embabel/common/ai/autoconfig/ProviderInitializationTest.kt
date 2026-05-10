@@ -48,6 +48,19 @@ class ProviderInitializationTest {
     inner class TotalEmbeddings {
 
         @Test
+        fun `defaults embeddings to empty list when not specified`() {
+            // Arrange
+            val result = ProviderInitialization(
+                provider = "OpenAI",
+                registeredLlms = listOf(RegisteredModel("gpt4", "gpt-4"))
+            )
+
+            // Assert
+            assertThat(result.registeredEmbeddings).isEmpty()
+            assertThat(result.totalEmbeddings).isZero()
+        }
+
+        @Test
         fun `returns zero when no embeddings registered`() {
             val result = createProviderInitialization(embeddings = emptyList())
 
