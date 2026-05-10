@@ -22,7 +22,7 @@ import com.embabel.common.util.indentLines
  * Simple data type. Enables interop with non-JVM types.
  * @param name name of the type. Should be unique within a given context
  * @param description description of the type
- * @param properties properties of the type
+ * @param ownProperties properties directly on the type, versus inherited properties
  * @param parents parent types of this type. Can be JVM types or dynamic types
  */
 data class DynamicType(
