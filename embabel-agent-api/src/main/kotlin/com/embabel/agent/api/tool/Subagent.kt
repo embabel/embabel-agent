@@ -248,6 +248,7 @@ class Subagent private constructor(
             blackboard = blackboard,
             outputChannel = parentOutputChannel,
             identities = parentAgentProcess.processOptions.identities,
+            listeners = parentAgentProcess.processOptions.listeners,
         )
     }
 
