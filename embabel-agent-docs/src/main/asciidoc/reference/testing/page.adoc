@@ -818,3 +818,303 @@ class StoryWriterIntegrationTest : EmbabelMockitoIntegrationTest() {
 - Verify temperature settings: `llm.getLlm().getTemperature() == 0.9`
 - Check tool groups: `llm.getToolGroups().isEmpty()`
 - Validate persona and other LLM options
+
+===== Integration Tests with LLM
+
+Embabel provides integration tests that exercise complete workflows with real LLM providers to verify end-to-end functionality.
+These tests are located in the autoconfiguration modules for each LLM provider and verify that the integration with the provider's API works correctly, including features like guardrails, thinking responses, and structured output.
+
+**Examples of LLM Integration Tests:**
+
+[cols="1,3,2", options="header"]
+|===
+|Test Name
+|Description
+|LLM Provider
+
+|LLMOpenAiGuardRailsIntegrationIT
+|Tests OpenAI integration with guardrails, including moderation API integration using both OpenAI SDK and Spring AI, and validates guardrail invocation for structured output
+|OpenAI (gpt-4.1-mini)
+
+|LLMAnthropicGuardRailsIntegrationIT
+|Tests Anthropic integration with guardrails, validating that AssistantMessageGuardRail is correctly invoked for structured object responses
+|Anthropic (claude-sonnet-4-5)
+
+|LLMGeminiGuardRailsIntegrationIT
+|Tests Gemini integration with guardrails, verifying guardrail functionality with structured output for Google's Gemini models
+|Gemini (gemini-2.5-flash)
+|===
+
+====== Test Structure
+
+These integration tests follow a consistent structure designed to test real LLM interactions while maintaining control over the test environment.
+
+*1. Test Location:*
+
+Integration tests are located within autoconfiguration modules rather than in separate test modules.
+This placement ensures tests have direct access to the autoconfiguration classes they're testing and can verify that Spring Boot correctly initializes all required beans.
+
+[source]
+----
+embabel-agent-autoconfigure/
+  models/
+    embabel-agent-openai-autoconfigure/
+      src/test/java/com/embabel/agent/config/models/openai/
+        LLMOpenAiGuardRailsIntegrationIT.java
+    embabel-agent-anthropic-autoconfigure/
+      src/test/java/com/embabel/agent/config/models/anthropic/
+        LLMAnthropicGuardRailsIntegrationIT.java
+    embabel-agent-gemini-autoconfigure/
+      src/test/java/com/embabel/agent/config/models/gemini/
+        LLMGeminiGuardRailsIntegrationIT.java
+----
+
+*2. Environment Properties:*
+
+Each test configures the Spring environment through the `@SpringBootTest` annotation's `properties` attribute.
+These properties configure the LLM models, timeouts, retries, and logging levels for the test environment.
+
+[source,java]
+----
+@SpringBootTest(
+    properties = {
+        "embabel.models.cheapest=gpt-4.1-mini",
+        "embabel.models.best=gpt-4.1-mini",
+        "embabel.models.default-llm=gpt-4.1-mini",  // <1>
+        "embabel.agent.platform.llm-operations.prompts.defaultTimeout=240s",
+        "embabel.agent.platform.llm-operations.data-binding.fixedBackoffMillis=6000",
+
+
+        // Thinking Infrastructure logging
+        "logging.level.com.embabel.agent.spi.support.springai.ChatClientLlmOperations=TRACE",
+        "logging.level.com.embabel.common.core.thinking=DEBUG"
+
+    }
+)
+----
+<1> The `default-llm` property configures which LLM model to use by default when `ai.withDefaultLlm()` is called
+
+*3. Active Profiles:*
+
+The `@ActiveProfiles` annotation activates Spring profiles that enable specific functionality for the test environment.
+The "thinking" profile enables extended thinking capabilities and additional logging for LLM operations.
+
+[source,java]
+----
+@ActiveProfiles("thinking")  // <1>
+----
+<1> Activates the "thinking" profile which enables enhanced tracing and thinking block extraction
+
+*4. Configuration Properties Scanning:*
+
+The `@ConfigurationPropertiesScan` annotation enables Spring Boot to discover and bind configuration properties classes.
+This is essential for integration tests to load all configuration properties from the `embabel.agent` and `embabel.example` packages.
+
+[source,java]
+----
+@ConfigurationPropertiesScan(
+    basePackages = {
+        "com.embabel.agent",
+        "com.embabel.example"
+    }
+)
+----
+
+*5. Component Scanning:*
+
+The `@ComponentScan` annotation configures component scanning to discover Spring beans.
+Integration tests typically exclude certain components (like exception handlers) that might interfere with test execution.
+
+[source,java]
+----
+@ComponentScan(
+    basePackages = {
+        "com.embabel.agent",
+        "com.embabel.example"
+    }
+)
+----
+
+*6. Importing Autoconfiguration:*
+
+The `@Import` annotation explicitly imports the autoconfiguration class being tested.
+This ensures the specific LLM provider's autoconfiguration is loaded and all required beans are created.
+
+[source,java]
+----
+@Import({AgentOpenAiAutoConfiguration.class, GuardRailConfiguration.class})  // <1>
+----
+<1> Imports both the OpenAI autoconfiguration and test-specific guardrail configuration
+
+*7. Autowired Dependencies:*
+
+Integration tests autowire the beans needed for testing.
+While tests may autowire multiple components for verification purposes, *only the `Ai` interface is required* to execute LLM operations.
+
+[source,java]
+----
+@Autowired
+private Ai ai;  // <1>
+
+@Autowired
+private Autonomy autonomy;  // <2>
+
+@Autowired
+private List<LlmService<?>> llms;  // <2>
+----
+<1> The `Ai` interface is the primary entry point and the only required dependency for making LLM calls
+<2> Additional autowired components used for verification and testing purposes
+
+====== Example Test: OpenAI GuardRails Integration
+
+The following example demonstrates a complete integration test from `LLMOpenAiGuardRailsIntegrationIT.java`:
+
+[source,java,linenums]
+----
+
+@Test
+void testGuardRailInvokedForStructuredCreateObject() {
+    logger.info("Starting guardrail structured createObject test");  // <1>
+
+    List<String> guardRailCalled = Collections.synchronizedList(new ArrayList<>());  // <2>
+
+    AssistantMessageGuardRail trackingGuard = new AssistantMessageGuardRail() {  // <3>
+        @Override
+        public @NotNull String getName() {
+            return "StructuredOutputTrackingGuardRail";
+        }
+
+        @Override
+        public @NotNull String getDescription() {
+            return "Tracks guardrail invocation for structured output";
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+            guardRailCalled.add(input);
+            logger.info("AssistantMessageGuardRail invoked for structured output: {}", input);
+            return new ValidationResult(true, Collections.emptyList());
+        }
+
+        @Override
+        public @NotNull ValidationResult validate(@NotNull ThinkingResponse<?> response, @NotNull Blackboard blackboard) {
+            return new ValidationResult(true, Collections.emptyList());
+        }
+    };
+
+    PromptRunner runner = ai.withDefaultLlm()  // <4>
+            .withGuardRails(trackingGuard);
+
+    String prompt = """
+            What is the hottest month in Florida and provide its temperature.
+            The name should be the month name, temperature should be in Fahrenheit.
+            """;
+
+    MonthItem result = runner.createObject(prompt, MonthItem.class);  // <5>
+
+    assertNotNull(result, "Result should not be null");  // <6>
+    assertNotNull(result.getName(), "Month name should not be null");
+    assertFalse(guardRailCalled.isEmpty(),
+            "AssistantMessageGuardRail should have been called for structured output");
+    logger.info("GuardRail was invoked {} time(s) for structured createObject", guardRailCalled.size());
+}
+----
+<1> Logging statement to track test execution
+<2> Thread-safe list to track guardrail invocations
+<3> Custom guardrail implementation that tracks when it's called
+<4> Configure the prompt runner using the default LLM (configured as gpt-4.1-mini in test properties)
+<5> Execute the LLM call to create a structured object
+<6> Verify the result and guardrail invocation
+
+NOTE: The test uses `withDefaultLlm()` which references the model configured in the `@SpringBootTest` properties (`embabel.models.default-llm=gpt-4.1-mini`).
+This approach makes tests more flexible and allows the model to be changed without modifying test code.
+
+===== Testing Annotated Agents
+
+When testing agents built with `@Agent` and `@Action` annotations, you need to verify that:
+
+- The agent metadata is correctly constructed from annotations
+- Actions execute with the correct behavior (retry policies, preconditions, etc.)
+- The planner selects and executes actions appropriately
+- Domain-specific logic works as expected
+
+**Test Structure for Annotated Agents:**
+
+The key steps to test an annotated agent are:
+
+1. Create an instance of your annotated agent class
+2. Use `AgentMetadataReader` to extract agent metadata from annotations
+3. Create an `AgentProcess` with a dummy or real `AgentPlatform`
+4. Provide input data and run the process
+5. Verify the output and any side effects
+
+**Example: Testing Action Retry Policy**
+
+Here's a concise example from `RetryActionAnnotationJavaTest` showing how to test an agent with retry behavior:
+
+[source,java]
+----
+@Test
+void retryMethodFailsOnlyOnceSucceedsSecond() {
+    // 1. Create the agent instance
+    var instance = new JavaAgentWithTwoRetryActions();  // <1>
+
+    // 2. Extract agent metadata from annotations
+    var reader = new AgentMetadataReader();
+    var agent = reader.createAgentMetadata(instance);  // <2>
+
+    // 3. Create agent process with test platform
+    var ap = IntegrationTestUtils.dummyAgentPlatform();
+    var agentProcess = ap.createAgentProcess(
+            agent,
+            ProcessOptions.DEFAULT.withPlannerType(PlannerType.UTILITY),  // <3>
+            Map.of("input", new JavaRetryTestInput("test"))  // <4>
+    );
+
+    // 4. Run and verify
+    assertDoesNotThrow(() ->
+        agentProcess.run().resultOfType(JavaRetryTestOutput.class));  // <5>
+
+    assertEquals(2, instance.retryInvocations.get(),
+        "Retryable method should have been invoked twice");  // <6>
+}
+----
+<1> Instantiate the annotated agent with any required dependencies
+<2> Use `AgentMetadataReader` to parse annotations and create agent metadata
+<3> Configure the planner type (UTILITY, GOAP, etc.) for the test
+<4> Provide input data as a map - keys match action parameter names
+<5> Run the process and extract the result of the expected type
+<6> Verify behavior using instance fields (like invocation counters)
+
+**The Annotated Agent Under Test:**
+
+[source,java]
+----
+@Agent(description = "Java agent with retry", planner = PlannerType.GOAP)
+class JavaAgentWithTwoRetryActions {
+
+    final AtomicInteger retryInvocations = new AtomicInteger(0);  // <1>
+
+    @AchievesGoal(description = "Process the input")
+    @Action(actionRetryPolicyExpression = "${retry-twice}")  // <2>
+    public JavaRetryTestOutput firstAction(JavaRetryTestInput input) {
+        retryInvocations.incrementAndGet();
+        if (retryInvocations.get() == 1)
+            throw new RuntimeException("Failed!");  // <3>
+
+        return new JavaRetryTestOutput("Success!");  // <4>
+    }
+}
+----
+<1> Use instance fields to track invocations and verify behavior
+<2> Configure action behavior through annotations (retry policy, preconditions, etc.)
+<3> First invocation fails to test retry behavior
+<4> Second invocation succeeds
+
+**Key Testing Patterns:**
+
+- **Dummy AgentPlatform**: Use `IntegrationTestUtils.dummyAgentPlatform()` for lightweight testing without Spring context
+- **Instance State**: Access instance fields directly to verify internal behavior (invocation counts, state changes)
+- **Input Map**: Provide action parameters as a `Map<String, Object>` where keys match parameter names
+- **Result Extraction**: Use `agentProcess.run().resultOfType(ExpectedType.class)` to get strongly-typed results
+- **Exception Testing**: Use `assertThrows()` to verify failure scenarios and retry exhaustion

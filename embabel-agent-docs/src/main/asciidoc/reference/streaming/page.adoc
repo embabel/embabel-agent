@@ -17,7 +17,7 @@ This feature is well aligned with Embabel focus on object-oriented programming m
 [source,java]
 ----
 
-        PromptRunner runner = ai.withLlm("qwen3:latest")
+        PromptRunner runner = ai.withDefaultLlm()  // Example uses qwen3:latest
                                 .withToolObject(Tooling.class);
 
         String prompt = "What are exactly two the most hottest months in Florida and their respective highest temperatures";
@@ -60,7 +60,7 @@ This feature is well aligned with Embabel focus on object-oriented programming m
 [source,java]
 ----
 
-        PromptRunner runner = ai.withLlm("qwen3:latest");
+        PromptRunner runner = ai.withDefaultLlm()  // Example uses qwen3:latest;
 
         String prompt = "What is the highest building in Paris?";
 

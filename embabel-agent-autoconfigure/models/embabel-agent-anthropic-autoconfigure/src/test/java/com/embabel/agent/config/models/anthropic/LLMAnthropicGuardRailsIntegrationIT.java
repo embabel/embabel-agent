@@ -171,7 +171,7 @@ class LLMAnthropicGuardRailsIntegrationIT {
             }
         };
 
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withGuardRails(trackingGuard);
 
         String prompt = """
@@ -222,7 +222,7 @@ class LLMAnthropicGuardRailsIntegrationIT {
             }
         };
 
-        PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withGuardRails(trackingGuard);
 
         String prompt = "January has an average temperature of 50 degrees Fahrenheit. Extract the month name and temperature.";
