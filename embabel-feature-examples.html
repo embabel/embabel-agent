@@ -1,0 +1,2494 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!--
+    Maintainer note: this file teaches Embabel from product features back to concepts.
+
+    Teaching rules:
+    - Start each feature with the user outcome, then map that outcome to Embabel concepts.
+    - Explain in reading order only: prose and snippets should not depend on concepts introduced later.
+    - Prefer short real code snippets from the example repos; do not invent API examples.
+    - Split teaching between prose, snippet notes, and code comments:
+      * Prose explains composition: blackboard state, planner choices, data-class relationships,
+        fallback routes, product intent, and why several Embabel concepts work together.
+      * Snippet notes are small white boxes inside the code panel, near the code they explain. Use them for visible local
+        execution notes that would be too hidden as syntax-highlighted comments.
+      * Inline code comments are only for truly line-local clarifications that cannot be cleanly
+        stated in a snippet note.
+    - Avoid duplicate explanations across prose, snippet notes, and code comments.
+    - Avoid long explanatory comment blocks inside snippets; code should stay short and readable.
+    - Show data shapes near first use: input shapes before the method that consumes them, return shapes after first production.
+    - Do not repeat data classes inside the same section unless the repeated shape is needed for local readability.
+    - For planner behavior, describe blackboard state, action outputs, cost, hasRun/canRerun, and replanning explicitly.
+    - Keep diagrams product-flow oriented. The normal diagram wraps in page flow; the cloned sticky diagram is only a scroll aid.
+    - Links should stay relative so IntelliJ can open source files from the right split.
+
+    Feature-one pattern to preserve:
+    - Shape each feature as product outcome -> source links -> why Embabel fits -> product-flow diagram -> code/prose walkthrough.
+    - The walkthrough should move from the capability boundary to preferred path, fallback path, replanning, downstream typed actions, and final goal.
+    - For Embabel concepts, introduce the problem first, then the concept that solves it:
+      @Agent = capability boundary; @Action = typed transition; nullable output = no domain artifact;
+      blackboard = current facts; GOAP = replan from current facts; cost = prefer/avoid routes;
+      canRerun/hasRun = avoid retry loops; tool groups = scope external capabilities;
+      @AchievesGoal = user-visible completion.
+    - Use prose to explain how objects compose across actions, for example
+      UserInput -> StarPerson or UserInput -> Person -> Starry -> StarPerson.
+    - Use in-code-panel notes only for local mechanics beside the relevant line, such as model choice,
+      createObjectIfPossible returning null, fromForm pausing for input, deterministic service calls,
+      and tool group scoping.
+    - Split code blocks when a diagram step should highlight independently; each meaningful product step
+      should have a matching scroll section.
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embabel Feature Examples</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --text: #18202a;
+      --muted: #5d6673;
+      --line: #d9dee7;
+      --accent: #0f766e;
+      --accent-2: #7c3aed;
+      --code-bg: #282c34;
+      --code-text: #abb2bf;
+      --comment: #7f8a9b;
+      --keyword: #c678dd;
+      --type: #e5c07b;
+      --string: #98c379;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+      overflow-x: hidden;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      padding: 32px max(24px, calc((100vw - 1160px) / 2));
+    }
+
+    main {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 28px 24px 56px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 34px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 22px 0 8px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    p code,
+    li code {
+      border: 1px solid #dbe2ec;
+      border-radius: 4px;
+      background: #f5f7fb;
+      padding: 1px 4px;
+      color: #223044;
+      font-size: 0.88em;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    .lede {
+      color: var(--muted);
+      max-width: 880px;
+      font-size: 17px;
+    }
+
+    .repo-list,
+    .concept-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0;
+      margin: 14px 0 0;
+      list-style: none;
+    }
+
+    .repo-list a,
+    .concept-list span {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fdfefe;
+      padding: 5px 10px;
+      font-size: 13px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .feature {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      margin: 22px 0;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .feature-grid {
+      display: contents;
+    }
+
+    .feature > p,
+    .subfeature > p {
+      max-width: 900px;
+      margin: 14px 0 8px;
+      color: #303946;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .feature > pre + p,
+    .feature > ul + pre,
+    .feature > p + pre,
+    .subfeature > p + pre {
+      margin-top: 12px;
+    }
+
+    .feature > ul:not(.source-list):not(.concept-list):not(.repo-list) {
+      max-width: 900px;
+      margin: 8px 0 14px;
+      padding-left: 22px;
+      color: #303946;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    pre .snippet-note {
+      display: block;
+      width: fit-content;
+      max-width: min(860px, 100%);
+      white-space: normal;
+      margin: 6px 0 6px;
+      border: 1px solid rgba(171, 178, 191, 0.24);
+      border-radius: 6px;
+      background: rgba(226, 232, 240, 0.14);
+      padding: 6px 10px;
+      color: #cbd3df;
+      font-size: 13px;
+      line-height: 1.48;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    pre .snippet-note.indent-chain {
+      margin-left: 10rem;
+    }
+
+    pre .snippet-note.indent-body {
+      margin-left: 2rem;
+    }
+
+    pre .snippet-note code {
+      border: 1px solid rgba(171, 178, 191, 0.24);
+      border-radius: 4px;
+      background: rgba(226, 232, 240, 0.16);
+      padding: 1px 4px;
+      color: #dce3ed;
+      font-size: 0.92em;
+      font-weight: 600;
+    }
+
+    .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      margin: 0 0 8px;
+    }
+
+    .source-list {
+      margin: 0 0 18px;
+      padding-left: 20px;
+    }
+
+    .source-list li {
+      margin: 4px 0;
+    }
+
+    .diagram {
+      border: 1px solid #cfd7e4;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px;
+      margin: 16px 0 4px;
+      width: 100%;
+      box-shadow: none;
+      transition: border-radius 140ms ease, box-shadow 140ms ease, margin 140ms ease, padding 140ms ease;
+    }
+
+    .sticky-diagram {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 20;
+      border-left: 0;
+      border-right: 0;
+      border-radius: 0;
+      padding: 10px max(24px, calc((100vw - 1160px) / 2));
+      margin: 0;
+      width: 100vw;
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+    }
+
+    .sticky-diagram.is-visible {
+      display: block;
+    }
+
+    .diagram-title {
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .sticky-diagram .diagram-title {
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      overflow-x: visible;
+      scroll-behavior: smooth;
+      padding: 2px 0 5px;
+      scrollbar-width: none;
+    }
+
+    .sticky-diagram .flow {
+      flex-wrap: nowrap;
+      gap: 8px;
+      overflow-x: hidden;
+    }
+
+    .flow::-webkit-scrollbar {
+      display: none;
+    }
+
+    .node {
+      position: relative;
+      border: 1px solid #d3dae6;
+      border-radius: 6px;
+      background: #f8fafc;
+      padding: 12px 14px 13px;
+      min-width: 150px;
+      flex: 0 0 auto;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 650;
+      opacity: 0.62;
+      box-shadow: none;
+      transition: border-color 160ms ease, background 160ms ease, color 160ms ease, opacity 160ms ease;
+    }
+
+    .sticky-diagram .node {
+      padding: 8px 11px 9px;
+      min-width: 116px;
+    }
+
+    .node.active {
+      border-color: #0f766e;
+      background: #f0fdfa;
+      opacity: 1;
+      color: #0f172a;
+    }
+
+    .node.active::after {
+      content: "";
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 4px;
+      height: 3px;
+      border-radius: 999px;
+      background: #0f766e;
+    }
+
+    .node strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .sticky-diagram .node strong {
+      font-size: 12px;
+    }
+
+    .node small {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .sticky-diagram .node small {
+      margin-top: 3px;
+      font-size: 10px;
+    }
+
+    .node.goal {
+      border-color: #b7ddd7;
+      background: #f3fbf9;
+    }
+
+    .node.llm {
+      border-color: #d8cffc;
+      background: #faf8ff;
+    }
+
+    .node.tool {
+      border-color: #efd59f;
+      background: #fffaf0;
+    }
+
+    .node.code {
+      border-color: #d3dae6;
+      background: #f8fafc;
+    }
+
+    .node.input {
+      border-color: #bfd9ee;
+      background: #f5faff;
+    }
+
+    .node.decision {
+      border-color: #e8c3a7;
+      background: #fff8f2;
+    }
+
+    .arrow {
+      color: #475569;
+      font-weight: 700;
+      min-width: 24px;
+      text-align: center;
+    }
+
+    .diagram-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .explain-box {
+      max-width: 900px;
+      margin: 14px 0;
+      border: 1px solid #d9e2ef;
+      border-left: 4px solid #7c8da5;
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 12px 14px;
+      color: #303946;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .explain-box strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #1f2937;
+    }
+
+    .swot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0 16px;
+    }
+
+    .swot-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 12px;
+    }
+
+    .swot-card strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .swot-card span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    pre {
+      margin: 16px 0 0;
+      border-radius: 8px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      overflow: auto;
+      padding: 16px;
+      font-size: 13px;
+      line-height: 1.48;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    code .comment {
+      color: var(--comment);
+    }
+
+    code .keyword {
+      color: var(--keyword);
+    }
+
+    code .type {
+      color: var(--type);
+    }
+
+    code .string {
+      color: var(--string);
+    }
+
+    code .kw {
+      color: #c678dd;
+      font-weight: 700;
+    }
+
+    code .type-name {
+      color: #e5c07b;
+      font-weight: 650;
+    }
+
+    code .annotation {
+      color: #e06c75;
+      font-weight: 650;
+    }
+
+    code .number {
+      color: #d19a66;
+    }
+
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: #eefaf8;
+      padding: 12px 14px;
+      border-radius: 0 6px 6px 0;
+      margin: 16px 0;
+    }
+
+    .subfeature {
+      border-top: 1px solid var(--line);
+      margin-top: 24px;
+      padding-top: 22px;
+    }
+
+    .subfeature h3 {
+      font-size: 19px;
+      margin-top: 0;
+    }
+
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 14px;
+    }
+
+    .matrix th,
+    .matrix td {
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    .matrix th {
+      background: #f1f5f9;
+    }
+
+    @media (max-width: 860px) {
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .flow {
+        align-items: center;
+      }
+
+      .arrow {
+        text-align: center;
+      }
+
+      .swot-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Embabel Feature Examples</h1>
+    <p class="lede">A product-owner-first guide to Embabel concepts. Each feature starts with the user outcome, then uses short code snippets and surrounding explanation to show how Embabel concepts compose.</p>
+    <ul class="repo-list">
+      <li><a href="../embabel-agent-examples/examples-kotlin">examples-kotlin</a></li>
+      <li><a href="../tripper">tripper</a></li>
+      <li><a href="../ragbot">ragbot</a></li>
+    </ul>
+  </header>
+
+  <main>
+    <section class="feature" id="horoscope-news">
+      <div class="feature-grid">
+        <div>
+          <p class="label">Feature 1</p>
+          <h2>Personalized Horoscope News Brief</h2>
+          <p>A user gives a casual prompt such as "Lynda is a Scorpio" and receives a short, amusing Markdown writeup that connects a horoscope to current news stories.</p>
+          <p>The product outcome is not "run a prompt." The outcome is a personalized, timely brief from minimal user input.</p>
+
+          <h3>Source</h3>
+          <ul class="source-list">
+            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/horoscope/StarNewsFinder.kt">StarNewsFinder.kt</a></li>
+          </ul>
+
+          <h3>Why Embabel Fits</h3>
+          <p>The feature has a real workflow: understand user input, get domain data, search current news, and synthesize a final answer. Embabel expresses each product step as a typed action and lets the planner connect them through domain objects.</p>
+
+          <ul class="concept-list">
+            <li><span>@Agent</span></li>
+            <li><span>@Action</span></li>
+            <li><span>typed planning</span></li>
+            <li><span>action cost</span></li>
+            <li><span>OperationContext</span></li>
+            <li><span>tool groups</span></li>
+            <li><span>@AchievesGoal</span></li>
+          </ul>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">Product Flow</div>
+          <div class="flow">
+            <div class="node input"><strong>User prompt</strong><small>"Lynda is a Scorpio"</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>Extract StarPerson</strong><small>LLM creates typed input</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node code"><strong>Horoscope service</strong><small>deterministic app code</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node tool"><strong>Web news search</strong><small>tool group scoped here</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node goal"><strong>Writeup</strong><small>goal output</small></div>
+          </div>
+          <p class="diagram-note">The planner connects actions through typed objects, not through a hardcoded sequence.</p>
+        </div>
+      </div>
+
+      <p>The agent boundary declares the product capability. Embabel scans the actions inside this class and builds a graph from their input and output types.</p>
+
+      <pre><code>@Agent(
+    description = <span class="string">"Write an amusing personalised writeup combining a person's horoscope and current news stories"</span>,
+    scan = true,
+    beanName = <span class="string">"KotlinStarNewsFinder"</span>,
+)
+class StarNewsFinder(
+    private val horoscopeService: HoroscopeService,
+    private val model: String = OpenAiModels.GPT_41_NANO,
+    private val storyCount: Int,
+    private val wordCount: Int,
+)</code></pre>
+
+      <p>The preferred route is to create the complete object directly. If the user says "Lynda is a Scorpio", <code>extractStarPerson</code> can return <code>StarPerson</code>, which is exactly the type required by the horoscope and news actions.</p>
+
+      <pre><code>@Action
+fun extractStarPerson(userInput: UserInput, context: OperationContext): StarPerson? =
+    context.ai()
+        .withAutoLlm()</code><span class="snippet-note indent-chain"><code>withAutoLlm</code> uses Embabel's configured automatic model choice for this extraction.</span><code>        .createObjectIfPossible(
+            <span class="string">"""
+            Create a person from this user input, extracting their name and star sign:
+            ${userInput.content}
+            """</span>.trimIndent()
+        )</code><span class="snippet-note"><code>createObjectIfPossible</code> returns <code>null</code> when it cannot create the complete typed object.</span><code>data class StarPerson(
+    override val name: String,
+    val sign: String,
+) : Person</code></pre>
+
+      <p>When <code>extractStarPerson</code> does not add <code>StarPerson</code> to the blackboard, the goal is still unsatisfied.</p>
+
+      <p>This is where Embabel's GOAP loop matters. After every action, the process observes the current blackboard, rebuilds the world state, searches for a low-cost action sequence to a goal, executes the first action in that sequence, and repeats. <code>extractStarPerson</code> is not retried forever because it has run and, by default, <code>canRerun</code> is false. The next planning cycle therefore looks for another way to produce the still-missing <code>StarPerson</code>.</p>
+
+      <ul>
+        <li>Direct route: <code>UserInput -&gt; StarPerson</code></li>
+        <li>Fallback route: <code>UserInput -&gt; Person</code>, then <code>Person -&gt; Starry</code>, then <code>Person + Starry -&gt; StarPerson</code></li>
+      </ul>
+
+      <pre><code>@Action
+fun extractPerson(userInput: UserInput, context: OperationContext): Person? =
+    context.ai()
+        .withDefaultLlm()</code><span class="snippet-note indent-chain"><code>extractPerson</code> only needs a name, so the default model is enough here.</span><code>        .createObjectIfPossible(
+            <span class="string">"""
+            Create a person from this user input, extracting their name:
+            ${userInput.content}
+            """</span>.trimIndent()
+        )
+
+@Action(cost = 100.0)
+internal fun makeStarry(person: Person): Starry =
+    fromForm(<span class="string">"Let's get some astrological details for ${person.name}"</span>)</code><span class="snippet-note indent-body"><code>fromForm</code> pauses for human input and returns a typed <code>Starry</code> object.</span><code>data class Starry(
+    val sign: String,
+)
+
+@Action
+fun assembleStarPerson(person: Person, starry: Starry): StarPerson =
+    StarPerson(name = person.name, sign = starry.sign)</code></pre>
+
+      <p>The high cost on <code>makeStarry</code> matters. It makes the fallback route available, but unattractive compared with the direct <code>UserInput -&gt; StarPerson</code> route. If the direct route does not produce <code>StarPerson</code>, Embabel still has the original <code>UserInput</code> and can use the fallback route to assemble the required object.</p>
+
+      <p>Once a <code>StarPerson</code> exists, <code>retrieveHoroscope</code> produces <code>Horoscope</code>.</p>
+
+      <pre><code>@Action
+fun retrieveHoroscope(starPerson: StarPerson) =
+    Horoscope(horoscopeService.dailyHoroscope(starPerson.sign))</code><span class="snippet-note indent-body"><code>retrieveHoroscope</code> is ordinary deterministic service code, not an LLM call.</span><code>data class Horoscope(
+    val summary: String,
+)</code></pre>
+
+      <p><code>findNewsStories</code> combines <code>StarPerson</code> plus <code>Horoscope</code> into <code>RelevantNewsStories</code>. <code>RelevantNewsStories</code> groups the selected stories, while each <code>NewsStory</code> carries a URL, title, and summary.</p>
+
+      <pre><code>@Action
+internal fun findNewsStories(
+    person: StarPerson,
+    horoscope: Horoscope,
+    context: OperationContext
+): RelevantNewsStories =
+	    context.ai()
+	        .withLlm(model)
+	        .withToolGroup(CoreToolGroups.WEB)</code><span class="snippet-note indent-chain"><code>findNewsStories</code> is the only step here that receives live web-search tools.</span><code>	        .createObject(
+	            <span class="string">"""
+	            ${person.name} is an astrology believer with the sign ${person.sign}.
+	            Their horoscope for today is:
+	                &lt;horoscope&gt;${horoscope.summary}&lt;/horoscope&gt;
+	            Given this, use web tools and generate search queries to find $storyCount
+	            relevant news stories. Include the URL for each story.
+	            Do not look for another horoscope reading.
+	            """</span>.trimIndent()
+	        )
+open class RelevantNewsStories(
+    val items: List&lt;NewsStory&gt;,
+) : PromptContributor
+
+open class NewsStory(
+    override val url: String,
+    val title: String,
+    override val summary: String,
+) : PromptContributor, Page</code></pre>
+
+      <div class="explain-box">
+        <strong>What <code>PromptContributor</code> does</strong>
+        <code>PromptContributor</code> lets a domain object provide its own prompt representation when it is included in Embabel prompt construction. Instead of every action manually formatting the same object into text, the object can define a reusable contribution that prompt runners can include consistently.
+      </div>
+
+      <p>The final action consumes the objects already produced by the flow and marks the user-visible result with <code>@AchievesGoal</code>.</p>
+
+      <pre><code>@AchievesGoal(
+    description = <span class="string">"Create an amusing writeup for the target person based on their horoscope and current news stories"</span>,
+)
+@Action
+fun starNewsWriteup(
+    person: StarPerson,
+    relevantNewsStories: RelevantNewsStories,
+    horoscope: Horoscope,
+    context: OperationContext
+): Writeup =
+	    context.ai()
+	        .withLlm(LlmOptions.withModel(model).withTemperature(0.9))
+	        .createObject(
+	            <span class="string">"""
+	            Take the following news stories and write up something amusing for the target person.
+	            Begin by summarizing their horoscope, then talk about the news.
+
+	            ${person.name} is an astrology believer with the sign ${person.sign}.
+	            Horoscope: &lt;horoscope&gt;${horoscope.summary}&lt;/horoscope&gt;
+	            Relevant news stories:
+	            ${relevantNewsStories.items.joinToString("\n") { "- ${it.url}: ${it.summary}" }}
+
+	            Format it as Markdown with links.
+	            """</span>.trimIndent()
+	        )
+data class Writeup(
+    override val content: String,
+) : HasContent</code></pre>
+    </section>
+
+    <section class="feature" id="news-digest">
+      <div class="feature-grid">
+        <div>
+          <p class="label">Feature 2</p>
+          <h2>Curated News Digest</h2>
+          <p>A user or remote tool caller asks for news about a topic and receives a structured digest with recent items, URLs, and a short editorial summary.</p>
+          <p>The user outcome is a concise briefing, not a raw search result list.</p>
+
+          <h3>Source</h3>
+          <ul class="source-list">
+            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/secured/NewsDigestAgent.kt">NewsDigestAgent.kt</a></li>
+          </ul>
+
+          <h3>Why Embabel Fits</h3>
+          <p>The feature combines free-form intent extraction, current web search, synthesis, remote export, and access control. Embabel lets those concerns stay explicit in the code.</p>
+
+          <ul class="concept-list">
+            <li><span>structured extraction</span></li>
+            <li><span>web tools</span></li>
+            <li><span>remote export</span></li>
+            <li><span>@SecureAgentTool</span></li>
+          </ul>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">Capability Surface</div>
+          <div class="flow">
+            <div class="node input"><strong>UserInput</strong><small>topic request</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>NewsTopic</strong><small>structured extraction</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node tool"><strong>Web search</strong><small>current items + URLs</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>Narrative</strong><small>summary from known items</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node goal"><strong>NewsDigest</strong><small>secured exported goal</small></div>
+          </div>
+          <p class="diagram-note">Only the retrieval step gets web tools; the summary step works from the gathered digest items.</p>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Product capability: remotely usable news digest.</span>
+<span class="comment">// Embabel concept: @SecureAgentTool protects the exported tool from unauthorized callers.</span>
+@Agent(description = <span class="string">"Research a topic and return a curated news digest with headlines and summaries"</span>)
+@SecureAgentTool(<span class="string">"hasAuthority('news:read')"</span>)
+class NewsDigestAgent {
+
+	    <span class="comment">// Product step: turn a casual request into a clear news topic.</span>
+	    <span class="comment">// Embabel concept: structured object extraction creates a NewsTopic.</span>
+	    @Action
+	    fun extractTopic(userInput: UserInput, context: OperationContext): NewsTopic =
+	        context.ai().withDefaultLlm().createObject(
+	            <span class="string">"""
+	            Extract a research topic from the following user input.
+	            If a specific focus area is mentioned, capture it separately.
+
+	            User input: ${userInput.content}
+	            """</span>.trimIndent()
+	        )
+    data class NewsTopic(
+        val topic: String,
+        val focusArea: String = <span class="string">""</span>,
+    )
+
+}</code></pre>
+
+      <pre><code><span class="comment">// Product result: a completed digest visible to remote callers as "newsDigest".</span>
+<span class="comment">// Embabel concept: Export exposes the goal, not every internal action.</span>
+@AchievesGoal(
+    description = <span class="string">"Produce a curated news digest for the requested topic"</span>,
+    export = Export(
+        remote = true,
+        name = <span class="string">"newsDigest"</span>,
+        startingInputTypes = [UserInput::class],
+    )
+)
+@Action
+fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest {
+	    val digestItemList = context.ai()
+	        .withDefaultLlm()
+	        .withToolGroup(CoreToolGroups.WEB) <span class="comment">// Only this call needs current news.</span>
+	        .createObject&lt;DigestItemList&gt;(
+	            <span class="string">"""
+	            Use web search to find the 5 most recent and relevant news items about: ${topic.topic}.
+	            $focusClause
+	            For each item return a headline, a 2-3 sentence summary, and the source URL.
+	            """</span>.trimIndent()
+	        )
+    data class DigestItem(
+        val headline: String,
+        val summary: String,
+        val url: String,
+    )
+
+    data class DigestItemList(
+        val items: List&lt;DigestItem&gt;,
+    )
+
+	    val narrative = context.ai()
+	        .withDefaultLlm()                  <span class="comment">// No web tools needed for summarizing known items.</span>
+	        .createObject&lt;String&gt;(
+	            <span class="string">"""
+	            Write a 3-sentence editorial summary of these news items about ${topic.topic}.
+	            Be concise and objective.
+
+	            Items:
+	            ${digestItemList.items.joinToString("\n") { "- ${it.headline}: ${it.summary}" }}
+	            """</span>.trimIndent()
+	        )
+
+	    return NewsDigest(topic = topic.topic, items = digestItemList.items, content = narrative)
+}
+data class NewsDigest(
+    val topic: String,
+    val items: List&lt;DigestItem&gt;,
+    override val content: String,
+) : HasContent</code></pre>
+    </section>
+
+    <section class="feature" id="market-intelligence">
+      <div class="feature-grid">
+        <div>
+          <p class="label">Feature 3</p>
+          <h2>Market Intelligence Report</h2>
+          <p>A business user asks for a market report on a company or sector and receives SWOT entries, competitor insights, key trends, and an executive summary.</p>
+          <p>The outcome is a decision-ready report assembled from current evidence.</p>
+
+          <h3>Source</h3>
+          <ul class="source-list">
+            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/secured/MarketIntelligenceAgent.kt">MarketIntelligenceAgent.kt</a></li>
+          </ul>
+
+          <h3>Why Embabel Fits</h3>
+          <p>The feature separates evidence gathering from report synthesis. That is more controllable than one large prompt that searches and writes everything at once.</p>
+
+          <ul class="concept-list">
+            <li><span>evidence action</span></li>
+            <li><span>typed sections</span></li>
+            <li><span>multi-call synthesis</span></li>
+            <li><span>secured export</span></li>
+          </ul>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">Report Assembly</div>
+          <div class="flow">
+            <div class="node input"><strong>Analysis subject</strong><small>company / sector / region</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node tool"><strong>Raw intelligence</strong><small>recent web evidence</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>SWOT</strong><small>internal + external factors</small></div>
+            <div class="node llm"><strong>Competitors</strong><small>market alternatives</small></div>
+            <div class="node llm"><strong>Trends</strong><small>forces shaping demand</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node goal"><strong>Report</strong><small>decision-ready output</small></div>
+          </div>
+          <p class="diagram-note">One evidence-gathering step feeds several typed synthesis steps.</p>
+        </div>
+      </div>
+
+      <div class="subfeature">
+        <h3>3.1 Parse the Business Question into an Analysis Subject</h3>
+        <p>The product starts from a human request such as "analyze the European EV charging market." The system first normalizes that into a typed subject and region so the rest of the workflow is stable.</p>
+
+        <pre><code><span class="comment">// Product step: understand what market or company the user wants analyzed.</span>
+<span class="comment">// Embabel concept: create a typed AnalysisSubject instead of carrying a raw prompt string.</span>
+@Action
+fun parseSubject(
+    userInput: UserInput,
+    context: OperationContext,
+): AnalysisSubject = context.ai()
+    .withDefaultLlm()
+    .createObject(
+        <span class="string">"""
+        Extract the subject of market analysis from the following user input.
+        Identify the company name, sector, or market segment, and the geographic region if mentioned.
+        Default the region to Global if not specified.
+
+        User input: ${userInput.content}
+        """</span>.trimIndent()
+    )
+data class AnalysisSubject(
+    val subject: String,
+    val region: String = <span class="string">"Global"</span>,
+)</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>3.2 Gather Evidence Before Writing the Report</h3>
+        <p>The report should be grounded in recent information. The web-enabled action creates a raw intelligence artifact as a stable evidence base.</p>
+
+        <pre><code><span class="comment">// Product step: gather current evidence before analysis.</span>
+<span class="comment">// Embabel concept: one web-enabled action creates rawIntelligence.</span>
+@Action
+fun gatherIntelligence(
+    subject: AnalysisSubject,
+    context: OperationContext,
+): String = context.ai()
+    .withDefaultLlm()
+    .withToolGroup(CoreToolGroups.WEB) <span class="comment">// Current market info requires external search.</span>
+    .createObject(
+        <span class="string">"""
+        Search the web to gather recent market intelligence about: ${subject.subject}
+        Region: ${subject.region}
+
+        Collect recent news, competitor moves, industry trends, and notable strengths or vulnerabilities.
+        """</span>.trimIndent()
+    )</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>3.3 Synthesize Typed Sections from Shared Evidence</h3>
+        <p>The final report is not one blob. It has sections with different jobs: SWOT, competitors, trends, and executive summary. Each LLM call receives the same evidence but has a narrower output contract.</p>
+
+        <div class="swot-grid">
+          <div class="swot-card">
+            <strong>Strengths</strong>
+            <span>Internal advantages the subject can build on, such as brand, technology, distribution, talent, or cost position.</span>
+          </div>
+          <div class="swot-card">
+            <strong>Weaknesses</strong>
+            <span>Internal limitations that hold the subject back, such as high costs, capability gaps, poor execution, or fragile dependencies.</span>
+          </div>
+          <div class="swot-card">
+            <strong>Opportunities</strong>
+            <span>External conditions the subject could exploit, such as market growth, regulation, new customer needs, or competitor weakness.</span>
+          </div>
+          <div class="swot-card">
+            <strong>Threats</strong>
+            <span>External risks that could hurt the subject, such as new entrants, regulation, substitutes, supply constraints, or market decline.</span>
+          </div>
+        </div>
+
+        <pre><code><span class="comment">// Product result: a structured decision report.</span>
+<span class="comment">// Embabel concept: the goal action consumes both the subject and gathered evidence.</span>
+@AchievesGoal(
+    description = <span class="string">"Produce a structured market intelligence report with SWOT analysis, competitive insights, and key trends"</span>,
+    export = Export(remote = true, name = <span class="string">"marketIntelligenceReport"</span>, startingInputTypes = [UserInput::class])
+)
+@Action
+fun synthesiseReport(
+    subject: AnalysisSubject,
+    rawIntelligence: String,
+    context: OperationContext,
+): MarketIntelligenceReport {
+    <span class="comment">// Product section: SWOT entries.</span>
+    <span class="comment">// SWOT = Strengths, Weaknesses, Opportunities, Threats.</span>
+    <span class="comment">// It separates internal factors (strengths/weaknesses) from external factors (opportunities/threats).</span>
+    <span class="comment">// Embabel concept: each call returns a typed object, not unstructured text.</span>
+    val swotList = context.ai().withDefaultLlm().createObject&lt;SwotEntryList&gt;(
+        <span class="string">"""
+        Based on the following market intelligence, produce a SWOT analysis for ${subject.subject}.
+        Each entry must have a category and concise description.
+        Return 2-3 items per category.
+
+        Intelligence:
+        $rawIntelligence
+        """</span>.trimIndent()
+    )
+    data class SwotEntry(
+        val category: String,      <span class="comment">// Strength, Weakness, Opportunity, or Threat.</span>
+        val description: String,
+    )
+
+    data class SwotEntryList(val items: List&lt;SwotEntry&gt;)
+
+    <span class="comment">// Product section: competitor insights.</span>
+    val competitorList = context.ai().withDefaultLlm().createObject&lt;CompetitorInsightList&gt;(
+        <span class="string">"""
+        Based on the following market intelligence, identify the top 4 competitors
+        or comparable entities for ${subject.subject} in ${subject.region}.
+        For each, provide a recent development or strategic positioning insight.
+
+        Intelligence:
+        $rawIntelligence
+        """</span>.trimIndent()
+    )
+    data class CompetitorInsight(
+        val name: String,
+        val insight: String,
+    )
+
+    data class CompetitorInsightList(val items: List&lt;CompetitorInsight&gt;)
+
+    <span class="comment">// Product section: market trends.</span>
+    val trendList = context.ai().withDefaultLlm().createObject&lt;KeyTrendList&gt;(
+        <span class="string">"""
+        Based on the following market intelligence, extract the 5 most significant
+        market trends affecting ${subject.subject} in ${subject.region}.
+        Return each as a concise single sentence inside the items list.
+
+        Intelligence:
+        $rawIntelligence
+        """</span>.trimIndent()
+    )
+    data class KeyTrendList(val items: List&lt;String&gt;)
+
+    <span class="comment">// Product section: executive summary for decision makers.</span>
+    val summary = context.ai().withDefaultLlm().createObject&lt;String&gt;(
+        <span class="string">"""
+        Write a 4-sentence executive summary for a market intelligence report on
+        ${subject.subject} (${subject.region}).
+        Be concise, analytical, and suitable for a senior decision-maker.
+
+        Key findings:
+        SWOT: ${swotList.items.joinToString("; ") { "${it.category}: ${it.description}" }}
+        Trends: ${trendList.items.joinToString("; ")}
+        """</span>.trimIndent()
+    )
+
+    <span class="comment">// Product assembly: normal code composes the final report from typed sections.</span>
+    return MarketIntelligenceReport(
+        subject = subject.subject,
+        region = subject.region,
+        executiveSummary = summary,
+        swot = swotList.items,
+        competitors = competitorList.items,
+        keyTrends = trendList.items,
+        content = summary,
+    )
+}
+data class MarketIntelligenceReport(
+    val subject: String,
+    val region: String,
+    val executiveSummary: String,
+    val swot: List&lt;SwotEntry&gt;,
+    val competitors: List&lt;CompetitorInsight&gt;,
+    val keyTrends: List&lt;String&gt;,
+    override val content: String,
+) : HasContent</code></pre>
+      </div>
+
+      <div class="callout">
+        Market Intelligence's key lesson: gather evidence once with tools, then use narrow typed synthesis calls. This makes the report easier to test, explain, and secure than a single all-purpose research prompt.
+      </div>
+    </section>
+
+    <section class="feature" id="research-review">
+      <div class="feature-grid">
+        <div>
+          <p class="label">Feature 4</p>
+          <h2>Deep Research with Review and Retry</h2>
+          <p>A user asks a serious research question. The system compares independent model outputs, merges the best material, critiques the merged report, and retries if the result is not good enough.</p>
+          <p>The product outcome is a higher-confidence report with an explicit quality gate.</p>
+
+          <h3>Source</h3>
+          <ul class="source-list">
+            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/researcher/Researcher.kt">Researcher.kt</a></li>
+          </ul>
+
+          <h3>Why Embabel Fits</h3>
+          <p>This feature needs runtime routing: accepted reports finish, rejected reports trigger rework. Conditions and named bindings make that routing visible.</p>
+
+          <ul class="concept-list">
+            <li><span>outputBinding</span></li>
+            <li><span>@RequireNameMatch</span></li>
+            <li><span>@Condition</span></li>
+            <li><span>canRerun</span></li>
+            <li><span>pre/post</span></li>
+          </ul>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">Review Loop</div>
+          <div class="flow">
+            <div class="node input"><strong>Research request</strong><small>question or topic</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>GPT report</strong><small>named binding</small></div>
+            <div class="node llm"><strong>Claude report</strong><small>named binding</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>Merge</strong><small>requires both names</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node decision"><strong>Critique</strong><small>satisfactory?</small></div>
+            <div class="arrow">yes -&gt;</div>
+            <div class="node goal"><strong>Final report</strong><small>goal can run</small></div>
+          </div>
+          <p class="diagram-note">If critique is rejected, conditions enable rerun actions instead of the final goal.</p>
+        </div>
+      </div>
+
+      <div class="subfeature">
+        <h3>4.1 Classify the Research Request</h3>
+        <p>The product should answer direct questions differently from broad discussion topics. A cheap classifier action decides which prompt shape the deeper research calls should use.</p>
+
+        <pre><code><span class="comment">// Product step: decide whether the user wants an answer or a discussion.</span>
+<span class="comment">// Embabel concept: cheap model role is enough for categorization.</span>
+@Action
+fun categorize(
+    userInput: UserInput,
+    context: OperationContext,
+): Categorization = context.ai()
+    .withLlmByRole(CHEAPEST_ROLE)
+    .create(
+        <span class="string">"""
+        Categorize the following user input:
+
+        Topic:
+        &lt;${userInput.content}&gt;
+        """</span>.trimIndent()
+    )
+enum class Category {
+    QUESTION,
+    DISCUSSION,
+}
+
+data class Categorization(
+    val category: Category,
+)</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>4.2 Run Independent Model Research Paths</h3>
+        <p>Two model paths produce the same type, <code>SingleLlmReport</code>. The product wants both, not whichever one happens to be latest, so the blackboard entries are named.</p>
+
+        <pre><code><span class="comment">// Product step: collect one model's independent view.</span>
+<span class="comment">// Embabel concept: outputBinding gives this SingleLlmReport a stable blackboard name.</span>
+@Action(
+    post = [REPORT_SATISFACTORY], <span class="comment">// This action emits a named planning fact.</span>
+    canRerun = true,              <span class="comment">// It can be retried if critique rejects the merged result.</span>
+    outputBinding = <span class="string">"gpt4Report"</span>,
+)
+fun researchWithGpt4(
+    userInput: UserInput,
+    categorization: Categorization,
+    context: OperationContext,
+): SingleLlmReport = researchWith(
+    userInput = userInput,
+    categorization = categorization,
+    critique = null,
+    llm = LlmOptions(properties.openAiModelName),
+    context = context,
+)
+
+<span class="comment">// Same return type, different named output.</span>
+<span class="comment">// Without names, two SingleLlmReport values would be ambiguous on the blackboard.</span>
+@Action(
+    post = [REPORT_SATISFACTORY],
+    outputBinding = <span class="string">"claudeReport"</span>,
+    canRerun = true,
+)
+fun researchWithClaude(...): SingleLlmReport = researchWith(...)
+data class SingleLlmReport(
+    val report: ResearchReport,
+    val model: String,
+) : Timestamped</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>4.3 Use Web and Browser Tools Inside the Shared Research Implementation</h3>
+        <p>The model-specific actions delegate to one implementation. That keeps the model choice separate from the product behavior: use external sources and write a bounded report.</p>
+
+        <pre><code><span class="comment">// Product behavior: answer precise questions with current sources.</span>
+<span class="comment">// Embabel concept: PromptRunner combines model, contributors, and tools for this call.</span>
+private fun answerQuestion(
+    userInput: UserInput,
+    llm: LlmOptions,
+    critique: Critique?,
+    context: OperationContext,
+): ResearchReport = context.promptRunner(
+    llm = llm,
+    promptContributors = properties.promptContributors,
+)
+    .withToolGroup(CoreToolGroups.WEB)
+    .withToolGroup(CoreToolGroups.BROWSER_AUTOMATION)
+    .create(
+        <span class="string">"""
+        Use the web and browser tools to answer the given question.
+        You must try to find the answer on the web, and be definite, not vague.
+        Write a detailed report in at most ${properties.maxWordCount} words.
+
+        Question:
+        &lt;${userInput.content}&gt;
+
+        ${critique?.reasoning?.let { "Critique of previous answer:\n&lt;$it&gt;" }}
+        """</span>.trimIndent()
+    )
+open class ResearchReport(
+    val topic: String,
+    override val content: String,
+    override val links: List&lt;InternetResource&gt;,
+) : InternetResources, HasInfoString, ContentAsset</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>4.4 Merge Named Reports</h3>
+        <p>The merge action depends on the two named reports. <code>@RequireNameMatch</code> makes the code explicit: <code>gpt4Report</code> means the GPT report, not any <code>SingleLlmReport</code> on the blackboard.</p>
+
+        <pre><code><span class="comment">// Product step: combine the strongest findings from both models.</span>
+<span class="comment">// Embabel concept: @RequireNameMatch injects the specifically named reports.</span>
+@Action(
+    post = [REPORT_SATISFACTORY],
+    outputBinding = <span class="string">"mergedReport"</span>,
+    canRerun = true,
+)
+fun mergeReports(
+    userInput: UserInput,
+    @RequireNameMatch gpt4Report: SingleLlmReport,
+    @RequireNameMatch claudeReport: SingleLlmReport,
+    context: OperationContext,
+): ResearchReport {
+    val reports = listOf(gpt4Report, claudeReport)
+    return context.promptRunner(
+        llm = LlmOptions(properties.criticModeName),
+        promptContributors = properties.promptContributors,
+    ).create(
+        <span class="string">"""
+        Merge the following research reports into a single report taking the best of each.
+        Consider the user direction: &lt;${userInput.content}&gt;
+
+        ${reports.joinToString("\n\n") { "Report from ${it.model}\n${it.report.infoString(verbose = true)}" }}
+        """</span>.trimIndent()
+    )
+}</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>4.5 Turn Critique into Planning Facts</h3>
+        <p>The product does not want to accept a bad report. The critique object is evaluated by conditions. Those conditions control whether the planner can finish or must redo research.</p>
+
+        <pre><code><span class="comment">// Product quality gate: ask a critic model whether the report answers the request.</span>
+<span class="comment">// Embabel concept: this creates Critique, which conditions evaluate.</span>
+@Action(post = [REPORT_SATISFACTORY], canRerun = true)
+fun critiqueMergedReport(
+    userInput: UserInput,
+    @RequireNameMatch mergedReport: ResearchReport,
+    context: OperationContext,
+): Critique = context.ai().withLlm(properties.criticModeName)
+    .create(
+        <span class="string">"""
+        Is this research report satisfactory? Consider the following question:
+        &lt;${userInput.content}&gt;
+        The report is satisfactory if it answers the question with adequate references.
+
+        ${mergedReport.infoString(verbose = true)}
+        """</span>.trimIndent(),
+    )
+data class Critique(
+    val accepted: Boolean,
+    val reasoning: String,
+)
+
+<span class="comment">// Embabel concept: conditions convert the Critique value into named planning facts.</span>
+@Condition(name = REPORT_SATISFACTORY)
+fun makesTheGrade(critique: Critique): Boolean = critique.accepted
+
+@Condition(name = REPORT_UNSATISFACTORY)
+fun rejected(critique: Critique): Boolean = !critique.accepted</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>4.6 Finish Only When the Quality Gate Passes</h3>
+        <p>The final action has a precondition. If <code>REPORT_SATISFACTORY</code> is not true, this action is not valid.</p>
+
+        <pre><code><span class="comment">// Product result: only expose the final report after the satisfactory condition is true.</span>
+<span class="comment">// Embabel concept: pre = [REPORT_SATISFACTORY] gates goal completion.</span>
+@AchievesGoal(description = <span class="string">"Completes a research or question answering task, producing a research report"</span>)
+@Action(pre = [REPORT_SATISFACTORY], outputBinding = <span class="string">"finalResearchReport"</span>)
+fun acceptReport(
+    @RequireNameMatch mergedReport: ResearchReport,
+    critique: Critique,
+) = mergedReport</code></pre>
+      </div>
+
+      <div class="callout">
+        Researcher's key lesson: conditions are not just booleans in code. They are planning facts. The planner can see "satisfactory" versus "unsatisfactory" and choose finish or retry paths accordingly.
+      </div>
+    </section>
+
+    <section class="feature" id="fact-checking">
+      <div class="feature-grid">
+        <div>
+          <p class="label">Feature 5</p>
+          <h2>Fact Check User Content</h2>
+          <p>A user submits content. The system extracts factual assertions, removes duplicates, and checks each assertion against web sources.</p>
+          <p>The product outcome is an evidence-backed fact check, not a vague "looks true" answer.</p>
+
+          <h3>Source</h3>
+          <ul class="source-list">
+            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/factchecker/factChecker.kt">factChecker.kt</a></li>
+          </ul>
+
+          <h3>Why Embabel Fits</h3>
+          <p>The Kotlin DSL expresses this as a dataflow: fan out to several extractors, merge assertions, then check assertions in parallel.</p>
+
+          <ul class="concept-list">
+            <li><span>Kotlin DSL</span></li>
+            <li><span>aggregate</span></li>
+            <li><span>transformation</span></li>
+            <li><span>parallelMap</span></li>
+          </ul>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">Scatter / Merge / Check</div>
+          <div class="flow">
+            <div class="node input"><strong>Content</strong><small>claims hidden in text</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>Extractor A</strong><small>model transform</small></div>
+            <div class="node llm"><strong>Extractor B</strong><small>model transform</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>Merge assertions</strong><small>dedupe + rationalize</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node tool"><strong>Parallel checks</strong><small>web + browser tools</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node goal"><strong>FactCheck</strong><small>goal by result type</small></div>
+          </div>
+          <p class="diagram-note">The DSL represents this as aggregate, merge, transformation, and goal.</p>
+        </div>
+      </div>
+
+      <div class="subfeature">
+        <h3>5.1 Use the DSL for a Dataflow Feature</h3>
+        <p>Fact checking is less like a story of named business actions and more like a data pipeline. The DSL makes that shape visible: input becomes assertions, assertions become checks, checks satisfy the goal.</p>
+
+        <pre><code><span class="comment">// Product capability: check content for factual accuracy.</span>
+<span class="comment">// Embabel concept: DSL agent is concise for aggregate/transformation flows.</span>
+fun factCheckerAgent(
+    llms: List&lt;LlmOptions&gt;,
+    properties: FactCheckerProperties,
+) = agent(
+    name = <span class="string">"FactChecker"</span>,
+    description = <span class="string">"Check content for factual accuracy"</span>,
+) {
+    flow {
+        <span class="comment">// The flow block declares the first dataflow stage.</span>
+    }
+
+}</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>5.2 Extract Assertions with Multiple Models, then Merge</h3>
+        <p>The product risk is missing claims or duplicating claims. The aggregate stage asks multiple model configurations to extract assertions, then a merge step rationalizes the list.</p>
+
+        <pre><code>flow {
+    <span class="comment">// Product step: identify factual claims in user content.</span>
+    <span class="comment">// Embabel concept: aggregate runs multiple transforms from UserInput to FactualAssertions.</span>
+    aggregate&lt;UserInput, FactualAssertions, RationalizedFactualAssertions&gt;(
+        transforms = llms.map { llm ->
+            { context ->
+                context.ai()
+                    .withLlm(llm)
+                    .withToolGroup(CoreToolGroups.WEB)
+                    .createObject(
+                        <span class="string">"""
+                        Given the following content, identify any factual assertions.
+                        Phrase them as standalone assertions.
+                        Do not duplicate assertions.
+
+                        # Content
+                        ${context.input.content}
+                        """</span>.trimIndent()
+                    )
+            }
+        },
+        data class FactualAssertion(
+            val standaloneAssertion: String,
+        )
+
+        data class FactualAssertions(
+            val factualAssertions: List&lt;FactualAssertion&gt;,
+        )
+
+        <span class="comment">// Product step: turn overlapping model outputs into one clean list.</span>
+        <span class="comment">// Embabel concept: merge receives all aggregate results and returns RationalizedFactualAssertions.</span>
+        merge = { list, context ->
+            context.ai().withDefaultLlm()
+                .createObject&lt;RationalizedFactualAssertions&gt;(
+                    <span class="string">"""
+                    Given the following factual assertions, merge them into a single list if
+                    any are the same. Condense into one assertion if one assertion negates another.
+
+                    # Assertions
+                    ${list.flatMap { it.factualAssertions }.joinToString("\n") { "- " + it.standaloneAssertion }}
+                    """</span>.trimIndent()
+                )
+        },
+        data class RationalizedFactualAssertions(
+            val factualAssertions: List&lt;FactualAssertion&gt;,
+            val numberMerged: Int,
+        )
+    )
+}</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>5.3 Check Assertions in Parallel with Web and Browser Tools</h3>
+        <p>Once assertions are independent, they should not be checked serially. The action configures one prompt runner with the right tools and applies it to every assertion concurrently.</p>
+
+        <pre><code><span class="comment">// Product step: check each assertion independently.</span>
+<span class="comment">// Embabel concept: transformation maps RationalizedFactualAssertions to FactCheck.</span>
+transformation&lt;RationalizedFactualAssertions, FactCheck&gt; { operationContext ->
+    val promptRunner = operationContext.ai()
+        .withAutoLlm()
+        <span class="comment">// Product capability: assertions need current sources and sometimes browser inspection.</span>
+        <span class="comment">// Embabel concept: tools are configured once and reused across the fan-out.</span>
+        .withTools(CoreToolGroups.WEB, CoreToolGroups.BROWSER_AUTOMATION)
+
+    <span class="comment">// Product performance: assertions do not depend on each other.</span>
+    <span class="comment">// Embabel concept: parallelMap keeps each call inside the current operation context.</span>
+    val checks = operationContext.input.factualAssertions
+        .parallelMap(operationContext) { assertion ->
+            promptRunner.createObject&lt;AssertionCheck&gt;(
+                <span class="string">"""
+                Given the following assertion, check if it is true or false and explain why.
+                Express confidence as a number between 0 and 1.
+                Use web tools.
+
+                Assertion: &lt;${assertion.standaloneAssertion}&gt;
+                """</span>
+            )
+        }
+    data class AssertionCheck(
+        val assertion: String,
+        val isTrue: Boolean,
+        val confidence: ZeroToOne,
+        val reasoning: String,
+        override val links: List&lt;InternetResource&gt;,
+    ) : InternetResources
+
+    FactCheck(checks)
+}
+data class FactCheck(
+    val checks: List&lt;AssertionCheck&gt;,
+)</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>5.4 Declare the Goal by Result Type</h3>
+        <p>The DSL version does not need a final annotated method. The product is done when a <code>FactCheck</code> exists.</p>
+
+        <pre><code><span class="comment">// Product result: the workflow is complete when FactCheck exists.</span>
+<span class="comment">// Embabel concept: satisfiedBy connects a goal directly to the result type.</span>
+goal(
+    name = <span class="string">"factCheckingDone"</span>,
+    description = <span class="string">"Content was fact checked"</span>,
+    satisfiedBy = FactCheck::class,
+)</code></pre>
+      </div>
+
+      <div class="callout">
+        FactChecker's key lesson: when a feature is naturally scatter/merge/transform, the Kotlin DSL can explain the product flow more clearly than a set of annotated methods.
+      </div>
+    </section>
+
+    <section class="feature" id="travel-planning">
+      <div class="feature-grid">
+        <div>
+          <p class="label">Feature 6</p>
+          <h2>Plan and Review a Travel Itinerary</h2>
+          <p>A traveler enters a route, dates, budget, and interests. The product returns a detailed HTML itinerary with places to visit, route-aware recommendations, weather considerations, images, accommodation links, and a reliable map URL.</p>
+          <p>The user outcome is a usable travel plan, not a generic city guide.</p>
+
+          <h3>Sources</h3>
+          <ul class="source-list">
+            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/agent/TripperAgent.kt">TripperAgent.kt</a></li>
+            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/agent/domain.kt">domain.kt</a></li>
+            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/config/ToolsConfig.kt">ToolsConfig.kt</a></li>
+            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/web/JourneyHtmxController.kt">JourneyHtmxController.kt</a></li>
+          </ul>
+
+          <h3>Why Embabel Fits</h3>
+          <p>This is a multi-stage product workflow with typed input, external tools, fan-out research, deterministic cleanup, and web invocation. Embabel keeps those responsibilities separated but composable.</p>
+
+          <ul class="concept-list">
+            <li><span>AgentProcess</span></li>
+            <li><span>prompt contributors</span></li>
+            <li><span>MCP tools</span></li>
+            <li><span>parallelMap</span></li>
+            <li><span>deterministic domain code</span></li>
+          </ul>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">Travel Planning Pipeline</div>
+          <div class="flow">
+            <div class="node input"><strong>Web form</strong><small>route, dates, interests</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node code"><strong>Typed inputs</strong><small>blackboard seed</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node tool"><strong>POI discovery</strong><small>web, maps, weather</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node tool"><strong>Parallel research</strong><small>bounded fan-out</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>Plan HTML</strong><small>synthesize itinerary</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node code"><strong>Map + cleanup</strong><small>deterministic code</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node goal"><strong>TravelPlan</strong><small>exported goal</small></div>
+          </div>
+          <p class="diagram-note">The pipeline is typed at every boundary.</p>
+        </div>
+      </div>
+
+      <div class="subfeature">
+        <h3>6.1 Turn Web Form Input into a Typed Agent Process</h3>
+        <p>The product starts in a normal web UI. The controller should not know the itinerary workflow. Its job is to translate form fields into domain objects, set process options, and start the agent in the background.</p>
+        <p>This is where Embabel separates product input handling from agent orchestration: Spring MVC owns the form, <code>AgentPlatform</code> owns process creation, and the agent owns planning.</p>
+
+        <pre><code>@JsonDeserialize(`as` = JourneyTravelBrief::class)
+sealed interface TravelBrief : PromptContributor {
+    val brief: String
+    val departureDate: LocalDate
+    val returnDate: LocalDate
+    val dailyBudget: Double
+}
+
+data class JourneyTravelBrief(
+    val from: String,
+    val to: String,
+    val transportPreference: String,
+    override val brief: String,
+    override val departureDate: LocalDate,
+    override val returnDate: LocalDate,
+    override val dailyBudget: Double = 200.0,
+) : TravelBrief
+
+data class Traveler(
+    val name: String,
+    val about: String,
+)
+
+data class Travelers(
+    val travelers: List&lt;Traveler&gt;,
+) : PromptContributor
+
+<span class="comment">// Product delivery: a web form creates a travel-planning request.</span>
+<span class="comment">// This code is ordinary Spring MVC; Embabel starts after we create domain objects.</span>
+@PostMapping(<span class="string">"/plan"</span>)
+fun planJourney(
+    @ModelAttribute form: JourneyPlanForm,
+    model: Model
+): String {
+    <span class="comment">// Product concept: user form fields become domain input, not prompt text.</span>
+    <span class="comment">// Embabel concept: typed objects are the initial blackboard contents.</span>
+    val travelBrief = JourneyTravelBrief(
+        from = form.from,
+        to = form.to,
+        transportPreference = form.transportPreference,
+        brief = form.brief,
+        departureDate = form.departureDate,
+        returnDate = form.returnDate,
+        dailyBudget = form.dailyBudget,
+    )
+
+    val travelers = Travelers(
+        travelers = form.travelers.map { travelerForm ->
+            Traveler(name = travelerForm.name, about = travelerForm.about)
+        }
+    )
+
+    <span class="comment">// Product concept: choose the travel capability.</span>
+    <span class="comment">// Embabel concept: AgentPlatform exposes registered agents.</span>
+    val agent = agentPlatform.agents().singleOrNull { it.name.lowercase().contains(<span class="string">"trip"</span>) }
+        ?: error(<span class="string">"No travel agent found. Please ensure the tripper agent is registered."</span>)
+
+    <span class="comment">// Product concept: travel planning is long-running and can be expensive.</span>
+    <span class="comment">// Embabel concept: ProcessOptions configures verbosity and budget for this run.</span>
+    val agentProcess = agentPlatform.createAgentProcessFrom(
+        agent = agent,
+        processOptions = ProcessOptions(
+            verbosity = Verbosity(showPrompts = true, showLlmResponses = true),
+            budget = Budget(tokens = Budget.DEFAULT_TOKEN_LIMIT * 3),
+        ),
+        travelBrief, travelers
+    )
+
+    <span class="comment">// Product concept: show a processing page while work continues.</span>
+    <span class="comment">// Embabel concept: start returns immediately; the AgentProcess tracks lifecycle and result.</span>
+    agentPlatform.start(agentProcess)
+	    return <span class="string">"common/processing"</span>
+	}</code></pre>
+	      </div>
+	
+	      <div class="subfeature">
+	        <h3>6.2 Confirm Expensive Work Before Starting Heavy Research</h3>
+        <p>Travel planning can spend money and tokens. Tripper models consent as a typed object, <code>AcceptanceOfCost</code>. That makes confirmation part of the plan rather than a hidden side effect.</p>
+
+        <pre><code><span class="comment">// Product rule: expensive planning should be explicitly accepted in some entry paths.</span>
+<span class="comment">// Embabel concept: this object being on the blackboard represents consent.</span>
+object AcceptanceOfCost
+
+	@Action
+	fun confirmExpensiveOperation(
+	    travelBrief: JourneyTravelBrief,
+	    travelers: Travelers,
+	    context: OperationContext
+	): AcceptanceOfCost {
+    <span class="comment">// Product rule: direct web UI already implies consent; MCP route asks explicitly.</span>
+    <span class="comment">// Embabel concept: actions can inspect process context with context.last&lt;T&gt;().</span>
+    val confirmationNeeded = context.last&lt;TravelersAndBrief&gt;() != null
+    if (!confirmationNeeded) {
+        return AcceptanceOfCost
+    }
+
+    <span class="comment">// Product interaction: ask the user before spending up to the expected cost.</span>
+    <span class="comment">// Embabel concept: the returned AcceptanceOfCost unlocks dependent actions.</span>
+	    return confirm(
+	        AcceptanceOfCost,
+	        <span class="string">"Go ahead? Building a travel plan will cost up to 20c"</span>
+	    )
+	}
+
+<span class="comment">// Remote/export input shape consumed by context.last and by the exported goal.</span>
+<span class="comment">// Embabel concept: SomeOf expands this into Travelers and JourneyTravelBrief.</span>
+data class TravelersAndBrief(
+    val travelers: Travelers,
+    val brief: JourneyTravelBrief,
+) : SomeOf</code></pre>
+      </div>
+
+      <div class="subfeature">
+	        <h3>6.3 Discover Route-Relevant Points of Interest</h3>
+        <p>The first LLM-heavy step is not "write the final itinerary." It asks for candidate points of interest, which keeps the model task narrow and typed.</p>
+
+	        <pre><code><span class="comment">// Product step: find route-relevant places for these travelers.</span>
+<span class="comment">// Embabel concept: @Action says this creates ItineraryIdeas from brief + travelers.</span>
+@Action
+fun findPointsOfInterest(
+    travelBrief: JourneyTravelBrief,
+    travelers: Travelers,
+    context: OperationContext,
+): ItineraryIdeas {
+    return context.ai()
+        <span class="comment">// Product choice: use a strong "thinking" model for route planning.</span>
+        <span class="comment">// Embabel concept: model choice is local to this action.</span>
+        .withLlm(config.thinkerLlm)
+
+        <span class="comment">// Product context: planner instructions and traveler preferences shape the result.</span>
+        <span class="comment">// Embabel concept: prompt elements compose reusable prompt context.</span>
+        .withPromptElements(config.planner, travelers)
+
+        <span class="comment">// Product capabilities: route planning needs current web, maps, math and weather.</span>
+        <span class="comment">// Embabel concept: tool groups are exposed only to this prompt runner.</span>
+        .withTools(CoreToolGroups.WEB, CoreToolGroups.MAPS, CoreToolGroups.MATH, WEATHER_TOOLS)
+
+        <span class="comment">// Product output: a typed list of candidate points of interest.</span>
+        <span class="comment">// Embabel concept: create() returns ItineraryIdeas because of the action return type.</span>
+        .create(
+            prompt = <span class="string">"""
+                Consider the following travel brief for a journey from ${travelBrief.from} to ${travelBrief.to}.
+                ${travelBrief.contribution()}
+                Find points of interest that are relevant to the travel brief and travelers.
+                Use mapping tools to consider appropriate order and put a rough date range for each point of interest.
+                Consider likely weather
+            """</span>.trimIndent(),
+	        )
+	}
+<span class="comment">// Embabel concept: the action output is a first-class typed artifact.</span>
+data class PointOfInterest(
+    val name: String,
+    val description: String,
+    val location: String,
+    val fromDate: LocalDate,
+    val toDate: LocalDate,
+)
+
+data class ItineraryIdeas(
+    val pointsOfInterest: List&lt;PointOfInterest&gt;,
+)</code></pre>
+      </div>
+
+      <div class="subfeature">
+	        <h3>6.4 Research Each Point of Interest in Parallel</h3>
+        <p>Once the itinerary ideas exist, each point can be researched independently. Tripper builds one configured prompt runner and reuses it across a bounded parallel map.</p>
+        <p>This composition matters: the action is one workflow step, but internally it fans out across many LLM/tool calls to reduce latency.</p>
+
+	        <pre><code><span class="comment">// Product step: enrich each candidate point with stories, links, images and weather.</span>
+<span class="comment">// Embabel concept: this action requires AcceptanceOfCost, so expensive research waits for consent.</span>
+@Action
+fun researchPointsOfInterest(
+    travelBrief: JourneyTravelBrief,
+    travelers: Travelers,
+    itineraryIdeas: ItineraryIdeas,
+    confirmation: AcceptanceOfCost,
+    context: OperationContext,
+): PointOfInterestFindings {
+    <span class="comment">// Product setup: every POI research call should use the same persona, tools and controls.</span>
+    <span class="comment">// Embabel concept: PromptRunner is configured once, then reused inside the action.</span>
+    val promptRunner = config.researcher.promptRunner(context)
+        .withPromptElements(travelers, config.toolCallControl)
+        .withTools(CoreToolGroups.WEB, CoreToolGroups.BROWSER_AUTOMATION, WEATHER_TOOLS)
+        .withToolObject(braveImageSearch) <span class="comment">// A local service object contributes an image-search tool.</span>
+
+    <span class="comment">// Product performance: research each POI concurrently, but cap concurrency.</span>
+    <span class="comment">// Embabel concept: context.parallelMap keeps work tied to the AgentProcess.</span>
+    val poiFindings = context.parallelMap(
+        itineraryIdeas.pointsOfInterest,
+        maxConcurrency = config.maxConcurrency,
+    ) { poi ->
+	        promptRunner.create&lt;ResearchedPointOfInterest&gt;(
+	            prompt = <span class="string">"""
+                Research the following point of interest.
+                Consider interesting stories about art and culture and famous people.
+                Your audience: ${travelBrief.brief}
+                Dates to consider: ${travelBrief.departureDate} to ${travelBrief.returnDate}
+                Use the image search tool to find images of the point of interest.
+            """</span>.trimIndent(),
+	        )
+	    }
+    <span class="comment">// Embabel concept: links stay structured instead of being buried in prose.</span>
+    data class ResearchedPointOfInterest(
+        val pointOfInterest: PointOfInterest,
+        val research: String,
+        override val links: List&lt;InternetResource&gt;,
+        val videoLinks: List&lt;InternetResource&gt;,
+        val imageLinks: List&lt;InternetResource&gt;,
+    ) : InternetResources
+	
+	    <span class="comment">// Product output: all researched POIs become one typed artifact for the planner step.</span>
+	    return PointOfInterestFindings(pointsOfInterest = poiFindings)
+	}
+data class PointOfInterestFindings(
+    val pointsOfInterest: List&lt;ResearchedPointOfInterest&gt;,
+)</code></pre>
+      </div>
+
+      <div class="subfeature">
+	        <h3>6.5 Synthesize the Travel Plan from Researched Evidence</h3>
+        <p>The planning action does not browse from scratch. It consumes <code>PointOfInterestFindings</code> and turns them into a user-facing HTML itinerary.</p>
+        <p>This is a core Embabel design pattern: actions that already ran create trusted typed context for synthesis.</p>
+
+	        <pre><code><span class="comment">// Product step: turn researched findings into a detailed, readable itinerary.</span>
+<span class="comment">// Embabel concept: this action runs only after PointOfInterestFindings exists.</span>
+@Action
+fun proposeTravelPlan(
+    travelBrief: JourneyTravelBrief,
+    travelers: Travelers,
+    poiFindings: PointOfInterestFindings,
+    context: OperationContext,
+): ProposedTravelPlan {
+    return config.planner.promptRunner(context)
+        <span class="comment">// Product capabilities: use maps and math while laying out the route.</span>
+        <span class="comment">// Embabel concept: tools are scoped to the synthesis call.</span>
+        .withTools(CoreToolGroups.WEB, CoreToolGroups.MAPS, CoreToolGroups.MATH)
+
+        <span class="comment">// Product context: include traveler preferences and ask for HTML response format.</span>
+        <span class="comment">// Embabel concept: prompt elements compose context without rewriting every prompt.</span>
+        .withPromptElements(travelers, ResponseFormat.HTML)
+
+        <span class="comment">// Product result: a typed ProposedTravelPlan, including days and links.</span>
+        .create(
+            prompt = <span class="string">"""
+                Given the following travel brief, create a detailed plan.
+                Plan the journey to minimize travel time.
+                Consider weather, distance of driving or walking, events and interesting stories.
+                Include natural headings and paragraphs in HTML format.
+
+                &lt;brief&gt;${travelBrief.contribution()}&lt;/brief&gt;
+
+                Consider the following points of interest:
+                ${poiFindings.pointsOfInterest.joinToString("\n") { it.research }}
+            """</span>.trimIndent(),
+	        )
+	}
+<span class="comment">// Product meaning: plan text plus structured days and media/source links.</span>
+data class Day(
+    val date: LocalDate,
+    val locationAndCountry: String,
+)
+
+data class ProposedTravelPlan(
+    val title: String,
+    val plan: String,
+    val days: List&lt;Day&gt;,
+    val imageLinks: List&lt;InternetResource&gt;,
+    val videoLinks: List&lt;InternetResource&gt;,
+    val pageLinks: List&lt;InternetResource&gt;,
+    val countriesVisited: List&lt;String&gt;,
+)</code></pre>
+      </div>
+
+      <div class="subfeature">
+	        <h3>6.6 Add Accommodation Links with an MCP Tool Group</h3>
+        <p>Accommodation search is a separate product subfeature. It uses the proposed plan to group nights into stays, then asks an MCP-backed Airbnb tool group for search URLs.</p>
+
+        <pre><code><span class="comment">// Product integration: expose external Airbnb tools to Embabel.</span>
+<span class="comment">// Embabel concept: MCP tools are wrapped as a ToolGroup that actions can request by role.</span>
+@Bean
+fun mcpAirbnbToolsGroup(): ToolGroup {
+    return McpToolGroup(
+        description = ToolGroupDescription(description = <span class="string">"Airbnb tools"</span>, role = AIRBNB),
+        name = <span class="string">"openbnb-airbnb"</span>,
+        provider = <span class="string">"Docker"</span>,
+        permissions = setOf(ToolGroupPermission.INTERNET_ACCESS),
+        clients = mcpSyncClients,
+        filter = {
+            <span class="comment">// Product safety: expose only Airbnb-related MCP tools from the provider.</span>
+            it.toolDefinition.name().contains(<span class="string">"airbnb"</span>)
+        },
+    )
+}</code></pre>
+
+	        <pre><code><span class="comment">// Product step: find places to sleep for each stay in the itinerary.</span>
+	<span class="comment">// Embabel concept: ProposedTravelPlan feeds another action that returns final TravelPlan.</span>
+	@Action
+fun findPlacesToSleep(
+    brief: JourneyTravelBrief,
+    plan: ProposedTravelPlan,
+    travelers: Travelers,
+    context: OperationContext,
+): TravelPlan {
+    <span class="comment">// Product logic: group consecutive days by where the traveler sleeps.</span>
+    <span class="comment">// Embabel principle: deterministic grouping stays in code.</span>
+	    val stays = plan.days.groupBy { it.stayingAt }.map { (_, days) ->
+	        Stay(days = days)
+	    }.sortedBy { it.days.first().date }
+    data class Stay(
+        val days: List&lt;Day&gt;,
+        val airbnbUrl: String? = null,
+    )
+
+    val dailyAccommodationBudget = brief.dailyBudget / 2.0
+
+    val stayFinderPromptRunner = config.researcher.promptRunner(context)
+        .withPromptContributor(travelers)
+        <span class="comment">// Product capability: Airbnb lookup plus budget math.</span>
+        <span class="comment">// Embabel concept: custom MCP tool group composes with core math tools.</span>
+        .withTools(ToolsConfig.AIRBNB, CoreToolGroups.MATH)
+
+    val foundStays = context.parallelMap(stays, maxConcurrency = config.maxConcurrency) { stay ->
+	        val airbnbResults = stayFinderPromptRunner
+	            .create&lt;AirbnbResultsLlmReturn&gt;(
+                prompt = <span class="string">"""
+                    Find the Airbnb search URL for the following stay using the available tools.
+                    Staying at location: ${stay.stayingAt()}
+                    Dates: ${stay.days.joinToString { it.date.toString() }}
+                    Try to stay under the following daily budget (USD): $dailyAccommodationBudget
+                """</span>.trimIndent(),
+	            )
+
+        private data class AirbnbResultsLlmReturn(
+            val searchUrl: String,
+        )
+
+	        stay.copy(airbnbUrl = airbnbResults.searchUrl)
+	    }
+	
+	    return TravelPlan(brief = brief, proposal = plan, stays = foundStays, travelers = travelers)
+	}
+data class TravelPlan(
+    val brief: JourneyTravelBrief,
+    val proposal: ProposedTravelPlan,
+    val stays: List&lt;Stay&gt;,
+    val travelers: Travelers,
+) : HasContent</code></pre>
+      </div>
+
+      <div class="subfeature">
+	        <h3>6.7 Keep Exact Output Cleanup in Deterministic Code</h3>
+        <p>The product needs map links and image markup to work reliably. Tripper deliberately does not ask the LLM to get those details perfect. It computes map URLs and transforms HTML in code.</p>
+
+	        <pre><code><span class="comment">// Product reliability: map URLs must work for the user.</span>
+<span class="comment">// Embabel design principle: deterministic computation belongs in the domain model.</span>
+val journeyMapUrl: String
+    get() {
+        val encodedLocations = proposal.days.distinctBy { it.locationAndCountry }.map { day ->
+            URLEncoder.encode(day.locationAndCountry, Charsets.UTF_8.name())
+        }
+
+        return if (encodedLocations.size == 1) {
+            <span class="string">"https://www.google.com/maps/search/?api=1&amp;query=${encodedLocations.first()}"</span>
+        } else {
+            <span class="string">"https://www.google.com/maps/dir/${encodedLocations.joinToString("/")}"</span>
+        }
+    }</code></pre>
+
+        <pre><code><span class="comment">// Product result: final cleanup before showing the travel plan.</span>
+<span class="comment">// Embabel concept: the goal action can still be deterministic post-processing.</span>
+@AchievesGoal(
+    description = <span class="string">"Create a detailed travel plan based on a given travel brief"</span>,
+    export = Export(
+        name = <span class="string">"makeTravelPlan"</span>,
+        remote = true,
+        startingInputTypes = [TravelersAndBrief::class],
+    ),
+)
+@Action
+fun postProcessHtml(plan: TravelPlan): TravelPlan {
+    val oldPlan = plan.proposal.plan
+    return plan.copy(
+        proposal = plan.proposal.copy(
+            plan = StringTransformer.transform(
+                oldPlan,
+                listOf(styleImages, ImageChecker.removeInvalidImageLinks)
+            )
+        ),
+    )
+}</code></pre>
+      </div>
+
+      <div class="callout">
+        Tripper's key lesson: Embabel is most valuable when the product feature is too rich for one prompt. Typed artifacts carry the workflow, tools are scoped to the steps that need them, parallel work reduces latency, and deterministic code handles exact output requirements.
+      </div>
+    </section>
+
+    <section class="feature" id="rag-chatbot">
+      <div class="feature-grid">
+        <div>
+          <p class="label">Feature 7</p>
+          <h2>RAG Chatbot over Local Documents</h2>
+          <p>A user chats with a bot that answers from indexed documents, using persona and objective prompts while grounding answers in retrieved sources.</p>
+          <p>The product outcome is an interactive expert over a document set.</p>
+
+          <h3>Sources</h3>
+          <ul class="source-list">
+            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/RagConfiguration.java">RagConfiguration.java</a></li>
+            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/ChatActions.java">ChatActions.java</a></li>
+            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/ChatConfiguration.java">ChatConfiguration.java</a></li>
+            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/RagbotShell.java">RagbotShell.java</a></li>
+            <li><a href="../ragbot/src/main/resources/prompts/ragbot.jinja">ragbot.jinja</a></li>
+          </ul>
+
+          <h3>Why Embabel Fits</h3>
+          <p>This is not a one-shot workflow. It is a repeated conversation, so ragbot uses utility chatbot actions and gives the LLM a RAG reference it can search agentically.</p>
+
+          <ul class="concept-list">
+            <li><span>ToolishRag</span></li>
+            <li><span>SearchOperations</span></li>
+            <li><span>trigger action</span></li>
+            <li><span>utility chatbot</span></li>
+            <li><span>Jinja templates</span></li>
+          </ul>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">Chat + RAG</div>
+          <div class="flow">
+            <div class="node code"><strong>Ingest docs</strong><small>files, dirs, URLs</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node code"><strong>Lucene index</strong><small>chunks + embeddings</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node tool"><strong>ToolishRag</strong><small>retrieval as tools</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node input"><strong>UserMessage</strong><small>chat trigger</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node llm"><strong>Chat action</strong><small>template + reference</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node goal"><strong>Assistant reply</strong><small>sent to conversation</small></div>
+          </div>
+          <p class="diagram-note">This is event-driven chat, not a terminal GOAP workflow.</p>
+        </div>
+      </div>
+
+      <div class="subfeature">
+        <h3>7.1 Build the Retrieval Store</h3>
+        <p>The product needs answers grounded in a document set. ragbot builds a Lucene search store with embeddings, chunking, title enrichment, and a persistent index path.</p>
+
+	        <pre><code><span class="comment">// Input configuration shape consumed by retrieval setup and chat response.</span>
+@ConfigurationProperties(prefix = <span class="string">"ragbot"</span>)
+public record RagbotProperties(
+        @NestedConfigurationProperty LlmOptions chatLlm,
+        String objective,
+        @NestedConfigurationProperty Voice voice,
+        @NestedConfigurationProperty ContentChunker.Config chunkerConfig,
+        @DefaultValue(<span class="string">"8888"</span>) int uiPort,
+        @DefaultValue(<span class="string">"classpath:ui/chat.css"</span>) String uiCssPath
+) {
+    public record Voice(
+            String persona,
+            int maxWords
+    ) {}
+}
+
+<span class="comment">// Product setup: load the document knowledge base.</span>
+<span class="comment">// Embabel concept: SearchOperations is the retrieval backend used by ToolishRag.</span>
+@Bean
+LuceneSearchOperations luceneSearchOperations(
+        ModelProvider modelProvider,
+        RagbotProperties properties) {
+    <span class="comment">// Product behavior: use the configured embedding model for semantic search.</span>
+    var embeddingService = modelProvider.getEmbeddingService(DefaultModelSelectionCriteria.INSTANCE);
+
+    return LuceneSearchOperations
+            .withName(<span class="string">"docs"</span>)
+            .withEmbeddingService(embeddingService)
+            .withChunkerConfig(properties.chunkerConfig())
+            <span class="comment">// Product quality: title enrichment helps retrieved chunks carry more context.</span>
+            .withChunkTransformer(AddTitlesChunkTransformer.INSTANCE)
+            .withIndexPath(Paths.get(<span class="string">"./.lucene-index"</span>))
+            .buildAndLoadChunks();
+}</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>7.2 Ingest Documents Operationally</h3>
+        <p>A RAG product needs an operational path to add content. ragbot exposes shell commands that ingest files, directories, or URLs into the same Lucene store used by chat.</p>
+
+        <pre><code><span class="comment">// Product operations: add a URL or file to the knowledge base.</span>
+<span class="comment">// Embabel concept: ingestion creates hierarchical content for retrieval.</span>
+@ShellMethod(<span class="string">"Ingest URL or file path: Ingests Schumann's music criticism by default"</span>)
+String ingest(String location) {
+    var uri = location.startsWith(<span class="string">"http://"</span>) || location.startsWith(<span class="string">"https://"</span>)
+            ? location
+            : Path.of(location).toAbsolutePath().toUri().toString();
+
+    var ingested = NeverRefreshExistingDocumentContentPolicy.INSTANCE
+            .ingestUriIfNeeded(
+                    luceneSearchOperations,
+                    new TikaHierarchicalContentReader(),
+                    uri
+            );
+
+    return ingested != null
+            ? <span class="string">"Ingested document with ID: "</span> + ingested.getId()
+            : <span class="string">"Document already exists, no ingestion performed."</span>;
+}</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>7.3 Use Utility Chat Instead of a Terminal Goal</h3>
+        <p>A chat product does not have one final result. Every user message is another event. ragbot therefore creates a chatbot from platform actions and uses trigger actions for turns.</p>
+
+        <pre><code><span class="comment">// Product interface: chat, not a terminal goal workflow.</span>
+<span class="comment">// Embabel concept: utilityFromPlatform lets actions respond to messages repeatedly.</span>
+@Bean
+Chatbot chatbot(AgentPlatform agentPlatform) {
+    return AgentProcessChatbot.utilityFromPlatform(
+            agentPlatform,
+            new InMemoryConversationFactory(),
+            new Verbosity().showPrompts()
+    );
+}</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>7.4 Wrap Retrieval as an LLM Reference</h3>
+        <p>The LLM should not receive a fixed block of context on every turn. It should decide when to search and what to search for. <code>ToolishRag</code> gives the model retrieval tools plus prompt guidance.</p>
+
+        <pre><code><span class="comment">// Product behavior: answer each user message from indexed sources.</span>
+<span class="comment">// Embabel concept: @EmbabelComponent contributes actions without being a full agent.</span>
+@EmbabelComponent
+public class ChatActions {
+
+    private final ToolishRag toolishRag;
+
+    public ChatActions(SearchOperations searchOperations, RagbotProperties properties) {
+        this.toolishRag = new ToolishRag(
+                <span class="string">"sources"</span>,
+                <span class="string">"Classic music criticism"</span>,
+                searchOperations); <span class="comment">// ToolishRag exposes retrieval as LLM-usable tools.</span>
+    }
+}</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>7.5 Respond to Each User Message</h3>
+        <p>The response action composes the chat model, RAG reference, prompt template, conversation history, and send-message behavior.</p>
+
+	        <pre><code><span class="comment">// Input runtime chat shapes consumed by respond.</span>
+class UserMessage : BaseMessage, UserContent {
+    constructor(content: String, name: String? = null, timestamp: Instant = Instant.now())
+}
+
+interface Conversation {
+    val messages: List&lt;Message&gt;
+    val assetTracker: AssetTracker
+    fun addMessage(message: Message): Message
+}
+
+<span class="comment">// Product turn: produce one assistant reply for a user message.</span>
+<span class="comment">// Embabel concept: trigger = UserMessage.class wires this action to chat events.</span>
+@Action(
+        canRerun = true,            <span class="comment">// Chat turns repeat.</span>
+        trigger = UserMessage.class <span class="comment">// This action fires when a user message arrives.</span>
+)
+void respond(Conversation conversation, ActionContext context) {
+	    var assistantMessage = context.ai()
+            .withLlm(properties.chatLlm())
+            <span class="comment">// Product grounding: the model can search the local corpus when needed.</span>
+            .withReference(toolishRag)
+            <span class="comment">// Product voice: use a Jinja system prompt for persona/objective/guardrails.</span>
+            .rendering(<span class="string">"ragbot"</span>)
+            .respondWithSystemPrompt(conversation, Map.of(
+                    <span class="string">"properties"</span>, properties,
+                    <span class="string">"voice"</span>, properties.voice(),
+                    <span class="string">"objective"</span>, properties.objective()
+	            ));
+    open class AssistantMessage(
+        content: String,
+        name: String? = null,
+        val awaitable: Awaitable&lt;*, *&gt;? = null,
+        override val assets: List&lt;Asset&gt; = emptyList(),
+    ) : BaseMessage, AssistantContent
+	
+	    <span class="comment">// Product delivery: append the assistant reply to the conversation.</span>
+    context.sendMessage(conversation.addMessage(assistantMessage));
+}</code></pre>
+      </div>
+
+      <div class="subfeature">
+        <h3>7.6 Keep Persona and Guardrails in Templates</h3>
+        <p>Chat prompts tend to be longer and more configurable than one-shot action prompts. ragbot uses a Jinja template to compose guardrails and personalization.</p>
+
+        <pre><code><span class="comment">{# Product prompt: shared guardrails and personalization. #}</span>
+{% include <span class="string">"elements/guardrails.jinja"</span> %}
+{% include <span class="string">"elements/personalization.jinja"</span> %}
+
+Keep your responses under {{ properties.voice().maxWords() }} words unless they
+MUST be longer for a detailed response or quoting content.</code></pre>
+      </div>
+
+      <div class="callout">
+        ragbot's key lesson: RAG is not just "paste retrieved chunks into a prompt." Embabel models retrieval as a reference with tools, and chat as repeated trigger actions over a conversation.
+      </div>
+    </section>
+
+    <section class="feature" id="testing">
+      <div class="feature-grid">
+        <div>
+          <p class="label">Feature 8</p>
+          <h2>Test Prompt Behavior Without Calling a Model</h2>
+          <p>A developer wants confidence that an LLM action sends the right facts to the model and does not expose tools accidentally.</p>
+          <p>The product outcome is faster iteration and fewer regressions in LLM-facing behavior.</p>
+
+          <h3>Source</h3>
+          <ul class="source-list">
+            <li><a href="../embabel-agent-examples/examples-kotlin/src/test/kotlin/com/embabel/example/horoscope/StarNewsFinderTest.kt">StarNewsFinderTest.kt</a></li>
+          </ul>
+
+          <h3>Why Embabel Fits</h3>
+          <p>Embabel records LLM invocations through a fake context, so tests can inspect the prompt and tool exposure without network calls or model nondeterminism.</p>
+
+          <ul class="concept-list">
+            <li><span>FakeOperationContext</span></li>
+            <li><span>expectResponse</span></li>
+            <li><span>llmInvocations</span></li>
+          </ul>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">Test Flow</div>
+          <div class="flow">
+            <div class="node code"><strong>Fake context</strong><small>stub LLM response</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node code"><strong>Invoke action</strong><small>ordinary Kotlin call</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node code"><strong>Inspect prompt</strong><small>llmInvocations</small></div>
+            <div class="arrow">-&gt;</div>
+            <div class="node goal"><strong>Assert contract</strong><small>content + tools</small></div>
+          </div>
+          <p class="diagram-note">The test validates prompt behavior without calling a real model.</p>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Product quality: verify the action's LLM contract.</span>
+<span class="comment">// Embabel concept: FakeOperationContext replaces the real model runtime.</span>
+val context = FakeOperationContext()
+
+<span class="comment">// Real action inputs used by the test.</span>
+val starPerson = StarPerson(name = <span class="string">"Lynda"</span>, sign = <span class="string">"Scorpio"</span>)
+val relevantNewsStories = RelevantNewsStories(
+    items = listOf(
+        NewsStory(
+            url = <span class="string">"https://example.com/frost"</span>,
+            title = <span class="string">"Cold snap arrives"</span>,
+            summary = <span class="string">"A frosty weather story."</span>,
+        )
+    ),
+)
+val horoscope = Horoscope(summary = <span class="string">"This is a good day for you"</span>)
+
+<span class="comment">// Stubbed LLM return. The action still returns the real output type.</span>
+context.expectResponse(Writeup(content = <span class="string">"Things are gonna get frosty"</span>))
+
+starNewsFinder.starNewsWriteup(
+    person = starPerson,
+    relevantNewsStories = relevantNewsStories,
+    horoscope = horoscope,
+    context = context
+)
+
+<span class="comment">// Embabel concept: tests can inspect exactly what would have been sent to the model.</span>
+val prompt = context.llmInvocations.first().messages.first().content
+val toolGroups = context.llmInvocations.first().interaction.toolGroups
+
+assertTrue(prompt.contains(starPerson.name))
+assertTrue(prompt.contains(<span class="string">"Scorpio"</span>))
+assertTrue(toolGroups.isEmpty()) <span class="comment">// The final writing step should not receive web tools.</span></code></pre>
+    </section>
+
+    <section class="feature" id="matrix">
+      <h2>Feature to Concept Matrix</h2>
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Domain feature</th>
+            <th>Primary Embabel concepts</th>
+            <th>How they compose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Personalized horoscope news brief</td>
+            <td>@Agent, @Action, @AchievesGoal</td>
+            <td>Typed actions create StarPerson, Horoscope, RelevantNewsStories, then the goal action produces Writeup.</td>
+          </tr>
+          <tr>
+            <td>Curated news digest</td>
+            <td>web tools, remote export, security</td>
+            <td>One action extracts topic, one web-enabled goal action gathers and summarizes, the exported tool is secured.</td>
+          </tr>
+          <tr>
+            <td>Market intelligence report</td>
+            <td>staged evidence gathering, typed section synthesis</td>
+            <td>Gather raw intelligence once, then create SWOT, competitors, trends, and summary from the evidence.</td>
+          </tr>
+          <tr>
+            <td>Deep research with review</td>
+            <td>conditions, named bindings, canRerun</td>
+            <td>Named model reports are merged, critique creates planning facts, accepted reports finish, rejected reports trigger redo paths.</td>
+          </tr>
+          <tr>
+            <td>Fact checking</td>
+            <td>Kotlin DSL, aggregate, parallelMap</td>
+            <td>Multiple assertion extractors fan out, merge rationalizes, parallel checks produce the final FactCheck.</td>
+          </tr>
+          <tr>
+            <td>Travel planning</td>
+            <td>AgentProcess, prompt contributors, MCP tools, deterministic code</td>
+            <td>Typed web input starts a long-running process, LLM/tool stages research and plan, domain code computes exact details.</td>
+          </tr>
+          <tr>
+            <td>RAG chatbot</td>
+            <td>ToolishRag, trigger actions, utility chatbot</td>
+            <td>Documents are indexed, ToolishRag exposes retrieval, each UserMessage triggers a response action.</td>
+          </tr>
+          <tr>
+            <td>LLM action testing</td>
+            <td>FakeOperationContext, llmInvocations</td>
+            <td>The action runs without a model, while tests inspect prompt content and tool exposure.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="feature" id="heuristics">
+      <h2>Design Heuristics</h2>
+      <div class="callout">
+        Start from the user outcome. Then choose the smallest Embabel concepts that make the workflow explicit, typed, inspectable, and testable.
+      </div>
+      <ol>
+        <li>If the feature has a clear final user-visible result, mark that action with <code>@AchievesGoal</code>.</li>
+        <li>If the feature has meaningful intermediate artifacts, model them as domain types and connect them with action signatures.</li>
+        <li>If the LLM needs current external data, add tool groups only to the action that needs them.</li>
+        <li>If the workflow depends on runtime quality or approval, use conditions rather than hiding routing in one method.</li>
+        <li>If multiple same-type objects coexist, use named bindings.</li>
+        <li>If the feature is repeated chat, use trigger actions and chatbot utility flow instead of forcing a terminal goal.</li>
+        <li>If answers must be grounded in documents, use <code>SearchOperations</code> and <code>ToolishRag</code>.</li>
+        <li>If something is deterministic, keep it in Kotlin or Java.</li>
+        <li>If prompt behavior matters, test it with a fake operation context.</li>
+      </ol>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const escapeHtml = (value) => value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      const highlightCode = (source) => {
+        const keywords = new Set([
+          "abstract", "as", "break", "by", "catch", "class", "const", "constructor", "continue",
+          "data", "do", "else", "enum", "false", "final", "finally", "for", "fun", "get", "if",
+          "implements", "import", "in", "interface", "internal", "is", "new", "null", "object",
+          "open", "override", "package", "private", "protected", "public", "record", "return",
+          "sealed", "set", "static", "super", "this", "throw", "true", "try", "val", "var",
+          "void", "when", "while"
+        ]);
+        const typeNames = new Set([
+          "ActionContext", "AgentPlatform", "AgentProcess", "AirbnbResultsLlmReturn",
+          "AnalysisSubject", "AssertionCheck", "AssistantContent", "AssistantMessage",
+          "Asset", "AssetTracker", "Awaitable", "Budget", "Categorization", "Category",
+          "ChatActions", "Chatbot", "ContentChunker", "Conversation", "CoreToolGroups",
+          "Critique", "Day", "DigestItem", "DigestItemList", "Export", "FactCheck",
+          "FactualAssertion", "FactualAssertions", "FakeOperationContext", "HasContent",
+          "ImageChecker", "Instant", "InternetResource", "ItineraryIdeas", "JourneyPlanForm",
+          "JourneyTravelBrief", "KeyTrendList", "LlmOptions", "LocalDate", "LuceneSearchOperations",
+          "MarketIntelligenceReport", "Message", "Model", "ModelProvider", "NewsDigest",
+          "NewsStory", "NewsTopic", "OperationContext", "Person", "PointOfInterest",
+          "PointOfInterestFindings", "ProcessOptions", "PromptContributor", "ProposedTravelPlan",
+          "RagbotProperties", "RationalizedFactualAssertions", "RelevantNewsStories",
+          "ResearchReport", "ResearchedPointOfInterest", "ResponseFormat", "SearchOperations",
+          "SingleLlmReport", "SomeOf", "StarPerson", "Starry", "Stay", "String", "StringTransformer",
+          "SwotEntry", "SwotEntryList", "Timestamped", "ToolGroup", "TravelBrief", "TravelPlan",
+          "Traveler", "Travelers", "TravelersAndBrief", "UserInput", "UserMessage", "Verbosity",
+          "Voice", "Writeup", "ZeroToOne"
+        ]);
+
+        const tokenPattern = /("""[\s\S]*?"""|"(?:\\.|[^"\\])*"|\/\/[^\n]*|@[A-Za-z_][A-Za-z0-9_]*|\b\d+(?:\.\d+)?\b|\b[A-Za-z_][A-Za-z0-9_]*\b|[^\w@"\/]+|[\/@])/g;
+
+        return source.replace(tokenPattern, (token) => {
+          const escaped = escapeHtml(token);
+          if (token.startsWith("//")) {
+            return `<span class="comment">${escaped}</span>`;
+          }
+          if (token.startsWith("\"")) {
+            return `<span class="string">${escaped}</span>`;
+          }
+          if (token.startsWith("@") && token.length > 1) {
+            return `<span class="annotation">${escaped}</span>`;
+          }
+          if (/^\d/.test(token)) {
+            return `<span class="number">${escaped}</span>`;
+          }
+          if (keywords.has(token)) {
+            return `<span class="kw">${escaped}</span>`;
+          }
+          if (typeNames.has(token) || /^[A-Z][A-Za-z0-9_]*$/.test(token)) {
+            return `<span class="type-name">${escaped}</span>`;
+          }
+          return escaped;
+        });
+      };
+
+      document.querySelectorAll("pre > code").forEach((code) => {
+        code.innerHTML = highlightCode(code.textContent);
+      });
+
+      const features = [...document.querySelectorAll(".feature")].filter((feature) =>
+        feature.querySelector(".diagram .node")
+      );
+
+      const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+      const stepMaps = {
+        "horoscope-news": [0, 1, 1, 2, 3, 4],
+        "news-digest": [1, 4],
+        "market-intelligence": [0, 1, 4],
+        "research-review": [0, 1, 1, 2, 4, 5],
+        "fact-checking": [0, 1, 4, 5],
+        "travel-planning": [0, 1, 2, 3, 4, 5, 6],
+        "rag-chatbot": [1, 0, 3, 2, 4, 5],
+        "testing": [0]
+      };
+
+      const featureModels = features.map((feature) => {
+        const diagram = feature.querySelector(".diagram");
+        const stickyDiagram = diagram.cloneNode(true);
+        stickyDiagram.classList.add("sticky-diagram");
+        stickyDiagram.setAttribute("aria-hidden", "true");
+        document.body.appendChild(stickyDiagram);
+
+        const nodes = [...diagram.querySelectorAll(".node")];
+        const stickyNodes = [...stickyDiagram.querySelectorAll(".node")];
+        const track = stickyDiagram.querySelector(".flow");
+        const subfeatures = [...feature.querySelectorAll(":scope > .subfeature")];
+        const contentSteps = subfeatures.length ? subfeatures : [...feature.querySelectorAll(":scope > pre")];
+        const stepMap = stepMaps[feature.id] ?? contentSteps.map((_, index) => index);
+
+        return {
+          feature,
+          diagram,
+          stickyDiagram,
+          nodes,
+          stickyNodes,
+          track,
+          contentSteps,
+          stepMap,
+          activeIndex: -1
+        };
+      });
+
+      const setActiveNode = (model, index) => {
+        if (!model.nodes.length) {
+          return;
+        }
+
+        const nextIndex = clamp(index, 0, model.nodes.length - 1);
+        if (nextIndex === model.activeIndex) {
+          return;
+        }
+
+        [...model.nodes, ...model.stickyNodes].forEach((node, nodeIndex) => {
+          const normalizedIndex = nodeIndex % model.nodes.length;
+          node.classList.toggle("active", normalizedIndex === nextIndex);
+        });
+
+        if (model.track) {
+          const node = model.stickyNodes[nextIndex];
+          const targetLeft = node.offsetLeft - (model.track.clientWidth / 2) + (node.offsetWidth / 2);
+          model.track.scrollTo({
+            left: targetLeft,
+            behavior: "smooth"
+          });
+        }
+
+        model.activeIndex = nextIndex;
+      };
+
+      const updateActiveSteps = () => {
+        const stickyThreshold = window.innerHeight * 0.1;
+        const activationLine = 150;
+
+        featureModels.forEach((model) => {
+          const featureRect = model.feature.getBoundingClientRect();
+          const diagramRect = model.diagram.getBoundingClientRect();
+          const isStuck = diagramRect.top <= stickyThreshold && featureRect.bottom > model.diagram.offsetHeight + 24;
+
+          model.stickyDiagram.classList.toggle("is-visible", isStuck);
+
+          if (featureRect.bottom < 80 || featureRect.top > window.innerHeight - 80) {
+            return;
+          }
+
+          let activeStepIndex = 0;
+
+          model.contentSteps.forEach((step, stepIndex) => {
+            if (step.getBoundingClientRect().top <= activationLine) {
+              activeStepIndex = stepIndex;
+            }
+          });
+
+          setActiveNode(model, model.stepMap[activeStepIndex] ?? activeStepIndex);
+        });
+      };
+
+      let ticking = false;
+      const requestUpdate = () => {
+        if (ticking) {
+          return;
+        }
+
+        ticking = true;
+        window.requestAnimationFrame(() => {
+          updateActiveSteps();
+          ticking = false;
+        });
+      };
+
+      window.addEventListener("scroll", requestUpdate, { passive: true });
+      window.addEventListener("resize", requestUpdate);
+      updateActiveSteps();
+    })();
+  </script>
+</body>
+</html>
