@@ -27,7 +27,7 @@ import kotlin.test.assertTrue
 class GardenOfEdenTest {
 
     @Test
-    fun `GeneratedName preserves constructor values and supports equality`() {
+    fun `generated name preserves constructor values and supports equality`() {
         // Arrange
         val generatedName = GeneratedName(name = "money.com", reason = "Helps make money")
 
@@ -43,7 +43,7 @@ class GardenOfEdenTest {
     }
 
     @Test
-    fun `GeneratedNames holds an ordered list of generated names`() {
+    fun `generated names holds an ordered list of generated names`() {
         // Arrange
         val names = listOf(
             GeneratedName("money.com", "Helps make money"),
@@ -59,7 +59,7 @@ class GardenOfEdenTest {
     }
 
     @Test
-    fun `AllNames separates accepted and rejected names`() {
+    fun `all names separates accepted and rejected names`() {
         // Arrange
         val accepted = listOf(GeneratedName("money.com", "Helps make money"))
         val rejected = listOf(GeneratedName("bad.biz", "Too vague"))
@@ -73,7 +73,7 @@ class GardenOfEdenTest {
     }
 
     @Test
-    fun `Garden stores its name`() {
+    fun `garden stores its name`() {
         // Arrange
 
         // Act
@@ -84,7 +84,7 @@ class GardenOfEdenTest {
     }
 
     @Test
-    fun `SpiPerson stores its name`() {
+    fun `spi person stores its name`() {
         // Arrange
 
         // Act
@@ -95,7 +95,7 @@ class GardenOfEdenTest {
     }
 
     @Test
-    fun `WierdPerson stores all fields`() {
+    fun `wierd person stores all fields`() {
         // Arrange
 
         // Act
@@ -108,7 +108,7 @@ class GardenOfEdenTest {
     }
 
     @Test
-    fun `Return preserves result success and captured prompt`() {
+    fun `return preserves result success and captured prompt`() {
         // Arrange
         val result = Result.success("frog")
 
@@ -122,7 +122,7 @@ class GardenOfEdenTest {
     }
 
     @Test
-    fun `Return supports failure results and copy`() {
+    fun `return supports failure results and copy`() {
         // Arrange
         val failure = IllegalStateException("bad prompt")
         val original = Return(result = Result.failure<String>(failure), capturedPrompt = "Broken prompt")

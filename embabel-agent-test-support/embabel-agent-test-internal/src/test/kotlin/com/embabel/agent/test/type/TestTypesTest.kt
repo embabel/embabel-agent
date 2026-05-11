@@ -33,7 +33,7 @@ import kotlin.test.*
 class TestTypesTest {
 
     @Test
-    fun `PersonWithReverseTool reverses its name`() {
+    fun `person with reverse tool reverses its name`() {
         // Arrange
         val person = PersonWithReverseTool("Embabel")
 
@@ -45,7 +45,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `Animal and Dog preserve name and implement organism hierarchy`() {
+    fun `animal and dog preserve name and implement organism hierarchy`() {
         // Arrange
         val animal = Animal("Generic")
         val dog = Dog("Fido")
@@ -60,7 +60,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `NoMethods is instantiable`() {
+    fun `no methods is instantiable`() {
         // Arrange
 
         // Act
@@ -101,7 +101,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `ActionGoal creates person from user input`() {
+    fun `action goal creates person from user input`() {
         // Arrange
         val actionGoal = ActionGoal()
 
@@ -125,7 +125,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `TwoActionGoals transform person into frog`() {
+    fun `two action goals transform person into frog`() {
         // Arrange
         val actions = TwoActionGoals()
         val input = UserInput("Kermit")
@@ -140,7 +140,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `TwoConflictingActionGoals expose both person-producing methods`() {
+    fun `two conflicting action goals expose both person-producing methods`() {
         // Arrange
         val actions = TwoConflictingActionGoals()
         val input = UserInput("Rod")
@@ -172,7 +172,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `ConditionFromBlackboard matches only Rod`() {
+    fun `condition from blackboard matches only rod`() {
         // Arrange
         val condition = ConditionFromBlackboard()
 
@@ -184,7 +184,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `CustomNameConditionFromBlackboard matches only Rod`() {
+    fun `custom name condition from blackboard matches only rod`() {
         // Arrange
         val condition = CustomNameConditionFromBlackboard()
 
@@ -218,7 +218,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `OneTransformerActionWithNullableParameter leaves content unchanged when SnakeMeal is absent`() {
+    fun `one transformer action with nullable parameter leaves content unchanged when snake meal is absent`() {
         // Arrange
         val action = OneTransformerActionWithNullableParameter()
 
@@ -230,7 +230,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `OneTransformerActionWithNullableParameter appends tasty when SnakeMeal is present`() {
+    fun `one transformer action with nullable parameter appends tasty when snake meal is present`() {
         // Arrange
         val action = OneTransformerActionWithNullableParameter()
         val snakeMeal = SnakeMeal(listOf(Frog("Kermit")))
@@ -243,7 +243,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `InternalDomainClasses maps internal input to internal output`() {
+    fun `internal domain classes maps internal input to internal output`() {
         // Arrange
         val agent = InternalDomainClasses()
         val input = InternalInput("secret")
@@ -279,7 +279,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `TwoActuallyNonConflictingActionGoalsWithSameOutput returns same person instance`() {
+    fun `two actually non conflicting action goals with same output returns same person instance`() {
         // Arrange
         val action = TwoActuallyNonConflictingActionGoalsWithSameOutput()
         val person = PersonWithReverseTool("Rod")
@@ -292,7 +292,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `FunnyTool and OneTransformerActionWith2Tools expose expected tool outputs`() {
+    fun `funny tool and one transformer action with 2 tools expose expected tool outputs`() {
         // Arrange
         val funnyTool = FunnyTool()
         val actionWithTools = OneTransformerActionWith2Tools()
@@ -308,7 +308,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `Wumpus tools expose expected strings`() {
+    fun `wumpus tools expose expected strings`() {
         // Arrange
         val wumpus = Wumpus("Wumpy")
 
@@ -320,7 +320,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `ToolMethodsOnDomainObject maps domain objects to expected outputs`() {
+    fun `tool methods on domain object maps domain objects to expected outputs`() {
         // Arrange
         val actions = ToolMethodsOnDomainObject()
 
@@ -334,7 +334,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `ToolMethodsOnDomainObjects uses Wumpus name for frog`() {
+    fun `tool methods on domain objects uses wumpus name for frog`() {
         // Arrange
         val actions = ToolMethodsOnDomainObjects()
 
@@ -346,7 +346,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `DefineFlowTest and LocalAgentTest done methods return expected values`() {
+    fun `define flow test and local agent test done methods return expected values`() {
         // Arrange
         val defineFlowTest = DefineFlowTest()
         val localAgentTest = LocalAgentTest()
@@ -362,7 +362,7 @@ class TestTypesTest {
     }
 
     @Test
-    fun `UsesFrogOrDogSomeOf returns frog variant and converts frog to person`() {
+    fun `uses frog or dog some of returns frog variant and converts frog to person`() {
         // Arrange
         val agent = UsesFrogOrDogSomeOf()
 

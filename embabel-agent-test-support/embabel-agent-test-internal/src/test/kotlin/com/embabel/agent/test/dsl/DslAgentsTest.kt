@@ -34,7 +34,7 @@ import kotlin.test.assertIs
 class DslAgentsTest {
 
     @Test
-    fun `EvilWizardAgent metadata is correct`() {
+    fun `evil wizard agent metadata is correct`() {
         // Arrange
         val agent: Agent = EvilWizardAgent
 
@@ -48,7 +48,7 @@ class DslAgentsTest {
     }
 
     @Test
-    fun `EvilWizardAgent thing action binds MagicVictim`() {
+    fun `evil wizard agent thing action binds magic victim`() {
         // Arrange
         val action = EvilWizardAgent.actions.find { it.name == "thing" } ?: error("Action not found: ${EvilWizardAgent.actions.map { it.name }}")
         val blackboard = InMemoryBlackboard()
@@ -76,7 +76,7 @@ class DslAgentsTest {
     }
 
     @Test
-    fun `EvilWizardAgent prompted transform returns Frog`() {
+    fun `evil wizard agent prompted transform returns frog`() {
         // Arrange
         val action = EvilWizardAgent.actions.find { it.name == "turn-into-frog" } ?: error("Action not found: ${EvilWizardAgent.actions.map { it.name }}")
         val blackboard = InMemoryBlackboard()
@@ -105,7 +105,7 @@ class DslAgentsTest {
     }
 
     @Test
-    fun `EvilWizardAgent runs end to end`() {
+    fun `evil wizard agent runs end to end`() {
         // Arrange
 
         // Act
@@ -121,7 +121,7 @@ class DslAgentsTest {
     }
 
     @Test
-    fun `evenMoreEvilWizard metadata is correct`() {
+    fun `even more evil wizard metadata is correct`() {
         // Arrange
         val agent: Agent = evenMoreEvilWizard()
 
@@ -136,7 +136,7 @@ class DslAgentsTest {
     }
 
     @Test
-    fun `evenMoreEvilWizard runs and aggregates frogs deterministically`() {
+    fun `even more evil wizard runs and aggregates frogs deterministically`() {
         // Arrange
 
         // Act

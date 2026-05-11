@@ -42,7 +42,7 @@ class AgentTestApplicationTest {
     )
 
     @Test
-    fun `AgentTestApplication declares expected Spring application annotations`() {
+    fun `agent test application declares expected spring application annotations`() {
         // Arrange
 
         // Act
@@ -57,7 +57,7 @@ class AgentTestApplicationTest {
     }
 
     @Test
-    fun `AgentTestApplication uses expected configuration properties scan packages`() {
+    fun `agent test application uses expected configuration properties scan packages`() {
         // Arrange
         val configurationPropertiesScan = AgentTestApplication::class.java.getAnnotation(ConfigurationPropertiesScan::class.java)
 
@@ -69,7 +69,7 @@ class AgentTestApplicationTest {
     }
 
     @Test
-    fun `AgentTestApplication uses expected component scan packages`() {
+    fun `agent test application uses expected component scan packages`() {
         // Arrange
         val componentScan = AgentTestApplication::class.java.getAnnotation(ComponentScan::class.java)
 

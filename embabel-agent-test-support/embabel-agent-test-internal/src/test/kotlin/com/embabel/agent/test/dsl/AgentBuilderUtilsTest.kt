@@ -42,7 +42,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [splitGarden] exposes the expected static agent metadata.
      */
     @Test
-    fun `splitGarden metadata is correct`() {
+    fun `split garden metadata is correct`() {
         // Arrange
         val agent: Agent = splitGarden()
 
@@ -60,7 +60,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [splitGarden] executes successfully and produces a [SnakeMeal].
      */
     @Test
-    fun `splitGarden runs`() {
+    fun `split garden runs`() {
         // Arrange
         val agent: Agent = splitGarden()
 
@@ -81,7 +81,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [userInputToFrogOrPersonBranch] exposes the expected static agent metadata.
      */
     @Test
-    fun `userInputToFrogOrPersonBranch metadata is correct`() {
+    fun `user input to frog or person branch metadata is correct`() {
         // Arrange
         val agent: Agent = userInputToFrogOrPersonBranch()
 
@@ -99,7 +99,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [userInputToFrogOrPersonBranch] executes successfully and selects [SpiPerson].
      */
     @Test
-    fun `userInputToFrogOrPersonBranch runs`() {
+    fun `user input to frog or person branch runs`() {
         // Arrange
         val agent: Agent = userInputToFrogOrPersonBranch()
 
@@ -120,7 +120,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [userInputToFrogChain] exposes the expected static agent metadata.
      */
     @Test
-    fun `userInputToFrogChain metadata is correct`() {
+    fun `user input to frog chain metadata is correct`() {
         // Arrange
         val agent: Agent = userInputToFrogChain()
 
@@ -138,7 +138,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [userInputToFrogChain] executes successfully and produces a [Frog].
      */
     @Test
-    fun `userInputToFrogChain runs`() {
+    fun `user input to frog chain runs`() {
         // Arrange
         val agent: Agent = userInputToFrogChain()
 
@@ -159,7 +159,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [userInputToFrogAndThenDo] exposes the expected static agent metadata.
      */
     @Test
-    fun `userInputToFrogAndThenDo metadata is correct`() {
+    fun `user input to frog and then do metadata is correct`() {
         // Arrange
         val agent: Agent = userInputToFrogAndThenDo()
 
@@ -177,7 +177,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [userInputToFrogAndThenDo] executes successfully and produces a [Frog].
      */
     @Test
-    fun `userInputToFrogAndThenDo runs`() {
+    fun `user input to frog and then do runs`() {
         // Arrange
         val agent: Agent = userInputToFrogAndThenDo()
 
@@ -198,7 +198,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [userInputToFrogAndThen] executes successfully and produces a [Frog].
      */
     @Test
-    fun `userInputToFrogAndThen runs`() {
+    fun `user input to frog and then runs`() {
         // Arrange
         val agent: Agent = userInputToFrogAndThen()
 
@@ -219,7 +219,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [userInputToFrogAndThenAgain] executes successfully and produces a [Wumpus].
      */
     @Test
-    fun `userInputToFrogAndThenAgain runs`() {
+    fun `user input to frog and then again runs`() {
         // Arrange
         val agent: Agent = userInputToFrogAndThenAgain()
 
@@ -240,7 +240,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [simpleNamer] exposes the expected static agent metadata.
      */
     @Test
-    fun `simpleNamer metadata is correct`() {
+    fun `simple namer metadata is correct`() {
         // Arrange
         val agent: Agent = simpleNamer()
 
@@ -258,7 +258,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [simpleNamer] executes successfully and merges its fixed outputs deterministically.
      */
     @Test
-    fun `simpleNamer runs and merges deterministic output`() {
+    fun `simple namer runs and merges deterministic output`() {
         // Arrange
         var count = 0
         val agent: Agent = simpleNamer { ++count }
@@ -284,7 +284,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [redoNamer] exposes the expected static agent metadata.
      */
     @Test
-    fun `redoNamer metadata is correct`() {
+    fun `redo namer metadata is correct`() {
         // Arrange
         val agent: Agent = redoNamer()
 
@@ -302,7 +302,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [redoNamer] executes successfully and completes in a top-level repeat process.
      */
     @Test
-    fun `redoNamer runs`() {
+    fun `redo namer runs`() {
         // Arrange
         val agent: Agent = redoNamer()
 
@@ -323,7 +323,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [nestingByName] exposes the expected static agent metadata.
      */
     @Test
-    fun `nestingByName metadata is correct`() {
+    fun `nesting by name metadata is correct`() {
         // Arrange
         val agent = nestingByName()
 
@@ -340,7 +340,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [nestingByName] fails when the referenced nested agent has not been deployed.
      */
     @Test
-    fun `nestingByName fails without deployed agent`() {
+    fun `nesting by name fails without deployed agent`() {
         // Arrange
         val agent = nestingByName()
 
@@ -358,7 +358,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [nestingByReference] executes successfully and exposes nested interim [Thing] results.
      */
     @Test
-    fun `nestingByReference runs`() {
+    fun `nesting by reference runs`() {
         // Arrange
         val agent = nestingByReference()
 
@@ -380,7 +380,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [nestingByName] executes successfully once the referenced nested agent is deployed.
      */
     @Test
-    fun `nestingByName runs with deployed agent`() {
+    fun `nesting by name runs with deployed agent`() {
         // Arrange
         val agent = nestingByName()
         val platform = dummyAgentPlatform()
@@ -411,7 +411,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [biAggregate] exposes the expected static agent metadata.
      */
     @Test
-    fun `biAggregate metadata is correct`() {
+    fun `bi aggregate metadata is correct`() {
         // Arrange
         val agent: Agent = biAggregate()
 
@@ -429,7 +429,7 @@ class AgentBuilderUtilsTest {
      * Confirms that [biAggregate] executes successfully and produces [AllNames].
      */
     @Test
-    fun `biAggregate runs`() {
+    fun `bi aggregate runs`() {
         // Arrange
         val agent: Agent = biAggregate()
 

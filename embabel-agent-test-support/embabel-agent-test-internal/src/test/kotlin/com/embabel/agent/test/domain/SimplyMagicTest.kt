@@ -25,7 +25,7 @@ import kotlin.test.assertFalse
 class SimplyMagicTest {
 
     @Test
-    fun `MagicVictim preserves its name and supports copy`() {
+    fun `magic victim preserves its name and supports copy`() {
         // Arrange
         val victim = MagicVictim("Hamish")
 
@@ -39,7 +39,7 @@ class SimplyMagicTest {
     }
 
     @Test
-    fun `Frog preserves its name and supports equality`() {
+    fun `frog preserves its name and supports equality`() {
         // Arrange
         val frog = Frog("Kermit")
 

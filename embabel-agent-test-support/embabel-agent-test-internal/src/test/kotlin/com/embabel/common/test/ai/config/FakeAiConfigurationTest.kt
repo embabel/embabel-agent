@@ -39,7 +39,7 @@ class FakeAiConfigurationTest {
     private val runner = ApplicationContextRunner().withUserConfiguration(FakeAiConfiguration::class.java)
 
     @Test
-    fun `FakeAiConfiguration registers expected fake AI beans`() {
+    fun `fake ai configuration registers expected fake ai beans`() {
 
         // Act
         runner.run { ctx ->
