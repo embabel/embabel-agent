@@ -33,19 +33,25 @@ private val logger = loggerFor<Any>()
 
 /**
  * Internal helper for user input validation that handles common guardrail logic.
+ * Merges global guardrails from registry with interaction-specific guardrails.
  */
 private fun validateUserInputInternal(
     interaction: LlmInteraction,
     blackboard: Blackboard?,
     validator: (UserInputGuardRail, Blackboard) -> ValidationResult
 ) {
-    val userInputGuards = interaction.guardRails
+    val interactionGuards = interaction.guardRails
         .filterIsInstance<UserInputGuardRail>()
 
-    if (userInputGuards.isEmpty()) return
+    val globalGuards = GlobalGuardRailsRegistry.getUserInputGuardRails()
+
+    // Merge global and interaction-specific guardrails, removing duplicates by name
+    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it.name }
+
+    if (effectiveGuards.isEmpty()) return
 
     val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
-    userInputGuards.forEach { guard ->
+    effectiveGuards.forEach { guard ->
         val result = validator(guard, effectiveBlackboard)
         handleValidationResult(guard.name, result)
     }
@@ -78,60 +84,75 @@ internal fun validateUserInput(
 }
 
 /**
- * Validates String assistant response using configured guardrails from interaction options.
+ * Validates String assistant response using configured guardrails from interaction options and global registry.
  */
 internal fun validateAssistantResponse(
     response: String,
     interaction: LlmInteraction,
     blackboard: Blackboard?
 ) {
-    val assistantGuards = interaction.guardRails
+    val interactionGuards = interaction.guardRails
         .filterIsInstance<AssistantMessageGuardRail>()
 
-    if (assistantGuards.isEmpty()) return
+    val globalGuards = GlobalGuardRailsRegistry.getAssistantMessageGuardRails()
+
+    // Merge global and interaction-specific guardrails, removing duplicates by name
+    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it.name }
+
+    if (effectiveGuards.isEmpty()) return
 
     val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
-    assistantGuards.forEach { guard ->
+    effectiveGuards.forEach { guard ->
         val result = guard.validate(response, effectiveBlackboard)
         handleValidationResult(guard.name, result)
     }
 }
 
 /**
- * Validates AssistantMessage response using configured guardrails from interaction options.
+ * Validates AssistantMessage response using configured guardrails from interaction options and global registry.
  */
 internal fun validateAssistantResponse(
     response: AssistantMessage,
     interaction: LlmInteraction,
     blackboard: Blackboard?
 ) {
-    val assistantGuards = interaction.guardRails
+    val interactionGuards = interaction.guardRails
         .filterIsInstance<AssistantMessageGuardRail>()
 
-    if (assistantGuards.isEmpty()) return
+    val globalGuards = GlobalGuardRailsRegistry.getAssistantMessageGuardRails()
+
+    // Merge global and interaction-specific guardrails, removing duplicates by name
+    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it.name }
+
+    if (effectiveGuards.isEmpty()) return
 
     val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
-    assistantGuards.forEach { guard ->
+    effectiveGuards.forEach { guard ->
         val result = guard.validate(response, effectiveBlackboard)
         handleValidationResult(guard.name, result)
     }
 }
 
 /**
- * Validates ThinkingResponse using configured guardrails from interaction options.
+ * Validates ThinkingResponse using configured guardrails from interaction options and global registry.
  */
 internal fun validateAssistantResponse(
     response: ThinkingResponse<*>,
     interaction: LlmInteraction,
     blackboard: Blackboard?
 ) {
-    val assistantGuards = interaction.guardRails
+    val interactionGuards = interaction.guardRails
         .filterIsInstance<AssistantMessageGuardRail>()
 
-    if (assistantGuards.isEmpty()) return
+    val globalGuards = GlobalGuardRailsRegistry.getAssistantMessageGuardRails()
+
+    // Merge global and interaction-specific guardrails, removing duplicates by name
+    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it.name }
+
+    if (effectiveGuards.isEmpty()) return
 
     val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
-    assistantGuards.forEach { guard ->
+    effectiveGuards.forEach { guard ->
         val result = guard.validate(response, effectiveBlackboard)
         handleValidationResult(guard.name, result)
     }
