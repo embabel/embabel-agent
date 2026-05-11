@@ -281,7 +281,7 @@ Java::
 [source,java]
 ----
 // Configure the PromptRunner with guardrails
-PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+PromptRunner runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
         .withToolObject(Tooling.class)
         .withGenerateExamples(true)
         .withGuardRails(new CriticalUserInputGuardRail(), new ThinkingBlocksGuardRail());
@@ -308,7 +308,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Configure the PromptRunner with guardrails
-val runner = ai.withLlm("claude-sonnet-4-5")
+val runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
         .withToolObject(Tooling::class.java)
         .withGenerateExamples(true)
         .withGuardRails(CriticalUserInputGuardRail(), ThinkingBlocksGuardRail())
@@ -402,7 +402,7 @@ Java::
 [source,java]
 ----
 // Configure the PromptRunner with chained guardrails
-PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
+PromptRunner runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
         .withToolObject(Tooling.class)
         .withGuardRails(new LoggingUserInputGuardRail())
         .withGuardRails(new ThinkingBlocksGuardRail());
@@ -426,7 +426,7 @@ Kotlin::
 [source,kotlin]
 ----
 // Configure the PromptRunner with chained guardrails
-val runner = ai.withLlm("claude-sonnet-4-5")
+val runner = ai.withDefaultLlm()  // Example uses claude-sonnet-4-5
         .withToolObject(Tooling::class.java)
         .withGuardRails(LoggingUserInputGuardRail())
         .withGuardRails(ThinkingBlocksGuardRail())

@@ -297,7 +297,21 @@ interface Blackboard : Bindable, MayHaveLastResult, HasInfoString {
 
 /**
  * Does the bound instance satisfy the type.
- * Match on simple name or FQN of type or any supertype
+ *
+ * Matches in this order:
+ * 1. JVM hierarchy — class simple-name, or any supertype's simple-name / FQN.
+ * 2. [DomainType] hierarchy — when the value implements [DomainInstance]
+ *    (e.g. a value backed by a `DynamicType` declared in YAML rather
+ *    than a JVM class), the value also satisfies its [DomainType.name],
+ *    [DomainType.ownLabel], and any parent label or name. This is what
+ *    lets pack-declared types (`HubSpotContactCreated`,
+ *    `StripeChargeFailed`, …) satisfy preconditions and action inputs
+ *    even though the carrying JVM class is a generic carrier.
+ * 3. Tagged map — when the value is a `Map<String, Any?>` carrying the
+ *    [TYPE_NAME_KEY] (and optionally [TYPE_LABELS_KEY] for parent types),
+ *    those names are matched against [type]. Lets pack-authored tools
+ *    and sandbox script returns participate in type-aware matching
+ *    without a carrier class.
  */
 fun satisfiesType(
     boundInstance: Any,
@@ -306,9 +320,28 @@ fun satisfiesType(
     if (boundInstance::class.simpleName == type) {
         return true
     }
-    // Check if the class or any of its superclasses implement the interface
     val interfaces = findAllSupertypes(boundInstance::class.java)
-    return interfaces.any { it.simpleName == type || it.name == type }
+    if (interfaces.any { it.simpleName == type || it.name == type }) {
+        return true
+    }
+    if (boundInstance is DomainInstance && domainTypeMatches(boundInstance.domainType, type)) {
+        return true
+    }
+    if (boundInstance is Map<*, *> && taggedMapMatches(boundInstance, type)) {
+        return true
+    }
+    return false
+}
+
+private fun taggedMapMatches(map: Map<*, *>, type: String): Boolean {
+    if (map[TYPE_NAME_KEY] == type) return true
+    val labels = map[TYPE_LABELS_KEY] as? Iterable<*> ?: return false
+    return labels.any { it == type }
+}
+
+private fun domainTypeMatches(dt: DomainType, type: String): Boolean {
+    if (dt.name == type || dt.ownLabel == type) return true
+    return dt.parents.any { domainTypeMatches(it, type) }
 }
 
 

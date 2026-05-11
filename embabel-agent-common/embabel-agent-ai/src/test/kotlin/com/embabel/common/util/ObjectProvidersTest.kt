@@ -20,12 +20,21 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.NoSuchBeanDefinitionException
 
+/**
+ * Verifies the behavior of the shared empty {@code ObjectProvider} returned by [ObjectProviders].
+ */
 class ObjectProvidersTest {
 
+    /**
+     * Confirms that the empty provider behaves like a missing Spring bean:
+     * `getObject()` fails, optional lookups return `null`, and iteration is empty.
+     */
     @Test
-    fun empty() {
+    fun `empty provider behaves like missing bean`() {
+        // Arrange
         val provider = ObjectProviders.empty<String>()
 
+        // Act / Assert
         assertThrows<NoSuchBeanDefinitionException> {
             provider.getObject()
         }
@@ -35,4 +44,18 @@ class ObjectProvidersTest {
         assertFalse(provider.iterator().hasNext())
     }
 
+    /**
+     * Confirms that the utility reuses one shared provider instance regardless of the
+     * requested generic type, which is the reason the implementation can safely cast
+     * the internal singleton.
+     */
+    @Test
+    fun `empty provider instance is shared across generic types`() {
+        // Arrange
+        val stringProvider = ObjectProviders.empty<String>()
+        val intProvider = ObjectProviders.empty<Int>()
+
+        // Assert
+        assertSame(stringProvider, intProvider)
+    }
 }

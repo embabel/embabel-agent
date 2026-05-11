@@ -557,7 +557,19 @@ abstract class AbstractAgentProcess(
                 val effectiveAction = action.withEffectiveQos(platformServices.actionQosProperties())
                 effectiveAction.qos
                     .retryTemplate("Action-${action.name}")
-                    .execute<ActionStatus, Throwable> {
+                    .execute<ActionStatus, Throwable> { context ->
+                        // Clear effect conditions on retry (not first attempt)
+                        if (context.retryCount > 0) {
+                            logger.debug(
+                                "Retry attempt {} for action {}, clearing effect conditions",
+                                context.retryCount,
+                                action.name
+                            )
+                            action.effects.forEach { (condition, _) ->
+                                blackboard.setCondition(condition, false)
+                            }
+                        }
+
                         effectiveAction.execute(
                             processContext = processContext,
                         )

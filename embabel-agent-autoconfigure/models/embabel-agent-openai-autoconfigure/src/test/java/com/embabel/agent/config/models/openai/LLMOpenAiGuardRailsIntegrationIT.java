@@ -368,7 +368,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
         logger.info("Starting thinking createObject integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(openAiGuardRail, new ThinkingBlocksGuardRail());
@@ -397,7 +397,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
         logger.info("Starting thinking createObjectIfPossible integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withToolObject(new Tooling())
                 .withGuardRails(springAiGuardRail)
                 .withGuardRails(new ThinkingBlocksGuardRail());
@@ -626,7 +626,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
             }
         };
 
-        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withGuardRails(trackingGuard);
 
         String prompt = """
@@ -677,7 +677,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
             }
         };
 
-        PromptRunner runner = ai.withLlm("gpt-4.1-mini")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withGuardRails(trackingGuard);
 
 

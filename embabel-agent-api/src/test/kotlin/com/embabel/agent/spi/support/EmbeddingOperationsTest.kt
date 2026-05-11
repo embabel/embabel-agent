@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support
 import com.embabel.agent.api.event.AgentProcessEmbeddingEvent
 import com.embabel.agent.api.event.EmbeddingEvent
 import com.embabel.agent.api.event.EmbeddingEventListener
+import com.embabel.agent.api.event.EmbeddingInvocationEvent
 import com.embabel.agent.api.event.EmbeddingRequestEvent
 import com.embabel.agent.api.event.EmbeddingResponseEvent
 import com.embabel.agent.spi.support.embedding.EmbeddingOperations
@@ -397,5 +398,44 @@ class EmbeddingOperationsTest {
         assertEquals(3, wrappers.size, "Wrapper events must fire even when the listener throws")
         // And the invocation was still recorded.
         assertEquals(1, process.embeddingInvocations.size)
+    }
+
+    @Test
+    fun `embed emits EmbeddingInvocationEvent with the recorded invocation when an agent is active`() {
+        val service = springAiServiceWith(StubModelWithUsage(tokens = 250))
+        val ops = EmbeddingOperations(service)
+
+        process.withCurrent { ops.embed("hello") }
+
+        val billingEvents = listener.processEvents.filterIsInstance<EmbeddingInvocationEvent>()
+        assertEquals(1, billingEvents.size)
+        val event = billingEvents.single()
+        assertSame(process.embeddingInvocations.single(), event.invocation)
+        assertEquals(250, event.invocation.usage.promptTokens)
+    }
+
+    @Test
+    fun `embed without an active agent does not emit EmbeddingInvocationEvent`() {
+        val service = springAiServiceWith(StubModelWithUsage(tokens = 100))
+        val ops = EmbeddingOperations(service)
+
+        ops.embed("hello")
+
+        assertTrue(listener.processEvents.none { it is EmbeddingInvocationEvent })
+    }
+
+    @Test
+    fun `EmbeddingInvocationEvent interactionId matches the EmbeddingRequestEvent id`() {
+        val service = springAiServiceWith(StubModelWithUsage(tokens = 50))
+        val ops = EmbeddingOperations(service, listener = embeddingListener)
+
+        process.withCurrent { ops.embed("hello") }
+
+        val request = capturedEvents.filterIsInstance<EmbeddingRequestEvent>().single()
+        val billingEvent = listener.processEvents.filterIsInstance<EmbeddingInvocationEvent>().single()
+        assertEquals(
+            request.id, billingEvent.interactionId,
+            "EmbeddingInvocationEvent.interactionId must match the request's id (same correlation)",
+        )
     }
 }

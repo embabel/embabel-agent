@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support.embedding
 import com.embabel.agent.api.event.AgentProcessEmbeddingEvent
 import com.embabel.agent.api.event.EmbeddingEvent
 import com.embabel.agent.api.event.EmbeddingEventListener
+import com.embabel.agent.api.event.EmbeddingInvocationEvent
 import com.embabel.agent.api.event.EmbeddingRequestEvent
 import com.embabel.agent.spi.support.springai.EmbeddingModelCallEvent
 import com.embabel.agent.core.AgentProcess
@@ -97,15 +98,23 @@ internal class EmbeddingOperations(
 
         emit(requestEvent.responseEvent(usage, runningTime), agentProcess)
 
-        agentProcess?.recordEmbeddingInvocation(
-            EmbeddingInvocation(
+        agentProcess?.let { ap ->
+            val invocation = EmbeddingInvocation(
                 embeddingMetadata = delegate,
                 usage = usage,
-                agentName = agentProcess.agent.name,
+                agentName = ap.agent.name,
                 timestamp = requestEvent.timestamp,
                 runningTime = runningTime,
             )
-        )
+            ap.recordEmbeddingInvocation(invocation)
+            ap.processContext.onProcessEvent(
+                EmbeddingInvocationEvent(
+                    agentProcess = ap,
+                    invocation = invocation,
+                    interactionId = interactionId,
+                )
+            )
+        }
 
         return callResult.embeddings
     }
