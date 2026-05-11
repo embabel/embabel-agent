@@ -21,7 +21,6 @@
     </scm>
 
     <properties>
-        <archunit.version>1.3.0</archunit.version>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
         <!-- Exclude test utilities from SonarQube analysis -->
         <sonar.coverage.exclusions>**/test/integration/**</sonar.coverage.exclusions>
