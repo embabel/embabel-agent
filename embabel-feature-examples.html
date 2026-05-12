@@ -258,7 +258,10 @@
     }
 
     .sticky-diagram {
-      display: none;
+      display: block;
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
       position: fixed;
       top: 0;
       left: 0;
@@ -270,10 +273,15 @@
       margin: 0;
       width: 100vw;
       box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+      transform: translateY(-6px);
+      transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
     }
 
     .sticky-diagram.is-visible {
-      display: block;
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
     }
 
     .diagram-title {
@@ -395,6 +403,7 @@
     .mermaid-diagram svg {
       width: min(1280px, 100%);
       max-width: none;
+      min-height: 220px;
       height: auto;
     }
 
@@ -403,14 +412,13 @@
     }
 
     .sticky-diagram .mermaid-diagram {
-      display: none;
+      display: flex;
       justify-content: flex-start;
       align-items: flex-start;
       overflow-x: auto;
-      overflow-y: hidden;
-      max-height: 176px;
+      overflow-y: visible;
       margin-top: 0;
-      padding: 0;
+      padding: 4px 8px 0;
       scrollbar-width: none;
     }
 
@@ -419,7 +427,7 @@
     }
 
     .sticky-diagram .diagram-nav {
-      display: flex;
+      display: none;
     }
 
     .sticky-diagram.has-moving-mermaid .mermaid-diagram {
@@ -431,9 +439,10 @@
     }
 
     .sticky-diagram .mermaid-diagram svg {
-      width: max(1460px, 132vw);
+      width: max(980px, 112vw);
       max-width: none;
-      max-height: 176px;
+      min-height: 72px;
+      height: auto;
       flex: 0 0 auto;
     }
 
@@ -690,9 +699,10 @@
 
     .sticky-diagram .blackboard {
       display: flex;
+      flex-direction: column;
       align-items: stretch;
-      gap: 6px;
-      margin-top: 6px;
+      gap: 3px;
+      margin-top: 4px;
       border: 0;
       border-top: 1px solid #d9e2ef;
       border-radius: 0;
@@ -701,36 +711,50 @@
 
     .sticky-diagram .blackboard summary {
       flex: 0 0 auto;
-      padding: 5px 8px;
-      font-size: 12px;
+      justify-content: space-between;
+      gap: 0;
+      padding: 3px 8px 0;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .sticky-diagram .blackboard summary::after {
+      display: none;
     }
 
     .sticky-diagram .blackboard-items {
       flex: 1 1 auto;
       min-width: 0;
-      padding: 5px 8px 5px 0;
+      min-height: 40px;
+      padding: 0 8px 5px;
     }
 
     .sticky-diagram .blackboard-step.active {
-      flex-wrap: nowrap;
-      overflow: hidden;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+      gap: 4px;
+      overflow: visible;
     }
 
     .sticky-diagram .blackboard-step li {
-      flex: 0 1 auto;
-      min-width: 120px;
+      min-width: 0;
       min-height: 0;
       gap: 2px;
-      padding: 4px 6px;
-      font-size: 11px;
+      padding: 3px 5px;
+      font-size: 10.5px;
     }
 
     .sticky-diagram .blackboard-step code {
+      min-width: 0;
       font-size: 0.9em;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
 
     .sticky-diagram .blackboard-step span {
-      white-space: nowrap;
+      min-width: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
 
     .explain-box {
@@ -864,12 +888,30 @@
     }
 
     @media (max-width: 860px) {
+      .diagram {
+        padding: 14px;
+      }
+
+      .diagram-title {
+        margin-bottom: 10px;
+        text-align: left;
+      }
+
       .flow {
         align-items: center;
       }
 
       .arrow {
         text-align: center;
+      }
+
+      .mermaid-diagram {
+        margin-top: 4px;
+        padding: 2px 0;
+      }
+
+      .mermaid-diagram svg {
+        width: min(520px, 100%);
       }
 
       .diagram:not(.sticky-diagram) .branch-flow {
@@ -3497,6 +3539,27 @@ assertTrue(
         feature.querySelector(".diagram .node")
       );
 
+      const blackboardFactKey = (item) => {
+        const code = item.querySelector("code")?.textContent.trim();
+        if (code) {
+          return code.replace(/\?$/, "");
+        }
+        return item.textContent.trim();
+      };
+
+      document.querySelectorAll(".diagram .blackboard").forEach((blackboard) => {
+        const facts = new Map();
+        const steps = [...blackboard.querySelectorAll("[data-blackboard-step]")]
+          .sort((a, b) => Number(a.dataset.blackboardStep) - Number(b.dataset.blackboardStep));
+
+        steps.forEach((step) => {
+          step.querySelectorAll(":scope > li").forEach((item) => {
+            facts.set(blackboardFactKey(item), item.cloneNode(true));
+          });
+          step.replaceChildren(...[...facts.values()].map((item) => item.cloneNode(true)));
+        });
+      });
+
       const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
       const stepMaps = {
         "horoscope-news": [0, 1, 1, 2, 3, 4],
@@ -3644,6 +3707,16 @@ assertTrue(
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, " ")
         .trim();
+      const setMermaidDirection = (diagram, direction) => {
+        if (!diagram) {
+          return;
+        }
+
+        diagram.textContent = diagram.textContent.replace(
+          /^flowchart\s+(LR|TD)/m,
+          `flowchart ${direction}`
+        );
+      };
 
       const bindMermaidNodes = (model) => {
         const labelsByFeature = mermaidNodeLabels[model.feature.id];
@@ -3663,15 +3736,13 @@ assertTrue(
         });
       };
       const mountMovingMermaid = (model) => {
-        if (!model.mermaid || model.mermaidMounted) {
+        if (!model.stickyMermaid || model.mermaidMounted) {
           return;
         }
-        if (!model.mermaid.querySelector("svg")) {
+        if (!model.stickyMermaid.querySelector("svg")) {
           return;
         }
 
-        model.mermaidPlaceholder.style.height = `${model.mermaid.offsetHeight}px`;
-        model.stickyTitle.after(model.mermaid);
         model.stickyDiagram.classList.add("has-moving-mermaid");
         model.mermaidMounted = true;
         model.activeMermaidKey = "";
@@ -3679,12 +3750,10 @@ assertTrue(
       };
 
       const restoreMovingMermaid = (model) => {
-        if (!model.mermaid || !model.mermaidMounted) {
+        if (!model.mermaidMounted) {
           return;
         }
 
-        model.mermaidPlaceholder.after(model.mermaid);
-        model.mermaidPlaceholder.style.height = "";
         model.stickyDiagram.classList.remove("has-moving-mermaid");
         model.mermaidMounted = false;
         model.activeMermaidKey = "";
@@ -3696,7 +3765,8 @@ assertTrue(
         const stickyDiagram = diagram.cloneNode(true);
         stickyDiagram.classList.add("sticky-diagram");
         stickyDiagram.setAttribute("aria-hidden", "true");
-        stickyDiagram.querySelector(".mermaid-diagram")?.remove();
+        setMermaidDirection(diagram.querySelector(".mermaid-diagram"), "TD");
+        setMermaidDirection(stickyDiagram.querySelector(".mermaid-diagram"), "LR");
         document.body.appendChild(stickyDiagram);
 
         const nodes = [...diagram.querySelectorAll(".node")];
@@ -3705,9 +3775,7 @@ assertTrue(
         const stickyBlackboardSteps = [...stickyDiagram.querySelectorAll("[data-blackboard-step]")];
         const track = stickyDiagram.querySelector(".flow");
         const mermaid = diagram.querySelector(".mermaid-diagram");
-        const mermaidPlaceholder = document.createElement("div");
-        mermaidPlaceholder.className = "mermaid-placeholder";
-        mermaid?.before(mermaidPlaceholder);
+        const stickyMermaid = stickyDiagram.querySelector(".mermaid-diagram");
         const subfeatures = [...feature.querySelectorAll(":scope > .subfeature")];
         const contentSteps = subfeatures.length
           ? subfeatures.map((subfeature) => subfeature.querySelector("pre") ?? subfeature)
@@ -3726,7 +3794,7 @@ assertTrue(
           contentSteps,
           stepMap,
           mermaid,
-          mermaidPlaceholder,
+          stickyMermaid,
           mermaidMounted: false,
           stickyTitle: stickyDiagram.querySelector(".diagram-title"),
           activeIndex: -1,
@@ -3791,6 +3859,11 @@ assertTrue(
         }
 
         const nextIndex = clamp(index, 0, model.nodes.length - 1);
+        const blackboardIndex = model.stickyBlackboardSteps.some((step) =>
+          Number(step.dataset.blackboardStep) === nextIndex
+        )
+          ? nextIndex
+          : Number(model.stickyBlackboardSteps[0]?.dataset.blackboardStep ?? nextIndex);
         const visibleNodeIndexes = new Set(visibleIndexes.map((visibleIndex) =>
           clamp(visibleIndex, 0, model.nodes.length - 1)
         ));
@@ -3808,7 +3881,7 @@ assertTrue(
           });
 
           [...model.blackboardSteps, ...model.stickyBlackboardSteps].forEach((step) => {
-            step.classList.toggle("active", Number(step.dataset.blackboardStep) === nextIndex);
+            step.classList.toggle("active", Number(step.dataset.blackboardStep) === blackboardIndex);
           });
 
           if (model.track) {
@@ -3869,16 +3942,32 @@ assertTrue(
           const headerBottom = isStuck ? model.stickyDiagram.getBoundingClientRect().bottom : 0;
           const visibleTop = headerBottom + 12;
           const visibleBottom = window.innerHeight - 12;
+          const targetY = visibleTop + ((visibleBottom - visibleTop) * 0.35);
           let activeStepIndex = -1;
+          let activeStepDistance = Infinity;
 
           model.contentSteps.forEach((step, stepIndex) => {
             const stepRect = step.getBoundingClientRect();
-            if (stepRect.top >= visibleTop && stepRect.bottom <= visibleBottom) {
+            const overlapsVisibleArea = stepRect.bottom >= visibleTop && stepRect.top <= visibleBottom;
+            if (!overlapsVisibleArea) {
+              return;
+            }
+
+            const stepCenter = stepRect.top + (stepRect.height / 2);
+            const distance = Math.abs(stepCenter - targetY);
+            if (distance < activeStepDistance) {
               activeStepIndex = stepIndex;
+              activeStepDistance = distance;
             }
           });
 
           if (activeStepIndex === -1) {
+            if (isStuck) {
+              const fallbackIndex = model.activeIndex >= 0 ? model.activeIndex : (model.stepMap[0] ?? 0);
+              setActiveNode(model, fallbackIndex);
+              return;
+            }
+
             clearActiveNode(model);
             return;
           }
@@ -3906,7 +3995,7 @@ assertTrue(
       updateActiveSteps();
       if (window.mermaid) {
         Promise.resolve(mermaid.run({
-          nodes: document.querySelectorAll(".feature .mermaid")
+          nodes: document.querySelectorAll(".mermaid")
         })).then(() => {
           featureModels.forEach((model) => {
             bindMermaidNodes(model);
