@@ -194,11 +194,12 @@
     }
 
     pre .snippet-note {
+      --snippet-note-indent: 4ch;
       display: block;
       width: fit-content;
-      max-width: min(860px, 100%);
+      max-width: min(860px, calc(100% - var(--snippet-note-indent)));
       white-space: normal;
-      margin: 6px 0 6px;
+      margin: 6px 0 6px var(--snippet-note-indent);
       border: 1px solid rgba(171, 178, 191, 0.24);
       border-radius: 6px;
       background: rgba(226, 232, 240, 0.14);
@@ -210,11 +211,11 @@
     }
 
     pre .snippet-note.indent-chain {
-      margin-left: 10rem;
+      --snippet-note-indent: 8ch;
     }
 
     pre .snippet-note.indent-body {
-      margin-left: 2rem;
+      --snippet-note-indent: 4ch;
     }
 
     pre .snippet-note code {
@@ -265,7 +266,7 @@
       border-left: 0;
       border-right: 0;
       border-radius: 0;
-      padding: 10px max(24px, calc((100vw - 1160px) / 2));
+      padding: 0;
       margin: 0;
       width: 100vw;
       box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
@@ -280,11 +281,11 @@
       font-size: 16px;
       color: var(--text);
       margin-bottom: 12px;
+      text-align: center;
     }
 
     .sticky-diagram .diagram-title {
-      font-size: 13px;
-      margin-bottom: 8px;
+      display: none;
     }
 
     .flow {
@@ -292,15 +293,177 @@
       flex-wrap: wrap;
       gap: 12px;
       align-items: center;
+      justify-content: center;
       overflow-x: visible;
       scroll-behavior: smooth;
       padding: 2px 0 5px;
       scrollbar-width: none;
     }
 
+    .diagram:not(.sticky-diagram) .branch-flow {
+      display: grid;
+      gap: 12px;
+      align-items: stretch;
+      justify-content: stretch;
+      overflow: visible;
+    }
+
+    .branch-flow .node,
+    .branch-flow .arrow {
+      min-width: 0;
+    }
+
+    .flow-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .flow-group {
+      display: grid;
+      gap: 8px;
+      align-items: stretch;
+      min-width: 150px;
+    }
+
+    .flow-group.two-up {
+      grid-template-columns: repeat(2, minmax(130px, 1fr));
+      min-width: min(100%, 280px);
+    }
+
+    .branch-flow .flow-group .node {
+      width: 100%;
+    }
+
+    .branch-flow .node {
+      flex: 1 1 145px;
+      max-width: 210px;
+    }
+
+    .branch-flow .flow-group {
+      flex: 1 1 280px;
+      max-width: 420px;
+    }
+
+    .branch-flow .arrow {
+      flex: 0 0 22px;
+    }
+
+    .branch-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .retry-note {
+      margin-top: 12px;
+      border: 1px dashed #c4b5fd;
+      border-radius: 6px;
+      background: #fbfaff;
+      padding: 8px 10px;
+      color: #6d42e8;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .retry-note code {
+      color: #5b35d5;
+      font-size: 0.92em;
+    }
+
+    .mermaid-diagram {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      overflow-x: auto;
+      margin: 8px 0 0;
+      border-radius: 0;
+      background: transparent;
+      padding: 4px 0;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .mermaid-diagram svg {
+      width: min(1280px, 100%);
+      max-width: none;
+      height: auto;
+    }
+
+    .diagram-nav {
+      display: none;
+    }
+
+    .sticky-diagram .mermaid-diagram {
+      display: none;
+      justify-content: flex-start;
+      align-items: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
+      max-height: 176px;
+      margin-top: 0;
+      padding: 0;
+      scrollbar-width: none;
+    }
+
+    .sticky-diagram .mermaid-diagram::-webkit-scrollbar {
+      display: none;
+    }
+
+    .sticky-diagram .diagram-nav {
+      display: flex;
+    }
+
+    .sticky-diagram.has-moving-mermaid .mermaid-diagram {
+      display: flex;
+    }
+
+    .sticky-diagram.has-moving-mermaid .diagram-nav {
+      display: none;
+    }
+
+    .sticky-diagram .mermaid-diagram svg {
+      width: max(1460px, 132vw);
+      max-width: none;
+      max-height: 176px;
+      flex: 0 0 auto;
+    }
+
+    .mermaid-active > rect,
+    .mermaid-active > polygon,
+    .mermaid-active > path,
+    .mermaid-active .label-container {
+      fill: #fde68a !important;
+      fill-opacity: 1 !important;
+      stroke: #1d4ed8 !important;
+      stroke-width: 4px !important;
+      filter: drop-shadow(0 3px 6px rgba(29, 78, 216, 0.32));
+    }
+
+    .mermaid-active .nodeLabel,
+    .mermaid-active foreignObject,
+    .mermaid-active foreignObject div,
+    .mermaid-active span,
+    .mermaid-active text,
+    .mermaid-active tspan {
+      color: #0f172a !important;
+      fill: #0f172a !important;
+      font-weight: 800 !important;
+      text-shadow: 0 1px 0 #fffbeb, 0 -1px 0 #fffbeb, 1px 0 0 #fffbeb, -1px 0 0 #fffbeb;
+    }
+
     .sticky-diagram .flow {
       flex-wrap: nowrap;
       gap: 8px;
+      justify-content: flex-start;
       overflow-x: hidden;
     }
 
@@ -322,6 +485,11 @@
       opacity: 1;
       box-shadow: none;
       transition: border-color 160ms ease, background 160ms ease, color 160ms ease, opacity 160ms ease;
+    }
+
+    .diagram:not(.sticky-diagram) .branch-flow .node,
+    .diagram:not(.sticky-diagram) .branch-flow .arrow {
+      min-width: 0;
     }
 
     .sticky-diagram .node {
@@ -346,6 +514,12 @@
       height: 3px;
       border-radius: 999px;
       background: #0f766e;
+    }
+
+    .diagram:not(.sticky-diagram) .node.active {
+      border-color: #0f766e;
+      background: #f0fdfa;
+      color: #0f172a;
     }
 
     .node strong {
@@ -408,17 +582,161 @@
       text-align: center;
     }
 
+    .arrow.loop {
+      color: #7c3aed;
+    }
+
     .diagram-note {
       margin-top: 10px;
       color: var(--muted);
       font-size: 12px;
     }
 
+    .sticky-diagram .diagram-note {
+      display: none;
+    }
+
+    .blackboard {
+      margin-top: 12px;
+      border: 1px solid #d9e2ef;
+      border-radius: 8px;
+      background: #fbfcfe;
+      text-align: left;
+    }
+
+    .blackboard summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      color: #1f2937;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      list-style: none;
+    }
+
+    .blackboard summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .blackboard summary::after {
+      content: "+";
+      width: 20px;
+      height: 20px;
+      border: 1px solid #cfd7e4;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+
+    .blackboard[open] summary::after {
+      content: "-";
+    }
+
+    .blackboard-items {
+      padding: 0 10px 10px;
+    }
+
+    .blackboard-step {
+      display: none;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .blackboard-step.active {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .blackboard-step li {
+      display: grid;
+      align-content: start;
+      flex: 1 1 190px;
+      gap: 5px;
+      min-height: 58px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background: #f8fafc;
+      padding: 5px 7px;
+      color: #303946;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .blackboard-step code {
+      border: 1px solid #dbe2ec;
+      border-radius: 4px;
+      background: #ffffff;
+      padding: 1px 4px;
+      color: #223044;
+      font-size: 0.92em;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .blackboard-step span {
+      color: var(--muted);
+      text-align: left;
+    }
+
+    .sticky-diagram .blackboard {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+      margin-top: 6px;
+      border: 0;
+      border-top: 1px solid #d9e2ef;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .sticky-diagram .blackboard summary {
+      flex: 0 0 auto;
+      padding: 5px 8px;
+      font-size: 12px;
+    }
+
+    .sticky-diagram .blackboard-items {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 5px 8px 5px 0;
+    }
+
+    .sticky-diagram .blackboard-step.active {
+      flex-wrap: nowrap;
+      overflow: hidden;
+    }
+
+    .sticky-diagram .blackboard-step li {
+      flex: 0 1 auto;
+      min-width: 120px;
+      min-height: 0;
+      gap: 2px;
+      padding: 4px 6px;
+      font-size: 11px;
+    }
+
+    .sticky-diagram .blackboard-step code {
+      font-size: 0.9em;
+    }
+
+    .sticky-diagram .blackboard-step span {
+      white-space: nowrap;
+    }
+
     .explain-box {
       max-width: 900px;
       margin: 14px 0;
       border: 1px solid #d9e2ef;
-      border-left: 4px solid #7c8da5;
       border-radius: 8px;
       background: #f8fafc;
       padding: 12px 14px;
@@ -508,10 +826,10 @@
     }
 
     .callout {
-      border-left: 4px solid var(--accent);
+      border: 1px solid #b7ddd7;
       background: #eefaf8;
       padding: 12px 14px;
-      border-radius: 0 6px 6px 0;
+      border-radius: 8px;
       margin: 16px 0;
     }
 
@@ -546,16 +864,17 @@
     }
 
     @media (max-width: 860px) {
-      .feature-grid {
-        grid-template-columns: 1fr;
-      }
-
       .flow {
         align-items: center;
       }
 
       .arrow {
         text-align: center;
+      }
+
+      .diagram:not(.sticky-diagram) .branch-flow {
+        display: flex;
+        flex-wrap: wrap;
       }
 
       .swot-grid {
@@ -569,9 +888,9 @@
     <h1>Embabel Feature Examples</h1>
     <p class="lede">A product-owner-first guide to Embabel concepts. Each feature starts with the user outcome, then uses short code snippets and surrounding explanation to show how Embabel concepts compose.</p>
     <ul class="repo-list">
-      <li><a href="../embabel-agent-examples/examples-kotlin">examples-kotlin</a></li>
-      <li><a href="../tripper">tripper</a></li>
-      <li><a href="../ragbot">ragbot</a></li>
+      <li><a href="https://github.com/embabel/embabel-agent-examples/tree/main/examples-kotlin">examples-kotlin</a></li>
+      <li><a href="https://github.com/embabel/tripper">tripper</a></li>
+      <li><a href="https://github.com/embabel/ragbot">ragbot</a></li>
     </ul>
   </header>
 
@@ -586,7 +905,7 @@
 
           <h3>Source</h3>
           <ul class="source-list">
-            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/horoscope/StarNewsFinder.kt">StarNewsFinder.kt</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent-examples/blob/main/examples-kotlin/src/main/kotlin/com/embabel/example/horoscope/StarNewsFinder.kt">StarNewsFinder.kt</a></li>
           </ul>
 
           <h3>Why Embabel Fits</h3>
@@ -605,7 +924,7 @@
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow">
+          <div class="flow diagram-nav" aria-hidden="true">
             <div class="node input"><strong>User prompt</strong><small>"Lynda is a Scorpio"</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node llm"><strong>Extract StarPerson</strong><small>LLM creates typed input</small></div>
@@ -616,6 +935,52 @@
             <div class="arrow">-&gt;</div>
             <div class="node goal"><strong>Writeup</strong><small>goal output</small></div>
           </div>
+          <pre class="mermaid mermaid-diagram">
+flowchart LR
+  prompt["User prompt&lt;br/&gt;Lynda is a Scorpio"] --> extract["Extract StarPerson&lt;br/&gt;LLM creates typed input"]
+  extract --> horoscope["Horoscope service&lt;br/&gt;deterministic app code"]
+  horoscope --> news["Web news search&lt;br/&gt;tool group scoped here"]
+  news --> writeup["Writeup&lt;br/&gt;goal output"]
+
+  classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
+  classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
+  classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
+  classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
+  classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
+
+  class prompt input
+  class extract llm
+  class horoscope code
+  class news tool
+  class writeup goal
+          </pre>
+          <details class="blackboard" open>
+            <summary>Blackboard</summary>
+            <div class="blackboard-items">
+              <ul class="blackboard-step" data-blackboard-step="0">
+                <li><code>UserInput</code><span>"Lynda is a Scorpio"</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>UserInput</code><span>original prompt</span></li>
+                <li><code>StarPerson?</code><span>Lynda, Scorpio or no object</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="2">
+                <li><code>UserInput</code><span>original prompt</span></li>
+                <li><code>StarPerson</code><span>Lynda, Scorpio</span></li>
+                <li><code>Horoscope</code><span>service result</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>StarPerson</code><span>Lynda, Scorpio</span></li>
+                <li><code>Horoscope</code><span>daily summary</span></li>
+                <li><code>RelevantNewsStories</code><span>selected URLs and summaries</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="4">
+                <li><code>StarPerson</code><span>Lynda, Scorpio</span></li>
+                <li><code>RelevantNewsStories</code><span>news evidence</span></li>
+                <li><code>Writeup</code><span>goal output</span></li>
+              </ul>
+            </div>
+          </details>
           <p class="diagram-note">The planner connects actions through typed objects, not through a hardcoded sequence.</p>
         </div>
       </div>
@@ -624,8 +989,6 @@
 
       <pre><code>@Agent(
     description = <span class="string">"Write an amusing personalised writeup combining a person's horoscope and current news stories"</span>,
-    scan = true,
-    beanName = <span class="string">"KotlinStarNewsFinder"</span>,
 )
 class StarNewsFinder(
     private val horoscopeService: HoroscopeService,
@@ -644,14 +1007,14 @@ fun extractStarPerson(userInput: UserInput, context: OperationContext): StarPers
             Create a person from this user input, extracting their name and star sign:
             ${userInput.content}
             """</span>.trimIndent()
-        )</code><span class="snippet-note"><code>createObjectIfPossible</code> returns <code>null</code> when it cannot create the complete typed object.</span><code>data class StarPerson(
+        )</code><span class="snippet-note indent-chain"><code>createObjectIfPossible</code> returns <code>null</code> when it cannot create the complete typed object.</span><code>data class StarPerson(
     override val name: String,
     val sign: String,
 ) : Person</code></pre>
 
       <p>When <code>extractStarPerson</code> does not add <code>StarPerson</code> to the blackboard, the goal is still unsatisfied.</p>
 
-      <p>This is where Embabel's GOAP loop matters. After every action, the process observes the current blackboard, rebuilds the world state, searches for a low-cost action sequence to a goal, executes the first action in that sequence, and repeats. <code>extractStarPerson</code> is not retried forever because it has run and, by default, <code>canRerun</code> is false. The next planning cycle therefore looks for another way to produce the still-missing <code>StarPerson</code>.</p>
+      <p>This is where Embabel's GOAP loop matters. After every action, the process observes the current blackboard, rebuilds the world state, searches for a low-cost action sequence to a goal, executes the first action in that sequence, and repeats. <code>extractStarPerson</code> is not retried forever because it has run and the default <code>@Action(canRerun=false)</code> setting makes actions one-shot for a process. The next planning cycle therefore looks for another way to produce the still-missing <code>StarPerson</code>.</p>
 
       <ul>
         <li>Direct route: <code>UserInput -&gt; StarPerson</code></li>
@@ -765,8 +1128,8 @@ data class Writeup(
 
           <h3>Source</h3>
           <ul class="source-list">
-            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/secured/NewsDigestAgent.kt">NewsDigestAgent.kt</a></li>
-            <li><a href="../embabel-agent-examples/examples-common/src/main/kotlin/com/embabel/example/secured/NewsDigestTypes.kt">NewsDigestTypes.kt</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent-examples/blob/main/examples-kotlin/src/main/kotlin/com/embabel/example/secured/NewsDigestAgent.kt">NewsDigestAgent.kt</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent-examples/blob/main/examples-common/src/main/kotlin/com/embabel/example/secured/NewsDigestTypes.kt">NewsDigestTypes.kt</a></li>
           </ul>
 
           <h3>Why Embabel Fits</h3>
@@ -785,7 +1148,7 @@ data class Writeup(
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow">
+          <div class="flow diagram-nav" aria-hidden="true">
             <div class="node input"><strong>Authorized request</strong><small>UserInput topic</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node llm"><strong>Extract topic</strong><small>NewsTopic</small></div>
@@ -796,12 +1159,60 @@ data class Writeup(
             <div class="arrow">-&gt;</div>
             <div class="node goal"><strong>Export digest</strong><small>remote newsDigest</small></div>
           </div>
+          <pre class="mermaid mermaid-diagram">
+flowchart LR
+  request["Authorized request&lt;br/&gt;UserInput topic"] --> topic["Extract topic&lt;br/&gt;NewsTopic"]
+  topic --> items["Find current items&lt;br/&gt;WEB tools scoped here"]
+  items --> narrative["Write narrative&lt;br/&gt;from gathered items"]
+  narrative --> export["Export digest&lt;br/&gt;remote newsDigest"]
+
+  classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
+  classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
+  classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
+  classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
+
+  class request input
+  class topic,narrative llm
+  class items tool
+  class export goal
+          </pre>
+          <details class="blackboard" open>
+            <summary>Blackboard</summary>
+            <div class="blackboard-items">
+              <ul class="blackboard-step" data-blackboard-step="0">
+                <li><code>UserInput</code><span>authorized topic request</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>UserInput</code><span>original request</span></li>
+                <li><code>NewsTopic</code><span>topic and optional focus</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="2">
+                <li><code>NewsTopic</code><span>search target</span></li>
+                <li><code>DigestItemList</code><span>current items and URLs</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>NewsTopic</code><span>editorial context</span></li>
+                <li><code>DigestItemList</code><span>source evidence</span></li>
+                <li><code>String</code><span>three-sentence narrative</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="4">
+                <li><code>NewsTopic</code><span>published topic</span></li>
+                <li><code>DigestItemList</code><span>published items</span></li>
+                <li><code>NewsDigest</code><span>exported goal result</span></li>
+              </ul>
+            </div>
+          </details>
           <p class="diagram-note">The remote surface is the exported goal; the intermediate actions remain internal workflow steps.</p>
         </div>
       </div>
 
       <p>The agent class is the capability boundary. Embabel registers the actions in the class as one news-briefing capability.</p>
       <p><code>@SecureAgentTool</code> is the security boundary for remote tool use. It attaches a Spring Security expression to the exported capability, so a caller must have <code>news:read</code> authority before this agent can be used as a secured tool.</p>
+
+      <div class="explain-box">
+        <strong>When tools need request metadata</strong>
+        <code>@SecureAgentTool</code> decides whether the remote capability may be called. If a tool also needs infrastructure data such as a tenant ID, auth token, or correlation ID during execution, pass it through <code>ToolCallContext</code>. That keeps operational metadata out of the LLM-visible tool schema.
+      </div>
 
       <pre><code>import com.embabel.agent.mcpserver.security.SecureAgentTool
 
@@ -843,7 +1254,10 @@ data class DigestItemList(
     val items: List&lt;DigestItem&gt;,
 )</code><span class="snippet-note"><code>DigestItemList</code> is a named wrapper around the list, preserving the item type for LLM JSON deserialization.</span></pre>
 
-      <p>Once <code>NewsTopic</code> is on the blackboard, the goal action can run. This reuses the tool-scoping idea from Feature 1: the web capability belongs to the retrieval call, while the later editorial summary is written only from already gathered items.</p>
+      <div class="explain-box">
+        <strong>How <code>Export</code> exposes the goal</strong>
+        <code>@AchievesGoal</code> marks the user-visible completion inside the agent. <code>Export(remote = true)</code> makes that goal callable from outside the process under the name <code>newsDigest</code>. <code>startingInputTypes = [UserInput::class]</code> tells Embabel which caller input can start this exported flow; intermediate actions such as <code>extractTopic</code> remain internal planning steps.
+      </div>
 
       <pre><code>@AchievesGoal(
     description = <span class="string">"Produce a curated news digest for the requested topic"</span>,
@@ -852,8 +1266,11 @@ data class DigestItemList(
         name = <span class="string">"newsDigest"</span>,
         startingInputTypes = [UserInput::class],
     )
-)
-@Action
+)</code></pre>
+
+      <p><code>produceDigest</code> is the internal implementation of that goal. It receives the typed <code>NewsTopic</code>, retrieves current items, writes the editorial narrative, and returns the exported <code>NewsDigest</code>.</p>
+
+      <pre><code>@Action
 fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest {
     val focusClause = if (topic.focusArea.isNotBlank())
         <span class="string">"Focus specifically on: ${topic.focusArea}."</span>
@@ -889,8 +1306,6 @@ fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest {
     )
 }</code></pre>
 
-      <p><code>@AchievesGoal</code> still marks the user-visible completion. The new idea here is <code>Export</code>: it publishes only that goal as <code>newsDigest</code> for <code>UserInput</code> starters, not the intermediate <code>extractTopic</code> action.</p>
-
       <pre><code>data class NewsDigest(
     val topic: String,
     val items: List&lt;DigestItem&gt;,
@@ -908,12 +1323,12 @@ fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest {
 
           <h3>Source</h3>
           <ul class="source-list">
-            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/secured/MarketIntelligenceAgent.kt">MarketIntelligenceAgent.kt</a></li>
-            <li><a href="../embabel-agent-examples/examples-common/src/main/kotlin/com/embabel/example/secured/MarketIntelligenceTypes.kt">MarketIntelligenceTypes.kt</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent-examples/blob/main/examples-kotlin/src/main/kotlin/com/embabel/example/secured/MarketIntelligenceAgent.kt">MarketIntelligenceAgent.kt</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent-examples/blob/main/examples-common/src/main/kotlin/com/embabel/example/secured/MarketIntelligenceTypes.kt">MarketIntelligenceTypes.kt</a></li>
           </ul>
 
           <h3>Why Embabel Fits</h3>
-          <p>The feature has a real product workflow: interpret the business question, gather current evidence, turn the same evidence into several narrow structured outputs, and assemble a final typed report. Embabel keeps those steps explicit through action inputs, action outputs, blackboard state, scoped tools, and a goal action.</p>
+          <p>The workflow interprets the business question, gathers current evidence, turns that evidence into narrow structured outputs, and assembles a final typed report. Embabel keeps those steps explicit through action inputs, action outputs, blackboard state, scoped tools, and a goal action.</p>
 
           <ul class="concept-list">
             <li><span>@Agent</span></li>
@@ -928,7 +1343,7 @@ fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest {
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow">
+          <div class="flow diagram-nav" aria-hidden="true">
             <div class="node input"><strong>Business request</strong><small>company / sector / region</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node llm"><strong>AnalysisSubject</strong><small>typed subject + region</small></div>
@@ -941,11 +1356,61 @@ fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest {
             <div class="arrow">-&gt;</div>
             <div class="node goal"><strong>Market report</strong><small>secured remote export</small></div>
           </div>
+          <pre class="mermaid mermaid-diagram">
+flowchart LR
+  request["Business request&lt;br/&gt;company / sector / region"] --> subject["AnalysisSubject&lt;br/&gt;typed subject + region"]
+  subject --> evidence["Evidence&lt;br/&gt;web tools scoped here"]
+  evidence --> sections["Structured sections&lt;br/&gt;SWOT / competitors / trends / summary"]
+  sections --> assembly["Typed assembly&lt;br/&gt;Kotlin composes fields"]
+  assembly --> report["Market report&lt;br/&gt;secured remote export"]
+
+  classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
+  classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
+  classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
+  classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
+  classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
+
+  class request input
+  class subject,sections llm
+  class evidence tool
+  class assembly code
+  class report goal
+          </pre>
+          <details class="blackboard" open>
+            <summary>Blackboard</summary>
+            <div class="blackboard-items">
+              <ul class="blackboard-step" data-blackboard-step="0">
+                <li><code>UserInput</code><span>business question</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>UserInput</code><span>original question</span></li>
+                <li><code>AnalysisSubject</code><span>subject and region</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="2">
+                <li><code>AnalysisSubject</code><span>research scope</span></li>
+                <li><code>String</code><span>raw intelligence evidence</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>String</code><span>shared evidence</span></li>
+                <li><code>SwotEntryList</code><span>categorized SWOT</span></li>
+                <li><code>CompetitorMoveList</code><span>recent moves</span></li>
+                <li><code>TrendList</code><span>market trends</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="4">
+                <li><code>AnalysisSubject</code><span>report subject</span></li>
+                <li><code>String</code><span>executive summary</span></li>
+                <li><code>MarketIntelligenceReport</code><span>assembled report</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="5">
+                <li><code>MarketIntelligenceReport</code><span>secured remote goal</span></li>
+              </ul>
+            </div>
+          </details>
           <p class="diagram-note">The blackboard carries typed artifacts from step to step, so report writing starts from evidence already gathered.</p>
         </div>
       </div>
 
-      <p>This section reuses the secured-tool pattern from Feature 2 with a different product permission: <code>market:admin</code> protects the exported market-report capability.</p>
+      <p><code>market:admin</code> protects the exported market-report capability, so only authorized callers can request this secured product workflow.</p>
 
       <pre><code>@Agent(
     description = <span class="string">"Produce a structured market intelligence report including SWOT analysis, "</span> +
@@ -954,7 +1419,7 @@ fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest {
 @SecureAgentTool(<span class="string">"hasAuthority('market:admin')"</span>)
 class MarketIntelligenceAgent {</code></pre>
 
-      <p>The first product problem is ambiguity. The user can ask for "European EV charging" or "Nvidia in APAC"; the workflow needs a stable subject and region before evidence gathering starts.</p>
+      <p>The first product problem is ambiguity. The user can ask for "European EV charging" or "Nvidia in APAC"; the workflow needs a stable subject and region before evidence gathering starts. <code>createObject</code> asks the LLM for an <code>AnalysisSubject</code>, and the returned object becomes available to later actions through the blackboard.</p>
 
       <pre><code>data class AnalysisSubject(
     val subject: String,
@@ -966,7 +1431,8 @@ fun parseSubject(
     userInput: UserInput,
     context: OperationContext,
 ): AnalysisSubject = context.ai()
-    .withDefaultLlm()</code><span class="snippet-note indent-chain"><code>createObject</code> asks the LLM for a concrete <code>AnalysisSubject</code>; the returned object is automatically available to later actions through the blackboard.</span><code>    .createObject(
+    .withDefaultLlm()
+    .createObject(
         <span class="string">"""
         Extract the subject of market analysis from the following user input.
         Identify the company name, sector, or market segment, and the geographic region if mentioned.
@@ -976,7 +1442,7 @@ fun parseSubject(
         """</span>.trimIndent()
     )</code></pre>
 
-      <p>Once <code>AnalysisSubject</code> exists, the next action can gather evidence. The tool-scoping rule is the same as before; the new product idea is to create one reusable evidence artifact for several later report sections.</p>
+      <p>Once <code>AnalysisSubject</code> exists, the next action can gather evidence. We use <code>CoreToolGroups.WEB</code> again here, and the product idea is to create one reusable evidence artifact for several later report sections.</p>
 
       <pre><code>@Action
 fun gatherIntelligence(
@@ -1000,46 +1466,14 @@ fun gatherIntelligence(
         """</span>.trimIndent()
     )</code></pre>
 
-      <p>The final report has several section contracts. These data classes make each section a typed artifact for deterministic Kotlin assembly: lists have named wrappers, report fields have specific types, and <code>HasContent</code> lets the completed report expose a stable text representation when tools, shells, or web views need content.</p>
-
-      <pre><code>data class SwotEntry(
-    val category: String,      <span class="comment">// Strength, Weakness, Opportunity, or Threat.</span>
-    val description: String,
-)
-
-data class SwotEntryList(
-    val items: List&lt;SwotEntry&gt;,
-)
-
-data class CompetitorInsight(
-    val name: String,
-    val insight: String,
-)
-
-data class CompetitorInsightList(
-    val items: List&lt;CompetitorInsight&gt;,
-)
-
-data class KeyTrendList(
-    val items: List&lt;String&gt;,
-)
-
-data class MarketIntelligenceReport(
-    val subject: String,
-    val region: String,
-    val executiveSummary: String,
-    val swot: List&lt;SwotEntry&gt;,
-    val competitors: List&lt;CompetitorInsight&gt;,
-    val keyTrends: List&lt;String&gt;,
-    override val content: String,
-) : HasContent</code></pre>
+      <p>The final report has several section contracts. Each prompt below returns a narrow typed artifact, so deterministic Kotlin assembly can combine named report fields instead of parsing one mixed narrative.</p>
 
       <div class="explain-box">
         <strong>SWOT for product owners</strong>
         SWOT means Strengths, Weaknesses, Opportunities, and Threats. It separates what the business can control internally from market conditions it must respond to externally, so a product owner can connect evidence to roadmap bets, positioning, and risk.
       </div>
 
-      <p>The goal action consumes the typed subject and the evidence artifact already on the blackboard. Inside it, each LLM call has a narrow job: SWOT, competitors, trends, then the executive summary.</p>
+      <p>The goal action consumes the typed subject and the evidence artifact already on the blackboard. Its export metadata publishes the finished market report as a secured remote capability.</p>
 
       <pre><code>@AchievesGoal(
     description = <span class="string">"Produce a structured market intelligence report with SWOT analysis, "</span> +
@@ -1055,7 +1489,22 @@ fun synthesiseReport(
     subject: AnalysisSubject,
     rawIntelligence: String,
     context: OperationContext,
-): MarketIntelligenceReport {</code><span class="snippet-note indent-body">Same exported-goal pattern as Feature 2, now named <code>marketIntelligenceReport</code>.</span><code>    val swotList = context.ai()
+): MarketIntelligenceReport {</code></pre>
+
+      <p>The SWOT prompt asks only for strengths, weaknesses, opportunities, and threats. Keeping that output in <code>SwotEntryList</code> gives the final report a predictable list of categorized entries.</p>
+
+      <pre><code><span class="comment">// Excerpt: section types and the SWOT part of synthesiseReport.</span>
+data class SwotEntry(
+    val category: String,      <span class="comment">// Strength, Weakness, Opportunity, or Threat.</span>
+    val description: String,
+)
+
+data class SwotEntryList(
+    val items: List&lt;SwotEntry&gt;,
+)
+
+fun synthesiseReport(...): MarketIntelligenceReport {
+    val swotList = context.ai()
         .withDefaultLlm()
         .createObject&lt;SwotEntryList&gt;(
             <span class="string">"""
@@ -1067,7 +1516,22 @@ fun synthesiseReport(
             $rawIntelligence
             """</span>.trimIndent()
         )
+    <span class="comment">// ...</span>
+}</code></pre>
 
+      <p>The competitor prompt uses the same evidence but asks a different question: which rivals or comparable entities matter for this subject and region.</p>
+
+      <pre><code><span class="comment">// Excerpt: competitor section types and prompt.</span>
+data class CompetitorInsight(
+    val name: String,
+    val insight: String,
+)
+
+data class CompetitorInsightList(
+    val items: List&lt;CompetitorInsight&gt;,
+)
+
+fun synthesiseReport(...): MarketIntelligenceReport {
     val competitorList = context.ai()
         .withDefaultLlm()
         .createObject&lt;CompetitorInsightList&gt;(
@@ -1079,7 +1543,19 @@ fun synthesiseReport(
             Intelligence:
             $rawIntelligence
             """</span>.trimIndent()
-        )</code><span class="snippet-note indent-body">The same evidence is reused, but each prompt returns a different typed section instead of one mixed narrative.</span><code>    val trendList = context.ai()
+        )
+    <span class="comment">// ...</span>
+}</code></pre>
+
+      <p>The trend prompt narrows the task further. It extracts concise market movements that can be scanned independently from the SWOT and competitor lists.</p>
+
+      <pre><code><span class="comment">// Excerpt: trend section type and prompt.</span>
+data class KeyTrendList(
+    val items: List&lt;String&gt;,
+)
+
+fun synthesiseReport(...): MarketIntelligenceReport {
+    val trendList = context.ai()
         .withDefaultLlm()
         .createObject&lt;KeyTrendList&gt;(
             <span class="string">"""
@@ -1091,7 +1567,14 @@ fun synthesiseReport(
             $rawIntelligence
             """</span>.trimIndent()
         )
+    <span class="comment">// ...</span>
+}</code></pre>
 
+      <p>The summary prompt runs last because it can use the structured findings already produced. It writes a short executive summary rather than introducing another evidence-gathering step.</p>
+
+      <pre><code><span class="comment">// Excerpt: final prompt inside synthesiseReport.</span>
+fun synthesiseReport(...): MarketIntelligenceReport {
+    <span class="comment">// swotList, competitorList, and trendList already exist.</span>
     val summary = context.ai()
         .withDefaultLlm()
         .createObject&lt;String&gt;(
@@ -1105,7 +1588,24 @@ fun synthesiseReport(
             Trends: ${trendList.items.joinToString("; ")}
             """</span>.trimIndent()
         )
+    <span class="comment">// ...</span>
+}</code></pre>
 
+      <p>Final assembly is ordinary Kotlin. The exported object contains the subject, region, summary, SWOT entries, competitor insights, and trends together, while <code>HasContent</code> gives clients a stable text representation.</p>
+
+      <pre><code><span class="comment">// Excerpt: final report type and return value.</span>
+data class MarketIntelligenceReport(
+    val subject: String,
+    val region: String,
+    val executiveSummary: String,
+    val swot: List&lt;SwotEntry&gt;,
+    val competitors: List&lt;CompetitorInsight&gt;,
+    val keyTrends: List&lt;String&gt;,
+    override val content: String,
+) : HasContent
+
+fun synthesiseReport(...): MarketIntelligenceReport {
+    <span class="comment">// summary, swotList, competitorList, and trendList already exist.</span>
     return MarketIntelligenceReport(
         subject = subject.subject,
         region = subject.region,
@@ -1115,10 +1615,10 @@ fun synthesiseReport(
         keyTrends = trendList.items,
         content = summary,
     )
-}</code><span class="snippet-note indent-body">Final assembly is ordinary Kotlin. The report is decision-ready because the exported object contains the summary, SWOT, competitors, and trends together.</span></pre>
+}</code></pre>
 
       <div class="callout">
-        Market Intelligence's key lesson: reuse the earlier scoped-tool and secured-export patterns, but add an evidence-first structure: gather once, then use narrow structured-output calls to assemble a decision-ready report.
+        Market Intelligence's key lesson: gather evidence once, keep each section as typed blackboard state, and use narrow structured-output calls to assemble a decision-ready report.
       </div>
     </section>
 
@@ -1132,7 +1632,7 @@ fun synthesiseReport(
 
           <h3>Source</h3>
           <ul class="source-list">
-            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/researcher/Researcher.kt">Researcher.kt</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent-examples/blob/main/examples-kotlin/src/main/kotlin/com/embabel/example/researcher/Researcher.kt">Researcher.kt</a></li>
           </ul>
 
           <h3>Why Embabel Fits</h3>
@@ -1153,7 +1653,7 @@ fun synthesiseReport(
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow">
+          <div class="flow diagram-nav" aria-hidden="true">
             <div class="node input"><strong>Research request</strong><small>question or topic</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node code"><strong>Categorize</strong><small>question or discussion</small></div>
@@ -1169,14 +1669,82 @@ fun synthesiseReport(
             <div class="arrow">no -&gt;</div>
             <div class="node llm"><strong>Redo research</strong><small>uses critique reasoning</small></div>
           </div>
-          <p class="diagram-note">A rejected critique becomes a planning fact. The planner can rerun research, then merge and critique again.</p>
+          <pre class="mermaid mermaid-diagram">
+flowchart LR
+  request["Research request&lt;br/&gt;question or topic"] --> categorize["Categorize&lt;br/&gt;question or discussion"]
+
+  categorize --> question["Question path&lt;br/&gt;answer prompt"]
+  categorize --> discussion["Discussion path&lt;br/&gt;research prompt"]
+
+  question --> gpt["GPT research&lt;br/&gt;gpt4Report binding"]
+  question --> claude["Claude research&lt;br/&gt;claudeReport binding"]
+  discussion --> gpt
+  discussion --> claude
+
+  gpt --> merge["Merge&lt;br/&gt;mergedReport binding"]
+  claude --> merge
+  merge --> critique{"Critique&lt;br/&gt;accepted?"}
+
+  critique -->|yes| accept["Accept report&lt;br/&gt;goal output"]
+  critique -->|no| redo["Redo research&lt;br/&gt;uses critique reasoning"]
+  redo -. replaces named reports .-> merge
+
+  classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
+  classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
+  classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
+  classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
+  classDef decision fill:#fff8f2,stroke:#d19a70,color:#14314f
+  classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
+
+  class request input
+  class categorize,question,discussion code
+  class gpt,claude tool
+  class merge,redo llm
+  class critique decision
+  class accept goal
+          </pre>
+          <details class="blackboard" open>
+            <summary>Blackboard</summary>
+            <div class="blackboard-items">
+              <ul class="blackboard-step" data-blackboard-step="0">
+                <li><code>UserInput</code><span>research request</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>UserInput</code><span>original request</span></li>
+                <li><code>Categorization</code><span>question or discussion</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="2">
+                <li><code>gpt4Report</code><span>named SingleLlmReport</span></li>
+                <li><code>claudeReport</code><span>named SingleLlmReport</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>mergedReport</code><span>combined ResearchReport</span></li>
+                <li><code>gpt4Report</code><span>source report</span></li>
+                <li><code>claudeReport</code><span>source report</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="4">
+                <li><code>mergedReport</code><span>review target</span></li>
+                <li><code>Critique</code><span>accepted flag and reasoning</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="5">
+                <li><code>Critique</code><span>REPORT_SATISFACTORY</span></li>
+                <li><code>finalResearchReport</code><span>accepted goal output</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="6">
+                <li><code>Critique</code><span>REPORT_UNSATISFACTORY</span></li>
+                <li><code>gpt4Report</code><span>replacement report</span></li>
+                <li><code>claudeReport</code><span>replacement report</span></li>
+              </ul>
+            </div>
+          </details>
+          <p class="diagram-note">A rejected critique becomes a planning fact. That unlocks redo research, which replaces the named reports and sends the planner through merge and critique again.</p>
         </div>
       </div>
 
       <div class="subfeature">
         <h3>4.1 Declare the Research Capability</h3>
         <p>The agent boundary tells Embabel that this class owns the deep-research capability. The important domain shapes are the per-model report and the review result.</p>
-        <p><code>Timestamped</code> lets same-shaped outputs carry recency metadata, while the critique object is plain domain state that later <code>@Condition</code> methods can evaluate.</p>
+        <p><code>Timestamped</code> lets same-shaped outputs carry recency metadata, while the critique object is plain domain state containing the reviewer decision and reasoning.</p>
 
         <pre><code>@Agent(
     description = <span class="string">"Perform deep web research on a topic"</span>,
@@ -1260,7 +1828,7 @@ fun researchWithClaude(
     critique = null,
     llm = LlmOptions(properties.claudeModelName),
     context = context,
-)</code><span class="snippet-note"><code>post = [REPORT_SATISFACTORY]</code> declares a possible planning effect. The condition is not true until a later <code>@Condition</code> evaluates an accepted <code>Critique</code>.</span></pre>
+)</code><span class="snippet-note"><code>post = [REPORT_SATISFACTORY]</code> tells the planner this action can help reach the accepted-report state. It does not make the report accepted by itself; the later critique must create a <code>Critique</code> that satisfies the condition.</span></pre>
       </div>
 
       <div class="subfeature">
@@ -1284,7 +1852,9 @@ fun researchWithClaude(
         report = researchReport,
         model = llm.criteria.toString(),
     )
-}</code><span class="snippet-note">The same typed action can choose the question-answering or discussion prompt from <code>Categorization</code>.</span><code>private fun answerQuestion(
+}</code><span class="snippet-note">The same typed action can choose the question-answering or discussion prompt from <code>Categorization</code>.</span></pre>
+
+        <pre><code>private fun answerQuestion(
     userInput: UserInput,
     llm: LlmOptions,
     critique: Critique?,
@@ -1308,8 +1878,9 @@ fun researchWithClaude(
 
         ${critique?.reasoning?.let { "Critique of previous answer:\n&lt;$it&gt;" }}
         """</span>.trimIndent()
-    )
-open class ResearchReport(
+    )</code></pre>
+
+        <pre><code>open class ResearchReport(
     val topic: String,
     override val content: String,
     override val links: List&lt;InternetResource&gt;,
@@ -1369,7 +1940,9 @@ fun critiqueMergedReport(
 
         ${mergedReport.infoString(verbose = true)}
         """</span>.trimIndent(),
-    )</code><span class="snippet-note">The critic does not finish the process. It creates <code>Critique</code>; the planner sees conditions derived from that object on the next planning cycle.</span><code>@Condition(name = REPORT_SATISFACTORY)
+    )</code><span class="snippet-note">The critic does not finish the process. It creates <code>Critique</code>; on the next planning cycle, the condition methods below turn that object into either <code>REPORT_SATISFACTORY</code> or <code>REPORT_UNSATISFACTORY</code>.</span></pre>
+
+        <pre><code>@Condition(name = REPORT_SATISFACTORY)
 fun makesTheGrade(
     critique: Critique,
 ): Boolean = critique.accepted
@@ -1383,6 +1956,8 @@ fun rejected(
       <div class="subfeature">
         <h3>4.7 Retry After Rejection</h3>
         <p>If the critic rejects the answer, <code>REPORT_UNSATISFACTORY</code> becomes true. The redo actions are then valid because of their <code>pre</code> condition, and they receive the <code>Critique</code> so the next research pass can address the reviewer's reasoning.</p>
+        <p>The loop is not an automatic wait-until-success retry. Each pass writes new facts to the blackboard, then the planner chooses the next valid action. Rejection makes redo research valid; acceptance makes the final goal action valid.</p>
+        <p>This retry loop is still a good fit for ordinary GOAP because the loop is driven by facts: report, critique, condition, retry. If the workflow becomes a set of named phases such as "draft", "review", "revise", and "await human approval", model those phases with <code>@State</code> so the planner only considers actions for the current phase.</p>
 
         <pre><code>@Action(
     pre = [REPORT_UNSATISFACTORY],
@@ -1445,6 +2020,11 @@ companion object {
       <div class="callout">
         Researcher's key lesson: the loop is visible in typed planning state. Named reports prevent same-type confusion, the critic produces a review object, conditions turn that review into planning facts, and <code>pre</code>/<code>canRerun</code> decide whether the planner accepts the merged report or researches again.
       </div>
+
+      <div class="explain-box">
+        <strong>When this becomes a team of specialists</strong>
+        The two research actions are simple enough to stay inside one agent. If one research branch becomes its own multi-step capability, for example collecting documents, extracting claims, and running a separate review, make that capability a subagent instead of expanding this class indefinitely.
+      </div>
     </section>
 
     <section class="feature" id="fact-checking">
@@ -1457,13 +2037,13 @@ companion object {
 
           <h3>Sources</h3>
           <ul class="source-list">
-            <li><a href="../embabel-agent-examples/examples-kotlin/src/main/kotlin/com/embabel/example/factchecker/factChecker.kt">factChecker.kt</a></li>
-            <li><a href="embabel-agent-docs/src/main/asciidoc/reference/dsl/page.adoc">reference/dsl/page.adoc</a></li>
-            <li><a href="embabel-agent-docs/src/main/asciidoc/reference/tools/page.adoc">reference/tools/page.adoc</a></li>
-            <li><a href="embabel-agent-docs/src/main/asciidoc/reference/types/page.adoc">reference/types/page.adoc</a></li>
-            <li><a href="embabel-agent-docs/src/main/asciidoc/reference/llms/page.adoc">reference/llms/page.adoc</a></li>
-            <li><a href="embabel-agent-docs/src/main/asciidoc/reference/flow/page.adoc">reference/flow/page.adoc</a></li>
-            <li><a href="embabel-agent-docs/src/main/asciidoc/overview/concepts.adoc">overview/concepts.adoc</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent-examples/blob/main/examples-kotlin/src/main/kotlin/com/embabel/example/factchecker/factChecker.kt">factChecker.kt</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-docs/src/main/asciidoc/reference/dsl/page.adoc">reference/dsl/page.adoc</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-docs/src/main/asciidoc/reference/tools/page.adoc">reference/tools/page.adoc</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-docs/src/main/asciidoc/reference/types/page.adoc">reference/types/page.adoc</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-docs/src/main/asciidoc/reference/llms/page.adoc">reference/llms/page.adoc</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-docs/src/main/asciidoc/reference/flow/page.adoc">reference/flow/page.adoc</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-docs/src/main/asciidoc/overview/concepts.adoc">overview/concepts.adoc</a></li>
           </ul>
 
           <h3>Why Embabel Fits</h3>
@@ -1485,7 +2065,7 @@ companion object {
 
         <div class="diagram">
           <div class="diagram-title">Scatter / Merge / Verify</div>
-          <div class="flow">
+          <div class="flow diagram-nav" aria-hidden="true">
             <div class="node input"><strong>User content</strong><small>claims hidden in text</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node llm"><strong>Scatter extractors</strong><small>several LLM options</small></div>
@@ -1498,6 +2078,52 @@ companion object {
             <div class="arrow">-&gt;</div>
             <div class="node goal"><strong>FactCheck</strong><small>typed goal result</small></div>
           </div>
+          <pre class="mermaid mermaid-diagram">
+flowchart LR
+  content["User content&lt;br/&gt;claims hidden in text"] --> scatter["Scatter extractors&lt;br/&gt;several LLM options"]
+  scatter --> assertions["FactualAssertions&lt;br/&gt;typed claim lists"]
+  assertions --> merge["Merge&lt;br/&gt;dedupe + rationalize"]
+  merge --> verify["Parallel verify&lt;br/&gt;web + browser tools"]
+  verify --> factcheck["FactCheck&lt;br/&gt;typed goal result"]
+
+  classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
+  classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
+  classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
+  classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
+  classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
+
+  class content input
+  class scatter,merge llm
+  class assertions code
+  class verify tool
+  class factcheck goal
+          </pre>
+          <details class="blackboard" open>
+            <summary>Blackboard</summary>
+            <div class="blackboard-items">
+              <ul class="blackboard-step" data-blackboard-step="0">
+                <li><code>UserInput</code><span>content to check</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>UserInput</code><span>source content</span></li>
+                <li><code>FactualAssertions</code><span>per-extractor claim lists</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="2">
+                <li><code>FactualAssertions</code><span>raw extracted claims</span></li>
+                <li><code>RationalizedFactualAssertions</code><span>deduped claims</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>RationalizedFactualAssertions</code><span>claims to verify</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="4">
+                <li><code>RationalizedFactualAssertions</code><span>claims to verify</span></li>
+                <li><code>AssertionCheck</code><span>parallel evidence checks</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="5">
+                <li><code>FactCheck</code><span>typed goal result</span></li>
+              </ul>
+            </div>
+          </details>
           <p class="diagram-note">The planner sees the same shape as typed state: <code>UserInput</code> to <code>RationalizedFactualAssertions</code> to <code>FactCheck</code>.</p>
         </div>
       </div>
@@ -1506,6 +2132,35 @@ companion object {
         <h3>5.1 Declare the Capability Boundary</h3>
         <p>The DSL agent declares the product capability, then the <code>flow</code> block contributes the first typed stage. Embabel still manages the agent process and blackboard; the DSL is just a compact way to describe this dataflow-shaped feature.</p>
         <p><code>aggregate&lt;UserInput, FactualAssertions, RationalizedFactualAssertions&gt;</code> means: start from <code>UserInput</code>, run several extractors that each produce <code>FactualAssertions</code>, then merge those results into one <code>RationalizedFactualAssertions</code> fact.</p>
+
+        <pre><code>@ConfigurationProperties(<span class="string">"embabel.fact-checker"</span>)
+data class FactCheckerProperties(
+    val reasoningWordCount: Int = 30,
+    val trustedSources: List&lt;String&gt; = listOf(
+        <span class="string">"Wikipedia"</span>,
+        <span class="string">"Wikidata"</span>,
+        <span class="string">"Britannica"</span>,
+        <span class="string">"BBC"</span>,
+        <span class="string">"Reuters"</span>,
+        <span class="string">"ABC Australia"</span>,
+    ),
+    val untrustedSources: List&lt;String&gt; = listOf(
+        <span class="string">"Reddit"</span>,
+        <span class="string">"4chan"</span>,
+        <span class="string">"Twitter"</span>,
+    ),
+)
+
+@Bean
+fun factChecker(factCheckerProperties: FactCheckerProperties): Agent {
+    return factCheckerAgent(
+        llms = listOf(
+            LlmOptions(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(.3),
+            LlmOptions(AnthropicModels.CLAUDE_35_HAIKU).withTemperature(.0),
+        ),
+        properties = factCheckerProperties,
+    )
+}</code><span class="snippet-note">The configured <code>llms</code> list deliberately runs the same extractor with two model settings. The aggregate stage then merges their typed results.</span></pre>
 
         <pre><code>fun factCheckerAgent(
     llms: List&lt;LlmOptions&gt;,
@@ -1584,8 +2239,7 @@ data class RationalizedFactualAssertions(
 
       <div class="subfeature">
         <h3>5.4 Verify Assertions in Parallel</h3>
-        <p>The transformation stage turns <code>RationalizedFactualAssertions</code> into a <code>FactCheck</code>. A <code>transformation</code> is the DSL version of a typed action: one input type becomes one output type.</p>
-        <p>At this point each assertion can be checked independently. The new idea is <code>parallelMap</code>: one configured prompt runner is applied concurrently across independent assertions while staying inside the current operation context.</p>
+        <p>Verification is a typed transformation from the rationalized assertion list to the final <code>FactCheck</code>.</p>
 
         <pre><code>data class AssertionCheck(
     val assertion: String,
@@ -1601,7 +2255,7 @@ data class FactCheck(
     val checks: List&lt;AssertionCheck&gt;,
 )</code></pre>
 
-        <pre><code>transformation&lt;RationalizedFactualAssertions, FactCheck&gt; { operationContext ->
+        <pre><code>transformation&lt;RationalizedFactualAssertions, FactCheck&gt; { operationContext -></code><span class="snippet-note"><code>transformation</code> is the DSL version of a typed action: the current <code>RationalizedFactualAssertions</code> input must produce one <code>FactCheck</code> output.</span><code>
     val promptRunner = operationContext.ai()
         .withAutoLlm()
         .withTools(
@@ -1609,7 +2263,7 @@ data class FactCheck(
             CoreToolGroups.BROWSER_AUTOMATION,
         )</code><span class="snippet-note indent-chain">The verifier gets web search plus browser automation because checking a claim may require both finding sources and inspecting pages.</span><code>
 
-    val checks = operationContext.input.factualAssertions.parallelMap(operationContext) { assertion ->
+    val checks = operationContext.input.factualAssertions.parallelMap(operationContext) { assertion -></code><span class="snippet-note indent-body">Each rationalized assertion is independent, so <code>parallelMap</code> can run the same configured prompt runner concurrently across the list.</span><code>
         promptRunner.createObject&lt;AssertionCheck&gt;(
             <span class="string">"""
                 Given the following assertion, check if it is true or false and explain why in ${properties.reasoningWordCount} words
@@ -1622,7 +2276,7 @@ data class FactCheck(
                 Assertion: &lt;${assertion.standaloneAssertion}&gt;
                 """</span>
         )
-    }</code><span class="snippet-note"><code>parallelMap</code> keeps all checks inside the current operation context while allowing independent assertions to run concurrently.</span><code>
+    }</code><span class="snippet-note"><code>operationContext</code> is passed into <code>parallelMap</code>, so every concurrent check still runs in the same process context and can use the current input, tools, and prompt configuration.</span><code>
 
     FactCheck(checks)
 }</code></pre>
@@ -1654,13 +2308,13 @@ data class FactCheck(
 
           <h3>Sources</h3>
           <ul class="source-list">
-            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/agent/TripperAgent.kt">TripperAgent.kt</a></li>
-            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/agent/domain.kt">domain.kt</a></li>
-            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/config/ToolsConfig.kt">ToolsConfig.kt</a></li>
-            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/web/JourneyHtmxController.kt">JourneyHtmxController.kt</a></li>
-            <li><a href="../tripper/src/main/kotlin/com/embabel/agent/web/htmx/ProcessStatusController.kt">ProcessStatusController.kt</a></li>
-            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/Brave.kt">Brave.kt</a></li>
-            <li><a href="../tripper/src/main/kotlin/com/embabel/tripper/util/ImageChecker.kt">ImageChecker.kt</a></li>
+            <li><a href="https://github.com/embabel/tripper/blob/main/src/main/kotlin/com/embabel/tripper/agent/TripperAgent.kt">TripperAgent.kt</a></li>
+            <li><a href="https://github.com/embabel/tripper/blob/main/src/main/kotlin/com/embabel/tripper/agent/domain.kt">domain.kt</a></li>
+            <li><a href="https://github.com/embabel/tripper/blob/main/src/main/kotlin/com/embabel/tripper/config/ToolsConfig.kt">ToolsConfig.kt</a></li>
+            <li><a href="https://github.com/embabel/tripper/blob/main/src/main/kotlin/com/embabel/tripper/web/JourneyHtmxController.kt">JourneyHtmxController.kt</a></li>
+            <li><a href="https://github.com/embabel/tripper/blob/main/src/main/kotlin/com/embabel/agent/web/htmx/ProcessStatusController.kt">ProcessStatusController.kt</a></li>
+            <li><a href="https://github.com/embabel/tripper/blob/main/src/main/kotlin/com/embabel/tripper/Brave.kt">Brave.kt</a></li>
+            <li><a href="https://github.com/embabel/tripper/blob/main/src/main/kotlin/com/embabel/tripper/util/ImageChecker.kt">ImageChecker.kt</a></li>
           </ul>
 
           <h3>Why Embabel Fits</h3>
@@ -1680,7 +2334,7 @@ data class FactCheck(
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow">
+          <div class="flow diagram-nav" aria-hidden="true">
             <div class="node input"><strong>Web form</strong><small>route, dates, travelers</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node code"><strong>Typed seed</strong><small>JourneyTravelBrief + Travelers</small></div>
@@ -1701,6 +2355,68 @@ data class FactCheck(
             <div class="arrow">-&gt;</div>
             <div class="node goal"><strong>TravelPlan</strong><small>displayed and exported</small></div>
           </div>
+          <pre class="mermaid mermaid-diagram">
+flowchart LR
+  form["Web form&lt;br/&gt;route, dates, travelers"] --> seed["Typed seed&lt;br/&gt;JourneyTravelBrief + Travelers"]
+  seed --> process["AgentProcess&lt;br/&gt;options, budget, lifecycle"]
+  process --> consent["Consent&lt;br/&gt;AcceptanceOfCost"]
+  consent --> poi["POI discovery&lt;br/&gt;web, maps, math, weather"]
+  poi --> research["Parallel research&lt;br/&gt;links, images, stories"]
+  research --> itinerary["Itinerary&lt;br/&gt;HTML plan + structured days"]
+  itinerary --> stays["Stays&lt;br/&gt;MCP Airbnb links"]
+  stays --> cleanup["Cleanup&lt;br/&gt;map URL + image checks"]
+  cleanup --> plan["TravelPlan&lt;br/&gt;displayed and exported"]
+
+  classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
+  classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
+  classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
+  classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
+  classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
+
+  class form,consent input
+  class seed,process,cleanup code
+  class poi,research,stays tool
+  class itinerary llm
+  class plan goal
+          </pre>
+          <details class="blackboard" open>
+            <summary>Blackboard</summary>
+            <div class="blackboard-items">
+              <ul class="blackboard-step" data-blackboard-step="0">
+                <li><code>JourneyPlanForm</code><span>route, dates, travelers</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>JourneyTravelBrief</code><span>typed route brief</span></li>
+                <li><code>Travelers</code><span>typed traveler facts</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="2">
+                <li><code>AgentProcess</code><span>seeded process state</span></li>
+                <li><code>ProcessOptions</code><span>verbosity and budget</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>AcceptanceOfCost</code><span>consent fact</span></li>
+                <li><code>TravelersAndBrief?</code><span>remote input marker</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="4">
+                <li><code>ItineraryIdeas</code><span>route POI candidates</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="5">
+                <li><code>PointOfInterestFindings</code><span>links, images, stories</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="6">
+                <li><code>ProposedTravelPlan</code><span>HTML plan and days</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="7">
+                <li><code>Stay</code><span>accommodation links</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="8">
+                <li><code>TravelPlan</code><span>map URL and cleaned images</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="9">
+                <li><code>TravelPlan</code><span>displayed and exported</span></li>
+              </ul>
+            </div>
+          </details>
           <p class="diagram-note">The planner moves by typed facts on the blackboard; each action adds the next product artifact.</p>
         </div>
       </div>
@@ -1780,6 +2496,7 @@ data class Travelers(
       <div class="subfeature">
         <h3>6.2 Start a Long-Running AgentProcess from the Web Form</h3>
         <p><code>JourneyHtmxController</code> owns HTTP input and presentation state. <code>AgentPlatform</code> is Embabel's runtime entry point for looking up registered agents, creating an <code>AgentProcess</code>, and starting it.</p>
+        <p>This is deterministic invocation: the controller chooses the travel agent and seeds the process with typed objects. Use natural-language autonomy when the user is asking an open-ended shell-style question and the system must choose the agent or goal; use direct platform invocation when application code already knows the capability to run.</p>
 
         <pre><code>@PostMapping(<span class="string">"/plan"</span>)
 fun planJourney(
@@ -1831,6 +2548,7 @@ fun planJourney(
 }</code><span class="snippet-note indent-body"><code>start</code> lets the web request return a processing page while the process lifecycle continues.</span></pre>
 
         <p>The status controller reads the same process later. When the process is complete, it pulls <code>lastResult()</code> into the model. While it is running, failed, or terminated, the UI follows the <code>AgentProcess</code> status.</p>
+        <p>That status loop is also the place to expose observability and control. For expensive user-visible processes, show progress events, prompt/tool visibility when appropriate, budget information, and a termination path rather than making the web request feel stuck.</p>
 
         <pre><code>val agentProcess = agentPlatform.getAgentProcess(processId)
     ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, <span class="string">"Process not found"</span>)
@@ -1860,6 +2578,7 @@ return when (agentProcess.status) {
         <h3>6.3 Put Consent and Remote Input into the Plan</h3>
         <p>Expensive research is unlocked by a typed fact, <code>AcceptanceOfCost</code>. The direct web form path creates the brief and travelers itself. The exported remote path starts with <code>TravelersAndBrief</code>, so Tripper asks for confirmation before doing the expensive work.</p>
         <p><code>context.last&lt;TravelersAndBrief&gt;()</code> checks whether the composite remote input was part of the current process history. Tripper uses that to decide whether a confirmation step is needed.</p>
+        <p>The blackboard is process memory: it holds the brief, travelers, and consent for this run. A longer-lived context is different; use a context when future processes or chat sessions should start with remembered project, user, or account state.</p>
 
         <pre><code>object AcceptanceOfCost
 
@@ -2070,6 +2789,7 @@ fun proposeTravelPlan(
         <h3>6.7 Add Accommodation Links with a Custom MCP ToolGroup</h3>
         <p>Accommodation search extends the earlier tool-group idea. Instead of using only built-in groups like web or maps, Tripper defines an MCP-backed Airbnb group, then combines it with math tools to find stay links within budget.</p>
         <p><code>McpToolGroup</code> adapts tools provided by MCP clients into an Embabel <code>ToolGroup</code>. The <code>filter</code> narrows the provider's tools to Airbnb-related tools, and <code>ToolGroupPermission.INTERNET_ACCESS</code> makes the external network permission explicit.</p>
+        <p>If a provider exposes a large tool catalog, prefer narrow or progressive exposure over handing every tool to every prompt. The goal is to make the model choose among relevant capabilities, not browse an API catalog while solving the user's problem.</p>
 
         <pre><code>@Bean
 fun mcpAirbnbToolsGroup(): ToolGroup {
@@ -2231,19 +2951,19 @@ private val styleImages = StringTransformer { html -&gt;
         <div>
           <p class="label">Feature 7</p>
           <h2>RAG Chatbot over Local Documents</h2>
-          <p>A user repeatedly asks questions about a document set and receives grounded answers that respect the configured persona, objective, and guardrails.</p>
+          <p>A user repeatedly asks questions about a document set and receives grounded answers that respect the configured persona, objective, and prompt instructions.</p>
           <p>The product outcome is a long-lived document expert conversation, not a one-shot document answer.</p>
 
           <h3>Sources</h3>
           <ul class="source-list">
-            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/RagbotProperties.java">RagbotProperties.java</a></li>
-            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/RagConfiguration.java">RagConfiguration.java</a></li>
-            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/ChatActions.java">ChatActions.java</a></li>
-            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/ChatConfiguration.java">ChatConfiguration.java</a></li>
-            <li><a href="../ragbot/src/main/java/com/embabel/examples/ragbot/RagbotShell.java">RagbotShell.java</a></li>
-            <li><a href="../ragbot/src/main/resources/prompts/ragbot.jinja">ragbot.jinja</a></li>
-            <li><a href="../ragbot/src/main/resources/prompts/elements/guardrails.jinja">guardrails.jinja</a></li>
-            <li><a href="../ragbot/src/main/resources/prompts/elements/personalization.jinja">personalization.jinja</a></li>
+            <li><a href="https://github.com/embabel/ragbot/blob/main/src/main/java/com/embabel/examples/ragbot/RagbotProperties.java">RagbotProperties.java</a></li>
+            <li><a href="https://github.com/embabel/ragbot/blob/main/src/main/java/com/embabel/examples/ragbot/RagConfiguration.java">RagConfiguration.java</a></li>
+            <li><a href="https://github.com/embabel/ragbot/blob/main/src/main/java/com/embabel/examples/ragbot/ChatActions.java">ChatActions.java</a></li>
+            <li><a href="https://github.com/embabel/ragbot/blob/main/src/main/java/com/embabel/examples/ragbot/ChatConfiguration.java">ChatConfiguration.java</a></li>
+            <li><a href="https://github.com/embabel/ragbot/blob/main/src/main/java/com/embabel/examples/ragbot/RagbotShell.java">RagbotShell.java</a></li>
+            <li><a href="https://github.com/embabel/ragbot/blob/main/src/main/resources/prompts/ragbot.jinja">ragbot.jinja</a></li>
+            <li><a href="https://github.com/embabel/ragbot/blob/main/src/main/resources/prompts/elements/guardrails.jinja">guardrails.jinja</a></li>
+            <li><a href="https://github.com/embabel/ragbot/blob/main/src/main/resources/prompts/elements/personalization.jinja">personalization.jinja</a></li>
           </ul>
 
           <h3>Why Embabel Fits</h3>
@@ -2259,12 +2979,13 @@ private val styleImages = StringTransformer { html -&gt;
             <li><span>Conversation</span></li>
             <li><span>long-lived AgentProcess</span></li>
             <li><span>Jinja templates</span></li>
+            <li><span>prompt instructions</span></li>
           </ul>
         </div>
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow">
+          <div class="flow diagram-nav" aria-hidden="true">
             <div class="node input"><strong>Ingest docs</strong><small>files, directories, URLs</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node code"><strong>Index/search store</strong><small>Lucene chunks + embeddings</small></div>
@@ -2273,10 +2994,55 @@ private val styleImages = StringTransformer { html -&gt;
             <div class="arrow">-&gt;</div>
             <div class="node input"><strong>UserMessage</strong><small>repeatable chat trigger</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Template + persona</strong><small>guardrails and objective</small></div>
+            <div class="node llm"><strong>Template + persona</strong><small>instructions and objective</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node goal"><strong>Assistant reply</strong><small>sent to conversation</small></div>
           </div>
+          <pre class="mermaid mermaid-diagram">
+flowchart LR
+  ingest["Ingest docs&lt;br/&gt;files, directories, URLs"] --> index["Index/search store&lt;br/&gt;Lucene chunks + embeddings"]
+  index --> reference["ToolishRag reference&lt;br/&gt;retrieval tools for the LLM"]
+  reference --> message["UserMessage&lt;br/&gt;repeatable chat trigger"]
+  message --> persona["Template + persona&lt;br/&gt;instructions and objective"]
+  persona --> reply["Assistant reply&lt;br/&gt;sent to conversation"]
+
+  classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
+  classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
+  classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
+  classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
+  classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
+
+  class ingest,message input
+  class index code
+  class reference tool
+  class persona llm
+  class reply goal
+          </pre>
+          <details class="blackboard" open>
+            <summary>Blackboard</summary>
+            <div class="blackboard-items">
+              <ul class="blackboard-step" data-blackboard-step="0">
+                <li><code>DocumentLocation</code><span>file, directory, or URL</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>SearchOperations</code><span>Lucene chunks and embeddings</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="2">
+                <li><code>ToolishRag</code><span>retrieval reference</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>Conversation</code><span>session history</span></li>
+                <li><code>UserMessage</code><span>current turn</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="4">
+                <li><code>Conversation</code><span>prompt context</span></li>
+                <li><code>LlmReference</code><span>retrieval tools</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="5">
+                <li><code>AssistantMessage</code><span>reply appended to conversation</span></li>
+              </ul>
+            </div>
+          </details>
           <p class="diagram-note">The same chatbot process pauses between turns, then handles the next <code>UserMessage</code>.</p>
         </div>
       </div>
@@ -2376,6 +3142,7 @@ public class ChatActions {
       <div class="subfeature">
         <h3>7.4 Create a Utility Chatbot</h3>
         <p>A document chatbot waits for the next message instead of completing after one goal. <code>AgentProcessChatbot.utilityFromPlatform</code> creates sessions backed by a long-lived <code>AgentProcess</code> and lets utility planning choose from the platform's available chat actions.</p>
+        <p>This is why chat uses Utility rather than the default goal-oriented planner. The process is not trying to finish a single business result; it is repeatedly reacting to new <code>UserMessage</code> objects with the most useful available action.</p>
 
         <pre><code>@Configuration
 class ChatConfiguration {
@@ -2416,8 +3183,9 @@ void respond(
       </div>
 
       <div class="subfeature">
-        <h3>7.6 Render Guardrails and Persona</h3>
-        <p>The chat action loads <code>prompts/ragbot.jinja</code> through <code>rendering("ragbot")</code>. The template composes guardrails first, then uses configuration to include the selected persona and objective.</p>
+        <h3>7.6 Render Prompt Instructions and Persona</h3>
+        <p>The chat action loads <code>prompts/ragbot.jinja</code> through <code>rendering("ragbot")</code>. The template composes instruction text first, then uses configuration to include the selected persona and objective.</p>
+        <p>These template instructions guide the model's behavior inside the prompt. Embabel framework guardrails are separate validation components that can block or flag user input and assistant output.</p>
 
         <pre><code>{% include <span class="string">"elements/guardrails.jinja"</span> %}
 {% include <span class="string">"elements/personalization.jinja"</span> %}
@@ -2453,7 +3221,7 @@ MUST be longer for a detailed response or quoting content.</code><span class="sn
 
           <h3>Source</h3>
           <ul class="source-list">
-            <li><a href="../embabel-agent-examples/examples-kotlin/src/test/kotlin/com/embabel/example/horoscope/StarNewsFinderTest.kt">StarNewsFinderTest.kt</a></li>
+            <li><a href="https://github.com/embabel/embabel-agent-examples/blob/main/examples-kotlin/src/test/kotlin/com/embabel/example/horoscope/StarNewsFinderTest.kt">StarNewsFinderTest.kt</a></li>
           </ul>
 
           <h3>Why Embabel Fits</h3>
@@ -2470,7 +3238,7 @@ MUST be longer for a detailed response or quoting content.</code><span class="sn
 
         <div class="diagram">
           <div class="diagram-title">Test Flow</div>
-          <div class="flow">
+          <div class="flow diagram-nav" aria-hidden="true">
             <div class="node code"><strong>Fake context</strong><small>stub LLM response</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node code"><strong>Invoke action</strong><small>ordinary Kotlin call</small></div>
@@ -2479,6 +3247,31 @@ MUST be longer for a detailed response or quoting content.</code><span class="sn
             <div class="arrow">-&gt;</div>
             <div class="node goal"><strong>Assert contract</strong><small>content + tools</small></div>
           </div>
+          <pre class="mermaid mermaid-diagram">
+flowchart LR
+  context["Fake context&lt;br/&gt;stub LLM response"] --> invoke["Invoke action&lt;br/&gt;ordinary Kotlin call"]
+  invoke --> inspect["Inspect prompt&lt;br/&gt;llmInvocations"]
+  inspect --> assertContract["Assert contract&lt;br/&gt;content + tools"]
+
+  classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
+  classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
+
+  class context,invoke,inspect code
+  class assertContract goal
+          </pre>
+          <details class="blackboard" open>
+            <summary>Blackboard</summary>
+            <div class="blackboard-items">
+              <ul class="blackboard-step" data-blackboard-step="0">
+                <li><code>FakeOperationContext</code><span>test process context</span></li>
+                <li><code>StarPerson</code><span>typed fixture</span></li>
+                <li><code>RelevantNewsStories</code><span>typed fixture</span></li>
+                <li><code>Horoscope</code><span>typed fixture</span></li>
+                <li><code>Writeup</code><span>stubbed response</span></li>
+                <li><code>llmInvocations</code><span>recorded prompt contract</span></li>
+              </ul>
+            </div>
+          </details>
           <p class="diagram-note">The test validates prompt behavior without calling a real model.</p>
         </div>
       </div>
@@ -2609,6 +3402,31 @@ assertTrue(
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "base",
+        look: "handDrawn",
+        flowchart: {
+          curve: "basis",
+          htmlLabels: true,
+          nodeSpacing: 42,
+          rankSpacing: 58,
+          padding: 12
+        },
+        themeVariables: {
+          primaryColor: "#f8fafc",
+          primaryBorderColor: "#94a3b8",
+          primaryTextColor: "#14314f",
+          lineColor: "#475569",
+          fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+        }
+      });
+    }
+  </script>
+
   <script>
     (() => {
       const escapeHtml = (value) => value
@@ -2682,13 +3500,195 @@ assertTrue(
       const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
       const stepMaps = {
         "horoscope-news": [0, 1, 1, 2, 3, 4],
-        "news-digest": [1, 4],
-        "market-intelligence": [0, 1, 4],
-        "research-review": [0, 1, 1, 2, 4, 5],
-        "fact-checking": [0, 1, 4, 5],
-        "travel-planning": [0, 1, 2, 3, 4, 5, 6],
+        "news-digest": [0, 1, 1, 4, 2, 4],
+        "market-intelligence": [0, 1, 2, 3, 3, 3, 3, 3, 4],
+        "research-review": [0, 1, 2, 2, 4, 5, 7, 6],
+        "fact-checking": [0, 1, 2, 4, 5],
+        "travel-planning": [1, 2, 3, 4, 5, 6, 7, 9],
         "rag-chatbot": [1, 0, 3, 2, 4, 5],
         "testing": [0]
+      };
+      const mermaidStepIds = {
+        "horoscope-news": {
+          0: ["prompt"],
+          1: ["extract"],
+          2: ["horoscope"],
+          3: ["news"],
+          4: ["writeup"]
+        },
+        "news-digest": {
+          0: ["request"],
+          1: ["topic"],
+          2: ["items"],
+          3: ["narrative"],
+          4: ["export"]
+        },
+        "market-intelligence": {
+          0: ["request"],
+          1: ["subject"],
+          2: ["evidence"],
+          3: ["sections"],
+          4: ["assembly"],
+          5: ["report"]
+        },
+        "research-review": {
+          0: ["request"],
+          1: ["categorize"],
+          2: ["gpt", "claude"],
+          4: ["merge"],
+          5: ["critique"],
+          6: ["accept"],
+          7: ["redo"]
+        },
+        "fact-checking": {
+          0: ["content"],
+          1: ["scatter"],
+          2: ["assertions"],
+          3: ["merge"],
+          4: ["verify"],
+          5: ["factcheck"]
+        },
+        "travel-planning": {
+          0: ["form"],
+          1: ["seed"],
+          2: ["process"],
+          3: ["consent"],
+          4: ["poi"],
+          5: ["research"],
+          6: ["itinerary"],
+          7: ["stays"],
+          8: ["cleanup"],
+          9: ["plan"]
+        },
+        "rag-chatbot": {
+          0: ["ingest"],
+          1: ["index"],
+          2: ["reference"],
+          3: ["message"],
+          4: ["persona"],
+          5: ["reply"]
+        },
+        "testing": {
+          0: ["context", "invoke", "inspect", "assertContract"]
+        }
+      };
+      const mermaidNodeLabels = {
+        "horoscope-news": {
+          prompt: ["user prompt"],
+          extract: ["extract starperson"],
+          horoscope: ["horoscope service"],
+          news: ["web news search"],
+          writeup: ["writeup"]
+        },
+        "news-digest": {
+          request: ["authorized request"],
+          topic: ["extract topic"],
+          items: ["find current items"],
+          narrative: ["write narrative"],
+          export: ["export digest"]
+        },
+        "market-intelligence": {
+          request: ["business request"],
+          subject: ["analysissubject"],
+          evidence: ["evidence"],
+          sections: ["structured sections"],
+          assembly: ["typed assembly"],
+          report: ["market report"]
+        },
+        "research-review": {
+          request: ["research request"],
+          categorize: ["categorize"],
+          gpt: ["gpt research"],
+          claude: ["claude research"],
+          merge: ["merge"],
+          critique: ["critique"],
+          accept: ["accept report"],
+          redo: ["redo research"]
+        },
+        "fact-checking": {
+          content: ["user content"],
+          scatter: ["scatter extractors"],
+          assertions: ["factualassertions"],
+          merge: ["merge"],
+          verify: ["parallel verify"],
+          factcheck: ["factcheck"]
+        },
+        "travel-planning": {
+          form: ["web form"],
+          seed: ["typed seed"],
+          process: ["agentprocess"],
+          consent: ["consent"],
+          poi: ["poi discovery"],
+          research: ["parallel research"],
+          itinerary: ["itinerary"],
+          stays: ["stays"],
+          cleanup: ["cleanup"],
+          plan: ["travelplan"]
+        },
+        "rag-chatbot": {
+          ingest: ["ingest docs"],
+          index: ["index search store"],
+          reference: ["toolishrag reference"],
+          message: ["usermessage"],
+          persona: ["template persona"],
+          reply: ["assistant reply"]
+        },
+        "testing": {
+          context: ["fake context"],
+          invoke: ["invoke action"],
+          inspect: ["inspect prompt"],
+          assertContract: ["assert contract"]
+        }
+      };
+      const normalizeMermaidLabel = (value) => value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+
+      const bindMermaidNodes = (model) => {
+        const labelsByFeature = mermaidNodeLabels[model.feature.id];
+        if (!labelsByFeature) {
+          return;
+        }
+
+        [model.diagram, model.stickyDiagram].forEach((diagram) => {
+          diagram.querySelectorAll(".mermaid-diagram svg g.node").forEach((node) => {
+            const nodeText = normalizeMermaidLabel(node.textContent);
+            Object.entries(labelsByFeature).forEach(([id, labels]) => {
+              if (labels.some((label) => nodeText.includes(normalizeMermaidLabel(label)))) {
+                node.dataset.stepId = id;
+              }
+            });
+          });
+        });
+      };
+      const mountMovingMermaid = (model) => {
+        if (!model.mermaid || model.mermaidMounted) {
+          return;
+        }
+        if (!model.mermaid.querySelector("svg")) {
+          return;
+        }
+
+        model.mermaidPlaceholder.style.height = `${model.mermaid.offsetHeight}px`;
+        model.stickyTitle.after(model.mermaid);
+        model.stickyDiagram.classList.add("has-moving-mermaid");
+        model.mermaidMounted = true;
+        model.activeMermaidKey = "";
+        model.activeMermaidBoundKey = "";
+      };
+
+      const restoreMovingMermaid = (model) => {
+        if (!model.mermaid || !model.mermaidMounted) {
+          return;
+        }
+
+        model.mermaidPlaceholder.after(model.mermaid);
+        model.mermaidPlaceholder.style.height = "";
+        model.stickyDiagram.classList.remove("has-moving-mermaid");
+        model.mermaidMounted = false;
+        model.activeMermaidKey = "";
+        model.activeMermaidBoundKey = "";
       };
 
       const featureModels = features.map((feature) => {
@@ -2696,13 +3696,22 @@ assertTrue(
         const stickyDiagram = diagram.cloneNode(true);
         stickyDiagram.classList.add("sticky-diagram");
         stickyDiagram.setAttribute("aria-hidden", "true");
+        stickyDiagram.querySelector(".mermaid-diagram")?.remove();
         document.body.appendChild(stickyDiagram);
 
         const nodes = [...diagram.querySelectorAll(".node")];
         const stickyNodes = [...stickyDiagram.querySelectorAll(".node")];
+        const blackboardSteps = [...diagram.querySelectorAll("[data-blackboard-step]")];
+        const stickyBlackboardSteps = [...stickyDiagram.querySelectorAll("[data-blackboard-step]")];
         const track = stickyDiagram.querySelector(".flow");
+        const mermaid = diagram.querySelector(".mermaid-diagram");
+        const mermaidPlaceholder = document.createElement("div");
+        mermaidPlaceholder.className = "mermaid-placeholder";
+        mermaid?.before(mermaidPlaceholder);
         const subfeatures = [...feature.querySelectorAll(":scope > .subfeature")];
-        const contentSteps = subfeatures.length ? subfeatures : [...feature.querySelectorAll(":scope > pre")];
+        const contentSteps = subfeatures.length
+          ? subfeatures.map((subfeature) => subfeature.querySelector("pre") ?? subfeature)
+          : [...feature.querySelectorAll(":scope > pre")];
         const stepMap = stepMaps[feature.id] ?? contentSteps.map((_, index) => index);
 
         return {
@@ -2711,42 +3720,135 @@ assertTrue(
           stickyDiagram,
           nodes,
           stickyNodes,
+          blackboardSteps,
+          stickyBlackboardSteps,
           track,
           contentSteps,
           stepMap,
-          activeIndex: -1
+          mermaid,
+          mermaidPlaceholder,
+          mermaidMounted: false,
+          stickyTitle: stickyDiagram.querySelector(".diagram-title"),
+          activeIndex: -1,
+          activeVisibleKey: "",
+          activeMermaidKey: "",
+          activeMermaidBoundKey: ""
         };
       });
 
-      const setActiveNode = (model, index) => {
+      const setActiveMermaidNodes = (model, indexes) => {
+        const idMap = mermaidStepIds[model.feature.id];
+        if (!idMap) {
+          return;
+        }
+
+        const activeIds = new Set(indexes.flatMap((index) => idMap[index] ?? []));
+        const boundKey = [model.diagram, model.stickyDiagram]
+          .map((diagram) => diagram.querySelectorAll("[data-step-id]").length)
+          .join("|");
+        const nextKey = [...activeIds].sort().join("|");
+        if (nextKey === model.activeMermaidKey && boundKey === model.activeMermaidBoundKey) {
+          return;
+        }
+
+        [model.diagram, model.stickyDiagram].forEach((diagram) => {
+          diagram.querySelectorAll(".mermaid-active").forEach((node) => {
+            node.classList.remove("mermaid-active");
+          });
+
+          activeIds.forEach((id) => {
+            diagram
+              .querySelectorAll(`[data-step-id="${id}"], [id*="flowchart-${id}-"], [data-id="${id}"]`)
+              .forEach((node) => node.classList.add("mermaid-active"));
+          });
+        });
+
+        if (model.mermaidMounted) {
+          const stickyMermaid = model.stickyDiagram.querySelector(".mermaid-diagram");
+          const activeNode = stickyMermaid?.querySelector(".mermaid-active");
+          if (stickyMermaid && activeNode) {
+            const containerRect = stickyMermaid.getBoundingClientRect();
+            const nodeRect = activeNode.getBoundingClientRect();
+            const targetLeft = stickyMermaid.scrollLeft
+              + nodeRect.left
+              - containerRect.left
+              - (containerRect.width / 2)
+              + (nodeRect.width / 2);
+            stickyMermaid.scrollTo({
+              left: Math.max(0, targetLeft),
+              behavior: "smooth"
+            });
+          }
+        }
+
+        model.activeMermaidKey = nextKey;
+        model.activeMermaidBoundKey = boundKey;
+      };
+
+      const setActiveNode = (model, index, visibleIndexes = [index]) => {
         if (!model.nodes.length) {
           return;
         }
 
         const nextIndex = clamp(index, 0, model.nodes.length - 1);
-        if (nextIndex === model.activeIndex) {
+        const visibleNodeIndexes = new Set(visibleIndexes.map((visibleIndex) =>
+          clamp(visibleIndex, 0, model.nodes.length - 1)
+        ));
+        const visibleKey = [...visibleNodeIndexes].sort((a, b) => a - b).join("|");
+
+        setActiveMermaidNodes(model, visibleIndexes);
+
+        if (nextIndex !== model.activeIndex || visibleKey !== model.activeVisibleKey) {
+          model.nodes.forEach((node, nodeIndex) => {
+            node.classList.toggle("active", visibleNodeIndexes.has(nodeIndex));
+          });
+
+          model.stickyNodes.forEach((node, nodeIndex) => {
+            node.classList.toggle("active", visibleNodeIndexes.has(nodeIndex));
+          });
+
+          [...model.blackboardSteps, ...model.stickyBlackboardSteps].forEach((step) => {
+            step.classList.toggle("active", Number(step.dataset.blackboardStep) === nextIndex);
+          });
+
+          if (model.track) {
+            const node = model.stickyNodes[nextIndex];
+            const targetLeft = node.offsetLeft - (model.track.clientWidth / 2) + (node.offsetWidth / 2);
+            model.track.scrollTo({
+              left: targetLeft,
+              behavior: "smooth"
+            });
+          }
+
+          model.activeIndex = nextIndex;
+          model.activeVisibleKey = visibleKey;
+        }
+      };
+
+      const clearActiveNode = (model) => {
+        if (model.activeIndex === -1 && model.activeVisibleKey === "") {
           return;
         }
 
-        model.stickyNodes.forEach((node, nodeIndex) => {
-          node.classList.toggle("active", nodeIndex === nextIndex);
+        model.nodes.forEach((node) => node.classList.remove("active"));
+        model.stickyNodes.forEach((node) => node.classList.remove("active"));
+        [...model.blackboardSteps, ...model.stickyBlackboardSteps].forEach((step) => {
+          step.classList.remove("active");
+        });
+        [model.diagram, model.stickyDiagram].forEach((diagram) => {
+          diagram.querySelectorAll(".mermaid-active").forEach((node) => {
+            node.classList.remove("mermaid-active");
+          });
         });
 
-        if (model.track) {
-          const node = model.stickyNodes[nextIndex];
-          const targetLeft = node.offsetLeft - (model.track.clientWidth / 2) + (node.offsetWidth / 2);
-          model.track.scrollTo({
-            left: targetLeft,
-            behavior: "smooth"
-          });
-        }
-
-        model.activeIndex = nextIndex;
+        model.activeIndex = -1;
+        model.activeVisibleKey = "";
+        model.activeMermaidKey = "";
+        model.activeMermaidBoundKey = "";
       };
 
       const updateActiveSteps = () => {
         const stickyThreshold = window.innerHeight * 0.1;
-        const activationLine = 150;
 
         featureModels.forEach((model) => {
           const featureRect = model.feature.getBoundingClientRect();
@@ -2754,20 +3856,35 @@ assertTrue(
           const isStuck = diagramRect.top <= stickyThreshold && featureRect.bottom > model.diagram.offsetHeight + 24;
 
           model.stickyDiagram.classList.toggle("is-visible", isStuck);
+          if (isStuck) {
+            mountMovingMermaid(model);
+          } else {
+            restoreMovingMermaid(model);
+          }
 
           if (featureRect.bottom < 80 || featureRect.top > window.innerHeight - 80) {
             return;
           }
 
-          let activeStepIndex = 0;
+          const headerBottom = isStuck ? model.stickyDiagram.getBoundingClientRect().bottom : 0;
+          const visibleTop = headerBottom + 12;
+          const visibleBottom = window.innerHeight - 12;
+          let activeStepIndex = -1;
 
           model.contentSteps.forEach((step, stepIndex) => {
-            if (step.getBoundingClientRect().top <= activationLine) {
+            const stepRect = step.getBoundingClientRect();
+            if (stepRect.top >= visibleTop && stepRect.bottom <= visibleBottom) {
               activeStepIndex = stepIndex;
             }
           });
 
-          setActiveNode(model, model.stepMap[activeStepIndex] ?? activeStepIndex);
+          if (activeStepIndex === -1) {
+            clearActiveNode(model);
+            return;
+          }
+
+          const activeIndex = model.stepMap[activeStepIndex] ?? activeStepIndex;
+          setActiveNode(model, activeIndex);
         });
       };
 
@@ -2787,6 +3904,26 @@ assertTrue(
       window.addEventListener("scroll", requestUpdate, { passive: true });
       window.addEventListener("resize", requestUpdate);
       updateActiveSteps();
+      if (window.mermaid) {
+        Promise.resolve(mermaid.run({
+          nodes: document.querySelectorAll(".feature .mermaid")
+        })).then(() => {
+          featureModels.forEach((model) => {
+            bindMermaidNodes(model);
+            model.activeMermaidKey = "";
+            model.activeMermaidBoundKey = "";
+            model.diagram.classList.toggle("has-mermaid-svg", Boolean(model.diagram.querySelector(".mermaid-diagram svg")));
+          });
+          updateActiveSteps();
+        });
+      }
+      window.setTimeout(() => {
+        featureModels.forEach((model) => {
+          model.activeMermaidKey = "";
+          model.activeMermaidBoundKey = "";
+        });
+        updateActiveSteps();
+      }, 250);
     })();
   </script>
 </body>
