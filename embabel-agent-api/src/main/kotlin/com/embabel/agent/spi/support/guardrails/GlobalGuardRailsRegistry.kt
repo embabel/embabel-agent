@@ -16,6 +16,7 @@
 package com.embabel.agent.spi.support.guardrails
 
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
+import com.embabel.agent.api.validation.guardrails.GuardRailInstantiationException
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.common.util.loggerFor
 import jakarta.annotation.PostConstruct
@@ -49,7 +50,10 @@ class GlobalGuardRailsRegistry(
     private val userInputClassNames: String,
 
     @Value("\${embabel.agent.guardrails.assistant-message:}")
-    private val assistantMessageClassNames: String
+    private val assistantMessageClassNames: String,
+
+    @Value("\${embabel.agent.guardrails.fail-on-error:false}")
+    private val failOnError: Boolean
 ) {
     private val logger = loggerFor<GlobalGuardRailsRegistry>()
 
@@ -100,22 +104,29 @@ class GlobalGuardRailsRegistry(
 
                 // Check if class implements the required interface
                 if (!ClassUtils.isAssignable(T::class.java, clazz)) {
-                    logger.error("Class '{}' does not implement {}",
-                        trimmedClassName, T::class.java.simpleName)
+                    val errorMsg = "Class '$trimmedClassName' does not implement ${T::class.java.simpleName}"
+                    logger.error(errorMsg)
+                    if (failOnError) {
+                        throw GuardRailInstantiationException(errorMsg)
+                    }
                     return@mapNotNull null
                 }
 
                 val instance = BeanUtils.instantiateClass(clazz) as T
 
-                logger.info("Instantiated guardrail: {} from class: {}",
-                    (instance as? UserInputGuardRail)?.name ?:
-                    (instance as? AssistantMessageGuardRail)?.name,
-                    trimmedClassName)
+                logger.info("Instantiated guardrail: {}",
+                    clazz.simpleName ?: trimmedClassName)
 
                 instance
             } catch (e: Exception) {
-                logger.error("Failed to instantiate guardrail from class '{}': {}",
-                    className.trim(), e.message, e)
+                if (e is GuardRailInstantiationException) {
+                    throw e
+                }
+                val errorMsg = "Failed to instantiate guardrail from class '${className.trim()}': ${e.message}"
+                logger.error(errorMsg, e)
+                if (failOnError) {
+                    throw GuardRailInstantiationException(errorMsg, e)
+                }
                 null
             }
         }
