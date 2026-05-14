@@ -19,6 +19,7 @@ import com.embabel.agent.api.common.InteractionId
 import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.api.event.AgenticEventListener
+import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.core.Agent
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.AgentProcess
@@ -100,7 +101,9 @@ class ChatClientLlmTransformerTest {
                     eventListener = ese,
                 )
                 assertEquals(person, result)
-                assertEquals(5, ese.processEvents.size)
+                // LlmRequestEvent, ToolLoopStartEvent, LlmInvocationEvent (per-call billing),
+                // ToolLoopCompletedEvent, LlmResponseEvent, ChatModelCallEvent
+                assertEquals(6, ese.processEvents.size)
             }
 
             @Test
@@ -109,6 +112,27 @@ class ChatClientLlmTransformerTest {
                 val result = runWithPromptReturning(jacksonObjectMapper().writeValueAsString(person))
                 assertEquals(person, result)
                 assertTrue(llmInvocationHistory.invocations.isNotEmpty())
+            }
+
+            @Test
+            fun `emits LlmInvocationEvent per LLM call with the matching interactionId`() {
+                val ese = EventSavingAgenticEventListener()
+                val person = SpiPerson("John")
+                runWithPromptReturning(
+                    llmReturn = jacksonObjectMapper().writeValueAsString(person),
+                    eventListener = ese,
+                )
+
+                val billingEvents = ese.processEvents.filterIsInstance<LlmInvocationEvent>()
+                assertEquals(1, billingEvents.size, "Expected exactly one billing event per LLM call")
+                val event = billingEvents.single()
+                assertEquals("test", event.interactionId)
+                // The event must wrap the same invocation that was recorded on the agent process.
+                assertEquals(
+                    llmInvocationHistory.invocations.last(),
+                    event.invocation,
+                    "LlmInvocationEvent.invocation should match the recorded LlmInvocation",
+                )
             }
 
         }
@@ -232,8 +256,9 @@ class ChatClientLlmTransformerTest {
                     outputClass = SpiPerson::class.java,
                 )
                 assertEquals(Result.success(person), result.result)
-                // Embabel tool loop emits: LlmRequestEvent, ToolLoopStartEvent, ToolLoopCompletedEvent, LlmMaybeResponseEvent + ChatModelCallEvent
-                assertEquals(5, ese.processEvents.size)
+                // Embabel tool loop emits: LlmRequestEvent, ToolLoopStartEvent, LlmInvocationEvent (per-call billing),
+                // ToolLoopCompletedEvent, LlmMaybeResponseEvent + ChatModelCallEvent
+                assertEquals(6, ese.processEvents.size)
             }
 
             @Test

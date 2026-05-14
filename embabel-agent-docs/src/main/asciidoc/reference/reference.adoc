@@ -41,6 +41,8 @@ include::thinking/page.adoc[]
 
 include::interceptors/page.adoc[]
 
+include::cost-tracking/page.adoc[]
+
 include::guardrails/page.adoc[]
 
 include::termination/page.adoc[]

@@ -436,7 +436,7 @@ public IssueAssessment reactToNewIssue(
         Ai ai
 ) {
     // Fires only when newEntities contains Issues that aren't PullRequests
-    return ai.withLlm("claude-sonnet-4")
+    return ai.withDefaultLlm()  // Example uses claude-sonnet-4
              .creating(IssueAssessment.class)
              .fromTemplate("issue_triage", Map.of("issue", ghIssue));
 }
@@ -452,7 +452,7 @@ public PullRequestAssessment reactToNewPullRequest(
         Ai ai
 ) {
     // Fires only when newEntities contains PullRequests
-    return ai.withLlm("claude-sonnet-4")
+    return ai.withDefaultLlm()  // Example uses claude-sonnet-4
              .creating(PullRequestAssessment.class)
              .fromTemplate("pr_triage", Map.of("pr", pr));
 }
@@ -474,7 +474,7 @@ fun reactToNewIssue(
     ai: Ai
 ): IssueAssessment {
     // Fires only when newEntities contains Issues that aren't PullRequests
-    return ai.withLlm("claude-sonnet-4")
+    return ai.withDefaultLlm()  // Example uses claude-sonnet-4
         .creating(IssueAssessment::class.java)
         .fromTemplate("issue_triage", mapOf("issue" to ghIssue))
 }
@@ -490,7 +490,7 @@ fun reactToNewPullRequest(
     ai: Ai
 ): PullRequestAssessment {
     // Fires only when newEntities contains PullRequests
-    return ai.withLlm("claude-sonnet-4")
+    return ai.withDefaultLlm()  // Example uses claude-sonnet-4
         .creating(PullRequestAssessment::class.java)
         .fromTemplate("pr_triage", mapOf("pr" to pr))
 }

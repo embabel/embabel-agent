@@ -16,10 +16,13 @@
 package com.embabel.agent.spi.support
 
 import com.embabel.agent.api.common.Asyncer
+import com.embabel.agent.api.event.LlmInvocationEvent
 import com.embabel.agent.api.event.LlmRequestEvent
 import com.embabel.agent.api.event.ToolLoopStartEvent
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.api.tool.callback.AfterLlmCallContext
+import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.ReplanRequestedException
@@ -157,7 +160,7 @@ open class ToolLoopLlmOperations(
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
             toolDecorator = injectedToolDecorator,
-            toolLoopInspectors = interaction.toolLoopInspectors,
+            toolLoopInspectors = resolveToolLoopInspectors(interaction, llm, llmRequestEvent),
             toolLoopTransformers = interaction.toolLoopTransformers,
             toolCallInspectors = interaction.toolCallInspectors,
             toolCallContext = effectiveContext,
@@ -181,7 +184,7 @@ open class ToolLoopLlmOperations(
             outputParser = outputParser,
         )
 
-        handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent, llm)
+        handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
         // Guardrails: Post-validation of assistant response
         // For the tool loop path, validate the final result based on its type
@@ -249,7 +252,7 @@ open class ToolLoopLlmOperations(
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
             toolDecorator = injectedToolDecorator,
-            toolLoopInspectors = interaction.toolLoopInspectors,
+            toolLoopInspectors = resolveToolLoopInspectors(interaction, llm, llmRequestEvent),
             toolLoopTransformers = interaction.toolLoopTransformers,
             toolCallInspectors = interaction.toolCallInspectors,
             toolCallContext = effectiveContext,
@@ -276,18 +279,7 @@ open class ToolLoopLlmOperations(
         validateUserInput(userMessages, interaction, llmRequestEvent.agentProcess.blackboard)
 
         val tools = interaction.tools
-
-        // Publish ToolLoopStartEvent before the tool loop
-        val toolLoopStartEvent = ToolLoopStartEvent(
-            agentProcess = llmRequestEvent.agentProcess,
-            action = llmRequestEvent.action,
-            toolNames = tools.map { it.definition.name },
-            maxIterations = interaction.maxToolIterations,
-            interactionId = interaction.id.value,
-            outputClass = outputClass,
-        ).also { startEvent ->
-            llmRequestEvent.agentProcess.processContext.onProcessEvent(startEvent)
-        }
+        val toolLoopStartEvent = publishToolLoopStartEvent(llmRequestEvent, tools, interaction, outputClass)
 
         val result = toolLoop.execute(
             initialMessages = initialMessages,
@@ -295,25 +287,7 @@ open class ToolLoopLlmOperations(
             outputParser = outputParser,
         )
 
-        // Publish ToolLoopCompletedEvent after the tool loop
-        llmRequestEvent.agentProcess.processContext.onProcessEvent(
-            toolLoopStartEvent.completedEvent(
-                totalIterations = result.totalIterations,
-                replanRequested = result.replanRequested,
-            )
-        )
-
-        result.totalUsage?.let { usage ->
-            recordUsage(llm, usage, llmRequestEvent)
-        }
-
-        // If replan was requested, re-throw the exception to propagate to action executor
-        if (result.replanRequested) {
-            throw ReplanRequestedException(
-                reason = result.replanReason ?: "Tool requested replan",
-                blackboardUpdater = result.blackboardUpdater,
-            )
-        }
+        handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
         // ToolLoopResult.result is non-nullable by design - if tool loop completes, it has a result
         val maybeReturn = result.result
@@ -384,7 +358,7 @@ open class ToolLoopLlmOperations(
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
             toolDecorator = injectedToolDecorator,
-            toolLoopInspectors = interaction.toolLoopInspectors,
+            toolLoopInspectors = resolveToolLoopInspectors(interaction, llm, llmRequestEvent),
             toolLoopTransformers = interaction.toolLoopTransformers,
             toolCallInspectors = interaction.toolCallInspectors,
             toolCallContext = effectiveContext,
@@ -408,7 +382,7 @@ open class ToolLoopLlmOperations(
             outputParser = outputParser,
         )
 
-        handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent, llm)
+        handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
         val thinkingResponse = result.result
 
@@ -488,7 +462,7 @@ open class ToolLoopLlmOperations(
                 injectionStrategy = injectionStrategy,
                 maxIterations = interaction.maxToolIterations,
                 toolDecorator = injectedToolDecorator,
-                toolLoopInspectors = interaction.toolLoopInspectors,
+                toolLoopInspectors = resolveToolLoopInspectors(interaction, llm, llmRequestEvent),
                 toolLoopTransformers = interaction.toolLoopTransformers,
                 toolCallInspectors = interaction.toolCallInspectors,
                 toolCallContext = effectiveContext,
@@ -523,7 +497,7 @@ open class ToolLoopLlmOperations(
                 outputParser = outputParser,
             )
 
-            handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent, llm)
+            handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
             val thinkingResult = result.result
 
@@ -783,6 +757,55 @@ open class ToolLoopLlmOperations(
         }
 
     /**
+     * Create a per-call billing inspector that records each LLM invocation and emits an
+     * [LlmInvocationEvent].
+     *
+     * The inspector captures `llm` and `llmRequestEvent` via closure, so each tool-loop
+     * instance gets its own inspector — per-call by construction (survives CONCURRENT
+     * mode and validation/binding retries).
+     *
+     * Listener exceptions are isolated by `notifyAfterLlmCall`'s try/catch in the
+     * underlying tool loop, so a misbehaving listener cannot break the loop.
+     */
+    private fun createBillingInspector(
+        llm: LlmService<*>,
+        llmRequestEvent: LlmRequestEvent<*>,
+    ): ToolLoopInspector = object : ToolLoopInspector {
+        override fun afterLlmCall(context: AfterLlmCallContext) {
+            val usage = context.usage ?: return
+            val invocation = LlmInvocation(
+                llmMetadata = llm,
+                usage = usage,
+                agentName = llmRequestEvent.agentProcess.agent.name,
+                timestamp = Instant.now(),
+                runningTime = Duration.ZERO,
+            )
+            llmRequestEvent.agentProcess.recordLlmInvocation(invocation)
+            llmRequestEvent.agentProcess.processContext.onProcessEvent(
+                LlmInvocationEvent(
+                    agentProcess = llmRequestEvent.agentProcess,
+                    invocation = invocation,
+                    interactionId = llmRequestEvent.interaction.id.value,
+                )
+            )
+        }
+    }
+
+    /**
+     * Build the effective inspector list for a tool loop: the user-provided
+     * [LlmInteraction.toolLoopInspectors] plus the per-call billing inspector
+     * when an [LlmRequestEvent] is present (i.e. the call is agent-bound).
+     */
+    private fun resolveToolLoopInspectors(
+        interaction: LlmInteraction,
+        llm: LlmService<*>,
+        llmRequestEvent: LlmRequestEvent<*>?,
+    ): List<ToolLoopInspector> =
+        interaction.toolLoopInspectors + listOfNotNull(
+            llmRequestEvent?.let { createBillingInspector(llm, it) }
+        )
+
+    /**
      * Publish ToolLoopStartEvent and return it for later completion tracking.
      */
     private fun <O> publishToolLoopStartEvent(
@@ -804,14 +827,16 @@ open class ToolLoopLlmOperations(
     }
 
     /**
-     * Handle tool loop completion: publish completed event, record usage, check for replan.
+     * Handle tool loop completion: publish completed event, check for replan.
      * Throws ReplanRequestedException if replan was requested.
+     *
+     * Per-call usage recording happens in the billing inspector
+     * ([createBillingInspector]) — no aggregate post-loop recording is needed here.
      */
     private fun <O> handleToolLoopCompletion(
         toolLoopStartEvent: ToolLoopStartEvent?,
         result: com.embabel.agent.spi.loop.ToolLoopResult<O>,
         llmRequestEvent: LlmRequestEvent<*>?,
-        llm: LlmService<*>,
     ) {
         // Publish ToolLoopCompletedEvent after the tool loop
         toolLoopStartEvent?.let { startEvent ->
@@ -821,10 +846,6 @@ open class ToolLoopLlmOperations(
                     replanRequested = result.replanRequested,
                 )
             )
-        }
-
-        result.totalUsage?.let { usage ->
-            recordUsage(llm, usage, llmRequestEvent)
         }
 
         // If replan was requested, re-throw the exception to propagate to action executor
