@@ -18,6 +18,7 @@ package com.embabel.agent.spi.support.guardrails
 
 import com.embabel.agent.core.Blackboard
 import com.embabel.agent.api.validation.guardrails.AssistantMessageGuardRail
+import com.embabel.agent.api.validation.guardrails.GuardRail
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.api.validation.guardrails.UserInputGuardRail
 import com.embabel.agent.core.support.LlmInteraction
@@ -45,15 +46,15 @@ private fun validateUserInputInternal(
 
     val globalGuards = GlobalGuardRailsRegistry.getUserInputGuardRails()
 
-    // Merge global and interaction-specific guardrails, removing duplicates by name
-    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it.name }
+    // Merge global and interaction-specific guardrails, removing duplicates by class
+    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it::class }
 
     if (effectiveGuards.isEmpty()) return
 
     val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
     effectiveGuards.forEach { guard ->
         val result = validator(guard, effectiveBlackboard)
-        handleValidationResult(guard.name, result)
+        handleValidationResult(guard, result)
     }
 }
 
@@ -84,28 +85,40 @@ internal fun validateUserInput(
 }
 
 /**
- * Validates String assistant response using configured guardrails from interaction options and global registry.
+ * Internal helper for assistant response validation that handles common guardrail logic.
+ * Merges global guardrails from registry with interaction-specific guardrails.
  */
-internal fun validateAssistantResponse(
-    response: String,
+private fun validateAssistantInternal(
     interaction: LlmInteraction,
-    blackboard: Blackboard?
+    blackboard: Blackboard?,
+    validator: (AssistantMessageGuardRail, Blackboard) -> ValidationResult
 ) {
     val interactionGuards = interaction.guardRails
         .filterIsInstance<AssistantMessageGuardRail>()
 
     val globalGuards = GlobalGuardRailsRegistry.getAssistantMessageGuardRails()
 
-    // Merge global and interaction-specific guardrails, removing duplicates by name
-    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it.name }
+    // Merge global and interaction-specific guardrails, removing duplicates by class
+    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it::class }
 
     if (effectiveGuards.isEmpty()) return
 
     val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
     effectiveGuards.forEach { guard ->
-        val result = guard.validate(response, effectiveBlackboard)
-        handleValidationResult(guard.name, result)
+        val result = validator(guard, effectiveBlackboard)
+        handleValidationResult(guard, result)
     }
+}
+
+/**
+ * Validates String assistant response using configured guardrails from interaction options and global registry.
+ */
+internal fun validateAssistantResponse(
+    response: String,
+    interaction: LlmInteraction,
+    blackboard: Blackboard?
+) = validateAssistantInternal(interaction, blackboard) { guard, bb ->
+    guard.validate(response, bb)
 }
 
 /**
@@ -115,22 +128,8 @@ internal fun validateAssistantResponse(
     response: AssistantMessage,
     interaction: LlmInteraction,
     blackboard: Blackboard?
-) {
-    val interactionGuards = interaction.guardRails
-        .filterIsInstance<AssistantMessageGuardRail>()
-
-    val globalGuards = GlobalGuardRailsRegistry.getAssistantMessageGuardRails()
-
-    // Merge global and interaction-specific guardrails, removing duplicates by name
-    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it.name }
-
-    if (effectiveGuards.isEmpty()) return
-
-    val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
-    effectiveGuards.forEach { guard ->
-        val result = guard.validate(response, effectiveBlackboard)
-        handleValidationResult(guard.name, result)
-    }
+) = validateAssistantInternal(interaction, blackboard) { guard, bb ->
+    guard.validate(response, bb)
 }
 
 /**
@@ -140,28 +139,18 @@ internal fun validateAssistantResponse(
     response: ThinkingResponse<*>,
     interaction: LlmInteraction,
     blackboard: Blackboard?
-) {
-    val interactionGuards = interaction.guardRails
-        .filterIsInstance<AssistantMessageGuardRail>()
-
-    val globalGuards = GlobalGuardRailsRegistry.getAssistantMessageGuardRails()
-
-    // Merge global and interaction-specific guardrails, removing duplicates by name
-    val effectiveGuards = (globalGuards + interactionGuards).distinctBy { it.name }
-
-    if (effectiveGuards.isEmpty()) return
-
-    val effectiveBlackboard = blackboard ?: InMemoryBlackboard()
-    effectiveGuards.forEach { guard ->
-        val result = guard.validate(response, effectiveBlackboard)
-        handleValidationResult(guard.name, result)
-    }
+) = validateAssistantInternal(interaction, blackboard) { guard, bb ->
+    guard.validate(response, bb)
 }
 
 /**
  * Handles validation results and throws exceptions for critical violations.
  */
-private fun handleValidationResult(guardName: String, result: ValidationResult) {
+private fun handleValidationResult(guard: GuardRail, result: ValidationResult) {
+    val guardName = guard.name
+    val guardClassName = guard::class.simpleName
+    val guardIdentifier = guardClassName?.let { "$guardName ($it)" } ?: guardName
+
     val severityPriority = mapOf(
         ValidationSeverity.INFO to 1,
         ValidationSeverity.WARNING to 2,
@@ -174,16 +163,16 @@ private fun handleValidationResult(guardName: String, result: ValidationResult) 
     when (highestSeverity) {
         ValidationSeverity.INFO -> {
             if (result.errors.isNotEmpty()) {
-                logger.info("GuardRail '{}' info: {}", guardName,
+                logger.info("GuardRail '{}' info: {}", guardIdentifier,
                     result.errors.joinToString("; ") { it.message })
             }
         }
         ValidationSeverity.WARNING -> {
-            logger.warn("GuardRail '{}' warning: {}", guardName,
+            logger.warn("GuardRail '{}' warning: {}", guardIdentifier,
                 result.errors.joinToString("; ") { it.message })
         }
         ValidationSeverity.ERROR -> {
-            logger.error("GuardRail '{}' error: {}", guardName,
+            logger.error("GuardRail '{}' error: {}", guardIdentifier,
                 result.errors.joinToString("; ") { it.message })
         }
         ValidationSeverity.CRITICAL -> {

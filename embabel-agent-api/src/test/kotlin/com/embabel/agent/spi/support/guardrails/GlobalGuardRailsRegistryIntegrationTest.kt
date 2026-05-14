@@ -134,18 +134,17 @@ class GlobalGuardRailsRegistryIntegrationTest {
         }
 
         @Test
-        fun `should remove duplicate guardrails by name`() {
-            val duplicateGuard = DuplicateNameGuardRail()
+        fun `should remove duplicate guardrails by class`() {
+            val globalGuard = GlobalGuardRailsRegistry.getUserInputGuardRails().first() as GlobalUserGuardRail
             val interaction = LlmInteraction(
                 id = InteractionId("test"),
-                guardRails = listOf(duplicateGuard)
+                guardRails = listOf(globalGuard)  // Same instance/class as global
             )
 
             validateUserInput("test input", interaction, InMemoryBlackboard())
 
-            val globalGuard = GlobalGuardRailsRegistry.getUserInputGuardRails().first() as GlobalUserGuardRail
-            assertEquals(1, globalGuard.invocationCount, "Global guardrail should be invoked")
-            assertEquals(0, duplicateGuard.invocationCount, "Duplicate should be filtered out")
+            // Should only be invoked once even though it's in both global and interaction lists
+            assertEquals(1, globalGuard.invocationCount, "Same class should only be invoked once")
         }
 
         @Test
@@ -237,20 +236,6 @@ class InteractionUserGuardRail : UserInputGuardRail {
 
     override val name: String = "InteractionUserGuardRail"
     override val description: String = "Interaction user guardrail"
-    override fun validate(input: String, blackboard: Blackboard): ValidationResult {
-        invocationCount++
-        return ValidationResult(true, emptyList())
-    }
-}
-
-/**
- * Test guardrail with duplicate name to test deduplication.
- */
-class DuplicateNameGuardRail : UserInputGuardRail {
-    var invocationCount = 0
-
-    override val name: String = "GlobalUserGuardRail" // Same name as GlobalUserGuardRail
-    override val description: String = "Duplicate name guardrail"
     override fun validate(input: String, blackboard: Blackboard): ValidationResult {
         invocationCount++
         return ValidationResult(true, emptyList())
