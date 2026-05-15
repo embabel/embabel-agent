@@ -18,7 +18,7 @@ package com.embabel.agent.support
 import com.embabel.agent.api.common.ToolsStats
 import com.embabel.agent.core.LlmInvocation
 import com.embabel.agent.core.LlmInvocationHistory
-import com.embabel.agent.core.support.toEmbabelUsage
+import com.embabel.agent.spi.support.springai.toEmbabelUsage
 import com.embabel.agent.spi.LlmService
 import com.embabel.common.ai.model.PricingModel
 import io.mockk.every
