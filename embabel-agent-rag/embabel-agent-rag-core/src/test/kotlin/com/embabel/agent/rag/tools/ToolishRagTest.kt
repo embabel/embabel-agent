@@ -171,6 +171,7 @@ class ToolishRagTest {
         @Test
         fun `should add textSearch tool when searchOperations is TextSearch`() {
             val textSearch = mockk<TextSearch>()
+            every { textSearch.luceneSyntaxNotes } returns ""
 
             val toolishRag = ToolishRag(
                 name = "test-rag",
@@ -187,6 +188,7 @@ class ToolishRagTest {
         @Test
         fun `should add both tools when searchOperations is CoreSearchOperations`() {
             val coreSearch = mockk<CoreSearchOperations>()
+            every { coreSearch.luceneSyntaxNotes } returns ""
 
             val toolishRag = ToolishRag(
                 name = "test-rag",
@@ -221,6 +223,8 @@ class ToolishRagTest {
         fun `multiple ToolishRag instances should have unique namespaced tools`() {
             val coreSearch1 = mockk<CoreSearchOperations>()
             val coreSearch2 = mockk<CoreSearchOperations>()
+            every { coreSearch1.luceneSyntaxNotes } returns ""
+            every { coreSearch2.luceneSyntaxNotes } returns ""
 
             val rag1 = ToolishRag(
                 name = "books",
@@ -289,12 +293,15 @@ class ToolishRagTest {
         }
 
         @Test
-        fun `should include lucene syntax notes in notes`() {
+        fun `notes does NOT duplicate lucene syntax notes (now lives on the textSearch tool description)`() {
+            // Issue embabel/embabel-agent#1298: the lucene syntax notes used to be
+            // emitted both in `notes()` AND in the hardcoded `@LlmTool` description
+            // on `textSearch`, with the two free to disagree. Single source of truth
+            // is now the tool's own description (composed from the store's
+            // `luceneSyntaxNotes`); `notes()` no longer mentions them.
             val textSearch = mockk<TextSearch>()
             val support = "basic +, -, and quotes for phrases"
-            every {
-                textSearch.luceneSyntaxNotes
-            } returns support
+            every { textSearch.luceneSyntaxNotes } returns support
 
             val toolishRag = ToolishRag(
                 name = "test-rag",
@@ -302,9 +309,15 @@ class ToolishRagTest {
                 searchOperations = textSearch
             )
 
-            val notes = toolishRag.notes()
-
-            assertTrue(notes.contains("Lucene search syntax support: $support"))
+            assertFalse(
+                toolishRag.notes().contains(support),
+                "notes() must not duplicate the syntax notes — they belong on the textSearch tool's description.",
+            )
+            val textTool = toolishRag.tools().first { it.definition.name == "test_rag_textSearch" }
+            assertTrue(
+                textTool.definition.description.contains(support),
+                "tool description must carry the store's syntax notes; was: ${textTool.definition.description}",
+            )
         }
 
         @Test
@@ -747,6 +760,10 @@ class ToolishRagTest {
             every {
                 coreSearch.textSearch(any<TextSimilaritySearchRequest>(), Chunk::class.java)
             } returns listOf(SimpleSimilaritySearchResult(match = chunk, score = 0.85))
+
+            // Required since #1298 fix: textSearch tool's description is composed
+            // from the store's luceneSyntaxNotes at first definition access.
+            every { coreSearch.luceneSyntaxNotes } returns "test syntax"
 
             val toolishRag = ToolishRag(
                 name = "integration-test",
@@ -1219,6 +1236,7 @@ class ToolishRagTest {
         @Test
         fun `tools returns flat list of namespaced inner tools`() {
             val coreSearch = mockk<CoreSearchOperations>()
+            every { coreSearch.luceneSyntaxNotes } returns ""
 
             val toolishRag = ToolishRag(
                 name = "test-rag",
@@ -1237,6 +1255,7 @@ class ToolishRagTest {
         @Test
         fun `Tool interface wraps inner tools in MatryoshkaTool`() {
             val coreSearch = mockk<CoreSearchOperations>()
+            every { coreSearch.luceneSyntaxNotes } returns ""
 
             val toolishRag = ToolishRag(
                 name = "test-rag",
@@ -1252,6 +1271,7 @@ class ToolishRagTest {
         @Test
         fun `call delegates to MatryoshkaTool`() {
             val coreSearch = mockk<CoreSearchOperations>()
+            every { coreSearch.luceneSyntaxNotes } returns ""
             val chunk = Chunk(id = "chunk1", text = "Test content", parentId = "parent", metadata = emptyMap())
 
             every {
@@ -1301,6 +1321,110 @@ class ToolishRagTest {
 
             assertNotNull(tool.definition)
             assertEquals("test-rag", tool.definition.name)
+        }
+    }
+
+    /**
+     * Issue [embabel/embabel-agent#1298](https://github.com/embabel/embabel-agent/issues/1298):
+     * `textSearch`'s tool description used to be hardcoded ("+term required, * wildcard,
+     * ~ fuzzy", etc.) regardless of what the backing store actually supported. Stores
+     * could override `luceneSyntaxNotes` to describe their real capabilities (e.g.
+     * `PgVectorStore` → "PostgreSQL substring matching only", `DirectoryTextSearch` →
+     * "Not supported"), but the LLM saw the hardcoded description AND those notes,
+     * potentially in conflict.
+     *
+     * Fix: build the textSearch tool dynamically with the description composed from
+     * the store's `luceneSyntaxNotes` at construction time. Single source of truth.
+     */
+    @Nested
+    inner class TextSearchDynamicDescription {
+
+        @Test
+        fun `tool description includes the store's luceneSyntaxNotes verbatim`() {
+            val textSearch = mockk<TextSearch>()
+            every { textSearch.luceneSyntaxNotes } returns "PostgreSQL substring matching only"
+
+            val rag = ToolishRag(
+                name = "pg-store",
+                description = "PG-backed store",
+                searchOperations = textSearch,
+            )
+            val textTool = rag.tools().first { it.definition.name == "pg_store_textSearch" }
+
+            assertTrue(
+                textTool.definition.description.contains("PostgreSQL substring matching only"),
+                "tool description must include the store's luceneSyntaxNotes; was: ${textTool.definition.description}",
+            )
+        }
+
+        @Test
+        fun `description varies when stores report different syntax`() {
+            val luceneStore = mockk<TextSearch>()
+            every { luceneStore.luceneSyntaxNotes } returns "Full Lucene syntax supported"
+            val substringStore = mockk<TextSearch>()
+            every { substringStore.luceneSyntaxNotes } returns "Substring matching only — no operators"
+
+            val luceneRag = ToolishRag("lucene", "lucene", searchOperations = luceneStore)
+            val substringRag = ToolishRag("substring", "substring", searchOperations = substringStore)
+
+            val luceneDesc = luceneRag.tools()
+                .first { it.definition.name == "lucene_textSearch" }.definition.description
+            val substringDesc = substringRag.tools()
+                .first { it.definition.name == "substring_textSearch" }.definition.description
+
+            assertTrue(luceneDesc.contains("Full Lucene"), luceneDesc)
+            assertTrue(substringDesc.contains("Substring matching only"), substringDesc)
+            // The two descriptions must NOT both leak each other's syntax — that's
+            // the contradiction the old hardcoded description caused.
+            assertFalse(luceneDesc.contains("Substring matching only"))
+            assertFalse(substringDesc.contains("Full Lucene"))
+        }
+
+        @Test
+        fun `description omits the syntax line entirely when store reports nothing`() {
+            val textSearch = mockk<TextSearch>()
+            every { textSearch.luceneSyntaxNotes } returns ""
+
+            val rag = ToolishRag("blank", "blank", searchOperations = textSearch)
+            val textTool = rag.tools().first { it.definition.name == "blank_textSearch" }
+
+            // The base sentence is still there...
+            assertTrue(textTool.definition.description.contains("Perform BM25 text search"))
+            // ...but no dangling "Query syntax: " with empty contents that would
+            // confuse the LLM ("syntax = nothing? do I just type random words?").
+            assertFalse(
+                textTool.definition.description.contains("Query syntax:"),
+                "should not emit a 'Query syntax: ' line when the store reports nothing",
+            )
+        }
+
+        @Test
+        fun `query parameter description also reflects the store's syntax`() {
+            val textSearch = mockk<TextSearch>()
+            every { textSearch.luceneSyntaxNotes } returns "PostgreSQL `LIKE` patterns with %"
+
+            val rag = ToolishRag("pg", "pg", searchOperations = textSearch)
+            val textTool = rag.tools().first { it.definition.name == "pg_textSearch" }
+            val queryParam = textTool.definition.inputSchema.parameters.first { it.name == "query" }
+
+            assertTrue(
+                queryParam.description.contains("PostgreSQL `LIKE` patterns with %"),
+                "query parameter description must reflect the store's syntax; was: ${queryParam.description}",
+            )
+        }
+
+        @Test
+        fun `notes does not contain the syntax notes (single source of truth is the tool description)`() {
+            val textSearch = mockk<TextSearch>()
+            val syntax = "Some-very-distinctive-token-only-this-test-uses"
+            every { textSearch.luceneSyntaxNotes } returns syntax
+
+            val rag = ToolishRag("test", "test", searchOperations = textSearch)
+
+            assertFalse(
+                rag.notes().contains(syntax),
+                "notes() must not duplicate the syntax notes; the textSearch tool description owns them.",
+            )
         }
     }
 }
