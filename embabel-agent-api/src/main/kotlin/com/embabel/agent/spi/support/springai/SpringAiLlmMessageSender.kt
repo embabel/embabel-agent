@@ -16,7 +16,6 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.Tool
-import com.embabel.agent.core.support.toEmbabelUsage
 import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.chat.Message
