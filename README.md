@@ -1354,6 +1354,73 @@ For the full configuration reference, MDC log correlation, and advanced options,
 
 ---
 
+---
+## FAQ
+
+### What is Embabel?
+
+Embabel (Em-BAY-bel) is a framework for authoring agentic flows on the JVM that seamlessly mix LLM-prompted interactions with code and domain models. It supports intelligent path finding towards goals.
+
+### How is Embabel different from other agent frameworks?
+
+Key differentiators:
+- **Sophisticated planning**: Goes beyond finite state machines with true planning using non-LLM AI algorithms
+- **Dynamic replanning**: Adapts to new information after each action (OODA loop pattern)
+- **Superior extensibility**: Adding domain objects, actions, goals extends capability without editing existing code
+- **Strong typing**: Full refactoring support, no magic maps, prompts and code interact cleanly
+
+### What languages does Embabel support?
+
+Written in Kotlin but offers a natural usage model from Java. Works with Spring Boot applications.
+
+### How do I add Embabel to my project?
+
+Add the Maven dependency:
+```xml
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-api</artifactId>
+</dependency>
+```
+
+See [MvnRepository](https://mvnrepository.com/artifact/com.embabel.agent/embabel-agent-api) for the latest version.
+
+### What are the core concepts?
+
+- **Actions**: Steps an agent takes
+- **Goals**: What an agent is trying to achieve
+- **Conditions**: Assessments before/after actions
+- **Domain model**: Objects underpinning the flow
+- **Plan**: Dynamically formulated sequence of actions
+
+### Does Embabel support parallelization?
+
+Yes, the planning algorithm can make decisions about parallelization and other runtime behavior based on the domain model.
+
+### How does planning work?
+
+Plans are formulated by the system using a non-LLM AI algorithm. The system replans after each action completes, allowing adaptation to new information.
+
+### What AI providers are supported?
+
+Embabel integrates with Spring AI, supporting providers like OpenAI (GPT-4), Anthropic (Claude), and others. See the [documentation](https://docs.embabel.com/embabel-agent/guide/0.1.2-SNAPSHOT/) for details.
+
+### How do I add observability?
+
+Use the `@Tracked` annotation to capture inputs, outputs, duration, and errors automatically. See the [Observability Module Documentation](embabel-agent-observability/README.md).
+
+### Can I use Embabel with existing Spring applications?
+
+Yes, Embabel integrates cleanly with Spring Boot. Agents can use Spring's dependency injection and other features.
+
+### Where can I get help?
+
+- **Documentation**: [docs.embabel.com](https://docs.embabel.com/embabel-agent/guide/0.1.2-SNAPSHOT/)
+- **Discord**: Join the [community](https://discord.gg/t6bjkyj93q) for support and discussions
+- **GitHub Issues**: Report bugs or request features
+
+---
+---
 ## Contributing
 
 We welcome contributions to the Embabel Agent Framework.
