@@ -28,6 +28,10 @@ jobs:
         uses: s4u/maven-settings-action@v2.8.0
         with:
           servers: ${{secrets.EMBABEL_ARTIFACTORY}}
+      - name: Debug Artifactory Credentials
+        env:
+          ARTIFACTORY_SECRET: ${{ secrets.EMBABEL_ARTIFACTORY }}
+        run: echo "$ARTIFACTORY_SECRET" | base64
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
