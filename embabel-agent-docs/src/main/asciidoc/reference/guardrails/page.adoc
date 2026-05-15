@@ -461,6 +461,299 @@ For more examples, see:
 embabel-agent-autoconfigure/models/embabel-agent-anthropic-autoconfigure/
   src/test/java/com/embabel/agent/config/models/anthropic/LLMAnthropicThinkingIT.java
 ----
+==== Global Guardrails Configuration
+
+In addition to attaching guardrails per-call via `withGuardRails(...)`, Embabel supports declaring *global* guardrails through application properties.
+A global guardrail is instantiated once at startup and applied to every LLM operation, in addition to any interaction-specific guardrails configured on the `PromptRunner`.
+
+This is useful for cross-cutting safety policies that should always run, regardless of which call site invokes the LLM (PII redaction, profanity filtering, cost limits, audit logging, etc.).
+
+===== Property Configuration
+
+Global guardrails are defined as comma-separated, fully-qualified class names in `application.properties` (or `application.yml`):
+
+[source,properties]
+----
+# Guardrails applied to every user input
+embabel.agent.guardrails.user-input=com.example.ProfanityFilter,com.example.LengthValidator
+
+# Guardrails applied to every assistant message
+embabel.agent.guardrails.assistant-message=com.example.OutputValidator
+
+# Whether instantiation failures should fail-fast at startup (default: false)
+embabel.agent.guardrails.fail-on-error=false
+----
+
+Each class must:
+
+- Implement the appropriate interface (`UserInputGuardRail` for `user-input`, `AssistantMessageGuardRail` for `assistant-message`)
+- Provide a public no-arg constructor (instances are created via `BeanUtils.instantiateClass`)
+
+[IMPORTANT]
+====
+Guardrails registered through these properties are **plain POJOs**, *not* Spring-managed beans. The registry calls `BeanUtils.instantiateClass(...)` directly, so:
+
+- `@Autowired`, `@Value`, and constructor injection of Spring beans **do not work**
+- `@PostConstruct` / `@PreDestroy` lifecycle callbacks are **not invoked**
+- `ApplicationContextAware`, `BeanNameAware`, and similar `*Aware` callbacks are **not invoked**
+- Dynamic access patterns (e.g. composing the `name` field from a Spring-backed holder, or pulling a config bean via a static `ApplicationContext` accessor) will fail or return `null` at startup, because the holder may not be initialized yet
+
+If your guardrail genuinely needs Spring dependencies, the recommended pattern is to bridge the `ApplicationContext` through a small `ApplicationContextAware` holder, and have the guardrail look up beans or properties *at validation time* rather than in the constructor (see <<global-guardrails-spring-bridge>>). Alternatively, declare the guardrail as a `@Component` and attach it per-call through `withGuardRails(...)` on the `PromptRunner`.
+====
+
+[[global-guardrails-spring-bridge]]
+===== Accessing Spring Beans from a POJO Guardrail
+
+When a property-registered guardrail must consult Spring beans or environment properties (for example, a cost limit defined in `application.yml`, or a shared `MeterRegistry`), expose the `ApplicationContext` through a static holder and let the guardrail call back into it at validation time.
+
+[source,java]
+----
+package com.example.observability;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.stereotype.Component;
+
+/**
+ * Bridges Spring's ApplicationContext to POJO guardrails instantiated by
+ * embabel's GlobalGuardRailsRegistry. Those guardrails are created via
+ * BeanUtils.instantiateClass() with a no-arg constructor, so they cannot
+ * use @Autowired — they reach back through this holder to look up beans
+ * and properties at validation time.
+ */
+@Component
+public class SpringContextHolder implements ApplicationContextAware {
+
+    private static volatile ApplicationContext context;
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) {
+        context = applicationContext;
+    }
+
+    public static ApplicationContext context() {
+        return context;
+    }
+
+    public static <T> T getBean(Class<T> type) {
+        ApplicationContext ctx = context;
+        return ctx != null ? ctx.getBean(type) : null;
+    }
+
+    public static String getProperty(String key, String defaultValue) {
+        ApplicationContext ctx = context;
+        return ctx != null ? ctx.getEnvironment().getProperty(key, defaultValue) : defaultValue;
+    }
+}
+----
+
+A guardrail can then resolve its dependencies lazily, inside `validate(...)`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+public class CostLimitGuardRail implements UserInputGuardRail {
+
+    @Override
+    public @NotNull String getName() {
+        return "CostLimitGuardRail";
+    }
+
+    @Override
+    public @NotNull String getDescription() {
+        return "Blocks requests when the monthly LLM budget is exceeded";
+    }
+
+    @Override
+    public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+        // Look up dependencies at validation time — the holder is wired by then
+        CostTracker tracker = SpringContextHolder.getBean(CostTracker.class);
+        String budget = SpringContextHolder.getProperty("app.llm.monthly-budget-usd", "100");
+
+        if (tracker != null && tracker.spentThisMonth() > Double.parseDouble(budget)) {
+            return new ValidationResult(false, List.of(
+                new ValidationError("budget-exceeded",
+                    "Monthly LLM budget exceeded",
+                    ValidationSeverity.CRITICAL)
+            ));
+        }
+        return new ValidationResult(true, Collections.emptyList());
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+class CostLimitGuardRail : UserInputGuardRail {
+
+    override val name = "CostLimitGuardRail"
+    override val description = "Blocks requests when the monthly LLM budget is exceeded"
+
+    override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+        // Look up dependencies at validation time — the holder is wired by then
+        val tracker = SpringContextHolder.getBean(CostTracker::class.java)
+        val budget = SpringContextHolder.getProperty("app.llm.monthly-budget-usd", "100").toDouble()
+
+        if (tracker != null && tracker.spentThisMonth() > budget) {
+            return ValidationResult(false, listOf(
+                ValidationError("budget-exceeded",
+                    "Monthly LLM budget exceeded",
+                    ValidationSeverity.CRITICAL)
+            ))
+        }
+        return ValidationResult(true, emptyList())
+    }
+}
+----
+====
+
+[NOTE]
+====
+Resolve Spring dependencies **inside `validate(...)`**, not in the constructor or in field initializers. At construction time, the order in which the `SpringContextHolder` bean and the `GlobalGuardRailsRegistry` are processed is not guaranteed, so the static `context` field may still be `null`. By the time `validate(...)` is invoked the holder is fully wired.
+====
+
+===== Merging with Interaction-Specific Guardrails
+
+When an LLM operation executes, global guardrails are merged with the interaction-specific guardrails set through `withGuardRails(...)`:
+
+- Global guardrails always run first, then interaction-specific ones
+- Duplicates are removed based on **class identity** (not the `name` field), so a class registered both globally and per-call will be invoked only once
+- The deduplication keeps the global instance, ensuring singleton semantics
+
+===== Strict Mode: `fail-on-error`
+
+By default (`fail-on-error=false`), if a configured guardrail cannot be instantiated (typo in the class name, missing no-arg constructor, constructor throws), the error is logged and the application continues with the remaining guardrails.
+
+Setting `fail-on-error=true` causes Spring startup to fail with a `GuardRailInstantiationException` if any of the following occurs:
+
+- The class cannot be loaded
+- The class does not implement the expected guardrail interface
+- The constructor throws an exception
+
+Strict mode is recommended in production where missing a guardrail must be treated as a deployment error rather than a silent omission.
+
+===== Example: Defining a Global Guardrail
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+package com.example;
+
+public class ProfanityFilter implements UserInputGuardRail {
+
+    @Override
+    public @NotNull String getName() {
+        return "ProfanityFilter";
+    }
+
+    @Override
+    public @NotNull String getDescription() {
+        return "Blocks user input containing profanity";
+    }
+
+    @Override
+    public @NotNull ValidationResult validate(@NotNull String input, @NotNull Blackboard blackboard) {
+        if (containsProfanity(input)) {
+            return new ValidationResult(false, List.of(
+                new ValidationError("profanity", "Input contains disallowed terms", ValidationSeverity.CRITICAL)
+            ));
+        }
+        return new ValidationResult(true, Collections.emptyList());
+    }
+
+    private boolean containsProfanity(String input) {
+        // ... implementation
+        return false;
+    }
+}
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+package com.example
+
+class ProfanityFilter : UserInputGuardRail {
+
+    override val name = "ProfanityFilter"
+    override val description = "Blocks user input containing profanity"
+
+    override fun validate(input: String, blackboard: Blackboard): ValidationResult {
+        if (containsProfanity(input)) {
+            return ValidationResult(false, listOf(
+                ValidationError("profanity", "Input contains disallowed terms", ValidationSeverity.CRITICAL)
+            ))
+        }
+        return ValidationResult(true, emptyList())
+    }
+
+    private fun containsProfanity(input: String): Boolean {
+        // ... implementation
+        return false
+    }
+}
+----
+====
+
+Once registered in `application.properties`, the guardrail applies to every LLM call — no code changes are needed at the call site:
+
+[source,kotlin]
+----
+// ProfanityFilter runs automatically — no explicit withGuardRails() needed
+val response = ai.withDefaultLlm()
+    .createObject("Hello, world", Greeting::class.java)
+----
+
+===== Programmatic Access
+
+The registry can also be accessed programmatically, either as an injected Spring bean or via its companion accessor:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+// Spring injection
+public class MyService {
+    private final GlobalGuardRailsRegistry registry;
+
+    public MyService(GlobalGuardRailsRegistry registry) {
+        this.registry = registry;
+    }
+}
+
+// Static access — get() returns null if Spring hasn't initialized the registry yet;
+// the list accessors return an empty list in that case.
+GlobalGuardRailsRegistry registry = GlobalGuardRailsRegistry.get();
+List<UserInputGuardRail> userGuards = GlobalGuardRailsRegistry.getUserInputGuardRails();
+List<AssistantMessageGuardRail> assistantGuards = GlobalGuardRailsRegistry.getAssistantMessageGuardRails();
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+// Spring injection
+class MyService(private val registry: GlobalGuardRailsRegistry)
+
+// Static access — get() returns null if Spring hasn't initialized the registry yet;
+// the list accessors return an empty list in that case.
+val registry = GlobalGuardRailsRegistry.get()
+val userGuards = GlobalGuardRailsRegistry.getUserInputGuardRails()
+val assistantGuards = GlobalGuardRailsRegistry.getAssistantMessageGuardRails()
+----
+====
+
 ==== Relationship with Other Validation Mechanisms
 
 The Agent API framework supports Jakarta Bean Validation (JSR-380) for domain object constraints. These constraints are injected into the schema and validated during object construction.
