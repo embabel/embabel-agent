@@ -192,6 +192,12 @@
 
             <dependency>
                 <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-perplexity-ai-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-mcpserver</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -331,6 +337,12 @@
             <dependency>
                 <groupId>com.embabel.agent</groupId>
                 <artifactId>embabel-agent-starter-ollama</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.embabel.agent</groupId>
+                <artifactId>embabel-agent-starter-perplexity-ai</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

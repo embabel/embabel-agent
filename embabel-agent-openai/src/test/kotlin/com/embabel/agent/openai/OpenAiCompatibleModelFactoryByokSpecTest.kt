@@ -52,6 +52,7 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
             OpenAiCompatibleModelFactory.byok(
                 baseUrl = "https://api.example.com",
                 apiKey = "key",
+                completionsPath = "path",
                 validationModel = "my-model",
                 validationProvider = "MyProvider",
             )
@@ -74,11 +75,13 @@ class OpenAiCompatibleModelFactoryByokSpecTest {
         val deepSeekSpec = OpenAiCompatibleModelFactory.deepSeek("key")
         val mistralSpec = OpenAiCompatibleModelFactory.mistral("key")
         val geminiSpec = OpenAiCompatibleModelFactory.gemini("key")
+        val perplexitySpec = OpenAiCompatibleModelFactory.perplexity("key")
 
         // Each spec should construct without error (no network call at this stage)
         assertInstanceOf(ByokFactory::class.java, openAiSpec)
         assertInstanceOf(ByokFactory::class.java, deepSeekSpec)
         assertInstanceOf(ByokFactory::class.java, mistralSpec)
         assertInstanceOf(ByokFactory::class.java, geminiSpec)
+        assertInstanceOf(ByokFactory::class.java, perplexitySpec)
     }
 }

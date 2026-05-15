@@ -1,0 +1,193 @@
+# ============================================
+# perplexity-ai-models.yml
+# ============================================
+#
+# Verified against docs.perplexity.ai on 2026-05-05.
+#
+# Values are taken from https://docs.perplexity.ai/docs/agent-api/models.
+
+models:
+  # ========================================
+  # Perplexity own model.
+  # ========================================
+  - name: "perplexity/sonar"
+    model_id: "perplexity/sonar"
+    display_name: "Sonar"
+    pricing_model:
+      usd_per1m_input_tokens: 0.25
+      usd_per1m_output_tokens: 2.5
+
+  # Supported 3rd party models.
+
+  # ========================================
+  # Supported Anthropic models.
+  # ========================================
+  - name: "anthropic/claude-opus-4-7"
+    model_id: "anthropic/claude-opus-4-7"
+    display_name: "Claude Opus 4.7"
+    pricing_model:
+      usd_per1m_input_tokens: 5
+      usd_per1m_output_tokens: 25
+
+  - name: "anthropic/claude-opus-4-6"
+    model_id: "anthropic/claude-opus-4-6"
+    display_name: "Claude Opus 4.6"
+    pricing_model:
+      usd_per1m_input_tokens: 5
+      usd_per1m_output_tokens: 25
+
+  - name: "anthropic/claude-opus-4-5"
+    model_id: "anthropic/claude-opus-4-5"
+    display_name: "Claude Opus 4.5"
+    pricing_model:
+      usd_per1m_input_tokens: 5
+      usd_per1m_output_tokens: 25
+
+  - name: "anthropic/claude-sonnet-4-6"
+    model_id: "anthropic/claude-sonnet-4-6"
+    display_name: "Claude Sonnet 4.6"
+    pricing_model:
+      usd_per1m_input_tokens: 3
+      usd_per1m_output_tokens: 15
+
+  - name: "anthropic/claude-sonnet-4-5"
+    model_id: "anthropic/claude-sonnet-4-5"
+    display_name: "Claude Sonnet 4.5"
+    pricing_model:
+      usd_per1m_input_tokens: 3
+      usd_per1m_output_tokens: 15
+
+  - name: "anthropic/claude-haiku-4-5"
+    model_id: "anthropic/claude-haiku-4-5"
+    display_name: "Claude Haiku 4.5"
+    pricing_model:
+      usd_per1m_input_tokens: 1
+      usd_per1m_output_tokens: 5
+
+  # ========================================
+  # Supported OpenAI models.
+  # ========================================
+
+  - name: "openai/gpt-5.5"
+    model_id: "openai/gpt-5.5"
+    display_name: "Openai GPT 5.5"
+    pricing_model:
+      usd_per1m_input_tokens: 5
+      usd_per1m_output_tokens: 30
+
+  - name: "openai/gpt-5.4"
+    model_id: "openai/gpt-5.4"
+    display_name: "Openai GPT 5.4"
+    pricing_model:
+      usd_per1m_input_tokens: 2.5
+      usd_per1m_output_tokens: 15
+
+  - name: "openai/gpt-5.4-mini"
+    model_id: "openai/gpt-5.4-mini"
+    display_name: "Openai GPT 5.4 Mini"
+    pricing_model:
+      usd_per1m_input_tokens: 0.75
+      usd_per1m_output_tokens: 4.5
+
+  - name: "openai/gpt-5.4-nano"
+    model_id: "openai/gpt-5.4-nano"
+    display_name: "Openai GPT 5.4 nano"
+    pricing_model:
+      usd_per1m_input_tokens: 0.2
+      usd_per1m_output_tokens: 1.25
+
+  - name: "openai/gpt-5.2"
+    model_id: "openai/gpt-5.2"
+    display_name: "Openai GPT 5.2"
+    pricing_model:
+      usd_per1m_input_tokens: 1.75
+      usd_per1m_output_tokens: 14
+
+  - name: "openai/gpt-5.1"
+    model_id: "openai/gpt-5.1"
+    display_name: "Openai GPT 5.1"
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10
+
+  - name: "openai/gpt-5"
+    model_id: "openai/gpt-5"
+    display_name: "Openai GPT 5"
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 10
+
+  - name: "openai/gpt-5-mini"
+    model_id: "openai/gpt-5-mini"
+    display_name: "Openai GPT 5 Mini"
+    pricing_model:
+      usd_per1m_input_tokens: 0.25
+      usd_per1m_output_tokens: 2
+
+  # ========================================
+  # Supported Google models.
+  # ========================================
+
+  - name: "google/gemini-3.1-pro-preview"
+    model_id: "google/gemini-3.1-pro-preview"
+    display_name: "Google Gemini 3.1 Pro"
+    pricing_model:
+      usd_per1m_input_tokens: 4
+      usd_per1m_output_tokens: 18
+
+  - name: "google/gemini-3-flash-preview"
+    model_id: "google/gemini-3-flash-preview"
+    display_name: "Google Gemini 3 Flash"
+    pricing_model:
+      usd_per1m_input_tokens: 0.5
+      usd_per1m_output_tokens: 3
+
+  # ========================================
+  # Supported NVIDIA models.
+  # ========================================
+
+  - name: "nvidia/nemotron-3-super-120b-a12b"
+    model_id: "nvidia/nemotron-3-super-120b-a12b"
+    display_name: "Nvidia Nemotron 3 Super 120B"
+    pricing_model:
+      usd_per1m_input_tokens: 0.25
+      usd_per1m_output_tokens: 2.5
+
+  # ========================================
+  # Supported xAI models.
+  # ========================================
+
+  - name: "xai/grok-4.3"
+    model_id: "xai/grok-4.3"
+    display_name: "xAI Grok 4.3"
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 2.5
+
+  - name: "xai/grok-4.20-reasoning"
+    model_id: "xai/grok-4.20-reasoning"
+    display_name: "xAI Grok 4.2 Reasoning"
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 2.5
+
+  - name: "xai/grok-4.20-non-reasoning"
+    model_id: "xai/grok-4.20-non-reasoning"
+    display_name: "xAI Grok 4.2 Non Reasoning"
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 2.5
+
+  - name: "xai/grok-4.20-multi-agent"
+    model_id: "xai/grok-4.20-multi-agent"
+    display_name: "xAI Grok 4.2 Multi-Agent"
+    pricing_model:
+      usd_per1m_input_tokens: 1.25
+      usd_per1m_output_tokens: 2.5
+
+  - name: "xai/grok-4-1-fast-non-reasoning"
+    model_id: "xai/grok-4-1-fast-non-reasoning"
+    display_name: "xAI Grok 4.1 Fat Non Reasoning"
+    pricing_model:
+      usd_per1m_input_tokens: 0.2
+      usd_per1m_output_tokens: 0.5
