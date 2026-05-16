@@ -1354,6 +1354,64 @@ For the full configuration reference, MDC log correlation, and advanced options,
 
 ---
 
+
+## FAQ
+
+### General Questions
+
+**What is Embabel Agent Framework?**
+Embabel is a framework for authoring agentic flows on the JVM that seamlessly mix LLM-prompted interactions with code and domain models. It supports intelligent path finding towards goals and is written in Kotlin with natural Java usage.
+
+**What makes Embabel different from other agent frameworks?**
+Embabel uses sophisticated planning (beyond finite state machines), strong typing with object orientation, and superior extensibility through dynamic planning. Adding new domain objects, actions, and goals extends system capability without editing existing code.
+
+**Is Embabel production-ready?**
+Yes, Embabel is designed for production use with built-in observability, Spring Boot integration, and comprehensive testing support.
+
+### Getting Started
+
+**What are the system requirements?**
+Embabel requires Java 17+ and Maven. It runs on the JVM and integrates with Spring Boot for web applications.
+
+**How do I add Embabel to my project?**
+Add the Embabel dependencies to your Maven `pom.xml`. See the [Adding Embabel Agent Framework to Your Project](#adding-embabel-agent-framework-to-your-project) section for details.
+
+### Key Concepts
+
+**What are Actions, Goals, and Conditions?**
+- **Actions**: Steps an agent takes
+- **Goals**: What an agent is trying to achieve
+- **Conditions**: Conditions to assess before executing actions or determining goal completion
+
+The system dynamically formulates plans using an OODA loop (Observe-Orient-Decide-Act), replanning after each action.
+
+### LLM Integration
+
+**Which LLM providers are supported?**
+Embabel integrates with LLMs through Spring AI, supporting OpenAI, Anthropic, and other providers compatible with the Spring AI abstraction layer.
+
+**How does Embabel handle LLM prompts?**
+Prompts are managed through Jinja templates with strong typing. The framework ensures clean interaction between manually authored code and LLM prompts, with full refactoring support.
+
+### MCP and A2A
+
+**Does Embabel support MCP servers?**
+Yes, Embabel can both expose itself as an MCP server and consume external MCP servers. See the [Using Embabel as an MCP server](#using-embabel-as-an-mcp-server) and [Consuming MCP Servers](#consuming-mcp-servers) sections.
+
+**What is A2A support?**
+Emabel supports Agent-to-Agent (A2A) communication patterns for multi-agent scenarios.
+
+### Troubleshooting
+
+**Build fails with dependency resolution errors**
+Ensure you're using Maven 3.8+ and Java 17+. Run `./mvnw clean install` to rebuild all modules.
+
+**LLM calls return unexpected results**
+Check your Spring AI configuration, verify API keys, and review the prompt templates. Use the observability module to trace LLM calls and identify issues.
+
+**Agent planning is not working as expected**
+Review your action pre/post conditions and goal conditions. The planning system relies on accurate condition definitions to formulate valid plans.
+
 ## Contributing
 
 We welcome contributions to the Embabel Agent Framework.
