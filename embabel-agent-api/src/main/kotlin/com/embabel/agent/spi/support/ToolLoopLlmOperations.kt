@@ -384,7 +384,19 @@ open class ToolLoopLlmOperations(
 
         handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
-        val thinkingResponse = result.result
+        val finalIterationResponse = result.result
+
+        // Accumulate thinking blocks from ALL assistant messages across all iterations
+        // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
+        val allThinkingBlocks = result.conversationHistory
+            .filter { it.role == com.embabel.chat.Role.ASSISTANT }
+            .flatMap { extractAllThinkingBlocks(it.content) }
+
+        // Merge accumulated thinking blocks with the final result
+        val thinkingResponse = ThinkingResponse(
+            result = finalIterationResponse.result,
+            thinkingBlocks = allThinkingBlocks
+        )
 
         // Guardrails: Post-validation of assistant response (includes thinking blocks)
         validateAssistantResponse(thinkingResponse, interaction, llmRequestEvent?.agentProcess?.blackboard)
@@ -499,7 +511,40 @@ open class ToolLoopLlmOperations(
 
             handleToolLoopCompletion(toolLoopStartEvent, result, llmRequestEvent)
 
-            val thinkingResult = result.result
+            val finalIterationResult = result.result
+
+            // Accumulate thinking blocks from ALL assistant messages across all iterations
+            // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
+            val allThinkingBlocks = result.conversationHistory
+                .filter { it.role == com.embabel.chat.Role.ASSISTANT }
+                .flatMap { extractAllThinkingBlocks(it.content) }
+
+            // Merge accumulated thinking blocks with the final result (success or failure path)
+            val thinkingResult = when {
+                finalIterationResult.isSuccess -> {
+                    val finalResponse = finalIterationResult.getOrNull()!!
+                    Result.success(
+                        ThinkingResponse(
+                            result = finalResponse.result,
+                            thinkingBlocks = allThinkingBlocks
+                        )
+                    )
+                }
+                else -> {
+                    // Preserve the exception but use accumulated thinking blocks
+                    val exception = finalIterationResult.exceptionOrNull()
+                    if (exception is ThinkingException) {
+                        Result.failure(
+                            ThinkingException(
+                                message = exception.message ?: "Unknown error",
+                                thinkingBlocks = allThinkingBlocks
+                            )
+                        )
+                    } else {
+                        finalIterationResult
+                    }
+                }
+            }
 
             // Guardrails: Post-validation of assistant response
             // Validate ThinkingResponse on success, or thinking blocks on failure (if non-empty)
