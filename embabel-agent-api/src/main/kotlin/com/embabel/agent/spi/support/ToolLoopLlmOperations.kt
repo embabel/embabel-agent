@@ -47,6 +47,7 @@ import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
+import com.embabel.common.core.thinking.ThinkingBlock
 import com.embabel.common.core.thinking.ThinkingException
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.thinking.spi.InternalThinkingApi
@@ -515,36 +516,10 @@ open class ToolLoopLlmOperations(
 
             // Accumulate thinking blocks from ALL assistant messages across all iterations
             // Filter by role to catch both AssistantMessage and AssistantMessageWithToolCalls
-            val allThinkingBlocks = result.conversationHistory
-                .filter { it.role == com.embabel.chat.Role.ASSISTANT }
-                .flatMap { extractAllThinkingBlocks(it.content) }
+            val allThinkingBlocks = accumulateThinkingBlocks(result.conversationHistory)
 
             // Merge accumulated thinking blocks with the final result (success or failure path)
-            val thinkingResult = when {
-                finalIterationResult.isSuccess -> {
-                    val finalResponse = finalIterationResult.getOrNull()!!
-                    Result.success(
-                        ThinkingResponse(
-                            result = finalResponse.result,
-                            thinkingBlocks = allThinkingBlocks
-                        )
-                    )
-                }
-                else -> {
-                    // Preserve the exception but use accumulated thinking blocks
-                    val exception = finalIterationResult.exceptionOrNull()
-                    if (exception is ThinkingException) {
-                        Result.failure(
-                            ThinkingException(
-                                message = exception.message ?: "Unknown error",
-                                thinkingBlocks = allThinkingBlocks
-                            )
-                        )
-                    } else {
-                        finalIterationResult
-                    }
-                }
-            }
+            val thinkingResult = mergeThinkingBlocksWithResult(finalIterationResult, allThinkingBlocks)
 
             // Guardrails: Post-validation of assistant response
             // Validate ThinkingResponse on success, or thinking blocks on failure (if non-empty)
@@ -899,6 +874,49 @@ open class ToolLoopLlmOperations(
                 reason = result.replanReason ?: "Tool requested replan",
                 blackboardUpdater = result.blackboardUpdater,
             )
+        }
+    }
+
+    /**
+     * Accumulates thinking blocks from all assistant messages in the conversation history.
+     * Filters by ASSISTANT role to catch both AssistantMessage and AssistantMessageWithToolCalls.
+     */
+    @OptIn(InternalThinkingApi::class)
+    private fun accumulateThinkingBlocks(conversationHistory: List<Message>): List<ThinkingBlock> {
+        return conversationHistory
+            .filter { it.role == com.embabel.chat.Role.ASSISTANT }
+            .flatMap { extractAllThinkingBlocks(it.content) }
+    }
+
+    /**
+     * Merges accumulated thinking blocks with the final iteration result.
+     * Handles both success and failure paths, preserving ThinkingException when present.
+     */
+    @OptIn(InternalThinkingApi::class)
+    private fun <O> mergeThinkingBlocksWithResult(
+        finalIterationResult: Result<ThinkingResponse<O>>,
+        allThinkingBlocks: List<ThinkingBlock>
+    ): Result<ThinkingResponse<O>> {
+        return if (finalIterationResult.isSuccess) {
+            val finalResponse = finalIterationResult.getOrNull()!!
+            Result.success(
+                ThinkingResponse(
+                    result = finalResponse.result,
+                    thinkingBlocks = allThinkingBlocks
+                )
+            )
+        } else {
+            val exception = finalIterationResult.exceptionOrNull()
+            if (exception is ThinkingException) {
+                Result.failure(
+                    ThinkingException(
+                        message = exception.message ?: "Unknown error",
+                        thinkingBlocks = allThinkingBlocks
+                    )
+                )
+            } else {
+                finalIterationResult
+            }
         }
     }
 
