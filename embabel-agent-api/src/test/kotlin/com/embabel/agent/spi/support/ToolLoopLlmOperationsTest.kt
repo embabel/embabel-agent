@@ -775,6 +775,101 @@ class ToolLoopLlmOperationsTest {
             assertEquals(1, exception.thinkingBlocks.size)
             assertTrue(exception.thinkingBlocks[0].content.contains("Attempting conversion"))
         }
+
+        @Test
+        fun `doTransformWithThinking accumulates thinking blocks across multiple tool iterations`() {
+            data class TestOutput(val message: String)
+
+            val converter = object : OutputConverter<TestOutput> {
+                override fun convert(source: String): TestOutput {
+                    // Simulate SuppressThinkingConverter behavior
+                    val cleaned = source.replace(Regex("<think>.*?</think>"), "").trim()
+                    return TestOutput(cleaned)
+                }
+                override fun getFormat(): String = "Return a message"
+            }
+
+            val testTool = TestTool(
+                name = "test_tool",
+                description = "A test tool",
+                onCall = { Tool.Result.text("tool result") }
+            )
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    // Iteration 1: thinking block + tool call
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = "<think>I should call the tool first</think>Calling tool...",
+                            toolCalls = listOf(ToolCall("call_1", "test_tool", "{}"))
+                        ),
+                        textContent = "<think>I should call the tool first</think>Calling tool...",
+                    ),
+                    // Iteration 2: thinking block + final result
+                    textResponse("<think>Now I can provide the final answer</think>final answer")
+                )
+            )
+            val operations = createTestableOperations(messageSender, converter)
+
+            val result = operations.testDoTransformWithThinking(
+                messages = listOf(UserMessage("Do something")),
+                interaction = createInteraction(tools = listOf(testTool)),
+                outputClass = TestOutput::class.java,
+            )
+
+            // Verify final result
+            assertEquals("final answer", result.result?.message)
+
+            // Verify thinking blocks from BOTH iterations are accumulated
+            assertEquals(2, result.thinkingBlocks.size)
+            assertTrue(result.thinkingBlocks[0].content.contains("I should call the tool first"))
+            assertTrue(result.thinkingBlocks[1].content.contains("Now I can provide the final answer"))
+        }
+
+        @Test
+        fun `doTransformWithThinking accumulates thinking blocks across multiple tool iterations with multiple tool calls`() {
+            val tool1 = TestTool("tool_a", "Tool A") { Tool.Result.text("A done") }
+            val tool2 = TestTool("tool_b", "Tool B") { Tool.Result.text("B done") }
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    // Iteration 1: thinking + first tool call
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = "<think>Starting with tool A</think>",
+                            toolCalls = listOf(ToolCall("call_1", "tool_a", "{}"))
+                        ),
+                        textContent = "<think>Starting with tool A</think>",
+                    ),
+                    // Iteration 2: thinking + second tool call
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = "<think>Now using tool B</think>",
+                            toolCalls = listOf(ToolCall("call_2", "tool_b", "{}"))
+                        ),
+                        textContent = "<think>Now using tool B</think>",
+                    ),
+                    // Iteration 3: thinking + final response
+                    textResponse("<think>All done, summarizing</think>Complete")
+                )
+            )
+            val operations = createTestableOperations(messageSender)
+
+            val result = operations.testDoTransformWithThinking(
+                messages = listOf(UserMessage("Use both tools")),
+                interaction = createInteraction(tools = listOf(tool1, tool2)),
+                outputClass = String::class.java,
+            )
+
+            // Verify final result (raw String with thinking preserved)
+            assertEquals("<think>All done, summarizing</think>Complete", result.result)
+
+            // Verify thinking blocks from ALL THREE iterations are accumulated
+            assertEquals(3, result.thinkingBlocks.size)
+            assertTrue(result.thinkingBlocks[0].content.contains("Starting with tool A"))
+            assertTrue(result.thinkingBlocks[1].content.contains("Now using tool B"))
+            assertTrue(result.thinkingBlocks[2].content.contains("All done, summarizing"))
+        }
     }
 
     @Nested
@@ -884,6 +979,141 @@ class ToolLoopLlmOperationsTest {
             assertEquals("Processed", thinkingResponse.result?.message)
             assertEquals(1, thinkingResponse.thinkingBlocks.size)
             assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("Processing request"))
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible accumulates thinking blocks across multiple tool iterations on success path`() {
+            val testTool = TestTool(
+                name = "test_tool",
+                description = "A test tool",
+                onCall = { Tool.Result.text("tool result") }
+            )
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    // Iteration 1: thinking block + tool call
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = "<think>I should call the tool first</think>Calling tool...",
+                            toolCalls = listOf(ToolCall("call_1", "test_tool", "{}"))
+                        ),
+                        textContent = "<think>I should call the tool first</think>Calling tool...",
+                    ),
+                    // Iteration 2: thinking block + success result
+                    textResponse("""<think>Now I can succeed</think>{"success": "Success!"}""")
+                )
+            )
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            val result = operations.testDoTransformWithThinkingIfPossible(
+                messages = listOf(UserMessage("Try something")),
+                interaction = createInteraction(tools = listOf(testTool)),
+                outputClass = String::class.java,
+            )
+
+            assertTrue(result.isSuccess)
+            val thinkingResponse = result.getOrThrow()
+            assertEquals("Success!", thinkingResponse.result)
+
+            // Verify thinking blocks from BOTH iterations are accumulated
+            assertEquals(2, thinkingResponse.thinkingBlocks.size)
+            assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("I should call the tool first"))
+            assertTrue(thinkingResponse.thinkingBlocks[1].content.contains("Now I can succeed"))
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible accumulates thinking blocks across multiple tool iterations on failure path`() {
+            val testTool = TestTool(
+                name = "test_tool",
+                description = "A test tool",
+                onCall = { Tool.Result.text("tool result") }
+            )
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    // Iteration 1: thinking block + tool call
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = "<think>Let me try using the tool</think>Calling tool...",
+                            toolCalls = listOf(ToolCall("call_1", "test_tool", "{}"))
+                        ),
+                        textContent = "<think>Let me try using the tool</think>Calling tool...",
+                    ),
+                    // Iteration 2: thinking block + failure result
+                    textResponse("""<think>Unfortunately I cannot complete this</think>{"failure": "Cannot create this object"}""")
+                )
+            )
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            val result = operations.testDoTransformWithThinkingIfPossible(
+                messages = listOf(UserMessage("Try something impossible")),
+                interaction = createInteraction(tools = listOf(testTool)),
+                outputClass = String::class.java,
+            )
+
+            assertTrue(result.isFailure)
+            val exception = result.exceptionOrNull() as com.embabel.common.core.thinking.ThinkingException
+            assertTrue(exception.message?.contains("Object creation not possible") == true)
+
+            // Verify thinking blocks from BOTH iterations are accumulated
+            assertEquals(2, exception.thinkingBlocks.size)
+            assertTrue(exception.thinkingBlocks[0].content.contains("Let me try using the tool"))
+            assertTrue(exception.thinkingBlocks[1].content.contains("Unfortunately I cannot complete this"))
+        }
+
+        @Test
+        fun `doTransformWithThinkingIfPossible accumulates thinking blocks across three iterations`() {
+            val tool1 = TestTool("tool_a", "Tool A") { Tool.Result.text("A done") }
+            val tool2 = TestTool("tool_b", "Tool B") { Tool.Result.text("B done") }
+
+            val messageSender = TestLlmMessageSender(
+                responses = listOf(
+                    // Iteration 1: thinking + first tool call
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = "<think>Starting with tool A</think>",
+                            toolCalls = listOf(ToolCall("call_1", "tool_a", "{}"))
+                        ),
+                        textContent = "<think>Starting with tool A</think>",
+                    ),
+                    // Iteration 2: thinking + second tool call
+                    LlmMessageResponse(
+                        message = AssistantMessageWithToolCalls(
+                            content = "<think>Now using tool B</think>",
+                            toolCalls = listOf(ToolCall("call_2", "tool_b", "{}"))
+                        ),
+                        textContent = "<think>Now using tool B</think>",
+                    ),
+                    // Iteration 3: thinking + success response
+                    textResponse("""<think>All done, returning success</think>{"success": "Complete"}""")
+                )
+            )
+            val operations = createTestableOperations(
+                messageSender = messageSender,
+                maybeReturnConverter = createMaybeReturnConverter(String::class.java),
+            )
+
+            val result = operations.testDoTransformWithThinkingIfPossible(
+                messages = listOf(UserMessage("Use both tools")),
+                interaction = createInteraction(tools = listOf(tool1, tool2)),
+                outputClass = String::class.java,
+            )
+
+            assertTrue(result.isSuccess)
+            val thinkingResponse = result.getOrThrow()
+            assertEquals("Complete", thinkingResponse.result)
+
+            // Verify thinking blocks from ALL THREE iterations are accumulated
+            assertEquals(3, thinkingResponse.thinkingBlocks.size)
+            assertTrue(thinkingResponse.thinkingBlocks[0].content.contains("Starting with tool A"))
+            assertTrue(thinkingResponse.thinkingBlocks[1].content.contains("Now using tool B"))
+            assertTrue(thinkingResponse.thinkingBlocks[2].content.contains("All done, returning success"))
         }
     }
 
