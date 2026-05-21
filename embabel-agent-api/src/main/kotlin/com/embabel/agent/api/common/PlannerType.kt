@@ -34,5 +34,19 @@ enum class PlannerType(val needsGoals: Boolean) {
      */
     UTILITY(needsGoals = false),
 
+    /**
+     * Hybrid utility / goal planner. Picks the highest-netValue
+     * achievable action each tick (like [UTILITY]), but terminates
+     * cleanly the moment any registered goal is already satisfied.
+     * Pair an unsatisfiable goal like
+     * [com.embabel.agent.core.support.NIRVANA] with a real terminal
+     * goal: opportunistic research actions fire on netValue while
+     * NIRVANA's plan wins; the process exits as soon as the real
+     * goal is reached.
+     *
+     * See [com.embabel.plan.utility.HybridUtilityPlanner].
+     */
+    HYBRID(needsGoals = true),
+
     SUPERVISOR(needsGoals = true),
 }

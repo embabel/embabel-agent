@@ -24,10 +24,11 @@ import com.embabel.plan.PlanningSystem
 import com.embabel.plan.WorldState
 import com.embabel.plan.common.condition.WorldStateDeterminer
 import com.embabel.plan.goap.astar.AStarGoapPlanner
+import com.embabel.plan.utility.HybridUtilityPlanner
 import com.embabel.plan.utility.UtilityPlanner
 
 /**
- * PlannerFactory that knows about GOAP and Utility planners
+ * PlannerFactory that knows about GOAP, Utility, and Hybrid planners.
  */
 object DefaultPlannerFactory : PlannerFactory {
 
@@ -39,6 +40,7 @@ object DefaultPlannerFactory : PlannerFactory {
         return when (processOptions.plannerType) {
             PlannerType.GOAP -> AStarGoapPlanner(worldStateDeterminer)
             PlannerType.UTILITY -> UtilityPlanner(worldStateDeterminer)
+            PlannerType.HYBRID -> HybridUtilityPlanner(worldStateDeterminer)
             PlannerType.SUPERVISOR -> AStarGoapPlanner(worldStateDeterminer)
         }
     }
