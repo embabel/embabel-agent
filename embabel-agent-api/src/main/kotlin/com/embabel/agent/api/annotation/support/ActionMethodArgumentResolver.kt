@@ -188,13 +188,7 @@ class BlackboardArgumentResolver : ActionMethodArgumentResolver {
         kotlinParameter: KParameter?,
     ): Set<IoBinding> {
         if (kotlinParameter != null) {
-            if (kotlinParameter.type.isMarkedNullable) {
-                return emptySet()
-            }
-            val nullableAnnotation = kotlinParameter.annotations.find {
-                it.annotationClass.simpleName == "Nullable"
-            }
-            if (nullableAnnotation != null) {
+            if (isNullable(kotlinParameter)) {
                 return emptySet()
             }
 
@@ -210,6 +204,9 @@ class BlackboardArgumentResolver : ActionMethodArgumentResolver {
                 (kotlinParameter.type.classifier as KClass<*>).java
             )
         } else {
+            if (isNullable(javaParameter)) {
+                return emptySet()
+            }
             val annotation = javaParameter.getAnnotation(RequireNameMatch::class.java)
             val parameterName = if (javaParameter.isNamePresent) javaParameter.name else null
             val name =
@@ -225,6 +222,16 @@ class BlackboardArgumentResolver : ActionMethodArgumentResolver {
             )
         }
     }
+
+    private fun isNullable(parameter: KParameter): Boolean =
+        parameter.type.isMarkedNullable || parameter.annotations.any {
+            it.annotationClass.simpleName == "Nullable"
+        }
+
+    private fun isNullable(parameter: Parameter) : Boolean =
+        parameter.annotations.any {
+            it.annotationClass.simpleName == "Nullable"
+        }
 
     override fun resolveArgument(
         javaParameter: Parameter,
@@ -243,7 +250,7 @@ class BlackboardArgumentResolver : ActionMethodArgumentResolver {
                     dataDictionary = operationContext.processContext.agentProcess.agent,
                 )
                 if (arg == null) {
-                    val isNullable = kotlinParameter.isOptional || kotlinParameter.type.isMarkedNullable
+                    val isNullable = kotlinParameter.isOptional || isNullable(kotlinParameter)
                     if (!isNullable) {
                         error("Operation ${operationContext.operation.name}: Internal error. No value found in blackboard for non-nullable parameter ${kotlinParameter.name}:${classifier.java.name}")
                     }
