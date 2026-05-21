@@ -418,6 +418,14 @@ class AgentMetadataReader(
     ): AgentCoreGoal? {
         val actionAnnotation = method.getAnnotation(Action::class.java)
         val goalAnnotation = method.getAnnotation(AchievesGoal::class.java) ?: return null
+        if (method.returnType == Void.TYPE) {
+            logger.error(
+                "@AchievesGoal cannot be applied to void-returning @Action method {}.{}.",
+                stateClass.name,
+                method.name,
+            )
+            return null
+        }
         val inputBinding = IoBinding(
             name = actionAnnotation.outputBinding,
             type = method.returnType.name,
@@ -679,6 +687,14 @@ class AgentMetadataReader(
     ): AgentCoreGoal? {
         val actionAnnotation = method.getAnnotation(Action::class.java)
         val goalAnnotation = method.getAnnotation(AchievesGoal::class.java) ?: return null
+        if (method.returnType == Void.TYPE) {
+            logger.error(
+                "@AchievesGoal cannot be applied to void-returning @Action method {}.{}.",
+                instance.javaClass.name,
+                method.name,
+            )
+            return null
+        }
         val inputBinding = IoBinding(
             name = actionAnnotation.outputBinding,
             type = method.returnType.name,
