@@ -351,7 +351,8 @@ internal class StreamingChatClientOperations(
         val streamingConverter = StreamingJacksonOutputConverter(
             clazz = outputClass,
             objectMapper = chatClientLlmOperations.objectMapper,
-            fieldFilter = interaction.fieldFilter
+            fieldFilter = interaction.fieldFilter,
+            thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
         )
 
         // Build prompt using helper methods, including streaming format instructions
