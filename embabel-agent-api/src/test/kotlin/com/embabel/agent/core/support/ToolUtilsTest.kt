@@ -21,12 +21,8 @@ import com.embabel.common.util.StringTransformer
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.metadata.DefaultUsage
 
-/**
- * Tests for utility functions and classes in springAiUtils.kt.
- */
-class SpringAiUtilsTest {
+class ToolUtilsTest {
 
     @Nested
     inner class RenamedToolTest {
@@ -176,14 +172,13 @@ class SpringAiUtilsTest {
             val tool = createMockTool("same-name") { Tool.Result.text("{}") }
             val toolObject = ToolObject(
                 objects = listOf(tool),
-                namingStrategy = StringTransformer { it }, // Identity transform
+                namingStrategy = StringTransformer { it },
             )
 
             val tools = safelyGetToolsFrom(toolObject)
 
             assertEquals(1, tools.size)
             assertEquals("same-name", tools[0].definition.name)
-            // Should be the original tool, not wrapped in RenamedTool
             assertFalse(tools[0] is RenamedTool)
         }
 
@@ -223,29 +218,6 @@ class SpringAiUtilsTest {
 
             assertEquals("alpha", tools[0].definition.name)
             assertEquals("zulu", tools[1].definition.name)
-        }
-    }
-
-    @Nested
-    inner class ToEmbabelUsageTest {
-
-        @Test
-        fun `converts Spring AI Usage to Embabel Usage`() {
-            val springUsage = DefaultUsage(100, 50)
-
-            val embabelUsage = springUsage.toEmbabelUsage()
-
-            assertEquals(100, embabelUsage.promptTokens)
-            assertEquals(50, embabelUsage.completionTokens)
-        }
-
-        @Test
-        fun `preserves total tokens calculation`() {
-            val springUsage = DefaultUsage(200, 100)
-
-            val embabelUsage = springUsage.toEmbabelUsage()
-
-            assertEquals(300, embabelUsage.totalTokens)
         }
     }
 

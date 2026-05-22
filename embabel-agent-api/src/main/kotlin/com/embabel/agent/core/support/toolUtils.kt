@@ -17,15 +17,26 @@ package com.embabel.agent.core.support
 
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolObject
-import com.embabel.agent.core.Usage
-import com.embabel.agent.spi.support.springai.toEmbabelTool
-import com.embabel.agent.spi.support.springai.toSpringToolCallback
-import org.springframework.ai.support.ToolCallbacks
-import org.springframework.ai.tool.ToolCallback
+
+/**
+ * SPI for extracting framework-specific tools (e.g. Spring AI) from an arbitrary
+ * object. Implementations are discovered reflectively so that this package has
+ * no compile-time dependency on the underlying framework.
+ */
+internal interface ExternalToolExtractor {
+    fun extract(obj: Any): List<Tool>
+}
+
+private val externalToolExtractor: ExternalToolExtractor? = try {
+    Class.forName("org.springframework.ai.tool.ToolCallback")
+    val cls = Class.forName("com.embabel.agent.spi.support.springai.SpringAiToolExtractor")
+    cls.getField("INSTANCE").get(null) as ExternalToolExtractor
+} catch (_: ClassNotFoundException) {
+    null
+}
 
 /**
  * Extract native Tools from ToolObject instances.
- * Preferred over safelyGetToolCallbacks as it returns framework-agnostic Tools.
  */
 fun safelyGetTools(instances: Collection<ToolObject>): List<Tool> =
     instances.flatMap { safelyGetToolsFrom(it) }
@@ -34,35 +45,19 @@ fun safelyGetTools(instances: Collection<ToolObject>): List<Tool> =
 
 /**
  * Extract native Tools from a single ToolObject.
- * Handles Embabel @LlmTool annotations, Spring AI @Tool annotations,
- * and direct Tool/ToolCallback instances.
+ * Handles Embabel @LlmTool annotations and direct Tool instances.
+ * If a Spring AI extractor is on the classpath, also handles Spring AI
+ * @Tool annotations and ToolCallback instances.
  */
 fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
     val tools = mutableListOf<Tool>()
     toolObject.objects.forEach { obj ->
-        // Handle Tool instances directly
         if (obj is Tool) {
             tools.add(obj)
             return@forEach
         }
-
-        // Handle ToolCallback instances by wrapping them
-        if (obj is ToolCallback) {
-            tools.add(obj.toEmbabelTool())
-            return@forEach
-        }
-
-        // Scan for Embabel @LlmTool annotations
-        val embabelTools = Tool.safelyFromInstance(obj)
-        tools.addAll(embabelTools)
-
-        // Scan for Spring AI @Tool annotations and wrap them
-        try {
-            val springCallbacks = ToolCallbacks.from(obj).toList()
-            tools.addAll(springCallbacks.map { it.toEmbabelTool() })
-        } catch (_: IllegalStateException) {
-            // Ignore - no @Tool annotations found
-        }
+        tools.addAll(Tool.safelyFromInstance(obj))
+        externalToolExtractor?.let { tools.addAll(it.extract(obj)) }
     }
     return tools
         .filter { toolObject.filter(it.definition.name) }
@@ -77,20 +72,6 @@ fun safelyGetToolsFrom(toolObject: ToolObject): List<Tool> {
         .distinctBy { it.definition.name }
         .sortedBy { it.definition.name }
 }
-
-/**
- * Extract tools and convert to Spring AI ToolCallbacks.
- * Internal use only - external code should use [safelyGetTools] and convert at the Spring AI boundary.
- */
-internal fun safelyGetToolCallbacks(instances: Collection<ToolObject>): List<ToolCallback> =
-    safelyGetTools(instances).map { it.toSpringToolCallback() }
-
-/**
- * Extract tools from a single ToolObject and convert to Spring AI ToolCallbacks.
- * Internal use only - external code should use [safelyGetToolsFrom].
- */
-internal fun safelyGetToolCallbacksFrom(toolObject: ToolObject): List<ToolCallback> =
-    safelyGetToolsFrom(toolObject).map { it.toSpringToolCallback() }
 
 /**
  * Allows renaming a Tool while preserving its behavior.
@@ -109,12 +90,4 @@ internal class RenamedTool(
     override val metadata: Tool.Metadata = delegate.metadata
 
     override fun call(input: String): Tool.Result = delegate.call(input)
-}
-
-fun org.springframework.ai.chat.metadata.Usage.toEmbabelUsage(): Usage {
-    return Usage(
-        promptTokens = this.promptTokens,
-        completionTokens = this.completionTokens,
-        nativeUsage = this.nativeUsage,
-    )
 }

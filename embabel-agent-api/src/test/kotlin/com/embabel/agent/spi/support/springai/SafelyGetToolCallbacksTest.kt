@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.embabel.agent.core.support
+package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.annotation.LlmTool
 import com.embabel.agent.api.annotation.support.FunnyTool
@@ -26,11 +26,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.tool.ToolCallback
 import kotlin.test.assertEquals
 
-class SpringAiUtilsKtTest {
+class SafelyGetToolCallbacksTest {
 
-    /**
-     * Test class using Embabel's @Tool.Method annotation
-     */
     class EmbabelToolMethodExample {
         @LlmTool(description = "Adds two numbers")
         fun add(
@@ -45,9 +42,6 @@ class SpringAiUtilsKtTest {
         ): Int = a * b
     }
 
-    /**
-     * Test class using both Spring AI @Tool and Embabel @Tool.Method
-     */
     class MixedToolExample {
         @org.springframework.ai.tool.annotation.Tool(description = "Spring tool")
         fun springTool(): String = "spring"
@@ -253,5 +247,4 @@ class SpringAiUtilsKtTest {
         assertEquals(1, result.size)
         assertEquals("add", result[0].toolDefinition.name())
     }
-
 }
