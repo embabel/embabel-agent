@@ -30,7 +30,6 @@ import com.embabel.agent.spi.support.buildConsolidatedPromptMessages
 import com.embabel.agent.spi.support.buildPromptContributionsString
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.chat.Message
-import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.core.streaming.StreamingEvent
@@ -201,7 +200,8 @@ internal class StreamingLlmOperationsImpl(
         val streamingConverter = StreamingJacksonOutputConverter(
             clazz = outputClass,
             objectMapper = objectMapper,
-            fieldFilter = interaction.fieldFilter
+            fieldFilter = interaction.fieldFilter,
+            thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
         )
 
         // Build prompt contributions with streaming format instructions
