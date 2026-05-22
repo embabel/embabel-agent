@@ -31,6 +31,7 @@ import org.springframework.ai.ollama.OllamaEmbeddingModel
 import org.springframework.ai.ollama.api.OllamaApi
 import org.springframework.ai.ollama.api.OllamaChatOptions
 import org.springframework.ai.ollama.api.OllamaEmbeddingOptions
+import org.springframework.ai.ollama.api.ThinkOption
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
@@ -319,6 +320,10 @@ class OllamaModelsConfig(
 }
 
 object OllamaOptionsConverter : OptionsConverter<OllamaChatOptions> {
+    private const val OLLAMA_THINK_LEVEL_LOW_THRESHOLD = 2000
+
+    private const val OLLAMA_THINK_LEVEL_MEDIUM_THRESHOLD = 4000
+
     override fun convertOptions(options: LlmOptions): OllamaChatOptions =
         OllamaChatOptions.builder()
             .temperature(options.temperature)
@@ -326,5 +331,16 @@ object OllamaOptionsConverter : OptionsConverter<OllamaChatOptions> {
             .presencePenalty(options.presencePenalty)
             .frequencyPenalty(options.frequencyPenalty)
             .topK(options.topK)
+            .thinkOption(toThinkOption(options.thinking))
             .build()
+
+    private fun toThinkOption(thinkingConfig: Thinking?): ThinkOption {
+        val budget = thinkingConfig?.tokenBudget ?: return ThinkOption.ThinkBoolean.DISABLED
+
+        return when {
+            budget < OLLAMA_THINK_LEVEL_LOW_THRESHOLD -> ThinkOption.ThinkLevel.LOW
+            budget < OLLAMA_THINK_LEVEL_MEDIUM_THRESHOLD -> ThinkOption.ThinkLevel.MEDIUM
+            else -> ThinkOption.ThinkLevel.HIGH
+        }
+    }
 }
