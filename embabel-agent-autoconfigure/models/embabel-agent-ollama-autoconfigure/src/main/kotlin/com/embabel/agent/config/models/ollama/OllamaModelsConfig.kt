@@ -319,11 +319,11 @@ class OllamaModelsConfig(
     }
 }
 
-private const val OLLAMA_THINK_LEVEL_LOW_THRESHOLD = 2000
-
-private const val OLLAMA_THINK_LEVEL_MEDIUM_THRESHOLD = 4000
-
 object OllamaOptionsConverter : OptionsConverter<OllamaChatOptions> {
+    private const val OLLAMA_THINK_LEVEL_LOW_THRESHOLD = 2000
+
+    private const val OLLAMA_THINK_LEVEL_MEDIUM_THRESHOLD = 4000
+
     override fun convertOptions(options: LlmOptions): OllamaChatOptions =
         OllamaChatOptions.builder()
             .temperature(options.temperature)
