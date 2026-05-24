@@ -60,6 +60,8 @@ open class JacksonOutputConverter<T> protected constructor(
      * - ALLOW_SINGLE_QUOTES: `{'a': 'b'}` is valid
      * - ALLOW_UNQUOTED_FIELD_NAMES: `{a: "b"}` is valid
      * - ALLOW_JAVA_COMMENTS: `{"a": 1 /* comment */}` is valid
+     * - ALLOW_UNESCAPED_CONTROL_CHARS: """{"name":"Hello
+     * World"}""" is valid.
      */
     private val lenientMapper: ObjectMapper by lazy {
         objectMapper.copy().apply {
@@ -69,6 +71,7 @@ open class JacksonOutputConverter<T> protected constructor(
             enable(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature())
             enable(JsonReadFeature.ALLOW_JAVA_COMMENTS.mappedFeature())
             enable(JsonReadFeature.ALLOW_YAML_COMMENTS.mappedFeature())
+            enable(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature())
         }
     }
 

@@ -356,6 +356,20 @@ class JacksonOutputConverterTest {
             assertEquals("test", result?.name)
             assertEquals(42, result?.value)
         }
+        @Test
+        fun `handles unquoted CTRL characters`() {
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
+            // Value with unquoted newline character.
+            val name = """Hello
+World"""
+            val messyJson = """{"name":"$name", "value": 42}"""
+
+            val result = converter.convert(messyJson)
+
+            assertNotNull(result)
+            assertEquals(name, result?.name)
+            assertEquals(42, result?.value)
+        }
     }
 
     @Nested
