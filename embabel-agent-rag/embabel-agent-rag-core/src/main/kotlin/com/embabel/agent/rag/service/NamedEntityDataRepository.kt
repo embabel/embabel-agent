@@ -609,44 +609,61 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
      * ```
      *
      * @param id the entity ID
-     * @return an instance implementing all matching interfaces from dataDictionary,
-     *         or null if: entity not found, no dataDictionary configured, or no interfaces match
+     * @return a `NamedEntity` view of the row, in order of preference:
+     *  - typed native instance (Jackson-hydrated via [nativeFinder]) when one of the
+     *    matching JVM types loads cleanly,
+     *  - a JDK proxy implementing every matching interface type,
+     *  - the raw [NamedEntityData] row itself when neither typed path succeeds
+     *    (e.g. all matching types are concrete classes whose constructor
+     *    requires fields the stored row doesn't have).
+     *
+     *  Returns `null` only when the row genuinely does not exist in the store.
+     *  Callers that need a particular typed view should `is`-check the result;
+     *  the fallback `NamedEntityData` correctly implements `NamedEntity` so
+     *  `name`, `labels()`, `description`, and `properties` remain queryable
+     *  even when typed hydration is impossible.
      */
     @Suppress("UNCHECKED_CAST")
     fun findEntityById(id: String): NamedEntity? {
+        // Genuine "no row in the store" — the only case where null is correct.
         val entity = findById(id) ?: return null
         val entityLabels = entity.labels()
 
-        // Find all JVM types whose labels intersect with entity labels
+        // Find all JVM types whose labels intersect with entity labels.
         val matchingTypes = dataDictionary.jvmTypes.filter { jvmType ->
             jvmType.labels.any { label -> entityLabels.contains(label) }
         }
 
-        if (matchingTypes.isEmpty()) {
-            return null
-        }
-
-        // Try native store first for each matching type - accept exception as "not supported"
+        // Try native store first for each matching type - accept exception as
+        // "not supported" (typically Jackson hydration failure for partial rows).
         for (jvmType in matchingTypes) {
             val clazz = jvmType.clazz as Class<out NamedEntity>
             try {
                 nativeFinder.findById(id, clazz)?.let { return it }
             } catch (_: Exception) {
-                // Native store doesn't support this type, continue to next or fall back
+                // Native store doesn't support this type; continue.
             }
         }
 
-        // Fall back to creating a proxy implementing all matching interfaces
-        // Filter to only interfaces - Java proxies cannot implement classes
+        // Fall back to a proxy implementing all matching INTERFACE types.
+        // JDK proxies cannot implement concrete classes — filter accordingly.
         val interfaces = matchingTypes
             .filter { it.clazz.isInterface }
             .map { it.clazz as Class<out NamedEntity> }
             .toTypedArray()
-
-        if (interfaces.isEmpty()) {
-            return null
+        if (interfaces.isNotEmpty()) {
+            return entity.toInstance(*interfaces)
         }
 
-        return entity.toInstance(*interfaces)
+        // Last-resort fallback. The row exists, the data dictionary knows
+        // some matching types, but every matching type is a concrete class
+        // that we couldn't Jackson-hydrate AND there's no interface to
+        // proxy over. Returning the raw `NamedEntityData` keeps `name`,
+        // `description`, `labels()`, and `properties` available — strictly
+        // more useful than dropping the row entirely. Callers that need a
+        // specific typed view will fail their `is` check; the truth of
+        // "row exists but typed reconstruction was not possible" is now
+        // observable instead of silently null.
+        return entity
     }
 }
