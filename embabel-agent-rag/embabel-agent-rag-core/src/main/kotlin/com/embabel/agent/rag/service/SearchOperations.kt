@@ -166,8 +166,16 @@ interface TextSearch : TypeRetrievalOperations {
     /**
      * Notes on how much Lucene syntax is supported by this implementation
      * to help LLMs and users craft effective queries.
+     *
+     * Default is empty — implementations are expected to override with the
+     * actual supported syntax (e.g. `"Full Lucene syntax supported"`,
+     * `"PostgreSQL substring matching only"`, `"Not supported"`). The
+     * default exists so test mocks and minimal stubs don't have to
+     * provide a value, and so [TextSearchTools] can compose its tool
+     * description without crashing on un-stubbed mocks.
      */
     val luceneSyntaxNotes: String
+        get() = ""
 }
 
 /**

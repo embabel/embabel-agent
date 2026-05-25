@@ -232,9 +232,20 @@ data class ToolishRag @JvmOverloads constructor(
         )
     }
 
-    // LlmReference: returns flat list of inner tools with naming strategy applied
+    // LlmReference: returns flat list of inner tools with naming strategy applied.
+    //
+    // Items in [toolObjects] may already BE [Tool] instances (e.g. [TextSearchTools],
+    // which is a Tool with a description composed dynamically from the store's
+    // [TextSearch.luceneSyntaxNotes]) or they may be classes carrying `@LlmTool`-annotated
+    // methods (most other SearchTools). Handle both — `Tool.fromInstance` would throw
+    // "no @LlmTool methods" on the Tool branch.
     override fun tools(): List<Tool> = toolObjects
-        .flatMap { Tool.fromInstance(it) }
+        .flatMap { instance ->
+            when (instance) {
+                is Tool -> listOf(instance)
+                else -> Tool.fromInstance(instance)
+            }
+        }
         .map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) }
 
     // Tool interface implementation via lazy UnfoldingTool
@@ -255,12 +266,12 @@ data class ToolishRag @JvmOverloads constructor(
     override fun call(input: String): Tool.Result =
         delegate.call(input)
 
+    // The text-search syntax notes USED to be emitted here, but they're now
+    // composed into the `textSearch` tool's own description in
+    // [TextSearchTools] — single source of truth, fixes the contradiction
+    // surfaced by embabel/embabel-agent#1298. Don't add the syntax line
+    // back here unless the tool description is also updated.
     override fun notes() = """
-        ${
-        (searchOperations as? TextSearch)?.let {
-            "Lucene search syntax support: ${searchOperations.luceneSyntaxNotes}\n"
-        }
-    }
         Hints: ${validHints.joinToString("\n") { it.contribution() }}
         Search acceptance criteria:
         $goal
