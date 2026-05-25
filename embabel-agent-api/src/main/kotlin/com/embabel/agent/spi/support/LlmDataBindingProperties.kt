@@ -43,6 +43,7 @@ class LlmDataBindingProperties(
 ) : RetryTemplateProvider {
 
     private val logger = LoggerFactory.getLogger(LlmDataBindingProperties::class.java)
+    private val maxAttemptsConfigPropertyMessage = "The maximum attempt can be configured using embabel.agent.platform.llm-operations.data-binding.max-attempts"
 
     override fun retryTemplate(name: String): RetryTemplate {
         return RetryTemplate.builder()
@@ -65,18 +66,20 @@ class LlmDataBindingProperties(
                     }
                     if (isRateLimitError(throwable)) {
                         logger.info(
-                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}",
+                            "LLM invocation {} RATE LIMITED: Retry attempt {} of {}.{}",
                             name,
                             context.retryCount,
                             maxAttempts,
+                            maxAttemptsConfigPropertyMessage
                         )
                     } else {
                         logger.warn(
-                            "LLM invocation {}: Retry attempt {} of {} due to: {}",
+                            "LLM invocation {}: Retry attempt {} of {} due to: {}. {}",
                             name,
                             context.retryCount,
                             maxAttempts,
-                            throwable.message ?: "Unknown error"
+                            throwable.message ?: "Unknown error",
+                            maxAttemptsConfigPropertyMessage
                         )
                     }
                 }
