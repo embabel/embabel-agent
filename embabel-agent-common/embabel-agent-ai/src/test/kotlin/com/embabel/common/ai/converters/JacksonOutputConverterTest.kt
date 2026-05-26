@@ -15,13 +15,16 @@
  */
 package com.embabel.common.ai.converters
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -356,14 +359,27 @@ class JacksonOutputConverterTest {
             assertEquals("test", result?.name)
             assertEquals(42, result?.value)
         }
+
         @Test
         fun `handles unquoted CTRL characters`() {
-            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
             // Value with unquoted newline character.
             val name = """Hello
 World"""
             val messyJson = """{"name":"$name", "value": 42}"""
 
+            // Parse the malformed json string without the lenient mapper.
+            val mapper = ObjectMapper().registerModule(
+                KotlinModule.Builder().build()
+            )
+            val exception = assertThrows<com.fasterxml.jackson.databind.JsonMappingException> {
+                mapper.readValue(messyJson, SimpleObject::class.java)
+            }
+
+            // Verify that the assertion is thrown as expected.
+            assert(exception.message?.contains("Illegal unquoted character ((CTRL-CHAR, code 10))") == true)
+
+            // Parse the malformed json string with the lenient mapper.
+            val converter = JacksonOutputConverter(SimpleObject::class.java, objectMapper)
             val result = converter.convert(messyJson)
 
             assertNotNull(result)
