@@ -1,3 +1,3 @@
-# RAG Extensions
+# RAG Pipeline Support: Obsolete
 
-RAG result enhancement pipeline, HyDE support and other sophisticated RAG features.
+Use agentic RAG via ToolishRag

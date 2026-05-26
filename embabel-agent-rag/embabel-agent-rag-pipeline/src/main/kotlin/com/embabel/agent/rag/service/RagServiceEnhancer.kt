@@ -22,7 +22,7 @@ import org.jetbrains.annotations.ApiStatus
 /**
  * Given a RAG service, create an enhanced RAG service for use in a particular operation.
  */
-@ApiStatus.Experimental
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 interface RagServiceEnhancer {
 
     /**

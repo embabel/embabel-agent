@@ -24,7 +24,7 @@ import org.jetbrains.annotations.ApiStatus
 /**
  * Expose a RagService as an LlmReference with tools.
  */
-@ApiStatus.Experimental
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 class RagServiceReference(
     override val name: String,
     override val description: String,

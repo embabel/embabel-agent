@@ -20,7 +20,7 @@ import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.core.types.ZeroToOne
 import org.jetbrains.annotations.ApiStatus
 
-@ApiStatus.Experimental
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 data class DualShotConfig(
     val summaryWords: Int = 100,
 )

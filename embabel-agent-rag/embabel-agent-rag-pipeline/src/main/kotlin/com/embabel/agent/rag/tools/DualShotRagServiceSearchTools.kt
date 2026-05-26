@@ -28,6 +28,7 @@ import com.embabel.common.util.loggerFor
  * and will be used consistently in all calls.
  * The LLM needs to provide only the search query.
  */
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 class DualShotRagServiceSearchTools(
     val options: RagOptions,
     val summarizer: RagResponseSummarizer,

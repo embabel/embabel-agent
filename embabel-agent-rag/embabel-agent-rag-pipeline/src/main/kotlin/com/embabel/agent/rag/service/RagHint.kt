@@ -22,6 +22,7 @@ import java.time.Duration
  * There should be one hint type per class.
  * Examples include HyDE, result compression and DesiredMaxLatency
  */
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 interface RagHint
 
 open class ResultCompression(

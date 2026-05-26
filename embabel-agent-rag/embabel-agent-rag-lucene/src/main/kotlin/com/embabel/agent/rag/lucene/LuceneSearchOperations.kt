@@ -16,7 +16,6 @@
 package com.embabel.agent.rag.lucene
 
 import com.embabel.agent.api.common.primitive.KeywordExtractor
-import com.embabel.agent.rag.service.support.VectorMath
 import com.embabel.agent.rag.ingestion.ChunkTransformer
 import com.embabel.agent.rag.ingestion.ContentChunker
 import com.embabel.agent.rag.ingestion.ContentChunker.Companion.CONTAINER_SECTION_ID
@@ -36,10 +35,8 @@ import com.embabel.agent.rag.model.Retrievable
 import com.embabel.agent.rag.service.CoreSearchOperations
 import com.embabel.agent.rag.service.RagRequest
 import com.embabel.agent.rag.service.ResultExpander
-import com.embabel.agent.rag.service.support.FunctionRagFacet
-import com.embabel.agent.rag.service.support.RagFacet
-import com.embabel.agent.rag.service.support.RagFacetProvider
 import com.embabel.agent.rag.service.support.RagFacetResults
+import com.embabel.agent.rag.service.support.VectorMath
 import com.embabel.agent.rag.store.AbstractChunkingContentElementRepository
 import com.embabel.agent.rag.store.DocumentDeletionResult
 import com.embabel.agent.rag.store.EmbeddingBatchGenerator
@@ -96,8 +93,7 @@ class LuceneSearchOperations @JvmOverloads constructor(
     chunkerConfig: ContentChunker.Config = ContentChunker.Config(),
     chunkTransformer: ChunkTransformer = ChunkTransformer.NO_OP,
     private val indexPath: Path? = null,
-) : RagFacetProvider,
-    AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer),
+) : AbstractChunkingContentElementRepository(chunkerConfig, chunkTransformer),
     HasInfoString,
     Closeable,
     CoreSearchOperations,
@@ -182,19 +178,6 @@ class LuceneSearchOperations @JvmOverloads constructor(
 
     override fun supportsType(type: String): Boolean {
         return type == Chunk::class.java.simpleName
-    }
-
-    override fun facets(): List<RagFacet<out Retrievable>> {
-        return listOf(
-            FunctionRagFacet(
-                name = "$name.hybrid",
-                searchFunction = ::hybridSearch,
-            ),
-            FunctionRagFacet(
-                name = "$name.keywords",
-                searchFunction = ::keywordSearch,
-            )
-        )
     }
 
     override fun findAllChunksById(chunkIds: List<String>): List<Chunk> {

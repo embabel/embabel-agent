@@ -34,6 +34,7 @@ data class RagFacetResults<R : Retrievable>(
  * and returns results of a particular type.
  * A FacetedRagService combines results from multiple facets.
  */
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 interface RagFacet<R : Retrievable> : Named {
 
     fun search(ragRequest: RagRequest): RagFacetResults<R>
@@ -47,6 +48,7 @@ class FunctionRagFacet<R : Retrievable>(
     override fun search(ragRequest: RagRequest): RagFacetResults<R> = searchFunction(ragRequest)
 }
 
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 interface RagFacetProvider {
 
     fun facets(): List<RagFacet<out Retrievable>>
