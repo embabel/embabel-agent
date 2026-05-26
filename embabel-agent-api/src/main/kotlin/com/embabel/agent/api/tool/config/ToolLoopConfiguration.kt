@@ -31,7 +31,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  *         max-iterations: 20
  *         tool-not-found:
  *           max-retries: 3
- *           min-fuzzy-length: 3
+ *           min-token-length: 3
+ *           min-token-similarity: 0.25  # Jaccard token similarity threshold (0.0-1.0)
  *         parallel:
  *           per-tool-timeout: 30s
  *           batch-timeout: 60s
@@ -135,8 +136,10 @@ data class ToolLoopConfiguration(
     data class ToolNotFoundProperties(
         /** Maximum consecutive tool-not-found retries before throwing */
         val maxRetries: Int = 3,
-        /** Minimum tool name length for fuzzy matching */
-        val minFuzzyLength: Int = 3,
+        /** Minimum token length for token-based matching */
+        val minTokenLength: Int = 3,
+        /** Minimum Jaccard token similarity (0.0-1.0) for fuzzy matching */
+        val minTokenSimilarity: Double = 0.25,
     )
 
     /**

@@ -50,7 +50,8 @@ class ToolLoopFactoryConfiguration(
     @ConditionalOnMissingBean
     fun toolNotFoundPolicy(): ToolNotFoundPolicy = AutoCorrectionPolicy(
         maxRetries = config.toolNotFound.maxRetries,
-        minFuzzyLength = config.toolNotFound.minFuzzyLength,
+        minTokenLength = config.toolNotFound.minTokenLength,
+        minTokenSimilarity = config.toolNotFound.minTokenSimilarity,
     )
 
     @Bean

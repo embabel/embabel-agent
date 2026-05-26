@@ -136,6 +136,63 @@ class ToolNotFoundPolicyTest {
         fun `uses default max retries constant`() {
             assertEquals(3, AutoCorrectionPolicy.DEFAULT_MAX_RETRIES)
         }
+
+        @Nested
+        inner class CustomParametersTest {
+
+            @Test
+            fun `uses default min token length constant`() {
+                assertEquals(3, AutoCorrectionPolicy.DEFAULT_MIN_TOKEN_LENGTH)
+            }
+
+            @Test
+            fun `uses default min token similarity constant`() {
+                assertEquals(0.25, AutoCorrectionPolicy.DEFAULT_MIN_TOKEN_SIMILARITY, 0.001)
+            }
+
+            @Test
+            fun `custom minTokenLength filters short tokens`() {
+                val shortTools = listOf(
+                    MockTool("ab", "Short", { Tool.Result.text("{}") }),
+                    MockTool("vectorSearch", "Search", { Tool.Result.text("{}") }),
+                )
+                // With minTokenLength = 1, "ab" tokens should be included
+                val policy = AutoCorrectionPolicy(minTokenLength = 1)
+                val action = policy.handle("ab_something", shortTools)
+                val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
+                assertTrue(feedback.contains("'ab'"))
+            }
+
+            @Test
+            fun `custom minTokenSimilarity raises threshold`() {
+                val multiTools = listOf(
+                    MockTool("vectorSearch", "Search", { Tool.Result.text("{}") }),
+                    MockTool("vectorQuery", "Query", { Tool.Result.text("{}") }),
+                    MockTool("unrelated", "Other", { Tool.Result.text("{}") }),
+                )
+                // With higher threshold, only stronger matches pass
+                val policy = AutoCorrectionPolicy(minTokenSimilarity = 0.5)
+                val action = policy.handle("ragbot_vector_tool", multiTools)
+                val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
+                // With 0.5 threshold, weak matches should not appear
+                assertFalse(feedback.contains("Did you mean"))
+                assertFalse(feedback.contains("Possible matches"))
+            }
+
+            @Test
+            fun `custom minTokenSimilarity lowers threshold`() {
+                val weakTools = listOf(
+                    MockTool("search", "Search", { Tool.Result.text("{}") }),
+                    MockTool("query", "Query", { Tool.Result.text("{}") }),
+                )
+                // With lower threshold, weaker matches pass
+                val policy = AutoCorrectionPolicy(minTokenSimilarity = 0.1)
+                val action = policy.handle("vectorSearch", weakTools)
+                val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
+                // With 0.1 threshold, "search" should match because it shares one token
+                assertTrue(feedback.contains("'search'"))
+            }
+        }
     }
 
     @Nested
