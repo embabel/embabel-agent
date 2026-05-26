@@ -17,8 +17,10 @@ package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.OperationContext
+import com.embabel.agent.api.dsl.SnakeMeal
 import com.embabel.agent.core.IoBinding
 import com.embabel.agent.core.ProcessContext
+import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.unit.FakeOperationContext
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Method
@@ -27,6 +29,7 @@ import kotlin.reflect.jvm.kotlinFunction
 import kotlin.test.DefaultAsserter.assertSame
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ActionMethodArgumentResolverTest {
@@ -117,6 +120,18 @@ class ActionMethodArgumentResolverTest {
             expected = expected,
             actual = arg
         )
+    }
+
+    @Test
+    fun `blackboard resolveArgument returns null for Kotlin parameter with Nullable annotation when blackboard has no value`() {
+        val argumentResolver = BlackboardArgumentResolver()
+        val javaMethod = OneTransformerActionWithNullableParameterJavaSpring::class.java
+            .getDeclaredMethod("toPerson", UserInput::class.java, SnakeMeal::class.java)
+        val javaParameter = javaMethod.parameters[1]
+        val kotlinParameter = javaMethod.kotlinFunction!!.valueParameters[1]
+
+        val arg = argumentResolver.resolveArgument(javaParameter, kotlinParameter, operationContext)
+        assertNull(arg)
     }
 
 
