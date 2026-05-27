@@ -19,7 +19,7 @@ import com.embabel.common.ai.model.LlmOptions
 import org.jetbrains.annotations.ApiStatus
 import org.springframework.boot.context.properties.ConfigurationProperties
 
-@ApiStatus.Experimental
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 @ConfigurationProperties(prefix = "embabel.agent.rag")
 data class RagServiceEnhancerProperties(
     val compressionLlm: LlmOptions = LlmOptions.withAutoLlm(),

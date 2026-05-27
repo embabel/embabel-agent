@@ -105,10 +105,13 @@ interface AgentScope : Named, Described, GoalSource, ConditionSource, ActionSour
         return newAgent
     }
 
-    fun resolveType(name: String): DomainType {
-        return domainTypes.find { it.name == name }
-            ?: error("Schema type '$name' not found in agent ${this.name}: types were [${domainTypes.joinToString(", ") { it.name }}]")
-    }
+    fun resolveType(name: String): DomainType =
+        domainTypes.findTypeByNameOrSimpleName(name)
+            ?: error(
+                "Schema type '$name' not found in agent ${this.name}: types were [${
+                    domainTypes.joinToString(", ") { it.name }
+                }]",
+            )
 
     companion object {
 
@@ -161,3 +164,17 @@ private data class AgentScopeImpl(
 
     override val domainTypes = super.domainTypes + referenceTypes
 }
+
+/**
+ * Look up a [DomainType] by exact [DomainType.name] (FQN or whatever the
+ * type was registered under) and fall back to a simple-name match
+ * (`name.substringAfterLast('.')`). Lets callers refer to a type by its
+ * natural simple name in YAML / spec form even though the platform
+ * registered the JVM-backed type under its FQN. Returns `null` so callers
+ * can chain other lookups (classpath, etc.) before throwing.
+ *
+ * Shared by [AgentScope.resolveType] and downstream action / goal
+ * machinery so the lookup behaves identically everywhere.
+ */
+fun Collection<DomainType>.findTypeByNameOrSimpleName(name: String): DomainType? =
+    find { it.name == name } ?: find { it.name.substringAfterLast('.') == name }

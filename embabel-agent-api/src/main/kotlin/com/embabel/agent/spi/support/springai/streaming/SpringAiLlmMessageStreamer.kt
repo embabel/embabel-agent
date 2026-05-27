@@ -16,10 +16,12 @@
 package com.embabel.agent.spi.support.springai.streaming
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.SpringAiLlmMessageSender
 import com.embabel.agent.spi.support.springai.toSpringAiMessage
 import com.embabel.agent.spi.support.springai.toSpringToolCallbacks
+import com.embabel.agent.spi.support.springai.withInspectors
 import com.embabel.chat.Message
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -31,10 +33,12 @@ import reactor.core.publisher.Flux
  *
  * Streams raw content chunks from the LLM using Spring AI's ChatClient.
  * Tool execution is handled internally by Spring AI during streaming.
+ * Tool call events can be observed via [ToolCallInspector].
  *
  * @param chatClient The Spring AI ChatClient for streaming
  * @param chatOptions Options for the LLM call (temperature, model, etc.)
  * @see SpringAiLlmMessageSender for non-streaming equivalent
+ * @see ToolCallInspector for tool call observation
  */
 internal class SpringAiLlmMessageStreamer(
     private val chatClient: ChatClient,
@@ -44,9 +48,10 @@ internal class SpringAiLlmMessageStreamer(
     override fun stream(
         messages: List<Message>,
         tools: List<Tool>,
+        toolCallInspectors: List<ToolCallInspector>,
     ): Flux<String> {
         val springAiMessages = messages.map { it.toSpringAiMessage() }
-        val toolCallbacks = tools.toSpringToolCallbacks()
+        val toolCallbacks = tools.toSpringToolCallbacks().withInspectors(toolCallInspectors)
         val prompt = Prompt(springAiMessages)
 
         return chatClient

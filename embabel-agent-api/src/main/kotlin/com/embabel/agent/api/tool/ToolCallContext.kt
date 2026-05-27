@@ -63,6 +63,22 @@ class ToolCallContext private constructor(
      */
     fun toMap(): Map<String, Any> = entries.toMap()
 
+    /**
+     * Unique identifier of the agentic-loop iteration in which this tool
+     * call is happening, or `null` when the calling action did not set one.
+     *
+     * Set by the action that builds the LLM rendering chain via
+     * `.withToolCallContext(mapOf(LOOP_ID_KEY to <fresh uuid>))`. Every
+     * `Tool.call` within that loop receives the same id; a different loop
+     * gets a different id.
+     *
+     * Read by per-loop one-shot tools (skill activation, code-writing rule
+     * emission, "already kicked off the X workflow this turn" guards) — see
+     * [LoopMemo] for the canonical "first time this loop" memoisation
+     * helper that sits on top of this.
+     */
+    fun loopId(): String? = get(LOOP_ID_KEY)
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is ToolCallContext) return false
@@ -74,6 +90,13 @@ class ToolCallContext private constructor(
     override fun toString(): String = "ToolCallContext($entries)"
 
     companion object {
+
+        /**
+         * Well-known [ToolCallContext] key for the agentic-loop identifier.
+         * See [loopId] for the read path and [LoopMemo] for the canonical
+         * "have I already done X this loop?" helper that consumes it.
+         */
+        const val LOOP_ID_KEY: String = "embabel.toolLoopId"
 
         @JvmField
         val EMPTY = ToolCallContext(emptyMap())

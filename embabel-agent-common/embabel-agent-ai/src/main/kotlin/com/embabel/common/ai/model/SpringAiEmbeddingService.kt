@@ -32,6 +32,7 @@ data class SpringAiEmbeddingService(
     override val provider: String,
     override val model: EmbeddingModel,
     val configuredDimensions: Int? = null,
+    override val pricingModel: PricingModel? = null,
 ) : EmbeddingService, AiModel<EmbeddingModel> {
 
     override val dimensions get() = configuredDimensions ?: model.dimensions()

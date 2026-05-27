@@ -18,6 +18,7 @@ package com.embabel.agent.spi.loop
 import com.embabel.agent.api.common.Asyncer
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration
@@ -52,8 +53,9 @@ interface ToolLoopFactory {
      * @param injectionStrategy strategy for dynamic tool injection
      * @param maxIterations maximum loop iterations
      * @param toolDecorator optional decorator for injected tools
-     * @param inspectors read-only observers for tool loop lifecycle events
-     * @param transformers transformers for modifying conversation history or tool results
+     * @param toolLoopInspectors read-only observers for tool loop lifecycle events
+     * @param toolLoopTransformers transformers for modifying conversation history or tool results
+     * @param toolCallInspectors read-only observers for individual tool call events
      * @param toolCallContext context propagated to tool invocations
      */
     fun create(
@@ -62,10 +64,12 @@ interface ToolLoopFactory {
         injectionStrategy: ToolInjectionStrategy,
         maxIterations: Int,
         toolDecorator: ((Tool) -> Tool)?,
-        inspectors: List<ToolLoopInspector>,
-        transformers: List<ToolLoopTransformer>,
+        toolLoopInspectors: List<ToolLoopInspector>,
+        toolLoopTransformers: List<ToolLoopTransformer>,
+        toolCallInspectors: List<ToolCallInspector>,
         toolCallContext: ToolCallContext,
         toolNotFoundPolicy: ToolNotFoundPolicy? = null,
+        emptyResponsePolicy: EmptyResponsePolicy? = null,
     ): ToolLoop
 
     companion object {
@@ -79,8 +83,9 @@ interface ToolLoopFactory {
             config: ToolLoopConfiguration,
             asyncer: Asyncer,
             defaultToolNotFoundPolicy: ToolNotFoundPolicy,
+            defaultEmptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
         ): ToolLoopFactory =
-            ConfigurableToolLoopFactory(config, asyncer, defaultToolNotFoundPolicy)
+            ConfigurableToolLoopFactory(config, asyncer, defaultToolNotFoundPolicy, defaultEmptyResponsePolicy)
     }
 }
 
@@ -94,6 +99,7 @@ internal class ConfigurableToolLoopFactory(
     private val config: ToolLoopConfiguration,
     private val asyncer: Asyncer,
     private val defaultToolNotFoundPolicy: ToolNotFoundPolicy,
+    private val defaultEmptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
 ) : ToolLoopFactory {
 
     override fun create(
@@ -102,12 +108,15 @@ internal class ConfigurableToolLoopFactory(
         injectionStrategy: ToolInjectionStrategy,
         maxIterations: Int,
         toolDecorator: ((Tool) -> Tool)?,
-        inspectors: List<ToolLoopInspector>,
-        transformers: List<ToolLoopTransformer>,
+        toolLoopInspectors: List<ToolLoopInspector>,
+        toolLoopTransformers: List<ToolLoopTransformer>,
+        toolCallInspectors: List<ToolCallInspector>,
         toolCallContext: ToolCallContext,
         toolNotFoundPolicy: ToolNotFoundPolicy?,
+        emptyResponsePolicy: EmptyResponsePolicy?,
     ): ToolLoop {
-        val policy = toolNotFoundPolicy ?: defaultToolNotFoundPolicy
+        val tnfPolicy = toolNotFoundPolicy ?: defaultToolNotFoundPolicy
+        val erPolicy = emptyResponsePolicy ?: defaultEmptyResponsePolicy
         return when (config.type) {
             ToolLoopType.DEFAULT -> DefaultToolLoop(
                 llmMessageSender = llmMessageSender,
@@ -115,10 +124,12 @@ internal class ConfigurableToolLoopFactory(
                 injectionStrategy = injectionStrategy,
                 maxIterations = maxIterations,
                 toolDecorator = toolDecorator,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
+                toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
-                toolNotFoundPolicy = policy,
+                toolNotFoundPolicy = tnfPolicy,
+                emptyResponsePolicy = erPolicy,
             )
             ToolLoopType.PARALLEL -> ParallelToolLoop(
                 llmMessageSender = llmMessageSender,
@@ -126,12 +137,14 @@ internal class ConfigurableToolLoopFactory(
                 injectionStrategy = injectionStrategy,
                 maxIterations = maxIterations,
                 toolDecorator = toolDecorator,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
+                toolCallInspectors = toolCallInspectors,
                 asyncer = asyncer,
                 parallelConfig = config.parallel,
                 toolCallContext = toolCallContext,
-                toolNotFoundPolicy = policy,
+                toolNotFoundPolicy = tnfPolicy,
+                emptyResponsePolicy = erPolicy,
             )
         }
     }

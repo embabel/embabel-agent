@@ -118,13 +118,14 @@ class NullReturningTriggerAgent {
     fun processRequest(
         request: IncomingRequest,
         context: RequestContext
-    ): Unit {
+    ): Void? {
         invocationCount++
-        // Returns Unit (void) - ActionVoidResult added to blackboard
+        // Returns null - ActionVoidResult added to blackboard
         // lastResult becomes ActionVoidResult, not IncomingRequest
         // trigger precondition lastResult:IncomingRequest becomes FALSE
         // action does not rerun
         println("processRequest invoked: count=$invocationCount")
+        return null
     }
 }
 

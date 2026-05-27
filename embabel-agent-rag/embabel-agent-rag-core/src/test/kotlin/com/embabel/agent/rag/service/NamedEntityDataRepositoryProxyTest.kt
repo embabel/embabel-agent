@@ -43,6 +43,18 @@ interface Customer : NamedEntity {
     val customerId: String
 }
 
+/**
+ * Concrete class used to exercise the "no interface to proxy" fallback
+ * path in [NamedEntityDataRepository.findEntityById]. JDK proxies
+ * cannot implement concrete classes, so a row labelled `ConcretePerson`
+ * forces the resolver into its raw-`NamedEntityData` fallback branch.
+ */
+open class ConcretePerson(
+    override val id: String,
+    override val name: String,
+    override val description: String = "",
+) : NamedEntity
+
 class NamedEntityDataRepositoryProxyTest {
 
     private val testDictionary = DataDictionary.fromClasses(
@@ -393,7 +405,15 @@ class NamedEntityDataRepositoryProxyTest {
         }
 
         @Test
-        fun `findEntityById returns null when no interfaces match entity labels`() {
+        fun `findEntityById returns raw NamedEntityData when no interfaces match`() {
+            // The row exists in the store, but the data dictionary doesn't
+            // know about its labels. Pre-fallback behaviour was `null`,
+            // which dropped real KG content on the floor whenever a
+            // consumer queried a row of a type they hadn't registered.
+            // The contract is now: return what we have — the raw
+            // NamedEntityData (which implements NamedEntity). Callers
+            // doing `is Person` checks still fail correctly; callers
+            // doing `.name` / `.labels()` get the truth.
             val dictRepository = InMemoryNamedEntityDataRepository(
                 dataDictionary = DataDictionary.fromClasses("test", Person::class.java)
             )
@@ -408,6 +428,60 @@ class NamedEntityDataRepositoryProxyTest {
             )
 
             val result = dictRepository.findEntityById("customer-1")
+
+            assertNotNull(result, "row exists; should not return null")
+            assertTrue(result is NamedEntityData, "should fall back to raw NamedEntityData")
+            assertEquals("customer-1", result!!.id)
+            assertEquals("Charlie", result.name)
+            assertTrue(result.labels().contains("Customer"))
+            assertFalse(result is Person, "raw data is not a typed Person — type check should still fail")
+        }
+
+        @Test
+        fun `findEntityById returns raw NamedEntityData when matching type is a concrete class`() {
+            // The concrete-class case — the data dictionary knows about a
+            // matching type, but JDK proxies can't implement non-interface
+            // classes, and Jackson hydration into the concrete class fails
+            // (we simulate that here by registering a concrete class with
+            // a constructor the stored row can't satisfy). Pre-fallback
+            // behaviour was `null` after both attempts failed; new
+            // contract returns the raw row.
+            val dictRepository = InMemoryNamedEntityDataRepository(
+                dataDictionary = DataDictionary.fromClasses(
+                    "test",
+                    ConcretePerson::class.java,
+                )
+            )
+            dictRepository.save(
+                SimpleNamedEntityData(
+                    id = "concrete-1",
+                    name = "Dora",
+                    description = "Concrete-class person",
+                    // Label matches ConcretePerson's simple-class name,
+                    // so it passes the matching-types filter.
+                    labels = setOf("ConcretePerson"),
+                    properties = mapOf("ignored" to "value"),
+                )
+            )
+
+            val result = dictRepository.findEntityById("concrete-1")
+
+            assertNotNull(result, "row exists; should not return null")
+            assertTrue(result is NamedEntityData, "concrete-only match → raw fallback")
+            assertEquals("Dora", result!!.name)
+            assertTrue(result.labels().contains("ConcretePerson"))
+        }
+
+        @Test
+        fun `findEntityById still returns null when row genuinely does not exist`() {
+            // The single remaining null contract: row truly absent. Make
+            // sure the fallback didn't accidentally invent rows out of
+            // thin air.
+            val dictRepository = InMemoryNamedEntityDataRepository(
+                dataDictionary = DataDictionary.fromClasses("test", Person::class.java)
+            )
+
+            val result = dictRepository.findEntityById("does-not-exist")
 
             assertNull(result)
         }

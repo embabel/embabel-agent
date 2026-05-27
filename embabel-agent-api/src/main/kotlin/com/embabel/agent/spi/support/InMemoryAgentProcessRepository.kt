@@ -15,8 +15,8 @@
  */
 package com.embabel.agent.spi.support
 
+import com.embabel.agent.core.AbstractAgentProcessRepository
 import com.embabel.agent.core.AgentProcess
-import com.embabel.agent.core.AgentProcessRepository
 import com.embabel.agent.spi.config.spring.ProcessRepositoryProperties
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -30,7 +30,7 @@ import kotlin.concurrent.write
  */
 class InMemoryAgentProcessRepository(
     private val properties: ProcessRepositoryProperties = ProcessRepositoryProperties(),
-) : AgentProcessRepository {
+) : AbstractAgentProcessRepository() {
 
     private val map: ConcurrentHashMap<String, AgentProcess> = ConcurrentHashMap()
     private val accessOrder: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
@@ -45,7 +45,7 @@ class InMemoryAgentProcessRepository(
         map.values.filter { it.parentId == parentId }
     }
 
-    override fun save(agentProcess: AgentProcess): AgentProcess = lock.write {
+    override fun doSave(agentProcess: AgentProcess): AgentProcess = lock.write {
         val processId = agentProcess.id
 
         // If this process already exists, remove it from access order to re-add at end
@@ -65,7 +65,7 @@ class InMemoryAgentProcessRepository(
         agentProcess
     }
 
-    override fun update(agentProcess: AgentProcess) {
+    override fun doUpdate(agentProcess: AgentProcess) {
         // Nothing to do here as the reference is already updated in memory
     }
 

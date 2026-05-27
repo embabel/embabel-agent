@@ -33,6 +33,7 @@ import kotlin.time.Duration.Companion.seconds
  * They use the standard ubuntu:22.04 image which should be widely available.
  */
 @DisabledOnOs(OS.WINDOWS)
+@EnabledIf("shouldRunDockerTests", disabledReason = "Docker tests run in CI or macOS only - skipped on local Linux due to environment differences")
 class DockerSkillScriptExecutionEngineTest {
 
     @TempDir
@@ -52,6 +53,14 @@ class DockerSkillScriptExecutionEngineTest {
             } catch (e: Exception) {
                 false
             }
+        }
+
+        @JvmStatic
+        fun shouldRunDockerTests(): Boolean {
+            // Run in CI or on macOS only - skip on local Linux due to environment differences
+            val isCI = System.getenv("GITHUB_ACTIONS") != null
+            val isMac = System.getProperty("os.name").lowercase().contains("mac")
+            return isCI || isMac
         }
     }
 

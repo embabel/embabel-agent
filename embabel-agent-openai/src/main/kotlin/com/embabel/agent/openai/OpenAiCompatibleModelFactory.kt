@@ -280,6 +280,7 @@ open class OpenAiCompatibleModelFactory(
         model: String,
         provider: String,
         configuredDimensions: Int? = null,
+        pricingModel: PricingModel? = null,
     ): EmbeddingService {
         val embeddingModel = OpenAiEmbeddingModel(
             openAiApi,
@@ -293,6 +294,7 @@ open class OpenAiCompatibleModelFactory(
             model = embeddingModel,
             provider = provider,
             configuredDimensions = configuredDimensions,
+            pricingModel = pricingModel,
         )
     }
 

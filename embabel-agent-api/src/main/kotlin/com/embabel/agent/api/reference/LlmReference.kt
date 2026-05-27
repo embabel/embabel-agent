@@ -136,9 +136,19 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
      * Does not rewrap an unfolding reference. Thus
      * repeated calls to this method are safe.
      */
-    fun withUnfolding(): LlmReference = when (this) {
+    fun withUnfolding(): LlmReference = withUnfolding(childToolUsageNotes = null)
+
+    /**
+     * Convert this reference to a reference exposing a single unfolding tool,
+     * with progressively-disclosed detail attached.
+     *
+     * @param childToolUsageNotes Detail (workflow, body, routing guidance) that
+     * will be appended to the unfolded message when the LLM invokes the wrapper.
+     * See [com.embabel.agent.api.tool.progressive.UnfoldingTool.childToolUsageNotes].
+     */
+    fun withUnfolding(childToolUsageNotes: String?): LlmReference = when (this) {
         is UnfoldingReference -> this
-        else -> UnfoldingReference(this)
+        else -> UnfoldingReference(this, childToolUsageNotes)
     }
 
     companion object {
@@ -239,6 +249,7 @@ private data class SimpleLlmReference(
 
 private class UnfoldingReference(
     private val delegate: LlmReference,
+    private val childToolUsageNotes: String? = null,
 ) : LlmReference {
 
     override val name: String get() = delegate.name
@@ -265,6 +276,7 @@ private class UnfoldingReference(
                 name = delegate.toolPrefix(),
                 description = delegate.description,
                 innerTools = innerTools,
+                childToolUsageNotes = childToolUsageNotes,
             )
         )
     }

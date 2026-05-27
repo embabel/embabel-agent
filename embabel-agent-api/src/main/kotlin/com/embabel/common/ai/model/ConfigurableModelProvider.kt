@@ -112,6 +112,7 @@ class ConfigurableModelProvider(
             EmbeddingServiceMetadata(
                 it.name,
                 provider = it.provider,
+                pricingModel = it.pricingModel,
             )
         }
 

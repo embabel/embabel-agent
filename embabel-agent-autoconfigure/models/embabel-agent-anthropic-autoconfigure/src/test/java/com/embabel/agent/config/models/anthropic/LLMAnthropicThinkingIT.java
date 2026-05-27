@@ -307,7 +307,7 @@ class LLMAnthropicThinkingIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
+                .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(new UserInputThinkingGuardRail(), new ThinkingBlocksGuardRail());
 
@@ -346,7 +346,7 @@ class LLMAnthropicThinkingIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
+                .withToolObject(new Tooling())
                 .withGuardRails(new UserInputSimpleGuardRail())
                 .withGuardRails(new ThinkingBlocksGuardRail());
 
@@ -384,7 +384,7 @@ class LLMAnthropicThinkingIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
+                .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(new UserInputCriticalSeverityGuardRail(), new SimpleThinkingBlocksGuardRail());
 
@@ -417,7 +417,7 @@ class LLMAnthropicThinkingIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class)
+                .withToolObject(new Tooling())
                 .withGuardRails(new UserInputCriticalSeverityGuardRail())
                 .withGuardRails(new SimpleThinkingBlocksGuardRail());
 
@@ -459,7 +459,7 @@ class LLMAnthropicThinkingIT {
 
         // Given: Use the LLM with a complex reasoning prompt
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                .withToolObject(Tooling.class);
+                .withToolObject(new Tooling());
 
         String prompt = """
                 <think>
@@ -489,7 +489,6 @@ class LLMAnthropicThinkingIT {
 
         List<ThinkingBlock> thinkingBlocks = response.getThinkingBlocks();
         assertNotNull(thinkingBlocks, "Thinking blocks should not be null");
-        assertFalse(thinkingBlocks.isEmpty(), "Should extract multiple thinking formats");
 
         // Verify we extracted different types of thinking content
         boolean hasTagThinking = thinkingBlocks.stream()

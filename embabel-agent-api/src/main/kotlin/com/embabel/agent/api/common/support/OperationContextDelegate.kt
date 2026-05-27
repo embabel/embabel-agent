@@ -16,7 +16,7 @@
 package com.embabel.agent.api.common.support
 
 import com.embabel.agent.api.common.*
-import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
+import com.embabel.agent.spi.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.api.tool.ArtifactSinkingTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
@@ -26,6 +26,7 @@ import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
 import com.embabel.agent.api.tool.agentic.simple.DomainAwareSink
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -35,11 +36,10 @@ import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.core.support.LlmInteraction
 import com.embabel.agent.core.support.safelyGetTools
 import com.embabel.agent.experimental.primitive.Determination
+import com.embabel.agent.core.internal.streaming.StreamingLlmOperationsFactory
 import com.embabel.agent.spi.loop.ToolChainingInjectionStrategy
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
-import com.embabel.agent.spi.support.springai.ChatClientLlmOperations
-import com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.ImagePart
 import com.embabel.chat.Message
@@ -77,8 +77,9 @@ internal data class OperationContextDelegate(
     override val validation: Boolean = true,
     private val otherTools: List<Tool> = emptyList(),
     private val guardRails: List<GuardRail> = emptyList(),
-    private val inspectors: List<ToolLoopInspector> = emptyList(),
-    private val transformers: List<ToolLoopTransformer> = emptyList(),
+    private val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
+    private val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
+    private val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     private val toolNotFoundPolicy: ToolNotFoundPolicy? = null,
     override val domainToolSources: List<DomainToolSource<*>> = emptyList(),
@@ -140,10 +141,13 @@ internal data class OperationContextDelegate(
         copy(guardRails = this.guardRails + guards)
 
     override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptExecutionDelegate =
-        copy(inspectors = this.inspectors + inspectors)
+        copy(toolLoopInspectors = this.toolLoopInspectors + inspectors)
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptExecutionDelegate =
-        copy(transformers = this.transformers + transformers)
+        copy(toolLoopTransformers = this.toolLoopTransformers + transformers)
+
+    override fun withToolCallInspectors(vararg inspectors: ToolCallInspector): PromptExecutionDelegate =
+        copy(toolCallInspectors = this.toolCallInspectors + inspectors)
 
     override fun withToolCallContext(context: ToolCallContext): PromptExecutionDelegate =
         copy(toolCallContext = this.toolCallContext.merge(context))
@@ -226,8 +230,9 @@ internal data class OperationContextDelegate(
                 validation = validation,
                 guardRails = guardRails,
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
+                toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
                 toolNotFoundPolicy = toolNotFoundPolicy,
             ),
@@ -260,8 +265,9 @@ internal data class OperationContextDelegate(
                 validation = validation,
                 guardRails = guardRails,
                 additionalInjectionStrategies = toolConfig.injectionStrategies,
-                inspectors = inspectors,
-                transformers = transformers,
+                toolLoopInspectors = toolLoopInspectors,
+                toolLoopTransformers = toolLoopTransformers,
+                toolCallInspectors = toolCallInspectors,
                 toolCallContext = toolCallContext,
                 toolNotFoundPolicy = toolNotFoundPolicy,
             ),
@@ -325,8 +331,7 @@ internal data class OperationContextDelegate(
     }
 
     override fun generateStream(): Flux<String> {
-        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
-        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+        val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
 
         return streamingLlmOperations.generateStream(
             messages = messages,
@@ -337,8 +342,7 @@ internal data class OperationContextDelegate(
     }
 
     override fun <T> createObjectStream(itemClass: Class<T>): Flux<T> {
-        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
-        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+        val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
 
         return streamingLlmOperations.createObjectStream(
             messages = messages,
@@ -350,8 +354,7 @@ internal data class OperationContextDelegate(
     }
 
     override fun <T> createObjectStreamWithThinking(itemClass: Class<T>): Flux<StreamingEvent<T>> {
-        val llmOperations = context.agentPlatform().platformServices.llmOperations as ChatClientLlmOperations
-        val streamingLlmOperations = StreamingChatClientOperations(llmOperations)
+        val streamingLlmOperations = streamingFactory().createStreamingOperations(llm)
         return streamingLlmOperations.createObjectStreamWithThinking(
             messages = messages,
             interaction = streamingInteraction(),
@@ -362,6 +365,24 @@ internal data class OperationContextDelegate(
     }
 
     private fun streamingInteraction(): LlmInteraction {
+        // Warn if ToolLoopInspectors or ToolLoopTransformers are configured (they will be ignored in streaming)
+        if (toolLoopInspectors.isNotEmpty()) {
+            loggerFor<OperationContextDelegate>().warn(
+                """
+                ToolLoopInspectors are ignored in streaming mode.
+                Use withToolCallInspectors() instead for streaming-compatible observation.
+                """.trimIndent()
+            )
+        }
+        if (toolLoopTransformers.isNotEmpty()) {
+            loggerFor<OperationContextDelegate>().warn(
+                """
+                ToolLoopTransformers are ignored in streaming mode.
+                The framework manages the tool loop internally during streaming.
+                """.trimIndent()
+            )
+        }
+
         val toolConfig = resolveToolConfig()
         return LlmInteraction(
             llm = llm,
@@ -375,10 +396,20 @@ internal data class OperationContextDelegate(
             fieldFilter = fieldFilter,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
-            inspectors = inspectors,
-            transformers = transformers,
+            toolLoopInspectors = emptyList(),
+            toolLoopTransformers = emptyList(),
+            toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
         )
+    }
+
+    private fun streamingFactory(): StreamingLlmOperationsFactory {
+        val llmOperations = context.agentPlatform().platformServices.llmOperations
+        return llmOperations as? StreamingLlmOperationsFactory
+            ?: throw UnsupportedOperationException(
+                "Streaming not supported: LlmOperations (${llmOperations::class.simpleName}) " +
+                    "does not implement StreamingLlmOperationsFactory"
+            )
     }
 
     override fun supportsThinking(): Boolean = true
@@ -499,8 +530,9 @@ internal data class OperationContextDelegate(
             validation = this.validation,
             guardRails = guardRails,
             additionalInjectionStrategies = toolConfig.injectionStrategies,
-            inspectors = inspectors,
-            transformers = transformers,
+            toolLoopInspectors = toolLoopInspectors,
+            toolLoopTransformers = toolLoopTransformers,
+            toolCallInspectors = toolCallInspectors,
             toolCallContext = toolCallContext,
         )
     }

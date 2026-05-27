@@ -21,11 +21,7 @@ import com.embabel.common.util.indent
 import org.jetbrains.annotations.ApiStatus
 
 
-/**
- * Central interface for Retrieval-Augmented Generation (RAG) services.
- * Returns entities as well as text chunks.
- */
-@ApiStatus.Experimental
+@Deprecated("RAG pipeline is legacy. Use agentic RAG via ToolishRag.")
 interface RagService : Described, HasInfoString {
 
     /**

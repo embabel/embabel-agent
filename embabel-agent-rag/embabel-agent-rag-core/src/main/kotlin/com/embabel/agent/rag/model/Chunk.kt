@@ -168,5 +168,5 @@ private data class ChunkImpl(
 ) : Chunk {
 
     override fun withAdditionalMetadata(metadata: Map<String, Any?>): Chunk =
-        this.copy(metadata = metadata)
+        this.copy(metadata = this.metadata + metadata)
 }

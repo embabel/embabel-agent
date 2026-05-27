@@ -50,8 +50,9 @@ class ToolLoopFactoryTest {
             injectionStrategy = injectionStrategy,
             maxIterations = 20,
             toolDecorator = null,
-            inspectors = emptyList(),
-            transformers = emptyList(),
+            toolLoopInspectors = emptyList(),
+            toolLoopTransformers = emptyList(),
+            toolCallInspectors = emptyList(),
             toolCallContext = ToolCallContext.EMPTY,
         )
 
@@ -70,8 +71,9 @@ class ToolLoopFactoryTest {
             injectionStrategy = injectionStrategy,
             maxIterations = 20,
             toolDecorator = null,
-            inspectors = emptyList(),
-            transformers = emptyList(),
+            toolLoopInspectors = emptyList(),
+            toolLoopTransformers = emptyList(),
+            toolCallInspectors = emptyList(),
             toolCallContext = ToolCallContext.EMPTY,
         )
 
@@ -93,8 +95,9 @@ class ToolLoopFactoryTest {
             injectionStrategy = injectionStrategy,
             maxIterations = 15,
             toolDecorator = null,
-            inspectors = emptyList(),
-            transformers = emptyList(),
+            toolLoopInspectors = emptyList(),
+            toolLoopTransformers = emptyList(),
+            toolCallInspectors = emptyList(),
             toolCallContext = ToolCallContext.EMPTY,
         )
 

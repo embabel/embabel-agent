@@ -155,7 +155,7 @@ class LLMGeminiGuardRailsIntegrationIT {
             }
         };
 
-        PromptRunner runner = ai.withLlm("gemini-2.5-flash")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withGuardRails(trackingGuard);
 
         String prompt = "What is the hottest month in Florida and provide its temperature in Fahrenheit.";
@@ -202,7 +202,7 @@ class LLMGeminiGuardRailsIntegrationIT {
             }
         };
 
-        PromptRunner runner = ai.withLlm("gemini-2.5-flash")
+        PromptRunner runner = ai.withDefaultLlm()
                 .withGuardRails(trackingGuard);
 
         String prompt = "January has an average temperature of 50 degrees Fahrenheit. Extract the month name and temperature.";

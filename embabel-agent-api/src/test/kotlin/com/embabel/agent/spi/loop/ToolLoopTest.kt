@@ -22,6 +22,7 @@ import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.support.DefaultToolLoop
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.AssistantMessageWithToolCalls
+import com.embabel.chat.EmptyLlmResponseException
 import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
@@ -448,6 +449,78 @@ class MockTool(
 class ToolLoopAdditionalTests {
 
     private val objectMapper = jacksonObjectMapper()
+
+    @Nested
+    inner class ReturnDirectTest {
+
+        @Test
+        fun `tool with returnDirect short-circuits the loop`() {
+            val tool = Tool.of(
+                name = "async_task",
+                description = "Starts a background task",
+                metadata = Tool.Metadata(returnDirect = true),
+            ) { Tool.Result.text("Task started in background") }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse(
+                        toolCallId = "call_1",
+                        toolName = "async_task",
+                        arguments = "{}",
+                    ),
+                    // This response should never be reached
+                    MockLlmMessageSender.textResponse("LLM elaboration that should be skipped"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Start task")),
+                initialTools = listOf(tool),
+                outputParser = { it },
+            )
+
+            assertEquals("Task started in background", result.result)
+            // Only 1 iteration — the loop didn't go back to the LLM
+            assertEquals(1, result.totalIterations)
+        }
+
+        @Test
+        fun `tool without returnDirect continues the loop normally`() {
+            val tool = MockTool("normal_tool", "A normal tool") {
+                Tool.Result.text("Tool result")
+            }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.toolCallResponse(
+                        toolCallId = "call_1",
+                        toolName = "normal_tool",
+                        arguments = "{}",
+                    ),
+                    MockLlmMessageSender.textResponse("LLM processed the tool result"),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("Do something")),
+                initialTools = listOf(tool),
+                outputParser = { it },
+            )
+
+            assertEquals("LLM processed the tool result", result.result)
+            assertEquals(2, result.totalIterations)
+        }
+    }
 
     @Nested
     inner class UsageAccumulationTest {
@@ -1289,6 +1362,118 @@ class ToolLoopAdditionalTests {
             assertEquals(1, injectedToolCalled.size)
             assertEquals(1, result.injectedTools.size)
             assertEquals("injected_tool", result.injectedTools[0].definition.name)
+        }
+    }
+
+    @Nested
+    inner class EmptyResponsePolicyIntegrationTest {
+
+        @Test
+        fun `default policy exits the loop with blank content (backwards-compat)`() {
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    // Blank text, no tool calls — the failure-mode response
+                    MockLlmMessageSender.textResponse(" "),
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("anything")),
+                initialTools = emptyList(),
+                outputParser = { it },
+            )
+
+            // Existing behaviour: the loop returns blank; rendering layer
+            // is responsible for throwing EmptyLlmResponseException.
+            assertEquals(" ", result.result)
+            assertEquals(1, result.totalIterations)
+        }
+
+        @Test
+        fun `RetryWithFeedbackPolicy re-prompts and uses the second response`() {
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.textResponse(" "),               // empty — triggers retry
+                    MockLlmMessageSender.textResponse("Recovered answer"), // succeeds on retry
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                emptyResponsePolicy = RetryWithFeedbackPolicy(maxRetries = 1),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("question")),
+                initialTools = emptyList(),
+                outputParser = { it },
+            )
+
+            assertEquals("Recovered answer", result.result)
+            assertEquals(2, result.totalIterations)
+            // Synthetic nudge was inserted into history between the empty
+            // response and the recovered one.
+            val nudges = result.conversationHistory.filterIsInstance<UserMessage>()
+                .filter { it.content.contains("no response", ignoreCase = true) }
+            assertEquals(1, nudges.size)
+        }
+
+        @Test
+        fun `RetryWithFeedbackPolicy throws after exhausting retries`() {
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.textResponse(" "),  // 1 — retry
+                    MockLlmMessageSender.textResponse(" "),  // 2 — retry exhausted, throw
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                emptyResponsePolicy = RetryWithFeedbackPolicy(maxRetries = 1),
+            )
+
+            assertThrows<EmptyLlmResponseException> {
+                toolLoop.execute(
+                    initialMessages = listOf(UserMessage("question")),
+                    initialTools = emptyList(),
+                    outputParser = { it },
+                )
+            }
+        }
+
+        @Test
+        fun `tool-call response between empties resets the retry counter`() {
+            val mockTool = MockTool("ping", "Pong") { Tool.Result.text("pong") }
+
+            val mockCaller = MockLlmMessageSender(
+                responses = listOf(
+                    MockLlmMessageSender.textResponse(" "),                          // 1 — retry
+                    MockLlmMessageSender.toolCallResponse("c1", "ping", "{}"),       // tool call → reset counter
+                    MockLlmMessageSender.textResponse(" "),                          // 1 again — retry
+                    MockLlmMessageSender.textResponse("Final answer"),               // succeeds
+                )
+            )
+
+            val toolLoop = DefaultToolLoop(
+                llmMessageSender = mockCaller,
+                objectMapper = objectMapper,
+                emptyResponsePolicy = RetryWithFeedbackPolicy(maxRetries = 1),
+            )
+
+            val result = toolLoop.execute(
+                initialMessages = listOf(UserMessage("question")),
+                initialTools = listOf(mockTool),
+                outputParser = { it },
+            )
+
+            assertEquals("Final answer", result.result)
         }
     }
 }

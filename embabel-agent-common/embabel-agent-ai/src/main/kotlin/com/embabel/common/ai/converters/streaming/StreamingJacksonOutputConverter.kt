@@ -44,17 +44,25 @@ import java.util.function.Predicate
  */
 class StreamingJacksonOutputConverter<T> : FilteringJacksonOutputConverter<T> {
 
+    private val thinkingEnabled: Boolean
+
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
         fieldFilter: Predicate<Field> = Predicate { true },
-    ) : super(clazz, objectMapper, fieldFilter)
+        thinkingEnabled: Boolean = true,
+    ) : super(clazz, objectMapper, fieldFilter) {
+        this.thinkingEnabled = thinkingEnabled
+    }
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
         fieldFilter: Predicate<Field> = Predicate { true },
-    ) : super(typeReference, objectMapper, fieldFilter)
+        thinkingEnabled: Boolean = true,
+    ) : super(typeReference, objectMapper, fieldFilter) {
+        this.thinkingEnabled = thinkingEnabled
+    }
 
     /**
      * Convert streaming JSONL text to a Flux of typed objects.
@@ -105,28 +113,39 @@ class StreamingJacksonOutputConverter<T> : FilteringJacksonOutputConverter<T> {
      * Override format to request JSONL instead of single JSON.
      * Inherits schema injection from parent but modifies instructions for streaming.
      */
-    override fun getFormat(): String =
-        """|
+    override fun getFormat(): String {
+        val thinkingInstructions = if (thinkingEnabled) {
+            """|
+               |You may include reasoning content using thinking blocks.
+               |Use EXACTLY the <think> tag format - do not use variations like <thinking>, <thought>, or <analysis>.
+               |<think>your reasoning here
+               |another line of thinking</think>
+               |
+               |Thinking blocks are separate from JSON objects and can appear before, between, or after JSON lines as needed for your analysis.
+               |""".trimMargin()
+        } else ""
+
+        val exampleFormat = if (thinkingEnabled) {
+            """|
+               |Example format:
+               |<think>analyzing the requirements</think>
+               |{"field": "precise_value"}
+               |<think>considering next item</think>
+               |{"field": "another_precise_value"}
+               |""".trimMargin()
+        } else ""
+
+        return """|
            |Your response should be in JSONL (JSON Lines) format.
            |Each line must contain exactly one JSON object that strictly adheres to the provided schema.
            |Do not include any explanations in the JSON objects themselves.
            |Do not include markdown code blocks or wrap responses in arrays.
            |Ensure RFC7464 compliant JSON Lines, one valid JSON object per line.
-           |
-           |You may include reasoning content using thinking blocks.
-           |Use EXACTLY the <think> tag format - do not use variations like <thinking>, <thought>, or <analysis>.
-           |<think>your reasoning here
-           |another line of thinking</think>
-           |
-           |Thinking blocks are separate from JSON objects and can appear before, between, or after JSON lines as needed for your analysis.
+           |$thinkingInstructions
            |
            |Here is the JSON Schema instance each JSON object must adhere to:
            |```${jsonSchema}```
-           |
-           |Example format:
-           |<think>analyzing the requirements</think>
-           |{"field": "precise_value"}
-           |<think>considering next item</think>
-           |{"field": "another_precise_value"}
+           |$exampleFormat
            |""".trimMargin()
+    }
 }

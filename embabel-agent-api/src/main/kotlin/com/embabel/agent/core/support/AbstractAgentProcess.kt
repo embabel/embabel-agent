@@ -30,6 +30,8 @@ import com.embabel.agent.spi.DelayedActionExecutionSchedule
 import com.embabel.agent.spi.ProntoActionExecutionSchedule
 import com.embabel.agent.spi.ScheduledActionExecutionSchedule
 import com.embabel.agent.spi.support.AgenticEventListenerToolsStats
+import com.embabel.common.ai.model.EmbeddingServiceMetadata
+import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.plan.WorldState
 import com.embabel.plan.common.condition.WorldStateDeterminer
 import com.fasterxml.jackson.annotation.JsonIgnore
@@ -37,6 +39,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -59,7 +62,7 @@ abstract class AbstractAgentProcess(
 
     protected var _goal: com.embabel.plan.Goal? = null
 
-    private val _history: MutableList<ActionInvocation> = mutableListOf()
+    private val _history: MutableList<ActionInvocation> = CopyOnWriteArrayList()
 
     private val _status = AtomicReference(AgentProcessStatusCode.NOT_STARTED)
 
@@ -68,18 +71,23 @@ abstract class AbstractAgentProcess(
     override val failureInfo: Any?
         get() = _failureInfo
 
-    private var _terminationRequest: TerminationSignal? = null
+    private val _terminationRequest = AtomicReference<TerminationSignal?>(null)
 
     internal val terminationRequest: TerminationSignal?
-        get() = _terminationRequest
+        get() = _terminationRequest.get()
 
     private fun setTerminationRequest(signal: TerminationSignal) {
-        _terminationRequest = signal
+        _terminationRequest.set(signal)
     }
 
-    internal fun resetTerminationRequest() {
-        _terminationRequest = null
-    }
+    /**
+     * Atomically clear the slot only if its current value is exactly [expected].
+     * Returns true if the caller successfully consumed the observed signal.
+     * Returns false if the slot was mutated concurrently — the newer value
+     * is preserved and will be visible to the next consumer.
+     */
+    internal fun compareAndResetTerminationRequest(expected: TerminationSignal): Boolean =
+        _terminationRequest.compareAndSet(expected, null)
 
     override fun terminateAgent(reason: String) {
         // Cascade to children first
@@ -139,7 +147,7 @@ abstract class AbstractAgentProcess(
      */
     protected abstract val worldStateDeterminer: WorldStateDeterminer
 
-    private val _llmInvocations = mutableListOf<LlmInvocation>()
+    private val _llmInvocations: MutableList<LlmInvocation> = CopyOnWriteArrayList()
 
     override val llmInvocations: List<LlmInvocation>
         get() = _llmInvocations.toList()
@@ -147,6 +155,87 @@ abstract class AbstractAgentProcess(
     override fun recordLlmInvocation(llmInvocation: LlmInvocation) {
         _llmInvocations.add(llmInvocation)
     }
+
+    private val _embeddingInvocations: MutableList<EmbeddingInvocation> = CopyOnWriteArrayList()
+
+    override val embeddingInvocations: List<EmbeddingInvocation>
+        get() = _embeddingInvocations.toList()
+
+    override fun recordEmbeddingInvocation(invocation: EmbeddingInvocation) {
+        _embeddingInvocations.add(invocation)
+    }
+
+    // --- Subtree aggregation (fix #368) ----------------------------------------
+    //
+    // When an AgentProcess spawns child processes, cost/usage/models reporting
+    // must reflect the *entire* subtree, not just this process's own LLM calls.
+    // Each override below follows the same pattern:
+    //     result = <own contribution> + Σ child.<same method>()
+    // The recursion walks the tree via `childProcesses()`, which resolves
+    // direct children at call time through the AgentProcess repository.
+
+    /**
+     * Direct children of this process (non-recursive).
+     * Resolved on every call — not cached — so children spawned later are picked up.
+     */
+    private fun childProcesses(): List<AgentProcess> =
+        platformServices.agentProcessRepository.findByParentId(id)
+
+    /** LLM cost = own LLM cost + sum of each child's LLM cost (recursive). */
+    override fun cost(): Double =
+        ownCost() + childProcesses().sumOf { it.cost() }
+
+    /**
+     * LLM token usage aggregated across the whole subtree.
+     * Nulls from children with no invocations are coerced to 0.
+     */
+    override fun usage(): Usage {
+        val own = ownUsage()
+        val children = childProcesses()
+        return Usage(
+            (own.promptTokens ?: 0) + children.sumOf { it.usage().promptTokens ?: 0 },
+            (own.completionTokens ?: 0) + children.sumOf { it.usage().completionTokens ?: 0 },
+            null,
+        )
+    }
+
+    /**
+     * Distinct LLMs used anywhere in the subtree, sorted by name.
+     * `distinctBy { it.name }` removes duplicates when the same model is used
+     * at multiple levels.
+     */
+    override fun modelsUsed(): List<LlmMetadata> =
+        (ownModelsUsed() + childProcesses().flatMap { it.modelsUsed() })
+            .distinctBy { it.name }.sortedBy { it.name }
+
+    /** Embedding cost = own + sum of each child's embedding cost (recursive). */
+    override fun embeddingCost(): Double =
+        embeddingInvocations.sumOf { it.cost() } + childProcesses().sumOf { it.embeddingCost() }
+
+    /** Embedding usage aggregated across the whole subtree. */
+    override fun embeddingUsage(): Usage {
+        val ownPrompt = embeddingInvocations.sumOf { it.usage.promptTokens ?: 0 }
+        val children = childProcesses()
+        return Usage(
+            ownPrompt + children.sumOf { it.embeddingUsage().promptTokens ?: 0 },
+            null,
+            null,
+        )
+    }
+
+    /** Distinct embedding services used anywhere in the subtree, sorted by name. */
+    override fun embeddingModelsUsed(): List<EmbeddingServiceMetadata> =
+        (embeddingInvocations.map { it.embeddingMetadata } +
+                childProcesses().flatMap { it.embeddingModelsUsed() })
+            .distinctBy { it.name }.sortedBy { it.name }
+
+    /** Total LLM call count across the whole subtree. */
+    override fun llmInvocationCount(): Int =
+        llmInvocations.size + childProcesses().sumOf { it.llmInvocationCount() }
+
+    /** Total embedding call count across the whole subtree. */
+    override fun embeddingInvocationCount(): Int =
+        embeddingInvocations.size + childProcesses().sumOf { it.embeddingInvocationCount() }
 
     override val status: AgentProcessStatusCode
         get() = _status.get()
@@ -297,7 +386,8 @@ abstract class AbstractAgentProcess(
         // Check for API-driven termination signal first
         val signalTermination = TerminationSignalPolicy.shouldTerminate(this)
         if (signalTermination != null) {
-            resetTerminationRequest()
+            val observed = terminationRequest
+            if (observed != null) compareAndResetTerminationRequest(observed)
             logger.debug(
                 "Process {} terminated by termination signal: {}",
                 this.id,
@@ -313,8 +403,9 @@ abstract class AbstractAgentProcess(
         // (e.g., set by a simple action without tool loop)
         val staleSignal = terminationRequest
         if (staleSignal != null && staleSignal.scope == TerminationScope.ACTION) {
-            logger.debug("Clearing stale ACTION termination signal: {}", staleSignal.reason)
-            resetTerminationRequest()
+            if (compareAndResetTerminationRequest(staleSignal)) {
+                logger.debug("Clearing stale ACTION termination signal: {}", staleSignal.reason)
+            }
         }
 
         // Check configured early termination policies
@@ -466,7 +557,19 @@ abstract class AbstractAgentProcess(
                 val effectiveAction = action.withEffectiveQos(platformServices.actionQosProperties())
                 effectiveAction.qos
                     .retryTemplate("Action-${action.name}")
-                    .execute<ActionStatus, Throwable> {
+                    .execute<ActionStatus, Throwable> { context ->
+                        // Clear effect conditions on retry (not first attempt)
+                        if (context.retryCount > 0) {
+                            logger.debug(
+                                "Retry attempt {} for action {}, clearing effect conditions",
+                                context.retryCount,
+                                action.name
+                            )
+                            action.effects.forEach { (condition, _) ->
+                                blackboard.setCondition(condition, false)
+                            }
+                        }
+
                         effectiveAction.execute(
                             processContext = processContext,
                         )

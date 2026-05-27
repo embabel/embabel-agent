@@ -20,6 +20,10 @@ The planning strategies currently supported out of the box are:
 |Exploration and event-driven systems
 |Selects the highest-value available action at each step. Ideal when you don't know the outcome upfront.
 
+|*Hybrid*
+|Reducer pipelines (gather many context-producing actions, run one synthesizer, stop)
+|Like Utility for action picking, but exits as soon as any registered goal is already satisfied. Pair an unsatisfiable goal (e.g. `NIRVANA`) with a real terminal goal: opportunistic research fires while research is profitable; the process completes the moment the real goal is reached.
+
 |*Supervisor*
 |Flexible multi-step workflows
 |LLM-orchestrated composition. An LLM selects which actions to call based on type schemas and gathered artifacts.
@@ -459,6 +463,129 @@ UtilityInvocation.on(agentPlatform)
     .run(input)
 ----
 ====
+
+[[reference.planners__hybrid]]
+==== Hybrid
+
+The Hybrid planner combines Utility AI's value-based action picking with goal-satisfaction termination — the "iterate then stop" mode. It exists for reducer-style pipelines where:
+
+* You want to fire many opportunistic, context-producing actions (research lookups, KG queries, enrichment passes) in netValue order — like Utility AI.
+* You then want a single synthesising action to run, producing a terminal result.
+* You want the process to *stop* the moment that terminal result is on the blackboard, rather than continuing to fire low-value or negative-value leftover actions.
+
+===== Why a Separate Planner
+
+GOAP minimises path cost to the goal; it skips opportunistic actions that aren't on the cheapest plan, so research never fires. Pure Utility AI is greedy single-step; when paired with a satisfiable terminal goal it gives up at step 1 if no single action reaches the goal. Pure Utility AI paired with `NIRVANA` iterates beautifully but never terminates — it keeps picking actions even after your real goal is satisfied, burning compute on the way to nowhere.
+
+Hybrid is the missing middle. It picks the highest-netValue achievable action each tick (so research happens) *and* checks "is the goal already satisfied?" **before** selecting an action (so termination is clean once a real goal is reached).
+
+===== The Two-Goal Pattern
+
+The hybrid planner is designed to be used with *two* goals on the same agent:
+
+1. The *real terminal goal* — what success looks like (e.g. `attention-candidate-produced`, `report-generated`).
+2. `com.embabel.agent.core.support.NIRVANA` — the framework's pre-built unsatisfiable goal, which keeps Utility-style action picking alive while research is still profitable.
+
+At each tick the planner generates one plan per goal. NIRVANA returns the highest-netValue achievable action as a 1-step plan. The real goal returns:
+
+* An *empty plan* (`netValue = 0`) if the goal is already satisfied — beats NIRVANA's then-only-negative-value leftovers.
+* A 1-step plan if a single action reaches the goal.
+* `null` otherwise.
+
+The host process picks the highest-net-value plan across goals. While research is profitable, NIRVANA's plan wins. The moment the real goal is satisfied, its empty plan wins and `plan.isComplete()` fires, terminating the process.
+
+===== When to Use Hybrid
+
+* *Per-signal triage pipelines* that gather multiple context sources before a final assessment LLM call.
+* *Research-then-synthesise* workflows where multiple actions contribute typed artifacts to a blackboard, and one final action consumes everything.
+* *Pack-extensible reducers* where new opportunistic actions can be added without rewriting the synthesis step — their value alone gets them scheduled.
+
+Use Utility AI without Hybrid when you genuinely want a long-running event loop with no terminal goal (chat surfaces, exploratory triage).
+
+Use GOAP when you have strict typed-dependency ordering and don't need opportunistic research.
+
+===== Tuning Values
+
+For the hybrid pattern to work as intended:
+
+* *Research actions* (the opportunistic context producers) should have *high net value* so they win the picker race while their `canRerun=false` slot is still open.
+* *The synthesiser* (the final action that produces the terminal output) should have *positive but lower net value*. It wins after research is locked out.
+* *Wrap-up actions* (those that lift a verdict into the goal output) should have *value just above the synthesiser* so they fire immediately after.
+
+Once the wrap-up writes the terminal artifact, the real goal's empty plan wins and the process exits — regardless of any remaining negative-value actions.
+
+===== Using Hybrid
+
+[tabs]
+====
+Kotlin::
++
+[source,kotlin]
+----
+import com.embabel.agent.core.Agent
+import com.embabel.agent.core.Goal
+import com.embabel.agent.core.IoBinding
+import com.embabel.agent.core.support.NIRVANA
+
+// Agent declares BOTH NIRVANA and the real goal.
+val agent = Agent(
+    name = "per-signal-triage",
+    provider = "example",
+    version = "0.0.1",
+    description = "Reducer pipeline: research → assess → wrap.",
+    actions = listOf(/* … */),
+    goals = setOf(
+        NIRVANA, // <1>
+        Goal( // <2>
+            name = "attention-candidate-produced",
+            description = "An AttentionCandidate has been produced.",
+            inputs = setOf(IoBinding("attentionCandidate", AttentionCandidate::class.java.name)),
+            outputType = null,
+        ),
+    ),
+)
+
+// Process picks PlannerType.HYBRID.
+val process = agentPlatform.runAgentFrom(
+    agent = agent,
+    processOptions = ProcessOptions(plannerType = PlannerType.HYBRID), // <3>
+    bindings = signalBindings,
+)
+----
+====
+
+<1> `NIRVANA` keeps the iterate-by-netValue picking alive across multiple ticks; without it, the planner gives up at step 1 if no single action reaches the real goal.
+<2> The real terminal goal — what makes the process stop. Returns an empty plan once satisfied.
+<3> Per-process opt-in via `ProcessOptions`. The default (`GOAP`) is unchanged for other processes.
+
+===== Difference from `UTILITY`
+
+[cols="1,2,2",options="header"]
+|===
+|Scenario |`UTILITY` |`HYBRID`
+
+|Real goal satisfied, no actions achievable
+|Empty plan (terminate)
+|Empty plan (terminate)
+
+|Real goal satisfied, other actions still achievable
+|Picks highest-netValue action and runs it
+|Empty plan (terminate) — *the load-bearing fix*
+
+|Real goal not satisfied, action reaches it in 1 step
+|1-step plan
+|1-step plan
+
+|Real goal not satisfied, no 1-step path
+|`null` (planner gives up)
+|`null` (planner gives up — paired NIRVANA handles iteration)
+
+|`NIRVANA` goal
+|Highest-netValue achievable action; `null` when nothing's available
+|Identical to `UTILITY` semantics
+|===
+
+`HYBRID` is `UTILITY` with one extra check: *if the real goal is already satisfied, return an empty plan regardless of what actions remain achievable.* This is what enables clean termination of the two-goal pattern.
 
 [[reference.planners__supervisor]]
 ==== Supervisor

@@ -24,6 +24,7 @@ import com.embabel.agent.api.tool.agentic.DomainToolFactory
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
 import com.embabel.agent.api.tool.agentic.DomainToolSource
 import com.embabel.agent.api.tool.agentic.DomainToolTracker
+import com.embabel.agent.api.tool.progressive.NestedTool
 import com.embabel.agent.spi.config.spring.executingOperationContextFor
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.util.loggerFor
@@ -78,7 +79,28 @@ data class PlaybookTool internal constructor(
         defaultSystemPrompt(definition.description)
     },
     override val maxIterations: Int = AgenticTool.DEFAULT_MAX_ITERATIONS,
-) : AgenticTool<PlaybookTool> {
+) : AgenticTool<PlaybookTool>, NestedTool {
+
+    /**
+     * Inner tools (always-unlocked plus the locked-tool wrappers'
+     * underlying tools), exposed via [NestedTool] so out-of-process
+     * consumers — the REST tool gateway, typed-surface generators
+     * (`interfaces.ts`), tree-printers — can enumerate the children
+     * without an [com.embabel.agent.core.AgentProcess].
+     *
+     * Critically this does NOT make the playbook an [com.embabel.agent.api.tool.progressive.UnfoldingTool],
+     * so the chat tool-loop's `UnfoldingToolInjectionStrategy` does
+     * not fire on PlaybookTool invocation — `call()` runs the
+     * playbook's inner LLM loop on the natural-language `request`
+     * exactly as before. The new typing is purely additive: the
+     * gateway can now namespace the children under the playbook's
+     * name (`gateway.repository.describe`, `…create_entry`, etc.)
+     * instead of leaking them as flat top-level tools that
+     * mis-namespace via the first-segment heuristic
+     * (`gateway.create.entry`).
+     */
+    override val innerTools: List<Tool>
+        get() = unlockedTools + lockedTools.map { it.tool }
 
     /**
      * A tool with its unlock condition.

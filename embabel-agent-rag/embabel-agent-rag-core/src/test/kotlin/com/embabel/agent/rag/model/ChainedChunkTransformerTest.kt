@@ -122,11 +122,11 @@ class ChainedChunkTransformerTest {
         )
         val addMetaA = object : ChunkTransformer {
             override fun transform(chunk: Chunk, context: ChunkTransformationContext): Chunk =
-                chunk.withAdditionalMetadata(chunk.metadata + mapOf("transformer_a" to true))
+                chunk.withAdditionalMetadata(mapOf("transformer_a" to true))
         }
         val addMetaB = object : ChunkTransformer {
             override fun transform(chunk: Chunk, context: ChunkTransformationContext): Chunk =
-                chunk.withAdditionalMetadata(chunk.metadata + mapOf("transformer_b" to true))
+                chunk.withAdditionalMetadata(mapOf("transformer_b" to true))
         }
         val transformer = ChainedChunkTransformer(listOf(addMetaA, addMetaB))
 
@@ -212,7 +212,7 @@ class ChainedChunkTransformerTest {
         val incrementCount = object : ChunkTransformer {
             override fun transform(chunk: Chunk, context: ChunkTransformationContext): Chunk {
                 val currentCount = chunk.metadata["count"] as Int
-                return chunk.withAdditionalMetadata(chunk.metadata + mapOf("count" to currentCount + 1))
+                return chunk.withAdditionalMetadata(mapOf("count" to currentCount + 1))
             }
         }
         val transformer = ChainedChunkTransformer(listOf(incrementCount, incrementCount, incrementCount))
@@ -252,7 +252,7 @@ class ChainedChunkTransformerTest {
         )
         val addSectionTitle = object : ChunkTransformer {
             override fun transform(chunk: Chunk, context: ChunkTransformationContext): Chunk =
-                chunk.withAdditionalMetadata(chunk.metadata + mapOf("section_title" to context.section.title))
+                chunk.withAdditionalMetadata(mapOf("section_title" to context.section.title))
         }
         val transformer = ChainedChunkTransformer(listOf(addSectionTitle))
 

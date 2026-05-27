@@ -39,9 +39,15 @@ class ConfigurableModelProviderTest {
         override val provider: String,
     ) : EmbeddingService {
         override val dimensions: Int = 384
+        override val pricingModel: PricingModel? = null
         override fun embed(text: String): FloatArray = FloatArray(dimensions)
         override fun embed(texts: List<String>): List<FloatArray> = texts.map { embed(it) }
     }
+
+    private val embeddingPricing: PricingModel = PerTokenPricingModel(
+        usdPer1mInputTokens = 0.02,
+        usdPer1mOutputTokens = 0.0,
+    )
 
     private val mp: ModelProvider = ConfigurableModelProvider(
         llms = listOf(
@@ -50,7 +56,12 @@ class ConfigurableModelProviderTest {
             SpringAiLlmService("embedding", "OpenAI", mockk<ChatModel>(), DefaultOptionsConverter)
         ),
         embeddingServices = listOf(
-            SpringAiEmbeddingService("text-embedding-3-small", "OpenAI", mockk<EmbeddingModel>())
+            SpringAiEmbeddingService(
+                "text-embedding-3-small",
+                "OpenAI",
+                mockk<EmbeddingModel>(),
+                pricingModel = embeddingPricing,
+            )
         ),
         properties = ConfigurableModelProviderProperties(
             llms = mapOf(
@@ -116,6 +127,14 @@ class ConfigurableModelProviderTest {
         fun `models are serializable`() {
             val models = mp.listModels()
             jacksonObjectMapper().writeValueAsString(models)
+        }
+
+        @Test
+        fun `embedding metadata preserves pricingModel`() {
+            val embedding = mp.listModels()
+                .filterIsInstance<EmbeddingServiceMetadata>()
+                .single { it.name == "text-embedding-3-small" }
+            assertEquals(embeddingPricing, embedding.pricingModel)
         }
 
     }

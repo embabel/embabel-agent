@@ -28,6 +28,7 @@ import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
+import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.model.SpringAiEmbeddingService
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.google.genai.Client
@@ -327,11 +328,15 @@ class GoogleGenAiModelsConfig(
             createGoogleGenAiEmbeddingConnectionDetails(),
             options,
         )
+        val pricing = embeddingDef.pricingModel?.let {
+            PricingModel.usdPer1MTokens(it.usdPer1mTokens, 0.0)
+        }
         return SpringAiEmbeddingService(
             name = embeddingDef.modelId,
             model = embeddingModel,
             provider = GoogleGenAiModels.PROVIDER,
             configuredDimensions = embeddingDef.dimensions,
+            pricingModel = pricing,
         )
     }
 }

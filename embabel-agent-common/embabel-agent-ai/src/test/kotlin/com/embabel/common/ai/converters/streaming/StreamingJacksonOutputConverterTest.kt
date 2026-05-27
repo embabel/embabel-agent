@@ -323,6 +323,64 @@ class StreamingJacksonOutputConverterTest {
     }
 
     @Test
+    fun `getFormat should omit thinking instructions when thinkingEnabled is false`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(
+            clazz = SimpleItem::class.java,
+            objectMapper = objectMapper,
+            thinkingEnabled = false
+        )
+
+        // When
+        val format = converter.getFormat()
+
+        // Then
+        assertFalse(format.contains("<think>"))
+        assertFalse(format.contains("reasoning content"))
+        assertFalse(format.contains("analyzing the requirements"))
+    }
+
+    @Test
+    fun `streaming converter should still work with JSONL when thinkingEnabled is false`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(
+            clazz = SimpleItem::class.java,
+            objectMapper = objectMapper,
+            thinkingEnabled = false
+        )
+        val validJsonl = """
+            {"name": "test1"}
+            {"name": "test2"}
+        """.trimIndent()
+
+        // When
+        val result = converter.convertStream(validJsonl)
+
+        // Then
+        val items = result.collectList().block()
+        assertNotNull(items)
+        assertEquals(2, items!!.size)
+        assertEquals("test1", items[0].name)
+    }
+
+    @Test
+    fun `streaming converter should still include JSONL instructions when thinkingEnabled is false`() {
+        // Given
+        val converter = StreamingJacksonOutputConverter(
+            clazz = SimpleItem::class.java,
+            objectMapper = objectMapper,
+            thinkingEnabled = false
+        )
+
+        // When
+        val format = converter.getFormat()
+
+        // Then
+        assertTrue(format.contains("JSONL (JSON Lines) format"))
+        assertTrue(format.contains("one valid JSON object per line"))
+    }
+
+    @Test
     fun `streaming converter should handle filtering with actual streaming for multiple objects`() {
         // Given - converter that only allows name and age
         val converter = StreamingJacksonOutputConverter(

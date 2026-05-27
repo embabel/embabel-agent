@@ -76,6 +76,47 @@ class AgentMetadataReaderMetadataTest {
             assertNotNull(reader.createAgentMetadata(ValidActionWithDeserializationInInterfaceGoal()))
         }
 
+        @Test
+        fun `ExecutingOperationContext constructor injection throws IllegalStateException`() {
+            val reader = AgentMetadataReader()
+            val placeholder = com.embabel.agent.test.integration.IntegrationTestUtils
+                .dummyAgentProcessRunning(com.embabel.agent.api.dsl.agent(name = "p", description = "p") {})
+            val ex = assertThrows(IllegalStateException::class.java) {
+                reader.createAgentMetadata(
+                    AgentWithExecutingOperationContextConstructorInjection(
+                        com.embabel.agent.api.common.ExecutingOperationContext(
+                            name = "test",
+                            agentProcess = placeholder,
+                        )
+                    )
+                )
+            }
+            assertTrue(ex.message!!.contains("AgentWithExecutingOperationContextConstructorInjection"))
+            assertTrue(ex.message!!.contains("ExecutingOperationContext"))
+            assertTrue(ex.message!!.contains("@Action"))
+        }
+
+        @Test
+        fun `OperationContext constructor injection throws IllegalStateException`() {
+            val reader = AgentMetadataReader()
+            val placeholder = com.embabel.agent.test.integration.IntegrationTestUtils
+                .dummyAgentProcessRunning(com.embabel.agent.api.dsl.agent(name = "p", description = "p") {})
+            val ex = assertThrows(IllegalStateException::class.java) {
+                reader.createAgentMetadata(
+                    AgentWithOperationContextConstructorInjection(
+                        com.embabel.agent.api.common.OperationContext(
+                            processContext = placeholder.processContext,
+                            operation = com.embabel.agent.core.InjectedType.named("test"),
+                            toolGroups = emptySet(),
+                        )
+                    )
+                )
+            }
+            assertTrue(ex.message!!.contains("AgentWithOperationContextConstructorInjection"))
+            assertTrue(ex.message!!.contains("OperationContext"))
+            assertTrue(ex.message!!.contains("@Action"))
+        }
+
     }
 
     @Nested

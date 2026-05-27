@@ -21,6 +21,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import com.embabel.common.ai.model.EmbeddingService
 import com.embabel.common.ai.model.EmbeddingServiceMetadata
+import com.embabel.common.ai.model.PricingModel
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import java.nio.LongBuffer
 import java.nio.file.Path
@@ -40,6 +41,8 @@ class OnnxEmbeddingService(
 ) : EmbeddingService, AutoCloseable {
 
     override val provider: String = PROVIDER
+
+    override val pricingModel: PricingModel? = null
 
     override fun embed(text: String): FloatArray = embed(listOf(text)).first()
 

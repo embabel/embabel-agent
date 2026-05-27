@@ -42,7 +42,9 @@ class UtilityPlanner(
             .map { Pair(it, it.netValue(currentState)) }
             .sortedByDescending { it.second }
         val actionList = if (availableActions.isNotEmpty()) {
-            ":\n\t${availableActions.map { "${it.first.name} - ${it.second}" }}"
+            // Format netValues to 2 decimals so logs don't bleed
+            // floating-point noise (`-0.09999999999999998` etc).
+            ":\n\t${availableActions.map { "${it.first.name} - ${"%.2f".format(it.second)}" }}"
         } else ""
         logger.info("{}/{} known actions available in current state{}", availableActions.size, actions.size, actionList)
         val firstAction = availableActions.map { it.first }.firstOrNull()

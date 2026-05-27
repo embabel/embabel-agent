@@ -62,7 +62,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(
@@ -95,7 +95,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(
@@ -135,7 +135,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(
@@ -173,7 +173,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(
@@ -214,7 +214,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(
@@ -255,7 +255,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(
@@ -326,7 +326,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector1, inspector2),
+                toolLoopInspectors = listOf(inspector1, inspector2),
             )
 
             toolLoop.execute(
@@ -385,7 +385,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(
@@ -424,7 +424,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                transformers = listOf(transformer),
+                toolLoopTransformers = listOf(transformer),
             )
 
             val result = toolLoop.execute(
@@ -459,7 +459,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                transformers = listOf(transformer),
+                toolLoopTransformers = listOf(transformer),
             )
 
             val result = toolLoop.execute(
@@ -500,7 +500,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                transformers = listOf(transformer),
+                toolLoopTransformers = listOf(transformer),
             )
 
             val result = toolLoop.execute(
@@ -549,7 +549,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                transformers = listOf(transformer),
+                toolLoopTransformers = listOf(transformer),
             )
 
             val result = toolLoop.execute(
@@ -598,7 +598,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                transformers = listOf(transformer1, transformer2),
+                toolLoopTransformers = listOf(transformer1, transformer2),
             )
 
             val result = toolLoop.execute(
@@ -645,7 +645,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                transformers = listOf(slidingWindowTransformer),
+                toolLoopTransformers = listOf(slidingWindowTransformer),
             )
 
             val result = toolLoop.execute(
@@ -690,8 +690,8 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
-                transformers = listOf(transformer),
+                toolLoopInspectors = listOf(inspector),
+                toolLoopTransformers = listOf(transformer),
             )
 
             toolLoop.execute(
@@ -759,7 +759,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(
@@ -823,7 +823,7 @@ class ToolLoopCallbackTest {
             val toolLoop = DefaultToolLoop(
                 llmMessageSender = mockCaller,
                 objectMapper = objectMapper,
-                inspectors = listOf(inspector),
+                toolLoopInspectors = listOf(inspector),
             )
 
             toolLoop.execute(

@@ -21,6 +21,9 @@ import com.embabel.agent.core.support.AbstractAgentProcess
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.callback.AfterToolCallContext
+import com.embabel.agent.api.tool.callback.BeforeToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.core.AgentProcess
@@ -28,6 +31,9 @@ import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.core.Usage
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
+import com.embabel.agent.spi.loop.EmptyResponseAction
+import com.embabel.agent.spi.loop.EmptyResponsePolicy
+import com.embabel.agent.spi.loop.ExitOnEmptyPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.MaxIterationsExceededException
 import com.embabel.agent.spi.loop.ToolCallResult
@@ -38,9 +44,11 @@ import com.embabel.agent.spi.loop.ToolLoopResult
 import com.embabel.agent.spi.loop.ToolNotFoundAction
 import com.embabel.agent.spi.loop.ToolNotFoundPolicy
 import com.embabel.chat.AssistantMessageWithToolCalls
+import com.embabel.chat.EmptyLlmResponseException
 import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.chat.ToolResultMessage
+import com.embabel.chat.UserMessage
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 
@@ -54,8 +62,9 @@ import org.slf4j.LoggerFactory
  * @param toolDecorator Optional decorator applied to tools when they are dynamically injected.
  * This ensures injected tools (e.g., from MatryoshkaTool) receive the same decoration
  * as initial tools, including event publication, observability, and error handling.
- * @param inspectors Read-only observers for tool loop lifecycle events
- * @param transformers Transformers for history compression, summarization, etc.
+ * @param toolLoopInspectors Read-only observers for tool loop lifecycle events
+ * @param toolLoopTransformers Transformers for history compression, summarization, etc.
+ * @param toolCallInspectors Read-only observers for individual tool call events
  */
 internal open class DefaultToolLoop(
     private val llmMessageSender: LlmMessageSender,
@@ -63,10 +72,12 @@ internal open class DefaultToolLoop(
     private val injectionStrategy: ToolInjectionStrategy = ToolInjectionStrategy.NONE,
     private val maxIterations: Int = 20,
     private val toolDecorator: ((Tool) -> Tool)? = null,
-    protected val inspectors: List<ToolLoopInspector> = emptyList(),
-    protected val transformers: List<ToolLoopTransformer> = emptyList(),
+    protected val toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
+    protected val toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
+    protected val toolCallInspectors: List<ToolCallInspector> = emptyList(),
     private val toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     protected val toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
+    protected val emptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
 ) : ToolLoop {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -93,8 +104,8 @@ internal open class DefaultToolLoop(
                 iteration = state.iterations,
                 tools = state.availableTools.toList(),
             )
-            inspectors.notifyBeforeLlmCall(beforeContext)
-            val transformedHistory = transformers.applyBeforeLlmCall(beforeContext)
+            toolLoopInspectors.notifyBeforeLlmCall(beforeContext)
+            val transformedHistory = toolLoopTransformers.applyBeforeLlmCall(beforeContext)
             if (transformedHistory != state.conversationHistory) {
                 state.conversationHistory.clear()
                 state.conversationHistory.addAll(transformedHistory)
@@ -115,8 +126,8 @@ internal open class DefaultToolLoop(
                 response = callResult.message,
                 usage = callResult.usage,
             )
-            inspectors.notifyAfterLlmCall(afterLlmContext)
-            val transformedResponse = transformers.applyAfterLlmCall(afterLlmContext)
+            toolLoopInspectors.notifyAfterLlmCall(afterLlmContext)
+            val transformedResponse = toolLoopTransformers.applyAfterLlmCall(afterLlmContext)
             /* -------------------------------------------------
              * Apply afterLlmCall callbacks - END
              * ------------------------------------------------- */
@@ -131,6 +142,33 @@ internal open class DefaultToolLoop(
 
             if (!hasToolCalls(transformedResponse)) {
                 /* -------------------------------------------------
+                 * Empty-response policy — give weak models one more
+                 * chance before exiting the loop with blank content.
+                 * Failure mode common to gpt-oss-20b / qwen after a
+                 * tool call: model returns blank text with no further
+                 * tool calls. Default policy is [ExitOnEmptyPolicy]
+                 * which preserves prior behaviour; opt-in policies
+                 * like [RetryWithFeedbackPolicy] feed a synthetic
+                 * nudge into the conversation and re-loop.
+                 * ------------------------------------------------- */
+                if (transformedResponse.content.isBlank()) {
+                    when (val action = emptyResponsePolicy.handle()) {
+                        is EmptyResponseAction.FeedbackToModel -> {
+                            logger.info(
+                                "Empty LLM response at iteration {} — feeding back to model",
+                                state.iterations,
+                            )
+                            state.conversationHistory.add(UserMessage(action.message))
+                            continue
+                        }
+                        EmptyResponseAction.Throw -> throw EmptyLlmResponseException()
+                        EmptyResponseAction.Exit -> { /* fall through */ }
+                    }
+                } else {
+                    emptyResponsePolicy.onNonEmpty()
+                }
+
+                /* -------------------------------------------------
                  * Apply afterIteration callbacks for early exit - START
                  * LLM returned final answer without tool calls.
                  * Call afterIteration with empty toolCalls for consistency,
@@ -142,8 +180,8 @@ internal open class DefaultToolLoop(
                     iteration = state.iterations,
                     toolCallsInIteration = emptyList(),
                 )
-                inspectors.notifyAfterIteration(earlyExitContext)
-                val historyAfterEarlyExit = transformers.applyAfterIteration(earlyExitContext)
+                toolLoopInspectors.notifyAfterIteration(earlyExitContext)
+                val historyAfterEarlyExit = toolLoopTransformers.applyAfterIteration(earlyExitContext)
                 if (historyAfterEarlyExit != state.conversationHistory) {
                     state.conversationHistory.clear()
                     state.conversationHistory.addAll(historyAfterEarlyExit)
@@ -156,11 +194,20 @@ internal open class DefaultToolLoop(
                 return buildResult(transformedResponse.content, outputParser, state)
             }
 
+            // Tool calls present — model is making progress; reset empty-response counter.
+            emptyResponsePolicy.onNonEmpty()
+
             val assistantMessage = transformedResponse as AssistantMessageWithToolCalls
             val shouldContinue = processToolCalls(assistantMessage.toolCalls, state)
             if (!shouldContinue) {
                 logger.info("Tool loop terminated for replan after {} iterations", state.iterations)
                 return buildResult("", outputParser, state)
+            }
+            // returnDirect: a tool requested its result be returned without
+            // further LLM processing. Exit the loop with the tool's content.
+            state.returnDirectContent?.let { content ->
+                logger.info("Tool loop returning direct content after {} iterations", state.iterations)
+                return buildResult(content, outputParser, state)
             }
 
             /* -------------------------------------------------
@@ -171,8 +218,8 @@ internal open class DefaultToolLoop(
                 iteration = state.iterations,
                 toolCallsInIteration = assistantMessage.toolCalls,
             )
-            inspectors.notifyAfterIteration(afterIterContext)
-            val historyAfterIteration = transformers.applyAfterIteration(afterIterContext)
+            toolLoopInspectors.notifyAfterIteration(afterIterContext)
+            val historyAfterIteration = toolLoopTransformers.applyAfterIteration(afterIterContext)
             if (historyAfterIteration != state.conversationHistory) {
                 state.conversationHistory.clear()
                 state.conversationHistory.addAll(historyAfterIteration)
@@ -249,12 +296,14 @@ internal open class DefaultToolLoop(
      */
     protected fun checkForActionTerminationSignal() {
         val process = AgentProcess.get() as? AbstractAgentProcess ?: return
-        val signal = process.terminationRequest
-        if (signal != null && signal.scope == TerminationScope.ACTION) {
+        val signal = process.terminationRequest ?: return
+        if (signal.scope != TerminationScope.ACTION) return
+        if (process.compareAndResetTerminationRequest(signal)) {
             logger.info("Action termination signal detected: {}", signal.reason)
-            process.resetTerminationRequest()
             throw TerminateActionException(signal.reason)
         }
+        // CAS failed — slot was mutated concurrently. The new signal stays
+        // in place for the next consumer; we do not act on the stale observation.
     }
 
     /**
@@ -273,6 +322,12 @@ internal open class DefaultToolLoop(
             val (result, resultContent) = executeToolCall(tool, toolCall)
             applyInjectionStrategy(toolCall, resultContent, state)
             addToolResultToHistory(toolCall, result, resultContent, state)
+            // returnDirect: tool result goes straight to the caller,
+            // bypassing further LLM processing.
+            if (tool.metadata.returnDirect) {
+                logger.info("Tool '{}' has returnDirect=true — short-circuiting loop", toolCall.name)
+                state.returnDirectContent = resultContent
+            }
             true
         } catch (e: ReplanRequestedException) {
             logger.info("Tool '{}' requested replan: {}", toolCall.name, e.reason)
@@ -294,12 +349,31 @@ internal open class DefaultToolLoop(
         toolCall: ToolCall,
     ): Pair<Tool.Result, String> {
         logger.debug("Executing tool: {} with input: {}", toolCall.name, toolCall.arguments)
+
+        // Notify tool call inspectors BEFORE execution
+        toolCallInspectors.notifyBeforeToolCall(BeforeToolCallContext(toolCall))
+
+        // Measure execution time
+        val startTime = System.currentTimeMillis()
         val result = tool.call(toolCall.arguments, toolCallContext)
+        val durationMs = System.currentTimeMillis() - startTime
+
         val content = when (result) {
             is Tool.Result.Text -> result.content
             is Tool.Result.WithArtifact -> result.content
             is Tool.Result.Error -> "Error: ${result.message}"
         }
+
+        // Notify tool call inspectors AFTER execution
+        toolCallInspectors.notifyAfterToolCall(
+            AfterToolCallContext(
+                toolCall = toolCall,
+                result = result,
+                resultAsString = content,
+                durationMs = durationMs,
+            )
+        )
+
         return result to content
     }
 
@@ -388,8 +462,8 @@ internal open class DefaultToolLoop(
             result = result,
             resultAsString = resultContent,
         )
-        inspectors.notifyAfterToolResult(afterToolContext)
-        val transformedResult = transformers.applyAfterToolResult(afterToolContext)
+        toolLoopInspectors.notifyAfterToolResult(afterToolContext)
+        val transformedResult = toolLoopTransformers.applyAfterToolResult(afterToolContext)
         /* -------------------------------------------------
          * Apply afterToolResult callbacks - END
          * ------------------------------------------------- */
@@ -413,6 +487,8 @@ internal open class DefaultToolLoop(
         var replanRequested: Boolean = false,
         var replanReason: String? = null,
         var blackboardUpdater: BlackboardUpdater = BlackboardUpdater {},
+        /** When set, the tool loop returns this content directly without sending it back to the LLM. */
+        var returnDirectContent: String? = null,
     )
 
     /**

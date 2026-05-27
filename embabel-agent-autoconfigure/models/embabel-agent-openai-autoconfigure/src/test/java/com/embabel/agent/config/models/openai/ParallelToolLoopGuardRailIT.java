@@ -234,7 +234,8 @@ class ParallelToolLoopGuardRailIT {
                     ToolLoopType.DEFAULT,
                     20,
                     new ToolLoopConfiguration.ParallelModeProperties(),
-                    new ToolLoopConfiguration.ToolNotFoundProperties()
+                    new ToolLoopConfiguration.ToolNotFoundProperties(),
+                    new ToolLoopConfiguration.EmptyResponseProperties(1, "Retry Please")
             );
             ReflectionTestUtils.setField(toolLoopFactory, "config", sequentialConfig);
 
@@ -254,7 +255,8 @@ class ParallelToolLoopGuardRailIT {
                     ToolLoopType.PARALLEL,
                     20,
                     new ToolLoopConfiguration.ParallelModeProperties(),
-                    new ToolLoopConfiguration.ToolNotFoundProperties()
+                    new ToolLoopConfiguration.ToolNotFoundProperties(),
+                    new ToolLoopConfiguration.EmptyResponseProperties(1, "Retry Please")
             );
             ReflectionTestUtils.setField(toolLoopFactory, "config", parallelConfig);
 

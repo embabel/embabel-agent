@@ -17,6 +17,7 @@ package com.embabel.agent.autoconfigure.platform;
 
 
 import com.embabel.agent.spi.config.spring.AgentPlatformConfiguration;
+import com.embabel.agent.spi.config.spring.EmbeddingTrackingConfiguration;
 import com.embabel.agent.spi.config.spring.ToolGroupsConfiguration;
 import com.embabel.common.core.config.CommonPlatformPropertiesLoader;
 import jakarta.annotation.PostConstruct;
@@ -34,7 +35,7 @@ import org.springframework.context.annotation.Import;
 @ImportAutoConfiguration({
         QuiteMcpClientAutoConfiguration.class
 })
-@Import({CommonPlatformPropertiesLoader.class, ScanConfiguration.class, AgentPlatformConfiguration.class, ToolGroupsConfiguration.class,})
+@Import({CommonPlatformPropertiesLoader.class, ScanConfiguration.class, AgentPlatformConfiguration.class, ToolGroupsConfiguration.class, EmbeddingTrackingConfiguration.class,})
 public class AgentPlatformAutoConfiguration {
     final private static Logger logger = LoggerFactory.getLogger(AgentPlatformAutoConfiguration.class);
 

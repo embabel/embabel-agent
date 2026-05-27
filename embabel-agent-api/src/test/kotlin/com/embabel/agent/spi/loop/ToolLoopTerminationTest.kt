@@ -27,6 +27,7 @@ import com.embabel.chat.UserMessage
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -113,6 +114,12 @@ class ToolLoopTerminationTest {
             // Only tool_one should have been called; tool_two skipped due to termination
             assertEquals(1, toolCallOrder.size)
             assertEquals("tool_one", toolCallOrder[0])
+
+            // Race-fix invariant: the tool loop MUST consume the ACTION signal via CAS,
+            // not via an unconditional reset. If a future refactor reintroduces a
+            // non-CAS reset on DefaultToolLoop.checkForActionTerminationSignal, this
+            // verify fails — catching the regression at its source.
+            verify(atLeast = 1) { mockProcess.compareAndResetTerminationRequest(any()) }
         }
 
         /**
@@ -343,7 +350,15 @@ class ToolLoopTerminationTest {
         every { mockProcess.terminateAction(any()) } answers {
             terminationRequest = TerminationSignal(TerminationScope.ACTION, firstArg())
         }
-        every { mockProcess.resetTerminationRequest() } answers { terminationRequest = null }
+        every { mockProcess.compareAndResetTerminationRequest(any()) } answers {
+            val expected = firstArg<TerminationSignal>()
+            if (terminationRequest == expected) {
+                terminationRequest = null
+                true
+            } else {
+                false
+            }
+        }
 
         AgentProcess.set(mockProcess)
         return mockProcess

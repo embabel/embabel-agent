@@ -19,6 +19,7 @@ import com.embabel.agent.api.event.AgentProcessEvent
 import com.embabel.agent.api.event.AgenticEventListener
 import com.embabel.agent.spi.config.spring.AgentPlatformProperties
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE
 import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.GetMapping
@@ -48,6 +49,11 @@ class SseProperties(platformProperties: AgentPlatformProperties) {
  * Each new listener will receive all events for that process to date.
  */
 @RestController
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.rest.process-events-enabled"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
 class SSEController(
     private val sseProperties: SseProperties,
 ) : AgenticEventListener {

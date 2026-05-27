@@ -24,6 +24,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.DomainToolPredicate
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -132,6 +133,9 @@ internal data class DelegatingStreamingPromptRunner(
 
     override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner =
         copy(delegate = delegate.withToolLoopTransformers(*transformers))
+
+    override fun withToolCallInspectors(vararg inspectors: ToolCallInspector): PromptRunner =
+        copy(delegate = delegate.withToolCallInspectors(*inspectors))
 
     override fun withToolCallContext(context: ToolCallContext): PromptRunner =
         copy(delegate = delegate.withToolCallContext(context))

@@ -19,35 +19,92 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
 import com.embabel.agent.api.tool.callback.AfterIterationContext
 import com.embabel.agent.api.tool.callback.AfterLlmCallContext
+import com.embabel.agent.api.tool.callback.AfterToolCallContext
 import com.embabel.agent.api.tool.callback.AfterToolResultContext
 import com.embabel.agent.api.tool.callback.BeforeLlmCallContext
+import com.embabel.agent.api.tool.callback.BeforeToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.chat.Message
 import com.embabel.chat.ToolCall
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
+import org.slf4j.LoggerFactory
 
 /**
  * Extension functions for applying [ToolLoopInspector] and [ToolLoopTransformer] callbacks.
+ *
+ * All inspector and transformer calls are wrapped in try-catch to ensure that exceptions
+ * from observability code do not break tool loop execution.
  */
+
+private val logger = LoggerFactory.getLogger("ToolCallbackSupport")
 
 // =============================================================================
 // Inspector Extensions (read-only notifications)
 // =============================================================================
 
 internal fun List<ToolLoopInspector>.notifyBeforeLlmCall(context: BeforeLlmCallContext) {
-    forEach { it.beforeLlmCall(context) }
+    forEach { inspector ->
+        try {
+            inspector.beforeLlmCall(context)
+        } catch (e: Exception) {
+            logger.warn("ToolLoopInspector ${inspector::class.simpleName} failed in beforeLlmCall (iteration ${context.iteration}): ${e.message}", e)
+        }
+    }
 }
 
 internal fun List<ToolLoopInspector>.notifyAfterLlmCall(context: AfterLlmCallContext) {
-    forEach { it.afterLlmCall(context) }
+    forEach { inspector ->
+        try {
+            inspector.afterLlmCall(context)
+        } catch (e: Exception) {
+            logger.warn("ToolLoopInspector ${inspector::class.simpleName} failed in afterLlmCall (iteration ${context.iteration}): ${e.message}", e)
+        }
+    }
 }
 
 internal fun List<ToolLoopInspector>.notifyAfterToolResult(context: AfterToolResultContext) {
-    forEach { it.afterToolResult(context) }
+    forEach { inspector ->
+        try {
+            inspector.afterToolResult(context)
+        } catch (e: Exception) {
+            logger.warn("ToolLoopInspector ${inspector::class.simpleName} failed in afterToolResult for tool '${context.toolCall.name}' (iteration ${context.iteration}): ${e.message}", e)
+        }
+    }
 }
 
 internal fun List<ToolLoopInspector>.notifyAfterIteration(context: AfterIterationContext) {
-    forEach { it.afterIteration(context) }
+    forEach { inspector ->
+        try {
+            inspector.afterIteration(context)
+        } catch (e: Exception) {
+            logger.warn("ToolLoopInspector ${inspector::class.simpleName} failed in afterIteration (iteration ${context.iteration}): ${e.message}", e)
+        }
+    }
+}
+
+// =============================================================================
+// Tool Call Inspector Extensions (context without history/iteration)
+// =============================================================================
+
+internal fun List<ToolCallInspector>.notifyBeforeToolCall(context: BeforeToolCallContext) {
+    forEach { inspector ->
+        try {
+            inspector.beforeToolCall(context)
+        } catch (e: Exception) {
+            logger.warn("ToolCallInspector ${inspector::class.simpleName} failed in beforeToolCall for tool '${context.toolCall.name}': ${e.message}", e)
+        }
+    }
+}
+
+internal fun List<ToolCallInspector>.notifyAfterToolCall(context: AfterToolCallContext) {
+    forEach { inspector ->
+        try {
+            inspector.afterToolCall(context)
+        } catch (e: Exception) {
+            logger.warn("ToolCallInspector ${inspector::class.simpleName} failed in afterToolCall for tool '${context.toolCall.name}': ${e.message}", e)
+        }
+    }
 }
 
 // =============================================================================

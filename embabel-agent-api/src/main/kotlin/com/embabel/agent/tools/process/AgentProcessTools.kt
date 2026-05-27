@@ -121,8 +121,8 @@ class AgentProcessTools {
 
             val p = process!!
             val budget = p.processOptions.budget
-            val currentCost = p.cost()
-            val usage = p.usage()
+            val currentCost = p.totalCost()
+            val usage = p.totalUsage()
             val actionsUsed = p.history.size
 
             val costRemaining = budget.cost - currentCost
@@ -161,16 +161,18 @@ class AgentProcessTools {
             if (error != null) return error
 
             val p = process!!
-            val usage = p.usage()
-            val totalCost = p.cost()
-            val invocationCount = p.llmInvocations.size
+            val usage = p.totalUsage()
+            val totalCost = p.totalCost()
+            val llmInvocationCount = p.llmInvocations.size
+            val embeddingInvocationCount = p.embeddingInvocations.size
 
             return Tool.Result.text(
                 """
                 |Cost and Usage:
                 |
                 |Total cost: $${String.format("%.6f", totalCost)}
-                |LLM invocations: $invocationCount
+                |LLM invocations: $llmInvocationCount
+                |Embedding invocations: $embeddingInvocationCount
                 |
                 |Tokens used:
                 |  Prompt tokens: ${"%,d".format(usage.promptTokens ?: 0)}
@@ -253,7 +255,7 @@ class AgentProcessTools {
     private fun createModelsUsedTool(): Tool = object : Tool {
         override val definition = Tool.Definition(
             name = "process_models",
-            description = "Get information about which LLM models have been used",
+            description = "Get information about which models (LLM and embedding) have been used",
             inputSchema = Tool.InputSchema.empty(),
         )
 
@@ -262,10 +264,10 @@ class AgentProcessTools {
             if (error != null) return error
 
             val p = process!!
-            val models = p.modelsUsed()
+            val models = p.totalModelsUsed()
 
             if (models.isEmpty()) {
-                return Tool.Result.text("No LLM models have been used yet.")
+                return Tool.Result.text("No models have been used yet.")
             }
 
             val modelsText = models.joinToString("\n") { model ->

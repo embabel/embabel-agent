@@ -54,6 +54,7 @@ data class ToolLoopConfiguration(
     val maxIterations: Int = 20,
     val parallel: ParallelModeProperties = ParallelModeProperties(),
     val toolNotFound: ToolNotFoundProperties = ToolNotFoundProperties(),
+    val emptyResponse: EmptyResponseProperties = EmptyResponseProperties(),
 ) {
 
     /**
@@ -136,5 +137,38 @@ data class ToolLoopConfiguration(
         val maxRetries: Int = 3,
         /** Minimum tool name length for fuzzy matching */
         val minFuzzyLength: Int = 3,
+    )
+
+    /**
+     * Properties for empty-response handling.
+     *
+     * When an LLM (typically a weak open-weights chat model) returns
+     * blank text with no tool calls, the loop can either exit with
+     * empty content (current behaviour) or feed a synthetic nudge back
+     * to the LLM to give it one more chance.
+     *
+     * `maxRetries: 0` (the default) preserves the existing behaviour —
+     * the loop exits and the rendering layer surfaces
+     * [com.embabel.chat.EmptyLlmResponseException]. Any value > 0
+     * activates the retry policy with the configured nudge message.
+     */
+    data class EmptyResponseProperties(
+        /**
+         * Maximum consecutive empty-response retries before throwing
+         * [com.embabel.chat.EmptyLlmResponseException]. `0` (default)
+         * disables the retry path entirely and falls back to the
+         * existing exit-and-let-caller-handle behaviour.
+         */
+        val maxRetries: Int = 0,
+        /**
+         * Message appended to the conversation as a synthetic
+         * [com.embabel.chat.UserMessage] to nudge the LLM. Only used
+         * when [maxRetries] > 0.
+         */
+        val nudgeMessage: String =
+            "Your previous turn produced no response. " +
+                "Take ONE concrete action that progresses toward answering the user's most recent question — " +
+                "either call a tool to gather what you still need, or write the answer using the information you already have. " +
+                "Do not stay silent.",
     )
 }

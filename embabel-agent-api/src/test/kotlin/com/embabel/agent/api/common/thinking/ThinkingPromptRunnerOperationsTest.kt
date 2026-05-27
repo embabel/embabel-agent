@@ -20,6 +20,7 @@ import com.embabel.agent.api.common.PromptRunner
 import com.embabel.agent.api.common.support.OperationContextPromptRunner
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -264,6 +265,8 @@ class ThinkingPromptRunnerOperationsTest {
             override fun withToolLoopInspectors(vararg inspectors: ToolLoopInspector): PromptRunner = this
 
             override fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner = this
+
+            override fun withToolCallInspectors(vararg inspectors: ToolCallInspector): PromptRunner = this
 
             override fun withToolNotFoundPolicy(policy: com.embabel.agent.spi.loop.ToolNotFoundPolicy): PromptRunner = this
 

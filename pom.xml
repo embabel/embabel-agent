@@ -4,20 +4,20 @@
     <parent>
         <groupId>com.embabel.build</groupId>
         <artifactId>embabel-build-parent</artifactId>
-        <version>0.1.13-SNAPSHOT</version>
+        <version>0.1.14-SNAPSHOT</version>
     </parent>
     <groupId>com.embabel.agent</groupId>
     <artifactId>embabel-agent-parent</artifactId>
-    <version>0.4.0-SNAPSHOT</version>
+    <version>0.5.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Embabel Agent Parent</name>
     <description>Parent POM for Embabel Agent Modules</description>
     <url>https://github.com/embabel/embabel-agent</url>
 
     <properties>
-        <argLine/>
-        <embabel-common.version>0.1.12-SNAPSHOT</embabel-common.version>
-        <netty.version>4.1.132.Final</netty.version>
+        <argLine />
+        <embabel-common.version>0.1.13-SNAPSHOT</embabel-common.version>
+        <netty.version>4.2.13.Final</netty.version>
         <spotbugs-maven-plugin.version>4.9.8.2</spotbugs-maven-plugin.version>
         <sb-contrib.version>7.7.4</sb-contrib.version>
     </properties>

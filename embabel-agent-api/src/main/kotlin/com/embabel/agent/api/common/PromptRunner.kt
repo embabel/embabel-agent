@@ -21,6 +21,7 @@ import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolObject
 import com.embabel.agent.api.tool.agentic.ToolChaining
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.validation.guardrails.GuardRail
@@ -400,6 +401,18 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * @return PromptRunner instance with the added transformers
      */
     fun withToolLoopTransformers(vararg transformers: ToolLoopTransformer): PromptRunner
+
+    /**
+     * Add tool call inspectors for observing individual tool executions.
+     * Unlike [withToolLoopInspectors], these receive only tool-level context
+     * without full conversation history or iteration state.
+     *
+     * Works in both streaming and non-streaming modes.
+     *
+     * @param inspectors the tool call inspectors to add
+     * @return PromptRunner instance with the added inspectors
+     */
+    fun withToolCallInspectors(vararg inspectors: ToolCallInspector): PromptRunner
 
     /**
      * Set out-of-band metadata to pass to tools at call time.

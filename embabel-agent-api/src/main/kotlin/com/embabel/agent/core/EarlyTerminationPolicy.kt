@@ -142,7 +142,7 @@ private data class MaxTokensEarlyTerminationPolicy(
     private val maxTokens: Int,
 ) : EarlyTerminationPolicy {
     override fun shouldTerminate(agentProcess: AgentProcess): EarlyTermination? =
-        if ((agentProcess.usage().totalTokens ?: 0) >= maxTokens) {
+        if ((agentProcess.totalUsage().totalTokens ?: 0) >= maxTokens) {
             EarlyTermination(
                 agentProcess = agentProcess,
                 error = true,
@@ -157,11 +157,11 @@ private data class MaxCostEarlyTerminationPolicy(
     private val budget: Double,
 ) : EarlyTerminationPolicy {
     override fun shouldTerminate(agentProcess: AgentProcess): EarlyTermination? =
-        if (agentProcess.cost() >= budget) {
+        if (agentProcess.totalCost() >= budget) {
             EarlyTermination(
                 agentProcess = agentProcess,
                 error = true,
-                reason = "Exceeded budget of $${"%.4f".format(budget)}: cost=$${"%.4f".format(agentProcess.cost())}",
+                reason = "Exceeded budget of $${"%.4f".format(budget)}: cost=$${"%.4f".format(agentProcess.totalCost())}",
                 policy = this,
             )
         } else null

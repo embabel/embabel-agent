@@ -21,7 +21,6 @@ import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.common.autonomy.Autonomy
 import com.embabel.agent.api.common.streaming.StreamingPromptRunner
 import com.embabel.agent.api.common.streaming.asStreaming
-import com.embabel.agent.api.common.support.streaming.StreamingCapabilityDetector
 import com.embabel.agent.core.AgentPlatform
 import com.embabel.agent.core.internal.LlmOperations
 import com.embabel.agent.spi.LlmService
@@ -176,10 +175,14 @@ class LLMStreamingIntegrationTest(
 
     @Test
     fun `test streaming capability detection`() {
-        // Direct test of StreamingCapabilityDetector
+        // Direct test of LlmService.supportsStreaming()
         val fakeStreamingModel = FakeStreamingChatModel("test response")
-        val detector = StreamingCapabilityDetector
-        val supportsStreaming = detector.supportsStreaming(fakeStreamingModel)
+        val llmService = SpringAiLlmService(
+            name = "test-streaming",
+            chatModel = fakeStreamingModel,
+            provider = "test",
+        )
+        val supportsStreaming = llmService.supportsStreaming()
 
         assertTrue(supportsStreaming, "FakeStreamingChatModel should be detected as supporting streaming")
 

@@ -16,13 +16,19 @@
 package com.embabel.agent.spi.support.springai.streaming
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.callback.AfterToolCallContext
+import com.embabel.agent.api.tool.callback.BeforeToolCallContext
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.chat.AssistantMessage
 import com.embabel.chat.SystemMessage
 import com.embabel.chat.UserMessage
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -70,7 +76,7 @@ class SpringAiLlmMessageStreamerTest {
         every { mockStreamSpec.content() } returns Flux.just("response")
 
         // When
-        streamer.stream(messages, tools)
+        streamer.stream(messages, tools, emptyList())
 
         // Then
         verify { mockChatClient.prompt(any<Prompt>()) }
@@ -88,7 +94,7 @@ class SpringAiLlmMessageStreamerTest {
         every { mockStreamSpec.content() } returns expectedContent
 
         // When
-        val result = streamer.stream(messages, emptyList())
+        val result = streamer.stream(messages, emptyList(), emptyList())
 
         // Then
         StepVerifier.create(result)
@@ -105,7 +111,7 @@ class SpringAiLlmMessageStreamerTest {
         every { mockStreamSpec.content() } returns Flux.just("response")
 
         // When
-        val result = streamer.stream(emptyList(), emptyList())
+        val result = streamer.stream(emptyList(), emptyList(), emptyList())
 
         // Then
         StepVerifier.create(result)
@@ -126,7 +132,7 @@ class SpringAiLlmMessageStreamerTest {
         every { mockStreamSpec.content() } returns Flux.just("response")
 
         // When
-        val result = streamer.stream(messages, emptyList())
+        val result = streamer.stream(messages, emptyList(), emptyList())
 
         // Then - should complete without error
         StepVerifier.create(result)
@@ -144,7 +150,7 @@ class SpringAiLlmMessageStreamerTest {
         every { mockStreamSpec.content() } returns Flux.empty()
 
         // When
-        val result = streamer.stream(listOf(UserMessage("test")), emptyList())
+        val result = streamer.stream(listOf(UserMessage("test")), emptyList(), emptyList())
 
         // Then
         StepVerifier.create(result)
@@ -159,11 +165,80 @@ class SpringAiLlmMessageStreamerTest {
         every { mockStreamSpec.content() } returns Flux.error(expectedError)
 
         // When
-        val result = streamer.stream(listOf(UserMessage("test")), emptyList())
+        val result = streamer.stream(listOf(UserMessage("test")), emptyList(), emptyList())
 
         // Then
         StepVerifier.create(result)
             .expectError(RuntimeException::class.java)
             .verify(Duration.ofSeconds(1))
+    }
+
+    @Nested
+    inner class InspectorIntegrationTests {
+
+        @Test
+        fun `stream wraps tools with inspectors when provided`() {
+            // Given
+            val streamer = SpringAiLlmMessageStreamer(mockChatClient, mockChatOptions)
+            val tools = listOf(
+                Tool.of("tool1", "First tool") { _ -> Tool.Result.text("result1") }
+            )
+            val inspector = object : ToolCallInspector {
+                override fun beforeToolCall(context: BeforeToolCallContext) {}
+                override fun afterToolCall(context: AfterToolCallContext) {}
+            }
+            every { mockStreamSpec.content() } returns Flux.just("response")
+
+            val callbacksSlot = slot<List<ToolCallback>>()
+            every { mockRequestSpec.toolCallbacks(capture(callbacksSlot)) } returns mockRequestSpec
+
+            // When
+            streamer.stream(listOf(UserMessage("test")), tools, listOf(inspector))
+
+            // Then - verify callbacks were wrapped
+            verify { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) }
+            val capturedCallbacks = callbacksSlot.captured
+            assertTrue(capturedCallbacks.isNotEmpty(), "Callbacks should not be empty")
+        }
+
+        @Test
+        fun `stream with multiple inspectors wraps tools correctly`() {
+            // Given
+            val streamer = SpringAiLlmMessageStreamer(mockChatClient, mockChatOptions)
+            val tools = listOf(
+                Tool.of("tool1", "First tool") { _ -> Tool.Result.text("result1") }
+            )
+            val inspector1 = object : ToolCallInspector {}
+            val inspector2 = object : ToolCallInspector {}
+            every { mockStreamSpec.content() } returns Flux.just("response")
+
+            val callbacksSlot = slot<List<ToolCallback>>()
+            every { mockRequestSpec.toolCallbacks(capture(callbacksSlot)) } returns mockRequestSpec
+
+            // When
+            streamer.stream(listOf(UserMessage("test")), tools, listOf(inspector1, inspector2))
+
+            // Then
+            verify { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) }
+            val capturedCallbacks = callbacksSlot.captured
+            assertTrue(capturedCallbacks.isNotEmpty(), "Callbacks should not be empty")
+        }
+
+        @Test
+        fun `stream with empty inspectors list does not wrap tools`() {
+            // Given
+            val streamer = SpringAiLlmMessageStreamer(mockChatClient, mockChatOptions)
+            val tools = listOf(
+                Tool.of("tool1", "First tool") { _ -> Tool.Result.text("result1") }
+            )
+            every { mockStreamSpec.content() } returns Flux.just("response")
+
+            // When
+            streamer.stream(listOf(UserMessage("test")), tools, emptyList())
+
+            // Then - should still work, just without wrapping
+            verify { mockRequestSpec.toolCallbacks(any<List<ToolCallback>>()) }
+            verify { mockStreamSpec.content() }
+        }
     }
 }

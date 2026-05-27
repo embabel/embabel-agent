@@ -204,12 +204,21 @@ class Autonomy(
         processOptions: ProcessOptions,
         agent: Agent,
     ): AgentProcessExecution {
+        // Bind under the default "it" name AND under the type-derived name
+        // (e.g., "userInput" for UserInput). YAML-defined actions use the
+        // type-derived name in their IoBindings, so both are needed.
+        val typeDerivedName = inputObject::class.simpleName
+            ?.replaceFirstChar { it.lowercase() }
+        val bindings = buildMap {
+            put(IoBinding.DEFAULT_BINDING, inputObject)
+            if (typeDerivedName != null && typeDerivedName != IoBinding.DEFAULT_BINDING) {
+                put(typeDerivedName, inputObject)
+            }
+        }
         val agentProcess = agentPlatform.createAgentProcess(
             processOptions = processOptions,
             agent = agent,
-            bindings = mapOf(
-                IoBinding.DEFAULT_BINDING to inputObject
-            )
+            bindings = bindings,
         )
         // We treat the inputObject specially, and destructure it if it's a SomeOf composite
         destructureAndBindIfNecessary(inputObject, "input", agentProcess, logger)

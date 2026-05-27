@@ -18,8 +18,8 @@ package com.embabel.agent.rag.tools
 import com.embabel.agent.api.reference.EagerSearch
 import com.embabel.agent.api.reference.LlmReference
 import com.embabel.agent.api.tool.DelegatingTool
-import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.api.tool.progressive.UnfoldingTool
 import com.embabel.agent.filter.PropertyFilter
 import com.embabel.agent.rag.filter.EntityFilter
 import com.embabel.agent.rag.model.Chunk
@@ -100,6 +100,15 @@ data class ToolishRag @JvmOverloads constructor(
     val metadataFilter: PropertyFilter? = null,
     val entityFilter: EntityFilter? = null,
     val maxZoomOutChars: Int = ResultExpanderTools.DEFAULT_MAX_ZOOM_OUT_CHARS,
+    /**
+     * Progressively-disclosed guidance appended to the unfold response when
+     * the LLM invokes this tool. Right home for search-strategy notes
+     * (vector vs text, retry-with-synonyms, result-shape) that don't need
+     * to pay the system-prompt tax every turn — they only matter once the
+     * LLM has decided to descend.
+     * See [com.embabel.agent.api.tool.progressive.UnfoldingTool.childToolUsageNotes].
+     */
+    val childToolUsageNotes: String? = null,
 ) : LlmReference, DelegatingTool, EagerSearch<ToolishRag> {
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -223,19 +232,31 @@ data class ToolishRag @JvmOverloads constructor(
         )
     }
 
-    // LlmReference: returns flat list of inner tools with naming strategy applied
+    // LlmReference: returns flat list of inner tools with naming strategy applied.
+    //
+    // Items in [toolObjects] may already BE [Tool] instances (e.g. [TextSearchTools],
+    // which is a Tool with a description composed dynamically from the store's
+    // [TextSearch.luceneSyntaxNotes]) or they may be classes carrying `@LlmTool`-annotated
+    // methods (most other SearchTools). Handle both — `Tool.fromInstance` would throw
+    // "no @LlmTool methods" on the Tool branch.
     override fun tools(): List<Tool> = toolObjects
-        .flatMap { Tool.fromInstance(it) }
+        .flatMap { instance ->
+            when (instance) {
+                is Tool -> listOf(instance)
+                else -> Tool.fromInstance(instance)
+            }
+        }
         .map { tool -> tool.withName(namingStrategy.transform(tool.definition.name)) }
 
-    // Tool interface implementation via lazy MatryoshkaTool
+    // Tool interface implementation via lazy UnfoldingTool
     // When used directly as a Tool, wraps all inner tools in a MatryoshkaTool
     // Implements DelegatingTool so MatryoshkaToolInjectionStrategy can unwrap it
     override val delegate: Tool by lazy {
-        MatryoshkaTool.of(
+        UnfoldingTool.of(
             name = name,
             description = description,
             innerTools = tools(),
+            childToolUsageNotes = childToolUsageNotes,
         )
     }
 
@@ -245,12 +266,12 @@ data class ToolishRag @JvmOverloads constructor(
     override fun call(input: String): Tool.Result =
         delegate.call(input)
 
+    // The text-search syntax notes USED to be emitted here, but they're now
+    // composed into the `textSearch` tool's own description in
+    // [TextSearchTools] — single source of truth, fixes the contradiction
+    // surfaced by embabel/embabel-agent#1298. Don't add the syntax line
+    // back here unless the tool description is also updated.
     override fun notes() = """
-        ${
-        (searchOperations as? TextSearch)?.let {
-            "Lucene search syntax support: ${searchOperations.luceneSyntaxNotes}\n"
-        }
-    }
         Hints: ${validHints.joinToString("\n") { it.contribution() }}
         Search acceptance criteria:
         $goal

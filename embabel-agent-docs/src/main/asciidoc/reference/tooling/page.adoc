@@ -1,0 +1,4 @@
+[[reference.tooling]]
+=== Developer Tooling
+
+include::intellij.adoc[]

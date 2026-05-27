@@ -15,17 +15,19 @@
  */
 package com.embabel.agent.config.models.anthropic;
 
+import com.embabel.agent.api.annotation.LlmTool;
 import com.embabel.agent.api.common.Ai;
 import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.streaming.StreamingPromptRunnerBuilder;
+import com.embabel.agent.api.tool.callback.LogLevel;
+import com.embabel.agent.api.tool.callback.ToolCallLoggingInspector;
 import com.embabel.agent.autoconfigure.models.anthropic.AgentAnthropicAutoConfiguration;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.common.core.streaming.StreamingEvent;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -54,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
                 "spring.main.allow-bean-definition-overriding=true",
 
                 // Streaming Infrastructure logging
-                "logging.level.com.embabel.agent.spi.support.springai.streaming.StreamingChatClientOperations=TRACE",
+                "logging.level.com.embabel.agent.spi.support.streaming.StreamingLlmOperationsImpl=TRACE",
 
                 // Spring AI Debug Logging
                 "logging.level.org.springframework.ai=DEBUG",
@@ -152,11 +154,16 @@ class LLMAnthropicStreamingBuilderIT {
     /**
      * Tool
      */
-    static class Tooling {
+   public record Tooling (Short temp) {
 
-        @Tool
-        Short convertFromCelsiusToFahrenheit(Short inputTemp) {
+        @LlmTool(description ="convert temperature from Celsius to Fahrenheit")
+        public Short convertFromCelsiusToFahrenheit(Short inputTemp) {
             return (short) ((inputTemp * 2) + 32);
+        }
+
+        @LlmTool(description ="convert temperature from Fahrenheit to Celsius")
+        public Short convertFromFahrenheitToCelsius(Short inputTemp) {
+            return (short) ((inputTemp - 32) / 2);
         }
     }
 
@@ -167,7 +174,8 @@ class LLMAnthropicStreamingBuilderIT {
 
         // Given: Use the existing streaming test LLM (configured as "best")
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
-                             .withToolObject(Tooling.class);
+                .withToolObject(new Tooling((short) 0))
+                .withToolCallInspectors(new ToolCallLoggingInspector(LogLevel.INFO, logger));
         assertTrue(runner.supportsStreaming(), "Test LLM should support streaming");
 
         // When: Subscribe with real reactive callbacks using builder pattern
@@ -175,7 +183,10 @@ class LLMAnthropicStreamingBuilderIT {
         AtomicReference<Throwable> errorOccurred = new AtomicReference<>();
         AtomicBoolean completionCalled = new AtomicBoolean(false);
 
-        String prompt = "What are exactly two the most hottest months in Florida and their respective highest temperatures";
+        String prompt = """
+                            What are exactly two the most hottest months in Florida and their respective highest temperatures.
+                            Use Tooling instance to convert temperature units to Celsius.
+                            """.trim();
 
         // Use StreamingPromptBuilder instead of Kotlin extension function
         Flux<StreamingEvent<MonthItem>> results = new StreamingPromptRunnerBuilder(runner)

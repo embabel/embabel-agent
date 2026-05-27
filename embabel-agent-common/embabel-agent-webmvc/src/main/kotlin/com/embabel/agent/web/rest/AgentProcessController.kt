@@ -25,7 +25,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
@@ -53,14 +53,17 @@ data class AgentProcessStatus(
 @RestController
 @RequestMapping("/api/v1/process")
 @Tag(
-    name = "AgentProcess information and control",
-    description = "Endpoints for retrieving AgentProcess information, including status and results."
+    name = "AgentProcess status",
+    description = "Endpoint for retrieving AgentProcess status and last result."
 )
-class AgentProcessController(
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.rest.process-status-enabled"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
+class AgentProcessStatusController(
     private val agentPlatform: AgentPlatform,
 ) {
-
-    private val logger = LoggerFactory.getLogger(AgentProcessController::class.java)
 
     @Operation(
         summary = "Get the status of a process",
@@ -85,6 +88,22 @@ class AgentProcessController(
             result = agentProcess.lastResult(),
         )
     }
+}
+
+@RestController
+@RequestMapping("/api/v1/process")
+@Tag(
+    name = "AgentProcess control",
+    description = "Endpoint for terminating an AgentProcess."
+)
+@ConditionalOnProperty(
+    name = ["embabel.agent.platform.rest.process-kill-enabled"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
+class AgentProcessKillController(
+    private val agentPlatform: AgentPlatform,
+) {
 
     @DeleteMapping("/{id}")
     @Operation(

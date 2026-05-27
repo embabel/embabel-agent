@@ -35,11 +35,12 @@ import java.util.stream.Collectors;
 
 
 /**
- * Find news based on a person's star sign
+ * Writes an amusing personalised writeup combining a person's horoscope
+ * and relevant current news stories.
  */
 @Agent(
         name = "JavaTestStarNewsFinder",
-        description = "Find news based on a person's star sign",
+        description = "Write an amusing personalised writeup combining a person's horoscope and current news stories",
         beanName = "javaTestStarNewsFinder",
         scan = false)
 public class TestStarNewsFinder {

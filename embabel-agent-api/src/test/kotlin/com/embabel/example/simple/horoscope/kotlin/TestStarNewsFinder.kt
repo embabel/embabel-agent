@@ -76,10 +76,11 @@ data class Writeup(
 ) : HasContent
 
 /**
- * An agent that finds personalized news stories based on a person's star sign.
+ * An agent that writes a personalised, amusing writeup for a person by combining
+ * their daily horoscope with relevant current news stories.
  */
 @Agent(
-    description = "Find news based on a person's star sign",
+    description = "Write an amusing personalised writeup combining a person's horoscope and current news stories",
     scan = true,
     beanName = "KotlinStarNewsFinder",
 )

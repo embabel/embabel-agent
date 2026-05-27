@@ -907,7 +907,7 @@ class OperationContextPromptRunnerTest {
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withToolLoopInspectors(inspector) as OperationContextPromptRunner
 
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("inspectors")
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("toolLoopInspectors")
             field.isAccessible = true
             @Suppress("UNCHECKED_CAST")
             val inspectors = field.get(ocpr) as List<ToolLoopInspector>
@@ -924,7 +924,7 @@ class OperationContextPromptRunnerTest {
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withToolLoopInspectors(inspector1, inspector2) as OperationContextPromptRunner
 
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("inspectors")
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("toolLoopInspectors")
             field.isAccessible = true
             @Suppress("UNCHECKED_CAST")
             val inspectors = field.get(ocpr) as List<ToolLoopInspector>
@@ -941,7 +941,7 @@ class OperationContextPromptRunnerTest {
                 .withToolLoopInspectors(inspector1)
                 .withToolLoopInspectors(inspector2) as OperationContextPromptRunner
 
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("inspectors")
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("toolLoopInspectors")
             field.isAccessible = true
             @Suppress("UNCHECKED_CAST")
             val inspectors = field.get(ocpr) as List<ToolLoopInspector>
@@ -956,7 +956,7 @@ class OperationContextPromptRunnerTest {
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withToolLoopTransformers(transformer) as OperationContextPromptRunner
 
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("transformers")
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("toolLoopTransformers")
             field.isAccessible = true
             @Suppress("UNCHECKED_CAST")
             val transformers = field.get(ocpr) as List<ToolLoopTransformer>
@@ -973,7 +973,7 @@ class OperationContextPromptRunnerTest {
             val ocpr = createOperationContextPromptRunnerWithDefaults(mockk<OperationContext>())
                 .withToolLoopTransformers(transformer1, transformer2) as OperationContextPromptRunner
 
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("transformers")
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("toolLoopTransformers")
             field.isAccessible = true
             @Suppress("UNCHECKED_CAST")
             val transformers = field.get(ocpr) as List<ToolLoopTransformer>
@@ -990,7 +990,7 @@ class OperationContextPromptRunnerTest {
                 .withToolLoopTransformers(transformer1)
                 .withToolLoopTransformers(transformer2) as OperationContextPromptRunner
 
-            val field = OperationContextPromptRunner::class.java.getDeclaredField("transformers")
+            val field = OperationContextPromptRunner::class.java.getDeclaredField("toolLoopTransformers")
             field.isAccessible = true
             @Suppress("UNCHECKED_CAST")
             val transformers = field.get(ocpr) as List<ToolLoopTransformer>

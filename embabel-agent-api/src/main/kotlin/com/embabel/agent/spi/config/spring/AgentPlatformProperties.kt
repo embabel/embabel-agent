@@ -66,6 +66,9 @@ class AgentPlatformProperties {
     var sse: SseConfig = SseConfig()
 
     @field:NestedConfigurationProperty
+    var rest: RestConfig = RestConfig()
+
+    @field:NestedConfigurationProperty
     var test: TestConfig = TestConfig()
 
     @field:NestedConfigurationProperty
@@ -274,6 +277,28 @@ class AgentPlatformProperties {
          * Maximum number of process buffers
          */
         var maxProcessBuffers: Int = 1000
+    }
+
+    /**
+     * Toggles for the platform's built-in REST endpoints.
+     * Each flag controls whether the corresponding endpoint is exposed.
+     */
+    @ConfigurationProperties("embabel.agent.platform.rest")
+    class RestConfig {
+        /**
+         * Whether GET /api/v1/process/{id} (process status) is exposed
+         */
+        var processStatusEnabled: Boolean = true
+
+        /**
+         * Whether DELETE /api/v1/process/{id} (terminate process) is exposed
+         */
+        var processKillEnabled: Boolean = true
+
+        /**
+         * Whether GET /events/process/{id} (SSE event stream) is exposed
+         */
+        var processEventsEnabled: Boolean = true
     }
 
     /**

@@ -88,7 +88,15 @@ class ParallelToolLoopTest {
         every { mockProcess.terminateAction(any()) } answers {
             terminationRequest = TerminationSignal(TerminationScope.ACTION, firstArg())
         }
-        every { mockProcess.resetTerminationRequest() } answers { terminationRequest = null }
+        every { mockProcess.compareAndResetTerminationRequest(any()) } answers {
+            val expected = firstArg<TerminationSignal>()
+            if (terminationRequest == expected) {
+                terminationRequest = null
+                true
+            } else {
+                false
+            }
+        }
 
         AgentProcess.set(mockProcess)
         return mockProcess

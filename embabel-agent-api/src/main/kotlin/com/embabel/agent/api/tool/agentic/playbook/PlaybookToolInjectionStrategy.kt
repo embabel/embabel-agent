@@ -112,8 +112,25 @@ internal class ConditionalTool(
 
     override val definition: Tool.Definition = object : Tool.Definition {
         override val name: String = delegate.definition.name
-        override val description: String = delegate.definition.description +
-            "\n\nNote: This tool may require certain prerequisites before it becomes available."
+
+        // Description is evaluated on every read, NOT captured at construction
+        // time. When the tool is still locked we suffix a precise hint about
+        // what's missing so the LLM knows what to do next; when it has been
+        // unlocked we return the delegate's description verbatim. This matters
+        // for weak instruction-following models — leaving a "may require
+        // prerequisites" note on a tool that has actually unlocked makes them
+        // give up and produce empty output instead of calling the tool.
+        override val description: String
+            get() {
+                val context = state.toContext()
+                return if (condition.isSatisfied(context)) {
+                    delegate.definition.description
+                } else {
+                    delegate.definition.description +
+                        "\n\n" + buildLockedMessage(context)
+                }
+            }
+
         override val inputSchema: Tool.InputSchema = delegate.definition.inputSchema
     }
 

@@ -18,6 +18,7 @@ package com.embabel.common.ai.model
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.PlatformDefault
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byName
 import com.embabel.common.ai.model.ModelSelectionCriteria.Companion.byRole
+import com.embabel.common.ai.model.spi.InternalExtensionApi
 import com.embabel.common.core.types.HasInfoString
 import com.embabel.common.util.indent
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -118,6 +119,13 @@ data class LlmOptions @JvmOverloads constructor(
     override var topP: Double? = null,
     var thinking: Thinking? = null,
     var timeout: Duration? = null,
+    /**
+     * Provider-specific extensions for features not common across all LLMs.
+     * Allows provider-specific modules to add their own configuration without
+     * coupling the core LlmOptions to provider-specific dependencies.
+     * Internal field - use provider-specific extension functions to interact with it.
+     */
+    internal val extensions: Map<String, Any> = emptyMap(),
 ) : LlmHyperparameters, HasInfoString {
 
     @get:Schema(
@@ -179,6 +187,38 @@ data class LlmOptions @JvmOverloads constructor(
 
     fun withTimeout(timeout: Duration): LlmOptions {
         return copy(timeout = timeout)
+    }
+
+    /**
+     * Get a provider-specific extension value by key.
+     * Returns null if the extension is not present or cannot be cast to type T.
+     *
+     * **Internal API**: For provider modules only. Application code should use
+     * provider-specific extension functions (e.g., getAnthropicCaching()).
+     *
+     * @param key The extension key
+     * @return The extension value or null
+     */
+    @InternalExtensionApi
+    @Suppress("UNCHECKED_CAST")
+    fun <T> getExtension(key: String): T? {
+        return extensions[key] as? T
+    }
+
+    /**
+     * Add or update a provider-specific extension.
+     * Returns a new LlmOptions with the extension added/updated.
+     *
+     * **Internal API**: For provider modules only. Application code should use
+     * provider-specific extension functions (e.g., withAnthropicCaching()).
+     *
+     * @param key The extension key
+     * @param value The extension value
+     * @return A new LlmOptions with the extension
+     */
+    @InternalExtensionApi
+    fun withExtension(key: String, value: Any): LlmOptions {
+        return copy(extensions = extensions + (key to value))
     }
 
     override fun infoString(

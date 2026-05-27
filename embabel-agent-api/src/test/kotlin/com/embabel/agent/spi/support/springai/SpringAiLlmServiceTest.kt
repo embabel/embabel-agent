@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.spi.support.springai
 
+import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.OptionsConverter
@@ -249,6 +250,48 @@ class SpringAiLlmServiceTest {
             )
 
             service.createMessageSender(LlmOptions())
+
+            assertThat(converterCalled).isTrue()
+        }
+    }
+
+    @Nested
+    inner class CreateMessageStreamerTests {
+
+        // Relaxed mock needed because ChatClient.create() calls chatModel.getDefaultOptions()
+        private val relaxedChatModel: ChatModel = mockk(relaxed = true)
+
+        @Test
+        fun `createMessageStreamer returns SpringAiLlmMessageStreamer`() {
+            val service = SpringAiLlmService(
+                name = "test-model",
+                provider = "Provider",
+                chatModel = relaxedChatModel,
+            )
+            val options = LlmOptions()
+
+            val streamer = service.createMessageStreamer(options)
+
+            assertThat(streamer).isInstanceOf(SpringAiLlmMessageStreamer::class.java)
+        }
+
+        @Test
+        fun `createMessageStreamer uses optionsConverter`() {
+            var converterCalled = false
+            val customConverter = object : OptionsConverter<ChatOptions> {
+                override fun convertOptions(options: LlmOptions): ChatOptions {
+                    converterCalled = true
+                    return mockk()
+                }
+            }
+            val service = SpringAiLlmService(
+                name = "test-model",
+                provider = "Provider",
+                chatModel = relaxedChatModel,
+                optionsConverter = customConverter,
+            )
+
+            service.createMessageStreamer(LlmOptions())
 
             assertThat(converterCalled).isTrue()
         }

@@ -21,12 +21,15 @@ import com.embabel.agent.api.tool.TerminateAgentException
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.api.tool.ToolCallContext
 import com.embabel.agent.api.tool.ToolControlFlowSignal
+import com.embabel.agent.api.tool.callback.ToolCallInspector
 import com.embabel.agent.api.tool.callback.ToolLoopInspector
 import com.embabel.agent.api.tool.callback.ToolLoopTransformer
 import com.embabel.agent.api.tool.config.ToolLoopConfiguration.ParallelModeProperties
 import com.embabel.agent.core.BlackboardUpdater
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
+import com.embabel.agent.spi.loop.EmptyResponsePolicy
+import com.embabel.agent.spi.loop.ExitOnEmptyPolicy
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolNotFoundAction
@@ -70,22 +73,26 @@ internal class ParallelToolLoop(
     injectionStrategy: ToolInjectionStrategy,
     maxIterations: Int,
     toolDecorator: ((Tool) -> Tool)?,
-    inspectors: List<ToolLoopInspector> = emptyList(),
-    transformers: List<ToolLoopTransformer> = emptyList(),
+    toolLoopInspectors: List<ToolLoopInspector> = emptyList(),
+    toolLoopTransformers: List<ToolLoopTransformer> = emptyList(),
+    toolCallInspectors: List<ToolCallInspector> = emptyList(),
     private val asyncer: Asyncer,
     private val parallelConfig: ParallelModeProperties,
     toolCallContext: ToolCallContext = ToolCallContext.EMPTY,
     toolNotFoundPolicy: ToolNotFoundPolicy = AutoCorrectionPolicy(),
+    emptyResponsePolicy: EmptyResponsePolicy = ExitOnEmptyPolicy,
 ) : DefaultToolLoop(
     llmMessageSender = llmMessageSender,
     objectMapper = objectMapper,
     injectionStrategy = injectionStrategy,
     maxIterations = maxIterations,
     toolDecorator = toolDecorator,
-    inspectors = inspectors,
-    transformers = transformers,
+    toolLoopInspectors = toolLoopInspectors,
+    toolLoopTransformers = toolLoopTransformers,
+    toolCallInspectors = toolCallInspectors,
     toolCallContext = toolCallContext,
     toolNotFoundPolicy = toolNotFoundPolicy,
+    emptyResponsePolicy = emptyResponsePolicy,
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
