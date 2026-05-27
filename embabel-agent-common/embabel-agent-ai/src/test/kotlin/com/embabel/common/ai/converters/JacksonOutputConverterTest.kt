@@ -15,6 +15,7 @@
  */
 package com.embabel.common.ai.converters
 
+import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
@@ -371,7 +372,7 @@ World"""
             val mapper = ObjectMapper().registerModule(
                 KotlinModule.Builder().build()
             )
-            val exception = assertThrows<com.fasterxml.jackson.databind.JsonMappingException> {
+            val exception = assertThrows<JsonMappingException> {
                 mapper.readValue(messyJson, SimpleObject::class.java)
             }
 
