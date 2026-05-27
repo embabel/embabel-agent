@@ -42,9 +42,39 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
     }
 
     @Test
+    fun `should set include thoughts from Google GenAI extension`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withGoogleGenAiIncludeThoughts(true)
+        )
+        assertEquals(true, options.includeThoughts)
+    }
+
+    @Test
+    fun `should set include thoughts false from Google GenAI extension`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withGoogleGenAiIncludeThoughts(false)
+        )
+        assertEquals(false, options.includeThoughts)
+    }
+
+    @Test
+    fun `should not derive include thoughts from thinking`() {
+        val options = optionsConverter.convertOptions(
+            LlmOptions().withThinking(Thinking.withExtraction())
+        )
+        assertNull(options.includeThoughts)
+    }
+
+    @Test
     fun `should not set thinking budget when thinking is null`() {
         val options = optionsConverter.convertOptions(LlmOptions())
         assertNull(options.thinkingBudget)
+    }
+
+    @Test
+    fun `should return Google GenAI include thoughts extension value`() {
+        val options = LlmOptions().withGoogleGenAiIncludeThoughts(true)
+        assertEquals(true, options.getGoogleGenAiIncludeThoughts())
     }
 
     @Test

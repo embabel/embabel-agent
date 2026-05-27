@@ -240,6 +240,7 @@ class GoogleGenAiModelsConfig(
                 modelDef.topP?.let { topP(it) }
                 modelDef.topK?.let { topK(it) }
                 modelDef.thinkingBudget?.let { thinkingBudget(it) }
+                modelDef.includeThoughts?.let { includeThoughts(it) }
             }
             .build()
     }
@@ -358,6 +359,7 @@ object GoogleGenAiOptionsConverter : OptionsConverter<GoogleGenAiChatOptions> {
             .topK(options.topK)
             .maxOutputTokens(options.maxTokens ?: DEFAULT_MAX_OUTPUT_TOKENS)
             .apply {
+                options.getGoogleGenAiIncludeThoughts()?.let { includeThoughts(it) }
                 options.thinking?.let { thinkingConfig ->
                     if (thinkingConfig.enabled) {
                         thinkingConfig.tokenBudget?.let { thinkingBudget(it) }

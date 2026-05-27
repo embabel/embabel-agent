@@ -237,6 +237,7 @@ class GoogleGenAiModelLoaderTest {
                 top_p: 0.9
                 top_k: 50
                 thinking_budget: 1000
+                include_thoughts: true
                 pricing_model:
                   usd_per1m_input_tokens: 10.0
                   usd_per1m_output_tokens: 20.0
@@ -262,6 +263,7 @@ class GoogleGenAiModelLoaderTest {
         assertEquals(0.9, model.topP)
         assertEquals(50, model.topK)
         assertEquals(1000, model.thinkingBudget)
+        assertEquals(true, model.includeThoughts)
         assertNotNull(model.pricingModel)
         assertEquals(10.0, model.pricingModel?.usdPer1mInputTokens)
         assertEquals(20.0, model.pricingModel?.usdPer1mOutputTokens)
@@ -372,6 +374,7 @@ class GoogleGenAiModelLoaderTest {
         assertNull(model.topP)
         assertNull(model.topK)
         assertNull(model.thinkingBudget)
+        assertNull(model.includeThoughts)
         assertNull(model.pricingModel)
     }
 
