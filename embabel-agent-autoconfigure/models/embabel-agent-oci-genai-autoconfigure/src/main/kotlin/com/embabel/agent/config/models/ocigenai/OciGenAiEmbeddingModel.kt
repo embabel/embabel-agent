@@ -21,6 +21,7 @@ import com.oracle.bmc.generativeaiinference.model.EmbedTextDetails
 import com.oracle.bmc.generativeaiinference.model.OnDemandServingMode
 import com.oracle.bmc.generativeaiinference.model.ServingMode
 import com.oracle.bmc.generativeaiinference.requests.EmbedTextRequest
+import com.oracle.bmc.generativeaiinference.responses.EmbedTextResponse as OciEmbedTextResponse
 import org.springframework.ai.document.Document
 import org.springframework.ai.embedding.Embedding
 import org.springframework.ai.embedding.EmbeddingModel
@@ -48,7 +49,7 @@ class OciGenAiEmbeddingModel(
             .truncate(options.truncate.toOci())
             .inputType(options.inputType?.toOci())
             .build()
-        val response = retryTemplate.execute<com.oracle.bmc.generativeaiinference.responses.EmbedTextResponse, RuntimeException> {
+        val response = retryTemplate.execute<OciEmbedTextResponse, RuntimeException> {
             client.embedText(EmbedTextRequest.builder().embedTextDetails(details).build())
         }
         val result = response.embedTextResult

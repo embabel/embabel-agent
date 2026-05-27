@@ -22,12 +22,12 @@ import org.springframework.ai.tool.ToolCallback
 /**
  * Spring AI chat options for OCI Generative AI.
  */
-class OciGenAiChatOptions(
+class OciGenAiChatOptions internal constructor(
     private var model: String? = null,
-    private var compartmentId: String? = null,
-    private var servingMode: OciGenAiServingMode = OciGenAiServingMode.ON_DEMAND,
-    private var endpointId: String? = null,
-    private var apiFormat: OciGenAiApiFormat = OciGenAiApiFormat.GENERIC,
+    var compartmentId: String? = null,
+    initialServingMode: OciGenAiServingMode? = null,
+    var endpointId: String? = null,
+    initialApiFormat: OciGenAiApiFormat? = null,
     private var maxTokens: Int? = null,
     private var temperature: Double? = null,
     private var topP: Double? = null,
@@ -41,34 +41,25 @@ class OciGenAiChatOptions(
     private var internalToolExecutionEnabled: Boolean? = null,
 ) : ToolCallingChatOptions {
 
+    private var servingModeExplicit: Boolean = initialServingMode != null
+    private var apiFormatExplicit: Boolean = initialApiFormat != null
+
+    var servingMode: OciGenAiServingMode = initialServingMode ?: OciGenAiServingMode.ON_DEMAND
+        set(value) {
+            field = value
+            servingModeExplicit = true
+        }
+
+    var apiFormat: OciGenAiApiFormat = initialApiFormat ?: OciGenAiApiFormat.GENERIC
+        set(value) {
+            field = value
+            apiFormatExplicit = true
+        }
+
     override fun getModel(): String? = model
 
     fun setModel(model: String?) {
         this.model = model
-    }
-
-    fun getCompartmentId(): String? = compartmentId
-
-    fun setCompartmentId(compartmentId: String?) {
-        this.compartmentId = compartmentId
-    }
-
-    fun getServingMode(): OciGenAiServingMode = servingMode
-
-    fun setServingMode(servingMode: OciGenAiServingMode) {
-        this.servingMode = servingMode
-    }
-
-    fun getEndpointId(): String? = endpointId
-
-    fun setEndpointId(endpointId: String?) {
-        this.endpointId = endpointId
-    }
-
-    fun getApiFormat(): OciGenAiApiFormat = apiFormat
-
-    fun setApiFormat(apiFormat: OciGenAiApiFormat) {
-        this.apiFormat = apiFormat
     }
 
     override fun getFrequencyPenalty(): Double? = frequencyPenalty
@@ -155,10 +146,14 @@ class OciGenAiChatOptions(
             setMergedToolCallbacks(merged, runtimeOptions)
         }
         if (runtimeOptions is OciGenAiChatOptions) {
-            runtimeOptions.getCompartmentId()?.let { merged.setCompartmentId(it) }
-            merged.setServingMode(runtimeOptions.getServingMode())
-            runtimeOptions.getEndpointId()?.let { merged.setEndpointId(it) }
-            merged.setApiFormat(runtimeOptions.getApiFormat())
+            runtimeOptions.compartmentId?.let { merged.compartmentId = it }
+            if (runtimeOptions.servingModeExplicit) {
+                merged.servingMode = runtimeOptions.servingMode
+            }
+            runtimeOptions.endpointId?.let { merged.endpointId = it }
+            if (runtimeOptions.apiFormatExplicit) {
+                merged.apiFormat = runtimeOptions.apiFormat
+            }
         }
         return merged
     }
@@ -174,7 +169,7 @@ class OciGenAiChatOptions(
             merged.toolNames = runtimeOptions.toolNames
         }
         if (runtimeOptions.toolContext.isNotEmpty()) {
-            merged.toolContext = toolContext + runtimeOptions.toolContext
+            merged.toolContext = merged.toolContext + runtimeOptions.toolContext
         }
         runtimeOptions.internalToolExecutionEnabled?.let { merged.internalToolExecutionEnabled = it }
     }
@@ -184,9 +179,9 @@ class OciGenAiChatOptions(
         OciGenAiChatOptions(
             model = model,
             compartmentId = compartmentId,
-            servingMode = servingMode,
+            initialServingMode = if (servingModeExplicit) servingMode else null,
             endpointId = endpointId,
-            apiFormat = apiFormat,
+            initialApiFormat = if (apiFormatExplicit) apiFormat else null,
             maxTokens = maxTokens,
             temperature = temperature,
             topP = topP,
@@ -209,13 +204,13 @@ class OciGenAiChatOptions(
 
         fun model(model: String?) = apply { options.setModel(model) }
 
-        fun compartmentId(compartmentId: String?) = apply { options.setCompartmentId(compartmentId) }
+        fun compartmentId(compartmentId: String?) = apply { options.compartmentId = compartmentId }
 
-        fun servingMode(servingMode: OciGenAiServingMode) = apply { options.setServingMode(servingMode) }
+        fun servingMode(servingMode: OciGenAiServingMode) = apply { options.servingMode = servingMode }
 
-        fun endpointId(endpointId: String?) = apply { options.setEndpointId(endpointId) }
+        fun endpointId(endpointId: String?) = apply { options.endpointId = endpointId }
 
-        fun apiFormat(apiFormat: OciGenAiApiFormat) = apply { options.setApiFormat(apiFormat) }
+        fun apiFormat(apiFormat: OciGenAiApiFormat) = apply { options.apiFormat = apiFormat }
 
         fun maxTokens(maxTokens: Int?) = apply { options.setMaxTokens(maxTokens) }
 

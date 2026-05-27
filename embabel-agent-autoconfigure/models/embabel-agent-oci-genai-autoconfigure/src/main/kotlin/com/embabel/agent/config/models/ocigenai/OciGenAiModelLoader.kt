@@ -35,7 +35,7 @@ data class OciGenAiModelDefinition(
     override val knowledgeCutoffDate: LocalDate? = null,
     override val pricingModel: PerTokenPricingModel? = null,
     val apiFormat: OciGenAiApiFormat = OciGenAiApiFormat.GENERIC,
-    val maxTokens: Int? = 4096,
+    val maxTokens: Int? = null,
     val temperature: Double? = 0.7,
     val topP: Double? = null,
     val topK: Int? = null,
@@ -98,28 +98,4 @@ class OciGenAiModelLoader(
     companion object {
         private const val DEFAULT_CONFIG_PATH = "classpath:models/oci-genai-models.yml"
     }
-}
-
-enum class OciGenAiApiFormat {
-    GENERIC,
-    COHERE_V2,
-    COHERE,
-}
-
-enum class OciGenAiServingMode {
-    ON_DEMAND,
-    DEDICATED,
-}
-
-enum class OciGenAiEmbeddingTruncate {
-    NONE,
-    START,
-    END,
-}
-
-enum class OciGenAiEmbeddingInputType {
-    SEARCH_DOCUMENT,
-    SEARCH_QUERY,
-    CLASSIFICATION,
-    CLUSTERING,
 }

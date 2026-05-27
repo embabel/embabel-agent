@@ -28,6 +28,7 @@ import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.model.SpringAiEmbeddingService
+import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.oracle.bmc.Region
 import com.oracle.bmc.auth.AbstractAuthenticationDetailsProvider
@@ -78,6 +79,32 @@ class OciGenAiProperties : RetryProperties {
     override var backoffMultiplier: Double = 5.0
     override var backoffMaxInterval: Long = 180_000L
 
+    override fun toString(): String =
+        "OciGenAiProperties(" +
+            "authenticationType=$authenticationType, " +
+            "configFile=$configFile, " +
+            "profile=$profile, " +
+            "federationEndpoint=$federationEndpoint, " +
+            "tenantId=$tenantId, " +
+            "userId=$userId, " +
+            "fingerprint=${fingerprint.masked()}, " +
+            "privateKey=${privateKey.masked()}, " +
+            "privateKeyFile=$privateKeyFile, " +
+            "passPhrase=${passPhrase.masked()}, " +
+            "sessionToken=${sessionToken.masked()}, " +
+            "sessionTokenFile=$sessionTokenFile, " +
+            "workloadIdentityTokenPath=$workloadIdentityTokenPath, " +
+            "region=$region, " +
+            "endpoint=$endpoint, " +
+            "compartmentId=$compartmentId, " +
+            "servingMode=$servingMode, " +
+            "endpointId=$endpointId, " +
+            "maxAttempts=$maxAttempts, " +
+            "backoffMillis=$backoffMillis, " +
+            "backoffMultiplier=$backoffMultiplier, " +
+            "backoffMaxInterval=$backoffMaxInterval" +
+            ")"
+
     enum class AuthenticationType {
         FILE,
         INSTANCE_PRINCIPAL,
@@ -90,6 +117,7 @@ class OciGenAiProperties : RetryProperties {
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(OciGenAiProperties::class)
+@ExcludeFromJacocoGeneratedReport(reason = "OCI GenAI client configuration can't be unit tested")
 class OciGenAiClientConfig(
     private val properties: OciGenAiProperties,
 ) {
@@ -138,12 +166,12 @@ class OciGenAiClientConfig(
                     .build()
 
             OciGenAiProperties.AuthenticationType.SESSION_TOKEN ->
-                if (properties.configFile != null) {
+                properties.configFile?.let { configFile ->
                     SessionTokenAuthenticationDetailsProvider(
-                        expandHome(properties.configFile!!),
+                        expandHome(configFile),
                         properties.profile ?: DEFAULT_OCI_PROFILE,
                     )
-                } else {
+                } ?: run {
                     SessionTokenAuthenticationDetailsProvider.builder()
                         .tenantId(requireProperty(properties.tenantId, "tenant-id"))
                         .userId(requireProperty(properties.userId, "user-id"))
@@ -173,9 +201,9 @@ class OciGenAiClientConfig(
     }
 
     private fun requireProperty(value: String?, name: String): String =
-        require(!value.isNullOrBlank()) {
+        requireNotNull(value?.takeIf { it.isNotBlank() }) {
             "OCI GenAI $name is required for ${properties.authenticationType} authentication"
-        }.let { value!! }
+        }
 
     private fun expandHome(path: String): String =
         if (path.startsWith("~/")) {
@@ -190,8 +218,16 @@ class OciGenAiClientConfig(
     }
 }
 
+private fun String?.masked(): String =
+    if (this.isNullOrBlank()) {
+        "null"
+    } else {
+        "<masked>"
+    }
+
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(OciGenAiProperties::class)
+@ExcludeFromJacocoGeneratedReport(reason = "OCI GenAI model configuration can't be unit tested")
 class OciGenAiModelsConfig(
     private val properties: OciGenAiProperties,
     private val client: ObjectProvider<GenerativeAiInference>,
@@ -211,23 +247,39 @@ class OciGenAiModelsConfig(
 
         val registeredLlms = buildList {
             definitions.models.forEach { modelDef ->
-                val llm = createOciGenAiLlm(modelDef)
-                configurableBeanFactory.registerSingleton(modelDef.name, llm)
-                add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
-                logger.info("Registered OCI GenAI model bean: {} -> {}", modelDef.name, modelDef.modelId)
+                try {
+                    val llm = createOciGenAiLlm(modelDef)
+                    configurableBeanFactory.registerSingleton(modelDef.name, llm)
+                    add(RegisteredModel(beanName = modelDef.name, modelId = modelDef.modelId))
+                    logger.info("Registered OCI GenAI model bean: {} -> {}", modelDef.name, modelDef.modelId)
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create OCI GenAI model: {} ({})",
+                        modelDef.name, modelDef.modelId, e
+                    )
+                    throw e
+                }
             }
         }
 
         val registeredEmbeddings = buildList {
             definitions.embeddingModels.forEach { embeddingDef ->
-                val embeddingService = createOciGenAiEmbedding(embeddingDef)
-                configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
-                add(RegisteredModel(beanName = embeddingDef.name, modelId = embeddingDef.modelId))
-                logger.info(
-                    "Registered OCI GenAI embedding model bean: {} -> {}",
-                    embeddingDef.name,
-                    embeddingDef.modelId,
-                )
+                try {
+                    val embeddingService = createOciGenAiEmbedding(embeddingDef)
+                    configurableBeanFactory.registerSingleton(embeddingDef.name, embeddingService)
+                    add(RegisteredModel(beanName = embeddingDef.name, modelId = embeddingDef.modelId))
+                    logger.info(
+                        "Registered OCI GenAI embedding model bean: {} -> {}",
+                        embeddingDef.name,
+                        embeddingDef.modelId,
+                    )
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to create OCI GenAI embedding model: {} ({})",
+                        embeddingDef.name, embeddingDef.modelId, e
+                    )
+                    throw e
+                }
             }
         }
 

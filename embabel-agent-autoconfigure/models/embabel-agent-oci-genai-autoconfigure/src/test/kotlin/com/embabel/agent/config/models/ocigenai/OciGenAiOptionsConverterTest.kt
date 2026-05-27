@@ -47,7 +47,71 @@ class OciGenAiOptionsConverterTest : OptionsConverterTestSupport<OciGenAiChatOpt
         val options = OciGenAiOptionsConverter.convertOptions(LlmOptions())
 
         assertNull(options.model)
-        assertNull(options.getCompartmentId())
+        assertNull(options.compartmentId)
         assertFalse(options.internalToolExecutionEnabled ?: true)
+    }
+
+    @Test
+    fun `converted LlmOptions preserve provider-specific defaults when merged`() {
+        val defaults = OciGenAiChatOptions.builder()
+            .model("cohere.command-a-03-2025")
+            .compartmentId("ocid1.compartment.oc1..test")
+            .servingMode(OciGenAiServingMode.DEDICATED)
+            .endpointId("ocid1.generativeaiendpoint.oc1..test")
+            .apiFormat(OciGenAiApiFormat.COHERE_V2)
+            .temperature(0.7)
+            .build()
+        val runtimeOptions = OciGenAiOptionsConverter.convertOptions(
+            LlmOptions().withTemperature(0.2)
+        )
+
+        val merged = defaults.merge(runtimeOptions)
+
+        assertEquals("cohere.command-a-03-2025", merged.model)
+        assertEquals("ocid1.compartment.oc1..test", merged.compartmentId)
+        assertEquals(OciGenAiServingMode.DEDICATED, merged.servingMode)
+        assertEquals("ocid1.generativeaiendpoint.oc1..test", merged.endpointId)
+        assertEquals(OciGenAiApiFormat.COHERE_V2, merged.apiFormat)
+        assertEquals(0.2, merged.temperature)
+    }
+
+    @Test
+    fun `explicit OCI runtime options override provider-specific defaults`() {
+        val defaults = OciGenAiChatOptions.builder()
+            .servingMode(OciGenAiServingMode.DEDICATED)
+            .endpointId("ocid1.generativeaiendpoint.oc1..default")
+            .apiFormat(OciGenAiApiFormat.COHERE_V2)
+            .build()
+        val runtimeOptions = OciGenAiChatOptions.builder()
+            .servingMode(OciGenAiServingMode.ON_DEMAND)
+            .apiFormat(OciGenAiApiFormat.GENERIC)
+            .build()
+
+        val merged = defaults.merge(runtimeOptions)
+
+        assertEquals(OciGenAiServingMode.ON_DEMAND, merged.servingMode)
+        assertEquals(OciGenAiApiFormat.GENERIC, merged.apiFormat)
+    }
+
+    @Test
+    fun `copy preserves explicit serving mode and api format tracking`() {
+        val defaults = OciGenAiChatOptions.builder()
+            .servingMode(OciGenAiServingMode.DEDICATED)
+            .endpointId("ocid1.generativeaiendpoint.oc1..default")
+            .apiFormat(OciGenAiApiFormat.COHERE_V2)
+            .build()
+
+        val explicitCopy = defaults.copy<OciGenAiChatOptions>()
+        val unconfiguredCopy = OciGenAiChatOptions.builder()
+            .build()
+            .copy<OciGenAiChatOptions>()
+
+        val preservedDefaults = explicitCopy.merge(OciGenAiOptionsConverter.convertOptions(LlmOptions()))
+        val preservedAfterUnconfiguredMerge = defaults.merge(unconfiguredCopy)
+
+        assertEquals(OciGenAiServingMode.DEDICATED, preservedDefaults.servingMode)
+        assertEquals(OciGenAiApiFormat.COHERE_V2, preservedDefaults.apiFormat)
+        assertEquals(OciGenAiServingMode.DEDICATED, preservedAfterUnconfiguredMerge.servingMode)
+        assertEquals(OciGenAiApiFormat.COHERE_V2, preservedAfterUnconfiguredMerge.apiFormat)
     }
 }

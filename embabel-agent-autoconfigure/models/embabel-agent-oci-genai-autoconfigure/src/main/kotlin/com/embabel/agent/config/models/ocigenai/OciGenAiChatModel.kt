@@ -17,6 +17,7 @@ package com.embabel.agent.config.models.ocigenai
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.oracle.bmc.generativeaiinference.GenerativeAiInference
+import com.oracle.bmc.generativeaiinference.model.BaseChatResponse
 import com.oracle.bmc.generativeaiinference.model.BaseChatRequest
 import com.oracle.bmc.generativeaiinference.model.ChatDetails
 import com.oracle.bmc.generativeaiinference.model.ChatResult
@@ -28,7 +29,6 @@ import com.oracle.bmc.generativeaiinference.model.CohereChatResponse
 import com.oracle.bmc.generativeaiinference.model.CohereChatResponseV2
 import com.oracle.bmc.generativeaiinference.model.CohereMessage
 import com.oracle.bmc.generativeaiinference.model.CohereMessageV2
-import com.oracle.bmc.generativeaiinference.model.CohereSystemMessage
 import com.oracle.bmc.generativeaiinference.model.CohereSystemMessageV2
 import com.oracle.bmc.generativeaiinference.model.CohereTextContentV2
 import com.oracle.bmc.generativeaiinference.model.CohereToolMessageV2
@@ -44,10 +44,12 @@ import com.oracle.bmc.generativeaiinference.model.OnDemandServingMode
 import com.oracle.bmc.generativeaiinference.model.ServingMode
 import com.oracle.bmc.generativeaiinference.model.TextContent
 import com.oracle.bmc.generativeaiinference.model.ToolChoiceAuto
-import com.oracle.bmc.generativeaiinference.model.ToolDefinition
+import com.oracle.bmc.generativeaiinference.model.Usage
 import com.oracle.bmc.generativeaiinference.requests.ChatRequest
+import com.oracle.bmc.generativeaiinference.responses.ChatResponse as OciChatResponse
 import com.oracle.bmc.generativeaiinference.model.CohereToolCallV2 as OciCohereToolCallV2
 import com.oracle.bmc.generativeaiinference.model.Function as CohereFunction
+import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.messages.MessageType
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata
@@ -70,6 +72,9 @@ import com.oracle.bmc.generativeaiinference.model.UserMessage as OciUserMessage
 
 /**
  * Spring AI [ChatModel] backed by OCI Generative AI Inference.
+ *
+ * OCI streaming uses SSE response handling that is separate from the synchronous
+ * chat response path, so this model currently sends non-streaming requests.
  */
 class OciGenAiChatModel(
     private val client: GenerativeAiInference,
@@ -77,6 +82,7 @@ class OciGenAiChatModel(
     private val retryTemplate: RetryTemplate,
     private val objectMapper: ObjectMapper = ObjectMapper(),
 ) : ChatModel {
+    private val logger = LoggerFactory.getLogger(OciGenAiChatModel::class.java)
 
     override fun call(prompt: Prompt): ChatResponse {
         val options = defaultOptions.merge(prompt.options)
@@ -90,7 +96,7 @@ class OciGenAiChatModel(
             )
             .build()
 
-        val response = retryTemplate.execute<com.oracle.bmc.generativeaiinference.responses.ChatResponse, RuntimeException> {
+        val response = retryTemplate.execute<OciChatResponse, RuntimeException> {
             client.chat(request)
         }
         return toSpringChatResponse(response.chatResult, options)
@@ -98,8 +104,8 @@ class OciGenAiChatModel(
 
     override fun getDefaultOptions(): ChatOptions = defaultOptions.copy()
 
-    private fun chatRequest(prompt: Prompt, options: OciGenAiChatOptions): BaseChatRequest =
-        when (options.getApiFormat()) {
+    internal fun chatRequest(prompt: Prompt, options: OciGenAiChatOptions): BaseChatRequest =
+        when (options.apiFormat) {
             OciGenAiApiFormat.GENERIC -> genericChatRequest(prompt, options)
             OciGenAiApiFormat.COHERE_V2 -> cohereChatRequestV2(prompt, options)
             OciGenAiApiFormat.COHERE -> cohereChatRequest(prompt, options)
@@ -168,17 +174,20 @@ class OciGenAiChatModel(
 
     private fun cohereChatRequest(prompt: Prompt, options: OciGenAiChatOptions): CohereChatRequest {
         val messages = prompt.instructions
-        val lastUserMessage = messages.lastOrNull { it.messageType == MessageType.USER }?.text
-            ?: messages.lastOrNull()?.text
-            ?: ""
+        val lastUserIndex = messages.indexOfLast { it.messageType == MessageType.USER }
+        val lastRequestMessageIndex = if (lastUserIndex >= 0) lastUserIndex else messages.lastIndex
+        val lastUserMessage = messages.getOrNull(lastRequestMessageIndex)?.text ?: ""
         val preamble = messages
             .filter { it.messageType == MessageType.SYSTEM }
             .joinToString("\n") { it.text }
             .ifBlank { null }
-        val history = messages
-            .dropLastWhile { it.text != lastUserMessage }
-            .dropLast(1)
-            .mapNotNull(::toCohereHistoryMessage)
+        val history = if (lastRequestMessageIndex > 0) {
+            messages.subList(0, lastRequestMessageIndex)
+                .filter { it.messageType != MessageType.SYSTEM }
+                .mapNotNull(::toCohereHistoryMessage)
+        } else {
+            emptyList()
+        }
 
         return CohereChatRequest.builder()
             .message(lastUserMessage)
@@ -195,7 +204,7 @@ class OciGenAiChatModel(
             .build()
     }
 
-    private fun toGenericMessages(message: SpringMessage): List<OciMessage> =
+    internal fun toGenericMessages(message: SpringMessage): List<OciMessage> =
         when (message.messageType) {
             MessageType.SYSTEM -> listOf(OciSystemMessage.builder().content(textContent(message.text)).build())
             MessageType.USER -> listOf(OciUserMessage.builder().content(textContent(message.text)).build())
@@ -214,6 +223,7 @@ class OciGenAiChatModel(
                     .arguments(it.arguments())
                     .build()
             }
+            ?: emptyList()
         return OciAssistantMessage.builder()
             .content(textContent(message.text ?: ""))
             .toolCalls(toolCalls)
@@ -231,7 +241,7 @@ class OciGenAiChatModel(
         }
     }
 
-    private fun toCohereV2Messages(message: SpringMessage): List<CohereMessageV2> =
+    internal fun toCohereV2Messages(message: SpringMessage): List<CohereMessageV2> =
         when (message.messageType) {
             MessageType.SYSTEM -> listOf(
                 CohereSystemMessageV2.builder().content(cohereV2TextContent(message.text)).build()
@@ -256,6 +266,7 @@ class OciGenAiChatModel(
                     .function(parseToolArguments(it.arguments()))
                     .build()
             }
+            ?: emptyList()
         return CohereAssistantMessageV2.builder()
             .content(cohereV2TextContent(message.text ?: ""))
             .toolCalls(toolCalls)
@@ -275,7 +286,6 @@ class OciGenAiChatModel(
 
     private fun toCohereHistoryMessage(message: SpringMessage): CohereMessage? =
         when (message.messageType) {
-            MessageType.SYSTEM -> CohereSystemMessage.builder().message(message.text).build()
             MessageType.USER -> CohereUserMessage.builder().message(message.text).build()
             MessageType.ASSISTANT -> CohereChatBotMessage.builder().message(message.text ?: "").build()
             else -> null
@@ -289,42 +299,36 @@ class OciGenAiChatModel(
 
     private fun parseToolSchema(inputSchema: String): Any =
         runCatching { objectMapper.readValue(inputSchema, Any::class.java) }
-            .getOrElse { emptyMap<String, Any>() }
+            .getOrElse { e ->
+                logger.warn("Failed to parse OCI GenAI tool schema; using empty parameters: {}", e.message)
+                emptyMap<String, Any>()
+            }
 
     private fun parseToolArguments(arguments: String): Any =
         runCatching { objectMapper.readValue(arguments, Any::class.java) }
-            .getOrElse { arguments }
+            .getOrElse { e ->
+                logger.warn("Failed to parse OCI GenAI tool arguments; using raw arguments: {}", e.message)
+                arguments
+            }
 
     private fun servingMode(options: OciGenAiChatOptions): ServingMode =
-        when (options.getServingMode()) {
+        when (options.servingMode) {
             OciGenAiServingMode.ON_DEMAND -> OnDemandServingMode.builder()
                 .modelId(requireNotNull(options.getModel()) { "OCI GenAI model is required for on-demand serving" })
                 .build()
 
             OciGenAiServingMode.DEDICATED -> DedicatedServingMode.builder()
-                .endpointId(requireNotNull(options.getEndpointId()) { "OCI GenAI endpointId is required for dedicated serving" })
+                .endpointId(requireNotNull(options.endpointId) { "OCI GenAI endpointId is required for dedicated serving" })
                 .build()
         }
 
     private fun requireCompartmentId(options: OciGenAiChatOptions): String =
-        requireNotNull(options.getCompartmentId()) {
+        requireNotNull(options.compartmentId) {
             "OCI GenAI compartmentId is required: set embabel.agent.platform.models.ocigenai.compartment-id"
         }
 
     private fun toSpringChatResponse(chatResult: ChatResult, options: OciGenAiChatOptions): ChatResponse {
-        val response = chatResult.chatResponse
-        val generation = when (response) {
-            is GenericChatResponse -> toGenericGeneration(response)
-            is CohereChatResponseV2 -> toCohereV2Generation(response)
-            is CohereChatResponse -> toCohereGeneration(response)
-            else -> Generation(SpringAssistantMessage(""))
-        }
-        val usage = when (response) {
-            is GenericChatResponse -> response.usage
-            is CohereChatResponseV2 -> response.usage
-            is CohereChatResponse -> response.usage
-            else -> null
-        }
+        val (generation, usage) = generationAndUsage(chatResult.chatResponse)
         val metadata = ChatResponseMetadata.builder()
             .model(chatResult.modelId ?: options.getModel())
             .usage(
@@ -335,6 +339,14 @@ class OciGenAiChatModel(
             .build()
         return ChatResponse(listOf(generation), metadata)
     }
+
+    private fun generationAndUsage(response: BaseChatResponse?): GenerationAndUsage =
+        when (response) {
+            is GenericChatResponse -> GenerationAndUsage(toGenericGeneration(response), response.usage)
+            is CohereChatResponseV2 -> GenerationAndUsage(toCohereV2Generation(response), response.usage)
+            is CohereChatResponse -> GenerationAndUsage(toCohereGeneration(response), response.usage)
+            else -> GenerationAndUsage(Generation(SpringAssistantMessage("")), null)
+        }
 
     private fun toGenericGeneration(response: GenericChatResponse): Generation {
         val choice = response.choices.firstOrNull()
@@ -399,4 +411,9 @@ class OciGenAiChatModel(
             .build()
         return Generation(SpringAssistantMessage(response.text ?: ""), generationMetadata)
     }
+
+    private data class GenerationAndUsage(
+        val generation: Generation,
+        val usage: Usage?,
+    )
 }
