@@ -178,17 +178,28 @@ class MessageConversionTest {
 
         @Test
         fun `converts AssistantMessageWithToolCalls to Spring AI message`() {
+            val thoughtSignatures = listOf(byteArrayOf(1, 2, 3), byteArrayOf(4, 5, 6))
             val message = AssistantMessageWithToolCalls(
                 content = "Let me check that for you",
                 toolCalls = listOf(
                     ToolCall("call-1", "get_weather", """{"location": "NYC"}""")
-                )
+                ),
+                metadata = mapOf("thoughtSignatures" to thoughtSignatures)
             )
 
             val springAiMessage = message.toSpringAiMessage()
 
             assertThat(springAiMessage).isInstanceOf(SpringAiAssistantMessage::class.java)
             assertThat(springAiMessage.text).isEqualTo("Let me check that for you")
+            val metadata = springAiMessage.metadata
+            assertThat(metadata).containsKey("thoughtSignatures")
+            val signatures = metadata["thoughtSignatures"] as? List<*>
+            assertThat(signatures).isNotNull
+            assertThat(signatures).hasSize(2)
+            assertThat(signatures!![0]).isInstanceOf(ByteArray::class.java)
+            assertThat(signatures[1]).isInstanceOf(ByteArray::class.java)
+            assertThat(signatures[0] as ByteArray).containsExactly(1, 2, 3)
+            assertThat(signatures[1] as ByteArray).containsExactly(4, 5, 6)
         }
 
         @Test
@@ -234,7 +245,30 @@ class MessageConversionTest {
 
             assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
             assertThat(embabelMessage.content).isEmpty()
-            assertThat((embabelMessage as AssistantMessageWithToolCalls).toolCalls).isEmpty()
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.toolCalls).isEmpty()
+            assertThat(messageWithCalls.metadata).containsEntry("messageType", "ASSISTANT")
+        }
+
+        @Test
+        fun `converts Spring AI AssistantMessage thoughtSignatures metadata to Embabel message metadata`() {
+            val thoughtSignatures = listOf(byteArrayOf(10, 20), byteArrayOf(30, 40))
+            val springMessage = SpringAiAssistantMessage.builder()
+                .content("")
+                .properties(mapOf("thoughtSignatures" to thoughtSignatures))
+                .build()
+
+            val embabelMessage = springMessage.toEmbabelMessage()
+
+            assertThat(embabelMessage).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
+            val signatures = messageWithCalls.metadata["thoughtSignatures"] as? List<*>
+            assertThat(signatures).isNotNull
+            assertThat(signatures).hasSize(2)
+            assertThat(signatures!![0]).isInstanceOf(ByteArray::class.java)
+            assertThat(signatures[1]).isInstanceOf(ByteArray::class.java)
+            assertThat(signatures[0] as ByteArray).containsExactly(10, 20)
+            assertThat(signatures[1] as ByteArray).containsExactly(30, 40)
         }
 
         @Test

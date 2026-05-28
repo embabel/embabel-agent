@@ -168,6 +168,38 @@ class ToolMessagesTest {
         }
 
         @Test
+        fun `supports metadata with thoughtSignatures as list of byte arrays`() {
+            val thoughtSignatureA = byteArrayOf(1, 2, 3, 4)
+            val thoughtSignatureB = byteArrayOf(9, 8, 7, 6)
+            val metadata = mapOf(
+                "thoughtSignatures" to listOf(thoughtSignatureA, thoughtSignatureB)
+            )
+            val message = AssistantMessageWithToolCalls(
+                content = "",
+                toolCalls = listOf(ToolCall("id", "tool", "{}")),
+                metadata = metadata,
+            )
+
+            val signatures = message.metadata["thoughtSignatures"] as? List<*>
+            assertNotNull(signatures)
+            assertEquals(2, signatures!!.size)
+            assertTrue(signatures[0] is ByteArray)
+            assertTrue(signatures[1] is ByteArray)
+            assertTrue((signatures[0] as ByteArray).contentEquals(thoughtSignatureA))
+            assertTrue((signatures[1] as ByteArray).contentEquals(thoughtSignatureB))
+        }
+
+        @Test
+        fun `uses empty metadata by default`() {
+            val message = AssistantMessageWithToolCalls(
+                content = "",
+                toolCalls = listOf(ToolCall("id", "tool", "{}")),
+            )
+
+            assertTrue(message.metadata.isEmpty())
+        }
+
+        @Test
         fun `extends Message and implements AssistantContent`() {
             val message = AssistantMessageWithToolCalls(
                 content = "test",
