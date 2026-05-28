@@ -82,6 +82,7 @@
       max-width: 1160px;
       margin: 0 auto;
       padding: 28px 24px 56px;
+      min-width: 0;
     }
 
     h1 {
@@ -162,6 +163,7 @@
       padding: 24px;
       margin: 22px 0;
       box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      overflow: hidden;
     }
 
     .feature-grid {
@@ -191,6 +193,33 @@
       color: #303946;
       font-size: 14px;
       line-height: 1.55;
+    }
+
+    .concept-map {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 28px;
+      max-width: 980px;
+      margin-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+
+    .concept-map div {
+      min-width: 0;
+      border-bottom: 1px solid var(--line);
+      padding: 12px 0;
+    }
+
+    .concept-map strong {
+      display: block;
+      margin-bottom: 3px;
+      color: #1f2937;
+    }
+
+    .concept-map span {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
     }
 
     pre .snippet-note {
@@ -299,9 +328,9 @@
     .flow {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       overflow-x: visible;
       scroll-behavior: smooth;
       padding: 2px 0 5px;
@@ -387,7 +416,7 @@
 
     .mermaid-diagram {
       display: flex;
-      justify-content: center;
+      justify-content: flex-start;
       width: 100%;
       overflow-x: auto;
       margin: 8px 0 0;
@@ -401,10 +430,12 @@
     }
 
     .mermaid-diagram svg {
-      width: min(1280px, 100%);
+      width: auto;
       max-width: none;
-      min-height: 220px;
+      min-height: 240px;
+      max-height: 340px;
       height: auto;
+      flex: 0 0 auto;
     }
 
     .diagram-nav {
@@ -414,11 +445,12 @@
     .sticky-diagram .mermaid-diagram {
       display: flex;
       justify-content: flex-start;
-      align-items: flex-start;
+      align-items: center;
       overflow-x: auto;
       overflow-y: visible;
+      min-height: 164px;
       margin-top: 0;
-      padding: 4px 8px 0;
+      padding: 10px 10px 8px;
       scrollbar-width: none;
     }
 
@@ -439,10 +471,11 @@
     }
 
     .sticky-diagram .mermaid-diagram svg {
-      width: max(980px, 112vw);
+      width: auto;
+      min-width: 100vw;
       max-width: none;
-      min-height: 72px;
-      height: auto;
+      min-height: 144px;
+      height: 144px;
       flex: 0 0 auto;
     }
 
@@ -473,7 +506,7 @@
       flex-wrap: nowrap;
       gap: 8px;
       justify-content: flex-start;
-      overflow-x: hidden;
+      overflow-x: auto;
     }
 
     .flow::-webkit-scrollbar {
@@ -486,8 +519,8 @@
       border-radius: 6px;
       background: #f8fafc;
       padding: 12px 14px 13px;
-      min-width: 150px;
-      flex: 0 0 auto;
+      min-width: 140px;
+      flex: 1 1 145px;
       text-align: center;
       font-size: 12px;
       font-weight: 650;
@@ -504,6 +537,7 @@
     .sticky-diagram .node {
       padding: 8px 11px 9px;
       min-width: 116px;
+      flex: 0 0 auto;
       opacity: 0.62;
     }
 
@@ -698,15 +732,7 @@
     }
 
     .sticky-diagram .blackboard {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 3px;
-      margin-top: 4px;
-      border: 0;
-      border-top: 1px solid #d9e2ef;
-      border-radius: 0;
-      background: transparent;
+      display: none;
     }
 
     .sticky-diagram .blackboard summary {
@@ -808,6 +834,7 @@
       padding: 16px;
       font-size: 13px;
       line-height: 1.48;
+      max-width: 100%;
     }
 
     code {
@@ -888,6 +915,33 @@
     }
 
     @media (max-width: 860px) {
+      header {
+        padding: 24px 18px;
+      }
+
+      main {
+        padding: 18px 14px 42px;
+      }
+
+      .feature {
+        padding: 18px;
+      }
+
+      p code,
+      li code {
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
+      pre .snippet-note,
+      pre .snippet-note code {
+        overflow-wrap: anywhere;
+      }
+
+      .concept-map {
+        grid-template-columns: 1fr;
+      }
+
       .diagram {
         padding: 14px;
       }
@@ -899,10 +953,30 @@
 
       .flow {
         align-items: center;
+        gap: 7px;
+      }
+
+      .diagram:not(.sticky-diagram) .flow {
+        display: none;
+      }
+
+      .diagram:not(.sticky-diagram) .node {
+        min-width: 0;
+        width: 100%;
+        padding: 9px 8px 10px;
+      }
+
+      .diagram:not(.sticky-diagram) .node strong {
+        font-size: 12px;
+      }
+
+      .diagram:not(.sticky-diagram) .node small {
+        font-size: 10.5px;
+        line-height: 1.25;
       }
 
       .arrow {
-        text-align: center;
+        display: none;
       }
 
       .mermaid-diagram {
@@ -911,7 +985,8 @@
       }
 
       .mermaid-diagram svg {
-        width: min(520px, 100%);
+        min-height: 240px;
+        max-height: 260px;
       }
 
       .diagram:not(.sticky-diagram) .branch-flow {
@@ -937,6 +1012,48 @@
   </header>
 
   <main>
+    <section class="feature" id="concept-primer">
+      <p class="label">Start here</p>
+      <h2>How to Read Embabel Workflows</h2>
+      <p>Embabel applications are built from small typed steps. Each action reads facts from the blackboard, adds new facts, and gives the planner more ways to reach a user-visible goal.</p>
+      <p>Use this vocabulary while reading the examples. The guide introduces each idea in a working feature first, then shows the matching code.</p>
+
+      <div class="concept-map">
+        <div>
+          <strong>@Agent</strong>
+          <span>The capability boundary. Embabel scans the actions in an agent and builds a planning graph from their input and output types.</span>
+        </div>
+        <div>
+          <strong>@Action</strong>
+          <span>A typed transition. If the blackboard contains the input types, the action can run and add its return value as a new fact.</span>
+        </div>
+        <div>
+          <strong>Blackboard</strong>
+          <span>The current set of facts for one process, such as <code>UserInput</code>, <code>NewsTopic</code>, or <code>TravelPlan</code>.</span>
+        </div>
+        <div>
+          <strong>GOAP planner</strong>
+          <span>The planner searches from the current facts to a goal, runs the next useful action, then replans after the blackboard changes.</span>
+        </div>
+        <div>
+          <strong>Cost and conditions</strong>
+          <span>Cost steers the preferred route. Conditions and pre/post facts make review, retry, and approval paths explicit.</span>
+        </div>
+        <div>
+          <strong>OperationContext and tools</strong>
+          <span>Actions use the context to call models, forms, prompts, and scoped tool groups without making those capabilities global.</span>
+        </div>
+        <div>
+          <strong>@AchievesGoal</strong>
+          <span>The user-visible completion point. A goal action returns the domain object that satisfies the request.</span>
+        </div>
+        <div>
+          <strong>AgentProcess</strong>
+          <span>A running workflow instance. Long-lived processes keep conversation or product state across multiple turns.</span>
+        </div>
+      </div>
+    </section>
+
     <section class="feature" id="horoscope-news">
       <div class="feature-grid">
         <div>
@@ -966,23 +1083,33 @@
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow diagram-nav" aria-hidden="true">
-            <div class="node input"><strong>User prompt</strong><small>"Lynda is a Scorpio"</small></div>
+          <div class="flow diagram-nav">
+            <div class="node input"><strong>UserInput</strong><small>raw prompt</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Extract StarPerson</strong><small>LLM creates typed input</small></div>
+            <div class="node llm"><strong>StarPerson</strong><small>extract directly or assemble by fallback</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>Horoscope service</strong><small>deterministic app code</small></div>
+            <div class="node code"><strong>Horoscope</strong><small>deterministic service</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node tool"><strong>Web news search</strong><small>tool group scoped here</small></div>
+            <div class="node tool"><strong>News stories</strong><small>WEB tools scoped here</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node goal"><strong>Writeup</strong><small>goal output</small></div>
+            <div class="node goal"><strong>Writeup</strong><small>@AchievesGoal output</small></div>
           </div>
           <pre class="mermaid mermaid-diagram">
 flowchart LR
-  prompt["User prompt&lt;br/&gt;Lynda is a Scorpio"] --> extract["Extract StarPerson&lt;br/&gt;LLM creates typed input"]
-  extract --> horoscope["Horoscope service&lt;br/&gt;deterministic app code"]
-  horoscope --> news["Web news search&lt;br/&gt;tool group scoped here"]
-  news --> writeup["Writeup&lt;br/&gt;goal output"]
+  prompt["UserInput&lt;br/&gt;raw user prompt"] --> plan["Planner observes blackboard&lt;br/&gt;goal needs Writeup"]
+  plan --> extract["extractStarPerson&lt;br/&gt;direct StarPerson route"]
+  extract -->|adds StarPerson| star["StarPerson&lt;br/&gt;typed planning fact"]
+  extract -->|adds no StarPerson&lt;br/&gt;hasRun prevents retry| replan["Replan from current facts&lt;br/&gt;UserInput still available"]
+  replan --> person["extractPerson&lt;br/&gt;Person"]
+  person --> starry["makeStarry&lt;br/&gt;Starry, cost 100"]
+  starry --> assemble["assembleStarPerson&lt;br/&gt;Person + Starry"]
+  assemble --> star
+  star --> horoscope["retrieveHoroscope&lt;br/&gt;Horoscope"]
+  star --> news["findNewsStories&lt;br/&gt;needs StarPerson + Horoscope"]
+  horoscope --> news
+  star --> writeup["starNewsWriteup&lt;br/&gt;@AchievesGoal Writeup"]
+  horoscope --> writeup
+  news --> writeup
 
   classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
   classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
@@ -991,39 +1118,41 @@ flowchart LR
   classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
 
   class prompt input
+  class plan,replan,horoscope,assemble code
   class extract llm
-  class horoscope code
+  class person,starry,star input
   class news tool
   class writeup goal
           </pre>
-          <details class="blackboard" open>
+          <details class="blackboard">
             <summary>Blackboard</summary>
             <div class="blackboard-items">
               <ul class="blackboard-step" data-blackboard-step="0">
                 <li><code>UserInput</code><span>"Lynda is a Scorpio"</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="1">
-                <li><code>UserInput</code><span>original prompt</span></li>
-                <li><code>StarPerson?</code><span>Lynda, Scorpio or no object</span></li>
+                <li><code>UserInput</code><span>planner-visible starting fact</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="2">
-                <li><code>UserInput</code><span>original prompt</span></li>
-                <li><code>StarPerson</code><span>Lynda, Scorpio</span></li>
-                <li><code>Horoscope</code><span>service result</span></li>
+                <li><code>StarPerson</code><span>direct route result when extraction succeeds</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="3">
-                <li><code>StarPerson</code><span>Lynda, Scorpio</span></li>
-                <li><code>Horoscope</code><span>daily summary</span></li>
-                <li><code>RelevantNewsStories</code><span>selected URLs and summaries</span></li>
+                <li><code>Person</code><span>fallback extracted name</span></li>
+                <li><code>Starry</code><span>high-cost form result</span></li>
+                <li><code>StarPerson</code><span>assembled planning fact</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="4">
-                <li><code>StarPerson</code><span>Lynda, Scorpio</span></li>
-                <li><code>RelevantNewsStories</code><span>news evidence</span></li>
+                <li><code>Horoscope</code><span>service result</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="5">
+                <li><code>RelevantNewsStories</code><span>selected URLs and summaries</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="6">
                 <li><code>Writeup</code><span>goal output</span></li>
               </ul>
             </div>
           </details>
-          <p class="diagram-note">The planner connects actions through typed objects, not through a hardcoded sequence.</p>
+          <p class="diagram-note">Embabel first tries the direct <code>UserInput</code> to <code>StarPerson</code> route. If that fact is still missing, the planner uses the higher-cost fallback that asks for <code>Starry</code> details and assembles the same required object.</p>
         </div>
       </div>
 
@@ -1190,61 +1319,61 @@ data class Writeup(
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow diagram-nav" aria-hidden="true">
-            <div class="node input"><strong>Authorized request</strong><small>UserInput topic</small></div>
+          <div class="flow diagram-nav">
+            <div class="node input"><strong>Authorized request</strong><small>UserInput starts the remote goal</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Extract topic</strong><small>NewsTopic</small></div>
+            <div class="node llm"><strong>NewsTopic</strong><small>extract topic and focus</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node tool"><strong>Find current items</strong><small>WEB tools scoped here</small></div>
+            <div class="node tool"><strong>Current items</strong><small>WEB tools scoped to digest</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Write narrative</strong><small>from gathered items</small></div>
+            <div class="node llm"><strong>Narrative</strong><small>short editorial summary</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node goal"><strong>Export digest</strong><small>remote newsDigest</small></div>
+            <div class="node goal"><strong>NewsDigest</strong><small>secured exported result</small></div>
           </div>
           <pre class="mermaid mermaid-diagram">
 flowchart LR
-  request["Authorized request&lt;br/&gt;UserInput topic"] --> topic["Extract topic&lt;br/&gt;NewsTopic"]
-  topic --> items["Find current items&lt;br/&gt;WEB tools scoped here"]
-  items --> narrative["Write narrative&lt;br/&gt;from gathered items"]
-  narrative --> export["Export digest&lt;br/&gt;remote newsDigest"]
+  request["Authorized request&lt;br/&gt;UserInput starts newsDigest"] --> plan["Planner searches from goal&lt;br/&gt;NewsDigest requires NewsTopic"]
+  plan --> topic["extractTopic action&lt;br/&gt;UserInput => NewsTopic"]
+  topic --> digest["produceDigest goal action&lt;br/&gt;NewsTopic => NewsDigest"]
+  digest --> export["Exported result&lt;br/&gt;remote newsDigest"]
+
+  digest -. internal .-> web["WEB search&lt;br/&gt;DigestItemList local"]
+  digest -. internal .-> narrative["Narrative synthesis&lt;br/&gt;String local"]
 
   classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
+  classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
   classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
   classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
   classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
 
   class request input
+  class plan code
   class topic,narrative llm
-  class items tool
-  class export goal
+  class web tool
+  class digest,export goal
           </pre>
-          <details class="blackboard" open>
+          <details class="blackboard">
             <summary>Blackboard</summary>
             <div class="blackboard-items">
               <ul class="blackboard-step" data-blackboard-step="0">
-                <li><code>UserInput</code><span>authorized topic request</span></li>
+                <li><code>UserInput</code><span>authorized starting input</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="1">
-                <li><code>UserInput</code><span>original request</span></li>
-                <li><code>NewsTopic</code><span>topic and optional focus</span></li>
+                <li><code>Goal</code><span>produce NewsDigest</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="2">
-                <li><code>NewsTopic</code><span>search target</span></li>
-                <li><code>DigestItemList</code><span>current items and URLs</span></li>
+                <li><code>NewsTopic</code><span>planner-visible topic</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="3">
-                <li><code>NewsTopic</code><span>editorial context</span></li>
-                <li><code>DigestItemList</code><span>source evidence</span></li>
-                <li><code>String</code><span>three-sentence narrative</span></li>
+                <li><code>NewsTopic</code><span>input to produceDigest</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="4">
                 <li><code>NewsTopic</code><span>published topic</span></li>
-                <li><code>DigestItemList</code><span>published items</span></li>
                 <li><code>NewsDigest</code><span>exported goal result</span></li>
               </ul>
             </div>
           </details>
-          <p class="diagram-note">The remote surface is the exported goal; the intermediate actions remain internal workflow steps.</p>
+          <p class="diagram-note">Only the secured goal is exposed remotely. The planner still works through typed facts: <code>UserInput</code> enables topic extraction, and <code>NewsTopic</code> enables the digest action.</p>
         </div>
       </div>
 
@@ -1385,26 +1514,28 @@ fun produceDigest(topic: NewsTopic, context: OperationContext): NewsDigest {
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow diagram-nav" aria-hidden="true">
-            <div class="node input"><strong>Business request</strong><small>company / sector / region</small></div>
+          <div class="flow diagram-nav">
+            <div class="node input"><strong>Business question</strong><small>UserInput seeds blackboard</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>AnalysisSubject</strong><small>typed subject + region</small></div>
+            <div class="node llm"><strong>AnalysisSubject</strong><small>company, sector, or region</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node tool"><strong>Evidence</strong><small>web tools scoped here</small></div>
+            <div class="node tool"><strong>Evidence</strong><small>current web intelligence</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Structured sections</strong><small>SWOT / competitors / trends / summary</small></div>
+            <div class="node llm"><strong>Sections</strong><small>SWOT, competitors, trends</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>Typed assembly</strong><small>Kotlin composes fields</small></div>
-            <div class="arrow">-&gt;</div>
-            <div class="node goal"><strong>Market report</strong><small>secured remote export</small></div>
+            <div class="node goal"><strong>Market report</strong><small>secured remote goal</small></div>
           </div>
           <pre class="mermaid mermaid-diagram">
 flowchart LR
-  request["Business request&lt;br/&gt;company / sector / region"] --> subject["AnalysisSubject&lt;br/&gt;typed subject + region"]
-  subject --> evidence["Evidence&lt;br/&gt;web tools scoped here"]
-  evidence --> sections["Structured sections&lt;br/&gt;SWOT / competitors / trends / summary"]
-  sections --> assembly["Typed assembly&lt;br/&gt;Kotlin composes fields"]
-  assembly --> report["Market report&lt;br/&gt;secured remote export"]
+  input["UserInput&lt;br/&gt;business question"] --> planner1["GOAP planner&lt;br/&gt;goal: MarketIntelligenceReport"]
+  planner1 --> parse["parseSubject&lt;br/&gt;UserInput => AnalysisSubject"]
+  parse --> blackboard1["Blackboard&lt;br/&gt;UserInput + AnalysisSubject"]
+  blackboard1 --> planner2["Replan&lt;br/&gt;research action is now valid"]
+  planner2 --> gather["gatherIntelligence&lt;br/&gt;AnalysisSubject => raw intelligence&lt;br/&gt;WEB tools scoped here"]
+  gather --> blackboard2["Blackboard&lt;br/&gt;subject + raw intelligence"]
+  blackboard2 --> planner3["Replan&lt;br/&gt;goal action inputs are satisfied"]
+  planner3 --> synth["synthesiseReport&lt;br/&gt;SWOT + competitors + trends + summary"]
+  synth --> report["MarketIntelligenceReport&lt;br/&gt;secured remote export"]
 
   classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
   classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
@@ -1412,43 +1543,33 @@ flowchart LR
   classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
   classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
 
-  class request input
-  class subject,sections llm
-  class evidence tool
-  class assembly code
+  class input input
+  class planner1,blackboard1,planner2,blackboard2,planner3 code
+  class parse,synth llm
+  class gather tool
   class report goal
           </pre>
-          <details class="blackboard" open>
+          <details class="blackboard">
             <summary>Blackboard</summary>
             <div class="blackboard-items">
               <ul class="blackboard-step" data-blackboard-step="0">
                 <li><code>UserInput</code><span>business question</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="1">
-                <li><code>UserInput</code><span>original question</span></li>
-                <li><code>AnalysisSubject</code><span>subject and region</span></li>
+                <li><code>Goal</code><span>produce MarketIntelligenceReport</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="2">
                 <li><code>AnalysisSubject</code><span>research scope</span></li>
-                <li><code>String</code><span>raw intelligence evidence</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="3">
-                <li><code>String</code><span>shared evidence</span></li>
-                <li><code>SwotEntryList</code><span>categorized SWOT</span></li>
-                <li><code>CompetitorMoveList</code><span>recent moves</span></li>
-                <li><code>TrendList</code><span>market trends</span></li>
+                <li><code>String</code><span>raw intelligence evidence</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="4">
-                <li><code>AnalysisSubject</code><span>report subject</span></li>
-                <li><code>String</code><span>executive summary</span></li>
-                <li><code>MarketIntelligenceReport</code><span>assembled report</span></li>
-              </ul>
-              <ul class="blackboard-step" data-blackboard-step="5">
-                <li><code>MarketIntelligenceReport</code><span>secured remote goal</span></li>
+                <li><code>MarketIntelligenceReport</code><span>assembled secured goal output</span></li>
               </ul>
             </div>
           </details>
-          <p class="diagram-note">The blackboard carries typed artifacts from step to step, so report writing starts from evidence already gathered.</p>
+          <p class="diagram-note">The planner keeps the sequence typed: the subject unlocks evidence gathering, and subject plus evidence unlock the goal action that returns <code>MarketIntelligenceReport</code>.</p>
         </div>
       </div>
 
@@ -1695,7 +1816,7 @@ fun synthesiseReport(...): MarketIntelligenceReport {
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow diagram-nav" aria-hidden="true">
+          <div class="flow diagram-nav">
             <div class="node input"><strong>Research request</strong><small>question or topic</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node code"><strong>Categorize</strong><small>question or discussion</small></div>
@@ -1703,33 +1824,32 @@ fun synthesiseReport(...): MarketIntelligenceReport {
             <div class="node tool"><strong>GPT research</strong><small>gpt4Report binding</small></div>
             <div class="node tool"><strong>Claude research</strong><small>claudeReport binding</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Merge</strong><small>mergedReport binding</small></div>
+            <div class="node llm"><strong>Merge</strong><small>requires both named reports</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node decision"><strong>Critique</strong><small>accepted?</small></div>
-            <div class="arrow">yes -&gt;</div>
-            <div class="node goal"><strong>Accept report</strong><small>goal output</small></div>
-            <div class="arrow">no -&gt;</div>
-            <div class="node llm"><strong>Redo research</strong><small>uses critique reasoning</small></div>
+            <div class="node decision"><strong>Critique + conditions</strong><small>Critique -&gt; REPORT_* facts</small></div>
+            <div class="arrow">satisfactory -&gt;</div>
+            <div class="node goal"><strong>Accept report</strong><small>pre: REPORT_SATISFACTORY</small></div>
+            <div class="arrow">unsatisfactory -&gt;</div>
+            <div class="node tool"><strong>Redo GPT + Claude</strong><small>pre: REPORT_UNSATISFACTORY</small></div>
           </div>
           <pre class="mermaid mermaid-diagram">
 flowchart LR
-  request["Research request&lt;br/&gt;question or topic"] --> categorize["Categorize&lt;br/&gt;question or discussion"]
+  request["Research request&lt;br/&gt;UserInput"] --> categorize["Categorize&lt;br/&gt;Categorization: QUESTION or DISCUSSION"]
 
-  categorize --> question["Question path&lt;br/&gt;answer prompt"]
-  categorize --> discussion["Discussion path&lt;br/&gt;research prompt"]
+  categorize --> gpt["GPT research&lt;br/&gt;gpt4Report: SingleLlmReport"]
+  categorize --> claude["Claude research&lt;br/&gt;claudeReport: SingleLlmReport"]
 
-  question --> gpt["GPT research&lt;br/&gt;gpt4Report binding"]
-  question --> claude["Claude research&lt;br/&gt;claudeReport binding"]
-  discussion --> gpt
-  discussion --> claude
-
-  gpt --> merge["Merge&lt;br/&gt;mergedReport binding"]
+  gpt --> merge["Merge reports&lt;br/&gt;mergedReport: ResearchReport"]
   claude --> merge
-  merge --> critique{"Critique&lt;br/&gt;accepted?"}
+  merge --> critique["Critique mergedReport&lt;br/&gt;Critique"]
+  critique --> condition{"Condition from Critique&lt;br/&gt;REPORT_SATISFACTORY?"}
 
-  critique -->|yes| accept["Accept report&lt;br/&gt;goal output"]
-  critique -->|no| redo["Redo research&lt;br/&gt;uses critique reasoning"]
-  redo -. replaces named reports .-> merge
+  condition -->|true| accept["Accept report&lt;br/&gt;finalResearchReport goal"]
+  condition -->|false| redoGpt["Redo GPT research&lt;br/&gt;uses Critique.reasoning"]
+  condition -->|false| redoClaude["Redo Claude research&lt;br/&gt;uses Critique.reasoning"]
+
+  redoGpt -. replaces gpt4Report .-> merge
+  redoClaude -. replaces claudeReport .-> merge
 
   classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
   classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
@@ -1739,13 +1859,13 @@ flowchart LR
   classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
 
   class request input
-  class categorize,question,discussion code
-  class gpt,claude tool
-  class merge,redo llm
-  class critique decision
+  class categorize code
+  class gpt,claude,redoGpt,redoClaude tool
+  class merge llm
+  class critique,condition decision
   class accept goal
           </pre>
-          <details class="blackboard" open>
+          <details class="blackboard">
             <summary>Blackboard</summary>
             <div class="blackboard-items">
               <ul class="blackboard-step" data-blackboard-step="0">
@@ -1769,17 +1889,18 @@ flowchart LR
                 <li><code>Critique</code><span>accepted flag and reasoning</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="5">
-                <li><code>Critique</code><span>REPORT_SATISFACTORY</span></li>
+                <li><code>REPORT_SATISFACTORY</code><span>condition true from Critique</span></li>
                 <li><code>finalResearchReport</code><span>accepted goal output</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="6">
-                <li><code>Critique</code><span>REPORT_UNSATISFACTORY</span></li>
+                <li><code>REPORT_UNSATISFACTORY</code><span>condition true from Critique</span></li>
+                <li><code>Critique</code><span>reasoning for redo research</span></li>
                 <li><code>gpt4Report</code><span>replacement report</span></li>
                 <li><code>claudeReport</code><span>replacement report</span></li>
               </ul>
             </div>
           </details>
-          <p class="diagram-note">A rejected critique becomes a planning fact. That unlocks redo research, which replaces the named reports and sends the planner through merge and critique again.</p>
+          <p class="diagram-note">The critic writes a typed <code>Critique</code>. Condition methods turn that object into planner facts: <code>REPORT_SATISFACTORY</code> makes acceptance valid, while <code>REPORT_UNSATISFACTORY</code> makes the redo research actions valid.</p>
         </div>
       </div>
 
@@ -2107,66 +2228,65 @@ companion object {
 
         <div class="diagram">
           <div class="diagram-title">Scatter / Merge / Verify</div>
-          <div class="flow diagram-nav" aria-hidden="true">
-            <div class="node input"><strong>User content</strong><small>claims hidden in text</small></div>
+          <div class="flow diagram-nav">
+            <div class="node input"><strong>UserInput</strong><small>blackboard seed</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Scatter extractors</strong><small>several LLM options</small></div>
+            <div class="node llm"><strong>Extractor actions</strong><small>one per LlmOptions</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>FactualAssertions</strong><small>typed claim lists</small></div>
+            <div class="node llm"><strong>Merge action</strong><small>requires all extracts</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Merge</strong><small>dedupe + rationalize</small></div>
+            <div class="node tool"><strong>Verify action</strong><small>parallelMap + tools</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node tool"><strong>Parallel verify</strong><small>web + browser tools</small></div>
-            <div class="arrow">-&gt;</div>
-            <div class="node goal"><strong>FactCheck</strong><small>typed goal result</small></div>
+            <div class="node goal"><strong>FactCheck goal</strong><small>satisfiedBy type</small></div>
           </div>
           <pre class="mermaid mermaid-diagram">
 flowchart LR
-  content["User content&lt;br/&gt;claims hidden in text"] --> scatter["Scatter extractors&lt;br/&gt;several LLM options"]
-  scatter --> assertions["FactualAssertions&lt;br/&gt;typed claim lists"]
-  assertions --> merge["Merge&lt;br/&gt;dedupe + rationalize"]
-  merge --> verify["Parallel verify&lt;br/&gt;web + browser tools"]
-  verify --> factcheck["FactCheck&lt;br/&gt;typed goal result"]
+  content["UserInput&lt;br/&gt;blackboard seed"]
+  content --> extractA["extract action 0&lt;br/&gt;UserInput => FactualAssertions"]
+  content --> extractB["extract action n&lt;br/&gt;UserInput => FactualAssertions"]
+  extractA --> assertions["FactualAssertions[]&lt;br/&gt;one output per LlmOptions"]
+  extractB --> assertions
+  assertions --> ready{"all extractors&lt;br/&gt;have run"}
+  ready --> merge["merge action&lt;br/&gt;List&lt;FactualAssertions&gt; => RationalizedFactualAssertions"]
+  merge --> rationalized["RationalizedFactualAssertions&lt;br/&gt;deduped claims"]
+  rationalized --> verify["verify transformation&lt;br/&gt;parallelMap + web/browser tools"]
+  verify --> factcheck["FactCheck&lt;br/&gt;contains AssertionCheck list"]
+  factcheck --> goal["factCheckingDone&lt;br/&gt;satisfiedBy FactCheck"]
 
   classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
   classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
   classDef tool fill:#fffaf0,stroke:#c8a95c,color:#14314f
   classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
+  classDef decision fill:#fff8f2,stroke:#d19a70,color:#14314f
   classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
 
   class content input
-  class scatter,merge llm
-  class assertions code
+  class extractA,extractB,assertions,merge,rationalized llm
+  class ready decision
   class verify tool
-  class factcheck goal
+  class factcheck,goal goal
           </pre>
-          <details class="blackboard" open>
+          <details class="blackboard">
             <summary>Blackboard</summary>
             <div class="blackboard-items">
               <ul class="blackboard-step" data-blackboard-step="0">
                 <li><code>UserInput</code><span>content to check</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="1">
-                <li><code>UserInput</code><span>source content</span></li>
-                <li><code>FactualAssertions</code><span>per-extractor claim lists</span></li>
+                <li><code>FactualAssertions</code><span>one output per configured extractor action</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="2">
-                <li><code>FactualAssertions</code><span>raw extracted claims</span></li>
-                <li><code>RationalizedFactualAssertions</code><span>deduped claims</span></li>
+                <li><code>RationalizedFactualAssertions</code><span>deduped claims from merge</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="3">
-                <li><code>RationalizedFactualAssertions</code><span>claims to verify</span></li>
+                <li><code>RationalizedFactualAssertions</code><span>input that makes verification valid</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="4">
-                <li><code>RationalizedFactualAssertions</code><span>claims to verify</span></li>
-                <li><code>AssertionCheck</code><span>parallel evidence checks</span></li>
-              </ul>
-              <ul class="blackboard-step" data-blackboard-step="5">
-                <li><code>FactCheck</code><span>typed goal result</span></li>
+                <li><code>FactCheck</code><span>goal-satisfying result containing checks</span></li>
               </ul>
             </div>
           </details>
-          <p class="diagram-note">The planner sees the same shape as typed state: <code>UserInput</code> to <code>RationalizedFactualAssertions</code> to <code>FactCheck</code>.</p>
+          <p class="diagram-note">GOAP plans from current blackboard facts: <code>UserInput</code> makes each extractor action valid; completed extractor outputs unlock merge; <code>RationalizedFactualAssertions</code> unlocks verification; <code>FactCheck</code> satisfies <code>factCheckingDone</code>.</p>
         </div>
       </div>
 
@@ -2376,38 +2496,43 @@ data class FactCheck(
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow diagram-nav" aria-hidden="true">
-            <div class="node input"><strong>Web form</strong><small>route, dates, travelers</small></div>
+          <div class="flow diagram-nav">
+            <div class="node input"><strong>Seed facts</strong><small>JourneyTravelBrief + Travelers</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>Typed seed</strong><small>JourneyTravelBrief + Travelers</small></div>
+            <div class="node input"><strong>Consent fact</strong><small>confirmExpensiveOperation</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>AgentProcess</strong><small>options, budget, lifecycle</small></div>
+            <div class="node tool"><strong>POI candidates</strong><small>findPointsOfInterest</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node input"><strong>Consent</strong><small>AcceptanceOfCost</small></div>
+            <div class="node tool"><strong>POI findings</strong><small>parallelMap research</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node tool"><strong>POI discovery</strong><small>web, maps, math, weather</small></div>
+            <div class="node llm"><strong>Proposed plan</strong><small>HTML + structured days</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node tool"><strong>Parallel research</strong><small>links, images, stories</small></div>
+            <div class="node tool"><strong>TravelPlan</strong><small>stays + map URL</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Itinerary</strong><small>HTML plan + structured days</small></div>
-            <div class="arrow">-&gt;</div>
-            <div class="node tool"><strong>Stays</strong><small>MCP Airbnb links</small></div>
-            <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>Cleanup</strong><small>map URL + image checks</small></div>
-            <div class="arrow">-&gt;</div>
-            <div class="node goal"><strong>TravelPlan</strong><small>displayed and exported</small></div>
+            <div class="node goal"><strong>Cleaned TravelPlan</strong><small>exported goal</small></div>
           </div>
           <pre class="mermaid mermaid-diagram">
 flowchart LR
-  form["Web form&lt;br/&gt;route, dates, travelers"] --> seed["Typed seed&lt;br/&gt;JourneyTravelBrief + Travelers"]
-  seed --> process["AgentProcess&lt;br/&gt;options, budget, lifecycle"]
-  process --> consent["Consent&lt;br/&gt;AcceptanceOfCost"]
-  consent --> poi["POI discovery&lt;br/&gt;web, maps, math, weather"]
-  poi --> research["Parallel research&lt;br/&gt;links, images, stories"]
-  research --> itinerary["Itinerary&lt;br/&gt;HTML plan + structured days"]
-  itinerary --> stays["Stays&lt;br/&gt;MCP Airbnb links"]
-  stays --> cleanup["Cleanup&lt;br/&gt;map URL + image checks"]
-  cleanup --> plan["TravelPlan&lt;br/&gt;displayed and exported"]
+  seed["Seed facts&lt;br/&gt;JourneyTravelBrief + Travelers"]
+  consent["AcceptanceOfCost&lt;br/&gt;confirmExpensiveOperation"]
+  poi["ItineraryIdeas&lt;br/&gt;findPointsOfInterest"]
+  research["PointOfInterestFindings&lt;br/&gt;researchPointsOfInterest"]
+  proposal["ProposedTravelPlan&lt;br/&gt;proposeTravelPlan"]
+  plan["TravelPlan&lt;br/&gt;findPlacesToSleep"]
+  goal["TravelPlan goal&lt;br/&gt;postProcessHtml"]
+
+  seed --> planner1["GOAP planner&lt;br/&gt;facts satisfy action inputs"]
+  planner1 --> consent
+  consent --> planner2["replan from blackboard"]
+  planner2 --> poi
+  poi --> planner3["replan from blackboard"]
+  planner3 --> research
+  research --> planner4["replan from blackboard"]
+  planner4 --> proposal
+  proposal --> planner5["replan from blackboard"]
+  planner5 --> plan
+  plan --> planner6["goal action now valid"]
+  planner6 --> goal
 
   classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
   classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
@@ -2415,51 +2540,41 @@ flowchart LR
   classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
   classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
 
-  class form,consent input
-  class seed,process,cleanup code
-  class poi,research,stays tool
-  class itinerary llm
-  class plan goal
+  class seed,consent input
+  class planner1,planner2,planner3,planner4,planner5,planner6 code
+  class poi,research,plan tool
+  class proposal llm
+  class goal goal
           </pre>
-          <details class="blackboard" open>
+          <details class="blackboard">
             <summary>Blackboard</summary>
             <div class="blackboard-items">
               <ul class="blackboard-step" data-blackboard-step="0">
-                <li><code>JourneyPlanForm</code><span>route, dates, travelers</span></li>
-              </ul>
-              <ul class="blackboard-step" data-blackboard-step="1">
                 <li><code>JourneyTravelBrief</code><span>typed route brief</span></li>
                 <li><code>Travelers</code><span>typed traveler facts</span></li>
+                <li><code>TravelersAndBrief?</code><span>remote starting input when exported</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>AcceptanceOfCost</code><span>consent fact</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="2">
-                <li><code>AgentProcess</code><span>seeded process state</span></li>
-                <li><code>ProcessOptions</code><span>verbosity and budget</span></li>
-              </ul>
-              <ul class="blackboard-step" data-blackboard-step="3">
-                <li><code>AcceptanceOfCost</code><span>consent fact</span></li>
-                <li><code>TravelersAndBrief?</code><span>remote input marker</span></li>
-              </ul>
-              <ul class="blackboard-step" data-blackboard-step="4">
                 <li><code>ItineraryIdeas</code><span>route POI candidates</span></li>
               </ul>
-              <ul class="blackboard-step" data-blackboard-step="5">
+              <ul class="blackboard-step" data-blackboard-step="3">
                 <li><code>PointOfInterestFindings</code><span>links, images, stories</span></li>
               </ul>
-              <ul class="blackboard-step" data-blackboard-step="6">
+              <ul class="blackboard-step" data-blackboard-step="4">
                 <li><code>ProposedTravelPlan</code><span>HTML plan and days</span></li>
               </ul>
-              <ul class="blackboard-step" data-blackboard-step="7">
-                <li><code>Stay</code><span>accommodation links</span></li>
+              <ul class="blackboard-step" data-blackboard-step="5">
+                <li><code>TravelPlan</code><span>stays, travelers, proposal, map URL</span></li>
               </ul>
-              <ul class="blackboard-step" data-blackboard-step="8">
-                <li><code>TravelPlan</code><span>map URL and cleaned images</span></li>
-              </ul>
-              <ul class="blackboard-step" data-blackboard-step="9">
-                <li><code>TravelPlan</code><span>displayed and exported</span></li>
+              <ul class="blackboard-step" data-blackboard-step="6">
+                <li><code>TravelPlan</code><span>cleaned and exported</span></li>
               </ul>
             </div>
           </details>
-          <p class="diagram-note">The planner moves by typed facts on the blackboard; each action adds the next product artifact.</p>
+          <p class="diagram-note">After each action, GOAP replans from the current typed blackboard facts. The next action becomes valid when its input types are present; the exported goal is satisfied by the cleaned <code>TravelPlan</code>.</p>
         </div>
       </div>
 
@@ -3027,26 +3142,27 @@ private val styleImages = StringTransformer { html -&gt;
 
         <div class="diagram">
           <div class="diagram-title">Product Flow</div>
-          <div class="flow diagram-nav" aria-hidden="true">
-            <div class="node input"><strong>Ingest docs</strong><small>files, directories, URLs</small></div>
+          <div class="flow diagram-nav">
+            <div class="node input"><strong>Ingest docs</strong><small>shell URL/file/directory</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>Index/search store</strong><small>Lucene chunks + embeddings</small></div>
+            <div class="node code"><strong>Load search store</strong><small>Lucene + embeddings</small></div>
             <div class="arrow">-&gt;</div>
             <div class="node tool"><strong>ToolishRag reference</strong><small>retrieval tools for the LLM</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node input"><strong>UserMessage</strong><small>repeatable chat trigger</small></div>
+            <div class="node code"><strong>Utility AgentProcess</strong><small>long-lived Conversation</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node llm"><strong>Template + persona</strong><small>instructions and objective</small></div>
+            <div class="node input"><strong>Planner selects respond</strong><small>UserMessage trigger</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node goal"><strong>Assistant reply</strong><small>sent to conversation</small></div>
+            <div class="node goal"><strong>Answer and wait</strong><small>RAG + sendMessage</small></div>
           </div>
           <pre class="mermaid mermaid-diagram">
 flowchart LR
-  ingest["Ingest docs&lt;br/&gt;files, directories, URLs"] --> index["Index/search store&lt;br/&gt;Lucene chunks + embeddings"]
-  index --> reference["ToolishRag reference&lt;br/&gt;retrieval tools for the LLM"]
-  reference --> message["UserMessage&lt;br/&gt;repeatable chat trigger"]
-  message --> persona["Template + persona&lt;br/&gt;instructions and objective"]
-  persona --> reply["Assistant reply&lt;br/&gt;sent to conversation"]
+  ingest["Ingest docs&lt;br/&gt;shell URL/file/directory"] --> store["Load search store&lt;br/&gt;LuceneSearchOperations + embeddings"]
+  store --> reference["ToolishRag reference&lt;br/&gt;retrieval tools for the LLM"]
+  reference --> process["Utility AgentProcess&lt;br/&gt;long-lived Conversation"]
+  process --> trigger["Planner selects respond&lt;br/&gt;UserMessage trigger + Conversation"]
+  trigger --> answer["Answer and wait&lt;br/&gt;ragbot template + RAG + sendMessage"]
+  answer -. next UserMessage .-> trigger
 
   classDef input fill:#f5faff,stroke:#0f766e,color:#14314f
   classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
@@ -3054,38 +3170,40 @@ flowchart LR
   classDef llm fill:#faf8ff,stroke:#a78bfa,color:#14314f
   classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
 
-  class ingest,message input
-  class index code
+  class ingest,trigger input
+  class store,process code
   class reference tool
-  class persona llm
-  class reply goal
+  class answer goal
           </pre>
-          <details class="blackboard" open>
-            <summary>Blackboard</summary>
+          <details class="blackboard">
+            <summary>Process state</summary>
             <div class="blackboard-items">
               <ul class="blackboard-step" data-blackboard-step="0">
-                <li><code>DocumentLocation</code><span>file, directory, or URL</span></li>
+                <li><code>location</code><span>file, directory, or URL passed to ingestion</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="1">
-                <li><code>SearchOperations</code><span>Lucene chunks and embeddings</span></li>
+                <li><code>LuceneSearchOperations</code><span>loaded persistent index and embeddings</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="2">
-                <li><code>ToolishRag</code><span>retrieval reference</span></li>
+                <li><code>ToolishRag</code><span>retrieval reference held by ChatActions</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>Chatbot</code><span>utility agent configuration</span></li>
+                <li><code>AgentProcess</code><span>long-lived chat process</span></li>
                 <li><code>Conversation</code><span>session history</span></li>
-                <li><code>UserMessage</code><span>current turn</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="4">
+                <li><code>UserMessage</code><span>trigger fact for current turn</span></li>
                 <li><code>Conversation</code><span>prompt context</span></li>
-                <li><code>LlmReference</code><span>retrieval tools</span></li>
               </ul>
               <ul class="blackboard-step" data-blackboard-step="5">
-                <li><code>AssistantMessage</code><span>reply appended to conversation</span></li>
+                <li><code>toolishRag</code><span>retrieval reference supplied to prompt</span></li>
+                <li><code>ragbot</code><span>rendered template prompt</span></li>
+                <li><code>Conversation</code><span>appended AssistantMessage</span></li>
               </ul>
             </div>
           </details>
-          <p class="diagram-note">The same chatbot process pauses between turns, then handles the next <code>UserMessage</code>.</p>
+          <p class="diagram-note">The utility planner reacts to each <code>UserMessage</code> on the long-lived <code>AgentProcess</code>: it selects the repeatable <code>respond</code> action, supplies the current <code>Conversation</code>, lets the LLM use <code>ToolishRag</code>, appends the reply, and waits for another turn.</p>
         </div>
       </div>
 
@@ -3280,41 +3398,53 @@ MUST be longer for a detailed response or quoting content.</code><span class="sn
 
         <div class="diagram">
           <div class="diagram-title">Test Flow</div>
-          <div class="flow diagram-nav" aria-hidden="true">
-            <div class="node code"><strong>Fake context</strong><small>stub LLM response</small></div>
+          <div class="flow diagram-nav">
+            <div class="node code"><strong>Seed facts</strong><small>fixtures mirror blackboard</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>Invoke action</strong><small>ordinary Kotlin call</small></div>
+            <div class="node code"><strong>Run goal action</strong><small>expectResponse -&gt; Writeup</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node code"><strong>Inspect prompt</strong><small>llmInvocations</small></div>
+            <div class="node code"><strong>Inspect invocation</strong><small>prompt + model + tools</small></div>
             <div class="arrow">-&gt;</div>
-            <div class="node goal"><strong>Assert contract</strong><small>content + tools</small></div>
+            <div class="node goal"><strong>Assert contract</strong><small>facts included + no tools</small></div>
           </div>
           <pre class="mermaid mermaid-diagram">
 flowchart LR
-  context["Fake context&lt;br/&gt;stub LLM response"] --> invoke["Invoke action&lt;br/&gt;ordinary Kotlin call"]
-  invoke --> inspect["Inspect prompt&lt;br/&gt;llmInvocations"]
-  inspect --> assertContract["Assert contract&lt;br/&gt;content + tools"]
+  facts["Typed fixture facts&lt;br/&gt;StarPerson + stories + Horoscope"] --> action["@AchievesGoal action&lt;br/&gt;starNewsWriteup inputs satisfied"]
+  expected["Fake LLM response&lt;br/&gt;expectResponse(Writeup)"] --> action
+  action --> writeup["Writeup&lt;br/&gt;typed result"]
+  action --> invocation["LLM invocation&lt;br/&gt;prompt + model + tools"]
+  invocation --> assertContract["Assert contract&lt;br/&gt;facts included + no tools"]
+  writeup --> assertContract
 
   classDef code fill:#f8fafc,stroke:#94a3b8,color:#14314f
   classDef goal fill:#f3fbf9,stroke:#6ab7aa,color:#14314f
 
-  class context,invoke,inspect code
-  class assertContract goal
+  class facts,expected,action,invocation code
+  class writeup,assertContract goal
           </pre>
-          <details class="blackboard" open>
+          <details class="blackboard">
             <summary>Blackboard</summary>
             <div class="blackboard-items">
               <ul class="blackboard-step" data-blackboard-step="0">
                 <li><code>FakeOperationContext</code><span>test process context</span></li>
+                <li><code>FakePromptRunner</code><span>records prompt interactions</span></li>
                 <li><code>StarPerson</code><span>typed fixture</span></li>
                 <li><code>RelevantNewsStories</code><span>typed fixture</span></li>
                 <li><code>Horoscope</code><span>typed fixture</span></li>
-                <li><code>Writeup</code><span>stubbed response</span></li>
-                <li><code>llmInvocations</code><span>recorded prompt contract</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="1">
+                <li><code>Writeup</code><span>queued fake response and typed result</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="2">
+                <li><code>llmInvocations</code><span>recorded prompt, model, and tool groups</span></li>
+              </ul>
+              <ul class="blackboard-step" data-blackboard-step="3">
+                <li><code>prompt</code><span>contains name, sign, stories, and word count</span></li>
+                <li><code>toolGroups</code><span>empty for final writeup action</span></li>
               </ul>
             </div>
           </details>
-          <p class="diagram-note">The test validates prompt behavior without calling a real model.</p>
+          <p class="diagram-note">The fixtures stand in for the blackboard facts that make the goal action eligible; the fake runner returns a typed <code>Writeup</code> and records the prompt/tool contract without a real model call.</p>
         </div>
       </div>
 
@@ -3450,12 +3580,12 @@ assertTrue(
       mermaid.initialize({
         startOnLoad: false,
         theme: "base",
-        look: "handDrawn",
+        look: "classic",
         flowchart: {
-          curve: "basis",
+          curve: "linear",
           htmlLabels: true,
-          nodeSpacing: 42,
-          rankSpacing: 58,
+          nodeSpacing: 32,
+          rankSpacing: 44,
           padding: 12
         },
         themeVariables: {
@@ -3562,144 +3692,167 @@ assertTrue(
 
       const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
       const stepMaps = {
-        "horoscope-news": [0, 1, 1, 2, 3, 4],
-        "news-digest": [0, 1, 1, 4, 2, 4],
+        "horoscope-news": [1, 2, 3, 4, 5, 6],
+        "news-digest": [0, 2, 2, 1, 3, 4],
         "market-intelligence": [0, 1, 2, 3, 3, 3, 3, 3, 4],
         "research-review": [0, 1, 2, 2, 4, 5, 7, 6],
-        "fact-checking": [0, 1, 2, 4, 5],
-        "travel-planning": [1, 2, 3, 4, 5, 6, 7, 9],
-        "rag-chatbot": [1, 0, 3, 2, 4, 5],
-        "testing": [0]
+        "fact-checking": [0, 1, 2, 3, 4],
+        "travel-planning": [0, 0, 1, 2, 3, 4, 5, 6],
+        "rag-chatbot": [0, 1, 2, 3, 4, 5],
+        "testing": [0, 1, 2, 3]
       };
       const mermaidStepIds = {
         "horoscope-news": {
           0: ["prompt"],
-          1: ["extract"],
-          2: ["horoscope"],
-          3: ["news"],
-          4: ["writeup"]
+          1: ["plan"],
+          2: ["extract", "star"],
+          3: ["replan", "person", "starry", "assemble", "star"],
+          4: ["horoscope"],
+          5: ["news"],
+          6: ["writeup"]
         },
         "news-digest": {
           0: ["request"],
-          1: ["topic"],
-          2: ["items"],
-          3: ["narrative"],
+          1: ["plan"],
+          2: ["topic"],
+          3: ["digest", "web", "narrative"],
           4: ["export"]
         },
         "market-intelligence": {
-          0: ["request"],
-          1: ["subject"],
-          2: ["evidence"],
-          3: ["sections"],
-          4: ["assembly"],
-          5: ["report"]
+          0: ["input"],
+          1: ["planner1"],
+          2: ["parse", "blackboard1"],
+          3: ["planner2", "gather", "blackboard2"],
+          4: ["planner3", "synth", "report"]
         },
         "research-review": {
           0: ["request"],
           1: ["categorize"],
           2: ["gpt", "claude"],
           4: ["merge"],
-          5: ["critique"],
+          5: ["critique", "condition"],
           6: ["accept"],
-          7: ["redo"]
+          7: ["redoGpt", "redoClaude"]
         },
         "fact-checking": {
           0: ["content"],
-          1: ["scatter"],
-          2: ["assertions"],
-          3: ["merge"],
-          4: ["verify"],
-          5: ["factcheck"]
+          1: ["extractA", "extractB", "assertions"],
+          2: ["ready", "merge", "rationalized"],
+          3: ["verify"],
+          4: ["factcheck", "goal"]
         },
         "travel-planning": {
-          0: ["form"],
-          1: ["seed"],
-          2: ["process"],
-          3: ["consent"],
-          4: ["poi"],
-          5: ["research"],
-          6: ["itinerary"],
-          7: ["stays"],
-          8: ["cleanup"],
-          9: ["plan"]
+          0: ["seed", "planner1"],
+          1: ["consent", "planner2"],
+          2: ["poi", "planner3"],
+          3: ["research", "planner4"],
+          4: ["proposal", "planner5"],
+          5: ["plan", "planner6"],
+          6: ["goal"]
         },
         "rag-chatbot": {
           0: ["ingest"],
-          1: ["index"],
+          1: ["store"],
           2: ["reference"],
-          3: ["message"],
-          4: ["persona"],
-          5: ["reply"]
+          3: ["process"],
+          4: ["trigger"],
+          5: ["answer"]
         },
         "testing": {
-          0: ["context", "invoke", "inspect", "assertContract"]
+          0: ["facts"],
+          1: ["expected", "action", "writeup"],
+          2: ["invocation"],
+          3: ["assertContract"]
         }
       };
       const mermaidNodeLabels = {
         "horoscope-news": {
-          prompt: ["user prompt"],
-          extract: ["extract starperson"],
-          horoscope: ["horoscope service"],
-          news: ["web news search"],
-          writeup: ["writeup"]
+          prompt: ["userinput raw user prompt"],
+          plan: ["planner observes blackboard"],
+          extract: ["extractstarperson"],
+          star: ["starperson"],
+          replan: ["replan from current facts"],
+          person: ["extractperson"],
+          starry: ["makestarry"],
+          assemble: ["assemblestarperson"],
+          horoscope: ["retrievehoroscope"],
+          news: ["findnewsstories"],
+          writeup: ["starnewswriteup"]
         },
         "news-digest": {
           request: ["authorized request"],
-          topic: ["extract topic"],
-          items: ["find current items"],
-          narrative: ["write narrative"],
-          export: ["export digest"]
+          plan: ["planner searches from goal"],
+          topic: ["extracttopic action"],
+          digest: ["producedigest goal action"],
+          web: ["web search"],
+          narrative: ["narrative synthesis"],
+          export: ["exported result"]
         },
         "market-intelligence": {
-          request: ["business request"],
-          subject: ["analysissubject"],
-          evidence: ["evidence"],
-          sections: ["structured sections"],
-          assembly: ["typed assembly"],
-          report: ["market report"]
+          input: ["userinput business question"],
+          planner1: ["goal marketintelligencereport"],
+          parse: ["parsesubject"],
+          blackboard1: ["userinput analysissubject"],
+          planner2: ["research action is now valid"],
+          gather: ["gatherintelligence"],
+          blackboard2: ["subject raw intelligence"],
+          planner3: ["goal action inputs are satisfied"],
+          synth: ["synthesisereport"],
+          report: ["marketintelligencereport"]
         },
         "research-review": {
           request: ["research request"],
           categorize: ["categorize"],
           gpt: ["gpt research"],
           claude: ["claude research"],
-          merge: ["merge"],
-          critique: ["critique"],
+          merge: ["merge reports"],
+          critique: ["critique mergedreport"],
+          condition: ["condition from critique"],
           accept: ["accept report"],
-          redo: ["redo research"]
+          redoGpt: ["redo gpt research"],
+          redoClaude: ["redo claude research"]
         },
         "fact-checking": {
-          content: ["user content"],
-          scatter: ["scatter extractors"],
+          content: ["userinput"],
+          extractA: ["extract action 0"],
+          extractB: ["extract action n"],
           assertions: ["factualassertions"],
-          merge: ["merge"],
-          verify: ["parallel verify"],
-          factcheck: ["factcheck"]
+          ready: ["all extractors"],
+          merge: ["merge action"],
+          rationalized: ["rationalizedfactualassertions"],
+          verify: ["verify transformation"],
+          factcheck: ["factcheck"],
+          goal: ["factcheckingdone"]
         },
         "travel-planning": {
-          form: ["web form"],
-          seed: ["typed seed"],
-          process: ["agentprocess"],
-          consent: ["consent"],
-          poi: ["poi discovery"],
-          research: ["parallel research"],
-          itinerary: ["itinerary"],
-          stays: ["stays"],
-          cleanup: ["cleanup"],
-          plan: ["travelplan"]
+          seed: ["seed facts"],
+          planner1: ["facts satisfy action inputs"],
+          consent: ["acceptanceofcost"],
+          planner2: ["replan from blackboard"],
+          poi: ["itineraryideas"],
+          planner3: ["replan from blackboard"],
+          research: ["pointofinterestfindings"],
+          planner4: ["replan from blackboard"],
+          proposal: ["proposedtravelplan"],
+          planner5: ["replan from blackboard"],
+          plan: ["findplacestosleep"],
+          planner6: ["goal action now valid"],
+          goal: ["travelplan goal"]
         },
         "rag-chatbot": {
           ingest: ["ingest docs"],
-          index: ["index search store"],
+          store: ["load search store"],
           reference: ["toolishrag reference"],
-          message: ["usermessage"],
-          persona: ["template persona"],
-          reply: ["assistant reply"]
+          process: ["utility agentprocess"],
+          trigger: ["planner selects respond"],
+          answer: ["answer and wait"]
         },
         "testing": {
-          context: ["fake context"],
-          invoke: ["invoke action"],
-          inspect: ["inspect prompt"],
+          facts: ["typed fixture facts"],
+          expected: ["fake llm response"],
+          action: ["achievesgoal action"],
+          writeup: ["writeup typed result"],
+          invocation: ["llm invocation"],
           assertContract: ["assert contract"]
         }
       };
@@ -3760,12 +3913,33 @@ assertTrue(
         model.activeMermaidBoundKey = "";
       };
 
+      const sizeStickyMermaid = (model) => {
+        const svg = model.stickyMermaid?.querySelector("svg");
+        if (!svg) {
+          return;
+        }
+
+        const viewBox = svg.getAttribute("viewBox")?.trim().split(/\s+/).map(Number);
+        if (!viewBox || viewBox.length !== 4 || !viewBox.every(Number.isFinite) || viewBox[3] <= 0) {
+          return;
+        }
+
+        const stickyHeight = 144;
+        const scaledWidth = Math.ceil((viewBox[2] / viewBox[3]) * stickyHeight);
+        svg.style.width = `${Math.max(window.innerWidth, scaledWidth)}px`;
+        svg.style.height = `${stickyHeight}px`;
+      };
+
+      const sizeStickyMermaids = () => {
+        featureModels.forEach(sizeStickyMermaid);
+      };
+
       const featureModels = features.map((feature) => {
         const diagram = feature.querySelector(".diagram");
         const stickyDiagram = diagram.cloneNode(true);
         stickyDiagram.classList.add("sticky-diagram");
         stickyDiagram.setAttribute("aria-hidden", "true");
-        setMermaidDirection(diagram.querySelector(".mermaid-diagram"), "TD");
+        setMermaidDirection(diagram.querySelector(".mermaid-diagram"), "LR");
         setMermaidDirection(stickyDiagram.querySelector(".mermaid-diagram"), "LR");
         document.body.appendChild(stickyDiagram);
 
@@ -3926,7 +4100,8 @@ assertTrue(
         featureModels.forEach((model) => {
           const featureRect = model.feature.getBoundingClientRect();
           const diagramRect = model.diagram.getBoundingClientRect();
-          const isStuck = diagramRect.top <= stickyThreshold && featureRect.bottom > model.diagram.offsetHeight + 24;
+          const stickyHeight = model.stickyDiagram.offsetHeight || model.diagram.offsetHeight;
+          const isStuck = diagramRect.top <= stickyThreshold && featureRect.bottom > stickyHeight + 24;
 
           model.stickyDiagram.classList.toggle("is-visible", isStuck);
           if (isStuck) {
@@ -3991,7 +4166,10 @@ assertTrue(
       };
 
       window.addEventListener("scroll", requestUpdate, { passive: true });
-      window.addEventListener("resize", requestUpdate);
+      window.addEventListener("resize", () => {
+        sizeStickyMermaids();
+        requestUpdate();
+      });
       updateActiveSteps();
       if (window.mermaid) {
         Promise.resolve(mermaid.run({
@@ -4003,6 +4181,7 @@ assertTrue(
             model.activeMermaidBoundKey = "";
             model.diagram.classList.toggle("has-mermaid-svg", Boolean(model.diagram.querySelector(".mermaid-diagram svg")));
           });
+          sizeStickyMermaids();
           updateActiveSteps();
         });
       }

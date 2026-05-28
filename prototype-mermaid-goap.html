@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mermaid Feature 4 GOAP Prototype</title>
+  <style>
+    :root {
+      --bg: #f6f3ee;
+      --ink: #18212b;
+      --muted: #5d6875;
+      --panel: #fffdf8;
+      --line: #d8d2c7;
+      --accent: #0f766e;
+      --shadow: 0 18px 45px rgb(24 33 43 / 12%);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1320px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 30px 0 36px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 4vw, 4rem);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 8px;
+      font-size: 1.18rem;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: rgb(15 118 110 / 8%);
+      color: #115e59;
+      font-size: 0.85rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .panel {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: auto;
+    }
+
+    .panel-head {
+      position: sticky;
+      left: 0;
+      padding: 15px 17px 0;
+      background: var(--panel);
+    }
+
+    .diagram {
+      padding: 12px 18px 18px;
+    }
+
+    .header-strip .mermaid {
+      min-width: 1080px;
+    }
+
+    .full-flow .mermaid {
+      min-width: 1240px;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgb(255 253 248 / 74%);
+      padding: 14px;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.92rem;
+    }
+
+    .note span {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 860px) {
+      header, .notes { display: block; }
+      .badge { display: inline-block; margin-top: 12px; }
+      .note + .note { margin-top: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Mermaid Feature 4 Prototype</h1>
+        <p>Two diagrams for the research review agent: a compact current-step strip and a full GOAP flow.</p>
+      </div>
+      <div class="badge">Mermaid 11 CDN</div>
+    </header>
+
+    <section class="panel header-strip">
+      <div class="panel-head">
+        <h2>Header diagram: single-row current step</h2>
+        <p>Designed for the sticky header: readable at low height, with one active stage and only essential state.</p>
+      </div>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart LR
+  request["Research request"] --> categorize["Categorize"]
+  categorize --> research["GPT + Claude research"]
+  research --> merge["Merge named reports"]
+  merge --> critique["Critique"]
+  critique --> decision{"Condition"}
+  decision -->|satisfactory| accept["Accept report"]
+  decision -. unsatisfactory .-> redo["Redo research"]
+  redo -. replaces reports .-> merge
+
+  classDef stage fill:#f8fafc,stroke:#94a3b8,color:#142033,stroke-width:2px
+  classDef active fill:#faf5ff,stroke:#7c3aed,color:#142033,stroke-width:3px,font-weight:bold
+  classDef goal fill:#ecfdf5,stroke:#0f766e,color:#142033,stroke-width:2px,font-weight:bold
+  classDef retry fill:#fff7ed,stroke:#ea580c,color:#142033,stroke-width:2px,stroke-dasharray:6 4
+
+  class request,categorize,research,merge stage
+  class critique,decision active
+  class accept goal
+  class redo retry
+        </pre>
+      </div>
+    </section>
+
+    <section class="panel full-flow">
+      <div class="panel-head">
+        <h2>Standalone diagram: full GOAP flow</h2>
+        <p>Designed for the page body: exposes named reports, typed blackboard facts, conditions, and rerunnable actions.</p>
+      </div>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart LR
+  subgraph inputLane["Input"]
+    request["UserInput<br/><small>research question or topic</small>"]
+  end
+
+  subgraph classifyLane["Classify"]
+    categorize["categorize<br/><small>UserInput -> Categorization</small>"]
+  end
+
+  subgraph researchLane["Parallel research actions"]
+    gpt["researchWithGpt4<br/><small>outputBinding: gpt4Report</small>"]
+    claude["researchWithClaude<br/><small>outputBinding: claudeReport</small>"]
+    redoGpt["redoResearchWithGpt4<br/><small>pre: REPORT_UNSATISFACTORY</small>"]
+    redoClaude["redoResearchWithClaude<br/><small>pre: REPORT_UNSATISFACTORY</small>"]
+  end
+
+  subgraph blackboardLane["Typed blackboard"]
+    catFact[("Categorization")]
+    gptFact[("gpt4Report")]
+    claudeFact[("claudeReport")]
+    mergedFact[("mergedReport")]
+    critiqueFact[("Critique")]
+    satFact[("REPORT_SATISFACTORY")]
+    unsatFact[("REPORT_UNSATISFACTORY")]
+    finalFact[("finalResearchReport")]
+  end
+
+  subgraph reviewLane["Merge and review"]
+    merge["mergeReports<br/><small>@RequireNameMatch reports</small>"]
+    critique["critiqueMergedReport<br/><small>writes Critique</small>"]
+    condition{"Condition methods<br/>accepted?"}
+  end
+
+  subgraph goalLane["Goal"]
+    accept["acceptReport<br/><small>pre: REPORT_SATISFACTORY</small>"]
+  end
+
+  request --> categorize --> catFact
+  catFact --> gpt
+  catFact --> claude
+  gpt --> gptFact
+  claude --> claudeFact
+  gptFact --> merge
+  claudeFact --> merge
+  merge --> mergedFact
+  mergedFact --> critique
+  critique --> critiqueFact
+  critiqueFact --> condition
+  condition -->|true| satFact --> accept --> finalFact
+  condition -. false .-> unsatFact
+  unsatFact -. unlocks .-> redoGpt
+  unsatFact -. unlocks .-> redoClaude
+  critiqueFact -. reviewer reasoning .-> redoGpt
+  critiqueFact -. reviewer reasoning .-> redoClaude
+  redoGpt -. replaces .-> gptFact
+  redoClaude -. replaces .-> claudeFact
+  finalFact --> done["Goal achieved"]
+
+  classDef input fill:#e0f2fe,stroke:#0369a1,color:#0f172a,stroke-width:2px
+  classDef action fill:#faf5ff,stroke:#7c3aed,color:#21112f,stroke-width:2px
+  classDef fact fill:#fff7ed,stroke:#b45309,color:#2b1703,stroke-width:2px
+  classDef decision fill:#fef9c3,stroke:#a16207,color:#241a00,stroke-width:2px
+  classDef retry fill:#fef2f2,stroke:#dc2626,color:#7f1d1d,stroke-width:2px
+  classDef goal fill:#dcfce7,stroke:#047857,color:#052e16,stroke-width:3px
+
+  class request input
+  class categorize,gpt,claude,merge,critique action
+  class redoGpt,redoClaude retry
+  class catFact,gptFact,claudeFact,mergedFact,critiqueFact,satFact,unsatFact,finalFact fact
+  class condition decision
+  class accept,done goal
+        </pre>
+      </div>
+    </section>
+
+    <section class="notes">
+      <article class="note"><strong>Header role</strong><span>Show where the reader is now; suppress blackboard detail.</span></article>
+      <article class="note"><strong>Full role</strong><span>Explain why GOAP replans: facts make later actions valid.</span></article>
+      <article class="note"><strong>Mermaid fit</strong><span>Best for docs maintenance; weakest for exact swimlane alignment.</span></article>
+    </section>
+  </main>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+    mermaid.initialize({
+      startOnLoad: true,
+      securityLevel: "loose",
+      theme: "base",
+      flowchart: {
+        curve: "basis",
+        htmlLabels: true,
+        nodeSpacing: 46,
+        rankSpacing: 64
+      },
+      themeVariables: {
+        fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+        fontSize: "16px",
+        primaryColor: "#fffdf8",
+        primaryTextColor: "#18212b",
+        primaryBorderColor: "#d8d2c7",
+        lineColor: "#64748b",
+        textColor: "#18212b",
+        edgeLabelBackground: "#fffdf8",
+        clusterBkg: "#f9fafb",
+        clusterBorder: "#c9d1dc"
+      }
+    });
+  </script>
+</body>
+</html>

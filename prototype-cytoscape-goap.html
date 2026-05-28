@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cytoscape Feature 4 GOAP Prototype</title>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.3/dist/cytoscape.min.js"></script>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --ink: #15202b;
+      --muted: #5c6b7a;
+      --panel: #ffffff;
+      --line: #d7dee8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1320px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-end;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 2.1rem;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 5px;
+      font-size: 1.08rem;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .badge {
+      border: 1px solid #bfdbfe;
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.84rem;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .panel {
+      margin-top: 15px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 16px 40px rgb(15 23 42 / 8%);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 15px 17px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    #header-cy {
+      height: 220px;
+    }
+
+    .full-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+    }
+
+    #full-cy {
+      min-height: 690px;
+    }
+
+    aside {
+      border-left: 1px solid var(--line);
+      padding: 16px;
+      background: #fbfcfe;
+    }
+
+    aside h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #334155;
+      font-size: 0.88rem;
+      font-weight: 650;
+    }
+
+    .swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 2px solid currentColor;
+      background: white;
+    }
+
+    @media (max-width: 920px) {
+      header, .full-grid { display: block; }
+      aside { border-left: 0; border-top: 1px solid var(--line); }
+      .badge { display: inline-block; margin-top: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Cytoscape Feature 4 Prototype</h1>
+        <p>Two Cytoscape graphs: one compact current-step strip and one full named-report retry flow.</p>
+      </div>
+      <div class="badge">Cytoscape.js CDN</div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Header diagram: single-row current step</h2>
+        <p>Compact, horizontally fit, and suitable for sticky-page context.</p>
+      </div>
+      <div id="header-cy" aria-label="Cytoscape header graph"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Standalone diagram: full GOAP flow</h2>
+        <p>Compound nodes act as lanes. Click a node to inspect why it matters to GOAP planning.</p>
+      </div>
+      <div class="full-grid">
+        <div id="full-cy" aria-label="Cytoscape full graph"></div>
+        <aside>
+          <h3 id="detail-title">Feature 4 flow</h3>
+          <p id="detail-body">The full diagram separates action execution from typed blackboard facts, so the retry loop is visible as data changing the next plan.</p>
+          <div class="legend">
+            <span><i class="swatch" style="color:#2563eb;background:#eff6ff"></i> Input</span>
+            <span><i class="swatch" style="color:#475569;background:#f8fafc"></i> Planner/control</span>
+            <span><i class="swatch" style="color:#7c3aed;background:#faf5ff"></i> Action</span>
+            <span><i class="swatch" style="color:#0f766e;background:#ecfdf5"></i> Blackboard fact</span>
+            <span><i class="swatch" style="color:#ea580c;background:#fff7ed"></i> Redo route</span>
+            <span><i class="swatch" style="color:#047857;background:#dcfce7"></i> Goal</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const style = [
+      { selector: "node", style: {
+        "label": "data(label)",
+        "font-size": 13,
+        "font-weight": 700,
+        "text-wrap": "wrap",
+        "text-max-width": 132,
+        "text-valign": "center",
+        "text-halign": "center",
+        "shape": "round-rectangle",
+        "width": 142,
+        "height": 56,
+        "background-color": "#fff",
+        "border-width": 2,
+        "border-color": "#334155",
+        "color": "#111827"
+      }},
+      { selector: "$node > node", style: {
+        "background-opacity": 0.08,
+        "border-style": "dashed",
+        "border-width": 2,
+        "border-color": "#94a3b8",
+        "label": "data(label)",
+        "font-size": 17,
+        "font-weight": 800,
+        "text-valign": "top",
+        "text-halign": "center",
+        "padding": 24,
+        "color": "#334155"
+      }},
+      { selector: "node[kind='input']", style: { "background-color": "#eff6ff", "border-color": "#2563eb" } },
+      { selector: "node[kind='planner']", style: { "background-color": "#f8fafc", "border-color": "#475569" } },
+      { selector: "node[kind='action']", style: { "background-color": "#faf5ff", "border-color": "#7c3aed" } },
+      { selector: "node[kind='decision']", style: { "background-color": "#fef9c3", "border-color": "#a16207", "shape": "diamond", "width": 104, "height": 86 } },
+      { selector: "node[kind='retry']", style: { "background-color": "#fff7ed", "border-color": "#ea580c" } },
+      { selector: "node[kind='fact']", style: { "shape": "round-tag", "background-color": "#ecfdf5", "border-color": "#0f766e", "width": 140 } },
+      { selector: "node[kind='goal']", style: { "background-color": "#dcfce7", "border-color": "#047857", "border-width": 3 } },
+      { selector: "edge", style: {
+        "curve-style": "bezier",
+        "width": 2.4,
+        "line-color": "#64748b",
+        "target-arrow-shape": "triangle",
+        "target-arrow-color": "#64748b",
+        "font-size": 10,
+        "font-weight": 700,
+        "text-background-opacity": 1,
+        "text-background-color": "#fff",
+        "text-background-padding": 3
+      }},
+      { selector: "edge[label]", style: { "label": "data(label)" } },
+      { selector: "edge[route='retry']", style: {
+        "line-style": "dashed",
+        "line-color": "#ea580c",
+        "target-arrow-color": "#ea580c"
+      }},
+      { selector: ".active", style: { "border-width": 4, "border-color": "#111827" } }
+    ];
+
+    const header = cytoscape({
+      container: document.getElementById("header-cy"),
+      minZoom: 0.5,
+      maxZoom: 1.3,
+      userZoomingEnabled: false,
+      elements: [
+        { data: { id: "request", label: "Request", kind: "input" }, position: { x: 70, y: 100 } },
+        { data: { id: "categorize", label: "Categorize", kind: "planner" }, position: { x: 230, y: 100 } },
+        { data: { id: "research", label: "GPT + Claude", kind: "action" }, position: { x: 400, y: 100 } },
+        { data: { id: "merge", label: "Merge", kind: "action" }, position: { x: 570, y: 100 } },
+        { data: { id: "critique", label: "Critique", kind: "decision" }, position: { x: 740, y: 100 } },
+        { data: { id: "accept", label: "Accept", kind: "goal" }, position: { x: 910, y: 65 } },
+        { data: { id: "redo", label: "Redo", kind: "retry" }, position: { x: 910, y: 145 } },
+        { data: { source: "request", target: "categorize" } },
+        { data: { source: "categorize", target: "research" } },
+        { data: { source: "research", target: "merge" } },
+        { data: { source: "merge", target: "critique" } },
+        { data: { source: "critique", target: "accept", label: "ok" } },
+        { data: { source: "critique", target: "redo", label: "reject", route: "retry" } },
+        { data: { source: "redo", target: "merge", label: "replace reports", route: "retry" } }
+      ],
+      layout: { name: "preset", fit: true, padding: 18 },
+      style
+    });
+    header.$("#critique").addClass("active");
+
+    const details = {
+      gptFact: ["gpt4Report", "A named SingleLlmReport. Name matching prevents confusion with the Claude report."],
+      claudeFact: ["claudeReport", "A second named SingleLlmReport. The merge action requires both named reports."],
+      condition: ["Condition methods", "Critique is ordinary state; conditions expose REPORT_SATISFACTORY or REPORT_UNSATISFACTORY to the planner."],
+      redoGpt: ["Redo research", "This action is valid only when REPORT_UNSATISFACTORY is true and can rerun to replace the named report."],
+      accept: ["Accept report", "The goal action is unavailable until REPORT_SATISFACTORY is true."]
+    };
+
+    const full = cytoscape({
+      container: document.getElementById("full-cy"),
+      minZoom: 0.45,
+      maxZoom: 1.8,
+      elements: {
+        nodes: [
+          { data: { id: "lane-input", label: "Input" } },
+          { data: { id: "lane-actions", label: "Actions" } },
+          { data: { id: "lane-facts", label: "Typed blackboard" } },
+          { data: { id: "lane-review", label: "Review + conditions" } },
+          { data: { id: "lane-goal", label: "Goal" } },
+
+          { data: { id: "request", parent: "lane-input", label: "UserInput", kind: "input" }, position: { x: 80, y: 280 } },
+          { data: { id: "categorize", parent: "lane-actions", label: "categorize", kind: "planner" }, position: { x: 280, y: 190 } },
+          { data: { id: "gpt", parent: "lane-actions", label: "researchWithGpt4", kind: "action" }, position: { x: 510, y: 135 } },
+          { data: { id: "claude", parent: "lane-actions", label: "researchWithClaude", kind: "action" }, position: { x: 510, y: 255 } },
+          { data: { id: "merge", parent: "lane-review", label: "mergeReports", kind: "action" }, position: { x: 760, y: 190 } },
+          { data: { id: "critique", parent: "lane-review", label: "critiqueMergedReport", kind: "action" }, position: { x: 980, y: 190 } },
+          { data: { id: "condition", parent: "lane-review", label: "accepted?", kind: "decision" }, position: { x: 1190, y: 190 } },
+          { data: { id: "accept", parent: "lane-goal", label: "acceptReport", kind: "goal" }, position: { x: 1400, y: 145 } },
+          { data: { id: "redoGpt", parent: "lane-actions", label: "redoResearchWithGpt4", kind: "retry" }, position: { x: 760, y: 420 } },
+          { data: { id: "redoClaude", parent: "lane-actions", label: "redoResearchWithClaude", kind: "retry" }, position: { x: 980, y: 420 } },
+
+          { data: { id: "catFact", parent: "lane-facts", label: "Categorization", kind: "fact" }, position: { x: 285, y: 560 } },
+          { data: { id: "gptFact", parent: "lane-facts", label: "gpt4Report", kind: "fact" }, position: { x: 500, y: 560 } },
+          { data: { id: "claudeFact", parent: "lane-facts", label: "claudeReport", kind: "fact" }, position: { x: 660, y: 560 } },
+          { data: { id: "mergedFact", parent: "lane-facts", label: "mergedReport", kind: "fact" }, position: { x: 830, y: 560 } },
+          { data: { id: "critiqueFact", parent: "lane-facts", label: "Critique", kind: "fact" }, position: { x: 1000, y: 560 } },
+          { data: { id: "satFact", parent: "lane-facts", label: "REPORT_SATISFACTORY", kind: "fact" }, position: { x: 1220, y: 520 } },
+          { data: { id: "unsatFact", parent: "lane-facts", label: "REPORT_UNSATISFACTORY", kind: "fact" }, position: { x: 1220, y: 610 } },
+          { data: { id: "finalFact", parent: "lane-goal", label: "finalResearchReport", kind: "goal" }, position: { x: 1400, y: 270 } }
+        ],
+        edges: [
+          { data: { source: "request", target: "categorize" } },
+          { data: { source: "categorize", target: "catFact", label: "writes" } },
+          { data: { source: "catFact", target: "gpt", label: "requires" } },
+          { data: { source: "catFact", target: "claude", label: "requires" } },
+          { data: { source: "gpt", target: "gptFact", label: "writes" } },
+          { data: { source: "claude", target: "claudeFact", label: "writes" } },
+          { data: { source: "gptFact", target: "merge", label: "name match" } },
+          { data: { source: "claudeFact", target: "merge", label: "name match" } },
+          { data: { source: "merge", target: "mergedFact", label: "writes" } },
+          { data: { source: "mergedFact", target: "critique", label: "reviews" } },
+          { data: { source: "critique", target: "critiqueFact", label: "writes" } },
+          { data: { source: "critiqueFact", target: "condition", label: "evaluates" } },
+          { data: { source: "condition", target: "satFact", label: "true" } },
+          { data: { source: "condition", target: "unsatFact", label: "false", route: "retry" } },
+          { data: { source: "satFact", target: "accept", label: "pre" } },
+          { data: { source: "accept", target: "finalFact", label: "achieves" } },
+          { data: { source: "unsatFact", target: "redoGpt", label: "unlocks", route: "retry" } },
+          { data: { source: "unsatFact", target: "redoClaude", label: "unlocks", route: "retry" } },
+          { data: { source: "critiqueFact", target: "redoGpt", label: "reasoning", route: "retry" } },
+          { data: { source: "critiqueFact", target: "redoClaude", label: "reasoning", route: "retry" } },
+          { data: { source: "redoGpt", target: "gptFact", label: "replaces", route: "retry" } },
+          { data: { source: "redoClaude", target: "claudeFact", label: "replaces", route: "retry" } }
+        ]
+      },
+      layout: { name: "preset", fit: true, padding: 34 },
+      style
+    });
+
+    full.on("tap", "node", (event) => {
+      const node = event.target;
+      full.elements().removeClass("active");
+      node.addClass("active");
+      const [title, body] = details[node.id()] || [node.data("label"), "This node participates in the Feature 4 planning loop."];
+      document.getElementById("detail-title").textContent = title;
+      document.getElementById("detail-body").textContent = body;
+    });
+  </script>
+</body>
+</html>

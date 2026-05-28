@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GOAP Diagram Library Comparison</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --ink: #111827;
+      --muted: #5b6675;
+      --panel: #ffffff;
+      --line: #d9e1ec;
+      --accent: #0f766e;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1480px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 30px 0 42px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2.1rem, 4vw, 4.6rem);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    h2, h3 {
+      margin: 0;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .lede {
+      max-width: 860px;
+      font-size: 1.02rem;
+    }
+
+    .badge {
+      justify-self: end;
+      border: 1px solid #99f6e4;
+      border-radius: 999px;
+      padding: 9px 13px;
+      background: #ecfdf5;
+      color: #0f766e;
+      font-size: 0.85rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .card, .matrix {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 12px 32px rgb(15 23 42 / 7%);
+    }
+
+    .card {
+      padding: 18px;
+    }
+
+    .card h2 {
+      margin-bottom: 9px;
+      font-size: 1.2rem;
+    }
+
+    .recommendation {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .recommendation div {
+      border: 1px solid #dbeafe;
+      border-radius: 8px;
+      padding: 12px;
+      background: #eff6ff;
+    }
+
+    .recommendation strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #1e3a8a;
+      font-size: 0.93rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      color: #334155;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: #f8fafc;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .prototypes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .prototype {
+      overflow: hidden;
+    }
+
+    .prototype-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+      padding: 15px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .prototype-head h3 {
+      font-size: 1.02rem;
+      margin-bottom: 4px;
+    }
+
+    .prototype-head a {
+      flex: 0 0 auto;
+      color: var(--accent);
+      font-size: 0.85rem;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    iframe {
+      display: block;
+      width: 100%;
+      height: 760px;
+      border: 0;
+      background: #fff;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 13px;
+      background: #fff;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+    }
+
+    .note span {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    @media (max-width: 1080px) {
+      header, .summary, .prototypes, .notes {
+        grid-template-columns: 1fr;
+      }
+
+      .badge {
+        justify-self: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>GOAP Diagram Library Comparison</h1>
+        <p class="lede">Four single-file HTML prototypes using Feature 4, each with a compact header/current-step diagram and a full standalone review/retry flow.</p>
+      </div>
+      <div class="badge">review index</div>
+    </header>
+
+    <section class="summary">
+      <article class="card">
+        <h2>Recommendation</h2>
+        <p>The header diagram and the standalone page diagram should be separate artifacts. The header version should be a single row that shows the current stage. The standalone version should show named reports, blackboard facts, critique-derived conditions, and the redo path.</p>
+        <div class="recommendation">
+          <div><strong>Default docs choice: Mermaid</strong><p>Best if the diagrams stay in source-controlled documentation and exact lane geometry is not required.</p></div>
+          <div><strong>Best split-view prototype: JointJS</strong><p>Best control over a short header strip plus a full lane diagram, because it is precise SVG authoring.</p></div>
+        </div>
+      </article>
+
+      <section class="matrix" aria-label="Comparison matrix">
+        <table>
+          <thead>
+            <tr>
+              <th>Library</th>
+              <th>Best fit</th>
+              <th>Main risk</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Mermaid</td>
+              <td>Docs-native diagrams with subgraphs and themed labels.</td>
+              <td>Hard to get true swimlanes and precise routing.</td>
+            </tr>
+            <tr>
+              <td>Cytoscape.js</td>
+              <td>Interactive graph with compound lane groups and path highlighting.</td>
+              <td>Compound nodes are graph containers, not exact swimlanes.</td>
+            </tr>
+            <tr>
+              <td>AntV G6</td>
+              <td>Canvas graph with combos, drag, zoom, and collapsible groups.</td>
+              <td>Heavier runtime and weaker searchable/printable text.</td>
+            </tr>
+            <tr>
+              <td>JointJS</td>
+              <td>Precise SVG diagram authoring with routed links and labels.</td>
+              <td>More manual authoring; feels less data-driven.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+
+    <section class="notes" aria-label="Design notes">
+      <article class="note"><strong>Header</strong><span>Single row, no blackboard detail, active step emphasized.</span></article>
+      <article class="note"><strong>Full flow</strong><span>Show named reports, critique, condition facts, and redo actions.</span></article>
+      <article class="note"><strong>Edges</strong><span>Use verbs: writes, requires, evaluates, unlocks, replaces.</span></article>
+      <article class="note"><strong>Structure</strong><span>Keep redo below the normal path and route it back to named report facts.</span></article>
+    </section>
+
+    <section class="prototypes" aria-label="Live prototype previews">
+      <article class="card prototype">
+        <div class="prototype-head">
+          <div>
+            <h3>Mermaid</h3>
+            <p>Header strip plus full Feature 4 flow using subgraphs and themed classes.</p>
+          </div>
+          <a href="prototype-mermaid-goap.html">Open</a>
+        </div>
+        <iframe src="prototype-mermaid-goap.html" title="Mermaid GOAP prototype"></iframe>
+      </article>
+
+      <article class="card prototype">
+        <div class="prototype-head">
+          <div>
+            <h3>Cytoscape.js</h3>
+            <p>Two graph instances: compact strip and compound-node full explainer.</p>
+          </div>
+          <a href="prototype-cytoscape-goap.html">Open</a>
+        </div>
+        <iframe src="prototype-cytoscape-goap.html" title="Cytoscape GOAP prototype"></iframe>
+      </article>
+
+      <article class="card prototype">
+        <div class="prototype-head">
+          <div>
+            <h3>AntV G6</h3>
+            <p>Two canvases: compact active-step strip and combo-based full flow.</p>
+          </div>
+          <a href="prototype-g6-goap.html">Open</a>
+        </div>
+        <iframe src="prototype-g6-goap.html" title="AntV G6 GOAP prototype"></iframe>
+      </article>
+
+      <article class="card prototype">
+        <div class="prototype-head">
+          <div>
+            <h3>JointJS</h3>
+            <p>Two precise SVG diagrams with routed labels and manual lanes.</p>
+          </div>
+          <a href="prototype-jointjs-goap.html">Open</a>
+        </div>
+        <iframe src="prototype-jointjs-goap.html" title="JointJS GOAP prototype"></iframe>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

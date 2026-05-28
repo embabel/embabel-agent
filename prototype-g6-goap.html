@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AntV G6 Feature 4 GOAP Prototype</title>
+  <script src="https://unpkg.com/@antv/g6@5.1.1/dist/g6.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --ink: #121826;
+      --muted: #586476;
+      --line: #d9e0ea;
+      --panel: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1320px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-end;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 2.05rem;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 5px;
+      font-size: 1.08rem;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .badge {
+      border: 1px solid #ddd6fe;
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: #f5f3ff;
+      color: #6d28d9;
+      font-size: 0.84rem;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .panel {
+      margin-top: 15px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 16px 40px rgb(15 23 42 / 8%);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 15px 17px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    #header-graph {
+      height: 220px;
+    }
+
+    #full-graph {
+      height: 700px;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      padding: 14px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 13px;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.92rem;
+    }
+
+    .note span {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+
+    @media (max-width: 860px) {
+      header, .notes { display: block; }
+      .badge { display: inline-block; margin-top: 12px; }
+      .note + .note { margin-top: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>AntV G6 Feature 4 Prototype</h1>
+        <p>Two G6 canvases: compact current-step header strip and combo-based full review/retry flow.</p>
+      </div>
+      <div class="badge">G6 CDN</div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Header diagram: single-row current step</h2>
+        <p>A compact view for sticky header use. The critique stage is emphasized as the active point.</p>
+      </div>
+      <div id="header-graph" aria-label="G6 header graph"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Standalone diagram: full GOAP flow</h2>
+        <p>Combos group actions, blackboard facts, review conditions, and the redo path.</p>
+      </div>
+      <div id="full-graph" aria-label="G6 full graph"></div>
+      <div class="notes">
+        <div class="note"><strong>Header role</strong><span>One row, low detail, active step highlighted.</span></div>
+        <div class="note"><strong>Full role</strong><span>Shows named report bindings and condition-derived planner facts.</span></div>
+        <div class="note"><strong>G6 fit</strong><span>Combos and canvas interaction are strong; print/search text is weaker.</span></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const { Graph } = G6;
+
+    const colors = {
+      input: ["#eff6ff", "#2563eb"],
+      planner: ["#f8fafc", "#475569"],
+      action: ["#faf5ff", "#7c3aed"],
+      decision: ["#fef9c3", "#a16207"],
+      fact: ["#ecfdf5", "#0f766e"],
+      retry: ["#fff7ed", "#ea580c"],
+      goal: ["#dcfce7", "#047857"]
+    };
+
+    function graphConfig(container, height, data, compact = false) {
+      return {
+        container,
+        width: document.getElementById(container).clientWidth,
+        height,
+        data,
+        autoFit: "view",
+        behaviors: compact ? [] : ["drag-canvas", "zoom-canvas", "drag-element", "click-select", "collapse-expand"],
+        node: {
+          type: "rect",
+          style: {
+            size: (d) => d.data.kind === "decision" ? [112, 72] : compact ? [142, 54] : [182, 62],
+            radius: 8,
+            fill: (d) => colors[d.data.kind]?.[0] || "#fff",
+            stroke: (d) => colors[d.data.kind]?.[1] || "#334155",
+            lineWidth: (d) => d.data.active || d.data.kind === "goal" ? 3 : 1.7,
+            labelText: (d) => d.data.subtitle ? `${d.data.label}\n${d.data.subtitle}` : d.data.label,
+            labelFontSize: compact ? 12 : 13,
+            labelFontWeight: 700,
+            labelFill: "#111827",
+            labelTextAlign: "center",
+            labelTextBaseline: "middle"
+          }
+        },
+        combo: {
+          type: "rect",
+          style: {
+            padding: 22,
+            radius: 10,
+            fill: "#f8fafc",
+            fillOpacity: 0.74,
+            stroke: "#94a3b8",
+            lineDash: [5, 5],
+            lineWidth: 1.5,
+            labelText: (d) => d.data.label,
+            labelFontSize: 15,
+            labelFontWeight: 800,
+            labelFill: "#334155",
+            labelPlacement: "top"
+          }
+        },
+        edge: {
+          type: "cubic-horizontal",
+          style: {
+            stroke: (d) => d.data.route === "retry" ? "#ea580c" : "#64748b",
+            lineWidth: (d) => d.data.route === "retry" ? 2.4 : 1.7,
+            lineDash: (d) => d.data.route === "retry" ? [7, 5] : undefined,
+            endArrow: true,
+            labelText: (d) => d.data.label || "",
+            labelFontSize: 10,
+            labelFontWeight: 700,
+            labelFill: "#334155",
+            labelBackground: true,
+            labelBackgroundFill: "#fff",
+            labelBackgroundRadius: 4,
+            labelBackgroundPadding: [2, 4]
+          }
+        }
+      };
+    }
+
+    const headerData = {
+      nodes: [
+        { id: "request", data: { label: "Request", kind: "input" }, style: { x: 85, y: 105 } },
+        { id: "categorize", data: { label: "Categorize", kind: "planner" }, style: { x: 245, y: 105 } },
+        { id: "research", data: { label: "GPT + Claude", kind: "action" }, style: { x: 420, y: 105 } },
+        { id: "merge", data: { label: "Merge", kind: "action" }, style: { x: 590, y: 105 } },
+        { id: "critique", data: { label: "Critique", kind: "decision", active: true }, style: { x: 760, y: 105 } },
+        { id: "accept", data: { label: "Accept", kind: "goal" }, style: { x: 930, y: 72 } },
+        { id: "redo", data: { label: "Redo", kind: "retry" }, style: { x: 930, y: 148 } }
+      ],
+      edges: [
+        { source: "request", target: "categorize" },
+        { source: "categorize", target: "research" },
+        { source: "research", target: "merge" },
+        { source: "merge", target: "critique" },
+        { source: "critique", target: "accept", data: { label: "ok" } },
+        { source: "critique", target: "redo", data: { label: "reject", route: "retry" } },
+        { source: "redo", target: "merge", data: { label: "replace", route: "retry" } }
+      ]
+    };
+
+    const fullData = {
+      combos: [
+        { id: "input", type: "rect", data: { label: "Input" } },
+        { id: "actions", type: "rect", data: { label: "Actions" } },
+        { id: "facts", type: "rect", data: { label: "Typed blackboard facts" } },
+        { id: "review", type: "rect", data: { label: "Review + conditions" } },
+        { id: "goal", type: "rect", data: { label: "Goal" } }
+      ],
+      nodes: [
+        { id: "request", combo: "input", data: { label: "UserInput", subtitle: "research request", kind: "input" }, style: { x: 90, y: 320 } },
+        { id: "categorize", combo: "actions", data: { label: "categorize", subtitle: "-> Categorization", kind: "planner" }, style: { x: 310, y: 190 } },
+        { id: "gpt", combo: "actions", data: { label: "researchWithGpt4", subtitle: "gpt4Report", kind: "action" }, style: { x: 555, y: 140 } },
+        { id: "claude", combo: "actions", data: { label: "researchWithClaude", subtitle: "claudeReport", kind: "action" }, style: { x: 555, y: 260 } },
+        { id: "merge", combo: "review", data: { label: "mergeReports", subtitle: "@RequireNameMatch", kind: "action" }, style: { x: 820, y: 190 } },
+        { id: "critique", combo: "review", data: { label: "critiqueMergedReport", subtitle: "writes Critique", kind: "action" }, style: { x: 1060, y: 190 } },
+        { id: "condition", combo: "review", data: { label: "accepted?", subtitle: "Condition", kind: "decision" }, style: { x: 1280, y: 190 } },
+        { id: "accept", combo: "goal", data: { label: "acceptReport", subtitle: "pre: satisfactory", kind: "goal" }, style: { x: 1495, y: 145 } },
+        { id: "redoGpt", combo: "actions", data: { label: "redoResearchWithGpt4", subtitle: "canRerun", kind: "retry" }, style: { x: 820, y: 430 } },
+        { id: "redoClaude", combo: "actions", data: { label: "redoResearchWithClaude", subtitle: "canRerun", kind: "retry" }, style: { x: 1060, y: 430 } },
+        { id: "catFact", combo: "facts", data: { label: "Categorization", kind: "fact" }, style: { x: 310, y: 615 } },
+        { id: "gptFact", combo: "facts", data: { label: "gpt4Report", kind: "fact" }, style: { x: 510, y: 615 } },
+        { id: "claudeFact", combo: "facts", data: { label: "claudeReport", kind: "fact" }, style: { x: 690, y: 615 } },
+        { id: "mergedFact", combo: "facts", data: { label: "mergedReport", kind: "fact" }, style: { x: 880, y: 615 } },
+        { id: "critiqueFact", combo: "facts", data: { label: "Critique", kind: "fact" }, style: { x: 1060, y: 615 } },
+        { id: "satFact", combo: "facts", data: { label: "REPORT_SATISFACTORY", kind: "fact" }, style: { x: 1300, y: 565 } },
+        { id: "unsatFact", combo: "facts", data: { label: "REPORT_UNSATISFACTORY", kind: "fact" }, style: { x: 1300, y: 665 } },
+        { id: "finalFact", combo: "goal", data: { label: "finalResearchReport", kind: "goal" }, style: { x: 1495, y: 285 } }
+      ],
+      edges: [
+        { source: "request", target: "categorize" },
+        { source: "categorize", target: "catFact", data: { label: "writes" } },
+        { source: "catFact", target: "gpt", data: { label: "requires" } },
+        { source: "catFact", target: "claude", data: { label: "requires" } },
+        { source: "gpt", target: "gptFact", data: { label: "writes" } },
+        { source: "claude", target: "claudeFact", data: { label: "writes" } },
+        { source: "gptFact", target: "merge", data: { label: "name match" } },
+        { source: "claudeFact", target: "merge", data: { label: "name match" } },
+        { source: "merge", target: "mergedFact", data: { label: "writes" } },
+        { source: "mergedFact", target: "critique", data: { label: "reviews" } },
+        { source: "critique", target: "critiqueFact", data: { label: "writes" } },
+        { source: "critiqueFact", target: "condition", data: { label: "evaluates" } },
+        { source: "condition", target: "satFact", data: { label: "true" } },
+        { source: "condition", target: "unsatFact", data: { label: "false", route: "retry" } },
+        { source: "satFact", target: "accept", data: { label: "pre" } },
+        { source: "accept", target: "finalFact", data: { label: "achieves" } },
+        { source: "unsatFact", target: "redoGpt", data: { label: "unlocks", route: "retry" } },
+        { source: "unsatFact", target: "redoClaude", data: { label: "unlocks", route: "retry" } },
+        { source: "critiqueFact", target: "redoGpt", data: { label: "reasoning", route: "retry" } },
+        { source: "critiqueFact", target: "redoClaude", data: { label: "reasoning", route: "retry" } },
+        { source: "redoGpt", target: "gptFact", data: { label: "replaces", route: "retry" } },
+        { source: "redoClaude", target: "claudeFact", data: { label: "replaces", route: "retry" } }
+      ]
+    };
+
+    const headerGraph = new Graph(graphConfig("header-graph", 220, headerData, true));
+    headerGraph.render();
+
+    const fullGraph = new Graph(graphConfig("full-graph", 700, fullData));
+    fullGraph.render();
+
+    window.addEventListener("resize", () => {
+      headerGraph.resize(document.getElementById("header-graph").clientWidth, 220);
+      fullGraph.resize(document.getElementById("full-graph").clientWidth, 700);
+    });
+  </script>
+</body>
+</html>

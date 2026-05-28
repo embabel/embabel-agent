@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JointJS Feature 4 GOAP Prototype</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jointjs/3.7.7/joint.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/backbone.js/1.6.0/backbone-min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jointjs/3.7.7/joint.min.js"></script>
+  <style>
+    :root {
+      --bg: #f7f6f2;
+      --ink: #16202a;
+      --muted: #66717d;
+      --panel: #fffefa;
+      --line: #d9d5cb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1320px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-end;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 2.05rem;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 5px;
+      font-size: 1.08rem;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .badge {
+      border: 1px solid #fed7aa;
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: #fff7ed;
+      color: #c2410c;
+      font-size: 0.84rem;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .panel {
+      margin-top: 15px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 16px 40px rgb(15 23 42 / 8%);
+      overflow: auto;
+    }
+
+    .panel-head {
+      position: sticky;
+      left: 0;
+      padding: 15px 17px 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      z-index: 1;
+    }
+
+    #header-paper {
+      width: 1120px;
+      height: 220px;
+    }
+
+    #full-paper {
+      width: 1540px;
+      height: 720px;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 13px;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.92rem;
+    }
+
+    .note span {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+
+    @media (max-width: 860px) {
+      header, .notes { display: block; }
+      .badge { display: inline-block; margin-top: 12px; }
+      .note + .note { margin-top: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>JointJS Feature 4 Prototype</h1>
+        <p>Two SVG diagrams: a precise current-step strip and a full lane-based Feature 4 flow.</p>
+      </div>
+      <div class="badge">JointJS CDN</div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Header diagram: single-row current step</h2>
+        <p>Precise routing keeps the sticky/header version compact and predictable.</p>
+      </div>
+      <div id="header-paper" aria-label="JointJS header graph"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Standalone diagram: full GOAP flow</h2>
+        <p>Manual lanes make the blackboard and retry route explicit without relying on automatic layout.</p>
+      </div>
+      <div id="full-paper" aria-label="JointJS full graph"></div>
+    </section>
+
+    <section class="notes">
+      <article class="note"><strong>Header role</strong><span>Exact geometry helps when the diagram must fit a short sticky area.</span></article>
+      <article class="note"><strong>Full role</strong><span>Routed links make named bindings and condition facts easier to trace.</span></article>
+      <article class="note"><strong>JointJS fit</strong><span>Best when this becomes a hand-authored SVG explainer rather than a data graph.</span></article>
+    </section>
+  </main>
+
+  <script>
+    function makePaper(el, width, height) {
+      const graph = new joint.dia.Graph({}, { cellNamespace: joint.shapes });
+      const paper = new joint.dia.Paper({
+        el: document.getElementById(el),
+        model: graph,
+        width,
+        height,
+        gridSize: 10,
+        drawGrid: false,
+        background: { color: "#fffefa" },
+        cellViewNamespace: joint.shapes,
+        interactive: { linkMove: false, labelMove: false }
+      });
+      return { graph, paper };
+    }
+
+    const colors = {
+      input: ["#eff6ff", "#2563eb"],
+      planner: ["#f8fafc", "#475569"],
+      action: ["#faf5ff", "#7c3aed"],
+      decision: ["#fef9c3", "#a16207"],
+      fact: ["#ecfdf5", "#0f766e"],
+      retry: ["#fff7ed", "#ea580c"],
+      goal: ["#dcfce7", "#047857"]
+    };
+
+    function addNode(graph, id, label, sublabel, x, y, kind, active = false) {
+      const [fill, stroke] = colors[kind] || ["#fff", "#334155"];
+      const rect = new joint.shapes.standard.Rectangle({ id });
+      rect.position(x, y);
+      rect.resize(kind === "decision" ? 118 : kind === "fact" ? 150 : 166, kind === "decision" ? 76 : 60);
+      rect.attr({
+        body: {
+          fill,
+          stroke: active ? "#111827" : stroke,
+          strokeWidth: active || kind === "goal" ? 3 : 2,
+          rx: kind === "fact" ? 24 : 8,
+          ry: kind === "fact" ? 24 : 8
+        },
+        label: {
+          text: sublabel ? `${label}\n${sublabel}` : label,
+          fontSize: 13,
+          fontWeight: 750,
+          lineHeight: 1.12,
+          fill: "#111827"
+        }
+      });
+      rect.addTo(graph);
+      return rect;
+    }
+
+    function addLane(graph, label, x, y, width, height) {
+      const lane = new joint.shapes.standard.Rectangle();
+      lane.position(x, y);
+      lane.resize(width, height);
+      lane.attr({
+        body: {
+          fill: "#f8fafc",
+          stroke: "#cbd5e1",
+          strokeDasharray: "7 5",
+          strokeWidth: 2,
+          rx: 8,
+          ry: 8
+        },
+        label: {
+          text: label,
+          fontSize: 17,
+          fontWeight: 800,
+          fill: "#334155",
+          refY: 18,
+          textVerticalAnchor: "top"
+        }
+      });
+      lane.addTo(graph);
+      lane.toBack();
+      return lane;
+    }
+
+    function addLink(graph, source, target, label = "", retry = false, vertices = []) {
+      const link = new joint.shapes.standard.Link();
+      link.source(source);
+      link.target(target);
+      if (vertices.length) link.vertices(vertices);
+      link.router("orthogonal");
+      link.connector("rounded");
+      link.attr({
+        line: {
+          stroke: retry ? "#ea580c" : "#64748b",
+          strokeWidth: retry ? 2.6 : 2,
+          strokeDasharray: retry ? "7 5" : "",
+          targetMarker: {
+            type: "path",
+            d: "M 10 -5 0 0 10 5 z",
+            fill: retry ? "#ea580c" : "#64748b"
+          }
+        }
+      });
+      if (label) {
+        link.labels([{
+          position: { distance: 0.5, offset: -10 },
+          attrs: {
+            text: { text: label, fill: "#334155", fontSize: 11, fontWeight: 700 },
+            rect: { fill: "#fffefa", stroke: "#e2e8f0", strokeWidth: 1, rx: 4, ry: 4 }
+          }
+        }]);
+      }
+      link.addTo(graph);
+      return link;
+    }
+
+    const header = makePaper("header-paper", 1120, 220);
+    const hRequest = addNode(header.graph, "hRequest", "Request", "", 34, 82, "input");
+    const hCategorize = addNode(header.graph, "hCategorize", "Categorize", "", 194, 82, "planner");
+    const hResearch = addNode(header.graph, "hResearch", "GPT + Claude", "", 362, 82, "action");
+    const hMerge = addNode(header.graph, "hMerge", "Merge", "", 548, 82, "action");
+    const hCritique = addNode(header.graph, "hCritique", "Critique", "", 705, 74, "decision", true);
+    const hAccept = addNode(header.graph, "hAccept", "Accept", "", 890, 42, "goal");
+    const hRedo = addNode(header.graph, "hRedo", "Redo", "", 890, 126, "retry");
+    addLink(header.graph, hRequest, hCategorize);
+    addLink(header.graph, hCategorize, hResearch);
+    addLink(header.graph, hResearch, hMerge);
+    addLink(header.graph, hMerge, hCritique);
+    addLink(header.graph, hCritique, hAccept, "ok");
+    addLink(header.graph, hCritique, hRedo, "reject", true);
+    addLink(header.graph, hRedo, hMerge, "replace", true, [{ x: 972, y: 178 }, { x: 620, y: 178 }]);
+
+    const full = makePaper("full-paper", 1540, 720);
+    addLane(full.graph, "Input", 26, 88, 190, 250);
+    addLane(full.graph, "Actions", 250, 88, 530, 350);
+    addLane(full.graph, "Review + conditions", 810, 88, 520, 350);
+    addLane(full.graph, "Typed blackboard", 250, 482, 910, 160);
+    addLane(full.graph, "Goal", 1360, 160, 160, 180);
+
+    const request = addNode(full.graph, "request", "UserInput", "research request", 55, 190, "input");
+    const categorize = addNode(full.graph, "categorize", "categorize", "-> Categorization", 285, 145, "planner");
+    const gpt = addNode(full.graph, "gpt", "researchWithGpt4", "gpt4Report", 505, 116, "action");
+    const claude = addNode(full.graph, "claude", "researchWithClaude", "claudeReport", 505, 238, "action");
+    const merge = addNode(full.graph, "merge", "mergeReports", "@RequireNameMatch", 842, 172, "action");
+    const critique = addNode(full.graph, "critique", "critiqueMergedReport", "writes Critique", 1050, 172, "action");
+    const condition = addNode(full.graph, "condition", "accepted?", "Condition", 1240, 164, "decision");
+    const accept = addNode(full.graph, "accept", "acceptReport", "pre: satisfactory", 1370, 196, "goal");
+    const redoGpt = addNode(full.graph, "redoGpt", "redoResearchWithGpt4", "canRerun", 842, 344, "retry");
+    const redoClaude = addNode(full.graph, "redoClaude", "redoResearchWithClaude", "canRerun", 1050, 344, "retry");
+
+    const catFact = addNode(full.graph, "catFact", "Categorization", "", 285, 540, "fact");
+    const gptFact = addNode(full.graph, "gptFact", "gpt4Report", "", 455, 540, "fact");
+    const claudeFact = addNode(full.graph, "claudeFact", "claudeReport", "", 625, 540, "fact");
+    const mergedFact = addNode(full.graph, "mergedFact", "mergedReport", "", 795, 540, "fact");
+    const critiqueFact = addNode(full.graph, "critiqueFact", "Critique", "", 965, 540, "fact");
+    const satFact = addNode(full.graph, "satFact", "REPORT_SATISFACTORY", "", 1125, 505, "fact");
+    const unsatFact = addNode(full.graph, "unsatFact", "REPORT_UNSATISFACTORY", "", 1125, 595, "fact");
+    const finalFact = addNode(full.graph, "finalFact", "finalResearchReport", "", 1370, 288, "goal");
+
+    addLink(full.graph, request, categorize);
+    addLink(full.graph, categorize, catFact, "writes");
+    addLink(full.graph, catFact, gpt, "requires");
+    addLink(full.graph, catFact, claude, "requires");
+    addLink(full.graph, gpt, gptFact, "writes");
+    addLink(full.graph, claude, claudeFact, "writes");
+    addLink(full.graph, gptFact, merge, "name match");
+    addLink(full.graph, claudeFact, merge, "name match");
+    addLink(full.graph, merge, mergedFact, "writes");
+    addLink(full.graph, mergedFact, critique, "reviews");
+    addLink(full.graph, critique, critiqueFact, "writes");
+    addLink(full.graph, critiqueFact, condition, "evaluates");
+    addLink(full.graph, condition, satFact, "true");
+    addLink(full.graph, condition, unsatFact, "false", true);
+    addLink(full.graph, satFact, accept, "pre");
+    addLink(full.graph, accept, finalFact, "achieves");
+    addLink(full.graph, unsatFact, redoGpt, "unlocks", true);
+    addLink(full.graph, unsatFact, redoClaude, "unlocks", true);
+    addLink(full.graph, critiqueFact, redoGpt, "reasoning", true);
+    addLink(full.graph, critiqueFact, redoClaude, "reasoning", true);
+    addLink(full.graph, redoGpt, gptFact, "replaces", true);
+    addLink(full.graph, redoClaude, claudeFact, "replaces", true);
+  </script>
+</body>
+</html>
