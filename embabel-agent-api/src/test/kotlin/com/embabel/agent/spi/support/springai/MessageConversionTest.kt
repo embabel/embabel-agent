@@ -280,6 +280,7 @@ class MessageConversionTest {
             val springMessage = mockk<SpringAiAssistantMessage> {
                 every { text } returns "Checking..."
                 every { getToolCalls() } returns toolCalls
+                every { metadata } returns emptyMap()
             }
 
             val embabelMessage = springMessage.toEmbabelMessage()
@@ -300,6 +301,7 @@ class MessageConversionTest {
             val springMessage = mockk<SpringAiAssistantMessage> {
                 every { text } returns "No tools"
                 every { getToolCalls() } returns emptyList()
+                every { metadata } returns emptyMap()
             }
 
             val embabelMessage = springMessage.toEmbabelMessage()
@@ -471,6 +473,7 @@ class MessageConversionTest {
             val springMessage = mockk<SpringAiAssistantMessage> {
                 every { text } returns ""  // Empty text - common with Bedrock tool_use
                 every { getToolCalls() } returns toolCalls
+                every { metadata } returns emptyMap()
             }
 
             val embabelMessage = springMessage.toEmbabelMessage()
@@ -497,6 +500,7 @@ class MessageConversionTest {
             val springMessage = mockk<SpringAiAssistantMessage> {
                 every { text } returns null  // Null text - also seen with Bedrock
                 every { getToolCalls() } returns toolCalls
+                every { metadata } returns emptyMap()
             }
 
             val embabelMessage = springMessage.toEmbabelMessage()
@@ -534,6 +538,7 @@ class MessageConversionTest {
             val springMessage = mockk<SpringAiAssistantMessage> {
                 every { text } returns ""
                 every { getToolCalls() } returns toolCalls
+                every { metadata } returns emptyMap()
             }
 
             val embabelMessage = springMessage.toEmbabelMessage()
