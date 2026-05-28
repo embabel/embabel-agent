@@ -247,7 +247,7 @@ class MessageConversionTest {
             assertThat(embabelMessage.content).isEmpty()
             val messageWithCalls = embabelMessage as AssistantMessageWithToolCalls
             assertThat(messageWithCalls.toolCalls).isEmpty()
-            assertThat(messageWithCalls.metadata).containsEntry("messageType", "ASSISTANT")
+            assertThat(messageWithCalls.metadata["messageType"].toString()).isEqualTo("ASSISTANT")
         }
 
         @Test
