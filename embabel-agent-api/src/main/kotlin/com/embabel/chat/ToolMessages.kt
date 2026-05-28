@@ -18,6 +18,7 @@ package com.embabel.chat
 import com.embabel.agent.domain.io.AssistantContent
 import com.embabel.common.util.trim
 import java.time.Instant
+import java.util.Collections.emptyMap
 
 /**
  * Represents a tool call requested by the assistant.
@@ -38,6 +39,7 @@ class AssistantMessageWithToolCalls @JvmOverloads constructor(
     val toolCalls: List<ToolCall>,
     name: String? = null,
     timestamp: Instant = Instant.now(),
+    val metadata: Map<String, Any> = emptyMap(),
 ) : BaseMessage(
     role = Role.ASSISTANT,
     // Only include TextPart if content is non-empty

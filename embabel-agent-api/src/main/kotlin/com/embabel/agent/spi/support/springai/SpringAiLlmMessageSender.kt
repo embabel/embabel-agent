@@ -112,6 +112,13 @@ internal class SpringAiLlmMessageSender(
         val allToolCalls = allOutputs
             .flatMap { it.toolCalls ?: emptyList() }
 
+        val allMetaData = allOutputs
+            .mapNotNull { it.metadata }
+            .fold(mutableMapOf<String, Any>()) { acc, metadata ->
+                acc.putAll(metadata)
+                acc
+            }
+
         if (allToolCalls.isEmpty()) {
             return null // No tool calls found, let caller use first generation
         }
@@ -135,6 +142,7 @@ internal class SpringAiLlmMessageSender(
         return org.springframework.ai.chat.messages.AssistantMessage.builder()
             .content(allText)
             .toolCalls(allToolCalls)
+            .properties(allMetaData)
             .build()
     }
 
