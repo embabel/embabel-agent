@@ -52,7 +52,7 @@ data class GoogleGenAiModelDefinitions(
  * @property topP nucleus sampling parameter
  * @property topK top-k sampling parameter
  * @property thinkingBudget optional thinking process token allocation
- * @property includeThoughts whether to include model thought summaries in responses
+ * @property includeThoughts whether to include model thought signatures in responses
  */
 data class GoogleGenAiModelDefinition(
     override val name: String,
