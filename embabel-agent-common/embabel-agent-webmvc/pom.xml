@@ -73,5 +73,17 @@
             <artifactId>embabel-agent-test-internal</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!--
+            Spring Boot 4 split @AutoConfigureMockMvc out of spring-boot-test-autoconfigure
+            into a dedicated spring-boot-webmvc-test artifact (package moved to
+            org.springframework.boot.webmvc.test.autoconfigure). Required by the
+            Controller / Endpoint integration tests in this module.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

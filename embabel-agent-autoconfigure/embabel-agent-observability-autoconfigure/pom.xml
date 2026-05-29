@@ -39,6 +39,18 @@
             <optional>true</optional>
         </dependency>
 
+        <!--
+            Spring Boot 4 moved ObservationRegistryCustomizer out of
+            spring-boot-actuator-autoconfigure into the dedicated
+            spring-boot-micrometer-observation artifact and renamed its package
+            (org.springframework.boot.micrometer.observation.autoconfigure).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-observation</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- AspectJ weaver for @Tracked aspect support (direct dep, not spring-boot-starter-aspectj); provides org.aspectj.lang.* -->
         <dependency>
             <groupId>org.aspectj</groupId>

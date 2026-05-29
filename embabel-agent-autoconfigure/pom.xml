@@ -28,16 +28,18 @@
         <module>embabel-agent-mcpserver-security-autoconfigure</module>
         <module>embabel-agent-netty-client-autoconfigure</module>
         <module>models/embabel-agent-bedrock-autoconfigure</module>
-        <module>models/embabel-agent-openai-autoconfigure</module>
-        <module>models/embabel-agent-openai-custom-autoconfigure</module>
-        <module>models/embabel-agent-anthropic-autoconfigure</module>
+        <!-- TEMPORARILY DISABLED pending Spring AI 2.0 migration (depend on embabel-agent-openai
+             whose OpenAiApi/AnthropicApi were removed in Spring AI 2.0). See tasks #32, #33. -->
+        <!-- <module>models/embabel-agent-openai-autoconfigure</module> -->
+        <!-- <module>models/embabel-agent-openai-custom-autoconfigure</module> -->
+        <!-- <module>models/embabel-agent-anthropic-autoconfigure</module> -->
         <module>models/embabel-agent-ollama-autoconfigure</module>
-        <module>models/embabel-agent-lmstudio-autoconfigure</module>
-        <module>models/embabel-agent-dockermodels-autoconfigure</module>
+        <!-- <module>models/embabel-agent-lmstudio-autoconfigure</module> -->
+        <!-- <module>models/embabel-agent-dockermodels-autoconfigure</module> -->
         <module>models/embabel-agent-deepseek-autoconfigure</module>
-        <module>models/embabel-agent-gemini-autoconfigure</module>
+        <!-- <module>models/embabel-agent-gemini-autoconfigure</module> -->
         <module>models/embabel-agent-google-genai-autoconfigure</module>
-        <module>models/embabel-agent-minimax-autoconfigure</module>
+        <!-- <module>models/embabel-agent-minimax-autoconfigure</module> -->
         <module>models/embabel-agent-mistral-ai-autoconfigure</module>
         <module>models/embabel-agent-onnx-autoconfigure</module>
     </modules>
