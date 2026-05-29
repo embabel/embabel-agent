@@ -50,7 +50,7 @@ fun Message.toSpringAiMessage(
             SpringAiAssistantMessage.builder()
                 .content(this.content)
                 .toolCalls(springToolCalls)
-                .properties(this.metadata)
+                .properties(metadata + this.metadata)
                 .build()
         }
 

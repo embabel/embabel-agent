@@ -112,13 +112,14 @@ internal class SpringAiLlmMessageSender(
         val allToolCalls = allOutputs
             .flatMap { it.toolCalls ?: emptyList() }
 
-        val allMetaData: Map<String, Any> = allOutputs
-            .mapNotNull { it.metadata }
-            .fold(emptyMap()) { acc, metadata -> acc + metadata }
-
         if (allToolCalls.isEmpty()) {
             return null // No tool calls found, let caller use first generation
         }
+
+        // Collect all metadata from all generations
+        val allMetaData: Map<String, Any> = allOutputs
+            .mapNotNull { it.metadata }
+            .fold(emptyMap()) { acc, metadata -> acc + metadata }
 
         // Collect all non-empty text from all generations
         val allText = allOutputs
