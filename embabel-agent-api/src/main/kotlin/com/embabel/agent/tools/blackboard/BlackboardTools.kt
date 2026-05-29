@@ -22,8 +22,8 @@ import com.embabel.agent.core.Blackboard
 import com.embabel.agent.core.satisfiesType
 import com.embabel.chat.agent.BlackboardEntryFormatter
 import com.embabel.chat.agent.DefaultBlackboardEntryFormatter
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.readValue
 
 /**
  * Tools for accessing objects in the current process blackboard.

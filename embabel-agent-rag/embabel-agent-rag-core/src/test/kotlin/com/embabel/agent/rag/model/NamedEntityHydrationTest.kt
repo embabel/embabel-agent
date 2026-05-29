@@ -18,8 +18,8 @@ package com.embabel.agent.rag.model
 import com.embabel.agent.core.DynamicType
 import com.embabel.agent.core.JvmType
 import com.embabel.agent.rag.model.NamedEntityData.Companion.ENTITY_LABEL
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -76,7 +76,7 @@ class NamedEntityHydrationTest {
 
     @BeforeEach
     fun setup() {
-        objectMapper = ObjectMapper().registerKotlinModule()
+        objectMapper = jacksonObjectMapper()
     }
 
     @Nested

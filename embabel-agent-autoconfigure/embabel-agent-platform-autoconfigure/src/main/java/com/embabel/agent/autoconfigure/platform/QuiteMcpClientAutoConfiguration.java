@@ -29,8 +29,7 @@ import org.springframework.ai.mcp.client.common.autoconfigure.StdioTransportAuto
 import org.springframework.ai.mcp.client.common.autoconfigure.configurer.McpAsyncClientConfigurer;
 import org.springframework.ai.mcp.client.common.autoconfigure.configurer.McpSyncClientConfigurer;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties;
-import org.springframework.ai.mcp.customizer.McpAsyncClientCustomizer;
-import org.springframework.ai.mcp.customizer.McpSyncClientCustomizer;
+import org.springframework.ai.mcp.customizer.McpClientCustomizer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -93,7 +92,8 @@ import java.util.List;
  * </ul>
  * <li>Customization Options:
  * <ul>
- * <li>Extensible through {@link McpSyncClientCustomizer} and {@link McpAsyncClientCustomizer}
+ * <li>Extensible through {@link McpClientCustomizer} (Spring AI 2.0 unified the
+ *     previous separate {@code McpSyncClientCustomizer} / {@code McpAsyncClientCustomizer} types)
  * <li>Configurable timeouts and client information
  * <li>Support for custom transport implementations
  * </ul>
@@ -103,8 +103,7 @@ import java.util.List;
  * @see McpSyncClient
  * @see McpAsyncClient
  * @see McpClientCommonProperties
- * @see McpSyncClientCustomizer
- * @see McpAsyncClientCustomizer
+ * @see McpClientCustomizer
  * @see StdioTransportAutoConfiguration
  */
 @AutoConfiguration(afterName = {

@@ -36,7 +36,7 @@ import com.embabel.chat.UserMessage
 import com.embabel.common.ai.model.DefaultOptionsConverter
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.textio.template.JinjavaTemplateRenderer
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot

@@ -23,6 +23,8 @@
     <properties>
         <archunit.version>1.3.0</archunit.version>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
+        <!-- spring-retry was removed from the Spring Boot 4 BOM; pin a Spring-7-compatible version directly. -->
+        <spring-retry.version>2.0.12</spring-retry.version>
         <!-- Exclude test utilities from SonarQube analysis -->
         <sonar.coverage.exclusions>**/test/integration/**</sonar.coverage.exclusions>
         <sonar.cpd.exclusions>**/test/integration/**</sonar.cpd.exclusions>
@@ -111,8 +113,20 @@
             <artifactId>spring-ai-retry</artifactId>
         </dependency>
 
+        <!--
+            Spring Boot 4's BOM no longer manages spring-retry; we use the classic
+            org.springframework.retry API (RetryTemplate / RetryPolicy / RetrySynchronizationManager)
+            so we declare it directly. spring-retry 2.0.x remains binary-compatible
+            with the Spring 7 core abstractions we reference.
+        -->
         <dependency>
-            <groupId>com.fasterxml.jackson.module</groupId>
+            <groupId>org.springframework.retry</groupId>
+            <artifactId>spring-retry</artifactId>
+            <version>${spring-retry.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tools.jackson.module</groupId>
             <artifactId>jackson-module-kotlin</artifactId>
         </dependency>
 
