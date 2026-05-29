@@ -41,7 +41,7 @@ import com.embabel.common.core.streaming.StreamingEvent
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.TemplateRenderer
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import java.lang.reflect.Field
 import java.util.function.Predicate
 import reactor.core.publisher.Flux
@@ -125,12 +125,12 @@ internal interface PromptExecutionDelegate : LlmUse {
     fun withInjectionStrategies(strategies: List<ToolInjectionStrategy>): PromptExecutionDelegate
 
     // Execution methods
-    fun <T> createObject(
+    fun <T>createObject(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T
 
-    fun <T> createObjectIfPossible(
+    fun <T>createObjectIfPossible(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T?
@@ -145,12 +145,12 @@ internal interface PromptExecutionDelegate : LlmUse {
 
     fun supportsThinking(): Boolean
 
-    fun <T> createObjectIfPossibleWithThinking(
+    fun <T>createObjectIfPossibleWithThinking(
         messages: List<Message>,
         outputClass: Class<T>,
     ): ThinkingResponse<T?>
 
-    fun <T> createObjectWithThinking(
+    fun <T>createObjectWithThinking(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T>

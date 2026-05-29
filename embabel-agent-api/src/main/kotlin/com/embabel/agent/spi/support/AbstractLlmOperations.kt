@@ -40,7 +40,7 @@ import com.embabel.common.ai.model.ModelSelectionCriteria
 import com.embabel.common.ai.model.PreResolvedModelSelectionCriteria
 import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.util.time
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
 import java.lang.reflect.Field
@@ -93,7 +93,7 @@ abstract class AbstractLlmOperations(
      * @return The result of the operation
      * @throws RuntimeException if the operation times out or fails
      */
-    protected fun <T> executeWithTimeout(
+    protected fun <T>executeWithTimeout(
         interactionId: String,
         llmOptions: LlmOptions,
         attempt: Int = 1,
@@ -136,7 +136,7 @@ abstract class AbstractLlmOperations(
         }
     }
 
-    final override fun <O> createObject(
+    final override fun <O>createObject(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -241,7 +241,7 @@ abstract class AbstractLlmOperations(
         return createdObject
     }
 
-    private fun <O> filterConstraintViolations(
+    private fun <O>filterConstraintViolations(
         constraintViolations: Set<ConstraintViolation<O>>,
         outputClass: Class<O>,
         fieldFilter: Predicate<Field>,
@@ -252,7 +252,7 @@ abstract class AbstractLlmOperations(
                 .getOrDefault(true)
         }
 
-    final override fun <O> createObjectIfPossible(
+    final override fun <O>createObjectIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -304,7 +304,7 @@ abstract class AbstractLlmOperations(
         return response
     }
 
-    final override fun <O> createObjectWithThinking(
+    final override fun <O>createObjectWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -356,7 +356,7 @@ abstract class AbstractLlmOperations(
         return thinkingResponse
     }
 
-    final override fun <O> createObjectIfPossibleWithThinking(
+    final override fun <O>createObjectIfPossibleWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -440,14 +440,14 @@ abstract class AbstractLlmOperations(
         )
     }
 
-    protected abstract fun <O> doTransformIfPossible(
+    protected abstract fun <O>doTransformIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
         llmRequestEvent: LlmRequestEvent<O>,
     ): Result<O>
 
-    private fun <O> getToolsAndEvent(
+    private fun <O>getToolsAndEvent(
         agentProcess: AgentProcess,
         interaction: LlmInteraction,
         action: Action?,

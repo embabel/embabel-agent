@@ -53,7 +53,7 @@ import com.embabel.common.core.thinking.ThinkingResponse
 import com.embabel.common.core.types.ZeroToOne
 import com.embabel.common.textio.template.TemplateRenderer
 import com.embabel.common.util.loggerFor
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import java.lang.reflect.Field
 import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Predicate
@@ -206,7 +206,7 @@ internal data class OperationContextDelegate(
     }
 
     // Execution methods
-    override fun <T> createObject(
+    override fun <T>createObject(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T {
@@ -242,7 +242,7 @@ internal data class OperationContextDelegate(
         )
     }
 
-    override fun <T> createObjectIfPossible(
+    override fun <T>createObjectIfPossible(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T? {
@@ -415,7 +415,7 @@ internal data class OperationContextDelegate(
     override fun supportsThinking(): Boolean = true
 
     // Patterned after createObject() - uses ProcessContext flow
-    override fun <T> createObjectWithThinking(
+    override fun <T>createObjectWithThinking(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T> {
@@ -433,7 +433,7 @@ internal data class OperationContextDelegate(
     }
 
     // Patterned after createObjectWithThinking() - uses ProcessContext flow
-    override fun <T> createObjectIfPossibleWithThinking(
+    override fun <T>createObjectIfPossibleWithThinking(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T?> {

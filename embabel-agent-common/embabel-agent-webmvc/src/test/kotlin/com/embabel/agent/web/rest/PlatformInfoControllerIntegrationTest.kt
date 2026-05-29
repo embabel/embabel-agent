@@ -18,8 +18,8 @@ package com.embabel.agent.web.rest
 import com.embabel.agent.test.dsl.evenMoreEvilWizard
 import com.embabel.agent.core.*
 import com.embabel.common.test.ai.config.FakeAiConfiguration
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired

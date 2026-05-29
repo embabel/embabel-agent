@@ -55,6 +55,17 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!--
+            Spring Boot 4 split the webmvc/MockMvc test slice out of
+            spring-boot-test-autoconfigure into its own artifact. Needed for
+            @AutoConfigureMockMvc and the MockMvc bean used by A2AWebIntegrationTest.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

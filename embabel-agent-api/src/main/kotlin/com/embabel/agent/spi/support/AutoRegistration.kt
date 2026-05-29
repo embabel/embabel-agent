@@ -84,7 +84,7 @@ internal class DelegatingAgentScanningBeanPostProcessor(
     private val applicationContext: ApplicationContext,
     private val applicationEventPublisher: ApplicationEventPublisher,
 ) : BeanPostProcessor,
-    ApplicationListener<ContextRefreshedEvent?> {
+    ApplicationListener<ContextRefreshedEvent> {
 
     private val logger = LoggerFactory.getLogger(DelegatingAgentScanningBeanPostProcessor::class.java)
 

@@ -28,9 +28,8 @@ import com.embabel.chat.Message
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.ai.model.ModelSelectionCriteria
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -49,7 +48,7 @@ class AbstractLlmOperationsStreamingTest {
     private lateinit var mockLlmService: LlmService<*>
     private lateinit var mockMessageStreamer: LlmMessageStreamer
     private lateinit var mockAsyncer: Asyncer
-    private val objectMapper: ObjectMapper = jacksonObjectMapper().registerModule(JavaTimeModule())
+    private val objectMapper: ObjectMapper = jacksonObjectMapper()
     private val validator = Validation.buildDefaultValidatorFactory().validator
 
     private lateinit var llmOperations: TestableAbstractLlmOperations

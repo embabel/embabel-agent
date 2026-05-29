@@ -38,10 +38,10 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- Spring AOP for @Tracked aspect support -->
+        <!-- AspectJ weaver for @Tracked aspect support (direct dep, not spring-boot-starter-aspectj); provides org.aspectj.lang.* -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
         </dependency>
 
         <!-- Micrometer Tracing Bridge to OpenTelemetry (OtelTracer, OtelCurrentTraceContext) -->
