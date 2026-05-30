@@ -17,9 +17,12 @@ package com.embabel.coding.tools.bash
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledOnOs
+import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 
+@EnabledOnOs(OS.LINUX, OS.MAC)
 class BashToolsTest {
 
     @TempDir
