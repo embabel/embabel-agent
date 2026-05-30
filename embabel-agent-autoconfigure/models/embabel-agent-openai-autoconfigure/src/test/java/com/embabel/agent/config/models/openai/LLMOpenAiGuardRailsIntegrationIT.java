@@ -38,12 +38,10 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.model.SimpleApiKey;
 import org.springframework.ai.moderation.Moderation;
 import org.springframework.ai.moderation.ModerationPrompt;
 import org.springframework.ai.moderation.ModerationResponse;
 import org.springframework.ai.openai.OpenAiModerationModel;
-import org.springframework.ai.openai.api.OpenAiModerationApi;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
@@ -53,9 +51,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.web.client.DefaultResponseErrorHandler;
-import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -261,20 +256,19 @@ class GuardRailConfiguration {
     }
 
     //  SPRING OPEN AI Moderation88
+    //
+    // Spring AI 2.0 removed OpenAiModerationApi (alongside OpenAiApi) and now
+    // routes moderation through the openai-java SDK's OpenAIClient via
+    // OpenAiModerationModel.builder(). We build a sync OpenAIClient inline so
+    // this config no longer needs to wire a separate `OpenAiModerationApi` bean.
     @Bean
-    public OpenAiModerationApi openAiModerationApi() {
-        return new OpenAiModerationApi(
-                "https://api.openai.com",
-                new SimpleApiKey(System.getenv("OPENAI_API_KEY")),
-                new LinkedMultiValueMap<>(),
-                RestClient.builder(),
-                new DefaultResponseErrorHandler()
-        );
-    }
-
-    @Bean
-    public OpenAiModerationModel openAiModerationModel(OpenAiModerationApi openAiModerationApi) {
-        return new OpenAiModerationModel(openAiModerationApi);
+    public OpenAiModerationModel openAiModerationModel() {
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+                .apiKey(System.getenv("OPENAI_API_KEY"))
+                .build();
+        return OpenAiModerationModel.builder()
+                .openAiClient(client)
+                .build();
     }
 
     @Bean

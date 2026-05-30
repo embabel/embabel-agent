@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.micrometer.observation.autoconfigure.ObservationRegistryCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -111,6 +112,7 @@ public class MicrometerTracingAutoConfiguration {
      * @return the configured observation handler
      */
     @Bean
+    @ConditionalOnBean(Tracer.class)
     @ConditionalOnMissingBean(DefaultTracingObservationHandler.class)
     @ConditionalOnProperty(prefix = "embabel.observability", name = "implementation",
             havingValue = "SPRING_OBSERVATION", matchIfMissing = true)

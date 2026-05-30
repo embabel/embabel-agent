@@ -37,8 +37,7 @@
         <module>embabel-agent-skills</module>
         <module>embabel-agent-starters</module>
         <module>embabel-agent-test-support</module>
-        <!-- TEMPORARILY DISABLED pending Spring AI 2.0 migration (OpenAiApi removed, replaced by OpenAiSetup/Builder). See task #32. -->
-        <!-- <module>embabel-agent-openai</module> -->
+        <module>embabel-agent-openai</module>
         <module>embabel-agent-onnx</module>
     </modules>
 
