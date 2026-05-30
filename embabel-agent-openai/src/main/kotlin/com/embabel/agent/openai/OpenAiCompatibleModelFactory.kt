@@ -27,7 +27,9 @@ import com.embabel.common.byok.ByokFactory
 import com.embabel.common.byok.InvalidApiKeyException
 import com.embabel.common.util.ObjectProviders
 import com.openai.client.OpenAIClient
+import com.openai.client.OpenAIClientAsync
 import com.openai.client.okhttp.OpenAIOkHttpClient
+import com.openai.client.okhttp.OpenAIOkHttpClientAsync
 import io.micrometer.observation.ObservationRegistry
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -209,22 +211,41 @@ open class OpenAiCompatibleModelFactory(
     }
 
     /**
-     * Shared OpenAI client used by chat + embedding paths.
-     * Built lazily so subclasses can finish initialising before first use.
+     * Shared OpenAI clients used by chat + embedding paths.
+     *
+     * Spring AI 2.0's `OpenAiChatModel` ctor builds an async client lazily via
+     * `OpenAiSetup.setupAsyncClient(...)` if `.openAiClientAsync(...)` wasn't supplied —
+     * and that fallback reads `OPENAI_API_KEY` from the environment. Tests that pass an
+     * explicit sync client but omit the async one work only when `OPENAI_API_KEY` is
+     * already set in the shell (which silently fails on CI). To stay platform-independent
+     * we build **both** clients from our resolved credentials and wire both into the
+     * chat model.
      */
     protected val openAiClient: OpenAIClient = createOpenAiClient()
+    protected val openAiClientAsync: OpenAIClientAsync = createOpenAiClientAsync()
+
+    private fun resolvedApiKey(): String =
+        // SDK rejects null/blank API keys at build time even for no-auth local servers,
+        // so substitute a placeholder when apiKey is null.
+        apiKey ?: "no-auth"
 
     private fun createOpenAiClient(): OpenAIClient {
         val builder = OpenAIOkHttpClient.builder()
             .timeout(Duration.ofMillis(READ_TIMEOUT_MS))
-        if (apiKey != null) {
-            builder.apiKey(apiKey)
-        } else {
-            // SDK requires a non-blank API key string; placeholder for no-auth local servers.
-            builder.apiKey("no-auth")
-        }
+            .apiKey(resolvedApiKey())
         if (baseUrl != null) {
             logger.info("Using custom OpenAI base URL: {}", baseUrl)
+            builder.baseUrl(baseUrl)
+        }
+        httpHeaders.forEach { (name, value) -> builder.putHeader(name, value) }
+        return builder.build()
+    }
+
+    private fun createOpenAiClientAsync(): OpenAIClientAsync {
+        val builder = OpenAIOkHttpClientAsync.builder()
+            .timeout(Duration.ofMillis(READ_TIMEOUT_MS))
+            .apiKey(resolvedApiKey())
+        if (baseUrl != null) {
             builder.baseUrl(baseUrl)
         }
         httpHeaders.forEach { (name, value) -> builder.putHeader(name, value) }
@@ -335,6 +356,10 @@ open class OpenAiCompatibleModelFactory(
                     .build()
             )
             .openAiClient(openAiClient)
+            // Supply the async client explicitly — otherwise OpenAiChatModel falls back
+            // to OpenAiSetup.setupAsyncClient() which reads OPENAI_API_KEY from the env
+            // and crashes when that var isn't set (e.g. on CI).
+            .openAiClientAsync(openAiClientAsync)
             .observationRegistry(observationRegistry)
             .build()
     }
