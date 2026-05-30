@@ -22,12 +22,18 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.Optional
 
 /**
  * Spring AI 2.0 replaced its hand-rolled `AnthropicApi.Usage` (with `int` constructor
  * args) with the anthropic-java SDK [AnthropicSdkUsage] (built via a `JsonField`-based
  * builder). The helper below recreates the previous positional ergonomics so the test
  * scenarios stay legible and parallel the original assertions.
+ *
+ * `Usage.Builder.build()` calls `Check.checkRequired("cacheCreation", ...)` and throws
+ * if the nested `CacheCreation` field was never explicitly set — even setting it to
+ * `Optional.empty()` is acceptable. The fields below (`cacheCreation`, `inferenceGeo`,
+ * `serverToolUse`, `serviceTier`) all need that touch-of-empty-Optional treatment.
  */
 private fun anthropicUsage(
     inputTokens: Long,
@@ -40,6 +46,10 @@ private fun anthropicUsage(
         .outputTokens(outputTokens)
         .cacheCreationInputTokens(cacheCreationInputTokens)
         .cacheReadInputTokens(cacheReadInputTokens)
+        .cacheCreation(Optional.empty())
+        .inferenceGeo(Optional.empty())
+        .serverToolUse(Optional.empty())
+        .serviceTier(Optional.empty())
         .build()
 
 class UsageExtensionsTest {
