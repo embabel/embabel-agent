@@ -19,6 +19,7 @@ import com.embabel.agent.api.tool.ToolControlFlowSignal
 import com.embabel.agent.api.validation.guardrails.GuardRailViolationException
 import com.embabel.agent.core.ReplanRequestedException
 import com.embabel.agent.spi.common.RetryTemplateProvider
+import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.PREFIX
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.retry.RetryCallback
@@ -35,15 +36,15 @@ import java.time.Duration
  * @param sendValidationInfo Should we send validation info to the LLM in every request,
  * even before a validation error occurs?
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.llm-operations.data-binding")
+@ConfigurationProperties(prefix = PREFIX)
 class LlmDataBindingProperties(
     override val maxAttempts: Int = 10,
     val fixedBackoffMillis: Long = 30L,
     val sendValidationInfo: Boolean = true,
+    override val prefix: String = PREFIX,
 ) : RetryTemplateProvider {
 
     private val logger = LoggerFactory.getLogger(LlmDataBindingProperties::class.java)
-    private val maxAttemptsConfigPropertyMessage = "The maximum attempt can be configured using embabel.agent.platform.llm-operations.data-binding.max-attempts"
 
     override fun retryTemplate(name: String): RetryTemplate {
         return RetryTemplate.builder()
@@ -69,8 +70,7 @@ class LlmDataBindingProperties(
                             "LLM invocation {} RATE LIMITED: Retry attempt {} of {}.{}",
                             name,
                             context.retryCount,
-                            maxAttempts,
-                            maxAttemptsConfigPropertyMessage
+                            maxAttempts
                         )
                     } else {
                         logger.warn(
@@ -78,8 +78,7 @@ class LlmDataBindingProperties(
                             name,
                             context.retryCount,
                             maxAttempts,
-                            throwable.message ?: "Unknown error",
-                            maxAttemptsConfigPropertyMessage
+                            throwable.message ?: "Unknown error"
                         )
                     }
                 }
@@ -102,5 +101,6 @@ class LlmDataBindingProperties(
                 message.contains(pattern)
             }
         }
+        const val PREFIX  = "embabel.agent.platform.llm-operations.data-binding"
     }
 }

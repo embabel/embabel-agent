@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.deepseek
 
 import com.embabel.agent.api.models.DeepSeekModels
+import com.embabel.agent.config.models.deepseek.DeepSeekProperties.Companion.PREFIX
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
 import com.embabel.common.ai.model.OptionsConverter
@@ -43,7 +44,7 @@ import java.time.LocalDate
  * "embabel.agent.platform.models.deepseek" and control retry behavior
  * when calling Deepseek APIs.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.deepseek")
+@ConfigurationProperties(prefix = PREFIX)
 class DeepSeekProperties : RetryProperties {
     /**
      * Base URL for DeepSeek API requests.
@@ -59,6 +60,8 @@ class DeepSeekProperties : RetryProperties {
      *  Maximum number of attempts.
      */
     override var maxAttempts: Int = 4
+    override val prefix: String = PREFIX
+
 
     /**
      * Initial backoff interval (in milliseconds).
@@ -74,6 +77,10 @@ class DeepSeekProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 60000L
+
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.deepseek"
+    }
 }
 
 /**
