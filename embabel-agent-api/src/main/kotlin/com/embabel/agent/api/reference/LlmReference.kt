@@ -58,7 +58,7 @@ interface LlmReference : NamedAndDescribed, PromptContributor {
         level = DeprecationLevel.WARNING,
     )
     fun toolObject(): ToolObject = ToolObject(
-        objects = toolInstances(),
+        objects = tools(),
         namingStrategy = namingStrategy,
     )
 

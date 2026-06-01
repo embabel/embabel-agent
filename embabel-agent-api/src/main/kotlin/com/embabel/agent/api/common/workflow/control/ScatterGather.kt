@@ -32,7 +32,7 @@ data class ResultList<RESULT : Any>(
 /**
  * Scatter gather pattern for generating multiple results in parallel and consolidating them.
  */
-class ScatterGather(
+internal class ScatterGather(
     private val maxConcurrency: Int,
 ) {
 

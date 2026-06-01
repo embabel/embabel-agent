@@ -22,7 +22,7 @@ import com.embabel.agent.core.IoBinding
 /**
  * Returns the name of the parameter based on the provided [RequireNameMatch].
  */
-fun getBindingParameterName(
+internal fun getBindingParameterName(
     parameterName: String?,
     requireNameMatch: RequireNameMatch?,
 ): String? {
