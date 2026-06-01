@@ -15,7 +15,7 @@
  */
 package com.embabel.common.ai.converters
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder
 import org.springframework.core.ParameterizedTypeReference
 import java.lang.reflect.Field
@@ -25,7 +25,7 @@ import java.util.function.Predicate
 /**
  * Extension of [JacksonOutputConverter] that allows for filtering of properties of the generated object via a predicate.
  */
-open class FilteringJacksonOutputConverter<T> internal constructor(
+open class FilteringJacksonOutputConverter<T : Any>(
     type: Type,
     objectMapper: ObjectMapper,
     private val fieldFilter: Predicate<Field>,

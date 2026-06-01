@@ -38,7 +38,7 @@ import com.embabel.common.core.types.Semver
 import com.embabel.common.util.NameUtils
 import com.embabel.common.util.loggerFor
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import tools.jackson.databind.annotation.JsonDeserialize
 import org.slf4j.LoggerFactory
 import org.springframework.cglib.proxy.Enhancer
 import org.springframework.stereotype.Service

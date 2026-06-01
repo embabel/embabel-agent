@@ -152,7 +152,10 @@ class DeepSeekModelsConfig(
                     .build()
             )
             .deepSeekApi(createDeepSeekApi())
-            .retryTemplate(properties.retryTemplate(name))
+            // Spring AI 2.0 builder now expects org.springframework.core.retry.RetryTemplate;
+            // we already wrap calls with spring-retry at the ChatClientLlmOperations layer,
+            // so the model-internal retry is redundant. Dropping the call falls back to
+            // Spring AI's default retry (no-op if not configured).
             .build()
         return SpringAiLlmService(
             name = name,
