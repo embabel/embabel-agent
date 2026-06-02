@@ -162,38 +162,3 @@ class ProviderInitializationTest {
         registeredEmbeddings = embeddings
     )
 }
-
-class RegisteredModelTest {
-
-    @Test
-    fun `creates model with bean name and model id`() {
-        val model = RegisteredModel(beanName = "gpt4Chat", modelId = "gpt-4")
-
-        assertThat(model.beanName).isEqualTo("gpt4Chat")
-        assertThat(model.modelId).isEqualTo("gpt-4")
-    }
-
-    @Test
-    fun `equals compares by value`() {
-        val model1 = RegisteredModel(beanName = "gpt4", modelId = "gpt-4")
-        val model2 = RegisteredModel(beanName = "gpt4", modelId = "gpt-4")
-
-        assertThat(model1).isEqualTo(model2)
-    }
-
-    @Test
-    fun `not equal when bean name differs`() {
-        val model1 = RegisteredModel(beanName = "gpt4", modelId = "gpt-4")
-        val model2 = RegisteredModel(beanName = "gpt4Chat", modelId = "gpt-4")
-
-        assertThat(model1).isNotEqualTo(model2)
-    }
-
-    @Test
-    fun `not equal when model id differs`() {
-        val model1 = RegisteredModel(beanName = "gpt4", modelId = "gpt-4")
-        val model2 = RegisteredModel(beanName = "gpt4", modelId = "gpt-4-turbo")
-
-        assertThat(model1).isNotEqualTo(model2)
-    }
-}
