@@ -182,15 +182,16 @@ class ToolNotFoundPolicyTest {
             @Test
             fun `custom minTokenSimilarity lowers threshold`() {
                 val weakTools = listOf(
-                    MockTool("search", "Search", { Tool.Result.text("{}") }),
-                    MockTool("query", "Query", { Tool.Result.text("{}") }),
+                    MockTool("vectorIndex", "Index", { Tool.Result.text("{}") }),
+                    MockTool("dataQuery", "Query", { Tool.Result.text("{}") }),
                 )
-                // With lower threshold, weaker matches pass
+                // With lower threshold, weaker matches pass (no substring relationship to test pure Jaccard)
                 val policy = AutoCorrectionPolicy(minTokenSimilarity = 0.1)
-                val action = policy.handle("vectorSearch", weakTools)
+                val action = policy.handle("vector_lookup", weakTools)
                 val feedback = (action as ToolNotFoundAction.FeedbackToModel).message
-                // With 0.1 threshold, "search" should match because it shares one token
-                assertTrue(feedback.contains("'search'"))
+                // With 0.1 threshold, "vectorIndex" should match (jaccard=0.333) but "dataQuery" should not (jaccard=0.0)
+                assertTrue(feedback.contains("'vectorIndex'"))
+                assertFalse(feedback.contains("'dataQuery'"))
             }
         }
     }

@@ -148,8 +148,8 @@ class AutoCorrectionPolicy(
                     // Strategy 2: Substring containment (fallback for cases like VECTORSEARCH → vectorSearch)
                     val substringMatch = toolNameLower in requestedLower || requestedLower in toolNameLower
 
-                    // Combine: use max of token similarity or 1.0 if substring match
-                    val combinedSimilarity = if (substringMatch) maxOf(tokenSimilarity, 1.0) else tokenSimilarity
+                    // Combine: add bounded bonus for substring match without overriding Jaccard ranking
+                    val combinedSimilarity = if (substringMatch) minOf(1.0, tokenSimilarity + SUBSTRING_BONUS) else tokenSimilarity
 
                     tool to combinedSimilarity
                 }
@@ -210,6 +210,7 @@ class AutoCorrectionPolicy(
         const val DEFAULT_MAX_RETRIES = 3
         const val DEFAULT_MIN_TOKEN_LENGTH = 3
         const val DEFAULT_MIN_TOKEN_SIMILARITY = 0.25
+        const val SUBSTRING_BONUS = 0.2
     }
 }
 

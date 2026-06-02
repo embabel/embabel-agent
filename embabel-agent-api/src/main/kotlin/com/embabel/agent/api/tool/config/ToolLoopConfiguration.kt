@@ -136,8 +136,20 @@ data class ToolLoopConfiguration(
     data class ToolNotFoundProperties(
         /** Maximum consecutive tool-not-found retries before throwing */
         val maxRetries: Int = 3,
+        /**
+         * Minimum token length for token-based matching.
+         *
+         * @deprecated Since 0.4.0. Use [minTokenLength] instead. This property is retained
+         * for backward compatibility and will be removed in a future release.
+         */
+        @Deprecated(
+            message = "Use minTokenLength instead",
+            replaceWith = ReplaceWith("minTokenLength"),
+            level = DeprecationLevel.WARNING,
+        )
+        val minFuzzyLength: Int? = null,
         /** Minimum token length for token-based matching */
-        val minTokenLength: Int = 3,
+        val minTokenLength: Int? = null,
         /** Minimum Jaccard token similarity (0.0-1.0) for fuzzy matching */
         val minTokenSimilarity: Double = 0.25,
     )
