@@ -85,6 +85,8 @@ class ScriptedLlmOperations : LlmOperations {
         val result: String,
     )
 
+    override fun supportsThinking(options: com.embabel.common.ai.model.LlmOptions): Boolean = true
+
     /**
      * Add a scripted action to the sequence.
      */

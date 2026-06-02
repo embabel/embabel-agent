@@ -31,6 +31,8 @@ open class DummyObjectCreatingLlmOperations(
     stringsToUse: List<String>,
 ) : LlmOperations, DummyInstanceCreator(stringsToUse) {
 
+    override fun supportsThinking(options: com.embabel.common.ai.model.LlmOptions): Boolean = true
+
     override fun <O> doTransform(
         messages: List<Message>,
         interaction: LlmInteraction,

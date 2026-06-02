@@ -53,6 +53,7 @@ class SpringAiLlmServiceTest {
             assertThat(service.knowledgeCutoffDate).isNull()
             assertThat(service.promptContributors).isEmpty()
             assertThat(service.pricingModel).isNull()
+            assertThat(service.supportsThinking()).isFalse()
         }
 
         @Test
@@ -78,6 +79,18 @@ class SpringAiLlmServiceTest {
             assertThat(service.knowledgeCutoffDate).isEqualTo(cutoffDate)
             assertThat(service.promptContributors).hasSize(1)
             assertThat(service.pricingModel).isEqualTo(pricingModel)
+        }
+
+        @Test
+        fun `creates service with thinking capability`() {
+            val service = SpringAiLlmService(
+                name = "thinking-model",
+                provider = "Provider",
+                chatModel = mockChatModel,
+                thinkingSupported = true,
+            )
+
+            assertThat(service.supportsThinking()).isTrue()
         }
 
         @Test

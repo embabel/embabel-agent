@@ -42,25 +42,28 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
     }
 
     @Test
-    fun `should set include thoughts from Google GenAI extension`() {
+    fun `should set include thoughts when thinking extraction is enabled`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withGoogleGenAiIncludeThoughts(true)
+            LlmOptions().withThinking(Thinking.withExtraction())
         )
         assertEquals(true, options.includeThoughts)
     }
 
     @Test
-    fun `should set include thoughts false from Google GenAI extension`() {
+    fun `should set thinking budget and include thoughts together`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withGoogleGenAiIncludeThoughts(false)
+            LlmOptions().withThinking(
+                Thinking.withTokenBudget(2000).applyExtraction()
+            )
         )
-        assertEquals(false, options.includeThoughts)
+        assertEquals(true, options.includeThoughts)
+        assertEquals(2000, options.thinkingBudget)
     }
 
     @Test
-    fun `should not derive include thoughts from thinking`() {
+    fun `should not set include thoughts when extraction is disabled`() {
         val options = optionsConverter.convertOptions(
-            LlmOptions().withThinking(Thinking.withExtraction())
+            LlmOptions().withThinking(Thinking.withTokenBudget(2000))
         )
         assertNull(options.includeThoughts)
     }
@@ -69,12 +72,6 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
     fun `should not set thinking budget when thinking is null`() {
         val options = optionsConverter.convertOptions(LlmOptions())
         assertNull(options.thinkingBudget)
-    }
-
-    @Test
-    fun `should return Google GenAI include thoughts extension value`() {
-        val options = LlmOptions().withGoogleGenAiIncludeThoughts(true)
-        assertEquals(true, options.getGoogleGenAiIncludeThoughts())
     }
 
     @Test

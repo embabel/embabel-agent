@@ -71,6 +71,17 @@ interface LlmService<THIS : LlmService<THIS>> : LlmMetadata, PromptContributorCo
     fun supportsStreaming(): Boolean
 
     /**
+     * Check if this LLM service supports thinking operations.
+     *
+     * Each LlmService instance is bound to a specific model, so this checks
+     * whether that particular model supports thinking extraction or native
+     * provider-specific thinking features exposed through Embabel's thinking mode.
+     *
+     * @return true if the underlying model supports thinking operations, false otherwise
+     */
+    fun supportsThinking(): Boolean = false
+
+    /**
      * Returns a copy of this LLM service with the specified knowledge cutoff date.
      *
      * @param date The knowledge cutoff date for the model
