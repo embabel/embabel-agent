@@ -61,11 +61,11 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
     }
 
     @Test
-    fun `should not set include thoughts when extraction is disabled`() {
+    fun `should set include thoughts false when extraction is disabled`() {
         val options = optionsConverter.convertOptions(
             LlmOptions().withThinking(Thinking.withTokenBudget(2000))
         )
-        assertNull(options.includeThoughts)
+        assertEquals(false, options.includeThoughts)
     }
 
     @Test
