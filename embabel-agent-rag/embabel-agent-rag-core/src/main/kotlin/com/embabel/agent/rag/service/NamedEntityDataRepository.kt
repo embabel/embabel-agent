@@ -647,8 +647,14 @@ interface NamedEntityDataRepository : CoreSearchOperations, FinderOperations, Fi
 
         // Fall back to a proxy implementing all matching INTERFACE types.
         // JDK proxies cannot implement concrete classes — filter accordingly.
+        // Also require the interface to actually extend NamedEntity: a row's
+        // labels can match interface types that DON'T (e.g. a user node carrying
+        // `:User` / `:StoredUser`). Proxying those and casting to NamedEntity in
+        // toInstance() throws ClassCastException. Excluding them falls through to
+        // the raw-row return below — strictly safer, and the `as Class<out
+        // NamedEntity>` map is now sound.
         val interfaces = matchingTypes
-            .filter { it.clazz.isInterface }
+            .filter { it.clazz.isInterface && NamedEntity::class.java.isAssignableFrom(it.clazz) }
             .map { it.clazz as Class<out NamedEntity> }
             .toTypedArray()
         if (interfaces.isNotEmpty()) {
