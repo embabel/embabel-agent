@@ -65,7 +65,7 @@ class GoogleGenAiOptionsConverterTest : OptionsConverterTestSupport<GoogleGenAiC
         val options = optionsConverter.convertOptions(
             LlmOptions().withThinking(Thinking.withTokenBudget(2000))
         )
-        assertNull(options.includeThoughts)
+        assertEquals(false, options.includeThoughts)
     }
 
     @Test
