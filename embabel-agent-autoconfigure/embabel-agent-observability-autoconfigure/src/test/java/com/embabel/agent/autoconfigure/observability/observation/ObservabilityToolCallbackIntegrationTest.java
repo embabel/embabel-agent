@@ -429,13 +429,18 @@ class ObservabilityToolCallbackIntegrationTest {
 
         SpanData agentSpan = findSpanByName(spans, "TestAgent");
         SpanData actionSpan = findSpanByName(spans, "MyAction");
-        // Micrometer converts "ChatClient" to "chat-client" (lowercase with dashes)
-        SpanData chatClientSpan = findSpanByName(spans, "chat-client");
+        // Micrometer Tracing 1.15+ (Spring Boot 4) dropped the kebab-case observation-name
+        // normalization that produced "chat-client" from "ChatClient" in 1.x — the raw
+        // observation name now flows through verbatim to the OTel span name.
+        SpanData chatClientSpan = findSpanByName(spans, "ChatClient");
         SpanData toolSpan = findSpanByName(spans, "tool:WebSearch");
 
         assertThat(agentSpan).as("Agent span should exist").isNotNull();
         assertThat(actionSpan).as("Action span should exist").isNotNull();
-        assertThat(chatClientSpan).as("ChatClient span should exist").isNotNull();
+        assertThat(chatClientSpan)
+                .as("ChatClient span should exist (have: %s)",
+                        spans.stream().map(SpanData::getName).toList())
+                .isNotNull();
         assertThat(toolSpan).as("Tool span should exist").isNotNull();
 
         // Verify hierarchy: Agent -> Action -> ChatClient -> Tool

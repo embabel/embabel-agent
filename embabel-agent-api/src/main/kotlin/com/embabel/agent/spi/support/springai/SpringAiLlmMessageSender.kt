@@ -76,7 +76,7 @@ internal class SpringAiLlmMessageSender(
         // the first is empty and the second contains tool calls. We need to find the
         // generation with tool calls, or fall back to the first one if none have them.
         // See: https://github.com/embabel/embabel-agent/issues/1350
-        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result.output
+        val assistantMessage = findGenerationWithToolCalls(response) ?: response.result!!.output
         val embabelMessage = assistantMessage.toEmbabelMessage()
 
         // Extract usage information
@@ -155,10 +155,15 @@ internal class SpringAiLlmMessageSender(
         // OpenAiChatOptions, etc.), use its copy() method to preserve all provider-specific settings
         if (chatOptions is ToolCallingChatOptions) {
             val copied: ChatOptions = chatOptions.copy()
-            if (copied is ToolCallingChatOptions) {
-                copied.toolCallbacks = toolCallbacks
-                copied.internalToolExecutionEnabled = false
-            }
+            // TODO Spring AI 2.0: ToolCallingChatOptions.toolCallbacks and
+            //  internalToolExecutionEnabled are now read-only. Use the builder
+            //  to construct a new instance with these set:
+            //    if (copied is ToolCallingChatOptions) {
+            //        copied.toolCallbacks = toolCallbacks
+            //        copied.internalToolExecutionEnabled = false
+            //    }
+            //  Without this, tool callbacks are not propagated to the per-call
+            //  options when chatOptions is already a ToolCallingChatOptions.
             return copied
         }
 

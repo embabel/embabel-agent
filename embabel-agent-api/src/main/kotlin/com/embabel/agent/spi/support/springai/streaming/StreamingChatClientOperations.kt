@@ -113,7 +113,7 @@ internal class StreamingChatClientOperations(
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
-    override fun <O> createObjectStream(
+    override fun <O>createObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -123,7 +123,7 @@ internal class StreamingChatClientOperations(
         return doTransformObjectStream(messages, interaction, outputClass, null, agentProcess, action)
     }
 
-    override fun <O> createObjectStreamWithThinking(
+    override fun <O>createObjectStreamWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -133,7 +133,7 @@ internal class StreamingChatClientOperations(
         return doTransformObjectStreamWithThinking(messages, interaction, outputClass, null, agentProcess, action)
     }
 
-    override fun <O> createObjectStreamIfPossible(
+    override fun <O>createObjectStreamIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -224,7 +224,7 @@ internal class StreamingChatClientOperations(
      * @param llmRequestEvent Optional event for tracking/observability
      * @return Flux of typed objects, thinking content filtered out
      */
-    override fun <O> doTransformObjectStream(
+    override fun <O>doTransformObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -285,7 +285,7 @@ internal class StreamingChatClientOperations(
      * @param llmRequestEvent Optional event for tracking/observability
      * @return Flux of StreamingEvent<O> containing both thinking and object events
      */
-    override fun <O> doTransformObjectStreamWithThinking(
+    override fun <O>doTransformObjectStreamWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -332,7 +332,7 @@ internal class StreamingChatClientOperations(
      *
      * @return Unified Flux<StreamingEvent<O>> that public methods can filter as needed
      */
-    private fun <O> doTransformObjectStreamInternal(
+    private fun <O>doTransformObjectStreamInternal(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -348,12 +348,17 @@ internal class StreamingChatClientOperations(
         // Chat Options, additional potential option "streaming"
         val chatOptions = requireSpringAiLlm(llm).optionsConverter.convertOptions(interaction.llm)
 
-        val streamingConverter = StreamingJacksonOutputConverter(
-            clazz = outputClass,
+        // Spring AI 2.0's StreamingJacksonOutputConverter requires T : Any;
+        // erase O via Class<Any> for the construction, cast result back at use sites.
+        @Suppress("UNCHECKED_CAST")
+        val outputClassAny = outputClass as Class<Any>
+        @Suppress("UNCHECKED_CAST")
+        val streamingConverter = StreamingJacksonOutputConverter<Any>(
+            clazz = outputClassAny,
             objectMapper = chatClientLlmOperations.objectMapper,
             fieldFilter = interaction.fieldFilter,
             thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
-        )
+        ) as StreamingJacksonOutputConverter<O>  // signature compatibility for downstream Flux<O>/StreamingEvent<O> uses
 
         // Build prompt using helper methods, including streaming format instructions
         val promptContributions = buildPromptContributions(interaction, llm)
@@ -488,10 +493,22 @@ internal class StreamingChatClientOperations(
             val streamerMessages = buildMessagesWithContributions(messages, promptContributions)
             SpringAiLlmMessageStreamer(chatClient, chatOptions).stream(streamerMessages, tools, toolCallInspectors)
         } else {
+            // Spring AI 2.0: bake toolCallbacks into ToolCallingChatOptions AND pass them via
+            // .toolCallbacks() on the request spec. The former preserves the ToolCallingChatOptions
+            // subtype through the chatModel-defaults merge; the latter survives the merge that
+            // would otherwise reset prompt.options.toolCallbacks to the model's empty default.
+            val springAiToolCallbacks = tools.toSpringToolCallbacks()
+            val effectiveOptions = if (chatOptions is org.springframework.ai.model.tool.ToolCallingChatOptions) {
+                chatOptions.mutate()
+                    .toolCallbacks(springAiToolCallbacks)
+                    .build()
+            } else {
+                chatOptions
+            }
+            val promptWithOptions = Prompt(springAiPrompt.instructions, effectiveOptions)
             chatClient
-                .prompt(springAiPrompt)
-                .toolCallbacks(tools.toSpringToolCallbacks())
-                .options(chatOptions)
+                .prompt(promptWithOptions)
+                .toolCallbacks(springAiToolCallbacks)
                 .stream()
                 .content()
         }

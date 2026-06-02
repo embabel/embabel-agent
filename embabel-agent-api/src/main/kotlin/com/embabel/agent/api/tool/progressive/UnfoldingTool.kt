@@ -21,8 +21,8 @@ import com.embabel.agent.api.annotation.UnfoldingTools
 import com.embabel.agent.api.tool.MatryoshkaTool
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.AgentProcess
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
@@ -934,7 +934,7 @@ internal fun tryShortcutDispatch(input: String, innerTools: List<Tool>): Tool.Re
     if (!parsed.isObject) return null
 
     val innerToolsByName = innerTools.associateBy { it.definition.name }
-    for (fieldName in parsed.fieldNames()) {
+    for (fieldName in parsed.propertyNames()) {
         val innerTool = innerToolsByName[fieldName]
         if (innerTool != null) {
             val nestedArgs = parsed.get(fieldName)

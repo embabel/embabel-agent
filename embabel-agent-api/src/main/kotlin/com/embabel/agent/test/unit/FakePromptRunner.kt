@@ -115,7 +115,7 @@ data class FakePromptRunner(
         override val templateRenderer: com.embabel.common.textio.template.TemplateRenderer
             get() = context.agentPlatform().platformServices.templateRenderer
 
-        override val objectMapper: com.fasterxml.jackson.databind.ObjectMapper
+        override val objectMapper: tools.jackson.databind.ObjectMapper
             get() = context.agentPlatform().platformServices.objectMapper
 
         override val llm: LlmOptions?
@@ -242,11 +242,11 @@ data class FakePromptRunner(
 
         override fun withToolChainingFromAny(): PromptExecutionDelegate = this
 
-        override fun <T> createObject(messages: List<Message>, outputClass: Class<T>): T {
+        override fun <T>createObject(messages: List<Message>, outputClass: Class<T>): T {
             return this@FakePromptRunner.createObject(messages, outputClass)
         }
 
-        override fun <T> createObjectIfPossible(messages: List<Message>, outputClass: Class<T>): T? {
+        override fun <T>createObjectIfPossible(messages: List<Message>, outputClass: Class<T>): T? {
             return this@FakePromptRunner.createObjectIfPossible(messages, outputClass)
         }
 
@@ -265,14 +265,14 @@ data class FakePromptRunner(
         }
 
         override fun supportsThinking(): Boolean = false
-        override fun <T> createObjectIfPossibleWithThinking(
+        override fun <T>createObjectIfPossibleWithThinking(
             messages: List<Message>,
             outputClass: Class<T>,
         ): ThinkingResponse<T?> {
             TODO("Not yet implemented")
         }
 
-        override fun <T> createObjectWithThinking(
+        override fun <T>createObjectWithThinking(
             messages: List<Message>,
             outputClass: Class<T>,
         ): ThinkingResponse<T> {
@@ -313,7 +313,7 @@ data class FakePromptRunner(
         )
     }
 
-    private fun <T> getResponse(outputClass: Class<T>): T? {
+    private fun <T>getResponse(outputClass: Class<T>): T? {
         if (responses.size < llmInvocations.size) {
             throw IllegalStateException(
                 """
@@ -337,7 +337,7 @@ data class FakePromptRunner(
     val llmInvocations: List<LlmInvocation>
         get() = _llmInvocations
 
-    override fun <T> createObject(
+    override fun <T>createObject(
         prompt: String,
         outputClass: Class<T>,
     ): T {
@@ -349,7 +349,7 @@ data class FakePromptRunner(
         return getResponse(outputClass)!!
     }
 
-    override fun <T> createObjectIfPossible(
+    override fun <T>createObjectIfPossible(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T? {
@@ -361,7 +361,7 @@ data class FakePromptRunner(
         return getResponse(outputClass)
     }
 
-    override fun <T> createObject(
+    override fun <T>createObject(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T {
@@ -442,7 +442,7 @@ data class FakePromptRunner(
     override fun withTool(tool: Tool): PromptRunner =
         copy(otherTools = this.otherTools + tool)
 
-    override fun <T> creating(outputClass: Class<T>): PromptRunner.Creating<T> {
+    override fun <T>creating(outputClass: Class<T>): PromptRunner.Creating<T> {
         return DelegatingCreating(
             delegate = DelegateAdapter(),
             outputClass = outputClass,
