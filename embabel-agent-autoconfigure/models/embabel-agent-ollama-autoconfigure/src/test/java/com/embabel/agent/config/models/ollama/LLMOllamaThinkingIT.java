@@ -20,6 +20,8 @@ import com.embabel.agent.api.common.PromptRunner;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.autoconfigure.models.ollama.AgentOllamaAutoConfiguration;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.common.ai.model.LlmOptions;
+import com.embabel.common.ai.model.Thinking;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import org.junit.jupiter.api.Test;
@@ -27,7 +29,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
@@ -44,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests the Java equivalent of Kotlin's withThinking() extension function.
  */
 @SpringBootTest(
+        classes = LLMOllamaThinkingIT.TestApplication.class,
         properties = {
                 "embabel.models.cheapest=qwen3:latest",
                 "embabel.models.best=qwen3:latest",
@@ -75,12 +79,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         }
 )
 @ActiveProfiles("thinking")
-@ConfigurationPropertiesScan(
-        basePackages = {
-                "com.embabel.agent",
-                "com.embabel.example"
-        }
-)
 @ComponentScan(
         basePackages = {
                 "com.embabel.agent",
@@ -95,6 +93,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 )
 @Import({AgentOllamaAutoConfiguration.class})
 class LLMOllamaThinkingIT {
+
+    @SpringBootConfiguration
+    @EnableAutoConfiguration
+    static class TestApplication {
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOllamaThinkingIT.class);
 
@@ -165,7 +168,8 @@ class LLMOllamaThinkingIT {
         logger.info("Starting thinking createObject integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("qwen3:latest")
+        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest")
+                        .withThinking(Thinking.withTokenBudget(100)))
                 .withToolObject(new Tooling());
         assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
@@ -204,7 +208,8 @@ class LLMOllamaThinkingIT {
         logger.info("Starting thinking createObjectIfPossible integration test");
 
         // Given: Use the LLM configured for thinking tests
-        PromptRunner runner = ai.withLlm("qwen3:latest")
+        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest")
+                        .withThinking(Thinking.withTokenBudget(100)))
                 .withToolObject(new Tooling());
         assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
@@ -241,7 +246,8 @@ class LLMOllamaThinkingIT {
         logger.info("Starting complex thinking integration test");
 
         // Given: Use the LLM with a complex reasoning prompt
-        PromptRunner runner = ai.withLlm("qwen3:latest")
+        PromptRunner runner = ai.withLlm(LlmOptions.withModel("qwen3:latest")
+                        .withThinking(Thinking.withTokenBudget(100)))
                 .withToolObject(new Tooling());
         assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
