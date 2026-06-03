@@ -132,6 +132,10 @@ internal fun List<SpringAiMessage>.mergeConsecutiveToolResponses(): List<SpringA
 /**
  * Convert a Spring AI AssistantMessage to an Embabel message.
  * Handles both regular messages and messages with tool calls.
+ *
+ * Preserves assistant metadata during conversion of messages with tool calls.
+ * Example metadata includes `thoughtSignatures=List<ByteArray>` when
+ * returned by providers such as Google GenAI.
  */
 fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
     val toolCalls = this.toolCalls
@@ -141,7 +145,7 @@ fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
         // AssistantMessage requires non-empty content (TextPart validation).
         // For empty content, use AssistantMessageWithToolCalls which handles empty content gracefully.
         if (content.isEmpty()) {
-            AssistantMessageWithToolCalls(content = "", toolCalls = emptyList(), metadata = metadata,)
+            AssistantMessageWithToolCalls(content = "", toolCalls = emptyList(), metadata = metadata)
         } else {
             AssistantMessage(content = content)
         }
@@ -149,7 +153,7 @@ fun SpringAiAssistantMessage.toEmbabelMessage(): Message {
         AssistantMessageWithToolCalls(
             content = content,
             toolCalls = toolCalls.map { ToolCall(it.id(), it.name(), it.arguments()) },
-            metadata = metadata,
+            metadata = metadata
         )
     }
 }

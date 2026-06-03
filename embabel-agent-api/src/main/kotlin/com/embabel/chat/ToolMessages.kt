@@ -18,7 +18,6 @@ package com.embabel.chat
 import com.embabel.agent.domain.io.AssistantContent
 import com.embabel.common.util.trim
 import java.time.Instant
-import java.util.Collections.emptyMap
 
 /**
  * Represents a tool call requested by the assistant.
