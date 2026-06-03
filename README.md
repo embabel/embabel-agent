@@ -612,6 +612,9 @@ Optional:
 
 - `ANTHROPIC_API_KEY`: For the Anthropic API. Necessary for the coding agent.
 - `MINIMAX_API_KEY`: For the [MiniMax](https://www.minimax.io) API. Supports MiniMax-M2.7 and MiniMax-M2.7-highspeed models.
+- OCI Generative AI uses OCI SDK authentication providers. Add `embabel-agent-starter-oci-genai` and set
+  `embabel.agent.platform.models.ocigenai.compartment-id`; OCI config file, instance principal, resource principal,
+  workload identity, session token and simple key authentication are supported.
 
 > We strongly recommend providing both an OpenAI and Anthropic key, as some examples require both. And it's important to
 > try to find the best LLM for a given task, rather than automatically choose a familiar provider.
@@ -714,6 +717,34 @@ The Embabel Agent Framework supports local models from:
   queried. All local models will be available.
 - LMStudio: This uses the openAI compatible client. Just include LMStudio as a dependency and make sure your LMStudio
   server is running.
+
+#### OCI Generative AI
+
+Add `embabel-agent-starter-oci-genai` to use OCI Generative AI chat and embedding models.
+
+```xml
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-oci-genai</artifactId>
+</dependency>
+```
+
+Configure `embabel.agent.platform.models.ocigenai.compartment-id` and, if needed, set
+`embabel.agent.platform.models.ocigenai.authentication-type` to `FILE`, `INSTANCE_PRINCIPAL`, `RESOURCE_PRINCIPAL`,
+`WORKLOAD_IDENTITY`, `SESSION_TOKEN` or `SIMPLE`. When the standard OpenAI provider is not on the classpath, the OCI
+starter supplies OCI defaults for Embabel's default LLM and embedding model:
+
+```properties
+embabel.models.default-llm=cohere.command-a-03-2025
+embabel.models.default-embedding-model=cohere.embed-v4.0
+```
+
+Override those values in application configuration if you want another OCI model. Use OCI model ids such as
+`cohere.command-a-03-2025` or `meta.llama-3.3-70b-instruct` for Embabel model selection.
+The Spring bean names registered by the starter are Java-friendly aliases such as `cohere_command_a` and
+`llama_33_70b`.
+If your application exposes Spring Boot Actuator `env` or `configprops` values, keep those endpoints secured and ensure
+OCI credential fields such as `pass-phrase`, `session-token` and `private-key` are sanitized.
 
 #### Custom LLMs
 
