@@ -32,6 +32,9 @@ data class ToolCall(
  * An assistant message that includes tool calls.
  * When an LLM requests tool calls, it may or may not include text content.
  * This class handles both cases - empty content is valid for tool-call-only responses.
+ *
+ * @param metadata optional provider-specific metadata associated with the assistant message,
+ * such as `thoughtSignatures=List<ByteArray>` for Google GenAI continuation state.
  */
 class AssistantMessageWithToolCalls @JvmOverloads constructor(
     content: String = "",
