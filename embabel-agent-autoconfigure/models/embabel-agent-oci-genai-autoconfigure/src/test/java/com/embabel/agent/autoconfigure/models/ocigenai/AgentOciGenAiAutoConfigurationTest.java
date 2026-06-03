@@ -17,6 +17,7 @@ package com.embabel.agent.autoconfigure.models.ocigenai;
 
 import com.embabel.common.ai.autoconfig.ProviderInitialization;
 import com.embabel.common.ai.model.EmbeddingService;
+import com.oracle.bmc.auth.AbstractAuthenticationDetailsProvider;
 import com.oracle.bmc.generativeaiinference.GenerativeAiInference;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -49,6 +50,11 @@ class AgentOciGenAiAutoConfigurationTest {
 
     @Configuration(proxyBeanMethods = false)
     static class FakeOciClientConfiguration {
+        @Bean
+        AbstractAuthenticationDetailsProvider ociAuthenticationDetailsProvider() {
+            return mock(AbstractAuthenticationDetailsProvider.class);
+        }
+
         @Bean
         GenerativeAiInference generativeAiInference() {
             return mock(GenerativeAiInference.class);
