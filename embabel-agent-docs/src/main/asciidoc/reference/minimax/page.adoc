@@ -84,7 +84,7 @@ Use the property for local development and the environment variable in productio
 |===
 
 `MiniMax-M3` is the latest flagship model — the best default choice and significantly cheaper than `MiniMax-M2.7`.
-`MiniMax-M2.7` is the previous flagship, retained for backward compatibility and projects that need its 1M-token context window.
+`MiniMax-M2.7` is the previous flagship, retained for backward compatibility and projects that need its 192K context context window.
 `MiniMax-M2.7-highspeed` trades some quality for significantly lower latency and cost — a good choice for intermediate steps in a multi-action agent flow.
 
 TIP: Embabel's per-step LLM selection makes MiniMax models particularly well-suited to mixed strategies: use `MiniMax-M2.7-highspeed` for extraction and classification steps, and reserve `MiniMax-M3` (or a premium model) only for the final reasoning step.
