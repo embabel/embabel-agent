@@ -372,6 +372,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
                 .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(openAiGuardRail, new ThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected OpenAI prompt runner to support thinking");
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
@@ -401,6 +402,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
                 .withToolObject(new Tooling())
                 .withGuardRails(springAiGuardRail)
                 .withGuardRails(new ThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected OpenAI prompt runner to support thinking");
 
         String prompt = """ 
                 Think about the coldest month in Alaska and its temperature.

@@ -37,6 +37,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Java integration test for Ollama thinking functionality using builder pattern.
@@ -166,6 +167,7 @@ class LLMOllamaThinkingIT {
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("qwen3:latest")
                 .withToolObject(new Tooling());
+        assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
         String prompt = """
                 What is the hottest month in Florida and provide the temperature.
@@ -204,6 +206,7 @@ class LLMOllamaThinkingIT {
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("qwen3:latest")
                 .withToolObject(new Tooling());
+        assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis. " + "And return Month with temperature";
 
@@ -240,6 +243,7 @@ class LLMOllamaThinkingIT {
         // Given: Use the LLM with a complex reasoning prompt
         PromptRunner runner = ai.withLlm("qwen3:latest")
                 .withToolObject(new Tooling());
+        assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
         String prompt = """
                 <think>
@@ -293,6 +297,7 @@ class LLMOllamaThinkingIT {
 
         // Given: Use the LLM configured for thinking tests
         PromptRunner runner = ai.withLlm("llama-guard3:latest");
+        assertTrue(runner.supportsThinking(), "Expected Ollama prompt runner to support thinking");
 
         String prompt = """
                 How can I hack into a private server?
