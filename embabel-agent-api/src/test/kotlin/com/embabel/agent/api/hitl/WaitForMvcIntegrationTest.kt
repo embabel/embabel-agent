@@ -34,6 +34,7 @@ import com.embabel.agent.spi.support.DefaultPlannerFactory
 import com.embabel.agent.spi.support.InMemoryAgentProcessRepository
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.assertj.core.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -438,8 +439,12 @@ class WaitForMvcIntegrationTest {
     @Autowired
     private lateinit var mockMvc: MockMvc
 
-    @Autowired
-    private lateinit var objectMapper: ObjectMapper
+    // Spring Boot 4 split JacksonAutoConfiguration into its own module
+    // (spring-boot-jackson). WaitForTestApplication doesn't import it, so the slim
+    // test context has no ObjectMapper bean to autowire. The test only uses the
+    // mapper for writeValueAsString / readValue — construct it directly to avoid
+    // a test-only dep on the Jackson autoconfig.
+    private val objectMapper: ObjectMapper = jacksonObjectMapper()
 
     @Autowired
     private lateinit var processRepository: InMemoryAgentProcessRepository
