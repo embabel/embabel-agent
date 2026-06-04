@@ -25,7 +25,7 @@ models:
   # GEMINI 3 FAMILY (Stable & Preview Generations)
   # ========================================
 
-  # Gemini 3.1 Pro Preview - Most advanced reasoning model (Preview)
+  # Gemini 3.1 Pro Preview - Most advanced reasoning model
   - name: "gemini_3_1_pro_preview"
     model_id: "gemini-3.1-pro-preview"
     display_name: "Gemini 3.1 Pro Preview"
@@ -69,7 +69,7 @@ models:
       usd_per1m_input_tokens: 0.25
       usd_per1m_output_tokens: 1.50
 
-  # Gemini 3.1 Flash Lite Preview - Lightweight preview generation model
+  # Gemini 3.1 Flash Lite Preview - Lightweight and cost-effective latest generation model
   - name: "gemini_3_1_flash_lite_preview"
     model_id: "gemini-3.1-flash-lite-preview"
     display_name: "Gemini 3.1 Flash Lite Preview"
@@ -157,3 +157,4 @@ embedding_models:
     dimensions: 3072
     pricing_model:
       usd_per1m_tokens: 0.15
+

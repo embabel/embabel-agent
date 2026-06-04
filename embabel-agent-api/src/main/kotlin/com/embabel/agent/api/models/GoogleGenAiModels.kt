@@ -30,8 +30,8 @@ class GoogleGenAiModels {
 
         // Gemini 3.1 Family (Preview - Latest Generation)
         const val GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
-        const val GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = "gemini-3.1-pro-preview-customtools"
         const val GEMINI_3_FLASH_PREVIEW = "gemini-3-flash-preview"
+        const val GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = "gemini-3.1-pro-preview-customtools"
         const val GEMINI_3_1_FLASH_LITE = "gemini-3.1-flash-lite"
         const val GEMINI_3_1_FLASH_LITE_PREVIEW = "gemini-3.1-flash-lite-preview"
 
