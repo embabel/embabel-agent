@@ -2,7 +2,7 @@ name: Sync Primary To Upgrade
 
 on:
   # push:
-  # branches: [main]
+  #  branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -80,12 +80,20 @@ jobs:
           PR_NUMBER: ${{ steps.source.outputs.pr_number }}
           DEVELOPER_GITHUB_LOGIN: ${{ steps.source.outputs.pr_author }}
         run: |
-          mkdir -p .github/sync-reports
-          .github/scripts/sync-primary-to-upgrade.sh \
-            --conflict-file .github/sync-reports/conflicted-files.txt \
-            --report-file .github/sync-reports/branch-sync-conflict.md \
-            --create-issue \
-            --issue-assignee "${DEVELOPER_GITHUB_LOGIN}"
+            mkdir -p .github/sync-reports
+
+            args=(
+              --conflict-file .github/sync-reports/conflicted-files.txt
+              --report-file .github/sync-reports/branch-sync-conflict.md
+              --create-issue
+            )
+
+            if [ -n "${DEVELOPER_GITHUB_LOGIN}" ]; then
+              args+=(--issue-assignee "${DEVELOPER_GITHUB_LOGIN}")
+            fi
+
+            .github/scripts/sync-primary-to-upgrade.sh "${args[@]}"
+
 
       - name: Upload conflict report
         if: failure()
