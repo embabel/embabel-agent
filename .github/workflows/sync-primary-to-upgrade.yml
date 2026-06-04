@@ -8,9 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: read
+  contents: read
 
 concurrency:
   group: sync-primary-to-upgrade
@@ -20,6 +18,10 @@ jobs:
   sync:
     name: Sync primary to upgrade
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: read
 
     steps:
       - name: Checkout repository
@@ -95,6 +97,8 @@ jobs:
     needs: [sync]
     if: failure()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Notify Discord
