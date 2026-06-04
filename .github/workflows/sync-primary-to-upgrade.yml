@@ -1,10 +1,8 @@
 name: Sync Primary To Upgrade
 
 on:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "0 6 * * *"
+  # push:
+  # branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -29,6 +27,11 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.PAT_TOKEN || github.token }}
+      - name: Configure git identity
+        run: |
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
 
       - name: Resolve source PR metadata
         id: source
