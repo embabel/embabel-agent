@@ -1,0 +1,117 @@
+name: Sync Primary To Upgrade
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: sync-primary-to-upgrade
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN || github.token }}
+
+      - name: Resolve source PR metadata
+        id: source
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT_TOKEN || github.token }}
+          script: |
+            const result = {
+              pr_number: '',
+              pr_author: '',
+            };
+
+            if (context.eventName === 'push') {
+              const response = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+              });
+
+              const pr = response.data.find(candidate =>
+                candidate.merged_at &&
+                candidate.base?.ref === 'main'
+              ) ?? response.data[0];
+
+              if (pr) {
+                result.pr_number = String(pr.number);
+                result.pr_author = pr.user?.login || '';
+              }
+
+              if (!result.pr_author) {
+                result.pr_author = context.actor;
+              }
+            }
+
+            core.setOutput('pr_number', result.pr_number);
+            core.setOutput('pr_author', result.pr_author);
+
+      - name: Sync main into rolling upgrade branch
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
+          SOURCE_BRANCH: main
+          BRANCH_PREFIX: 2.0.0
+          DATE_FORMAT: mmddyyyy
+          KEEP_BRANCHES: 5
+          CREATE_ISSUE: true
+          PR_NUMBER: ${{ steps.source.outputs.pr_number }}
+          DEVELOPER_GITHUB_LOGIN: ${{ steps.source.outputs.pr_author }}
+        run: |
+          mkdir -p .github/sync-reports
+          .github/scripts/sync-primary-to-upgrade.sh \
+            --conflict-file .github/sync-reports/conflicted-files.txt \
+            --report-file .github/sync-reports/branch-sync-conflict.md \
+            --create-issue \
+            --issue-assignee "${DEVELOPER_GITHUB_LOGIN}"
+
+      - name: Upload conflict report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-sync-conflict-report
+          path: .github/sync-reports/
+          if-no-files-found: ignore
+
+  notify:
+    needs: [sync]
+    if: failure()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "${DISCORD_WEBHOOK_URL}" ]; then
+            echo "DISCORD_WEBHOOK_URL is not configured; skipping Discord notification."
+            exit 0
+          fi
+
+          payload=$(
+            jq -n \
+              --arg content "Branch sync failed: ${GITHUB_REPOSITORY} (${GITHUB_REF_NAME})
+${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              '{content: $content}'
+          )
+
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -d "${payload}" \
+            "${DISCORD_WEBHOOK_URL}"
