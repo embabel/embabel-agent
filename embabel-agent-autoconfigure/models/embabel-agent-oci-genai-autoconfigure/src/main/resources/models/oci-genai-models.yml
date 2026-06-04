@@ -1,0 +1,88 @@
+# ============================================
+# oci-genai-models.yml
+# ============================================
+# OCI Generative AI models configuration.
+# Model identifiers are from Oracle OCI Generative AI documentation as of May 2026.
+
+models:
+  # Google Gemini family.
+  - name: "gemini_2_5_pro"
+    model_id: "google.gemini-2.5-pro"
+    display_name: "Google Gemini 2.5 Pro"
+    api_format: "GENERIC"
+    max_tokens: 8192
+    temperature: 0.7
+
+  - name: "gemini_2_5_flash"
+    model_id: "google.gemini-2.5-flash"
+    display_name: "Google Gemini 2.5 Flash"
+    api_format: "GENERIC"
+    max_tokens: 8192
+    temperature: 0.7
+
+  # OpenAI GPT-OSS family.
+  - name: "gpt_oss_120b"
+    model_id: "openai.gpt-oss-120b"
+    display_name: "OpenAI GPT-OSS 120B"
+    api_format: "GENERIC"
+    max_tokens: 8192
+    temperature: 0.7
+
+  # xAI Grok family.
+  - name: "grok_4_3"
+    model_id: "xai.grok-4.3"
+    display_name: "xAI Grok 4.3"
+    api_format: "GENERIC"
+    max_tokens: 8192
+    temperature: 0.7
+
+  # Cohere Command A family. These models use OCI's Cohere Chat API v2.
+  - name: "cohere_command_a_reasoning"
+    model_id: "cohere.command-a-reasoning"
+    display_name: "Cohere Command A Reasoning"
+    api_format: "COHERE_V2"
+    max_tokens: 8192
+    temperature: 0.7
+
+  - name: "cohere_command_a_vision"
+    model_id: "cohere.command-a-vision"
+    display_name: "Cohere Command A Vision"
+    api_format: "COHERE_V2"
+    max_tokens: 8192
+    temperature: 0.7
+
+  - name: "cohere_command_a"
+    model_id: "cohere.command-a-03-2025"
+    display_name: "Cohere Command A"
+    api_format: "COHERE_V2"
+    max_tokens: 8192
+    temperature: 0.7
+
+  # Meta Llama family. These use OCI's GENERIC chat format and support tools.
+  - name: "llama_4_maverick"
+    model_id: "meta.llama-4-maverick-17b-128e-instruct-fp8"
+    display_name: "Meta Llama 4 Maverick"
+    api_format: "GENERIC"
+    max_tokens: 8192
+    temperature: 0.7
+
+  - name: "llama_4_scout"
+    model_id: "meta.llama-4-scout-17b-16e-instruct"
+    display_name: "Meta Llama 4 Scout"
+    api_format: "GENERIC"
+    max_tokens: 8192
+    temperature: 0.7
+
+  - name: "llama_33_70b"
+    model_id: "meta.llama-3.3-70b-instruct"
+    display_name: "Meta Llama 3.3 70B Instruct"
+    api_format: "GENERIC"
+    max_tokens: 8192
+    temperature: 0.7
+
+embedding_models:
+  - name: "cohere_embed_v4"
+    model_id: "cohere.embed-v4.0"
+    display_name: "Cohere Embed 4"
+    dimensions: 1536
+    truncate: "END"

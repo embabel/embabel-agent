@@ -236,6 +236,12 @@ The following are modules intended for direct use (versus supporting infrastruct
 | Quick start with AI Studio
 | Incubating
 
+| `embabel-agent-starter-oci-genai`
+| This repo
+| OCI Generative AI starter
+| Quick start with OCI GenAI
+| Incubating
+
 | `embabel-agent-starter-lmstudio`
 | This repo
 | LM Studio starter

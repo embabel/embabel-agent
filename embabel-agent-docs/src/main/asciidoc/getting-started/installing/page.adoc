@@ -660,6 +660,65 @@ embabel:
 <3> Google GenAI specific configuration
 <4> API key can be set here or via environment variable `GOOGLE_API_KEY`
 
+===== OCI Generative AI
+
+To use OCI Generative AI with your agent, add the `embabel-agent-starter-oci-genai` starter.
+
+Add this to your build system as follows:
+[tabs]
+====
+Maven (pom.xml)::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.embabel.agent</groupId>
+    <artifactId>embabel-agent-starter-oci-genai</artifactId>
+    <version>${embabel-agent.version}</version>
+</dependency>
+----
+Gradle Kotlin DSL (build.gradle.kts)::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.embabel.agent:embabel-agent-starter-oci-genai:${embabel-agent.version}")
+}
+----
+
+Gradle Groovy DSL (build.gradle)::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.embabel.agent:embabel-agent-starter-oci-genai:${embabel-agent.version}'
+}
+----
+====
+
+The starter defaults to OCI config file authentication with `~/.oci/config` and profile `DEFAULT`.
+At minimum, configure the compartment OCID and region.
+When the standard OpenAI provider is not on the classpath, the OCI starter supplies OCI defaults for Embabel's default LLM and embedding model, so an OCI-only application does not need to override `embabel.models.default-llm` just to start.
+
+[source,yaml]
+----
+embabel:
+  agent:
+    platform:
+      models:
+        ocigenai:
+          compartment-id: ocid1.compartment.oc1...
+          region: us-chicago-1
+          # authentication-type: FILE
+  models:
+    # Optional: choose a different OCI model id
+    # default-llm: meta.llama-3.3-70b-instruct
+    # default-embedding-model: cohere.embed-v4.0
+----
+
+Other supported authentication types are `INSTANCE_PRINCIPAL`, `RESOURCE_PRINCIPAL`, `WORKLOAD_IDENTITY`, `SESSION_TOKEN` and `SIMPLE`.
+See the configuration reference for the full OCI property list.
+
 ===== Mistral AI
 
 * Required:
