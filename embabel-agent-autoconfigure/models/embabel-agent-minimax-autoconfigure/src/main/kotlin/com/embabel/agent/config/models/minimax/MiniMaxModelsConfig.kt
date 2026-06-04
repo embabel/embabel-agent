@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.minimax
 
 import com.embabel.agent.api.models.MiniMaxModels
+import com.embabel.agent.config.models.minimax.MiniMaxProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
@@ -43,7 +44,7 @@ import java.time.LocalDate
  * "embabel.agent.platform.models.minimax" and control retry behavior
  * when calling MiniMax APIs.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.minimax")
+@ConfigurationProperties(prefix = PREFIX)
 class MiniMaxProperties : RetryProperties {
     /**
      * Base URL for MiniMax API requests.
@@ -74,6 +75,11 @@ class MiniMaxProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 60000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.minimax"
+    }
 }
 
 /**

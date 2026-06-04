@@ -60,8 +60,6 @@ class DeepSeekProperties : RetryProperties {
      *  Maximum number of attempts.
      */
     override var maxAttempts: Int = 4
-    override val prefix: String = PREFIX
-
 
     /**
      * Initial backoff interval (in milliseconds).
@@ -78,6 +76,7 @@ class DeepSeekProperties : RetryProperties {
      */
     override var backoffMaxInterval: Long = 60000L
 
+    override val propertyPrefix: String = PREFIX
     companion object {
         const val PREFIX  = "embabel.agent.platform.models.deepseek"
     }

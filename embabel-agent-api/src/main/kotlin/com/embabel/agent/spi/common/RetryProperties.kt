@@ -16,7 +16,6 @@
 package com.embabel.agent.spi.common
 
 import com.embabel.agent.api.tool.ToolControlFlowSignal
-import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.PREFIX
 import com.embabel.agent.spi.support.LlmDataBindingProperties.Companion.isRateLimitError
 import com.embabel.agent.spi.support.springai.SpringAiRetryPolicy
 import com.embabel.common.util.loggerFor
@@ -29,7 +28,11 @@ import java.time.Duration
 
 interface RetryTemplateProvider {
     val maxAttempts: Int
-    val prefix: String
+
+    /**
+     * Prefix when field values are assigned via configuration.
+     */
+    val propertyPrefix: String
     fun retryTemplate(name: String): RetryTemplate
 }
 
@@ -89,7 +92,7 @@ interface RetryProperties : RetryTemplateProvider {
                         loggerFor<RetryProperties>().warn(
                             "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
                             maxAttempts,
-                            prefix
+                            propertyPrefix
                         )
                     }
                 }

@@ -23,7 +23,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
+import kotlin.test.assertTrue
 
+@ExtendWith(OutputCaptureExtension::class)
 class LlmDataBindingPropertiesTest {
 
     @Nested
@@ -94,6 +99,22 @@ class LlmDataBindingPropertiesTest {
             verify { mockBlackboard["intent"] = "support" }
             verify { mockBlackboard["confidence"] = 0.95 }
             verify { mockBlackboard["target"] = "handleSupport" }
+        }
+
+        @Test
+        fun `should log how to configure maximum attempt`(output: CapturedOutput) {
+            val properties = LlmDataBindingProperties(maxAttempts = 1)
+            val retryTemplate = properties.retryTemplate("test")
+            var attemptCount = 0
+            assertThrows<RuntimeException> {
+                retryTemplate.execute<Unit, RuntimeException> {
+                    attemptCount++
+                    throw RuntimeException("Dummy error")
+                }
+            }
+            // Should only attempt once
+            assertEquals(1, attemptCount)
+            assertTrue(output.out.contains("Maximum attempts of 1 have reached. The maximum attempt can be configured using property embabel.agent.platform.llm-operations.data-binding.max-attempts"))
         }
     }
 }

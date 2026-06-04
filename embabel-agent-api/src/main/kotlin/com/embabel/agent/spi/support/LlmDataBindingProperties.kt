@@ -41,7 +41,7 @@ class LlmDataBindingProperties(
     override val maxAttempts: Int = 10,
     val fixedBackoffMillis: Long = 30L,
     val sendValidationInfo: Boolean = true,
-    override val prefix: String = PREFIX,
+    override val propertyPrefix: String = PREFIX,
 ) : RetryTemplateProvider {
 
     private val logger = LoggerFactory.getLogger(LlmDataBindingProperties::class.java)
@@ -79,6 +79,19 @@ class LlmDataBindingProperties(
                             context.retryCount,
                             maxAttempts,
                             throwable.message ?: "Unknown error"
+                        )
+                    }
+                }
+                override fun <T: Any, E : Throwable> close(
+                    context: RetryContext,
+                    callback: RetryCallback<T, E>,
+                    throwable: Throwable,
+                ) {
+                    if( throwable != null) {
+                        logger.warn(
+                            "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
+                            maxAttempts,
+                            propertyPrefix
                         )
                     }
                 }

@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.googlegenai
 
 import com.embabel.agent.api.models.GoogleGenAiModels
+import com.embabel.agent.config.models.googlegenai.GoogleGenAiProperties.Companion.PREFIX
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.JsonWrappingToolResponseContentAdapter
@@ -60,7 +61,7 @@ import org.springframework.context.annotation.Configuration
  *
  * If both are configured, Vertex AI (project/location) takes precedence.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.googlegenai")
+@ConfigurationProperties(prefix = PREFIX)
 class GoogleGenAiProperties : RetryProperties {
 
     /**
@@ -100,6 +101,11 @@ class GoogleGenAiProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.googlegenai"
+    }
 }
 
 /**
