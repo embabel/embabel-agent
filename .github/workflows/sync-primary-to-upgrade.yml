@@ -8,9 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: read
+  contents: read
 
 concurrency:
   group: sync-primary-to-upgrade
@@ -18,7 +16,12 @@ concurrency:
 
 jobs:
   sync:
+    name: Sync primary to upgrade
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: read
 
     steps:
       - name: Checkout repository
@@ -90,9 +93,12 @@ jobs:
           if-no-files-found: ignore
 
   notify:
+    name: Notify branch sync failure
     needs: [sync]
     if: failure()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Notify Discord
@@ -104,12 +110,14 @@ jobs:
             exit 0
           fi
 
-          payload=$(
-            jq -n \
-              --arg content "Branch sync failed: ${GITHUB_REPOSITORY} (${GITHUB_REF_NAME})
-${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-              '{content: $content}'
-          )
+          message="$(printf 'Branch sync failed: %s (%s)\n%s/%s/actions/runs/%s' \
+            "${GITHUB_REPOSITORY}" \
+            "${GITHUB_REF_NAME}" \
+            "${GITHUB_SERVER_URL}" \
+            "${GITHUB_REPOSITORY}" \
+            "${GITHUB_RUN_ID}")"
+
+          payload="$(jq -n --arg content "${message}" '{content: $content}')"
 
           curl -fsS \
             -H "Content-Type: application/json" \
