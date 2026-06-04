@@ -85,7 +85,7 @@ class LlmDataBindingProperties(
                 override fun <T: Any, E : Throwable> close(
                     context: RetryContext,
                     callback: RetryCallback<T, E>,
-                    throwable: Throwable,
+                    throwable: Throwable?,
                 ) {
                     if( throwable != null) {
                         logger.warn(

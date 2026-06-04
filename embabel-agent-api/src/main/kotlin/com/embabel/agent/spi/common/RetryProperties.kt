@@ -86,7 +86,7 @@ interface RetryProperties : RetryTemplateProvider {
                 override fun <T, E : Throwable> close(
                     context: RetryContext,
                     callback: RetryCallback<T, E>,
-                    throwable: Throwable,
+                    throwable: Throwable?,
                 ) {
                     if( throwable != null) {
                         loggerFor<RetryProperties>().warn(
