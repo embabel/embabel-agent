@@ -92,7 +92,26 @@ jobs:
   notify:
     needs: [sync]
     if: failure()
-    uses: embabel/embabel-build/.github/workflows/discord-notify.yml@main
-    with:
-      message: "Branch sync failed"
-    secrets: inherit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "${DISCORD_WEBHOOK_URL}" ]; then
+            echo "DISCORD_WEBHOOK_URL is not configured; skipping Discord notification."
+            exit 0
+          fi
+
+          payload=$(
+            jq -n \
+              --arg content "Branch sync failed: ${GITHUB_REPOSITORY} (${GITHUB_REF_NAME})
+${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              '{content: $content}'
+          )
+
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -d "${payload}" \
+            "${DISCORD_WEBHOOK_URL}"
