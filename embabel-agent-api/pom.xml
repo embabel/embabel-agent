@@ -188,6 +188,18 @@
             <scope>test</scope>
         </dependency>
 
+        <!--
+          Spring Boot 4 split @AutoConfigureMockMvc (and the rest of the MockMvc test
+          slice) out of spring-boot-test-autoconfigure into a dedicated module under
+          a new package (org.springframework.boot.webmvc.test.autoconfigure). Tests
+          here that use @AutoConfigureMockMvc (e.g. WaitForMvcIntegrationTest) need
+          this dep on the test classpath.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 
