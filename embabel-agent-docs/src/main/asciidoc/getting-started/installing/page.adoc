@@ -615,14 +615,17 @@ dependencies {
 
 Available LLM models include:
 
+* `gemini-3.5-flash` - Frontier-level reasoning at Flash tier speed & cost (Latest Generation - Stable)
 * `gemini-3.1-pro-preview` - Latest Gemini 3.1 Pro preview with advanced reasoning
 * `gemini-3.1-pro-preview-customtools` - Gemini 3.1 Pro optimized for custom tool usage
-* `gemini-3.1-flash-lite-preview` - Lightweight and cost-effective latest generation model
-* `gemini-2.5-pro` - High-performance model with thinking support
-* `gemini-2.5-flash` - Best price-performance model
-* `gemini-2.5-flash-lite` - Cost-effective high-throughput model
-* `gemini-2.0-flash` - Fast and efficient
-* `gemini-2.0-flash-lite` - Lightweight version
+* `gemini-3-flash-preview` - Fast model with thinking capabilities
+* `gemini-3.1-flash-lite` - Production lightweight and cost-effective model (Latest Generation - Stable)
+* `gemini-3.1-flash-lite-preview` - Lightweight and cost-effective latest generation preview model
+* `gemini-2.5-pro` - High-performance model with thinking support (Current Generation - Stable)
+* `gemini-2.5-flash` - Best price-performance model (Current Generation - Stable)
+* `gemini-2.5-flash-lite` - Cost-effective high-throughput model (Current Generation - Stable)
+* `gemini-2.0-flash` - Fast and efficient (Previous Generation)
+* `gemini-2.0-flash-lite` - Lightweight version (Previous Generation)
 
 Available embedding models include:
 
@@ -634,11 +637,12 @@ Example configuration in `application.yml`:
 ----
 embabel:
   models:
-    default-llm: gemini-2.5-flash  # <1>
+    default-llm: gemini-3.5-flash  # <1>
     default-embedding-model: gemini-embedding-001  # <2>
     llms:
-      fast: gemini-2.5-flash
-      best: gemini-2.5-pro
+      fast: gemini-3.5-flash
+      cost-effective: gemini-3.1-flash-lite
+      best: gemini-3.1-pro
       reasoning: gemini-3.1-pro-preview
     embedding-services:
       default: gemini-embedding-001

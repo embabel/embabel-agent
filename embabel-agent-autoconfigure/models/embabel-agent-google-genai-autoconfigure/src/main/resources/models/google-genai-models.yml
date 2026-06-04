@@ -25,18 +25,7 @@ models:
   # GEMINI 3 FAMILY (Stable & Preview Generations)
   # ========================================
 
-  # Gemini 3.1 Pro - Production advanced reasoning model
-  - name: "gemini_3_1_pro"
-    model_id: "gemini-3.1-pro"
-    display_name: "Gemini 3.1 Pro"
-    knowledge_cutoff_date: "2025-01-01"
-    max_output_tokens: 65536
-    temperature: 0.7
-    pricing_model:
-      usd_per1m_input_tokens: 2.00
-      usd_per1m_output_tokens: 12.00
-
-  # Gemini 3.1 Pro Preview - Most advanced reasoning model
+  # Gemini 3.1 Pro Preview - Most advanced reasoning model (Preview)
   - name: "gemini_3_1_pro_preview"
     model_id: "gemini-3.1-pro-preview"
     display_name: "Gemini 3.1 Pro Preview"
