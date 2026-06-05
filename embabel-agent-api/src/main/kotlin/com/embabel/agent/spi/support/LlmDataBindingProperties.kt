@@ -87,7 +87,7 @@ class LlmDataBindingProperties(
                     callback: RetryCallback<T, E>,
                     throwable: Throwable?,
                 ) {
-                    if( throwable != null) {
+                    throwable?.let {
                         logger.warn(
                             "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
                             maxAttempts,
@@ -108,12 +108,13 @@ class LlmDataBindingProperties(
             "429",
         )
 
+        const val PREFIX  = "embabel.agent.platform.llm-operations.data-binding"
+
         fun isRateLimitError(t: Throwable): Boolean {
             val message = t.message?.lowercase() ?: return false
             return RATE_LIMIT_PATTERNS.any { pattern ->
                 message.contains(pattern)
             }
         }
-        const val PREFIX  = "embabel.agent.platform.llm-operations.data-binding"
     }
 }

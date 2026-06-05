@@ -88,7 +88,7 @@ interface RetryProperties : RetryTemplateProvider {
                     callback: RetryCallback<T, E>,
                     throwable: Throwable?,
                 ) {
-                    if( throwable != null) {
+                    throwable?.let {
                         loggerFor<RetryProperties>().warn(
                             "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
                             maxAttempts,
