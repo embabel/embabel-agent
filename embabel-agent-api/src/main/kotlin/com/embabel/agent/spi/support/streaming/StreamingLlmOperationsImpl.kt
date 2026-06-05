@@ -33,7 +33,7 @@ import com.embabel.chat.Message
 import com.embabel.chat.UserMessage
 import com.embabel.common.ai.converters.streaming.StreamingJacksonOutputConverter
 import com.embabel.common.core.streaming.StreamingEvent
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -75,7 +75,7 @@ internal class StreamingLlmOperationsImpl(
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
-    override fun <O> createObjectStream(
+    override fun <O>createObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -85,7 +85,7 @@ internal class StreamingLlmOperationsImpl(
         return doTransformObjectStream(messages, interaction, outputClass, null, agentProcess, action)
     }
 
-    override fun <O> createObjectStreamIfPossible(
+    override fun <O>createObjectStreamIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -99,7 +99,7 @@ internal class StreamingLlmOperationsImpl(
             }
     }
 
-    override fun <O> createObjectStreamWithThinking(
+    override fun <O>createObjectStreamWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -137,7 +137,7 @@ internal class StreamingLlmOperationsImpl(
         return messageStreamer.stream(messagesWithContributions, tools, interaction.toolCallInspectors)
     }
 
-    override fun <O> doTransformObjectStream(
+    override fun <O>doTransformObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -157,7 +157,7 @@ internal class StreamingLlmOperationsImpl(
             .map { (it as StreamingEvent.Object).item }
     }
 
-    override fun <O> doTransformObjectStreamWithThinking(
+    override fun <O>doTransformObjectStreamWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -187,7 +187,7 @@ internal class StreamingLlmOperationsImpl(
      * 2. Line buffering via [rawChunksToLines]
      * 3. Event generation via [StreamingJacksonOutputConverter]
      */
-    private fun <O> doTransformObjectStreamInternal(
+    private fun <O>doTransformObjectStreamInternal(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -196,13 +196,18 @@ internal class StreamingLlmOperationsImpl(
         agentProcess: AgentProcess?,
         action: Action?,
     ): Flux<StreamingEvent<O>> {
-        // Create converter for JSONL parsing
-        val streamingConverter = StreamingJacksonOutputConverter(
-            clazz = outputClass,
+        // Create converter for JSONL parsing.
+        // Spring AI 2.0's StreamingJacksonOutputConverter requires T : Any;
+        // erase O via Class<Any> for the construction, cast back for downstream Flux<O>/StreamingEvent<O>.
+        @Suppress("UNCHECKED_CAST")
+        val outputClassAny = outputClass as Class<Any>
+        @Suppress("UNCHECKED_CAST")
+        val streamingConverter = StreamingJacksonOutputConverter<Any>(
+            clazz = outputClassAny,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
             thinkingEnabled = interaction.llm.thinking?.enabled ?: false,
-        )
+        ) as StreamingJacksonOutputConverter<O>
 
         // Build prompt contributions with streaming format instructions
         val promptContributions = buildPromptContributions(interaction)

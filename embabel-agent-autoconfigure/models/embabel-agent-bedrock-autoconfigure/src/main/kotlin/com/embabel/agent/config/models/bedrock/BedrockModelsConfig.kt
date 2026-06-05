@@ -33,7 +33,6 @@ import org.springframework.ai.bedrock.titan.BedrockTitanEmbeddingModel
 import org.springframework.ai.bedrock.titan.api.TitanEmbeddingBedrockApi
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.observation.ChatModelObservationConvention
-import org.springframework.ai.model.ModelOptionsUtils
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionConfiguration
 import org.springframework.ai.model.bedrock.autoconfigure.BedrockAwsConnectionProperties
 import org.springframework.ai.model.bedrock.cohere.autoconfigure.BedrockCohereEmbeddingProperties
@@ -232,7 +231,7 @@ class BedrockModelsConfig(
                     embeddingDef.modelId,
                     credentialsProvider,
                     regionProvider.region,
-                    ModelOptionsUtils.OBJECT_MAPPER,
+                    tools.jackson.databind.json.JsonMapper.builder().build(),
                     connectionProperties.timeout,
                 ), observationRegistry.getIfUnique { ObservationRegistry.NOOP }
             ).withInputType(bedrockTitanEmbeddingProperties.inputType),
@@ -248,7 +247,7 @@ class BedrockModelsConfig(
                     embeddingDef.modelId,
                     credentialsProvider,
                     regionProvider.region,
-                    ModelOptionsUtils.OBJECT_MAPPER,
+                    tools.jackson.databind.json.JsonMapper.builder().build(),
                     connectionProperties.timeout
                 ),
                 bedrockCohereEmbeddingProperties.options
