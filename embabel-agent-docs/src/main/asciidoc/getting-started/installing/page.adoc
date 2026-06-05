@@ -636,12 +636,11 @@ Example configuration in `application.yml`:
 ----
 embabel:
   models:
-    default-llm: gemini-3.5-flash  # <1>
+    default-llm: gemini-2.5-flash  # <1>
     default-embedding-model: gemini-embedding-001  # <2>
     llms:
-      fast: gemini-3.5-flash
-      cost-effective: gemini-3.1-flash-lite
-      best: gemini-3.1-pro
+      fast: gemini-2.5-flash
+      best: gemini-2.5-pro
       reasoning: gemini-3.1-pro-preview
     embedding-services:
       default: gemini-embedding-001
