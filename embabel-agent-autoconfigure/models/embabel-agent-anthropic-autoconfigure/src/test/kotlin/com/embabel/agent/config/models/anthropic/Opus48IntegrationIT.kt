@@ -86,6 +86,7 @@ class Opus48IntegrationIT(
 
         // Get the LLM - findability is in the `registers claude_opus_48 bean` test
         val llm = findLlm()
+        assertTrue(llm != null, "Expected Claude Opus 4.8 LLM service to be registered")
 
         // Verify against Anthropic API
         val response = try {
@@ -101,7 +102,7 @@ class Opus48IntegrationIT(
 
         assertTrue(response.isNotBlank(), "Expected non-empty response from Claude Opus 4.8")
         assertTrue(response.contains("READY", ignoreCase = true), "Expected Claude Opus 4.8 to reply with READY, got: $response")
-        assertEquals(AnthropicModels.CLAUDE_OPUS_4_8, llm?.name)
+        assertEquals(AnthropicModels.CLAUDE_OPUS_4_8, llm!!.name)
     }
 
     private fun findLlm(): LlmService<*>? {
