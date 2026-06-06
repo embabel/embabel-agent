@@ -182,7 +182,7 @@ internal class ChatClientLlmOperations(
         return llm.createMessageSender(options)
     }
 
-    override fun <O>createOutputConverter(
+    override fun <O> createOutputConverter(
         outputClass: Class<O>,
         interaction: LlmInteraction,
     ): OutputConverter<O> {
@@ -214,7 +214,7 @@ internal class ChatClientLlmOperations(
     }
 
     @Suppress("UNCHECKED_CAST")
-    override fun <O>createMaybeReturnOutputConverter(
+    override fun <O> createMaybeReturnOutputConverter(
         outputClass: Class<O>,
         interaction: LlmInteraction,
     ): OutputConverter<MaybeReturn<O>> {
@@ -265,7 +265,7 @@ internal class ChatClientLlmOperations(
      * Extracts a non-null entity from the response, throwing a descriptive
      * [IllegalStateException] instead of an NPE when the entity is null.
      */
-    private fun <T>requireEntity(
+    private fun <T> requireEntity(
         responseEntity: ResponseEntity<ChatResponse, T>,
         interaction: LlmInteraction,
     ): T {
@@ -284,7 +284,7 @@ internal class ChatClientLlmOperations(
      * Uses Spring AI's internal tool loop.
      */
     @OptIn(InternalThinkingApi::class)
-    internal fun <O>doTransformWithThinkingSpringAi(
+    internal fun <O> doTransformWithThinkingSpringAi(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -437,7 +437,7 @@ internal class ChatClientLlmOperations(
      * Spring AI implementation of transform with thinking extraction using IfPossible pattern.
      */
     @OptIn(InternalThinkingApi::class)
-    internal fun <O>doTransformWithThinkingIfPossibleSpringAi(
+    internal fun <O> doTransformWithThinkingIfPossibleSpringAi(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -603,7 +603,7 @@ internal class ChatClientLlmOperations(
     // ====================================
 
     @Suppress("UNCHECKED_CAST")
-    private fun <T>createParameterizedTypeReference(
+    private fun <T> createParameterizedTypeReference(
         rawType: Class<*>,
         typeArgument: Class<*>,
     ): ParameterizedTypeReference<T> {
@@ -849,7 +849,7 @@ internal class ChatClientLlmOperations(
     /**
      * Handles exceptions from CompletableFuture execution, returning Result.failure.
      */
-    private fun <O>handleFutureExceptionAsResult(
+    private fun <O> handleFutureExceptionAsResult(
         e: Exception,
         future: CompletableFuture<*>,
         interaction: LlmInteraction,

@@ -75,7 +75,7 @@ internal class StreamingLlmOperationsImpl(
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
-    override fun <O>createObjectStream(
+    override fun <O> createObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -85,7 +85,7 @@ internal class StreamingLlmOperationsImpl(
         return doTransformObjectStream(messages, interaction, outputClass, null, agentProcess, action)
     }
 
-    override fun <O>createObjectStreamIfPossible(
+    override fun <O> createObjectStreamIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -99,7 +99,7 @@ internal class StreamingLlmOperationsImpl(
             }
     }
 
-    override fun <O>createObjectStreamWithThinking(
+    override fun <O> createObjectStreamWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -137,7 +137,7 @@ internal class StreamingLlmOperationsImpl(
         return messageStreamer.stream(messagesWithContributions, tools, interaction.toolCallInspectors)
     }
 
-    override fun <O>doTransformObjectStream(
+    override fun <O> doTransformObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -157,7 +157,7 @@ internal class StreamingLlmOperationsImpl(
             .map { (it as StreamingEvent.Object).item }
     }
 
-    override fun <O>doTransformObjectStreamWithThinking(
+    override fun <O> doTransformObjectStreamWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -187,7 +187,7 @@ internal class StreamingLlmOperationsImpl(
      * 2. Line buffering via [rawChunksToLines]
      * 3. Event generation via [StreamingJacksonOutputConverter]
      */
-    private fun <O>doTransformObjectStreamInternal(
+    private fun <O> doTransformObjectStreamInternal(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,

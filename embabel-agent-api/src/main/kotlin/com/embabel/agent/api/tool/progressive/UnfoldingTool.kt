@@ -934,10 +934,10 @@ internal fun tryShortcutDispatch(input: String, innerTools: List<Tool>): Tool.Re
     if (!parsed.isObject) return null
 
     val innerToolsByName = innerTools.associateBy { it.definition.name }
-    for (fieldName in parsed.propertyNames()) {
-        val innerTool = innerToolsByName[fieldName]
+    for (propertyName in parsed.propertyNames()) {
+        val innerTool = innerToolsByName[propertyName]
         if (innerTool != null) {
-            val nestedArgs = parsed.get(fieldName)
+            val nestedArgs = parsed.get(propertyName)
             val argsString = if (nestedArgs.isObject || nestedArgs.isArray) {
                 nestedArgs.toString()
             } else {
@@ -946,7 +946,7 @@ internal fun tryShortcutDispatch(input: String, innerTools: List<Tool>): Tool.Re
             }
             shortcutLogger.info(
                 "Shortcut dispatch: LLM passed '{}' arguments to outer tool — forwarding to inner tool",
-                fieldName,
+                propertyName,
             )
             return innerTool.call(argsString)
         }

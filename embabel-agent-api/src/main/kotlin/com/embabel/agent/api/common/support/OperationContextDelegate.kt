@@ -206,7 +206,7 @@ internal data class OperationContextDelegate(
     }
 
     // Execution methods
-    override fun <T>createObject(
+    override fun <T> createObject(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T {
@@ -242,7 +242,7 @@ internal data class OperationContextDelegate(
         )
     }
 
-    override fun <T>createObjectIfPossible(
+    override fun <T> createObjectIfPossible(
         messages: List<Message>,
         outputClass: Class<T>,
     ): T? {
@@ -415,7 +415,7 @@ internal data class OperationContextDelegate(
     override fun supportsThinking(): Boolean = true
 
     // Patterned after createObject() - uses ProcessContext flow
-    override fun <T>createObjectWithThinking(
+    override fun <T> createObjectWithThinking(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T> {
@@ -433,7 +433,7 @@ internal data class OperationContextDelegate(
     }
 
     // Patterned after createObjectWithThinking() - uses ProcessContext flow
-    override fun <T>createObjectIfPossibleWithThinking(
+    override fun <T> createObjectIfPossibleWithThinking(
         messages: List<Message>,
         outputClass: Class<T>
     ): ThinkingResponse<T?> {

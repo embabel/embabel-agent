@@ -124,7 +124,7 @@ open class ToolLoopLlmOperations(
     objectMapper = objectMapper,
 ) {
 
-    override fun <O>doTransform(
+    override fun <O> doTransform(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -206,7 +206,7 @@ open class ToolLoopLlmOperations(
         return finalResult
     }
 
-    override fun <O>doTransformIfPossible(
+    override fun <O> doTransformIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -309,7 +309,7 @@ open class ToolLoopLlmOperations(
     }
 
     @OptIn(InternalThinkingApi::class)
-    override fun <O>doTransformWithThinking(
+    override fun <O> doTransformWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -405,7 +405,7 @@ open class ToolLoopLlmOperations(
     }
 
     @OptIn(InternalThinkingApi::class)
-    override fun <O>doTransformWithThinkingIfPossible(
+    override fun <O> doTransformWithThinkingIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -578,7 +578,7 @@ open class ToolLoopLlmOperations(
      * @param interaction The LLM interaction context
      * @return An output converter, or null for String output
      */
-    protected open fun <O>createOutputConverter(
+    protected open fun <O> createOutputConverter(
         outputClass: Class<O>,
         interaction: LlmInteraction,
     ): OutputConverter<O>? {
@@ -595,7 +595,7 @@ open class ToolLoopLlmOperations(
      * @param interaction The LLM interaction context
      * @return An output converter for MaybeReturn<O>, or null to fall back to try-catch
      */
-    internal open fun <O>createMaybeReturnOutputConverter(
+    internal open fun <O> createMaybeReturnOutputConverter(
         outputClass: Class<O>,
         interaction: LlmInteraction,
     ): OutputConverter<MaybeReturn<O>>? {
@@ -827,7 +827,7 @@ open class ToolLoopLlmOperations(
     /**
      * Publish ToolLoopStartEvent and return it for later completion tracking.
      */
-    private fun <O>publishToolLoopStartEvent(
+    private fun <O> publishToolLoopStartEvent(
         llmRequestEvent: LlmRequestEvent<O>?,
         tools: List<Tool>,
         interaction: LlmInteraction,
@@ -852,7 +852,7 @@ open class ToolLoopLlmOperations(
      * Per-call usage recording happens in the billing inspector
      * ([createBillingInspector]) — no aggregate post-loop recording is needed here.
      */
-    private fun <O>handleToolLoopCompletion(
+    private fun <O> handleToolLoopCompletion(
         toolLoopStartEvent: ToolLoopStartEvent?,
         result: com.embabel.agent.spi.loop.ToolLoopResult<O>,
         llmRequestEvent: LlmRequestEvent<*>?,
@@ -892,7 +892,7 @@ open class ToolLoopLlmOperations(
      * Handles both success and failure paths, preserving ThinkingException when present.
      */
     @OptIn(InternalThinkingApi::class)
-    private fun <O>mergeThinkingBlocksWithResult(
+    private fun <O> mergeThinkingBlocksWithResult(
         finalIterationResult: Result<ThinkingResponse<O>>,
         allThinkingBlocks: List<ThinkingBlock>
     ): Result<ThinkingResponse<O>> {

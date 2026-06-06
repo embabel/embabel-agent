@@ -113,7 +113,7 @@ internal class StreamingChatClientOperations(
         return doTransformStream(messages, interaction, null, agentProcess, action)
     }
 
-    override fun <O>createObjectStream(
+    override fun <O> createObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -123,7 +123,7 @@ internal class StreamingChatClientOperations(
         return doTransformObjectStream(messages, interaction, outputClass, null, agentProcess, action)
     }
 
-    override fun <O>createObjectStreamWithThinking(
+    override fun <O> createObjectStreamWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -133,7 +133,7 @@ internal class StreamingChatClientOperations(
         return doTransformObjectStreamWithThinking(messages, interaction, outputClass, null, agentProcess, action)
     }
 
-    override fun <O>createObjectStreamIfPossible(
+    override fun <O> createObjectStreamIfPossible(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -224,7 +224,7 @@ internal class StreamingChatClientOperations(
      * @param llmRequestEvent Optional event for tracking/observability
      * @return Flux of typed objects, thinking content filtered out
      */
-    override fun <O>doTransformObjectStream(
+    override fun <O> doTransformObjectStream(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -285,7 +285,7 @@ internal class StreamingChatClientOperations(
      * @param llmRequestEvent Optional event for tracking/observability
      * @return Flux of StreamingEvent<O> containing both thinking and object events
      */
-    override fun <O>doTransformObjectStreamWithThinking(
+    override fun <O> doTransformObjectStreamWithThinking(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,
@@ -332,7 +332,7 @@ internal class StreamingChatClientOperations(
      *
      * @return Unified Flux<StreamingEvent<O>> that public methods can filter as needed
      */
-    private fun <O>doTransformObjectStreamInternal(
+    private fun <O> doTransformObjectStreamInternal(
         messages: List<Message>,
         interaction: LlmInteraction,
         outputClass: Class<O>,

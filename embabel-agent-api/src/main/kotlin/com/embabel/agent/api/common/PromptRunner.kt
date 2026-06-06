@@ -465,7 +465,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
      * @param outputClass the class of objects to create
      * @return creating mode supporting examples, property filtering, and validation
      */
-    fun <T>creating(outputClass: Class<T>): Creating<T>
+    fun <T> creating(outputClass: Class<T>): Creating<T>
 
     /**
      * Use operations from a given template
@@ -797,7 +797,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * @param model the model data to use for template rendering
          * @return the created object of type T
          */
-        fun <T>createObject(
+        fun <T> createObject(
             outputClass: Class<T>,
             model: Map<String, Any>,
         ): T
@@ -925,7 +925,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * @param outputClass The class of the object to create
          * @return Response containing both the converted object and extracted thinking blocks
          */
-        fun <T>createObject(
+        fun <T> createObject(
             prompt: String,
             outputClass: Class<T>,
         ): ThinkingResponse<T> = createObject(
@@ -944,7 +944,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * @param outputClass The class of the object to create
          * @return Response with potentially null result but always available thinking blocks
          */
-        fun <T>createObjectIfPossible(
+        fun <T> createObjectIfPossible(
             prompt: String,
             outputClass: Class<T>,
         ): ThinkingResponse<T?> = createObjectIfPossible(
@@ -960,7 +960,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * @param outputClass The class of the object to create
          * @return Response with potentially null result but always available thinking blocks
          */
-        fun <T>createObjectIfPossible(
+        fun <T> createObjectIfPossible(
             messages: List<Message>,
             outputClass: Class<T>,
         ): ThinkingResponse<T?>
@@ -973,7 +973,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * @param outputClass The class of the object to create
          * @return Response containing both the converted object and extracted thinking blocks
          */
-        fun <T>createObject(
+        fun <T> createObject(
             messages: List<Message>,
             outputClass: Class<T>,
         ): ThinkingResponse<T>
@@ -998,7 +998,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * @param outputClass The class of the object to create
          * @return Response containing both the converted object and extracted thinking blocks
          */
-        fun <T>createObject(
+        fun <T> createObject(
             content: MultimodalContent,
             outputClass: Class<T>,
         ): ThinkingResponse<T> = createObject(
@@ -1014,7 +1014,7 @@ interface PromptRunner : LlmUse, PromptRunnerOperations, ToolChaining<PromptRunn
          * @param outputClass The class of the object to create
          * @return Response with potentially null result but always available thinking blocks
          */
-        fun <T>createObjectIfPossible(
+        fun <T> createObjectIfPossible(
             content: MultimodalContent,
             outputClass: Class<T>,
         ): ThinkingResponse<T?> = createObjectIfPossible(
