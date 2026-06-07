@@ -500,6 +500,144 @@ embedding_models:
       usd_per1m_tokens: 0.15
 ----
 
+====== OCI Generative AI
+
+OCI Generative AI models are configured through the `embabel-agent-starter-oci-genai` starter dependency.
+The starter registers OCI chat and embedding models from bundled metadata and uses the OCI Java SDK authentication providers.
+
+When the standard OpenAI provider is not on the classpath, the OCI starter supplies OCI defaults for Embabel's default
+LLM and embedding model:
+
+[source,properties]
+----
+embabel.models.default-llm=cohere.command-a-03-2025
+embabel.models.default-embedding-model=cohere.embed-v4.0
+----
+
+Override those values in application configuration if you want another OCI model.
+Use OCI model ids for Embabel model selection.
+The starter's Spring bean names are Java-friendly aliases, for example `cohere_command_a` for `cohere.command-a-03-2025`
+and `llama_33_70b` for `meta.llama-3.3-70b-instruct`.
+
+[cols="3,2,1,4",options="header"]
+|===
+|Property |Type |Default |Description
+
+|`embabel.agent.platform.models.ocigenai.authentication-type`
+|Enum
+|`FILE`
+|Authentication provider to use. Supported values are `FILE`, `INSTANCE_PRINCIPAL`, `RESOURCE_PRINCIPAL`, `WORKLOAD_IDENTITY`, `SESSION_TOKEN` and `SIMPLE`.
+
+|`embabel.agent.platform.models.ocigenai.config-file`
+|String
+|`~/.oci/config`
+|OCI config file path for `FILE` authentication, or optional config file path for `SESSION_TOKEN` authentication.
+
+|`embabel.agent.platform.models.ocigenai.profile`
+|String
+|`DEFAULT`
+|OCI config profile name.
+
+|`embabel.agent.platform.models.ocigenai.region`
+|String
+|_(none)_
+|OCI region id, such as `us-chicago-1`. Used when an explicit endpoint is not set.
+
+|`embabel.agent.platform.models.ocigenai.endpoint`
+|String
+|_(none)_
+|Explicit OCI Generative AI inference endpoint URL. Overrides region-based endpoint selection.
+
+|`embabel.agent.platform.models.ocigenai.compartment-id`
+|String
+|_(none)_
+|OCI compartment OCID used for chat and embedding requests. Required.
+
+|`embabel.agent.platform.models.ocigenai.serving-mode`
+|Enum
+|`ON_DEMAND`
+|OCI serving mode. Supported values are `ON_DEMAND` and `DEDICATED`.
+
+|`embabel.agent.platform.models.ocigenai.endpoint-id`
+|String
+|_(none)_
+|Dedicated serving endpoint OCID. Required when `serving-mode` is `DEDICATED`.
+
+|`embabel.agent.platform.models.ocigenai.tenant-id`
+|String
+|_(none)_
+|Tenancy OCID for `SIMPLE`, `SESSION_TOKEN`, or workload identity configuration as required by the selected OCI authentication provider.
+
+|`embabel.agent.platform.models.ocigenai.user-id`
+|String
+|_(none)_
+|User OCID for `SIMPLE` or builder-based `SESSION_TOKEN` authentication.
+
+|`embabel.agent.platform.models.ocigenai.fingerprint`
+|String
+|_(none)_
+|API key fingerprint for `SIMPLE` or builder-based `SESSION_TOKEN` authentication.
+
+|`embabel.agent.platform.models.ocigenai.private-key`
+|String
+|_(none)_
+|PEM private key content for `SIMPLE` authentication. Prefer `private-key-file` where possible.
+
+|`embabel.agent.platform.models.ocigenai.private-key-file`
+|String
+|_(none)_
+|Path to a PEM private key file for `SIMPLE` or builder-based `SESSION_TOKEN` authentication.
+
+|`embabel.agent.platform.models.ocigenai.pass-phrase`
+|String
+|_(none)_
+|Private key pass phrase, if the configured private key is encrypted.
+
+|`embabel.agent.platform.models.ocigenai.session-token`
+|String
+|_(none)_
+|Session token value for builder-based `SESSION_TOKEN` authentication.
+
+|`embabel.agent.platform.models.ocigenai.session-token-file`
+|String
+|_(none)_
+|Path to a session token file for builder-based `SESSION_TOKEN` authentication.
+
+|`embabel.agent.platform.models.ocigenai.workload-identity-token-path`
+|String
+|_(none)_
+|Workload identity token path for `WORKLOAD_IDENTITY` authentication.
+
+|`embabel.agent.platform.models.ocigenai.federation-endpoint`
+|String
+|_(none)_
+|Optional federation endpoint for principal-based authentication.
+
+|`embabel.agent.platform.models.ocigenai.max-attempts`
+|Int
+|`10`
+|Maximum retry attempts for OCI GenAI requests.
+
+|`embabel.agent.platform.models.ocigenai.backoff-millis`
+|Long
+|`5000`
+|Initial retry backoff in milliseconds.
+
+|`embabel.agent.platform.models.ocigenai.backoff-multiplier`
+|Double
+|`5.0`
+|Retry backoff multiplier.
+
+|`embabel.agent.platform.models.ocigenai.backoff-max-interval`
+|Long
+|`180000`
+|Maximum retry backoff interval in milliseconds.
+
+|===
+
+If your application exposes Spring Boot Actuator `env` or `configprops` values, secure those endpoints and sanitize OCI
+credential property names such as `pass-phrase`, `session-token` and `private-key`.
+
 ===== HTTP Client Configuration
 
 From `NettyClientFactoryProperties` - configuration for the HTTP client used by model providers (OpenAI, Anthropic, etc.) when making API calls.
@@ -800,4 +938,3 @@ From `DockerProperties` - configuration for Docker local models (OpenAI-compatib
 |Maximum backoff interval in milliseconds
 
 |===
-

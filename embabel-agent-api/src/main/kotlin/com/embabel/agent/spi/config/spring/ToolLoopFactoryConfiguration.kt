@@ -48,10 +48,26 @@ class ToolLoopFactoryConfiguration(
 
     @Bean
     @ConditionalOnMissingBean
-    fun toolNotFoundPolicy(): ToolNotFoundPolicy = AutoCorrectionPolicy(
-        maxRetries = config.toolNotFound.maxRetries,
-        minFuzzyLength = config.toolNotFound.minFuzzyLength,
-    )
+    fun toolNotFoundPolicy(): ToolNotFoundPolicy {
+        // Resolve effective token length: try new property first, fall back to deprecated, then default
+        val effectiveTokenLength = config.toolNotFound.minTokenLength
+            ?: config.toolNotFound.minFuzzyLength?.also {
+                logger.warn(
+                    """
+                    Property 'embabel.agent.platform.toolloop.tool-not-found.min-fuzzy-length={}' is deprecated.
+                    Use 'min-token-length' instead.
+                    """.trimIndent().replace("\n", " "),
+                    it,
+                )
+            }
+            ?: AutoCorrectionPolicy.DEFAULT_MIN_TOKEN_LENGTH
+
+        return AutoCorrectionPolicy(
+            maxRetries = config.toolNotFound.maxRetries,
+            minTokenLength = effectiveTokenLength,
+            minTokenSimilarity = config.toolNotFound.minTokenSimilarity,
+        )
+    }
 
     @Bean
     @ConditionalOnMissingBean

@@ -822,6 +822,19 @@ class AgentWithNonReadOnlyAction {
     }
 }
 
+@Agent(description = "agent with multiple AchievesGoal actions")
+class AgentWithMultipleAchievesGoalActions {
+
+    @AchievesGoal(description = "First result")
+    @Action
+    fun firstAction(userInput: UserInput): PersonWithReverseTool = PersonWithReverseTool(userInput.content)
+
+    @AchievesGoal(description = "Second result")
+    @Action
+    fun secondAction(person: PersonWithReverseTool): Frog = Frog(person.name)
+
+}
+
 @Agent(description = "agent with duplicate action names via overloaded methods")
 class AgentWithDuplicateActionNames {
 
