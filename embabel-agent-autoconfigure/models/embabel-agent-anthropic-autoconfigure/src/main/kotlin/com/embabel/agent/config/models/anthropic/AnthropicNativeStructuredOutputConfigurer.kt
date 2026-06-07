@@ -15,12 +15,8 @@
  */
 package com.embabel.agent.config.models.anthropic
 
-import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
-import com.embabel.common.ai.autoconfig.NativeSupport
-import com.embabel.common.ai.model.LlmMetadata
 import org.springframework.ai.anthropic.AnthropicChatOptions
-import org.springframework.ai.chat.prompt.ChatOptions
 
 /**
  * Anthropic-specific native structured-output bridge.
@@ -33,28 +29,24 @@ import org.springframework.ai.chat.prompt.ChatOptions
  * The YAML tag metadata in the model files is documented for now and is not yet
  * the source of truth for direct payload injection.
  */
-internal object AnthropicNativeStructuredOutputConfigurer : SpringAiNativeStructuredOutputConfigurer {
-
-    @Suppress("UNUSED_PARAMETER")
-    override fun configure(
-        options: ChatOptions,
-        structuredOutput: StructuredOutputRequest?,
-        nativeSupport: NativeSupport?,
-        llm: LlmMetadata?,
-    ): ChatOptions {
-        val capability = nativeSupport?.structuredOutput ?: return options
+@Suppress("UNUSED_PARAMETER")
+internal val AnthropicNativeStructuredOutputConfigurer = SpringAiNativeStructuredOutputConfigurer {
+        options,
+        structuredOutput,
+        nativeSupport,
+        _,
+    ->
+    nativeSupport?.structuredOutput?.let { capability ->
         if (structuredOutput == null || capability.supported != true) {
-            return options
+            options
+        } else if (options !is AnthropicChatOptions) {
+            options
+        } else if (capability.strategy != null && capability.strategy != "tool") {
+            options
+        } else {
+            options.copy().also { copied ->
+                copied.outputSchema = structuredOutput.schema
+            }
         }
-        if (options !is AnthropicChatOptions) {
-            return options
-        }
-        if (capability.strategy != null && capability.strategy != "tool") {
-            return options
-        }
-
-        return options.copy().also { copied ->
-            copied.outputSchema = structuredOutput.schema
-        }
-    }
+    } ?: options
 }

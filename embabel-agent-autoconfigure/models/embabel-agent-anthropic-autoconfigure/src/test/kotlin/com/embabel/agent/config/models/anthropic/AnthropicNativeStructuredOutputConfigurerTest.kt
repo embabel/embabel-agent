@@ -18,12 +18,11 @@ package com.embabel.agent.config.models.anthropic
 import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.common.ai.autoconfig.NativeStructuredOutputCapability
 import com.embabel.common.ai.autoconfig.NativeSupport
-import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.anthropic.AnthropicChatOptions
-import org.springframework.ai.chat.prompt.ChatOptions
+import org.springframework.ai.model.tool.ToolCallingChatOptions
 
 class AnthropicNativeStructuredOutputConfigurerTest {
 
@@ -73,7 +72,9 @@ class AnthropicNativeStructuredOutputConfigurerTest {
 
         @Test
         fun `returns original options when given a non anthropic chat options instance`() {
-            val options = mockk<ChatOptions>(relaxed = true)
+            val options = ToolCallingChatOptions.builder()
+                .model("generic-model")
+                .build()
 
             val configured = AnthropicNativeStructuredOutputConfigurer.configure(
                 options = options,

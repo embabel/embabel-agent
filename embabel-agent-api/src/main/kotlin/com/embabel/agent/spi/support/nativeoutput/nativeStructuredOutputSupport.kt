@@ -25,6 +25,7 @@ import com.embabel.common.ai.converters.propertiesNode
 import com.embabel.common.ai.converters.requiredFieldNames
 import com.embabel.common.ai.converters.schemaType
 import com.embabel.common.ai.model.NativeStructuredOutputMode
+import com.fasterxml.jackson.databind.JsonNode
 
 /**
  * Provider-neutral policy for deciding whether native structured output should be used.
@@ -65,43 +66,43 @@ internal fun NativeSupport?.shouldUseNativeStructuredOutput(request: LlmMessageR
 private fun String.isConservativelyCompatibleWithNativeOutput(): Boolean =
     parseJsonSchema(this)?.isConservativelyCompatibleWithNativeOutput() ?: false
 
-private fun com.fasterxml.jackson.databind.JsonNode.isConservativelyCompatibleWithNativeOutput(): Boolean {
+private fun JsonNode.isConservativelyCompatibleWithNativeOutput(): Boolean {
     if (!isObject || hasUnsupportedJsonSchemaKeywords()) {
         return false
     }
 
-    val type = schemaType()
-    if (type != null && type != "object") {
+    if (!hasObjectCompatibleType()) {
         return false
     }
 
     val properties = propertiesNode()
-    if (type == null && properties == null) {
+    if (schemaType() == null && properties == null) {
         return false
     }
 
-    if (properties != null) {
-        if (!properties.isObject) {
-            return false
-        }
-
-        val propertyNames = properties.fieldNames().asSequence().toSet()
-        if (!requiredFieldNames().containsAll(propertyNames)) {
-            return false
-        }
-
-        for (propertyName in properties.fieldNames().asSequence()) {
-            val propertySchema = properties.get(propertyName) ?: continue
-            if (!propertySchema.isConservativelyCompatibleSchemaNode()) {
-                return false
-            }
-        }
+    if (properties != null && !hasCompatibleObjectProperties(properties)) {
+        return false
     }
 
     return additionalPropertiesNode()?.isObject != true
 }
 
-private fun com.fasterxml.jackson.databind.JsonNode.isConservativelyCompatibleSchemaNode(): Boolean {
+private fun JsonNode.hasObjectCompatibleType(): Boolean =
+    schemaType().let { it == null || it == "object" }
+
+private fun JsonNode.hasCompatibleObjectProperties(properties: JsonNode): Boolean {
+    if (!properties.isObject) {
+        return false
+    }
+
+    val propertyNames = properties.fieldNames().asSequence().toSet()
+    return requiredFieldNames().containsAll(propertyNames) &&
+        propertyNames.all { propertyName ->
+            properties.get(propertyName)?.isConservativelyCompatibleSchemaNode() == true
+        }
+}
+
+private fun JsonNode.isConservativelyCompatibleSchemaNode(): Boolean {
     if (!isObject || hasUnsupportedJsonSchemaKeywords()) {
         return false
     }
@@ -119,7 +120,7 @@ private fun com.fasterxml.jackson.databind.JsonNode.isConservativelyCompatibleSc
     }
 }
 
-private fun com.fasterxml.jackson.databind.JsonNode.isConservativelyCompatibleArray(): Boolean {
+private fun JsonNode.isConservativelyCompatibleArray(): Boolean {
     val items = itemsNode() ?: return false
     if (!items.isObject || items.hasUnsupportedJsonSchemaKeywords()) {
         return false

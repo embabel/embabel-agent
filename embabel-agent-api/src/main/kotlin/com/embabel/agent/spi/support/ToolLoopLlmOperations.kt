@@ -154,16 +154,7 @@ open class ToolLoopLlmOperations(
         } else null
 
         val schemaFormat = converter?.getFormat()
-        val nativeStructuredOutputRequest = converter?.getJsonSchema()?.let { jsonSchema ->
-            NativeStructuredOutputRequest(
-                structuredOutputRequest = StructuredOutputRequest(
-                    name = outputClass.simpleName,
-                    schema = jsonSchema,
-                ),
-                nativeStructuredOutputMode = interaction.llm.getNativeStructuredOutput()
-                    ?: NativeStructuredOutputMode.DEFAULT,
-            )
-        }
+        val nativeStructuredOutputRequest = nativeStructuredOutputRequest(outputClass, converter, interaction)
 
         val outputParser: (String) -> O = if (outputClass == String::class.java) {
             @Suppress("UNCHECKED_CAST")
@@ -352,16 +343,7 @@ open class ToolLoopLlmOperations(
         } else null
 
         val schemaFormat = converter?.getFormat()
-        val nativeStructuredOutputRequest = converter?.getJsonSchema()?.let { jsonSchema ->
-            NativeStructuredOutputRequest(
-                structuredOutputRequest = StructuredOutputRequest(
-                    name = outputClass.simpleName,
-                    schema = jsonSchema,
-                ),
-                nativeStructuredOutputMode = interaction.llm.getNativeStructuredOutput()
-                    ?: NativeStructuredOutputMode.DEFAULT,
-            )
-        }
+        val nativeStructuredOutputRequest = nativeStructuredOutputRequest(outputClass, converter, interaction)
 
         // Output parser that extracts thinking blocks and parses the result
         // For String output: return raw text (with thinking tags preserved)
@@ -618,6 +600,22 @@ open class ToolLoopLlmOperations(
             delegate
         } else {
             StructuredOutputLlmMessageSender(delegate, nativeStructuredOutputRequest)
+        }
+
+    private fun <O> nativeStructuredOutputRequest(
+        outputClass: Class<O>,
+        converter: OutputConverter<O>?,
+        interaction: LlmInteraction,
+    ): NativeStructuredOutputRequest? =
+        converter?.getJsonSchema()?.let { jsonSchema ->
+            NativeStructuredOutputRequest(
+                structuredOutputRequest = StructuredOutputRequest(
+                    name = outputClass.simpleName,
+                    schema = jsonSchema,
+                ),
+                nativeStructuredOutputMode = interaction.llm.getNativeStructuredOutput()
+                    ?: NativeStructuredOutputMode.DEFAULT,
+            )
         }
 
     /**

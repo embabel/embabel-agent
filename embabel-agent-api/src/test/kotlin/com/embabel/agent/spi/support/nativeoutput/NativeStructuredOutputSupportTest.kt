@@ -117,6 +117,104 @@ class NativeStructuredOutputSupportTest {
 
             assertThat(nativeSupport.shouldUseNativeStructuredOutput(request)).isFalse()
         }
+
+        @Test
+        fun `disables native structured output when request has no native metadata`() {
+            val request = LlmMessageRequest(
+                messages = listOf(UserMessage("prompt")),
+                tools = emptyList(),
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isFalse()
+        }
+
+        @Test
+        fun `rejects invalid schemas`() {
+            val request = nativeRequest("{ not-json")
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isFalse()
+        }
+
+        @Test
+        fun `rejects object schemas missing required properties`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" }
+                      },
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isFalse()
+        }
+
+        @Test
+        fun `uses native structured output for compatible nested objects`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" }
+                          },
+                          "required": ["name"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["month"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isTrue()
+        }
+
+        @Test
+        fun `uses native structured output for arrays of primitive values`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "names": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        }
+                      },
+                      "required": ["names"],
+                      "additionalProperties": false
+                    }
+                """.trimIndent()
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isTrue()
+        }
+
+        @Test
+        fun `rejects object schemas with additionalProperties schema`() {
+            val request = nativeRequest(
+                """
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" }
+                      },
+                      "required": ["name"],
+                      "additionalProperties": { "type": "string" }
+                    }
+                """.trimIndent()
+            )
+
+            assertThat(nativeSupport(true).shouldUseNativeStructuredOutput(request)).isFalse()
+        }
     }
 
     private fun nativeSupport(supported: Boolean): NativeSupport =
