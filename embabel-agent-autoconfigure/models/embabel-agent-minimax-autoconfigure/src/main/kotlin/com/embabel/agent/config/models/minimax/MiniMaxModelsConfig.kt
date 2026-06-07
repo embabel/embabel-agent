@@ -78,7 +78,7 @@ class MiniMaxProperties : RetryProperties {
 
 /**
  * Configuration class for MiniMax models.
- * This class provides beans for MiniMax models (M2.7, M2.7-highspeed)
+ * This class provides beans for MiniMax models (M3, M2.7, M2.7-highspeed)
  * via the OpenAI-compatible API provided by MiniMax.
  *
  * MiniMax models require temperature values in the range (0.0, 1.0].
@@ -119,6 +119,21 @@ class MiniMaxModelsConfig(
 
     init {
         logger.info("MiniMax models are available: {}", properties)
+    }
+
+    @Bean
+    fun miniMaxM3(): LlmService<*> {
+        return openAiCompatibleLlm(
+            model = MiniMaxModels.MINIMAX_M3,
+            provider = MiniMaxModels.PROVIDER,
+            knowledgeCutoffDate = LocalDate.of(2025, 6, 1),
+            optionsConverter = MiniMaxOptionsConverter,
+            pricingModel = PerTokenPricingModel(
+                usdPer1mInputTokens = 0.60,
+                usdPer1mOutputTokens = 2.40,
+            ),
+            retryTemplate = properties.retryTemplate(MiniMaxModels.MINIMAX_M3),
+        )
     }
 
     @Bean

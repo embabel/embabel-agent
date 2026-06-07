@@ -35,15 +35,17 @@ class AgentMiniMaxAutoConfigurationTest {
            .withPropertyValues("embabel.agent.platform.models.minimax.api-key=test-key");
 
    /**
-    * Confirms that both MiniMax model beans are registered and backed by the generic LLM service abstraction exposed to the rest of the platform.
+    * Confirms that all MiniMax model beans are registered and backed by the generic LLM service abstraction exposed to the rest of the platform.
     */
    @Test
    void registersMiniMaxModelBeans() {
       // Act
       contextRunner.run(context -> {
          // Assert
+         assertThat(context).hasBean("miniMaxM3");
          assertThat(context).hasBean("miniMaxM27");
          assertThat(context).hasBean("miniMaxM27Highspeed");
+         assertThat(context.getBean("miniMaxM3")).isInstanceOf(LlmService.class);
          assertThat(context.getBean("miniMaxM27")).isInstanceOf(LlmService.class);
          assertThat(context.getBean("miniMaxM27Highspeed")).isInstanceOf(LlmService.class);
       });

@@ -26,6 +26,7 @@ class MiniMaxModels {
 
     companion object {
 
+        const val MINIMAX_M3 = "MiniMax-M3"
         const val MINIMAX_M2_7 = "MiniMax-M2.7"
         const val MINIMAX_M2_7_HIGHSPEED = "MiniMax-M2.7-highspeed"
 
