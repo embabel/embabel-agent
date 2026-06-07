@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.bedrock
 
+import com.embabel.agent.config.models.bedrock.BedrockProperties.Companion.PREFIX
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -60,7 +61,7 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient
  * Configuration properties for Bedrock models.
  * These properties control retry behavior when calling AWS Bedrock APIs.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.bedrock")
+@ConfigurationProperties(prefix = PREFIX)
 class BedrockProperties : RetryProperties {
     /**
      * Maximum number of attempts.
@@ -81,6 +82,11 @@ class BedrockProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.bedrock"
+    }
 }
 
 /**

@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.openai
 
 import com.embabel.agent.api.models.OpenAiModels
+import com.embabel.agent.config.models.openai.OpenAiProperties.Companion.PREFIX
 import com.embabel.agent.openai.Gpt5ChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
@@ -47,7 +48,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * These properties can be set in application.properties/yaml using the
  * prefix embabel.agent.platform.models.openai.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.openai")
+@ConfigurationProperties(prefix = PREFIX)
 class OpenAiProperties : RetryProperties {
     /**
      * Base URL for OpenAI API requests.
@@ -88,6 +89,11 @@ class OpenAiProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.openai"
+    }
 }
 
 /**

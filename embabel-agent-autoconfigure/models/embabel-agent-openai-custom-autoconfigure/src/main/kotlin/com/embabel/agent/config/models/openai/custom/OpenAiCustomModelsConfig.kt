@@ -15,6 +15,7 @@
  */
 package com.embabel.agent.config.models.openai.custom
 
+import com.embabel.agent.config.models.openai.custom.OpenAiCustomProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.openai.StandardOpenAiOptionsConverter
 import com.embabel.agent.spi.LlmService
@@ -41,7 +42,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * These properties can be set in application.properties/yaml using the
  * prefix embabel.agent.platform.models.openai.custom
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.openai.custom")
+@ConfigurationProperties(prefix = PREFIX)
 class OpenAiCustomProperties : RetryProperties {
     /**
      * Base URL for OpenAI Custom API requests.
@@ -89,6 +90,11 @@ class OpenAiCustomProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.openai.custom"
+    }
 }
 
 /**

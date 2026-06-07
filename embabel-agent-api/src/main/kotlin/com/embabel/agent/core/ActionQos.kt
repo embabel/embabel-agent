@@ -16,7 +16,6 @@
 package com.embabel.agent.core
 
 import com.embabel.agent.spi.common.RetryProperties
-
 /**
  * Quality of service requirements for an action
  */
@@ -25,5 +24,6 @@ data class ActionQos(
     override val backoffMillis: Long = 10000,
     override val backoffMultiplier: Double = 5.0,
     override val backoffMaxInterval: Long = 60000,
+    override val propertyPrefix: String = "",
     val idempotent: Boolean = false,
 ) : RetryProperties
