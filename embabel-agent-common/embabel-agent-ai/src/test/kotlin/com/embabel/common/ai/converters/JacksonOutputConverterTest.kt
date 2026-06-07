@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Nested
@@ -73,6 +74,48 @@ class JacksonOutputConverterTest {
         val localDate: LocalDate,
         val localDateTime: LocalDateTime,
     )
+
+    data class KotlinRequiredChild(
+        val name: String,
+        val note: String?,
+    )
+
+    data class KotlinRequiredParent(
+        val child: KotlinRequiredChild,
+        val title: String,
+        val optional: String?,
+    )
+
+    @Nested
+    inner class SchemaNormalizationTests {
+
+        @Test
+        fun `marks Kotlin non-null properties as required`() {
+            val converter = JacksonOutputConverter(KotlinRequiredParent::class.java, objectMapper)
+            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
+
+            assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder("child", "title")
+            assertThat(schema.path("properties").path("optional").requiredFieldNames()).isEmpty()
+            assertThat(schema.path("properties").path("child").requiredFieldNames()).containsExactlyInAnyOrder("name")
+        }
+
+        @Test
+        fun `marks Java primitives and annotations as required while leaving plain references optional`() {
+            val javaType = Class.forName("com.embabel.common.ai.converters.JavaStructuredOutputFixtures\$Parent")
+                as Class<Any>
+            val converter = JacksonOutputConverter(javaType, objectMapper)
+            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
+
+            assertThat(schema.requiredFieldNames()).containsExactlyInAnyOrder(
+                "primitiveCount",
+                "explicitRequired",
+                "validatedRequired",
+            )
+            assertThat(schema.path("properties").path("optionalText").requiredFieldNames()).isEmpty()
+            assertThat(schema.path("properties").path("child").requiredFieldNamesOrRefResolved(schema))
+                .containsExactlyInAnyOrder("count")
+        }
+    }
 
     @Nested
     inner class MalformedEscapedQuotesTests {
@@ -500,4 +543,19 @@ World"""
             assertEquals("User's preference", result?.propositions?.get(0)?.text)
         }
     }
+}
+
+private fun com.fasterxml.jackson.databind.JsonNode.requiredFieldNamesOrRefResolved(
+    rootSchema: com.fasterxml.jackson.databind.JsonNode,
+): Set<String> {
+    val ref = get("\$ref")?.takeIf { it.isTextual }?.asText()
+    if (ref != null && ref.startsWith("#/")) {
+        val resolved = ref
+            .removePrefix("#/")
+            .split('/')
+            .fold(rootSchema) { current, token -> current.get(token) ?: return emptySet() }
+        return resolved.requiredFieldNames()
+    }
+
+    return requiredFieldNames()
 }

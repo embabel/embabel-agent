@@ -32,13 +32,23 @@ import org.springframework.core.ParameterizedTypeReference
 import java.lang.reflect.Type
 
 /**
+ * Exposes a raw JSON Schema for converters that can describe their target type.
+ *
+ * This is separate from [StructuredOutputConverter.getFormat], which is prompt
+ * text for LLMs. Native structured-output payloads need the schema itself.
+ */
+interface JsonSchemaProvider {
+    val jsonSchema: String
+}
+
+/**
  * A Kotlin version of [org.springframework.ai.converter.BeanOutputConverter] that allows for customization
  * of the used schema via [postProcessSchema]
  */
 open class JacksonOutputConverter<T> protected constructor(
     private val type: Type,
     val objectMapper: ObjectMapper,
-) : StructuredOutputConverter<T> {
+) : StructuredOutputConverter<T>, JsonSchemaProvider {
 
     constructor(
         clazz: Class<T>,
@@ -75,7 +85,7 @@ open class JacksonOutputConverter<T> protected constructor(
         }
     }
 
-    val jsonSchema: String by lazy {
+    override val jsonSchema: String by lazy {
         val config = schemaGeneratorConfigBuilder().build()
         val generator = SchemaGenerator(config)
         val jsonNode: JsonNode = generator.generateSchema(this.type)
@@ -112,10 +122,15 @@ open class JacksonOutputConverter<T> protected constructor(
     }
 
     /**
-     * Empty template method that allows for customization of the JSON schema in subclasses.
+     * Template method that allows for customization of the JSON schema in subclasses.
+     *
+     * The default implementation normalizes `required` from trusted type metadata
+     * so the generated schema stays aligned with Kotlin nullability, Java primitives,
+     * and explicit required annotations.
      * @param jsonNode the JSON schema, in the form of a JSON node
      */
     protected open fun postProcessSchema(jsonNode: JsonNode) {
+        jsonNode.normalizeRequiredFields(this.type, this.objectMapper)
     }
 
     override fun convert(text: String): T? {

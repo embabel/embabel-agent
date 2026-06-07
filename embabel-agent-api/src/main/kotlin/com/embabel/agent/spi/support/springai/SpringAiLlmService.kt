@@ -19,6 +19,7 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.loop.LlmMessageSender
 import com.embabel.agent.spi.loop.streaming.LlmMessageStreamer
 import com.embabel.agent.spi.support.springai.streaming.SpringAiLlmMessageStreamer
+import com.embabel.common.ai.autoconfig.NativeSupport
 import com.embabel.common.ai.model.*
 import com.embabel.common.ai.prompt.KnowledgeCutoffDate
 import com.embabel.common.ai.prompt.PromptContributor
@@ -92,6 +93,8 @@ private object StreamingCapabilityVerifier {
  * @param toolResponseContentAdapter Adapts tool response content for provider-specific
  *        format requirements. Defaults to [ToolResponseContentAdapter.PASSTHROUGH].
  *        Google GenAI requires JSON; OpenAI/Anthropic accept plain text.
+ * @param nativeStructuredOutputConfigurer Spring AI-specific translator for native structured-output
+ *        request metadata. Defaults to no-op so unsupported providers keep prompt-schema fallback.
  */
 @JsonSerialize(`as` = LlmMetadata::class)
 data class SpringAiLlmService @JvmOverloads constructor(
@@ -105,6 +108,9 @@ data class SpringAiLlmService @JvmOverloads constructor(
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
     override val pricingModel: PricingModel? = null,
     val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
+    val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
+        SpringAiNativeStructuredOutputConfigurer.NOOP,
+    val nativeSupport: NativeSupport? = null,
 ) : LlmService<SpringAiLlmService>, AiModel<ChatModel> {
 
     /**
@@ -115,7 +121,14 @@ data class SpringAiLlmService @JvmOverloads constructor(
 
     override fun createMessageSender(options: LlmOptions): LlmMessageSender {
         val chatOptions = optionsConverter.convertOptions(options)
-        return SpringAiLlmMessageSender(chatModel, chatOptions, toolResponseContentAdapter)
+        return SpringAiLlmMessageSender(
+            chatModel = chatModel,
+            chatOptions = chatOptions,
+            toolResponseContentAdapter = toolResponseContentAdapter,
+            nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
+            nativeSupport = nativeSupport,
+            llmMetadata = this,
+        )
     }
 
     override fun createMessageStreamer(options: LlmOptions): LlmMessageStreamer {

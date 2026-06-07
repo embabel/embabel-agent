@@ -22,6 +22,7 @@ import com.embabel.agent.openai.StandardOpenAiOptionsConverter
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
+import com.embabel.agent.spi.support.springai.SpringAiNativeStructuredOutputConfigurer
 import com.embabel.common.ai.autoconfig.LlmAutoConfigMetadataLoader
 import com.embabel.common.ai.autoconfig.ProviderInitialization
 import com.embabel.common.ai.autoconfig.RegisteredModel
@@ -116,6 +117,8 @@ class OpenAiModelsConfig(
     private val modelLoader: LlmAutoConfigMetadataLoader<OpenAiModelDefinitions> = OpenAiModelLoader(),
     @Qualifier("aiModelWebClientBuilder")
     webClientBuilder: ObjectProvider<WebClient.Builder>,
+    private val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
+        OpenAiNativeStructuredOutputConfigurer,
 ) : OpenAiCompatibleModelFactory(
     baseUrl = envBaseUrl ?: properties.baseUrl,
     apiKey = envApiKey ?: properties.apiKey
@@ -135,10 +138,11 @@ class OpenAiModelsConfig(
     @Bean
     fun openAiModelsInitializer(): ProviderInitialization {
         val definitions = modelLoader.loadAutoConfigMetadata()
+        val effectiveModels = definitions.effectiveModels()
 
         val registeredLlms = buildList {
             // Register LLM models
-            definitions.models.forEach { modelDef ->
+            effectiveModels.forEach { modelDef ->
                 try {
                     val llm = createOpenAiLlm(modelDef)
                     configurableBeanFactory.registerSingleton(modelDef.name, llm)
@@ -213,6 +217,8 @@ class OpenAiModelsConfig(
             optionsConverter = optionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = pricingModel,
+            nativeStructuredOutputConfigurer = nativeStructuredOutputConfigurer,
+            nativeSupport = modelDef.nativeSupport,
         )
     }
 

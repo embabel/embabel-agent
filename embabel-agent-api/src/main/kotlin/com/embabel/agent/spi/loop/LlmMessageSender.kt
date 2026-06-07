@@ -18,6 +18,49 @@ package com.embabel.agent.spi.loop
 import com.embabel.agent.api.tool.Tool
 import com.embabel.agent.core.Usage
 import com.embabel.chat.Message
+import com.embabel.common.ai.model.NativeStructuredOutputMode
+
+/**
+ * Native structured-output payload for a single call.
+ *
+ * This keeps the schema request and its per-call policy together so the caller does
+ * not need to manage two separate fields.
+ */
+data class NativeStructuredOutputRequest @JvmOverloads constructor(
+    val structuredOutputRequest: StructuredOutputRequest,
+    val nativeStructuredOutputMode: NativeStructuredOutputMode = NativeStructuredOutputMode.DEFAULT,
+)
+
+/**
+ * Provider-neutral request for native structured output.
+ *
+ * The schema is raw JSON Schema. It is intentionally separate from prompt format
+ * instructions so provider adapters can translate it into their own payload shape.
+ *
+ * @param strict whether providers that support strict schema enforcement should request it.
+ * Providers without such a setting may ignore this.
+ */
+data class StructuredOutputRequest @JvmOverloads constructor(
+    val name: String,
+    val schema: String,
+    val description: String? = null,
+    val strict: Boolean = true,
+)
+
+/**
+ * Framework-agnostic request for a single LLM inference call.
+ */
+data class LlmMessageRequest @JvmOverloads constructor(
+    val messages: List<Message>,
+    val tools: List<Tool>,
+    /**
+     * Provider-neutral native structured-output request for this call.
+     *
+     * This carries the schema payload together with the per-call policy that decides
+     * whether the native path should be used, defaulting to automatic runtime selection.
+     */
+    val nativeStructuredOutputRequest: NativeStructuredOutputRequest? = null,
+)
 
 /**
  * Framework-agnostic result of a single LLM inference call.
@@ -44,7 +87,7 @@ data class LlmMessageResponse(
  */
 fun interface LlmMessageSender {
 
-    /**c
+    /**
      * Make a single LLM inference call.
      *
      * @param messages The conversation history
@@ -55,4 +98,12 @@ fun interface LlmMessageSender {
         messages: List<Message>,
         tools: List<Tool>,
     ): LlmMessageResponse
+}
+
+/**
+ * Optional extension interface for senders that can consume request-level metadata.
+ */
+interface RequestAwareLlmMessageSender : LlmMessageSender {
+
+    fun call(request: LlmMessageRequest): LlmMessageResponse
 }

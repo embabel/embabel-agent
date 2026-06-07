@@ -4,6 +4,27 @@
 # Updated with latest Anthropic models as of March 2026
 # Using official Anthropic API aliases
 
+native_support_defaults:
+  structured_output:
+    # Default native structured-output metadata for Anthropic models.
+    # The tag names under options are documentation-only for now; the current
+    # configurer still uses Spring AI option objects for payload mutation.
+    # Native structured output is disabled by default until Anthropic behavior
+    # is verified end-to-end for the supported shapes we care about.
+    supported: false
+    strategy: "tool"
+    strict: true
+    prompt_instructions: "include"
+    options:
+      # Documentation only for now.
+      tools_field: "tools"
+      # Documentation only for now.
+      tool_name_field: "name"
+      # Documentation only for now.
+      tool_description_field: "description"
+      # Documentation only for now.
+      input_schema_field: "input_schema"
+
 models:
   # ========================================
   # CLAUDE 4.6 FAMILY (Latest Generation)
@@ -28,7 +49,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
-
   # ========================================
   # CLAUDE 4.5 FAMILY (Previous Generation)
   # ========================================
@@ -42,7 +62,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
-
   # Claude Haiku 4.5 - Fast, cost-efficient with near-frontier performance
   - name: "claude_haiku_45"
     model_id: "claude-haiku-4-5"
@@ -52,7 +71,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 1.0
       usd_per1m_output_tokens: 5.0
-
   # ========================================
   # CLAUDE 4 FAMILY (Current Generation)
   # ========================================
@@ -66,7 +84,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 15.0
       usd_per1m_output_tokens: 75.0
-
   # Claude Sonnet 4 - General purpose, large context window
   - name: "claude_sonnet_4"
     model_id: "claude-sonnet-4-0"
@@ -76,7 +93,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 3.0
       usd_per1m_output_tokens: 15.0
-
   # ========================================
   # LEGACY MODELS (For Backward Compatibility)
   # ========================================
@@ -90,7 +106,6 @@ models:
     pricing_model:
       usd_per1m_input_tokens: 15.0
       usd_per1m_output_tokens: 75.0
-
   # Claude 3.5 Haiku - Legacy fast model (replaced by Haiku 4.5)
   - name: "claude_haiku_35"
     model_id: "claude-3-5-haiku-latest"
