@@ -379,7 +379,7 @@ class GoogleGenAiModelLoaderTest {
     }
 
     @Test
-    fun `should load all 9 expected Google GenAI models`() {
+    fun `should load all 11 expected Google GenAI models`() {
 
         // Arrange
         val loader = GoogleGenAiModelLoader()
@@ -388,12 +388,13 @@ class GoogleGenAiModelLoaderTest {
         val result = loader.loadAutoConfigMetadata()
 
         // Assert
-        assertEquals(9, result.models.size, "Should load exactly 9 Google GenAI models")
+        assertEquals(11, result.models.size, "Should load exactly 11 Google GenAI models")
 
         val expectedModels = listOf(
             "gemini_3_1_pro_preview", "gemini_3_1_pro_preview_customtools",
             "gemini_3_flash_preview", "gemini_3_1_flash_lite_preview", "gemini_25_pro", "gemini_25_flash",
-            "gemini_25_flash_lite", "gemini_20_flash", "gemini_20_flash_lite"
+            "gemini_25_flash_lite", "gemini_20_flash", "gemini_20_flash_lite",
+            "gemini_3_5_flash", "gemini_3_1_flash_lite"
         )
 
         expectedModels.forEach { expectedName ->
@@ -464,6 +465,36 @@ class GoogleGenAiModelLoaderTest {
         assertNotNull(gemini31FlashLitePreview, "Gemini 3.1 Flash Lite preview should be loaded")
         assertEquals("gemini_3_1_flash_lite_preview", gemini31FlashLitePreview?.name)
         assertEquals("gemini-3.1-flash-lite-preview", gemini31FlashLitePreview?.modelId)
+    }
+
+    @Test
+    fun `should load Gemini 35 Flash model`() {
+        // Arrange
+        val loader = GoogleGenAiModelLoader()
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert - verify Gemini 3.5 Flash is present
+        val gemini35Flash = result.models.find { it.modelId == "gemini-3.5-flash" }
+        assertNotNull(gemini35Flash, "Gemini 3.5 Flash should be loaded")
+        assertEquals("gemini_3_5_flash", gemini35Flash?.name)
+        assertEquals("gemini-3.5-flash", gemini35Flash?.modelId)
+    }
+
+    @Test
+    fun `should load Gemini 31 Flash Lite model`() {
+        // Arrange
+        val loader = GoogleGenAiModelLoader()
+
+        // Act
+        val result = loader.loadAutoConfigMetadata()
+
+        // Assert - verify Gemini 3.1 Flash Lite is present
+        val gemini31FlashLite = result.models.find { it.modelId == "gemini-3.1-flash-lite" }
+        assertNotNull(gemini31FlashLite, "Gemini 3.1 Flash Lite should be loaded")
+        assertEquals("gemini_3_1_flash_lite", gemini31FlashLite?.name)
+        assertEquals("gemini-3.1-flash-lite", gemini31FlashLite?.modelId)
     }
 
     @Test

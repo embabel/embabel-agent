@@ -77,9 +77,11 @@ class GoogleGenAiChatIntegrationIT(
     @Test
     fun `registers all google genai model beans`() {
         val expectedBeans = listOf(
+            "gemini_3_5_flash",
             "gemini_3_1_pro_preview",
             "gemini_3_1_pro_preview_customtools",
             "gemini_3_flash_preview",
+            "gemini_3_1_flash_lite",
             "gemini_3_1_flash_lite_preview",
             "gemini_25_pro",
             "gemini_25_flash",
@@ -168,9 +170,11 @@ class GoogleGenAiChatIntegrationIT(
     companion object {
         @JvmStatic
         fun allGoogleGenAiModelIds(): List<String> = listOf(
+            GoogleGenAiModels.GEMINI_3_5_FLASH,
             GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW,
             GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,
             GoogleGenAiModels.GEMINI_3_FLASH_PREVIEW,
+            GoogleGenAiModels.GEMINI_3_1_FLASH_LITE,
             GoogleGenAiModels.GEMINI_3_1_FLASH_LITE_PREVIEW,
             GoogleGenAiModels.GEMINI_2_5_PRO,
             GoogleGenAiModels.GEMINI_2_5_FLASH,
