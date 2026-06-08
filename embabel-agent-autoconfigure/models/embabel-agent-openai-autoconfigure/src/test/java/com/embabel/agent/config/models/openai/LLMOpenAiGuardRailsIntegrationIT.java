@@ -46,7 +46,8 @@ import org.springframework.ai.openai.OpenAiModerationModel;
 import org.springframework.ai.openai.api.OpenAiModerationApi;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -293,6 +294,7 @@ class GuardRailConfiguration {
  * Tests integration with OpenAI Moderation API as a guardrail provider.
  */
 @SpringBootTest(
+        classes = LLMOpenAiGuardRailsIntegrationIT.TestApplication.class,
         properties = {
                 "embabel.models.cheapest=gpt-4.1-mini",
                 "embabel.models.best=gpt-4.1-mini",
@@ -324,12 +326,6 @@ class GuardRailConfiguration {
         }
 )
 @ActiveProfiles("thinking")
-@ConfigurationPropertiesScan(
-        basePackages = {
-                "com.embabel.agent",
-                "com.embabel.example"
-        }
-)
 @ComponentScan(
         basePackages = {
                 "com.embabel.agent",
@@ -344,6 +340,11 @@ class GuardRailConfiguration {
 )
 @Import({AgentOpenAiAutoConfiguration.class, GuardRailConfiguration.class})
 class LLMOpenAiGuardRailsIntegrationIT {
+
+    @SpringBootConfiguration
+    @EnableAutoConfiguration
+    static class TestApplication {
+    }
 
 
     private static final Logger logger = LoggerFactory.getLogger(LLMOpenAiGuardRailsIntegrationIT.class);
@@ -372,6 +373,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
                 .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(openAiGuardRail, new ThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected OpenAI prompt runner to support thinking");
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
@@ -401,6 +403,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
                 .withToolObject(new Tooling())
                 .withGuardRails(springAiGuardRail)
                 .withGuardRails(new ThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected OpenAI prompt runner to support thinking");
 
         String prompt = """ 
                 Think about the coldest month in Alaska and its temperature.

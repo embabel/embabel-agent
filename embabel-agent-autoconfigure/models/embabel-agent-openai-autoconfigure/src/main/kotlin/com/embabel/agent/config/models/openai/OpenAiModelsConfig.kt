@@ -219,6 +219,7 @@ class OpenAiModelsConfig(
             optionsConverter = optionsConverter,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = pricingModel,
+            thinkingSupported = true
         )
     }
 

@@ -31,6 +31,7 @@ import com.embabel.common.ai.model.OptionsConverter
 import com.embabel.common.ai.model.PerTokenPricingModel
 import com.embabel.common.ai.model.PricingModel
 import com.embabel.common.ai.model.SpringAiEmbeddingService
+import com.embabel.common.ai.model.Thinking
 import com.embabel.common.util.ExcludeFromJacocoGeneratedReport
 import com.google.genai.Client
 import io.micrometer.observation.ObservationRegistry
@@ -223,6 +224,7 @@ class GoogleGenAiModelsConfig(
             chatModel = chatModel,
             provider = GoogleGenAiModels.PROVIDER,
             optionsConverter = GoogleGenAiOptionsConverter,
+            thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = modelDef.pricingModel?.let {
                 PerTokenPricingModel(
@@ -246,6 +248,7 @@ class GoogleGenAiModelsConfig(
                 modelDef.topP?.let { topP(it) }
                 modelDef.topK?.let { topK(it) }
                 modelDef.thinkingBudget?.let { thinkingBudget(it) }
+                modelDef.includeThoughts?.let { includeThoughts(it) }
             }
             .build()
     }
@@ -363,12 +366,19 @@ object GoogleGenAiOptionsConverter : OptionsConverter<GoogleGenAiChatOptions> {
             .topP(options.topP)
             .topK(options.topK)
             .maxOutputTokens(options.maxTokens ?: DEFAULT_MAX_OUTPUT_TOKENS)
-            .apply {
-                options.thinking?.let { thinkingConfig ->
-                    if (thinkingConfig.enabled) {
-                        thinkingConfig.tokenBudget?.let { thinkingBudget(it) }
-                    }
-                }
-            }
+            .applyThinking(options.thinking)
             .build()
+
+    private fun GoogleGenAiChatOptions.Builder.applyThinking(thinking: Thinking?): GoogleGenAiChatOptions.Builder =
+        apply {
+            if (thinking == null) {
+                return@apply
+            }
+
+            includeThoughts(thinking.extractThinking)
+
+            if (thinking.enabled) {
+                thinking.tokenBudget?.let { thinkingBudget(it) }
+            }
+        }
 }

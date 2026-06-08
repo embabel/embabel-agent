@@ -52,6 +52,7 @@ data class GoogleGenAiModelDefinitions(
  * @property topP nucleus sampling parameter
  * @property topK top-k sampling parameter
  * @property thinkingBudget optional thinking process token allocation
+ * @property includeThoughts whether to include model thought summaries in responses
  */
 data class GoogleGenAiModelDefinition(
     override val name: String,
@@ -64,6 +65,7 @@ data class GoogleGenAiModelDefinition(
     val topP: Double? = null,
     val topK: Int? = null,
     val thinkingBudget: Int? = null,
+    val includeThoughts: Boolean? = null,
 ) : LlmAutoConfigMetadata
 
 /**
