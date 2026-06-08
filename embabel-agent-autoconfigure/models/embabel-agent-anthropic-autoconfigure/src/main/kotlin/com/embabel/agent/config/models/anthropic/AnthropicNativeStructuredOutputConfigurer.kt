@@ -37,15 +37,14 @@ internal val AnthropicNativeStructuredOutputConfigurer = SpringAiNativeStructure
         _,
     ->
     nativeSupport?.structuredOutput?.let { capability ->
-        if (structuredOutput == null || capability.supported != true) {
-            options
-        } else if (options !is AnthropicChatOptions) {
-            options
-        } else if (capability.strategy != null && capability.strategy != "tool") {
-            options
-        } else {
-            options.copy().also { copied ->
-                copied.outputSchema = structuredOutput.schema
+        when {
+            structuredOutput == null || capability.supported != true -> options
+            options !is AnthropicChatOptions -> options
+            capability.strategy != null && capability.strategy != "tool" -> options
+            else -> {
+                options.copy().also { copied ->
+                    copied.outputSchema = structuredOutput.schema
+                }
             }
         }
     } ?: options
