@@ -1,6 +1,6 @@
-# Embabel Agent Framework
+# [Embabel Agent Framework](https://hub.embabel.com)
 
-<img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180">
+<a href="https://hub.embabel.com"><img align="left" src="https://github.com/embabel/embabel-agent/blob/main/embabel-agent-api/images/315px-Meister_der_Weltenchronik_001.jpg?raw=true" width="180"></a>
 
 [![Docs](https://img.shields.io/badge/docs-live-brightgreen)](https://docs.embabel.com/embabel-agent/guide/0.1.2-SNAPSHOT/)
 [![MvnRepository](https://badges.mvnrepository.com/badge/com.embabel.agent/embabel-agent-api/badge.svg?label=MvnRepository)](https://mvnrepository.com/artifact/com.embabel.agent/embabel-agent-api)
@@ -40,6 +40,11 @@ model from Java.
 From the creator of Spring.
 
 &nbsp;
+
+## Talk to the Docs
+
+Have questions? [Talk to the docs via the Embabel-powered hub](https://hub.embabel.com) — an
+Embabel agent that answers your questions about the framework in natural language.
 
 ## Key Concepts
 
