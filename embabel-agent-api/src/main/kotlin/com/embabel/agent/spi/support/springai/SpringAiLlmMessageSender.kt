@@ -141,6 +141,11 @@ internal class SpringAiLlmMessageSender(
             return null // No tool calls found, let caller use first generation
         }
 
+        // Collect all metadata from all generations
+        val allMetaData: Map<String, Any> = allOutputs
+            .mapNotNull { it.metadata }
+            .fold(emptyMap()) { acc, metadata -> acc + metadata }
+
         // Collect all non-empty text from all generations
         val allText = allOutputs
             .mapNotNull { it.text?.takeIf { text -> text.isNotBlank() } }
@@ -160,6 +165,7 @@ internal class SpringAiLlmMessageSender(
         return org.springframework.ai.chat.messages.AssistantMessage.builder()
             .content(allText)
             .toolCalls(allToolCalls)
+            .properties(allMetaData)
             .build()
     }
 

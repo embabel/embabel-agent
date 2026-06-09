@@ -102,6 +102,18 @@ class SpringAiLlmServiceTest {
         }
 
         @Test
+        fun `creates service with thinking capability`() {
+            val service = SpringAiLlmService(
+                name = "thinking-model",
+                provider = "Provider",
+                chatModel = mockChatModel,
+                thinkingSupported = true,
+            )
+
+            assertThat(service.supportsThinking()).isTrue()
+        }
+
+        @Test
         fun `automatically adds KnowledgeCutoffDate contributor when cutoff date is set`() {
             val cutoffDate = LocalDate.of(2025, 3, 15)
 

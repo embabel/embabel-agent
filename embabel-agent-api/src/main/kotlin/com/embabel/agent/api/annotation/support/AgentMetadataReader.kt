@@ -16,9 +16,6 @@
 package com.embabel.agent.api.annotation.support
 
 import com.embabel.agent.api.annotation.*
-import com.embabel.agent.api.annotation.Action
-import com.embabel.agent.api.annotation.Agent
-import com.embabel.agent.api.annotation.Condition
 import com.embabel.agent.api.common.OperationContext
 import com.embabel.agent.api.common.PlannerType
 import com.embabel.agent.api.common.StuckHandler
@@ -226,9 +223,9 @@ class AgentMetadataReader(
         }
 
         val agent = if (agenticInfo.agentAnnotation != null) {
+            val goalActions = actionMethods.filter { it.isAnnotationPresent(AchievesGoal::class.java) }
             if (plannerType == PlannerType.SUPERVISOR) {
                 // Find the goal action (the action with @AchievesGoal)
-                val goalActions = actionMethods.filter { it.isAnnotationPresent(AchievesGoal::class.java) }
                 if (goalActions.isEmpty()) {
                     logger.warn(
                         "SUPERVISOR planner requires at least one @AchievesGoal action on {}",
@@ -259,6 +256,15 @@ class AgentMetadataReader(
                     conditions = conditions,
                 )
             } else {
+                val distinctGoalTypes = goalActions.map { it.returnType }.toSet()
+                if (distinctGoalTypes.size > 1) {
+                    logger.warn(
+                        "Agent {} has {} @AchievesGoal actions, while one is supported",
+                        targetType.name,
+                        goalActions.size,
+                    )
+                    return null
+                }
                 CoreAgent(
                     name = agenticInfo.agentName(),
                     provider = agenticInfo.agentAnnotation.provider.ifBlank {

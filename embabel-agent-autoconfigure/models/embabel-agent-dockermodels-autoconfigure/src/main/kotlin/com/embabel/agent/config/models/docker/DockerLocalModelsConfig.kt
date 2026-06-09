@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.docker
 
 import com.embabel.agent.api.models.DockerLocalModels.Companion.PROVIDER
+import com.embabel.agent.config.models.docker.DockerRetryProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -45,7 +46,7 @@ import org.springframework.web.client.body
 import org.springframework.web.reactive.function.client.WebClient
 
 
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.docker")
+@ConfigurationProperties(prefix = PREFIX)
 class DockerRetryProperties : RetryProperties {
 
     /**
@@ -67,6 +68,11 @@ class DockerRetryProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.docker"
+    }
 }
 
 @ConfigurationProperties(prefix = "embabel.agent.models.docker")

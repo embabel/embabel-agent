@@ -19,6 +19,8 @@ import com.embabel.agent.api.common.Ai
 import com.embabel.agent.api.models.GoogleGenAiModels
 import com.embabel.agent.autoconfigure.models.googlegenai.AgentGoogleGenAiAutoConfiguration
 import com.embabel.agent.spi.LlmService
+import com.embabel.common.ai.model.LlmOptions
+import com.embabel.common.ai.model.Thinking
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -67,12 +69,19 @@ class GoogleGenAiChatIntegrationIT(
     @param:Autowired private val applicationContext: ApplicationContext,
 ) {
 
+    data class MonthItem(
+        val name: String,
+        val temperature: Int?,
+    )
+
     @Test
     fun `registers all google genai model beans`() {
         val expectedBeans = listOf(
+            "gemini_3_5_flash",
             "gemini_3_1_pro_preview",
             "gemini_3_1_pro_preview_customtools",
             "gemini_3_flash_preview",
+            "gemini_3_1_flash_lite",
             "gemini_3_1_flash_lite_preview",
             "gemini_25_pro",
             "gemini_25_flash",
@@ -89,18 +98,65 @@ class GoogleGenAiChatIntegrationIT(
         val llm = llms.find { it.name == modelId }
         assertNotNull(llm, "Expected LLM service to be registered for $modelId")
 
-        val response = try {
+        val response = runGoogleCall(modelId) {
             ai.withLlm(modelId).generateText("Reply with exactly the word READY.").trim()
+        }
+
+        assertTrue(response.isNotBlank(), "Expected non-empty response from $modelId")
+        assertTrue(response.contains("READY", ignoreCase = true), "Expected $modelId to reply with READY, got: $response")
+    }
+
+    @Test
+    fun `supports thinking mode for google genai prompt runner`() {
+        val runner = ai.withLlm(
+            LlmOptions(GoogleGenAiModels.GEMINI_2_5_FLASH)
+                .withThinking(Thinking.withExtraction())
+        )
+
+        assertTrue(runner.supportsThinking(), "Expected Google GenAI prompt runner to advertise thinking support")
+    }
+
+    @Test
+    fun `creates typed object through google genai thinking mode`() {
+        val modelId = GoogleGenAiModels.GEMINI_2_5_FLASH
+        val runner = ai.withLlm(
+            LlmOptions(modelId)
+                .withThinking(Thinking.withExtraction())
+        )
+
+        val response = runGoogleCall(modelId) {
+            runner.thinking().createObject(
+                """
+                Think through the climate question carefully, then return a JSON object.
+                What is typically the hottest month in Florida and an approximate average high temperature in Fahrenheit?
+                Return:
+                - name: the month name
+                - temperature: an integer temperature in Fahrenheit
+                """.trimIndent(),
+                MonthItem::class.java,
+            )
+        }
+
+        assertNotNull(response, "Expected Google thinking mode to return a ThinkingResponse")
+        assertTrue(response.hasResult(), "Expected Google thinking mode to return a typed result")
+        assertNotNull(response.thinkingBlocks, "Expected Google thinking mode to always expose thinking blocks collection")
+        val result = requireNotNull(response.result) { "Expected non-null MonthItem result from Google thinking mode" }
+        assertTrue(
+            result.name.lowercase() in setOf("july", "august"),
+            "Expected a plausible hottest-month result from the model, got: ${result.name}"
+        )
+        assertNotNull(result.temperature, "Expected Google thinking mode to populate the temperature field")
+    }
+
+    private fun <T> runGoogleCall(modelId: String, block: () -> T): T =
+        try {
+            block()
         } catch (ex: Exception) {
             if (isModelAccessError(ex)) {
                 throw TestAbortedException("GOOGLE_API_KEY is set, but the configured Google project does not have access to $modelId", ex)
             }
             throw ex
         }
-
-        assertTrue(response.isNotBlank(), "Expected non-empty response from $modelId")
-        assertTrue(response.contains("READY", ignoreCase = true), "Expected $modelId to reply with READY, got: $response")
-    }
 
     private fun isModelAccessError(ex: Exception): Boolean {
         val message = generateSequence<Throwable>(ex) { it.cause }.mapNotNull { it.message }.joinToString(" | ")
@@ -114,9 +170,11 @@ class GoogleGenAiChatIntegrationIT(
     companion object {
         @JvmStatic
         fun allGoogleGenAiModelIds(): List<String> = listOf(
+            GoogleGenAiModels.GEMINI_3_5_FLASH,
             GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW,
             GoogleGenAiModels.GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,
             GoogleGenAiModels.GEMINI_3_FLASH_PREVIEW,
+            GoogleGenAiModels.GEMINI_3_1_FLASH_LITE,
             GoogleGenAiModels.GEMINI_3_1_FLASH_LITE_PREVIEW,
             GoogleGenAiModels.GEMINI_2_5_PRO,
             GoogleGenAiModels.GEMINI_2_5_FLASH,

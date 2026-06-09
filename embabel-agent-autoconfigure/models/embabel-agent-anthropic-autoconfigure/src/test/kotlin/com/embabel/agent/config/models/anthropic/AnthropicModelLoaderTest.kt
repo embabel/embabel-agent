@@ -15,12 +15,21 @@
  */
 package com.embabel.agent.config.models.anthropic
 
+import com.embabel.agent.api.models.AnthropicModels
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.ResourceLoader
 
+/**
+ * Unit tests for [AnthropicModelLoader].
+ *
+ * Covers loading and validating model definitions from `anthropic-models.yml`, default-value
+ * handling, and rejection of malformed entries. Includes a grounding check that the
+ * `claude_opus_48` model is present with the expected id ([AnthropicModels.CLAUDE_OPUS_4_8])
+ * and pricing.
+ */
 class AnthropicModelLoaderTest {
 
     @Nested
@@ -192,10 +201,17 @@ class AnthropicModelLoaderTest {
         // Assert - verify some known Anthropic models are present
         val modelNames = result.models.map { it.name }
         assertTrue(modelNames.isNotEmpty(), "Should have loaded model names")
+        assertTrue(modelNames.contains("claude_opus_48"), "Should include Claude Opus 4.8")
+
+        // Verify the Opus 4.8 model id and pricing are grounded
+        val opus48 = result.models.first { it.name == "claude_opus_48" }
+        assertEquals(AnthropicModels.CLAUDE_OPUS_4_8, opus48.modelId, "Opus 4.8 model id should match constant")
+        assertNotNull(opus48.pricingModel, "Opus 4.8 should have pricing information")
+        assertEquals(5.0, opus48.pricingModel?.usdPer1mInputTokens)
+        assertEquals(25.0, opus48.pricingModel?.usdPer1mOutputTokens)
 
         // Verify at least one model has pricing info
-        assertTrue(result.models.any { it.pricingModel != null },
-            "At least one model should have pricing information")
+        assertTrue(result.models.any { it.pricingModel != null }, "At least one model should have pricing information")
     }
 
     @Test

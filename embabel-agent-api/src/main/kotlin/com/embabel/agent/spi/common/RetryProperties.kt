@@ -28,6 +28,11 @@ import java.time.Duration
 
 interface RetryTemplateProvider {
     val maxAttempts: Int
+
+    /**
+     * Prefix when field values are assigned via configuration.
+     */
+    val propertyPrefix: String
     fun retryTemplate(name: String): RetryTemplate
 }
 
@@ -77,6 +82,19 @@ interface RetryProperties : RetryTemplateProvider {
                         "Operation $name: Retry error. Retry count: ${context.retryCount}",
                         throwable,
                     )
+                }
+                override fun <T, E : Throwable> close(
+                    context: RetryContext,
+                    callback: RetryCallback<T, E>,
+                    throwable: Throwable?,
+                ) {
+                    throwable?.let {
+                        loggerFor<RetryProperties>().warn(
+                            "Maximum attempts of {} have reached. The maximum attempt can be configured using property {}.max-attempts",
+                            maxAttempts,
+                            propertyPrefix
+                        )
+                    }
                 }
             })
             .build()

@@ -310,6 +310,7 @@ class LLMAnthropicThinkingIT {
                 .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(new UserInputThinkingGuardRail(), new ThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected Anthropic prompt runner to support thinking");
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
@@ -349,6 +350,7 @@ class LLMAnthropicThinkingIT {
                 .withToolObject(new Tooling())
                 .withGuardRails(new UserInputSimpleGuardRail())
                 .withGuardRails(new ThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected Anthropic prompt runner to support thinking");
 
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
 
@@ -387,6 +389,7 @@ class LLMAnthropicThinkingIT {
                 .withToolObject(new Tooling())
                 .withGenerateExamples(true)
                 .withGuardRails(new UserInputCriticalSeverityGuardRail(), new SimpleThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected Anthropic prompt runner to support thinking");
 
         String prompt = """
                 What is the hottest month in Florida and  provide its temperature.
@@ -420,6 +423,7 @@ class LLMAnthropicThinkingIT {
                 .withToolObject(new Tooling())
                 .withGuardRails(new UserInputCriticalSeverityGuardRail())
                 .withGuardRails(new SimpleThinkingBlocksGuardRail());
+        assertTrue(runner.supportsThinking(), "Expected Anthropic prompt runner to support thinking");
 
         String prompt = "Think about the coldest month in Alaska and its temperature. Provide your analysis.";
 
@@ -460,6 +464,7 @@ class LLMAnthropicThinkingIT {
         // Given: Use the LLM with a complex reasoning prompt
         PromptRunner runner = ai.withLlm("claude-sonnet-4-5")
                 .withToolObject(new Tooling());
+        assertTrue(runner.supportsThinking(), "Expected Anthropic prompt runner to support thinking");
 
         String prompt = """
                 <think>

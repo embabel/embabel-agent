@@ -615,6 +615,8 @@ dependencies {
 
 Available LLM models include:
 
+* `gemini-3.5-flash` - Frontier-level reasoning at Flash tier speed & cost
+* `gemini-3.1-flash-lite` - Production lightweight and cost-effective model
 * `gemini-3.1-pro-preview` - Latest Gemini 3.1 Pro preview with advanced reasoning
 * `gemini-3.1-pro-preview-customtools` - Gemini 3.1 Pro optimized for custom tool usage
 * `gemini-3.1-flash-lite-preview` - Lightweight and cost-effective latest generation model

@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.anthropic
 
 import com.embabel.agent.api.models.AnthropicModels
+import com.embabel.agent.config.models.anthropic.AnthropicProperties.Companion.PREFIX
 import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.common.RetryProperties
 import com.embabel.agent.spi.support.springai.SpringAiLlmService
@@ -53,7 +54,7 @@ import org.springframework.web.client.RestClient
  * "embabel.agent.platform.models.anthropic" and control retry behavior
  * when calling Anthropic APIs.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.anthropic")
+@ConfigurationProperties(prefix = PREFIX)
 class AnthropicProperties : RetryProperties {
     /**
      * Base URL for Anthropic API requests.
@@ -84,6 +85,11 @@ class AnthropicProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.anthropic"
+    }
 }
 
 
@@ -180,6 +186,7 @@ class AnthropicModelsConfig(
             chatModel = chatModel,
             provider = AnthropicModels.PROVIDER,
             optionsConverter = AnthropicOptionsConverter,
+            thinkingSupported = true,
             knowledgeCutoffDate = modelDef.knowledgeCutoffDate,
             pricingModel = modelDef.pricingModel?.let {
                 PerTokenPricingModel(

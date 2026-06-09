@@ -611,7 +611,7 @@ Required:
 Optional:
 
 - `ANTHROPIC_API_KEY`: For the Anthropic API. Necessary for the coding agent.
-- `MINIMAX_API_KEY`: For the [MiniMax](https://www.minimax.io) API. Supports MiniMax-M2.7 and MiniMax-M2.7-highspeed models.
+- `MINIMAX_API_KEY`: For the [MiniMax](https://www.minimax.io) API. Supports MiniMax-M3, MiniMax-M2.7 and MiniMax-M2.7-highspeed models.
 - OCI Generative AI uses OCI SDK authentication providers. Add `embabel-agent-starter-oci-genai` and set
   `embabel.agent.platform.models.ocigenai.compartment-id`; OCI config file, instance principal, resource principal,
   workload identity, session token and simple key authentication are supported.

@@ -543,6 +543,81 @@ class SpringAiLlmMessageSenderTest {
             assertThat(messageWithCalls.textContent).contains("Checking weather...")
             assertThat(messageWithCalls.textContent).contains("And time...")
         }
+
+        @Test
+        fun `merges metadata from multiple generations and preserves thoughtSignatures`() {
+            val thoughtSignaturesA = listOf(byteArrayOf(1, 2))
+            val thoughtSignaturesB = listOf(byteArrayOf(3, 4))
+            val generation1 = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("First part")
+                    .toolCalls(
+                        listOf(
+                            SpringAiAssistantMessage.ToolCall(
+                                "call-1",
+                                "function",
+                                "get_weather",
+                                """{"location": "NYC"}"""
+                            )
+                        )
+                    )
+                    .properties(mapOf("thoughtSignatures" to thoughtSignaturesA, "chunk" to "one"))
+                    .build()
+            )
+            val generation2 = Generation(
+                SpringAiAssistantMessage.builder()
+                    .content("Second part")
+                    .toolCalls(
+                        listOf(
+                            SpringAiAssistantMessage.ToolCall(
+                                "call-2",
+                                "function",
+                                "get_time",
+                                """{"timezone": "EST"}"""
+                            )
+                        )
+                    )
+                    .properties(mapOf("thoughtSignatures" to thoughtSignaturesB, "chunk" to "two"))
+                    .build()
+            )
+
+            val mockMetadata = mockk<ChatResponseMetadata> {
+                every { usage } returns null
+            }
+            val chatResponse = mockk<ChatResponse> {
+                every { result } returns generation1
+                every { results } returns listOf(generation1, generation2)
+                every { metadata } returns mockMetadata
+            }
+            val chatModel = mockk<ChatModel> {
+                every { call(any<Prompt>()) } returns chatResponse
+            }
+            val chatOptions = mockk<ChatOptions> {
+                every { model } returns "test-model"
+                every { temperature } returns null
+                every { maxTokens } returns null
+                every { topP } returns null
+                every { topK } returns null
+                every { frequencyPenalty } returns null
+                every { presencePenalty } returns null
+                every { stopSequences } returns null
+            }
+            val sender = SpringAiLlmMessageSender(chatModel, chatOptions)
+
+            val response = sender.call(
+                messages = listOf(UserMessage("What's the weather and time?")),
+                tools = emptyList()
+            )
+
+            assertThat(response.message).isInstanceOf(AssistantMessageWithToolCalls::class.java)
+            val messageWithCalls = response.message as AssistantMessageWithToolCalls
+            assertThat(messageWithCalls.metadata).containsEntry("chunk", "two")
+            val signatures = messageWithCalls.metadata["thoughtSignatures"] as? List<*>
+            assertThat(signatures).isNotNull
+            assertThat(signatures).hasSize(1)
+            assertThat(signatures!![0]).isInstanceOf(ByteArray::class.java)
+            assertThat(signatures[0] as ByteArray).containsExactly(3, 4)
+        }
     }
 
     private fun testChatOptions(): ChatOptions = mockk {

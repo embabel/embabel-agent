@@ -16,6 +16,7 @@
 package com.embabel.agent.config.models.gemini
 
 import com.embabel.agent.api.models.GeminiModels
+import com.embabel.agent.config.models.gemini.GeminiProperties.Companion.PREFIX
 import com.embabel.agent.openai.OpenAiChatOptionsConverter
 import com.embabel.agent.openai.OpenAiCompatibleModelFactory
 import com.embabel.agent.spi.LlmService
@@ -44,7 +45,7 @@ import org.springframework.web.reactive.function.client.WebClient
  * "embabel.agent.platform.models.gemini" and control retry behavior
  * when calling Google Gemini APIs.
  */
-@ConfigurationProperties(prefix = "embabel.agent.platform.models.gemini")
+@ConfigurationProperties(prefix = PREFIX)
 class GeminiProperties : RetryProperties {
     /**
      * Base URL for Gemini API requests.
@@ -75,6 +76,11 @@ class GeminiProperties : RetryProperties {
      * Maximum backoff interval (in milliseconds).
      */
     override var backoffMaxInterval: Long = 180000L
+
+    override val propertyPrefix: String = PREFIX
+    companion object {
+        const val PREFIX  = "embabel.agent.platform.models.gemini"
+    }
 }
 
 /**

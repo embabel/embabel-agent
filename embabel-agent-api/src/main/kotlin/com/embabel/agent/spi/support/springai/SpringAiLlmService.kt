@@ -90,6 +90,9 @@ private object StreamingCapabilityVerifier {
  * @param promptContributors List of prompt contributors for this model.
  *        Knowledge cutoff is automatically included if knowledgeCutoffDate is set.
  * @param pricingModel Pricing model for this LLM, if known
+ * @param thinkingSupported Whether this model supports Embabel thinking operations,
+ *        including generic thinking extraction or provider-native reasoning exposed
+ *        through Embabel's thinking mode.
  * @param toolResponseContentAdapter Adapts tool response content for provider-specific
  *        format requirements. Defaults to [ToolResponseContentAdapter.PASSTHROUGH].
  *        Google GenAI requires JSON; OpenAI/Anthropic accept plain text.
@@ -107,6 +110,7 @@ data class SpringAiLlmService @JvmOverloads constructor(
     override val promptContributors: List<PromptContributor> =
         buildList { knowledgeCutoffDate?.let { add(KnowledgeCutoffDate(it)) } },
     override val pricingModel: PricingModel? = null,
+    val thinkingSupported: Boolean = false,
     val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
     val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
         SpringAiNativeStructuredOutputConfigurer.NOOP,
@@ -138,6 +142,8 @@ data class SpringAiLlmService @JvmOverloads constructor(
     }
 
     override fun supportsStreaming(): Boolean = StreamingCapabilityVerifier.supportsStreaming(chatModel)
+
+    override fun supportsThinking(): Boolean = thinkingSupported
 
     override fun withKnowledgeCutoffDate(date: LocalDate): SpringAiLlmService =
         copy(
