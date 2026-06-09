@@ -16,10 +16,16 @@
 package com.embabel.agent.spi.support.springai
 
 import com.embabel.agent.api.tool.Tool
+import com.embabel.agent.spi.loop.LlmMessageRequest
 import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.agent.spi.loop.LlmMessageSender
+import com.embabel.agent.spi.loop.RequestAwareLlmMessageSender
+import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.chat.Message
+import com.embabel.common.ai.autoconfig.NativeSupport
+import com.embabel.common.ai.model.LlmMetadata
 import com.embabel.common.util.loggerFor
+import com.embabel.agent.spi.support.nativeoutput.shouldUseNativeStructuredOutput
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
@@ -43,27 +49,46 @@ internal class SpringAiLlmMessageSender(
     private val chatModel: ChatModel,
     private val chatOptions: ChatOptions,
     private val toolResponseContentAdapter: ToolResponseContentAdapter = ToolResponseContentAdapter.PASSTHROUGH,
-) : LlmMessageSender {
+    private val nativeStructuredOutputConfigurer: SpringAiNativeStructuredOutputConfigurer =
+        SpringAiNativeStructuredOutputConfigurer.NOOP,
+    private val nativeSupport: NativeSupport? = null,
+    private val llmMetadata: LlmMetadata? = null,
+) : RequestAwareLlmMessageSender {
 
     private val logger = loggerFor<SpringAiLlmMessageSender>()
 
     override fun call(
         messages: List<Message>,
         tools: List<Tool>,
-    ): LlmMessageResponse {
+    ): LlmMessageResponse = call(
+        LlmMessageRequest(
+            messages = messages,
+            tools = tools,
+        )
+    )
+
+    override fun call(request: LlmMessageRequest): LlmMessageResponse {
         // Convert Embabel messages to Spring AI messages, applying provider-specific
         // tool response formatting (e.g., JSON wrapping for Google GenAI)
-        val springAiMessages = messages
+        val springAiMessages = request.messages
             .map { it.toSpringAiMessage(toolResponseContentAdapter) }
             .mergeConsecutiveToolResponses()
 
         // Convert Embabel tools to Spring AI tool callbacks using existing adapter
-        val toolCallbacks = tools.toSpringToolCallbacks()
+        val toolCallbacks = request.tools.toSpringToolCallbacks()
 
         // Build prompt with tool definitions (but NOT tool execution)
+        val effectiveStructuredOutput = if (nativeSupport.shouldUseNativeStructuredOutput(request)) {
+            logger.debug("Native structured output enabled for this call")
+            request.nativeStructuredOutputRequest?.structuredOutputRequest
+        } else {
+            logger.debug("Native structured output disabled for this call; using fallback path")
+            null
+        }
+
         val prompt = Prompt(
             springAiMessages,
-            buildChatOptionsWithTools(toolCallbacks),
+            buildChatOptions(effectiveStructuredOutput, toolCallbacks),
         )
 
         // Call LLM - returns response which may include tool call requests
@@ -152,6 +177,19 @@ internal class SpringAiLlmMessageSender(
      * This method preserves provider-specific options (like Anthropic's cache settings)
      * by using the provider's copy() method when the options already implement ToolCallingChatOptions.
      */
+    private fun buildChatOptions(
+        structuredOutput: StructuredOutputRequest?,
+        toolCallbacks: List<ToolCallback>,
+    ): ChatOptions {
+        val optionsWithTools = buildChatOptionsWithTools(toolCallbacks)
+        return nativeStructuredOutputConfigurer.configure(
+            options = optionsWithTools,
+            structuredOutput = structuredOutput,
+            nativeSupport = nativeSupport,
+            llm = llmMetadata,
+        )
+    }
+
     private fun buildChatOptionsWithTools(toolCallbacks: List<ToolCallback>): ChatOptions {
         if (toolCallbacks.isEmpty()) {
             return chatOptions

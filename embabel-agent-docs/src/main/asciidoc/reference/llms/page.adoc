@@ -1168,3 +1168,133 @@ val summary = usage.anthropicCacheSummary()
 For complete details on Anthropic's prompt caching, see:
 https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 
+
+[[reference.llms.native-structured-output]]
+==== Advanced Feature: Native Structured Output
+
+Native structured output enables the model provider to enforce a JSON Schema directly, rather than relying only on prompt instructions and Embabel's object construction.
+E**mbabel still owns schema generation and object binding**; the native provider path is an optimization and compatibility feature used only when it is explicitly supported and safe for the call.
+
+===== Payload Format
+
+For OpenAI-compatible providers, Spring AI wraps Embabel's schema in a `response_format` JSON schema payload.
+For example, a `MonthItem` object can produce a request fragment like:
+
+[source,json]
+----
+{
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "MonthItem",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "temperature": { "type": "integer" }
+        },
+        "required": [ "name", "temperature" ],
+        "additionalProperties": false
+      }
+    }
+  },
+}
+----
+
+OpenAI validates this schema before generation.
+If the schema is not valid for the provider-native path, the request fails before the model produces output.
+
+===== Participants Roles
+
+- **Embabel** generates the JSON Schema, decides whether the native path is enabled for a call, and parses the final response into the requested object.
+- **Spring AI** wraps Embabel's schema into provider-specific format options, such as OpenAI's `response_format`, and serializes the HTTP request.
+- **The provider** such as OpenAI validates the native structured-output payload and returns output that matches the accepted schema.
+
+===== Configuration and API
+
+Native structured output is advertised in model metadata:
+
+[source,yaml]
+----
+native_support_defaults:
+  structured_output:
+    supported: true
+    strategy: response_format
+    strict: false
+    prompt_instructions: include
+----
+
+For a specific call, enable it through `LlmOptions`:
+
+[tabs]
+====
+Java::
++
+[source,java]
+----
+PromptRunner runner = ai.withLlm(
+        withNativeStructuredOutput(
+                LlmOptions.fromCriteria(DefaultModelSelectionCriteria.INSTANCE),
+                NativeStructuredOutputMode.ENABLED
+        )
+);
+
+MonthItem result = runner.createObject(prompt, MonthItem.class);
+----
+
+Kotlin::
++
+[source,kotlin]
+----
+val runner = ai.withLlm(
+    LlmOptions.fromCriteria(DefaultModelSelectionCriteria)
+        .withNativeStructuredOutput(NativeStructuredOutputMode.ENABLED)
+)
+
+val result = runner.createObject<MonthItem>(prompt)
+----
+====
+
+- `NativeStructuredOutputMode.ENABLED`: Try the native path when model capability and schema compatibility allow it.
+- `NativeStructuredOutputMode.DISABLED`: Force Embabel's normal object construction path.
+- `NativeStructuredOutputMode.DEFAULT`: Let Embabel decide from model capability, API shape, and schema compatibility.
+
+For Java objects, mark required reference fields explicitly:
+
+[source,java]
+----
+static class MonthItem {
+    @JsonProperty(required = true)
+    private String name;
+
+    @JsonProperty(required = true)
+    private Integer temperature;
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Integer getTemperature() {
+        return temperature;
+    }
+
+    public void setTemperature(Integer temperature) {
+        this.temperature = temperature;
+    }
+}
+----
+
+===== Limitations
+
+- **Required fields**: OpenAI native structured output requires `required` to include every property. Optional Java reference fields are not treated as required unless annotated, for example with `@JsonProperty(required = true)` or `@NotNull`.
+- **Optional values**: Provider-native optionality usually needs nullable required properties, for example `type: ["string", "null"]`, rather than omitting the property from `required`.
+- **Arrays of objects**: Some providers, including OpenAI according to Spring AI documentation, do not support arrays of objects natively. Embabel falls back to normal object construction for unsupported shapes.
+- **Streaming**: Native structured output is not supported for streaming by Spring AI currently
+- **`ifPossible` APIs**: `createObjectIfPossible` and related paths use `MaybeReturn` semantics and stay on Embabel's fallback object construction path.
+- **Provider coverage**: OpenAI-compatible `response_format` is the primary supported path. Anthropic native structured output is currently disabled by default until its semantics are verified.
+

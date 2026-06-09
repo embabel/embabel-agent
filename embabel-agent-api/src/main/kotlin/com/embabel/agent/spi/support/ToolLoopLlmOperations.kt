@@ -34,9 +34,16 @@ import com.embabel.agent.spi.LlmService
 import com.embabel.agent.spi.ToolDecorator
 import com.embabel.agent.spi.loop.AutoCorrectionPolicy
 import com.embabel.agent.spi.loop.ChainedToolInjectionStrategy
+import com.embabel.agent.spi.loop.LlmMessageRequest
+import com.embabel.agent.spi.loop.LlmMessageResponse
 import com.embabel.agent.spi.loop.LlmMessageSender
+import com.embabel.agent.spi.loop.NativeStructuredOutputRequest
+import com.embabel.agent.spi.loop.RequestAwareLlmMessageSender
+import com.embabel.agent.spi.loop.StructuredOutputRequest
 import com.embabel.agent.spi.loop.ToolInjectionStrategy
 import com.embabel.agent.spi.loop.ToolLoopFactory
+import com.embabel.common.ai.model.NativeStructuredOutputMode
+import com.embabel.common.ai.model.getNativeStructuredOutput
 import com.embabel.agent.spi.support.guardrails.validateAssistantResponse
 import com.embabel.agent.spi.support.guardrails.validateUserInput
 import com.embabel.agent.spi.validation.DefaultValidationPromptGenerator
@@ -79,6 +86,12 @@ interface OutputConverter<T> {
      * Returns null if no format instructions are needed (e.g., for String output).
      */
     fun getFormat(): String?
+
+    /**
+     * Get the raw JSON Schema for native structured-output payloads.
+     * This is not prompt text; it is intended for provider adapters.
+     */
+    fun getJsonSchema(): String? = null
 }
 
 /**
@@ -141,6 +154,7 @@ open class ToolLoopLlmOperations(
         } else null
 
         val schemaFormat = converter?.getFormat()
+        val nativeStructuredOutputRequest = nativeStructuredOutputRequest(outputClass, converter, interaction)
 
         val outputParser: (String) -> O = if (outputClass == String::class.java) {
             @Suppress("UNCHECKED_CAST")
@@ -156,7 +170,10 @@ open class ToolLoopLlmOperations(
         val effectiveContext = resolveToolCallContext(llmRequestEvent, interaction)
 
         val toolLoop = toolLoopFactory.create(
-            llmMessageSender = messageSender,
+            llmMessageSender = structuredOutputMessageSender(
+                delegate = messageSender,
+                nativeStructuredOutputRequest = nativeStructuredOutputRequest,
+            ),
             objectMapper = objectMapper,
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
@@ -173,7 +190,7 @@ open class ToolLoopLlmOperations(
         emitCallEvent(llmRequestEvent, promptContributions, messages, schemaFormat)
 
         // Guardrails: Pre-validation of user input
-        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        val userMessages = messages.filterIsInstance<UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         val tools = interaction.tools
@@ -276,7 +293,7 @@ open class ToolLoopLlmOperations(
         emitCallEvent(llmRequestEvent, promptContributions, messages, schemaFormat)
 
         // Guardrails: Pre-validation of user input
-        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        val userMessages = messages.filterIsInstance<UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent.agentProcess.blackboard)
 
         val tools = interaction.tools
@@ -326,6 +343,7 @@ open class ToolLoopLlmOperations(
         } else null
 
         val schemaFormat = converter?.getFormat()
+        val nativeStructuredOutputRequest = nativeStructuredOutputRequest(outputClass, converter, interaction)
 
         // Output parser that extracts thinking blocks and parses the result
         // For String output: return raw text (with thinking tags preserved)
@@ -354,7 +372,10 @@ open class ToolLoopLlmOperations(
         val effectiveContext = resolveToolCallContext(llmRequestEvent, interaction)
 
         val toolLoop = toolLoopFactory.create(
-            llmMessageSender = messageSender,
+            llmMessageSender = structuredOutputMessageSender(
+                delegate = messageSender,
+                nativeStructuredOutputRequest = nativeStructuredOutputRequest,
+            ),
             objectMapper = objectMapper,
             injectionStrategy = injectionStrategy,
             maxIterations = interaction.maxToolIterations,
@@ -371,7 +392,7 @@ open class ToolLoopLlmOperations(
         emitCallEvent(llmRequestEvent, promptContributions, messages, schemaFormat)
 
         // Guardrails: Pre-validation of user input
-        val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+        val userMessages = messages.filterIsInstance<UserMessage>()
         validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
         val tools = interaction.tools
@@ -498,7 +519,7 @@ open class ToolLoopLlmOperations(
             emitCallEvent(llmRequestEvent, promptContributions, messages, schemaFormat)
 
             // Guardrails: Pre-validation of user input
-            val userMessages = messages.filterIsInstance<com.embabel.chat.UserMessage>()
+            val userMessages = messages.filterIsInstance<UserMessage>()
             validateUserInput(userMessages, interaction, llmRequestEvent?.agentProcess?.blackboard)
 
             val tools = interaction.tools
@@ -570,6 +591,32 @@ open class ToolLoopLlmOperations(
     ): LlmMessageSender {
         return llm.createMessageSender(options)
     }
+
+    private fun structuredOutputMessageSender(
+        delegate: LlmMessageSender,
+        nativeStructuredOutputRequest: NativeStructuredOutputRequest?,
+    ): LlmMessageSender =
+        if (nativeStructuredOutputRequest == null) {
+            delegate
+        } else {
+            StructuredOutputLlmMessageSender(delegate, nativeStructuredOutputRequest)
+        }
+
+    private fun <O> nativeStructuredOutputRequest(
+        outputClass: Class<O>,
+        converter: OutputConverter<O>?,
+        interaction: LlmInteraction,
+    ): NativeStructuredOutputRequest? =
+        converter?.getJsonSchema()?.let { jsonSchema ->
+            NativeStructuredOutputRequest(
+                structuredOutputRequest = StructuredOutputRequest(
+                    name = outputClass.simpleName,
+                    schema = jsonSchema,
+                ),
+                nativeStructuredOutputMode = interaction.llm.getNativeStructuredOutput()
+                    ?: NativeStructuredOutputMode.DEFAULT,
+            )
+        }
 
     /**
      * Create an output converter for the given output class.

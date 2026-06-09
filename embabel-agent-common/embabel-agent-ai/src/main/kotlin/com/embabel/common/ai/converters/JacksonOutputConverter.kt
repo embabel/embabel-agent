@@ -32,23 +32,44 @@ import org.springframework.core.ParameterizedTypeReference
 import java.lang.reflect.Type
 
 /**
+ * Exposes a raw JSON Schema for converters that can describe their target type.
+ *
+ * This is separate from [StructuredOutputConverter.getFormat], which is prompt
+ * text for LLMs. Native structured-output payloads need the schema itself.
+ */
+interface JsonSchemaProvider {
+    val jsonSchema: String
+}
+
+/**
+ * Controls whether generated JSON schemas are normalized from trusted type metadata.
+ */
+enum class RequiredFieldNormalization {
+    ENABLED,
+    DISABLED,
+}
+
+/**
  * A Kotlin version of [org.springframework.ai.converter.BeanOutputConverter] that allows for customization
  * of the used schema via [postProcessSchema]
  */
 open class JacksonOutputConverter<T> protected constructor(
     private val type: Type,
     val objectMapper: ObjectMapper,
-) : StructuredOutputConverter<T> {
+    private val requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+) : StructuredOutputConverter<T>, JsonSchemaProvider {
 
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
-    ) : this(clazz as Type, objectMapper)
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ) : this(clazz as Type, objectMapper, requiredFieldNormalization)
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
-    ) : this(typeReference.type, objectMapper)
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ) : this(typeReference.type, objectMapper, requiredFieldNormalization)
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -75,10 +96,13 @@ open class JacksonOutputConverter<T> protected constructor(
         }
     }
 
-    val jsonSchema: String by lazy {
+    override val jsonSchema: String by lazy {
         val config = schemaGeneratorConfigBuilder().build()
         val generator = SchemaGenerator(config)
         val jsonNode: JsonNode = generator.generateSchema(this.type)
+        if (requiredFieldNormalization == RequiredFieldNormalization.ENABLED) {
+            jsonNode.normalizeRequiredFields(this.type, this.objectMapper)
+        }
         postProcessSchema(jsonNode)
         val objectWriter = this.objectMapper.writer(
             DefaultPrettyPrinter()
@@ -112,11 +136,12 @@ open class JacksonOutputConverter<T> protected constructor(
     }
 
     /**
-     * Empty template method that allows for customization of the JSON schema in subclasses.
+     * Hook for subclasses to customize the generated JSON schema after the standard
+     * schema normalization has run.
+     *
      * @param jsonNode the JSON schema, in the form of a JSON node
      */
-    protected open fun postProcessSchema(jsonNode: JsonNode) {
-    }
+    protected open fun postProcessSchema(jsonNode: JsonNode) = Unit
 
     override fun convert(text: String): T? {
         val unwrapped = unwrapJson(text)

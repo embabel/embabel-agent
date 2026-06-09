@@ -25,11 +25,15 @@ import com.embabel.agent.api.validation.guardrails.UserInputGuardRail;
 import com.embabel.agent.autoconfigure.models.openai.AgentOpenAiAutoConfiguration;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.spi.LlmService;
+import com.embabel.common.ai.model.DefaultModelSelectionCriteria;
+import com.embabel.common.ai.model.LlmOptions;
+import com.embabel.common.ai.model.NativeStructuredOutputMode;
 import com.embabel.common.core.thinking.ThinkingBlock;
 import com.embabel.common.core.thinking.ThinkingResponse;
 import com.embabel.common.core.validation.ValidationError;
 import com.embabel.common.core.validation.ValidationResult;
 import com.embabel.common.core.validation.ValidationSeverity;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.moderations.ModerationCreateParams;
@@ -62,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static com.embabel.common.ai.model.NativeStructuredOutputModeKt.withNativeStructuredOutput;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -443,8 +448,10 @@ class LLMOpenAiGuardRailsIntegrationIT {
      * Simple data class for testing thinking object creation
      */
     static class MonthItem {
+        @JsonProperty(required = true)
         private String name;
 
+        @JsonProperty(required = true)
         private Integer temperature;
 
         public MonthItem() {
@@ -600,7 +607,7 @@ class LLMOpenAiGuardRailsIntegrationIT {
      * that previously skipped guardrail validation for non-String/non-AssistantMessage types.
      */
     @Test
-    void testGuardRailInvokedForStructuredCreateObject() {
+    void testGuardRailInvokedForNativeStructuredCreateObject() {
         logger.info("Starting guardrail structured createObject test");
 
         List<String> guardRailCalled = Collections.synchronizedList(new ArrayList<>());
@@ -629,7 +636,12 @@ class LLMOpenAiGuardRailsIntegrationIT {
             }
         };
 
-        PromptRunner runner = ai.withDefaultLlm()
+        PromptRunner runner = ai.withLlm(
+                withNativeStructuredOutput(
+                        LlmOptions.fromCriteria(DefaultModelSelectionCriteria.INSTANCE),
+                        NativeStructuredOutputMode.ENABLED
+                )
+        )
                 .withGuardRails(trackingGuard);
 
         String prompt = """
