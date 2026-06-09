@@ -100,6 +100,33 @@ class JacksonOutputConverterTest {
         }
 
         @Test
+        fun `can disable required field normalization`() {
+            val converter = JacksonOutputConverter(
+                KotlinRequiredParent::class.java,
+                objectMapper,
+                requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
+            )
+            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
+
+            assertThat(schema.requiredFieldNames()).isEmpty()
+            assertThat(schema.path("properties").path("child").requiredFieldNames()).isEmpty()
+        }
+
+        @Test
+        fun `filtering converter can disable required field normalization`() {
+            val converter = FilteringJacksonOutputConverter(
+                clazz = KotlinRequiredParent::class.java,
+                objectMapper = objectMapper,
+                fieldFilter = { true },
+                requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
+            )
+            val schema = jacksonObjectMapper().readTree(converter.jsonSchema)
+
+            assertThat(schema.requiredFieldNames()).isEmpty()
+            assertThat(schema.path("properties").path("child").requiredFieldNames()).isEmpty()
+        }
+
+        @Test
         fun `marks Java primitives and annotations as required while leaving plain references optional`() {
             val javaType = Class.forName("com.embabel.common.ai.converters.JavaStructuredOutputFixtures\$Parent")
                 as Class<Any>

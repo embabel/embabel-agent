@@ -42,23 +42,34 @@ interface JsonSchemaProvider {
 }
 
 /**
+ * Controls whether generated JSON schemas are normalized from trusted type metadata.
+ */
+enum class RequiredFieldNormalization {
+    ENABLED,
+    DISABLED,
+}
+
+/**
  * A Kotlin version of [org.springframework.ai.converter.BeanOutputConverter] that allows for customization
  * of the used schema via [postProcessSchema]
  */
 open class JacksonOutputConverter<T> protected constructor(
     private val type: Type,
     val objectMapper: ObjectMapper,
+    private val requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
 ) : StructuredOutputConverter<T>, JsonSchemaProvider {
 
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
-    ) : this(clazz as Type, objectMapper)
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ) : this(clazz as Type, objectMapper, requiredFieldNormalization)
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
-    ) : this(typeReference.type, objectMapper)
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ) : this(typeReference.type, objectMapper, requiredFieldNormalization)
 
     protected val logger: Logger = LoggerFactory.getLogger(javaClass)
 
@@ -89,6 +100,9 @@ open class JacksonOutputConverter<T> protected constructor(
         val config = schemaGeneratorConfigBuilder().build()
         val generator = SchemaGenerator(config)
         val jsonNode: JsonNode = generator.generateSchema(this.type)
+        if (requiredFieldNormalization == RequiredFieldNormalization.ENABLED) {
+            jsonNode.normalizeRequiredFields(this.type, this.objectMapper)
+        }
         postProcessSchema(jsonNode)
         val objectWriter = this.objectMapper.writer(
             DefaultPrettyPrinter()
@@ -122,16 +136,12 @@ open class JacksonOutputConverter<T> protected constructor(
     }
 
     /**
-     * Template method that allows for customization of the JSON schema in subclasses.
+     * Hook for subclasses to customize the generated JSON schema after the standard
+     * schema normalization has run.
      *
-     * The default implementation normalizes `required` from trusted type metadata
-     * so the generated schema stays aligned with Kotlin nullability, Java primitives,
-     * and explicit required annotations.
      * @param jsonNode the JSON schema, in the form of a JSON node
      */
-    protected open fun postProcessSchema(jsonNode: JsonNode) {
-        jsonNode.normalizeRequiredFields(this.type, this.objectMapper)
-    }
+    protected open fun postProcessSchema(jsonNode: JsonNode) = Unit
 
     override fun convert(text: String): T? {
         val unwrapped = unwrapJson(text)

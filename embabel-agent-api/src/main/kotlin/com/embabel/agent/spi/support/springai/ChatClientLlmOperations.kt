@@ -45,6 +45,7 @@ import com.embabel.agent.spi.validation.ValidationPromptGenerator
 import com.embabel.chat.Message
 import com.embabel.common.ai.converters.FilteringJacksonOutputConverter
 import com.embabel.common.ai.converters.JsonSchemaProvider
+import com.embabel.common.ai.converters.RequiredFieldNormalization
 import com.embabel.common.ai.model.LlmOptions
 import com.embabel.common.ai.model.ModelProvider
 import com.embabel.common.core.thinking.ThinkingException
@@ -231,6 +232,7 @@ internal class ChatClientLlmOperations(
             typeReference = typeReference,
             objectMapper = objectMapper,
             fieldFilter = interaction.fieldFilter,
+            requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
         )
         val springAiConverter = ExceptionWrappingConverter(
             expectedType = MaybeReturn::class.java,
@@ -459,6 +461,7 @@ internal class ChatClientLlmOperations(
                             typeReference = typeReference,
                             objectMapper = objectMapper,
                             fieldFilter = interaction.fieldFilter,
+                            requiredFieldNormalization = RequiredFieldNormalization.DISABLED,
                         )
                     ),
                     outputClass = outputClass as Class<MaybeReturn<*>>, // NOSONAR: Safe cast for MaybeReturn wrapper pattern

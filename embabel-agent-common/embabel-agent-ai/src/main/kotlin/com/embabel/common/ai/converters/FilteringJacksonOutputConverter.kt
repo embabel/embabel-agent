@@ -29,19 +29,22 @@ open class FilteringJacksonOutputConverter<T> internal constructor(
     type: Type,
     objectMapper: ObjectMapper,
     private val fieldFilter: Predicate<Field>,
-) : JacksonOutputConverter<T>(type, objectMapper) {
+    requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+) : JacksonOutputConverter<T>(type, objectMapper, requiredFieldNormalization) {
 
     constructor(
         clazz: Class<T>,
         objectMapper: ObjectMapper,
         fieldFilter: Predicate<Field>,
-    ) : this(clazz as Type, objectMapper, fieldFilter)
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ) : this(clazz as Type, objectMapper, fieldFilter, requiredFieldNormalization)
 
     constructor(
         typeReference: ParameterizedTypeReference<T>,
         objectMapper: ObjectMapper,
         fieldFilter: Predicate<Field>,
-    ) : this(typeReference.type, objectMapper, fieldFilter)
+        requiredFieldNormalization: RequiredFieldNormalization = RequiredFieldNormalization.ENABLED,
+    ) : this(typeReference.type, objectMapper, fieldFilter, requiredFieldNormalization)
 
     override fun schemaGeneratorConfigBuilder(): SchemaGeneratorConfigBuilder {
         val configBuilder = super.schemaGeneratorConfigBuilder()
