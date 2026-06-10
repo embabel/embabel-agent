@@ -24,7 +24,7 @@ import org.springframework.shell.jline.PromptProvider
  */
 internal class DefaultPromptProvider : PromptProvider {
     override fun getPrompt() = AttributedString(
-        "embabel> ",
+        "Type /help for available commands.\nembabel> ",
         AttributedStyle.DEFAULT.foreground(AttributedStyle.YELLOW)
     )
 }

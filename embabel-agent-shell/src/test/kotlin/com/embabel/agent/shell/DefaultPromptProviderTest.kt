@@ -65,7 +65,7 @@ class DefaultPromptProviderTest {
         val prompt = provider.getPrompt()
 
         // Assert
-        assertEquals("embabel> ", prompt.toString())
+        assertEquals("Type /help for available commands.\nembabel> ", prompt.toString())
     }
 
     @Test
