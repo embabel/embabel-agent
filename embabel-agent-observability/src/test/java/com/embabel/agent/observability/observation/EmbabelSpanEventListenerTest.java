@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -191,8 +192,10 @@ class EmbabelSpanEventListenerTest {
             listener().onProcessEvent(llmEvent());
 
             Map<String, String> kv = kvOf("embabel.llm.invocation");
-            assertEquals("chat", kv.get("gen_ai.operation.name"));
-            assertEquals("gpt-4o", kv.get("gen_ai.request.model"));
+            // Not a GenAI "generation": no gen_ai.operation.name, so exporters don't double-count
+            // this call against the Spring AI ChatModel generation span. Model moves to embabel.llm.model.
+            assertNull(kv.get("gen_ai.operation.name"));
+            assertEquals("gpt-4o", kv.get("embabel.llm.model"));
             assertEquals("10", kv.get("gen_ai.usage.input_tokens"));
             assertEquals("20", kv.get("gen_ai.usage.output_tokens"));
             assertEquals("30", kv.get("gen_ai.usage.total_tokens"));
@@ -244,9 +247,31 @@ class EmbabelSpanEventListenerTest {
             Map<String, String> kv = kvOf("embabel.planning");
             assertEquals("planning", kv.get("gen_ai.operation.name"));
             assertEquals("done", kv.get("embabel.plan.goal"));
+            assertEquals("done", kv.get("embabel.plan.goal_short"));
             assertEquals("0", kv.get("embabel.plan.action_count"));
             assertEquals("false", kv.get("embabel.plan.is_replanning"));
             assertEquals("1", kv.get("embabel.plan.iteration"));
+        }
+
+        @Test
+        @DisplayName("fully-qualified goal keeps the full name and exposes a readable short_name")
+        void planningGoalShortName() {
+            Goal goal = mock(Goal.class);
+            lenient().when(goal.getName()).thenReturn("com.quantplsar.agent.compareResults");
+            Plan plan = mock(Plan.class);
+            lenient().when(plan.getGoal()).thenReturn(goal);
+            lenient().when(plan.getActions()).thenReturn(List.of());
+            AgentProcess process = mock(AgentProcess.class);
+            lenient().when(process.getId()).thenReturn("run-1");
+            AgentProcessPlanFormulatedEvent event = mock(AgentProcessPlanFormulatedEvent.class);
+            lenient().when(event.getPlan()).thenReturn(plan);
+            lenient().when(event.getAgentProcess()).thenReturn(process);
+
+            listener().onProcessEvent(event);
+
+            Map<String, String> kv = kvOf("embabel.planning");
+            assertEquals("com.quantplsar.agent.compareResults", kv.get("embabel.plan.goal"));
+            assertEquals("compareResults", kv.get("embabel.plan.goal_short"));
         }
 
         @Test

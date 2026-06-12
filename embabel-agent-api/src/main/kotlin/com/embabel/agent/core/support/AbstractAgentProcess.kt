@@ -330,7 +330,6 @@ abstract class AbstractAgentProcess(
         }
         return Observations.observeOrSkip(
             platformServices.observationRegistry,
-            "embabel.agent",
             { AgentObservationContext(this) },
         ) { executeTurn() }
     }
@@ -517,12 +516,17 @@ abstract class AbstractAgentProcess(
     /**
      * Execute an action
      */
-    protected fun executeAction(action: Action): ActionStatus =
-        Observations.observeOrSkip(
+    protected fun executeAction(action: Action): ActionStatus {
+        val observationContext = ActionObservationContext(this, action)
+        return Observations.observeOrSkip(
             platformServices.observationRegistry,
-            "embabel.action",
-            { ActionObservationContext(this, action) },
-        ) { doExecuteAction(action) }
+            { observationContext },
+        ) {
+            val actionStatus = doExecuteAction(action)
+            observationContext.statusCode = actionStatus.status
+            actionStatus
+        }
+    }
 
     private fun doExecuteAction(action: Action): ActionStatus {
         val outputTypes: Map<String, DomainType> =

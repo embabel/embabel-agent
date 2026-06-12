@@ -24,6 +24,9 @@ import org.jetbrains.annotations.ApiStatus
  * Thin context for the `embabel.tool_loop` span: wraps the [ToolLoopStartEvent] and the
  * [inputMessages] (the prompt, captured at start). [output] is set after the loop runs and read by
  * the convention at stop — the only mutable field, since the result is not on the start event.
+ *
+ * No cross-thread synchronization is needed: `observe{}` is synchronous, so [output] is written and
+ * then read (by the convention at stop) on the same thread, with a happens-before from program order.
  */
 @ApiStatus.Internal
 class ToolLoopObservationContext(
@@ -31,6 +34,5 @@ class ToolLoopObservationContext(
     val inputMessages: List<Message>,
 ) : Observation.Context() {
 
-    @Volatile
     var output: Any? = null
 }

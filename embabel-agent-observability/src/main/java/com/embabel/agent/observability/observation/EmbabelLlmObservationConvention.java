@@ -41,7 +41,8 @@ public class EmbabelLlmObservationConvention
 
     @Override
     public String getContextualName(LlmObservationContext context) {
-        return context.getRequestEvent().getLlmMetadata().getName();
+        // OpenTelemetry GenAI semantic convention: span name = "{operation} {model}".
+        return "chat " + context.getRequestEvent().getLlmMetadata().getName();
     }
 
     @Override

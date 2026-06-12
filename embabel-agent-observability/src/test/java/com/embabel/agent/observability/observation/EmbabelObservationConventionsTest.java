@@ -24,6 +24,7 @@ import com.embabel.agent.api.event.observation.LlmObservationContext;
 import com.embabel.agent.api.event.observation.ToolLoopObservationContext;
 import com.embabel.agent.api.identity.User;
 import com.embabel.agent.core.Agent;
+import com.embabel.agent.core.ActionStatusCode;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.ProcessOptions;
@@ -213,6 +214,25 @@ class EmbabelObservationConventionsTest {
             assertEquals("TestAgent", kv.get("embabel.agent.name"));
             assertEquals("run-1", kv.get("embabel.run.id"));
             assertFalse(kv.containsKey("embabel.action.result"));
+            assertFalse(kv.containsKey("embabel.action.status"), "no status tag before the action completes");
+        }
+
+        @Test
+        @DisplayName("records the action status code once the action has completed")
+        void recordsActionStatus() {
+            AgentProcess process = mock(AgentProcess.class, RETURNS_DEEP_STUBS);
+            lenient().when(process.getAgent().getName()).thenReturn("TestAgent");
+            lenient().when(process.getId()).thenReturn("run-1");
+            lenient().when(process.lastResult()).thenReturn(null);
+            Action action = mock(Action.class);
+            when(action.getName()).thenReturn("MyAction");
+
+            ActionObservationContext ctx = new ActionObservationContext(process, action);
+            ctx.setStatusCode(ActionStatusCode.FAILED);
+            Map<String, String> kv = allKeyValues(
+                    observe(new EmbabelActionObservationConvention(4000), ctx, "embabel.action"));
+
+            assertEquals("FAILED", kv.get("embabel.action.status"));
         }
 
         @Test

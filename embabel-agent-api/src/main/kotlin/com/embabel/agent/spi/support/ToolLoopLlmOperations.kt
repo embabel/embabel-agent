@@ -152,7 +152,6 @@ open class ToolLoopLlmOperations(
         }
         return Observations.observeOrSkip(
             observationRegistry,
-            "embabel.llm",
             { LlmObservationContext(llmRequestEvent) },
         ) { doTransformInner(messages, interaction, outputClass, llmRequestEvent) }
     }
@@ -226,7 +225,7 @@ open class ToolLoopLlmOperations(
             executeLoop()
         } else {
             val toolLoopContext = ToolLoopObservationContext(toolLoopStartEvent, initialMessages)
-            Observations.observeOrSkip(observationRegistry, "embabel.tool_loop", { toolLoopContext }) {
+            Observations.observeOrSkip(observationRegistry, { toolLoopContext }) {
                 val loopResult = executeLoop()
                 toolLoopContext.output = loopResult
                 loopResult

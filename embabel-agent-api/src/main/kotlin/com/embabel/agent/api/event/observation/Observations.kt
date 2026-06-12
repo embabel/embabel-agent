@@ -27,20 +27,38 @@ import java.util.function.Supplier
 object Observations {
 
     /**
-     * Run [work] inside an `observe{}` span named [name], or run it directly with no observation
-     * overhead when [registry] is a no-op. The span always closes — and is errored if [work]
-     * throws — because [Observation.observe] owns the scope, so no scope can leak.
+     * Neutral name handed to [Observation.createNotStarted]. The semantic span name is owned by the
+     * registered [io.micrometer.observation.ObservationConvention] (in the observability module),
+     * whose `getName()` overrides this at span start — so the core never hard-codes a telemetry
+     * name. This placeholder is only ever visible in the rare fallback where a real (non-no-op)
+     * registry is present without the embabel conventions.
+     */
+    const val PLACEHOLDER_NAME = "embabel.operation"
+
+    /**
+     * Run [work] inside an `observe{}` span carrying [context], or run it directly with no
+     * observation overhead when [registry] is a no-op. The span always closes — and is errored if
+     * [work] throws — because [Observation.observe] owns the scope, so no scope can leak.
+     *
+     * The span name is not supplied here: the registered convention names it from [context] (see
+     * [PLACEHOLDER_NAME]).
+     *
+     * Returns exactly what [work] returns, including `null`: [Observation.observe] is a transparent
+     * wrapper that hands back `work()`'s own value, so this helper is safe for both nullable and
+     * non-null [T]. The unchecked cast (rather than a `!!`) preserves a legitimate null result
+     * instead of crashing on it.
      */
     @JvmStatic
     fun <T> observeOrSkip(
         registry: ObservationRegistry,
-        name: String,
         context: () -> Observation.Context,
         work: () -> T,
     ): T =
         if (registry.isNoop) {
             work()
         } else {
-            Observation.createNotStarted(name, Supplier { context() }, registry).observe(Supplier { work() })!!
+            @Suppress("UNCHECKED_CAST")
+            Observation.createNotStarted(PLACEHOLDER_NAME, Supplier { context() }, registry)
+                .observe(Supplier { work() }) as T
         }
 }

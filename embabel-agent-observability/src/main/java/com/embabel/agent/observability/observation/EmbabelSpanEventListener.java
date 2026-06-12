@@ -163,11 +163,15 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
 
     private void recordLlmInvocation(LlmInvocationEvent event) {
         LlmInvocation invocation = event.getInvocation();
+        // Deliberately NOT a GenAI "generation": the Spring AI ChatModel span already carries the
+        // gen_ai.operation.name and is the billable generation (prompt/completion + usage). Emitting
+        // gen_ai.operation.name here too would make exporters (e.g. Langfuse) count the same call as
+        // two generations. We keep this span as a plain cost/usage record (model + tokens + cost still
+        // visible) without re-triggering the generation classification.
         Observation observation = Observation.createNotStarted("embabel.llm.invocation", registry)
                 .parentObservation(registry.getCurrentObservation())
-                .contextualName(invocation.getLlmMetadata().getName())
-                .lowCardinalityKeyValue("gen_ai.operation.name", "chat")
-                .lowCardinalityKeyValue("gen_ai.request.model", invocation.getLlmMetadata().getName())
+                .contextualName("llm.invocation " + invocation.getLlmMetadata().getName())
+                .lowCardinalityKeyValue("embabel.llm.model", invocation.getLlmMetadata().getName())
                 .highCardinalityKeyValue("embabel.interaction.id", event.getInteractionId());
         addUsageAndCost(observation, invocation.getUsage(), invocation.cost());
         emit(observation);
@@ -177,7 +181,7 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
         EmbeddingInvocation invocation = event.getInvocation();
         Observation observation = Observation.createNotStarted("embabel.embedding", registry)
                 .parentObservation(registry.getCurrentObservation())
-                .contextualName(invocation.getEmbeddingMetadata().getName())
+                .contextualName("embeddings " + invocation.getEmbeddingMetadata().getName())
                 .lowCardinalityKeyValue("gen_ai.operation.name", "embeddings")
                 .lowCardinalityKeyValue("gen_ai.request.model", invocation.getEmbeddingMetadata().getName())
                 .highCardinalityKeyValue("embabel.interaction.id", event.getInteractionId());
@@ -187,11 +191,14 @@ public class EmbabelSpanEventListener implements AgenticEventListener {
 
     private void recordPlanning(AgentProcessPlanFormulatedEvent event) {
         int iteration = planIterations.merge(event.getAgentProcess().getId(), 1, Integer::sum);
+        String goalName = event.getPlan().getGoal().getName();
+        String goalShort = ObservationUtils.shortName(goalName);
         Observation observation = Observation.createNotStarted("embabel.planning", registry)
                 .parentObservation(registry.getCurrentObservation())
-                .contextualName("planning")
+                .contextualName("planning: " + goalShort)
                 .lowCardinalityKeyValue("gen_ai.operation.name", "planning")
-                .lowCardinalityKeyValue("embabel.plan.goal", event.getPlan().getGoal().getName())
+                .lowCardinalityKeyValue("embabel.plan.goal", goalName)
+                .lowCardinalityKeyValue("embabel.plan.goal_short", goalShort)
                 .lowCardinalityKeyValue("embabel.plan.is_replanning", String.valueOf(iteration > 1))
                 .highCardinalityKeyValue("embabel.plan.iteration", String.valueOf(iteration))
                 .highCardinalityKeyValue("embabel.plan.action_count",

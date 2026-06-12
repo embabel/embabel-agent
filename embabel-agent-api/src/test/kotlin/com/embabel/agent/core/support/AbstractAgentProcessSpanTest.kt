@@ -19,14 +19,17 @@ import com.embabel.agent.api.common.PlatformServices
 import com.embabel.agent.api.dsl.evenMoreEvilWizard
 import com.embabel.agent.api.event.observation.ActionObservationContext
 import com.embabel.agent.api.event.observation.AgentObservationContext
+import com.embabel.agent.core.Agent
 import com.embabel.agent.domain.io.UserInput
 import com.embabel.agent.test.integration.IntegrationTestUtils
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationHandler
 import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -76,6 +79,53 @@ class AbstractAgentProcessSpanTest {
                 "action ${a.action.name} should nest under the turn span",
             )
         }
+    }
+
+    @Test
+    fun `action spans carry the resulting status code, captured after execution`() {
+        val registry = ObservationRegistry.create()
+        val handler = RecordingHandler()
+        registry.observationConfig().observationHandler(handler)
+
+        val process = IntegrationTestUtils.dummyAgentProcessRunning(
+            evenMoreEvilWizard(),
+            servicesWith(registry),
+        )
+        process += UserInput("Rod")
+        process.run()
+
+        val actions = handler.stopped.filterIsInstance<ActionObservationContext>()
+        assertTrue(actions.isNotEmpty(), "expected at least one action span")
+        actions.forEach { a ->
+            assertNotNull(
+                a.statusCode,
+                "action ${a.action.name} must carry its result status by stop time",
+            )
+        }
+    }
+
+    @Test
+    fun `a turn that throws still closes its span and marks it errored`() {
+        val registry = ObservationRegistry.create()
+        val handler = RecordingHandler()
+        registry.observationConfig().observationHandler(handler)
+
+        // A GOAP process with no goals throws in executeTurn; the throw must propagate through
+        // observe{}, which closes the span and errors it (the anti-scope-leak guarantee).
+        val goalless = Agent(
+            name = "goalless",
+            provider = "test",
+            description = "agent with no goals",
+            actions = emptyList(),
+            goals = emptySet(),
+        )
+        val process = IntegrationTestUtils.dummyAgentProcessRunning(goalless, servicesWith(registry))
+
+        assertThrows<IllegalStateException> { process.run() }
+
+        val turns = handler.stopped.filterIsInstance<AgentObservationContext>()
+        assertEquals(1, turns.size, "the failed turn must still close exactly one span")
+        assertNotNull(turns.single().error, "a turn that throws must mark its span errored")
     }
 
     @Test

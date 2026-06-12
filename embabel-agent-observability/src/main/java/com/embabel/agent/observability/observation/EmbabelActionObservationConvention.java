@@ -52,11 +52,17 @@ public class EmbabelActionObservationConvention
     @Override
     public KeyValues getLowCardinalityKeyValues(ActionObservationContext context) {
         String name = context.getAction().getName();
-        return KeyValues.of(
+        KeyValues kv = KeyValues.of(
                 "gen_ai.operation.name", "action",
                 "embabel.action.name", name,
                 "embabel.action.short_name", ObservationUtils.shortName(name),
                 "embabel.agent.name", context.getProcess().getAgent().getName());
+        // Status is known only once the action has run (set on the context before stop). A failed
+        // status is recorded as a tag only — the span is errored solely when the work throws.
+        if (context.getStatusCode() != null) {
+            kv = kv.and("embabel.action.status", context.getStatusCode().name());
+        }
+        return kv;
     }
 
     @Override
