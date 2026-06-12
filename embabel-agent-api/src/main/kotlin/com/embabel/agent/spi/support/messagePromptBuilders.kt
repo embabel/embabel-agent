@@ -27,6 +27,11 @@ internal const val PROMPT_ELEMENT_SEPARATOR = "\n----\n"
 /**
  * Builds a prompt contributions string from prompt contributors.
  *
+ * Contributors whose [PromptContributor.contribution] is blank are dropped before
+ * joining, so a conditional contributor (e.g. one that returns "" when it has
+ * nothing relevant to say this turn) does not leave a dangling
+ * `$PROMPT_ELEMENT_SEPARATOR` artifact between two real elements.
+ *
  * @param interactionContributors Contributors from the LlmInteraction
  * @param llmContributors Contributors from the LlmService
  * @return Consolidated prompt contributions string
@@ -35,7 +40,9 @@ internal fun buildPromptContributionsString(
     interactionContributors: List<PromptContributor>,
     llmContributors: List<PromptContributor>,
 ): String = (interactionContributors + llmContributors)
-    .joinToString(PROMPT_ELEMENT_SEPARATOR) { it.contribution() }
+    .map { it.contribution() }
+    .filter { it.isNotBlank() }
+    .joinToString(PROMPT_ELEMENT_SEPARATOR)
 
 /**
  * Partitions messages into system message content and non-system messages.
