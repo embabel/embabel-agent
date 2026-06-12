@@ -107,6 +107,19 @@ class TierFilterSpanTreeTest {
                         Observation.createNotStarted("embabel.embedding", registry).observe((Supplier<Object>) () -> null)));
     }
 
+    /** Nests observations in the given order (outermost first) and runs an empty innermost body. */
+    private void observeNested(String... names) {
+        observeFrom(names, 0);
+    }
+
+    private Object observeFrom(String[] names, int index) {
+        if (index == names.length) {
+            return null;
+        }
+        return Observation.createNotStarted(names[index], registry)
+                .observe((Supplier<Object>) () -> observeFrom(names, index + 1));
+    }
+
     @Test
     @DisplayName("trace-tool-loop=false: no tool_loop span, embedding nests directly under the llm span")
     void suppressedToolLoopReParentsChildSpan() {
@@ -147,5 +160,95 @@ class TierFilterSpanTreeTest {
         assertThat(toolLoop.getParentSpanId()).as("tool_loop nests under llm").isEqualTo(llm.getSpanId());
         assertThat(embedding.getParentSpanId()).as("embedding nests under tool_loop").isEqualTo(toolLoop.getSpanId());
         assertThat(spans).extracting(SpanData::getTraceId).containsOnly(llm.getTraceId());
+    }
+
+    @Test
+    @DisplayName("suppressed tier at the root: its child becomes the new root span")
+    void suppressedRootTierLeavesChildAsRoot() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setTraceToolLoop(false);
+        applyFilter(properties);
+
+        // tool_loop is the outermost observation; dropping it leaves embedding with no live ancestor.
+        observeNested("embabel.tool_loop", "embabel.embedding");
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).extracting(SpanData::getName).containsExactly("embabel.embedding");
+        assertThat(span(spans, "embabel.embedding").getParentSpanId())
+                .as("with its only ancestor suppressed, embedding becomes the root span")
+                .isEqualTo(SpanId.getInvalid());
+    }
+
+    @Test
+    @DisplayName("two consecutive suppressed tiers: child re-parents across both to the live ancestor")
+    void twoConsecutiveSuppressedTiersReParentTransitively() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        // action (via disabled-traces) and tool_loop (via the flag) are both dropped, back to back.
+        properties.setDisabledTraces(List.of("embabel.action"));
+        properties.setTraceToolLoop(false);
+        applyFilter(properties);
+
+        observeNested("embabel.agent", "embabel.action", "embabel.tool_loop", "embabel.embedding");
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).extracting(SpanData::getName)
+                .containsExactlyInAnyOrder("embabel.agent", "embabel.embedding");
+
+        SpanData agent = span(spans, "embabel.agent");
+        SpanData embedding = span(spans, "embabel.embedding");
+        assertThat(agent.getParentSpanId()).as("agent is the root span").isEqualTo(SpanId.getInvalid());
+        assertThat(embedding.getParentSpanId())
+                .as("embedding re-parents across both suppressed tiers to the agent span")
+                .isEqualTo(agent.getSpanId());
+        assertThat(embedding.getTraceId()).isEqualTo(agent.getTraceId());
+    }
+
+    @Test
+    @DisplayName("disabled-traces drops the named span; its child re-parents to the live ancestor")
+    void disabledTracesDropsNamedSpan() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setDisabledTraces(List.of("embabel.tool_loop"));
+        applyFilter(properties);
+
+        observeNested("embabel.llm", "embabel.tool_loop", "embabel.embedding");
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).extracting(SpanData::getName)
+                .containsExactlyInAnyOrder("embabel.llm", "embabel.embedding");
+        assertThat(span(spans, "embabel.embedding").getParentSpanId())
+                .as("embedding re-parents to the live llm span, skipping the disabled tool_loop")
+                .isEqualTo(span(spans, "embabel.llm").getSpanId());
+    }
+
+    @Test
+    @DisplayName("Spring AI 'tool call' span is always dropped; its child re-parents to the live ancestor")
+    void springAiToolCallSpanAlwaysDropped() {
+        // No flag needed: the predicate drops "tool call" unconditionally, even at defaults.
+        applyFilter(new ObservabilityProperties());
+
+        observeNested("embabel.llm", "tool call", "embabel.embedding");
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).extracting(SpanData::getName)
+                .containsExactlyInAnyOrder("embabel.llm", "embabel.embedding");
+        assertThat(span(spans, "embabel.embedding").getParentSpanId())
+                .as("embedding re-parents to llm, skipping the always-dropped Spring AI tool call span")
+                .isEqualTo(span(spans, "embabel.llm").getSpanId());
+    }
+
+    @Test
+    @DisplayName("suppressing a leaf tier leaves the parent span intact and exported")
+    void suppressedLeafTierLeavesParentIntact() {
+        ObservabilityProperties properties = new ObservabilityProperties();
+        properties.setDisabledTraces(List.of("embabel.embedding"));
+        applyFilter(properties);
+
+        observeNested("embabel.llm", "embabel.embedding");
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).extracting(SpanData::getName).containsExactly("embabel.llm");
+        assertThat(span(spans, "embabel.llm").getParentSpanId())
+                .as("llm remains the root span when its only child is suppressed")
+                .isEqualTo(SpanId.getInvalid());
     }
 }

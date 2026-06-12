@@ -1,7 +1,7 @@
 # Embabel Agent Observability
 
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.9-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.12-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-2.17.0-blue.svg)](https://opentelemetry.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -301,7 +301,8 @@ reconstructing relationships out of a decoupled event stream.
 Short-lived **point events** (LLM/embedding invocations, tool calls, planning, replan, tool-loop
 completion, RAG, ranking, state transitions, lifecycle, goal, dynamic agent creation) hold no scope,
 so they are emitted as instantaneous spans by a small event-driven listener
-(`EmbabelSpanEventListener`), nested under the current observation.
+(`EmbabelSpanEventListener`), nested under the current observation — or as **root spans** when there
+is none (standalone embeddings made outside an agent process, and ranking).
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -344,7 +345,8 @@ so they are emitted as instantaneous spans by a small event-driven listener
   `DefaultTracingObservationHandler` turns them into OpenTelemetry spans (no custom handler).
 - Span attributes live in this module as `GlobalObservationConvention`s; the core carries only thin
   context wrappers + span names, so it has **no dependency on this module** and runs without it.
-- Point events become instantaneous child spans via `EmbabelSpanEventListener`.
+- Point events become instantaneous spans via `EmbabelSpanEventListener` — children of the current
+  observation, or root spans when there is none (standalone embeddings, ranking).
 - Correct parent-child hierarchy even under parallelism, via context propagation — no event-stream
   reconstruction, no held scopes between events.
 - Business metrics are event-driven and **independent** of tracing (`metrics-enabled`).
@@ -588,7 +590,7 @@ embabel:
 
 | Phase | Version | Features |
 |-------|---------|----------|
-| **Current** | v0.3.x | Agent, Action, Tool, LLM, Tool Loop, Planning, State, RAG, Ranking, Dynamic Agent Creation tracing. Business metrics, MDC propagation, `@Tracked` annotation, ChatModel filter, GenAI semantic conventions. |
+| **Current** | v0.5.x | Agent, Action, Tool, LLM, Embedding (in-agent + standalone), Tool Loop, Planning, State, RAG, Ranking, Dynamic Agent Creation tracing. Session/user grouping, business metrics, MDC propagation, `@Tracked` annotation, ChatModel filter, GenAI semantic conventions. |
 | **Long Term** | v1.0.x | Pre-built Grafana dashboards, alerting, cost analytics |
 
 ---
@@ -597,7 +599,7 @@ embabel:
 
 - Java 21+
 - Spring Boot 3.5+
-- Embabel Agent 0.3.3+
+- Embabel Agent 0.5.0+
 
 ---
 
